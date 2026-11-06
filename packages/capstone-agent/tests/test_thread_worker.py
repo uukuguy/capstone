@@ -62,6 +62,54 @@ def test_worker_closes_prepared_runtime_if_research_recovery_cannot_be_verified(
     assert result.answer
 
 
+def test_local_context_preparation_does_not_emit_fake_llm_understanding_events() -> None:
+    from capstone_agent.turn_router import TurnPlan
+    service = _service()
+    _submit(service)
+
+    class Factory:
+        def intent_stage_label(self, claim):
+            return None
+
+        def plan_intent(self, claim, control, freeze):
+            return TurnPlan(claim.attempt.turn_id, claim.attempt.attempt_id,
+                            'ordinary', 'native_conversation', 'local-context-v1', None, {})
+
+        def __call__(self, claim):
+            return _Runtime()
+
+    result = run_pending_attempt(service, Factory(), worker_id='direct-context')
+    assert result.status == 'completed'
+    events = service.read_events('thr_worker', 0).events
+    assert any(event.event_type == 'turn_plan_created' for event in events)
+    assert not any(event.event_type == 'intent_started' for event in events)
+    assert not any(event.event_type == 'runtime_action' and
+                   event.payload.get('response_intent') == '理解当前指令' for event in events)
+
+
+def test_understanding_timeout_names_the_deadline_and_does_not_start_execution() -> None:
+    service = _service()
+    _submit(service)
+
+    class Factory:
+        def plan_intent(self, claim, control, freeze, freeze_decision=None):
+            raise TimeoutError('intent recognition deadline expired')
+
+        def __call__(self, claim):
+            raise AssertionError('execution must not start')
+
+    result = run_pending_attempt(service, Factory(), worker_id='understanding-timeout')
+    assert result.status == 'failed'
+    assert result.error_code == 'intent_deadline_exceeded'
+    assert result.answer is not None
+    assert result.answer.startswith('理解当前指令超时。120 秒内没有形成可执行的决策')
+    assert '运行准备未完成' not in result.answer
+    failed = service.read_events('thr_worker', 0).events[-1]
+    assert failed.event_type == 'attempt_failed'
+    assert failed.payload['error_code'] == 'intent_deadline_exceeded'
+    assert failed.payload['answer'] == result.answer
+
+
 def test_run_pending_attempt_claims_and_executes_without_http_affinity() -> None:
     service = _service()
     _submit(service)

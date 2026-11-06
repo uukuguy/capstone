@@ -75,6 +75,52 @@ def _resolve_available_families(source: FamilyAvailability) -> frozenset[str] | 
     ):
         raise ValueError("available implementation families are invalid")
     return families
+
+
+def _family_owns_attempt(implementation_family: str | None, context, submission) -> bool:
+    """A no-model attempt stays native until a domain handoff names one family."""
+    if implementation_family is None:
+        return True
+    if context is not None:
+        return getattr(context, 'implementation_family', None) == implementation_family
+    domain = submission.get('_domain_execution') if isinstance(submission, Mapping) else None
+    if isinstance(domain, Mapping) and isinstance(domain.get('implementation_family'), str):
+        return domain['implementation_family'] == implementation_family
+    return implementation_family == 'native'
+
+
+def _published_application_catalog(service) -> dict | None:
+    """Public catalog projection stored with a no-model submission."""
+    catalog = getattr(service, '_catalog_context', None)
+    if catalog is None and (getattr(service, '_model_catalog', None) is not None
+                            or getattr(service, '_capability_catalog', None) is not None):
+        catalog = _thread_catalog_document(
+            service._model_catalog, service._capability_catalog,
+            _resolve_available_families(service._available_families))
+    if not isinstance(catalog, Mapping):
+        return None
+    document = json.loads(_canonical(catalog))
+    try:
+        _validate_bounded_json(document, name='attempt.application_catalog', maximum=limits.control_document_bytes)
+    except ThreadProtocolError:
+        return None
+    return document
+
+
+def _claim_application_catalog(service, context, submission):
+    """Service catalog first. A no-model claim can fall back to the submission copy."""
+    if service._catalog_context is not None:
+        return service._catalog_context
+    if context is None and isinstance(submission, Mapping):
+        saved = submission.get('_application_catalog')
+        if isinstance(saved, Mapping):
+            return saved
+        return None
+    if context is not None and service._model_catalog is not None:
+        return _thread_catalog_document(service._model_catalog, service._capability_catalog)
+    return None
+
+
 _MAX_COMMAND_BYTES = limits.command_bytes
 _MAX_EVENT_BYTES = limits.event_bytes
 _COMMAND_FIELDS = frozenset({
@@ -384,6 +430,8 @@ class ThreadProtocolUpgradeRequired(RuntimeError):
 
 
 class ThreadService(Protocol):
+    def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
+                               workspace_name: str) -> None: ...
     def read_thread_gateway(self, thread_id) -> dict | None: ...
     def submit_gateway_command(self, command, publication) -> CommandReceipt: ...
     def set_material_store(self, objects) -> None: ...
@@ -730,7 +778,10 @@ class ThreadExecutionService(ThreadService, Protocol):
 
     def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None: ...
 
-    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]: ...
+    def release_attempt_for_domain(self, claim: AttemptClaim, implementation_family: str,
+                                   execution: Mapping[str, object] | None = None) -> None: ...
+
+    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any] | None = None) -> dict[str, Any] | None: ...
 
     def freeze_attempt_decision(self, claim: AttemptClaim, document: Mapping[str, Any] | None) -> dict[str, Any] | None: ...
 
@@ -1474,12 +1525,18 @@ class InMemoryThreadService(NativeExecutionOwner):
                     updated.thread_id, event_seq - 1)
                 if updated.active_model_context is None:
                     assert self._native_binding is not None
+                if updated.active_model_context is None:
+                    stored_submission = {**(submission or {}), '_native_execution': binding_for_session(native_binding, updated.session_type)}
+                    published = _published_application_catalog(self)
+                    if published is not None:
+                        stored_submission['_application_catalog'] = published
+                else:
+                    stored_submission = freeze_activated_submission(submission, updated.professional_context)
                 self._attempts[attempt.attempt_id] = {
                     'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
                     'lease_token': None, 'lease_deadline': None, 'model_context': updated.active_model_context,
                     'command_id': parsed['command_id'], 'conversation_context': conversation,
-                    'submission': ({**(submission or {}), '_native_execution': binding_for_session(native_binding, updated.session_type)}
-                        if updated.active_model_context is None else freeze_activated_submission(submission, updated.professional_context)),
+                    'submission': stored_submission,
                     'source_attempt_id': previous_id, 'task_context': task_context}
                 accepted = self._append_event(event_type='command_accepted', attempt=attempt, payload={
                     'command_id': parsed['command_id'], 'kind': 'send_auto',
@@ -1497,6 +1554,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                              'work_id': work['work_id'], 'work': project_work(updated, work)})
                 self._snapshot = replace(self._snapshot, last_event_seq=requested.event_seq)
                 target.update(turn_id=current.turn_id, attempt_id=current.attempt_id)
+                self._cancel_waiting_attempt(current)
         receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
             rejection=rejection, accepted_event_seq=event_seq, target=target)
         self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
@@ -1639,6 +1697,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     )
                     self._snapshot = replace(self._snapshot, last_event_seq=requested.event_seq)
                     self._cancel_requests.add(target)
+                    self._cancel_waiting_attempt(current)
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
@@ -1955,6 +2014,15 @@ class InMemoryThreadService(NativeExecutionOwner):
             self._command_ids.add(parsed["command_id"])
             return receipt
 
+    def has_pending_attempts(self, implementation_family: str | None = None) -> bool:
+        """Read admission state without taking a claim or a thread-row lock."""
+        if implementation_family is not None and not _IDENTIFIER.fullmatch(implementation_family):
+            raise ValueError('implementation family is invalid')
+        with self._lock:
+            return any(record['attempt'].phase == 'accepted' and record['lease_token'] is None
+                and _family_owns_attempt(implementation_family, record.get('model_context'), record.get('submission'))
+                for record in self._attempts.values())
+
     def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None:
         if not worker_id or lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -1965,9 +2033,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 if record["attempt"].phase != "accepted" or record["lease_token"] is not None:
                     continue
                 context = record.get("model_context")
-                if implementation_family is not None and (
-                    (context is None and implementation_family != 'native')
-                    or (context is not None and context.implementation_family != implementation_family)):
+                if not _family_owns_attempt(implementation_family, context, record.get('submission')):
                     continue
                 if context != self._snapshot.active_model_context:
                     terminal = replace(record["attempt"], phase="interrupted")
@@ -1986,11 +2052,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     return None
                 # Catalog preparation can open Authority metadata. Complete it
                 # before the claim starts its finite execution lease.
-                application_catalog = self._catalog_context
-                if context is not None and application_catalog is None and self._model_catalog is not None:
-                    application_catalog = _thread_catalog_document(
-                        self._model_catalog, self._capability_catalog,
-                    )
+                application_catalog = _claim_application_catalog(self, context, record.get('submission'))
                 token = secrets.token_hex(16)
                 accepted = record["attempt"]
                 running = replace(accepted, phase="running")
@@ -2034,14 +2096,43 @@ class InMemoryThreadService(NativeExecutionOwner):
                 )
             return None
 
-    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]:
-        """Save recognition input once; retries retain its source and config identity."""
-        _validate_bounded_json(document, name="attempt.intent_input", maximum=limits.control_document_bytes)
+    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+        """Save recognition input once; retries retain its source and config identity.
+
+        A missing document reads the saved snapshot and does not create one.
+        """
+        if document is not None:
+            _validate_bounded_json(document, name="attempt.intent_input", maximum=limits.control_document_bytes)
         with self._lock:
             record = self._require_claim(claim)
             if record.get("intent_input_snapshot") is None:
+                if document is None:
+                    return None
                 record["intent_input_snapshot"] = json.loads(_canonical(document))
             return json.loads(_canonical(record["intent_input_snapshot"]))
+
+    def release_attempt_for_domain(self, claim: AttemptClaim, implementation_family: str,
+                                   execution: Mapping[str, object] | None = None) -> None:
+        """Return a recognized attempt to the family that can run its domain goal."""
+        from .domain_node_report import domain_execution_record
+        family = _identifier(implementation_family, name='implementation_family')
+        handoff = domain_execution_record(family, execution)
+        with self._lock:
+            record = self._require_claim(claim)
+            if record['attempt'].phase != 'running':
+                raise ThreadExecutionError('attempt is not running')
+            event = self._append_event(
+                event_type='domain_execution_released', attempt=record['attempt'],
+                payload={key: handoff[key] for key in ('implementation_family', 'role') if key in handoff},
+                context=record.get('model_context'))
+            accepted = replace(record['attempt'], phase='accepted')
+            submission = dict(record.get('submission') or {})
+            submission['_domain_execution'] = handoff
+            record['attempt'] = accepted
+            record['submission'] = submission
+            record['lease_token'] = None
+            record['lease_deadline'] = None
+            self._snapshot = replace(self._snapshot, current_attempt=accepted, last_event_seq=event.event_seq)
 
     def freeze_attempt_decision(self, claim: AttemptClaim, document: Mapping[str, Any] | None) -> dict[str, Any] | None:
         """Save the accepted semantic goal identity once, including across retry."""
@@ -2195,6 +2286,21 @@ class InMemoryThreadService(NativeExecutionOwner):
             self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
             return event
 
+    def _cancel_waiting_attempt(self, current: AttemptSnapshot) -> None:
+        record = self._attempts[current.attempt_id]
+        if record['attempt'].phase != 'accepted' or record['lease_token'] is not None:
+            return
+        from .thread_work import work_event_payload
+        terminal = replace(current, phase='cancelled')
+        updated, payload = work_event_payload(
+            replace(self._snapshot, current_attempt=None), record.get('task_context'),
+            current.attempt_id, 'cancelled')
+        event = self._append_event(event_type='attempt_cancelled', attempt=terminal,
+                                   payload=payload, context=record.get('model_context'))
+        record['attempt'] = terminal
+        self._cancel_requests.discard(current.attempt_id)
+        self._snapshot = replace(updated, last_event_seq=event.event_seq)
+
     def finish_attempt(
         self, claim: AttemptClaim, *, phase: str, payload: Mapping[str, Any],
     ) -> ThreadSnapshot:
@@ -2222,6 +2328,7 @@ class InMemoryThreadService(NativeExecutionOwner):
             record["attempt"] = terminal
             record["lease_token"] = None
             self._cancel_requests.discard(claim.attempt.attempt_id)
+            self._seal_open_captures(claim, terminal, record["model_context"])
             for part in projection_parts:
                 part_event = self._append_event(event_type="result_projection_part", attempt=terminal,
                                                 payload=part, context=record["model_context"])
@@ -2240,11 +2347,33 @@ class InMemoryThreadService(NativeExecutionOwner):
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
 
+    def _seal_open_captures(self, claim, terminal, context) -> None:
+        from .native_artifact_projection import incomplete_capture_seals
+        published = [event.payload['artifact'] for event in self._events
+                     if event.attempt_id == claim.attempt.attempt_id
+                     and event.event_type == 'native_artifact_published'
+                     and isinstance(event.payload.get('artifact'), dict)]
+        for artifact in incomplete_capture_seals(published):
+            event = self._append_event(event_type='native_artifact_published', attempt=terminal,
+                                       payload={'artifact': artifact}, context=context)
+            self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
+
+    def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
+                               workspace_name: str) -> None:
+        with self._lock:
+            self.require_workspace(thread_id, workspace_name)
+            record = self._require_active_lease(thread_id, attempt_id, lease_token)
+            if record['attempt'].phase != 'running' or attempt_id in self._cancel_requests:
+                raise ThreadExecutionError('preview attempt is inactive')
+
     def _require_claim(self, claim: AttemptClaim) -> dict[str, Any]:
-        if claim.thread_id != self._snapshot.thread_id:
+        return self._require_active_lease(claim.thread_id, claim.attempt.attempt_id, claim.lease_token)
+
+    def _require_active_lease(self, thread_id: str, attempt_id: str, lease_token: str) -> dict[str, Any]:
+        if thread_id != self._snapshot.thread_id:
             raise ThreadExecutionError("attempt thread is invalid")
-        record = self._attempts.get(claim.attempt.attempt_id)
-        if (record is None or record["lease_token"] != claim.lease_token
+        record = self._attempts.get(attempt_id)
+        if (record is None or record["lease_token"] != lease_token
                 or record.get("lease_deadline") is None
                 or record["lease_deadline"] <= time.monotonic()):
             raise ThreadExecutionError("attempt lease is unavailable")
@@ -2868,10 +2997,14 @@ class PostgresThreadService(NativeExecutionOwner):
                 self._insert_event(connection, accepted)
                 context = updated.active_model_context
                 from .native_conversation import binding_for_session
-                if updated.active_model_context is None:
+                if context is None:
                     assert self._native_binding is not None
-                submission = ({**(submission or {}), '_native_execution': binding_for_session(native_binding, snapshot.session_type)}
-                              if context is None else freeze_activated_submission(submission, context))
+                    submission = {**(submission or {}), '_native_execution': binding_for_session(native_binding, snapshot.session_type)}
+                    published = _published_application_catalog(self)
+                    if published is not None:
+                        submission['_application_catalog'] = published
+                else:
+                    submission = freeze_activated_submission(submission, context)
                 connection.execute("""INSERT INTO capstone_thread_attempts
                     (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
                      selection_revision,model_context_snapshot,conversation_context_snapshot,
@@ -2899,6 +3032,8 @@ class PostgresThreadService(NativeExecutionOwner):
             connection.execute('UPDATE capstone_threads SET minimum_protocol_version=2, works=%s, last_event_seq=%s, current_attempt=%s WHERE thread_id=%s',
                 (Jsonb(list(updated.works)), last_event_seq,
                  None if updated.current_attempt is None else Jsonb(updated.current_attempt.to_document()), snapshot.thread_id))
+            if parsed['kind'] == 'cancel_work':
+                self._cancel_waiting_attempt(connection, snapshot.thread_id)
         receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id}, status='rejected' if rejection else 'accepted', rejection=rejection,
             accepted_event_seq=event_seq, target=target)
         connection.execute('INSERT INTO capstone_thread_commands (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)',
@@ -3524,6 +3659,7 @@ class PostgresThreadService(NativeExecutionOwner):
                         "UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s",
                         (requested.event_seq, snapshot.thread_id),
                     )
+                    self._cancel_waiting_attempt(connection, snapshot.thread_id)
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
@@ -4007,6 +4143,52 @@ class PostgresThreadService(NativeExecutionOwner):
             )
             return receipt
 
+    def has_pending_attempts(self, implementation_family: str | None = None) -> bool:
+        """A skipped busy thread is still pending; an empty queue stays idle."""
+        if implementation_family is not None and not _IDENTIFIER.fullmatch(implementation_family):
+            raise ValueError('implementation family is invalid')
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT EXISTS(SELECT 1 FROM capstone_thread_attempts
+                   WHERE phase = 'accepted' AND lease_token IS NULL
+                     AND (%s::text IS NULL OR model_context_snapshot->>'implementation_family' = %s::text
+                          OR (model_context_snapshot IS NULL AND submission_snapshot ? '_native_execution'
+                              AND ((submission_snapshot ? '_domain_execution'
+                                    AND submission_snapshot #>> '{_domain_execution,implementation_family}' = %s::text)
+                                   OR (NOT (submission_snapshot ? '_domain_execution') AND %s::text = 'native'))))
+                   ) AS pending""",
+                (implementation_family, implementation_family, implementation_family, implementation_family),
+            ).fetchone()
+        assert row is not None
+        return bool(row['pending'])
+
+    def _cancel_waiting_attempt(self, connection, thread_id: str) -> None:
+        # Caller owns the thread row. Claims acquire that row first as well.
+        thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s',
+                                    (thread_id,)).fetchone()
+        snapshot = self._snapshot_from_row(thread)
+        current = snapshot.current_attempt
+        if current is None or current.phase != 'accepted':
+            return
+        attempt = connection.execute(
+            "UPDATE capstone_thread_attempts SET phase='cancelled' WHERE attempt_id=%s "
+            "AND phase='accepted' AND lease_token IS NULL RETURNING *",
+            (current.attempt_id,)).fetchone()
+        if attempt is None:
+            return
+        from .enterprise_context import TaskContext
+        from .thread_work import work_event_payload
+        task_context = (TaskContext.from_document(attempt['task_context_snapshot'])
+                        if attempt.get('task_context_snapshot') is not None else None)
+        updated, payload = work_event_payload(replace(snapshot, current_attempt=None),
+            task_context, current.attempt_id, 'cancelled')
+        terminal = replace(current, phase='cancelled')
+        event = self._make_attempt_event(thread, terminal,
+            event_seq=thread['last_event_seq'] + 1, event_type='attempt_cancelled', payload=payload)
+        self._insert_event(connection, event)
+        connection.execute('UPDATE capstone_threads SET current_attempt=NULL, works=%s, last_event_seq=%s WHERE thread_id=%s',
+            (Jsonb(list(updated.works)), event.event_seq, thread_id))
+
     def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None:
         if not worker_id or lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -4015,12 +4197,16 @@ class PostgresThreadService(NativeExecutionOwner):
         token = secrets.token_hex(16)
         with self._connect() as connection:
             row = connection.execute(
-                """SELECT attempt_id FROM capstone_thread_attempts
-                   WHERE phase = 'accepted' AND lease_token IS NULL
-                     AND (%s::text IS NULL OR model_context_snapshot->>'implementation_family' = %s::text
-                          OR (%s::text = 'native' AND model_context_snapshot IS NULL AND submission_snapshot ? '_native_execution'))
-                   ORDER BY created_at, attempt_id LIMIT 1 FOR UPDATE SKIP LOCKED""",
-                (implementation_family, implementation_family, implementation_family),
+                """SELECT a.attempt_id FROM capstone_thread_attempts a
+                   JOIN capstone_threads t ON t.thread_id = a.thread_id
+                   WHERE a.phase = 'accepted' AND a.lease_token IS NULL
+                     AND (%s::text IS NULL OR a.model_context_snapshot->>'implementation_family' = %s::text
+                          OR (a.model_context_snapshot IS NULL AND a.submission_snapshot ? '_native_execution'
+                              AND ((a.submission_snapshot ? '_domain_execution'
+                                    AND a.submission_snapshot #>> '{_domain_execution,implementation_family}' = %s::text)
+                                   OR (NOT (a.submission_snapshot ? '_domain_execution') AND %s::text = 'native'))))
+                   ORDER BY a.created_at, a.attempt_id LIMIT 1 FOR UPDATE OF t SKIP LOCKED""",
+                (implementation_family, implementation_family, implementation_family, implementation_family),
             ).fetchone()
             if row is None:
                 return None
@@ -4029,6 +4215,8 @@ class PostgresThreadService(NativeExecutionOwner):
                 (row["attempt_id"],),
             ).fetchone()
             assert attempt_row is not None
+            if attempt_row['phase'] != 'accepted' or attempt_row['lease_token'] is not None:
+                return None
             thread = connection.execute(
                 "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
                 (attempt_row["thread_id"],),
@@ -4072,11 +4260,7 @@ class PostgresThreadService(NativeExecutionOwner):
                     (event.event_seq, Jsonb(list(work_snapshot.works)), thread["thread_id"]),
                 )
                 return None
-            application_catalog = self._catalog_context
-            if context is not None and application_catalog is None and self._model_catalog is not None:
-                application_catalog = _thread_catalog_document(
-                    self._model_catalog, self._capability_catalog,
-                )
+            application_catalog = _claim_application_catalog(self, context, attempt_row.get('submission_snapshot'))
             running = AttemptSnapshot.from_document({**current, "phase": "running"})
             from .enterprise_context import TaskContext
             from .thread_work import work_event_payload
@@ -4142,9 +4326,58 @@ class PostgresThreadService(NativeExecutionOwner):
                 raise ThreadExecutionError("attempt acceptance changed during claim preparation")
             return claim
 
-    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]:
+    def release_attempt_for_domain(self, claim: AttemptClaim, implementation_family: str,
+                                   execution: Mapping[str, object] | None = None) -> None:
+        """Return a recognized attempt to the family that can run its domain goal."""
+        from .domain_node_report import domain_execution_record
+        family = _identifier(implementation_family, name='implementation_family')
+        handoff = domain_execution_record(family, execution)
+        with self._connect() as connection:
+            attempt = connection.execute(
+                """SELECT * FROM capstone_thread_attempts
+                   WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
+                     AND lease_deadline > clock_timestamp()
+                   FOR UPDATE""",
+                (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
+            ).fetchone()
+            if attempt is None:
+                raise ThreadExecutionError('attempt lease is unavailable')
+            thread = connection.execute(
+                'SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE',
+                (claim.thread_id,),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(claim.thread_id)
+            current = thread['current_attempt']
+            if not isinstance(current, dict) or current.get('attempt_id') != claim.attempt.attempt_id:
+                raise ThreadExecutionError('attempt snapshot is inconsistent')
+            running = AttemptSnapshot.from_document(current)
+            event = self._make_attempt_event(
+                thread, running, event_seq=thread['last_event_seq'] + 1,
+                event_type='domain_execution_released',
+                payload={key: handoff[key] for key in ('implementation_family', 'role') if key in handoff})
+            self._insert_event(connection, event)
+            accepted = {**current, 'phase': 'accepted'}
+            connection.execute(
+                """UPDATE capstone_thread_attempts
+                   SET phase = 'accepted', lease_token = NULL, lease_deadline = NULL,
+                       submission_snapshot = COALESCE(submission_snapshot, '{}'::jsonb)
+                           || %s::jsonb
+                   WHERE attempt_id = %s AND lease_token = %s AND phase = 'running'""",
+                (Jsonb({'_domain_execution': handoff}),
+                 claim.attempt.attempt_id, claim.lease_token),
+            )
+            connection.execute(
+                """UPDATE capstone_threads
+                   SET current_attempt = %s, last_event_seq = %s
+                   WHERE thread_id = %s AND current_attempt->>'attempt_id' = %s""",
+                (Jsonb(accepted), event.event_seq, claim.thread_id, claim.attempt.attempt_id),
+            )
+
+    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
         """Save input/config once; callers rebind the current retry Attempt identity."""
-        _validate_bounded_json(document, name="attempt.intent_input", maximum=limits.control_document_bytes)
+        if document is not None:
+            _validate_bounded_json(document, name="attempt.intent_input", maximum=limits.control_document_bytes)
         with self._connect() as connection:
             row = connection.execute("""SELECT intent_input_snapshot FROM capstone_thread_attempts
                 WHERE thread_id = %s AND attempt_id = %s AND lease_token = %s
@@ -4154,6 +4387,8 @@ class PostgresThreadService(NativeExecutionOwner):
                 raise ThreadExecutionError("attempt lease is unavailable")
             frozen = row["intent_input_snapshot"]
             if frozen is None:
+                if document is None:
+                    return None
                 frozen = json.loads(_canonical(document))
                 connection.execute("UPDATE capstone_thread_attempts SET intent_input_snapshot = %s WHERE attempt_id = %s", (Jsonb(frozen), claim.attempt.attempt_id))
             return json.loads(_canonical(frozen))
@@ -4206,6 +4441,24 @@ class PostgresThreadService(NativeExecutionOwner):
                 (claim.thread_id, claim.attempt.attempt_id),
             ).fetchone()
             return requested is not None
+
+    def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
+                               workspace_name: str) -> None:
+        name = normalize_workspace_name(workspace_name)
+        with self._connect() as connection:
+            active = connection.execute(
+                """SELECT 1 FROM capstone_thread_attempts a
+                   JOIN capstone_threads t ON t.thread_id = a.thread_id
+                   WHERE a.attempt_id = %s AND a.thread_id = %s AND a.lease_token = %s
+                     AND a.phase = 'running' AND a.lease_deadline > clock_timestamp()
+                     AND t.workspace_name = %s
+                     AND t.current_attempt->>'attempt_id' = a.attempt_id
+                     AND NOT EXISTS (SELECT 1 FROM capstone_thread_events e
+                         WHERE e.thread_id = a.thread_id AND e.attempt_id = a.attempt_id
+                           AND e.event_type = 'attempt_cancel_requested')""",
+                (attempt_id, thread_id, lease_token, name)).fetchone()
+            if active is None:
+                raise ThreadExecutionError('preview attempt is inactive')
 
     def rollback_context_if_preparation_failed(
         self, claim: AttemptClaim, *, error_code: str,
@@ -4454,6 +4707,8 @@ class PostgresThreadService(NativeExecutionOwner):
             work_snapshot = _result_projection_window(work_snapshot, result_projections)
             event_payload = {**event_payload, **work_payload}
             event_seq = thread["last_event_seq"]
+            event_seq = self._seal_open_captures_postgres(
+                connection, thread, terminal, claim, event_seq, context=claim.model_context)
             for part in projection_parts:
                 event_seq += 1
                 part_event = self._make_attempt_event(
@@ -4486,6 +4741,21 @@ class PostgresThreadService(NativeExecutionOwner):
         from .session_title_summary import schedule_completed_title
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
+
+    def _seal_open_captures_postgres(self, connection, thread, terminal, claim, event_seq, *, context) -> int:
+        from .native_artifact_projection import incomplete_capture_seals
+        rows = connection.execute(
+            """SELECT payload->'artifact' AS artifact FROM capstone_thread_events
+               WHERE thread_id = %s AND attempt_id = %s AND event_type = 'native_artifact_published'
+               ORDER BY event_seq""",
+            (claim.thread_id, claim.attempt.attempt_id)).fetchall()
+        for artifact in incomplete_capture_seals(row['artifact'] for row in rows):
+            event_seq += 1
+            event = self._make_attempt_event(
+                thread, terminal, event_seq=event_seq, event_type='native_artifact_published',
+                payload={'artifact': artifact}, context=context)
+            self._insert_event(connection, event)
+        return event_seq
 
     def _selection_for_command(
         self, snapshot: ThreadSnapshot, command: Mapping[str, Any],

@@ -10,6 +10,20 @@ const accepted=event('command_accepted',1,{kind:'send_auto',payload:{text:'Curre
 const started=event('runtime_action',2,{phase:'started'})
 const delta=event('assistant_thinking_delta',3,{text:'Actual public thought. '})
 const props={disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+it('shows provisional text in the existing thinking region then replaces it with canonical text',()=>{
+  const previews=[{thread_id:'thread',attempt_id:'thinking',batch_id:'batch',text:'Live preview.',created_at:started.occurredAt}]
+  const view=render(<CapstoneAssistantThread {...props} events={[accepted,started]} thinkingPreviews={previews}/>)
+  expect(screen.getByText('Live preview.')).toBeTruthy()
+  view.rerender(<CapstoneAssistantThread {...props} events={[accepted,started,event('assistant_thinking_delta',3,{text:'Live preview.',preview_batch_ids:['batch']})]} thinkingPreviews={previews}/>)
+  expect(screen.getAllByText('Live preview.')).toHaveLength(1)
+})
+it('does not attach task-scoped preview to a different active model request',()=>{
+  const previews=[{thread_id:'thread',attempt_id:'thinking',batch_id:'batch',text:'Other task thought',created_at:started.occurredAt,payload:{task_id:'other'}}]
+  const view=render(<CapstoneAssistantThread {...props} events={[accepted,event('runtime_action',2,{phase:'started',task_id:'current'})]} thinkingPreviews={previews}/>)
+  expect(screen.queryByText('Other task thought')).toBeNull()
+  view.rerender(<CapstoneAssistantThread {...props} events={[accepted,event('runtime_action',2,{phase:'started',task_id:'other'})]} thinkingPreviews={previews}/>)
+  expect(screen.getByText('Other task thought')).toBeTruthy()
+})
 it('opens bounded thinking in the enlarged reader and never appends a continuation transcript',()=>{
   render(<ThinkingProcess expanded storageKey="bounded-reader" thinking={{text:'Initial text.',continuationText:'Later round.',handedOff:true,phase:'completed'}}/>)
   expect(screen.getByRole('button',{name:'折叠初始思考'}).getAttribute('aria-expanded')).toBe('true')
@@ -74,6 +88,8 @@ it('shows thinking during submit before any accepted or started event',async()=>
 it('shows queued thinking from acceptance before attempt_started',()=>{
   render(<CapstoneAssistantThread {...props} events={[accepted]}/>)
   expect(screen.getByText('等待执行…')).toBeTruthy()
+  expect(screen.getByText(/排队中/)).toBeTruthy()
+  expect(screen.queryByText('准备执行本轮指令…')).toBeNull()
 })
 it('streams only public current-attempt thinking and keeps it out of the answer',()=>{
   const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)
@@ -121,7 +137,9 @@ it('never shows a missing-thinking placeholder alongside supplied 823-character 
 })
 it('uses one clickable muted trigger and no invented body while waiting for supplied text',()=>{
   render(<CapstoneAssistantThread {...props} events={[accepted,started]}/>)
-  expect(screen.queryByRole('region',{name:'LLM 思考'})).toBeNull()
+  const waiting=screen.getByRole('region',{name:'LLM 思考'})
+  expect(waiting.getAttribute('aria-busy')).toBe('true')
+  expect(waiting.querySelector('.capstone-thinking-copy')).toBeNull()
   expect(screen.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
 })
 it('follows streamed text until the reader scrolls up and resumes only at the bottom',()=>{
@@ -155,7 +173,7 @@ it('keeps a goal-only progress note secondary when direct bash execution starts'
   rerender(<CapstoneAssistantThread {...props} events={[accepted,goal,event('tool_started',4,{tool_name:'bash',tool_call_id:'bash-direct'})]}/>)
   expect(screen.queryByRole('region',{name:'LLM 思考'})).toBeNull()
   expect(screen.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
-  expect(screen.getByText('Recorded goal without a task plan')).toBeTruthy()
+  expect(screen.queryByText('Recorded goal without a task plan')).toBeNull()
   expect(screen.queryByText('当前记录未提供任务计划。')).toBeNull()
 })
 it.each(['completed','failed','cancelled','interrupted'] as const)('auto-folds thinking at %s and permits manual reopening on replay',phase=>{

@@ -22,13 +22,51 @@ it('shows compaction between model calls without an extra model round and stops 
 
 afterEach(cleanup)
 
-it('leaves missing LLM purpose blank and keeps the recorded script purpose on its tool',()=>{
+it('keeps Thinking visible while a model runs before any reasoning text arrives',()=>{
+ const model={id:'waiting',number:1,ms:0,startedAt:'2026-11-05T00:00:00Z'}
+ const view=render(<ProcessCallTrace active models={[model]} tools={[]} now={Date.parse('2026-11-05T00:00:02Z')}/> )
+ const thinking=screen.getByRole('region',{name:'LLM 思考'})
+ expect(thinking).toHaveAttribute('aria-busy','true')
+ expect(within(thinking).getByText('Thinking…')).toBeVisible()
+ expect(thinking.querySelector('.capstone-thinking-copy')).toBeNull()
+ view.rerender(<ProcessCallTrace active models={[{...model,settled:true}]} tools={[]}/> )
+ expect(screen.queryByRole('region',{name:'LLM 思考'})).not.toBeInTheDocument()
+})
+
+it('shows supplied thinking batches after the waiting indicator and retains them when settled',()=>{
+ const model={id:'batch',number:1,ms:0,startedAt:'2026-11-05T00:00:00Z'}
+ const view=render(<ProcessCallTrace expandedThinking active models={[model]} tools={[]}/> )
+ view.rerender(<ProcessCallTrace expandedThinking active models={[{...model,thinking:'公开片段一\n公开片段二'}]} tools={[]}/> )
+ expect(screen.getByRole('region',{name:'LLM 思考'})).toHaveTextContent('公开片段一 公开片段二')
+ view.rerender(<ProcessCallTrace expandedThinking active={false} models={[{...model,settled:true,thinking:'公开片段一\n公开片段二'}]} tools={[]}/> )
+ const thinking=screen.getByRole('region',{name:'LLM 思考'})
+ expect(thinking).toHaveAttribute('aria-busy','false')
+ expect(thinking).toHaveTextContent('公开片段一 公开片段二')
+})
+
+it('does not repeat a promoted tool sentence on the tool row',()=>{
+ render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'agent_tools_execute',status:'completed',operation:'读取库存表清单与状态',durationMs:400}]}/>)
+ const group=screen.getByRole('group',{name:'LLM 调用 1'})
+ expect(group.querySelector('.capstone-call-purpose')).toHaveTextContent('读取库存表清单与状态')
+ const summary=group.querySelector('.capstone-call-tool > summary')!
+ expect(summary).toHaveTextContent('agent_tools_execute')
+ expect(summary).not.toHaveTextContent('读取库存表清单与状态')
+ expect(group.querySelector('.capstone-call-operation')).toBeNull()
+})
+
+it('does not use a raw shell command as the LLM purpose',()=>{
+ render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'bash',status:'completed',operation:'pwd && ls',durationMs:20}]}/>)
+ expect(screen.getByRole('group',{name:'LLM 调用 1'}).querySelector('.capstone-call-purpose')).toBeNull()
+})
+
+it('uses the recorded action sentence as the LLM purpose when the opening line is absent',()=>{
  const operation="cat > analysis.py <<'EOF'\n# 汇总区域负荷并保存图表\nimport pandas as pd\nEOF"
  render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'bash',status:'completed',operation,durationMs:315}]}/>)
  const group=screen.getByRole('group',{name:'LLM 调用 1'})
- expect(group.querySelector('.capstone-call-purpose')).toBeNull()
+ expect(group.querySelector('.capstone-call-purpose')).toHaveTextContent('汇总区域负荷并保存图表')
  const summary=group.querySelector('.capstone-call-tool > summary')!
- expect(summary).toHaveTextContent('汇总区域负荷并保存图表')
+ expect(summary).toHaveTextContent('bash')
+ expect(summary).not.toHaveTextContent('汇总区域负荷并保存图表')
  expect(summary).not.toHaveTextContent('import pandas')
  expect(summary).toHaveTextContent('315ms')
  expect(group.querySelector('.capstone-call-operation')?.textContent).toBe(operation)
@@ -46,8 +84,8 @@ it('shows recorded tool purpose in the collapsed title and child response intent
  render(<ProcessCallTrace compact active={false}
    models={[{id:'child',number:1,ms:12000,toolCallIds:['combine'],responseText:'// 核对十月指标覆盖范围\n下一段回复'}]}
    tools={[{id:'combine',name:'dynamic_composition',operation:'核对已发现指标的有效样本数',status:'completed',durationMs:6000}]} />)
- const purpose=screen.getByText('核对已发现指标的有效样本数',{selector:'strong'})
- expect(purpose.closest('summary')).not.toBeNull()
+ expect(screen.queryByText('核对已发现指标的有效样本数')).toBeNull()
+ expect(screen.getByText('dynamic_composition').closest('summary')).not.toBeNull()
  expect(screen.getByText('核对十月指标覆盖范围',{selector:'.capstone-call-purpose'})).toBeVisible()
  expect(screen.getByText('12.0s')).toHaveAttribute('data-latency','noticeable')
 });
@@ -123,7 +161,27 @@ it('uses compact glyphs and outlines actual parallel tools without repeated stat
   expect(screen.getByText('LLM 01')).toBeTruthy()
   expect(screen.queryByText('已返回')).toBeNull()
   expect(screen.queryByText('并行调用')).toBeNull()
-  expect(screen.getByRole('group',{name:'并行工具调用 · 2 项'})).toBeTruthy()
+  expect(screen.getByRole('group',{name:'并行工具调用 · 2 项 · 500ms'})).toBeVisible()
+  expect(screen.getByText('500ms',{selector:'.capstone-parallel-heading .capstone-call-duration'})).toHaveAttribute('data-latency','normal')
+})
+it('splits a long overlap chain into groups that are actually concurrent',()=>{
+  const tools=Array.from({length:8},(_,index)=>({id:`t${index}`,name:`query ${index}`,status:'completed' as const,startedAt:new Date(Date.parse('2026-11-04T17:17:09.000Z')+index*1000).toISOString(),durationMs:4000}))
+  render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:1000,toolCallIds:tools.map(tool=>tool.id)}]} tools={tools}/>)
+  expect(screen.queryByRole('group',{name:/并行工具调用 · 8 项/})).toBeNull()
+  expect(screen.getAllByRole('group',{name:/并行工具调用 · 4 项/})).toHaveLength(2)
+})
+it('groups a composition with the gateway calls whose recorded intervals overlap it',()=>{
+  render(<ProcessCallTrace compact models={[{id:'m',number:47,ms:6500,toolCallIds:['parent','a','b','late']}]} tools={[
+    {id:'parent',name:'采集负荷日统计并落地CSV',status:'failed',failure:'gateway_timeout; do not retry',startedAt:'2026-11-04T17:17:09.606Z',durationMs:62600},
+    {id:'a',name:'data_gateway_query_object_series',status:'completed',startedAt:'2026-11-04T17:17:09.778Z',durationMs:22100},
+    {id:'b',name:'data_gateway_query_object_series',status:'completed',startedAt:'2026-11-04T17:17:09.803Z',durationMs:19600},
+    {id:'late',name:'data_gateway_query_object_series',status:'failed',failure:'Composition stopped',startedAt:'2026-11-04T17:17:29.797Z',durationMs:41400},
+  ]}/>)
+  expect(screen.getByRole('group',{name:'并行工具调用 · 3 项 · 62.6s'})).toBeVisible()
+  expect(screen.queryByRole('group',{name:/并行工具调用 · 4 项/})).toBeNull()
+  expect(screen.getByText('62.6s',{selector:'.capstone-parallel-heading .capstone-call-duration'})).toHaveAttribute('data-latency','very-slow')
+  expect(screen.getByText('同一组合已停止，这次调用被取消。')).toBeVisible()
+  expect(screen.queryByText('Composition stopped')).toBeNull()
 })
 
 it('grades model and tool latency separately and updates a live request grade',()=>{
@@ -169,10 +227,11 @@ it('shows the actual shell action instead of its workspace prefix and retains th
   expect(intent).toHaveAttribute('title', `bash · ${operation}`)
 })
 
-it('uses a leading script comment as the action summary without an added label', () => {
+it('uses a leading script comment as the LLM purpose and keeps the command off that line', () => {
   const operation = "cd '/private/task workspace' && python3 - <<'PY'\n# 计算各省月度负电价频次，保存汇总表\nimport pandas as pd\nprint('done')\nPY"
   render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:[],toolRequests:[{id:'t',name:'bash',operation}]}]} tools={[]} />)
-  expect(screen.getByText('发起工具：bash · 计算各省月度负电价频次，保存汇总表')).toHaveAttribute('title', `bash · ${operation}`)
+  expect(screen.getByText('计算各省月度负电价频次，保存汇总表', { selector: '.capstone-call-purpose' })).toBeVisible()
+  expect(screen.getByText('发起工具：bash')).toHaveAttribute('title', `bash · ${operation}`)
 })
 
 it('keeps zero-tool responses and nests only exact declared tool IDs', () => {

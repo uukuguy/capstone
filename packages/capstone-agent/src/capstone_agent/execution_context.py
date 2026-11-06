@@ -18,8 +18,6 @@ def execution_plan_for(request: IntentRequest, decision: IntentDecision) -> dict
     for goal in document['goals']:
         dependencies = goal.get('depends_on', list(prior))
         blockers: list[dict] = []
-        if checked.needs_clarification:
-            blockers.append({'kind': 'clarification_required'})
         if goal['missing_requirements']:
             blockers.append({'kind': 'unresolved_requirement'})
         unavailable = [identity for identity in dependencies if identity not in ready]

@@ -28,14 +28,51 @@ from .request_intent import IntentDecision
 
 
 _ContextKey = tuple[str, str, str, str, tuple[tuple[str, str], ...], str]
+# Cache scope for a domain attempt that has not opened a model. This is not a model id.
+_UNBOUND_MODEL_SCOPE = 'domain-scope:none'
+
+
+def _model_key_parts(model_context: ModelContextSnapshot | None) -> tuple[str, str]:
+    if model_context is None:
+        return _UNBOUND_MODEL_SCOPE, ''
+    return model_context.id, model_context.selection_revision
 
 
 def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
     """Limit prepared resources to validated needs within the frozen selection."""
-    if claim.task_context is not None and claim.task_context.model_contexts != (claim.professional_context,):
-        raise ValueError('Work Profile selection does not match the accepted model snapshot')
-    enabled = tuple(claim.professional_context.enabled_profiles)
     decision = getattr(claim.turn_plan, "intent_decision", None)
+    if claim.model_context is None:
+        if claim.task_context is not None and claim.task_context.model_contexts != ():
+            raise ValueError('Work Profile selection does not match the accepted model snapshot')
+        if decision is None or not isinstance(decision, IntentDecision):
+            raise ValueError("model capability preparation needs a validated intent decision")
+        document = decision.to_document()
+        if document["attempt_id"] != claim.attempt.attempt_id:
+            raise ValueError("intent decision belongs to another Attempt")
+        required: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for goal in decision.execution_goals:
+            if goal["operation"] not in {"business_read", "business_execute"}:
+                continue
+            refs = goal["capability_refs"]
+            if not refs:
+                raise ValueError("business intent needs an enabled capability reference")
+            for identity in refs:
+                if not isinstance(identity, str) or identity.count("@") != 1:
+                    raise ValueError("intent capability is not in the enabled selection")
+                profile_id, version = identity.split("@", 1)
+                if not profile_id or not version:
+                    raise ValueError("intent capability is not in the enabled selection")
+                reference = (profile_id, version)
+                if reference not in seen:
+                    seen.add(reference)
+                    required.append(reference)
+        if not required:
+            raise ValueError("business intent needs an enabled capability reference")
+        return tuple(required)
+    if claim.task_context is not None and claim.task_context.model_contexts != (claim.model_context,):
+        raise ValueError('Work Profile selection does not match the accepted model snapshot')
+    enabled = tuple(claim.model_context.enabled_profiles)
     if decision is None:
         return enabled  # Registered scripted plans retain their exact selection.
     if not isinstance(decision, IntentDecision):
@@ -44,7 +81,7 @@ def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
     if document["attempt_id"] != claim.attempt.attempt_id:
         raise ValueError("intent decision belongs to another Attempt")
     allowed = {f"{profile_id}@{version}": (profile_id, version) for profile_id, version in enabled}
-    required = set()
+    required_set: set[tuple[str, str]] = set()
     for goal in decision.execution_goals:
         if goal["operation"] not in {"business_read", "business_execute"}:
             continue  # Catalog and history references describe metadata only.
@@ -54,9 +91,9 @@ def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
         for identity in refs:
             if identity not in allowed:
                 raise ValueError("intent capability is not in the enabled selection")
-            required.add(allowed[identity])
+            required_set.add(allowed[identity])
     # Preserve the application's selection order, independent of model output.
-    return tuple(reference for reference in enabled if reference in required)
+    return tuple(reference for reference in enabled if reference in required_set)
 
 
 @runtime_checkable
@@ -64,7 +101,7 @@ class PreparedModelCapabilityContribution(Protocol):
     """A trusted profile contribution borrowed by Harness for a context."""
 
     descriptor: ModelCapabilityDescriptor
-    model_context: ModelContextSnapshot
+    model_context: ModelContextSnapshot | None
 
     def close(self) -> None: ...
 
@@ -114,7 +151,7 @@ class ApplicationProfileCapabilityContribution:
     """Context contribution carrying one application profile declaration."""
 
     descriptor: ModelCapabilityDescriptor
-    model_context: ModelContextSnapshot
+    model_context: ModelContextSnapshot | None
     profile: object
     prepared: object
     _closed: bool = False
@@ -172,7 +209,7 @@ class ApplicationProfileCapabilityAdapter:
         if not isinstance(handle, ApplicationProfileCapabilityHandle) or handle.closed:
             raise ValueError('application profile handle is unavailable')
         prepared = prepare(handle.profile, claim)
-        return ApplicationProfileCapabilityContribution(self.descriptor, claim.professional_context, handle.profile, prepared)
+        return ApplicationProfileCapabilityContribution(self.descriptor, claim.model_context, handle.profile, prepared)
 
 
 def register_application_profile(
@@ -211,7 +248,7 @@ class PreparedModelCapabilityContext:
 
     thread_id: str
     run_id: str
-    model_context: ModelContextSnapshot
+    model_context: ModelContextSnapshot | None
     handles: tuple[ModelCapabilityProfileHandle, ...]
     contributions: tuple[PreparedModelCapabilityContribution, ...]
     _closed: bool = False
@@ -307,7 +344,7 @@ class ModelCapabilityContextOwner:
         selection = (claim.submission or {}).get('professional_resource')
         backend = (claim.submission or {}).get('_professional_backend')
         resource_revision = content_hash(selection or backend) if selection or backend else ''
-        return self._prepare_model(claim.thread_id, claim.run_id, claim.professional_context,
+        return self._prepare_model(claim.thread_id, claim.run_id, claim.model_context,
                                    references, resource_revision, claim)
 
     def prepare_model(self, thread_id: str, run_id: str,
@@ -317,17 +354,15 @@ class ModelCapabilityContextOwner:
                                    tuple(model_context.enabled_profiles), '', None)
 
     def _prepare_model(self, thread_id: str, run_id: str,
-                       model_context: ModelContextSnapshot,
+                       model_context: ModelContextSnapshot | None,
                        references: tuple[tuple[str, str], ...], resource_revision: str,
                        claim: AttemptClaim | None) -> PreparedModelCapabilityContext:
-        if not isinstance(model_context, ModelContextSnapshot):
+        if model_context is not None and not isinstance(model_context, ModelContextSnapshot):
             raise TypeError('model context must be a ModelContextSnapshot')
         if not isinstance(thread_id, str) or not thread_id or not isinstance(run_id, str) or not run_id:
             raise ValueError('model context owner identity is invalid')
-        key = (
-            thread_id, run_id, model_context.id,
-            model_context.selection_revision, references, resource_revision,
-        )
+        scope_id, selection_revision = _model_key_parts(model_context)
+        key = (thread_id, run_id, scope_id, selection_revision, references, resource_revision)
         with self._lock:
             if self._closed:
                 raise RuntimeError("model capability context owner is closed")
@@ -353,22 +388,37 @@ class ModelCapabilityContextOwner:
                     raise RuntimeError('model capability context capacity is full')
                 self._evict_locked(min(idle)[1])
 
-            selection = ModelCapabilitySelection(references)
-            handles = self.catalog.prepare(
-                ThreadModelDescriptor(
-                    model_context.model_id,
-                    model_context.model_revision,
-                    model_context.implementation_family,
-                ),
-                selection,
-            )
+            if model_context is None:
+                family = ((claim.submission or {}).get('_domain_execution') or {}).get('implementation_family') if claim is not None else None
+                if not isinstance(family, str) or not family:
+                    raise ValueError('domain executor family is unavailable')
+                allowed = {info.descriptor.reference for info in self.catalog.profiles_for_family(family)}
+                if any(reference not in allowed for reference in references):
+                    raise ValueError('profile is not compatible with the domain executor')
+                handles = self.catalog.registry.resolve_selection(ModelCapabilitySelection(references))
+            else:
+                selection = ModelCapabilitySelection(references)
+                handles = self.catalog.prepare(
+                    ThreadModelDescriptor(
+                        model_context.model_id,
+                        model_context.model_revision,
+                        model_context.implementation_family,
+                    ),
+                    selection,
+                )
             contributions: list[PreparedModelCapabilityContribution] = []
             try:
                 for reference, handle in zip(references, handles, strict=True):
                     adapter = self._adapters[reference]
                     prepare = getattr(adapter, 'prepare_for_claim', None)
-                    contribution = (prepare(handle, claim) if claim is not None and callable(prepare)
-                                    else adapter.prepare(handle, model_context=model_context))
+                    if model_context is None and (claim is None or not callable(prepare)):
+                        raise RuntimeError('domain profile preparation requires a claim-scoped preparer')
+                    if claim is not None and callable(prepare):
+                        contribution = prepare(handle, claim)
+                    else:
+                        if model_context is None:
+                            raise RuntimeError('domain profile preparation requires a bound model')
+                        contribution = adapter.prepare(handle, model_context=model_context)
                     self._validate_contribution(contribution, reference, model_context)
                     if not isinstance(contribution, PreparedModelCapabilityContribution):
                         raise TypeError('prepared contribution is invalid')
@@ -449,8 +499,9 @@ class ModelCapabilityContextOwner:
 
     @staticmethod
     def _context_key(context: PreparedModelCapabilityContext) -> _ContextKey:
-        return (context.thread_id, context.run_id, context.model_context.id,
-                context.model_context.selection_revision, context.selected_profiles, context.resource_revision)
+        scope_id, selection_revision = _model_key_parts(context.model_context)
+        return (context.thread_id, context.run_id, scope_id, selection_revision,
+                context.selected_profiles, context.resource_revision)
 
     def _evict_locked(self, key: _ContextKey) -> None:
         context = self._contexts.pop(key)
@@ -501,7 +552,7 @@ class ModelCapabilityContextOwner:
     def _validate_contribution(
         contribution: object,
         reference: tuple[str, str],
-        model_context: ModelContextSnapshot,
+        model_context: ModelContextSnapshot | None,
     ) -> None:
         descriptor = getattr(contribution, "descriptor", None)
         if not isinstance(descriptor, ModelCapabilityDescriptor) or descriptor.reference != reference:

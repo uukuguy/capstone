@@ -158,6 +158,17 @@ test('direct saved discovery can be paged without another upstream call',()=>fix
  assert.deepEqual(JSON.parse(result.content[0].text).result,{items:rows.slice(498),offset:498,total_items:500,next_offset:null});
  const tooWide=await t.execute('wide',{tools:['read'],program:`return await tools.read(${JSON.stringify(ref)},'/data/rows');`});
  assert.equal(tooWide.isError,true);assert.match(tooWide.content[0].text,/read budget/);
+ const recovery=await t.execute('recover-wide',{tools:[],program:`
+ try{await tools.read(${JSON.stringify(ref)},'/data/rows');throw Error('expected read budget');}
+ catch(error){const detail=JSON.parse(error.message);const action=detail.recovery;
+ const page=await tools.read(action.ref,action.pointer,action.page);
+ return {code:detail.code,page,maximum:detail.maximum_bytes};}`});
+ assert.equal(recovery.isError,false,JSON.stringify(recovery));
+ const repaired=JSON.parse(recovery.content[0].text).result;
+ assert.equal(repaired.code,'observation_read_budget_exceeded');
+ assert.ok(repaired.page.items.length>0&&repaired.page.items.length<rows.length);
+ assert.deepEqual(repaired.page.items,rows.slice(0,repaired.page.items.length));
+ assert.ok(Buffer.byteLength(JSON.stringify(repaired.page))<=repaired.maximum);
  const invalid=await t.execute('bad',{tools:['read'],program:`return await tools.read(${JSON.stringify(ref)},'/data/rows',{offset:-1,limit:10});`});
  assert.equal(invalid.isError,true);assert.match(invalid.content[0].text,/page/);
 }));
@@ -344,6 +355,22 @@ test('repeated resource timeouts stop queued calls without inventing source obse
   for(const r of body.result.filter(r=>r.status==='not_executed'))assert.equal(r.ref,null);
 }));
 const native=value=>({content:[{type:'text',text:JSON.stringify({structuredContent:{status:'ok',data:value,provenance:{source_instance:'test',revision:'one'},gaps:[]}})}],details:{kind:'external_gateway_observation',tool:'data_gateway_read',catalog_revision:'catalog',output_sha256:'b'.repeat(64)}});
+test('a query timeout that forbids the same request is not sent upstream again',()=>fixture(async cwd=>{
+  let issued=0;
+  const gap={reason:'query_timeout',scope:{executed:true,retry_same_request:false,fields:['ID','MEAS_TYPE','DATASOURCE_ID','CREATE_TIME'],suggested_request:{request:{table:'T',filters:[{field:'t.ID',op:'eq',value:'0101110000'}]}}}};
+  const result=await tool(cwd,async()=>{issued++;return {content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',gaps:[gap]}})}]}}).execute('no-same-retry',{tools:['data_gateway_read'],program:`
+    const first=await tools.call('data_gateway_read',{limit:5});
+    const second=await tools.call('data_gateway_read',{limit:5});
+    const changed=await tools.call('data_gateway_read',{limit:1});
+    return {first,second,changed};`});
+  assert.equal(result.isError,false);
+  assert.equal(issued,2);
+  const body=JSON.parse(result.content[0].text);
+  assert.equal(body.result.second.status,'not_executed');
+  assert.equal(body.result.second.gaps[0].scope.retry_same_request,false);
+  assert.equal(body.result.second.gaps[0].scope.suggested_request.request.filters[0].field,'t.ID');
+  assert.equal(body.result.first.recovery.includes('suggested_request'),true);
+}));
 test('changed query conditions remain callable after an unchanged condition exhausts its timeout budget',()=>fixture(async cwd=>{
   const issued=[];
   const result=await tool(cwd,async(_name,args)=>{issued.push(args.limit);return args.limit===10?native({n:1}):{content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',gaps:[{reason:'query_timeout'}]}})}]};
@@ -374,7 +401,7 @@ test('one real program overlaps independent calls then passes observed data to a
   const t=tool(cwd,async(name,args,{callId})=>{
     calls.push({name,args,callId});active++;peak=Math.max(peak,active);if(active===2)release();
     if(args.value<3)await ready;active--;return native({value:args.value});
-  });
+  },{catalog:{...catalog,tools:{data_gateway_read:{...catalog.tools.data_gateway_read,annotations:{readOnlyHint:true}}}}});
   const result=await t.execute('outer',{tools:['data_gateway_read'],program:`
     const [a,b]=await Promise.all([tools.call('data_gateway_read',{value:1}),tools.call('data_gateway_read',{value:2})]);
     const c=await tools.call('data_gateway_read',{value:a.data.value+b.data.value});
@@ -420,7 +447,7 @@ test('bounded concurrency assigns unique IDs to queued calls and drains them bef
   const ids=[];let active=0,peak=0;
   const result=await tool(cwd,async(_name,args,{callId})=>{
     ids.push(callId);active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,5));active--;return native(args);
-  }).execute('queue',{tools:['data_gateway_read'],concurrency:2,program:`return await Promise.all(Array.from({length:9},(_,i)=>tools.call('data_gateway_read',{i})));`},new AbortController().signal);
+  },{catalog:{...catalog,tools:{data_gateway_read:{...catalog.tools.data_gateway_read,annotations:{readOnlyHint:true}}}}}).execute('queue',{tools:['data_gateway_read'],concurrency:2,program:`return await Promise.all(Array.from({length:9},(_,i)=>tools.call('data_gateway_read',{i})));`},new AbortController().signal);
   assert.equal(result.isError,false);assert.equal(ids.length,9);assert.equal(new Set(ids).size,9);assert.equal(peak,2);assert.equal(active,0);
 }));
 test('large returns spill before delivery and later programs reuse actual session observations without querying again',()=>fixture(async cwd=>{

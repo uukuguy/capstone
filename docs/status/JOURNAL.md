@@ -6834,3 +6834,206 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 11:40 Correction: earlier split gate omitted rebuild target consumers; full target exposes four pre-existing offline installer test failures.
 - 11:40 Asked explicit scoped main-gate exception; no new CI started. Existing dev-return approval remains reserved.
 - 11:38 Correct preceding three event timestamps to11:38; model-default repair committeda8685cbf,161 isolated checks pass.
+- 11:44 Record corrected gate coverage, unresolved installer tests and staged images; scoped main exception remains unanswered [323c24a9].
+- 12:05 User approved scoped main exception; CI41574376803 passed24s/33s, PR88 merged0b68c607; PR87 included automatically.
+- 12:05 Intranet25c71f85 healthy with matched API/worker images and management disabled; backups retained, temporary wrong-project containers stopped.
+- 12:05 Real24.3s/43.2s tasks, CSV28B/SHA and browser refresh pass; recoverable missing-file-command warning retained; dev-return CI remains authorized.
+- 12:06 Record intranet acceptance, exact images and source equivalence; retain full-release limits and prepare dev return [4fe1eb2f].
+- 12:06 Push intranet-20261103-1206-25c71f85 at exact deployed source with CI, image/container IDs and acceptance receipt.
+- 12:09 Commit deployment source graph and tag receipt for the approved dev-return PR [c57f4a73].
+- 12:27 PR89 mergedef6effcb after approved macOS CI41578091873 passed27s; actual dev fast-forwarded and matches origin/dev.
+- 12:27 Intranet deployment had passed real acceptance; latest SSH and HTTP probes time out, current host/service health cannot be reconfirmed.
+- 12:30 User confirms research server disconnected; stop remote probes, retain verified deployment and offline recovery references.
+- 12:38 Reproduce four installer fixture failures: macOS ls renders0600 as-rw-------@; installer permissions remain correct.
+- 12:38 Replace fixture display-string check with lstat regular-file,0600 and owner checks;51 offline tests pass [d599331f].
+- 12:38 Extend focused gate to offline fixtures; isolated212 pass/3skip and21 workflow contracts pass; no CI/push [01732906].
+- 12:45 User explicitly approves one macOS focused CI and dev integration for offline fixture repair; main and deployments remain outside scope.
+- Accepted reliability/capacity design and isolated implementation plan preserve existing contracts; baseline45 focused tests pass [f0e8728e].
+- Read-budget recovery red/green: issued refs now return measured safe paging;39 Node and18 composition/report checks pass without upstream replay.
+- Commit bounded recovery actions to prevent upstream replay after read-budget failures [e7d7fbc2].
+- PostgreSQL reproduces queued cancellation waiting for a worker; terminalize unleased cancellations under thread-first claim locking.132 ledger/worker tests pass.
+- Commit bounded native slots and immediate waiting cancellation; preserve running cleanup and source identity; focused types zero errors [692fa36e].
+- Native candidate rebuild exposes missing recovery-module COPY; add packaging regression and fix.161 consumer checks pass/32 platform skips.
+- Ship native recovery dependency and align queued-cancel consumer tests [fcad0a76]. Local candidate2-slot rebuild passes; real admission catches wrong test mount override.
+- Scoped route covers native capacity consumers without release suites; contract checks131 pass; no CI started [7616f389].
+- Correct original auth mount; canonical readiness passes. Mac sleep13:25–14:05 invalidates first concurrency trial; preserve lease fencing and failure receipts.
+- Awake real model trial: two attempts54–55s overlap; two followups46–47s retain CSV hashes; queued cancellation is terminal without claim.
+- Browser queue text contradicts its process card; reproduce, align queued labels, and verify216 App checks plus types. Add thread-lock skip regression.
+- Commit consistent queued process labels and direct-consumer coverage [b7dd440c]. Final focused Python gate411 pass/32 skips, App216 pass; independent inspection finds no actionable regression.
+- Final UI trial interrupted by repeated Mac sleep and AX permission_denied; preserve failures and stop model repeats. Pending scoped CI question is not approval.
+- Persist candidate evidence and control state for recovery [12dfcb44].
+- GUI recovered19:02; queued labels/refresh/immediate cancellation pass; other running tests cancel and release. User approves one focused macOS CI/dev merge.
+- Post-merge audit reproduces skipped-lock lost wake in real PG capacities1/2. Add pending-state peek and bounded retry;100 focused checks/types pass.
+- Commit lock-wake recovery to keep accepted work progressing without repeated empty-queue polling [8dd51d0b].
+- Canonical candidate rebuild and four retained product hashes pass; no Provider calls; follow-up CI approval is pending.
+- 12:46 Record fixture diagnosis and approval with deployment recovery notes for safe dev integration [6d44b123].
+- 12:45 Approved macOS CI41579803266 passes212 tests/3 skips in13.06s; job33s. PR90 merges into dev [f7d40163].
+- 12:45 Fast-forward actual dev to origin/dev, close merged branch, retain main/deployment sources and disconnected-server boundary.
+- 12:46 Actual dev regression: four original permission cases pass in1.83s; dev and origin/dev bothf7d40163, main remains0b68c607.
+- 12:48 Regenerate actual dev control graph without probes; existing browser tab confirms HEAD, merged source and deployment separation. Links/symlink/whitespace pass.
+- User prioritizes execution reliability and cross-session capacity; inspect existing reuse/preflight and serial Thread worker; write proposed design for review.
+- User approves design; isolated feat/execution-capacity-20261103 delivers recovery e7d7fbc2, capacity692fa36e, packagingfcad0a76 and focused CI7616f389. No CI approval.
+- Product b7dd440c passes411 Python/216 App checks and awake parallel/CSV/queued-cancel trials; final new-label GUI acceptance blocked by sleep/AX. No CI.
+- GUI recovers; final queued labels/refresh/cancel pass, all tests released. Commitf8e23ab3 records approval; PR91 starts one approved CI41624694112.
+- PR91 merges c3a0c472 after approved CI41624694112 passes in4m02s;353 Python/90 skips,216 App,types/docs pass.
+- Actual dev fast-forwards to origin/dev c3a0c472; tested f8e23ab3 tree identical. Canonical root rebuild starts with native slots2.
+- Root dev rebuild passes ready/same-image3bc47d1a; doctor and8 entrypoint checks pass. Four retained artifact hashes survive rebuild.
+- Close merged feature branch/worktree; preserve runtime recovery directory and root control stash; unrelated summer audit remains untouched.
+- Late real-PG regression proves skipped-lock lost wake for capacities1/2; fix8dd51d0b passes100 checks/types/review. Candidate ready, no new CI approved.
+- Canonical8dd51d0b candidate rebuild ready/same-image dcce6b25; four earlier products retain hashes. Temporary PG removed; second CI question awaits reply.
+- User explicitly approves ONE follow-up macOS session-capacity CI and dev merge after page verification; main/deployments excluded.
+- Record follow-up evidence and approval for dev integration [eca9913d]; existing control page verifies candidate and deployment edges.
+- Approved macOS CI41629449461 passes3m05s:355 Python/92 skips,216 App,types/docs; PR92 merges7ad2529a, actual dev fast-forwards.
+- Actual dev canonical rebuild ready/same-image cad0d7ea;10 capacity checks/doctor and four retained product hashes pass; scoped cache cleanup applies.
+- Close merged PR92 branch/worktree; preserve runtime recovery and premerge control stash; main/intranet/cloud/demo and unrelated audit unchanged.
+- Actual dev graph regenerated without remote probes; existing browser tab verifies7ad2529a node, merged sources and exact local-dev edge; links/symlink/whitespace pass.
+- Align instruction/answer body with13px session navigation and scale Markdown headings/tables for consistent reading [09391ff5].
+- Correct later workspace12px override and inline-code shrink after user screenshot exposes uneven typography [2148db14].
+- Final2148db14 rebuild ready/same-image bc0ded4b; cache cleanup and exact enterprise screenshot-case visual recheck pass; no CI approval yet.
+- Persist typography verification/control graph and prior dev recovery snapshots for scoped integration [a1b42cb1].
+- User explicitly requests typography CI and dev merge, accepting the pending macOS App-only scope; authorize one run.
+- Record typography CI authorization and integration checkpoint [3e8625f5]; preserve premerge journal stash reference.
+- Approved macOS CI41641127761 passes5m06s:1502 App tests/build,232 governance/2 skips; PR93 merges6c55e6ee, actual dev fast-forwards.
+- Actual dev rebuild ready/same-image bc0ded4b, App product2148db14/repository6c55e6ee; doctor/cache cleanup pass, merged branch closed.
+- Actual dev graph/App browser inspection and four retained artifact hashes pass; links/symlink/whitespace pass; PR93 scope complete.
+
+## 2026-11-04
+- 10:20 Intranet deploy of dev 6c55e6ee started; server healthy on 25c71f85; volumes retained.
+- 10:53 Intranet 6c55e6ee accepted: ready, management 0, slots 1, CSV sha 2768941343fc416a, continuation and snapshot restore. Tag intranet-20261104-1053-6c55e6ee. Volumes and 25c71f85 images retained.
+- 11:01 Pushed intranet-20261104-1053-6c55e6ee; remote peel is 6c55e6eed7c7988ef14baa9959dd9cd65e6d410e. No CI run started.
+- 11:21 Replaced intranet App with sha256:a1955fb9c66b; page now carries source 6c55e6ee. Blank image kept as 6c55e6ee-blank-version.
+- 11:41 Unified the visible labels on source 6c55e6ee. Local page shows local-dev · v0.1.0 · 6c55e6e. Intranet page shows intranet-dev · v0.1.0 · 6c55e6e. Intranet App is sha256:ff9eb4569105, script index-oaLTgvHT.js. Previous App images stay tagged 6c55e6ee-user-local and 6c55e6ee-blank-version. API, worker, native and volumes were not recreated.
+- 16:44 Replaced intranet App with sha256:c0cacc597a79. Page script index-D6zsKizj.js keeps intranet-dev and scrolls wide HTML tables. Prior App kept as 6c55e6ee-before-table. API, worker, native and volumes were not recreated.
+
+## 2026-11-05
+- 09:25 User authorizes latest intranet update; protected working-tree snapshot 73de5adb retains dev HEAD and index.
+- 09:25 Focused backend checks:131 passed/28 skipped; App271 passed/1 invalid diagnostic-history fixture; source types/build and doctor pass.
+- 09:25 Local canonical rebuild ready with API/worker image df8dec8c; intranet idle; amd64 build retries through proxy, no activation yet.
+- 09:56 Initial73de5adb startup failed on workbench profile adaptation; rolled back; regression reproduced and six runtime checks pass after fix.
+- 09:56 Fixed snapshot2b6dd8a3 deployed; API/worker776c30a5 and all four roles healthy; catalog rebaked and cache ownership corrected.
+- 09:56 Local fixed rebuild8eb5c353 ready; intranet real CSV/continuation verification running in thr_5a191f6f135269742038; no CI.
+- 09:59 Intranet real verification fails intent_deadline_exceeded at120 seconds; no CSV,continuation or acceptance tag; healthy candidate retained for diagnosis.
+- 12:52 User authorizes root@192.168.72.66 deployment labelled dky3-dev; gateway deferred to page configuration; isolated project and new secrets prepared.
+- 12:52 dky3-dev label regression:16 Python and17 App checks pass; App snapshotc4466005 retained; amd64 archives verified,loading underway.
+- 12:55 dky3 local canonical rebuild ready,e441db29 API/worker parity; backend source content matches2b6dd8a3;三区 import continues.
+- 12:58 三区dky3-dev deployed:four roles healthy,API/workerf1e74483 match; Appc4466005 label checked; independent storage and secrets retained.
+- 12:58 Real admission blocked by unconfigured gateway; user defers configuration to page; no model attempt or acceptance tag.
+- 13:06 User authorizes三区研发 gateway; protected config installed,default connected; new threadthr_5f2ded6051b79a52a4ab confirms available source.
+- 13:33 Diagnosis:~20-second native receive spans but~99-second queue delays;1826/1818 thinking writes average4.9/4.8 characters exhaust120-second intent budget.
+- 13:33 Frozen attempts prove dsv4 execution still used Qwen understanding; startup recognizer ignored each frozen selection.
+- 13:33 Fixcc50f8d8 retained:shared bounded text buffering and per-attempt recognition selection;106 tests plus97 consumers/1 skip pass.
+- 13:33 Final local rebuild585d98a9 ready; stream source hash matches;三区 candidate images built,zero active attempts before switch.
+- 13:38 cc50f8d8 deployed三区; real saved-input understanding Qwen16.346s/10writes,dsv45.734s/0writes; queue maxima0.028s/0.001s.
+- 13:38 Two public API tasks complete with Qwen/Qwen anddsv4/dsv4 identities and snapshot restore; full benchmark not rerun.
+- 13:41 Repair receipt retained at9b611d97,refs/capstone/receipts/intent-backpressure-20261105; ordinary index unchanged,no CI or integration.
+- 13:54 Thinking follow-up:active no-text calls were hidden;129094a9 restores status,22be9e5c adds retained-batch test;66App checks/types/build pass.
+- 13:54 Deployed App-only22be9e5c/image992ea422;API/worker start times unchanged;user benchmark completes and three downloads match admitted hashes.
+- 13:55 Thinking receipt retained atd31ea3cb,refs/capstone/receipts/thinking-visibility-20261105;doctor/links/symlink/whitespace pass;no CI.
+- 14:43 Correction:16.3/5.7s was a direct one-call probe,not session time;actual Qwen27.2+75.7=103.7s,dsv46.6+5.5=13.0s.
+- 14:43 Retained68bd1e07 removes repeated recognition while preserving full frozen context;142 consumers and final20 unscoped tests pass.
+- 14:43 Full planning probe:Qwen38.140s,dsv423.165s,one call each;not UI time or guaranteed speedup;business execution not invoked.
+- 14:43 After user task ended and main attempts reached zero,deployed68bd1e07 API/workerf875656f;App/native/data/gateway retained;readiness passes.
+- 14:46 Timing-correction receipt retained56432a7b,refs/capstone/receipts/single-pass-intent-20261105;normal index unchanged;no background model checks remain.
+- 15:03 Read-only audit:Qwen one recognizer invocation still used two responses after invalid top-level field;3162 output tokens versusdsv4440.
+- 15:03 Offline strict-schema probe exposes optional-boolean/null contract mismatch;further optimization not deployed,no added model calls.
+- 15:16 User requests deployment and direct push validation. Current三区68bd1e07/22be9e5c remains ready; no active attempts at preflight. Strict intent output and bounded provisional Thinking channel now in implementation, not yet deployed. Existing single-pass repair remains available for user testing. Normal index and other stages preserved.
+- 15:34 Source073860ca saved at refs/capstone/experiments/direct-thinking-20261105;127 backend,54 intent/input(6skip),106 frontend and types/build pass. One known baseline history failure excluded. Independent concurrency review corrected timestamp/metadata/UTF8/inflight barrier.
+- 15:34 Canonical local rebuild32877cb1 ready;doctor/cache maintenance pass. After zero-active backup,deployed三区 API/worker5acaa8e8 andApp9556e9cd;native/gateway/data unchanged. Initial wrong-project candidates removed without volumes;explicitproject switch corrected.
+- 15:34 Real Qwen/dsv4 short sessions completed. Qwen5preview/2durable,first3.4461s before6.9664s;capturedframes render without duplicates.Dsv4 supplied noThinking. Original three products retain hashes. Full benchmark/visual performance await user;no CI/merge/otherstage update.
+- 15:35 Trial receipt committed to recovery e1515471,refs/capstone/receipts/direct-thinking-20261105. Normal index untouched; mixed status/notebook paths remain uncommitted with ownership/recovery noted in live checkpoint. Final doctor and diff check pass; control overview regeneration in progress.
+- 15:36 VERSION-CONTROL and generated overview now include exact073860ca source plus actualdevHEAD;embedded graph JSON verified. No connected browser for visualgraphacceptance. All four三区roles healthy;an active user trial is now present,so no further restart or deployment is performed.
+- 15:45 User requires correction of coarse Thinking cadence. Reproduced missing fast-display mode and missing native idle flush with3 failing tests;fixed75ms/256chars preview-only buffer and idle callbacks,DB5s/16KiB unchanged.219 focused checks pass/32skip17.27s (localhostHTTPtests require proxybypass).Nativecoalescing test now targets enabledpreview256 bound. Candidate review/localbuild underway;三区 user attempt remains running,no restart.
+- 15:54 Actual user nativeThinking payload has task_id but runtime_action boundary lacked it; strict frontendmatching suppressed nativepreviews until5s durable batch. Added failing regression and trusted hosttaskID boundary binding. Control checks throttled independently from75ms displayticks.344 scoped tests pass/32skip18.79s;independent review passes. Finalbackendf34bb4d3/nativec446063c prepared;user task stillrunning,none stopped.
+- 16:06 User explicitly chose cancellation and immediate deployment. Normal cancel_work accepted;attempt_1cd4ab45f7f2bd6d reachedcancelled beforebackup/switch. Deployed backendf34bb4d3/APIworkerimagec8414ced andnativec446063c/imageeaf03a31;App073860ca andgateway/data preserved.
+- 16:06 Final local rebuild793b0895/doctor/cachemaintenance pass. LocalrealQwen57previews/3durable with36native,median97.4ms;actualnativeframes renderbeforeDB with correcttask and no duplicate.三区realQwen74previews/3durable,57native,median46.4ms;taskcompleted andsnapshotrestored. Threeoldproducts hashmatch. These are shortPythonchecks,not fullbenchmark latency claims. No CI/push/merge/otherstage update.
+- 16:09 Receipt42c20fd3 saved underrefs/capstone/receipts/smooth-thinking-20261105. Finalcontrolgraph regenerated,source/deployment/HEAD JSON verified;1920px browser screenshot checked with no horizontaloverflow and correctsourceedges. Actual三区 page restores333833500 anddky3-dev. Normalindex unchanged;only mixedcontrol/notebook remainuncommitted asrecorded. Temporarybrowser/server cleanup follows;no modelprobes running.
+- 16:35 User selects63内网联调 asprimary because电科院MCP is reachable, then explicitly requires三区/63/local sameversion. Allthree fullrole sourcef34bb4d3 nowaligned; no Gitbranchmoves/CI/push. AllAppembeddedsource/stage andAPIreadiness verified; native sourcehashaudit passes inclsymlinktargetcontent. Local1213 runtime/configfiles byte-identical; localfixedApppreview preserves5173 andsameoriginproxy.
+- 16:35 63 API/worker53a42476,native17f6e7f7,Appca736dbc;gatewayconfiguredconnected/contractavailable andprotectedconfighashunchanged. OldDBkeytablehashes matchbackup. RealQwenattempt_ab1d3791a5acd772 completed50.6026s,123previews/7durable;createdversion-check.txt downloaded9bytes with c4b04216 SHAandexactcontent. Newvalidationdata keptseparatefromoldpreservationcheck.
+- 16:35 LocalAPI/workers8ecdd56c/native91ca997b;三区API/workerexistingc8414ced/native37180666/Appa72a92b5;allsourceOCIlabelsfullf34. Backupsprotectedandoldimageskept. Scopedlocalcleanupapplied. RootVitecommand/PIDpreserved; fixedApppreviewmustbestoppedbeforeresumingworktreeVite. Sourcecodeunchangedfromverifiedf34, no repeatedmodelchecks onotherstages.
+- 16:55 User requestsbothintranetstages defaultdsv4(18804). Canonicaldefault.intranet changed;localdefault unchanged.137 scoped checks pass/9skip1.15s;explicitfrozenQwenagainstnewdefaultvalidated. Newsourcebfb16344/ref refs/capstone/fixes/default-dsv4-20261105 stagedonlyownedconfig/tests andpartialREADMEparagraph;otherREADMEworkpreserved.
+- 16:55 Allthree allroles deployedbfb16344;Appsfullsource/stage andAPI/worker/nativeOCIverified.63backend34b2e04a/native43fbc924/App7d009b4e;66backenddf3b64ef/native002e4daa/App68c5a5a5;localbackend7abbf1e5/native0c25ecb5/fixedAppindex-bY0zX88l.js. Fresh idleguards,protectedbackups,gatewaycredentials/data preserved;no newtask cancellation.
+- 16:55 Defaultrequests omitllm_profile_id.63attempt_adb583b42311e8f6 and66attempt_5c2adb643f9b4bc0 completed;bothsavedprofile18804 andrecognizerengine.model=dsv4;restoredsnapshots pass. Notfixedspeedupclaims. Localcatalogstillcommercial-deepseek-flash. CanonicalrebuildCAPSTONE_START_APP=0 passes;fixedAppindependentlybuilt/validated. FirstdefaultAppcheckfailurewaspreviewmissingdev-onlyidentityendpoint,notproductfailure. No CI/push/merge/main/cloud/demo update.
+- 17:17 Currentreceipt51ca0422 saved atrefs/capstone/receipts/default-dsv4-20261105. LocalfixedsourceVite nowshowslocal-dev/bfb (314srcfiles matcharchive),actualGitdiscoveryisolatedtoprocess; rootworktreeuntouched. Browsersverify63+66 selectors18804/dsv4,localdeepseek-flash,allpageversionsbfb. Graphregeneratedand1920pxinspected:actualdevHEADnodevisible,allthreedeploymentedgesbindbfb,nohorizontaloverflow. Doctor/diff/linkchecks pass;ownbrowser/controlserverclosing. No modelprobesrunning,Appservicesremainavailable.
+- 17:38 User confirms Thinking absentwhile running. Latest63DSV4gateway-toolscatalog attempts have0Thinking;intentmodelconfigonlyID, nativeexplicitreasoningFalse. Controlled18804max256 probes:effortomitted0reasoning/1.420s,low113reasoningchars/4.431s;actualserviceOpenAPIadmitsreasoning_effort. Rootcauseisadmittedmodelcapability/SDKeffortclamping,notonlydisplaybuffer. Optionaltypedprofilecapability andbothtransportpaths nowinfix;currentdeployedbfbunchanged.
+- 18:07 Source3a8eaf76 saved at refs/capstone/fixes/thinking-capability-20261105.470 focused checks passed/38 skipped42.59s; review closed private-config ownership gap. Local canonical rebuild,doctor and scoped cache cleanup passed. Actual local/63 browsers prove visible Thinking while running and restoration after refresh.63 attempt_afa1dde6c77bb62d:76preview/12durable, preview1.3011s before durable. Local attempt_382ae46607642c66:Python answer63,7durable(4native),restored225+364chars. Bounded240s probe timed out; task completed267.421s later. Performance is abnormal, not accepted.63 answer listed models instead of gateway tools; semantic routing remains unaccepted. No repeated benchmarks or CI started. Deployment receipts under .capstone-agent/thinking-missing-20261105/; normal index and unrelated work preserved.
+- 18:11 Allthree stage identities3a8/healthy confirmed. Graph1920px browser check passed, actualHEAD/source/ancestry visible with no horizontal overflow. Receiptfe0c1dab saved at refs/capstone/receipts/thinking-capability-20261105; own browser/controlserver stopped. User screenshot flags wrong model-table answer. Trace proves catalog_lookup unconditional static-model shortcut and omitted recognition gateway publication; native discovery exists but is bypassed. Proposed explicit catalog target and bounded admitted service metadata, draft2026-11-05-catalog-target-and-gateway-discovery.md. Design approval requested per brainstorming; no new code changes yet.
+- 18:58 User approved revised simplification with “继续”: remove default independent intent model; direct execution receives accepted capabilities. Source367374aa8184154528e9aacb50cb7248cb5a6d3f saved at refs/capstone/fixes/direct-native-entry-20261105, parent3a8.314 focused checks pass/33skip17.01s, independent review passed after restoring frozen application catalog for real schema2 DomainPack grants. Old frozen intent inputs/decisions recover lazily; local context preparation emits no fake LLM stage. Execution metadata already contains skills/gateway/pack tools; added only missing unavailable-pack status. Local canonical rebuild and remote/App preparation underway; no new deployment acceptance claim, no CI. Source uses temporary index; normal index checksum preserved.
+- 19:14 Three runtime stages now367/healthy; protected backups and idle guards preserved data/gateway credentials. Local real ordinary attempt_cbacee44ed23fe9d completes9.5574s,firstpreview6.1139s,1LLM/no tools/no recognition;Thinking visible/restored.63 originalgateway attempt_80e7f12b66fc1458 completed96.3927s with actual discover_gateway334ms,2 execution LLM,26preview/7durable,restored370chars;answer nowgateway entry tools,not81models. Local professional attempt_772cda0c715e63b3 executed5 authority tools plusbash and publishedJSON but exceeded180s trial; own task cancelled,not accepted as complete/performance pass. Found18.2904s native preparation delay from absent professional worker origins. Config255c8855 saved separately atrefs/capstone/fixes/intranet-tool-origins-20261105;22 real Compose checks pass1.62s. Runtime packages/Apps remain367; onlyintranetoverlaydefault origins becomesempty. Config activation/short timing followup inprogress;no repeated benchmark orCI.
+- 19:20 Config255c applied63+66 with idle guards/protectedbackups, onlygeneralpi recreated; effectiveorigins empty, allruntime367 identities/defaults/gateway credentials preserved.63 ordinary attempt_1c777f19549e21c8 completed8.0752s,firstpreview6.1726s,preparation1.7879s,1LLM/no tools/no recognition,8preview2durable,102chars restored. No universal latency claim. Local payloadselected18804 confirmed in frozen native_context/submission despite base executor_identity showinglocaldefault. Finalgraph generatedonce19:18;1920px browser inspection confirmsactualHEAD6c55/runtime367/config255 ancestry anddeploymentedges,nohorizontaloverflow. Allstage containerhealth/source freshchecked;doctor/cachecleanup/diff checks passed. Currentreport/baton/structuraldefaultentry updated; scopedreceiptref direct-native-entry-20261105 closes this unit. Remaining: heavyprofessional taskcompleteanswer/performance unaccepted; no moremodelprobes, noCI/push/merge.
+- 20:36 User approved measured firstThinking followup, then reported intranet disconnected. Readonly63DB samples show25-33ms connect vs~1msSELECT1; only~0.2s estimated repeated-connection cost. Found real publication property2/3GETs perbinding; per-call snapshot fix reduces to1 withoutcross-taskcache orpermissionrelaxation. Private firstexchange timing13e plusoptimization7387 saved on scopedrefs;304pass35skip27.46s and93pass22skip5.00s, bothreviewed. Local13e modeltrial attempt_45f5a8064e6c932b interrupted/noProviderheaders, notperformancepass; safe requestsize counts retained,no retries. Remote13e images prepared NEVERactivated. Network/model/deployment operations stopped. Local restored exact367/allhealthy/AppPID7290 withledgerbackup/data preserved, matching bothintranetaccepted367+overlay255.7387 remains undeployed and realvalidationpending. Controlgraph20:30snapshot/actualHEAD6c55 checkedoffline1920px; correctedcandidateplacement toprevent255→7387 edge crossingHEAD. Doctor/diff/scopedcachecleanup passed. NoCI/push/merge orusertaskcancel; recoverybaton/report recordsnextboundedvalidation.
+- 21:05 User explicitly authorized local-dev trial7387 while intranet remains unavailable.1788 sourcefiles audited;canonicalrebuild/Apptypecheck/build andprotectedenv+ledgerbackups/idle guards passed. LocalAPI/allworkers image7d271fe5,nativef15c3a80,AppPID66644 allfull7387/healthy;privateenvunchanged. Realcommercial-deepseek-flash attempt_2a6ef4a6b2183f1c returned你好 in3.1359s,HTTPack0.1637s,1executionLLM/0recognition/0tools;refreshcompleted passed. NoThinking supplied;notDSV4firstThinkingacceptance. Privatephasesms:resources59.403,spawn70.391,request556.693,headers965.836,bytes976.483,text1843.916,finish1969.532. Live readonlybinding confirmed1GET23.89ms/total39.566ms. No cross-model speedupclaim. Bothintranetstages remainlastconfirmed367/overlay255,unprobed/unchanged. Doctor/diff/scopedcleanup passed;local-onlysource divergence is authorized. Report/control/baton update inprogress, noCI/push/merge.
+- 21:10 Localtrial closeout:report/baton updated;21:07controlsnapshot visually checked1920px,local7387 vsbothintranet367 sourceedges/HEAD6c55 correct,nooverflow. Templatecomment no longer calls candidateundeployed. Privatefirstexchange timing andcompletedanswer restore verified;modelprovidednoThinking,notDSV4timingacceptance. Scopedcachecleanup/doctor/diff passed, no additionalmodelorremotechecks. Receiptref local-first-thinking-20261105 reserved forscopedcloseout. Localservices remainavailable.
+# 2026-11-05 — structured independent tool batches
+
+Deployment followup: canonical rebuild/source audit passed, then exact metadata
+layers activated4ba17891. All API/workers shareaeba082c, native0eea01ff and App
+source4ba17891/PID77708; healthy and private environment unchanged. Real attempt
+1753d658f2d2bca7 adopted calls mode:2read queries overlap2, bothok/1row,
+query span1.7953s, totalwall28.995s. Browser explicit enterprise workspace and
+refresh passed. Optional export command was rejected after session archive;
+no unarchive, retry/model call or source replay. Earlier continuation harness used
+new-work incorrectly and received rejection; preserve receipts, not product failures.
+Final composition gate1pass3.13s, doctor passed. Final control rendering and scoped
+cleanup running. No intranet/CI/push/merge change.
+
+User approved implementation after reviewing the design. Read-only audit of
+attempt_3ab2a69641558eb6 found 121 query calls, max overlap 1, 14 composition
+programs and no tools.batch. One 26-call fixed-parameter set was independent.
+
+Candidate 4ba178910b0916ec2a0f68593aa51e397ff74271 at
+refs/capstone/features/structured-batches-20261105 adds calls mode to the existing
+tool, ordered IDs and refs, per-item failure retention, shared session capacity,
+exclusive unknown/mutating calls, cancellation and timing receipts. Design parent
+a4e5173ea68fcfe48f05fb00845b84ae1afb3a24 follows local7387. Normal dev HEAD/index
+are unchanged. Paths/backups/source audit: .capstone-agent/structured-batches-20261105/.
+1313 runtime inputs match candidate. Focused Python141pass33skip8.84s; new
+batch/scheduler11pass; pinned SDK accepted both modes/rejected invalid alternatives.
+Loopback HTTP tests required NO_PROXY; without it system proxy returned502.
+Independent reviewer could not start: collaboration runtime rejected unavailable
+default model gpt-6.1-luna. Inline review and focused checks continue; do not claim
+independent review passed. Canonical local rebuild is running, not yet acceptance.
+No intranet probe, CI, push, merge or cloud/demo change.
+
+Final boundary22:17: scoped cleanup exit0, doctor/17local links/relative symlink/
+diff checks passed. Final overview1920px inspected: no overflow, exact4ba source,
+7387→4ba ancestry edge and visible distinct devHEAD6c55. All five runtime roles
+healthy exact4ba, API/workers same image. Source code matches candidate on all
+task paths. Report/status/plan completed and receipt preserved at
+refs/capstone/receipts/structured-batches-20261105. No running trial model remains;
+fixed-source VitePID77708 stays available for user validation.
+
+- 22:31 用户确认正式交接；保存批次部署、验证、限制及后续反馈入口，保留 dev HEAD 与索引。
+
+- 23:02 复查真实任务：114次查询最大并发4，59/31调用组仍串行；29网关错误与7组合错误分开归因。
+- 23:02 网关运行包缺grid_database；用户授权协查通知msg_0c13593879cc已入邮箱并标记工作区未读，未修改网关。
+- 23:02 修正984131e3：有界独立分页链、稳定tool身份与helper同源别名；4项先红后绿，55Node/20Python通过。
+
+- 23:09 984131e3全角色本地部署且私有配置保持；真实6链各2页，并发4、12查询、0工具错误，CSV下载哈希/刷新通过。
+- 23:09 网关协查msg_0c13593879cc未回复/未确认读取；不声称29网关错误或完整原任务已修复。
+
+- 23:13 完成984控制图1920px及4ba→984来源边核对、定向清理、doctor/18链接/diff检查；源码与回执分开保存，dev索引保持。
+
+## 2026-11-06
+
+- 收口授权：用户要求tag/main合并；CI仍需逐次明确批准，未push/建PR/合并。
+- 隔离候选7295d6d5建立；Python3.12 setup/install-pi/doctor完成，原工作区/认证状态保持。
+- faa9bcc0修复49类型问题及空目录/非法角色路径；184定向通过，类型0错误；本地完整发布门禁执行中。
+- 完整本地make check-release在faa9bcc0/Python3.12运行；新候选未部署，main/dev/CI均未变。
+
+- 6c54b077 有界诊断归档，修正恢复夹具，防止长会话内存增长。
+
+- a8fbf683 将 TUI 固定延时改为有界状态等待，消除线程调度导致的误报；12 项通过。
+
+- a8fbf683 后端完整组件复验通过：3143 项、197 跳过、162.12 秒；两次失败回执保留。
+
+- a8fbf683 本地发布范围分段验证通过，打包和源码安装通过；保留失败回执，等待 dev CI 明确批准。
+
+- d416707d 固定收口候选、分段验证回执和控制图，准备获批后按 PR 合并。
+
+- 2026-11-06 用户批准本次 dev PR macOS 产品门禁及治理检查；推送 d416707d，main CI 尚未批准。
+
+- PR94 CI42137611817 执行产品门禁；发现 12 份历史回执遗漏，原文补齐后候选链接检查通过，未触发新 CI。
+
+- 1a0fc847 用显式握手验证安静 Provider 的空闲刷新，消除调度计数误报；先复现两项失败，再通过 92 项。
+
+- CI42137611817 失败：3142 后端通过，仅安静回调计数失败；12 份历史回执补齐，候选链接通过。

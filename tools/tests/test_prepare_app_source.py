@@ -83,11 +83,12 @@ def test_helper_requires_exact_revision_cloud_stage_and_ignored_output(source):
         assert not output.exists()
 
 
-def test_local_trial_source_uses_same_origin_and_explicit_local_label(source):
+@pytest.mark.parametrize('environment', ['local-dev', 'intranet-dev', 'dky3-dev'])
+def test_local_trial_source_uses_same_origin_and_explicit_local_label(source, environment):
     root, sha = source
-    output = root / '.capstone-agent/app-builds/local-trial'
-    result = prepare(root, sha, 'local-dev', '', output)
-    assert result['environment'] == 'local-dev'
+    output = root / '.capstone-agent/app-builds' / environment
+    result = prepare(root, sha, environment, '', output)
+    assert result['environment'] == environment
     assert result['api_origin'] == ''
     assert result['source_revision'] == sha
     assert result['deployed'] is False

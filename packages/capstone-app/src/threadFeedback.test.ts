@@ -34,6 +34,15 @@ describe('recorded tool failure reasons', () => {
     expect(commandRejectionCopy('revision_conflict')).toContain('未执行')
     expect(commandRejectionCopy('revision_conflict')).toContain('输入内容已保留')
   })
+  it('reads a grid tool error that is followed by host guidance', () => {
+    const summary = toolFailureReason({ summary: '{"code": "powerflow_non_converged", "phase": "execute", "message": "Pandapower AC power flow did not converge"} Inspect the evidence and correct or justify this selection.' })!
+    expect(summary).toContain('Pandapower AC power flow did not converge')
+    expect(summary).not.toContain('格式不可识别')
+  })
+  it('reads a cut-off grid error that still contains its message', () => {
+    const summary = toolFailureReason({ summary: '{"code": "analysis_non_converged", "message": "Analysis operation \'powerflow.ac\' did not converge", "retryab' })!
+    expect(summary).toContain('did not converge')
+  })
   it.each(['{"detail":','{"detail":{"unexpected":true}}'])('keeps malformed or unrecognized JSON out of the summary: %s',message=>{
     expect(toolFailureReason({message})).toBe('诊断摘要不完整或格式不可识别；请查看保存的原始响应。')
   })

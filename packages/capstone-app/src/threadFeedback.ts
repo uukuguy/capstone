@@ -1,3 +1,36 @@
+function quotedField(text: string, name: string): string | undefined {
+  const match = text.match(new RegExp(`"${name}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`))
+  return match?.[1]?.replace(/\\"/g, '"').replace(/\\n/g, ' ')
+}
+
+/** A tool receipt may be JSON followed by host guidance, or cut off mid-object. */
+function leadingDiagnostic(text: string): unknown {
+  const start = text.indexOf('{')
+  if (start < 0) return undefined
+  const slice = text.slice(start)
+  try { return JSON.parse(slice) } catch { /* Trailing guidance or a cut receipt. */ }
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let index = 0; index < slice.length; index += 1) {
+    const char = slice[index]
+    if (inString) {
+      if (escape) escape = false
+      else if (char === '\\') escape = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{') depth += 1
+    else if (char === '}' && depth > 0 && --depth === 0) {
+      try { return JSON.parse(slice.slice(0, index + 1)) } catch { break }
+    }
+  }
+  const message = quotedField(slice, 'message')
+  const code = quotedField(slice, 'code')
+  return message || code ? { ...(message ? { message } : {}), ...(code ? { code } : {}) } : undefined
+}
+
 /** Reader-facing recovery text for bounded service codes; never expose raw exceptions. */
 function diagnosticSummary(text: string): string {
   if (!text.trim().startsWith('{')) return text
@@ -7,7 +40,8 @@ function diagnosticSummary(text: string): string {
     .replace(/(^|；)legal_values_source=/g,'$1合法值来源=')
     .replace(/(^|；)suggestion=/g,'$1纠正建议=')
   try {
-    let value: unknown = JSON.parse(text)
+    let value: unknown = leadingDiagnostic(text)
+    if (value === undefined) throw new Error('unrecognized diagnostic')
     const locations: string[] = []
     for (let depth = 0; depth < 8; depth++) {
       if (typeof value === 'string') {

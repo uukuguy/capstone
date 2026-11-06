@@ -26,11 +26,18 @@ def artifact_origin(source):
         **{key: source[key] for key in ('attempt_id', 'artifact_id', 'work_id', 'source_status')}}
 
 
+# A finished instruction may hand off only these file statuses. `incomplete`
+# is the host close of a capture that was still running when the instruction ended.
+TERMINAL_ARTIFACT_STATUSES = frozenset({
+    'completed', 'failed', 'cancelled', 'needs_clarification', 'capability_unavailable', 'incomplete',
+})
+
+
 def checked_origin(value, thread_id):
     fields = {'resource_id', 'attempt_id', 'artifact_id', 'work_id', 'source_status'}
     if (not isinstance(value, dict) or set(value) != fields
             or not isinstance(value['source_status'], str)
-            or value['source_status'] not in {'completed', 'failed', 'cancelled', 'needs_clarification', 'capability_unavailable'}
+            or value['source_status'] not in TERMINAL_ARTIFACT_STATUSES
             or any(not isinstance(value[key], str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', value[key])
                    for key in fields - {'source_status'})
             or value['resource_id'] != resource_id(thread_id, value['attempt_id'], value['artifact_id'])):

@@ -312,11 +312,12 @@ def test_later_missing_requirements_cannot_block_earlier_executable_goals():
     assert [goal["goal_id"] for goal in decision.execution_goals] == ["business"]
 
 
-def test_clarification_globally_stops_goal_execution():
+def test_clarification_text_does_not_stop_an_independent_ready_goal():
     document = _weather_and_business_document()
     document["clarification"] = "Which location should be used?"
+    document["clarification_required"] = True
     decision = IntentDecision.from_document(document, IntentRequest.from_document(request_document()))
-    assert decision.execution_goals == ()
+    assert [goal["goal_id"] for goal in decision.execution_goals] == ["business"]
 
 
 @pytest.mark.parametrize("index,dependencies", [

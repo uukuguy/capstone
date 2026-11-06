@@ -270,7 +270,9 @@ async def _test_tui_live_session_refreshes_snapshot_and_event_cursor() -> None:
     app = ThreadTuiApp(_snapshot(), _events(), lambda command: _receipt(command), session=session, poll_interval=0.05)
     async with app.run_test(size=(120, 40)) as pilot:
         session.polled = True
-        await pilot.pause(0.08)
+        deadline = asyncio.get_running_loop().time() + 2.0
+        while app._event_cursor != 1 and asyncio.get_running_loop().time() < deadline:
+            await pilot.pause(0.02)
         assert app._event_cursor == 1
         assert app.events.next_event_seq == 1
 

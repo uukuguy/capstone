@@ -64,6 +64,22 @@ def configured_worker_preparation(legacy_origin: str | None, family_origins: str
     return prepare
 
 
+def configured_family_wake(legacy_origin: str | None, family_origins: str,
+                           operator_token: str) -> Callable[[str], bool]:
+    """Wake the worker that owns one implementation family."""
+    clients = dict(_configured_clients(legacy_origin, family_origins, operator_token))
+
+    def wake(family: str) -> bool:
+        if not isinstance(family, str) or not family:
+            return False
+        client = clients.get('worker:' + family)
+        if client is None:
+            client = clients.get('worker')
+        return _wake_safely(client) if client is not None else False
+
+    return wake
+
+
 def configured_worker_wake(legacy_origin: str | None, family_origins: str, operator_token: str) -> Callable[[], bool] | None:
     """Wake every worker selected by protected host configuration."""
     clients = _configured_clients(legacy_origin, family_origins, operator_token)
@@ -98,6 +114,7 @@ def create_wake_app(
     input_catalog: Callable[[str], dict] | None = None,
     thread_family: Callable[[str], str] | None = None,
     prepare_model: Callable[[str], object] | None = None,
+    domain_tools: object | None = None,
 ) -> FastAPI:
     if runtime_mode not in {"normal", "m11-provider-free"} or implementation_family not in {None, "pandapower", "pypsa", "native"}:
         raise ValueError("worker runtime identity is invalid")
@@ -155,6 +172,35 @@ def create_wake_app(
             prepare_model(thread_id)
         except Exception:
             raise HTTPException(503, 'model preparation incomplete') from None
+
+    @app.get('/domain-tools/catalog')
+    def domain_catalog(profile_id: str, profile_version: str, authorization: str = Header(default='')):
+        catalog = getattr(domain_tools, 'catalog', None)
+        if not callable(catalog):
+            raise HTTPException(404, 'domain tools are not published by this worker')
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        try:
+            return catalog(profile_id, profile_version)
+        except KeyError:
+            raise HTTPException(404, 'domain pack is not published by this worker') from None
+
+    @app.post('/domain-tools/invoke')
+    def domain_invoke(body: dict, authorization: str = Header(default='')):
+        invoke = getattr(domain_tools, 'invoke', None)
+        if not callable(invoke):
+            raise HTTPException(404, 'domain tools are not published by this worker')
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        if (not isinstance(body, dict) or set(body) != {'task_id', 'call_id', 'name', 'arguments'}
+                or not isinstance(body.get('call_id'), str) or not body['call_id']):
+            raise HTTPException(422, 'domain tool call is invalid')
+        try:
+            return invoke(body)
+        except KeyError:
+            raise HTTPException(404, 'domain tool is not published') from None
+        except ValueError:
+            raise HTTPException(422, 'domain tool call is invalid') from None
 
     return app
 

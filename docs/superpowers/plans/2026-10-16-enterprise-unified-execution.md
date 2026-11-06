@@ -1,5 +1,19 @@
 # Unified Enterprise Execution Implementation Plan
 
+2026-11-03锁竞争补修：PR91收口后，真实PG单/双槽位复现行锁释放后无新唤醒而停等。
+8dd51d0b增加匹配待执行状态确认，100项线程/租约检查及类型/独立审查通过，本机候选重建通过。
+补修经独立批准的macOS CI41629449461通过3分05秒，PR92合dev7ad2529a；
+不重复模型任务，不变更远端部署。见[补修回执](../../reports/2026-11-03-capacity-wake-followup.md)。
+
+2026-11-03用户优先选择执行可靠性与跨会话并发。按[已接受设计](../specs/2026-11-03-execution-reliability-and-session-capacity-design.md)
+及[实施计划](2026-11-03-execution-reliability-and-session-capacity.md)推进。
+复用已有批次预检、观察复用、表格与报告校验；补大观察预算失败的可执行恢复，
+以及native有界槽位和等待中立即取消。候选在feat/execution-capacity-20261103，
+产品b7dd440c通过PR91合入dev c3a0c472；macOS定向CI4分02秒通过。
+本机411项Python/216项App、真实双会话/继续读取/等待取消及最终页面刷新通过；
+实际dev规范重建与历史产物哈希保持。睡眠失败另存，不算性能依据；远端部署不在本轮范围。
+见[验收记录](../../reports/2026-11-03-execution-capacity.md)；研发服务器保持断开。
+
 2026-10-31当前切片：按用户确认的边界移除网关业务工具名、提供方名和工具集名的
 执行分支。具体实例由当前发现结果及返回动作取得；任务状态与ready视图分开处理。
 见[动态绑定设计](../specs/2026-10-31-gateway-dynamic-bindings-design.md)、

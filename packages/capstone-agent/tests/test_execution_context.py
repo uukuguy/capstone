@@ -53,7 +53,7 @@ def test_general_scenario_projection_contains_only_execution_needs(text, operati
     assert plan['goals'][0]['instruction_excerpt'] == text
     assert plan['goals'][0]['message_refs'] == refs
     assert plan['goals'][0]['operation'] == operation
-    assert plan['goals'][0]['status'] == ('blocked' if missing or clarification else 'ready')
+    assert plan['goals'][0]['status'] == ('blocked' if missing else 'ready')
     assert 'PRIVATE_DIAGNOSTIC' not in json.dumps(plan)
     assert not {'description', 'missing_requirements', 'clarification'} & plan['goals'][0].keys()
 
@@ -116,7 +116,7 @@ def test_task_excerpt_must_be_user_text_not_model_diagnostics():
         decision(source, [item])
 
 
-def test_typed_clarification_state_does_not_depend_on_diagnostic_wording():
+def test_typed_clarification_state_does_not_block_a_ready_goal():
     from capstone_agent.execution_context import execution_plan_for
     source = request()
     document = decision(source, [goal()]).to_document()
@@ -124,8 +124,15 @@ def test_typed_clarification_state_does_not_depend_on_diagnostic_wording():
     valid = IntentDecision.from_document(document, source)
     assert execution_plan_for(source, valid)['executable_goal_ids'] == ['g1']
     document.update(clarification_required=True, clarification=None)
+    ready = execution_plan_for(source, IntentDecision.from_document(document, source))
+    assert ready['executable_goal_ids'] == ['g1']
+    assert ready['goals'][0]['status'] == 'ready'
+    assert ready['goals'][0]['blockers'] == []
+    unmet = goal(missing=['The registered model was not selected'])
+    document['goals'] = [unmet]
     blocked = execution_plan_for(source, IntentDecision.from_document(document, source))
-    assert blocked['goals'][0]['blockers'] == [{'kind': 'clarification_required'}]
+    assert blocked['executable_goal_ids'] == []
+    assert blocked['goals'][0]['blockers'] == [{'kind': 'unresolved_requirement'}]
     document['clarification_required'] = 'false'
     with pytest.raises(ValueError, match='clarification_required'):
         IntentDecision.from_document(document, source)

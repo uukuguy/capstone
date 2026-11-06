@@ -25,6 +25,40 @@ def single_child_cleanup(monkeypatch):
     monkeypatch.setattr(GeneralPiProcess, 'stop', stop_fixture)
 
 
+@pytest.mark.parametrize('diagnostic_fails', [False, True])
+@pytest.mark.parametrize('idle_callback_delay', [0.0, 0.3])
+def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, single_child_cleanup, diagnostic_fails, idle_callback_delay):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    from capstone_agent.stream_progress import IdleFlushCallback
+    script = tmp_path / 'quiet.py'
+    final = {'type': 'agent_end', 'messages': [{'role': 'assistant', 'stopReason': 'stop',
+        'content': [{'type': 'text', 'text': 'Done'}]}]}
+    flushed = tmp_path / 'idle-flushed'
+    # Finish only after the host flushes twice. Scheduler speed must not decide
+    # how many callbacks fit before an unrelated child-process sleep expires.
+    script.write_text('import sys,time\nfrom pathlib import Path\nsys.stdin.readline()\n'
+        'while not Path(' + repr(str(flushed)) + ').exists(): time.sleep(.01)\n'
+        'print(' + repr(json.dumps(final)) + ',flush=True)\n')
+    idle = []
+    started = []
+    def flush_idle():
+        idle.append(time.monotonic())
+        if len(idle) == 1:
+            time.sleep(idle_callback_delay)
+        if len(idle) >= 2:
+            flushed.touch()
+    def process_started():
+        started.append(process.process.pid)
+        if diagnostic_fails:
+            raise RuntimeError('Diagnostic sink unavailable')
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    process.run('task', timeout=5, cancelled=lambda: False,
+                on_event=IdleFlushCallback(lambda event: None, flush_idle),
+                on_process_started=process_started)
+    assert len(started) == 1
+    assert len(idle) >= 2
+
+
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
 @pytest.mark.parametrize('outcome', ['complete', 'cancelled', 'deadline'])
 def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, single_child_cleanup, mode, outcome):
@@ -397,9 +431,70 @@ def test_real_sdk_parallel_image_reads_fit_runtime_frames_without_losing_model_i
     assert all('binary omitted' in str(event['result']) for event in reads)
 
 
+@pytest.mark.parametrize('reasoning', [True, False])
+@pytest.mark.parametrize('reasoning_field', ['reasoning', 'reasoning_content'])
+@pytest.mark.parametrize('thinking_level', [None, 'low', 'off'])
+def test_real_sdk_reasoning_capability_reaches_request_and_native_callback(tmp_path, reasoning, reasoning_field, thinking_level):
+    import shutil
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from capstone_agent.general_pi_executor import GeneralPiProcess, native_pi_launch
+    root = Path(__file__).resolve().parents[3]
+    sdk = root / '.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js'
+    assert sdk.is_file(), 'Run make install-pi before the pinned SDK acceptance'
+    node = shutil.which('node')
+    assert node is not None
+    requests = []
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+        def do_POST(self):
+            requests.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.end_headers()
+            deltas = [{'role': 'assistant'}, {reasoning_field: 'Check '},
+                      {reasoning_field: 'the facts.\n'}, {'content': 'Done.'}]
+            for delta in deltas:
+                chunk = {'id': 'loopback', 'object': 'chat.completion.chunk', 'created': 1,
+                         'model': 'dynamic-model', 'choices': [{'index': 0, 'delta': delta, 'finish_reason': None}]}
+                self.wfile.write(('data: ' + json.dumps(chunk) + '\n\n').encode())
+            self.wfile.write(b'data: {"id":"loopback","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+            self.wfile.flush()
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        extension = tmp_path / 'empty-extension.mjs'
+        extension.write_text('export default function () {}')
+        argv, environment = native_pi_launch(command=(node, 'unused'), workspace=tmp_path / 'task',
+            config_root=tmp_path, model='dynamic-model', model_reasoning=reasoning,
+            relay_url=f'http://127.0.0.1:{server.server_port}/v1', relay_token='loopback-only',
+            context_extension=extension,
+            sdk_config={'sdk': str(sdk), 'settings': {'retry': {'enabled': False},
+                        **({'defaultThinkingLevel': thinking_level} if thinking_level else {})},
+                        'contextFiles': [], 'allowedSkills': [], 'mcp': None,
+                        'input': {'kind': 'text', 'text': 'Reply briefly.'}})
+        events = []
+        answer = GeneralPiProcess(argv, environment, tmp_path / 'task').run('Reply briefly.', timeout=30,
+            cancelled=lambda: False, on_event=events.append)
+        assert answer == 'Done.'
+        assert len(requests) == 1
+        assert requests[0].get('reasoning_effort') == (
+            (thinking_level or 'medium') if reasoning and thinking_level != 'off' else None)
+        thinking = [event['assistantMessageEvent']['delta'] for event in events
+                    if event.get('assistantMessageEvent', {}).get('type') == 'thinking_delta']
+        assert ''.join(thinking) == 'Check the facts.\n'
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+@pytest.mark.parametrize('reasoning', [True, False])
 @pytest.mark.parametrize('sdk_mode', [True, False])
 @pytest.mark.parametrize('window,reserve', [(1048576, 65536), (262144, 32768)])
-def test_application_context_policy_reaches_native_model_and_compaction_settings(tmp_path, sdk_mode, window, reserve):
+def test_application_context_policy_reaches_native_model_and_compaction_settings(tmp_path, sdk_mode, window, reserve, reasoning):
     from capstone_agent.general_pi_executor import native_pi_launch
     from capstone_agent.application_capacity import limits
     original = limits.model_context_tokens
@@ -413,8 +508,9 @@ def test_application_context_policy_reaches_native_model_and_compaction_settings
     argv, _ = native_pi_launch(command=('node', '/opt/pi/cli.js'), workspace=workspace,
         config_root=config, model='any-registered-model', relay_url='http://127.0.0.1/relay',
         relay_token='fixture-only', context_extension=Path('/opt/context.mjs'), sdk_config=sdk,
-        context_policy=policy)
+        context_policy=policy, model_reasoning=reasoning)
     model = json.loads((workspace / '.agent/models.json').read_text())['providers']['capstone-general']['models'][0]
+    assert model['reasoning'] is reasoning
     assert (model['contextWindow'], model['maxTokens']) == (window, 32768)
     if sdk_mode:
         payload = json.loads(Path(argv[2]).read_text())
@@ -429,6 +525,17 @@ def test_application_context_policy_reaches_native_model_and_compaction_settings
     assert settings['compaction'] == {'enabled': True, 'reserveTokens': reserve, 'keepRecentTokens': 20000}
     assert settings['retry']['enabled'] is True
     assert limits.model_context_tokens == original
+
+
+@pytest.mark.parametrize('invalid', [None, 0, 1, 'true', [], {}])
+def test_native_launch_rejects_invalid_reasoning_capability_before_workspace_creation(tmp_path, invalid):
+    from capstone_agent.general_pi_executor import native_pi_launch
+    workspace = tmp_path / 'task'
+    with pytest.raises(ValueError, match='reasoning capability must be boolean'):
+        native_pi_launch(command=('node', '/opt/pi/cli.js'), workspace=workspace,
+            config_root=tmp_path, model='dynamic-model', relay_url='http://127.0.0.1/relay',
+            relay_token='fixture-only', context_extension=Path('/opt/context.mjs'), model_reasoning=invalid)
+    assert not workspace.exists()
 
 
 def test_native_launch_keeps_general_tools_and_native_discovery(tmp_path):
@@ -447,6 +554,7 @@ def test_native_launch_keeps_general_tools_and_native_discovery(tmp_path):
     models = json.loads((tmp_path / 'task/.agent/models.json').read_text())
     assert models['providers']['capstone-general']['baseUrl'].endswith('/provider/task')
     assert models['providers']['capstone-general']['apiKey'] == 'task-grant'
+    assert models['providers']['capstone-general']['models'][0]['reasoning'] is False
 
 
 def test_native_sdk_launch_uses_host_input_and_immutable_config(tmp_path):

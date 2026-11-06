@@ -32,6 +32,8 @@ class ProfileRegistry:
         if profile_id not in self.profiles:
             raise ValueError('Unknown workbench LLM profile')
         p = self.profiles[profile_id]
+        if 'reasoning' in p and type(p['reasoning']) is not bool:
+            raise ValueError('Workbench reasoning capability must be a boolean')
         if 'context_policy' in p:
             from .model_context_policy import checked_context_policy
             checked_context_policy(p['context_policy'])

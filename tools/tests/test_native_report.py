@@ -39,6 +39,8 @@ def test_csv_strings_escape_and_receipt_bind_exact_sources(tmp_path):
     assert '<script>' not in html and '<b>' not in html
     assert 'href="#section-findings"' in html and 'id="section-findings"' in html
     assert '@media print' in html and 'Content-Security-Policy' in html
+    assert 'th,td{border:1px solid #d8e2e8;text-align:left;vertical-align:top;padding:9px 12px;white-space:nowrap' in html
+    assert 'table{width:max-content;min-width:100%' in html
     receipt = json.loads(result.stdout)
     assert receipt['sections'] == 1 and receipt['figures'] == 0
     assert receipt['output'] == 'report.html'

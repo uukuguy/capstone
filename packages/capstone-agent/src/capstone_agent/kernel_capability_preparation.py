@@ -104,7 +104,7 @@ class PreparedKernelApplicationProfile:
     profile: ApplicationProfile
     prepared_application: object
     workspace: ApplicationWorkspace
-    model_binding: AuthorityModelBinding
+    model_binding: AuthorityModelBinding | None = None
     _closed: bool = False
     _lock: RLock = field(default_factory=RLock, repr=False)
 
@@ -159,7 +159,41 @@ class KernelApplicationProfilePreparer:
 
     def prepare_for_claim(self, profile: ApplicationProfile, claim) -> PreparedKernelApplicationProfile:
         from .professional_resources import selected_application_profile
-        return self(selected_application_profile(profile, claim), claim.model_context)
+        selected = selected_application_profile(profile, claim)
+        if getattr(claim, 'model_context', None) is None:
+            return self.prepare_unbound(selected)
+        return self(selected, claim.model_context)
+
+    def prepare_unbound(self, profile: ApplicationProfile) -> PreparedKernelApplicationProfile:
+        """Prepare published domain tools without opening a model."""
+        if not isinstance(profile, ApplicationProfile):
+            raise TypeError("profile must be an ApplicationProfile")
+        binding_ids = tuple(binding.binding_id for binding in profile.domains)
+        workspace = ApplicationWorkspace.create(self.workspace_root, binding_ids=binding_ids)
+        prepared = prepare_application(
+            profile,
+            registry=domain_registry(profile),
+            workspace=workspace.root,
+            credentials=self.credentials,
+        )
+        try:
+            bindings = getattr(prepared, "bindings", None)
+            if not isinstance(bindings, Mapping) or not bindings:
+                raise ValueError("prepared domain application has no bindings")
+            return PreparedKernelApplicationProfile(
+                profile=profile,
+                prepared_application=prepared,
+                workspace=workspace,
+                model_binding=None,
+            )
+        except BaseException as error:
+            cleanup = _close_prepared(prepared)
+            if cleanup:
+                raise BaseExceptionGroup(
+                    "domain preparation and application cleanup failed",
+                    [error, *cleanup],
+                ) from None
+            raise
 
     def __call__(
         self,

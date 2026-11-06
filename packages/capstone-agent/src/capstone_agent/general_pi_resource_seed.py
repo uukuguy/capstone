@@ -67,8 +67,23 @@ def retain_seed(seed: Path, runtime: Path) -> None:
     runtime.chmod(0o555)
 
 
+def prepare_general_runtime(seed: Path = Path('/opt/general/resource-seed'),
+                            runtime: Path = Path('/opt/general/.grid-agent/runtime')) -> None:
+    """Keep a managed install only when this image still carries one.
+
+    The general executor does not ship pandapower. A retained volume from an
+    older image must not leave that install readable by a task.
+    """
+    if (seed / 'agent-resources/current.json').is_file():
+        retain_seed(seed, runtime)
+        return
+    installed = runtime / 'agent-resources'
+    if installed.exists():
+        shutil.rmtree(installed)
+
+
 def main() -> None:
-    retain_seed(Path('/opt/general/resource-seed'), Path('/opt/general/.grid-agent/runtime'))
+    prepare_general_runtime()
     os.execvp('python', ['python', '-m', 'capstone_agent.general_pi_server'])
 
 

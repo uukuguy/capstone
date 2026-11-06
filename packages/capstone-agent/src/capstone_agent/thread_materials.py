@@ -8,6 +8,7 @@ import secrets
 
 from fastapi import HTTPException, Request
 
+from .continuation_resources import TERMINAL_ARTIFACT_STATUSES as _TERMINAL_ARTIFACT_STATUSES
 from .thread_protocol import EventEnvelope
 from .thread_service import ThreadNotFound, _now
 from .native_document_types import TEXT_DOCUMENT_TYPES
@@ -137,6 +138,11 @@ def remove_material(service, thread_id, material_id):
 
 
 def _process_files(service, snapshot, work_id, source_id, connection):
+    """Hand off the latest terminal file of a finished instruction.
+
+    A capture still marked running is not a result. The instruction close
+    publishes that file again as incomplete before the attempt is released.
+    """
     if not work_id or work_id == 'new':
         return []
     if connection is None:
@@ -144,6 +150,7 @@ def _process_files(service, snapshot, work_id, source_id, connection):
                 if event.event_type == 'native_artifact_published'
                 and event.thread_id == snapshot.thread_id
                 and event.payload['artifact'].get('work_id') == work_id
+                and event.payload['artifact'].get('source_status') in _TERMINAL_ARTIFACT_STATUSES
                 and ((event.attempt_id == source_id) if source_id else
                      event.attempt_id in service._attempts and service._attempts[event.attempt_id]['attempt'].phase in {'completed', 'failed', 'cancelled'})]
     else:
@@ -152,6 +159,7 @@ def _process_files(service, snapshot, work_id, source_id, connection):
             JOIN capstone_thread_attempts a ON a.attempt_id=e.attempt_id AND a.thread_id=e.thread_id
             WHERE e.thread_id=%s AND e.event_type='native_artifact_published'
             AND e.payload->'artifact'->>'work_id'=%s
+            AND e.payload->'artifact'->>'source_status' = ANY(%s)
             AND ((%s::text IS NOT NULL AND e.attempt_id=%s) OR (%s::text IS NULL AND a.phase IN ('completed','failed','cancelled')))"""
         if source_id is None:
             # Keep the latest version of each path, including earlier saved
@@ -160,7 +168,8 @@ def _process_files(service, snapshot, work_id, source_id, connection):
             query = 'SELECT * FROM (' + query + ') latest ORDER BY event_seq DESC LIMIT %s'
         else:
             query += ' ORDER BY e.event_seq DESC LIMIT %s'
-        values = connection.execute(query, (snapshot.thread_id, work_id, source_id, source_id, source_id, limits.artifact_count+1)).fetchall()
+        values = connection.execute(query, (snapshot.thread_id, work_id, sorted(_TERMINAL_ARTIFACT_STATUSES),
+                                            source_id, source_id, source_id, limits.artifact_count+1)).fetchall()
         rows = [service._event_from_row(row).to_document() for row in values]
     if not rows:
         return []

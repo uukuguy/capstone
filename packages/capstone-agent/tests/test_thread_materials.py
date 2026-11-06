@@ -135,6 +135,52 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
                     list(reader(context['resource_manifests'][0]))
 
 
+def test_running_captures_do_not_cross_into_the_next_instruction(chat_store):
+    from hashlib import sha256
+    from types import SimpleNamespace
+    from capstone_agent.native_artifact_projection import project_native_artifacts
+    from capstone_agent.native_task_context import native_context_for
+    store, thread_id = chat_store
+    objects, executor = MemoryObjectStore(), native_executor()
+    store.set_native_executor(executor)
+    store.set_material_store(objects)
+    assert store.submit_command(command(store, thread_id, 'send_message', 'capture_boundary',
+        payload={'text': 'Build the deck'})).status == 'accepted'
+    claim = store.claim_attempt('materials', 30, 'native')
+    task_id = 'capture-boundary-task'
+    finished = b'final-report'
+    draft = b'draft-deck'
+    entries = []
+    for name, data in (('report.md', finished), ('gen_deck.py', draft)):
+        entries.append({'artifact_id': 'file-' + sha256(name.encode()).hexdigest()[:16] + '-' + sha256(data).hexdigest(),
+            'task_id': task_id, 'parent_attempt_id': claim.attempt.attempt_id, 'kind': 'workspace_file',
+            'metadata': {'path': name, 'sha256': sha256(data).hexdigest(), 'size_bytes': len(data)}})
+    result = SimpleNamespace(to_document=lambda: {'task_id': task_id, 'parent_attempt_id': claim.attempt.attempt_id,
+        'executor_identity': executor.identity, 'status': 'completed', 'artifacts': entries[:1]})
+    published = project_native_artifacts(claim, result)[0]
+    store.append_runtime_event(claim, event_type='native_artifact_published', payload={'artifact': published})
+    running = project_native_artifacts(claim, SimpleNamespace(to_document=lambda: {
+        'task_id': task_id, 'parent_attempt_id': claim.attempt.attempt_id,
+        'executor_identity': executor.identity, 'status': 'running', 'artifacts': entries[1:]}))[0]
+    store.append_runtime_event(claim, event_type='native_artifact_published', payload={'artifact': running})
+    store.finish_attempt(claim, phase='completed', payload={'answer': 'Report saved'})
+    deck = [event.payload['artifact']['source_status'] for event in store.read_events(thread_id, 0).events
+            if event.event_type == 'native_artifact_published' and event.payload['artifact']['file_name'] == 'gen_deck.py']
+    assert deck == ['running', 'incomplete']
+    work = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'send_message', 'next_instruction',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'text': '当前的活跃系统进程'})).status == 'accepted'
+    resumed = store.claim_attempt('materials', 30, 'native')
+    handed = resumed.submission['_continuation_artifacts']
+    assert [(item['file_name'], item['source_status']) for item in handed] == [
+        ('report.md', 'completed'), ('gen_deck.py', 'incomplete')]
+    context = native_context_for(resumed, resumed.submission['_native_execution'])
+    by_resource = {item['resource_id']: item['source_status'] for item in context['resource_origins']}
+    assert [(item['file_name'], by_resource[item['resource_id']]) for item in context['resource_manifests']] == [
+        ('report.md', 'completed'), ('gen_deck.py', 'incomplete')]
+
+
 def test_continuation_reuses_latest_file_versions_across_terminal_attempts(chat_store):
     from hashlib import sha256
     from types import SimpleNamespace

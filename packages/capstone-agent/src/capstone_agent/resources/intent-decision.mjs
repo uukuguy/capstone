@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const strings = { type: "array", items: { type: "string" } };
 const goal = {
   type: "object", additionalProperties: false,
-  required: ["goal_id", "description", "operation", "instruction_excerpt", "message_refs", "object_refs", "capability_refs", "missing_requirements", "depends_on"],
+  required: ["goal_id", "description", "operation", "instruction_excerpt", "message_refs", "object_refs", "capability_refs", "missing_requirements", "depends_on", "uses_selected_skill"],
   properties: {
     goal_id: { type: "string", minLength: 1 },
     description: { type: "string", minLength: 1 },
@@ -12,7 +12,7 @@ const goal = {
     operation: { type: "string", enum: ["answer", "rewrite", "catalog_lookup", "external_lookup", "business_read", "business_execute"] },
     message_refs: strings, object_refs: strings, capability_refs: strings,
     missing_requirements: strings, depends_on: strings,
-    uses_selected_skill: { type: "boolean", description: "When selected_skill is supplied, mark exactly one compatible execution goal. Preserve the user's selected role. Do not apply the skill to other goals." },
+    uses_selected_skill: { type: "boolean", description: "Use false unless this goal uses selected_skill. When selected_skill is supplied, mark exactly one compatible execution goal true. Preserve the user's selected role. Do not apply the skill to other goals." },
   },
 };
 
@@ -31,6 +31,7 @@ export default function (pi) {
   } };
   pi.registerTool({
     name: "capstone_intent_decision", label: "Request decision",
+    constrainedSampling: { type: "json_schema", strict: "prefer" },
     description: "Finish request understanding with one structured decision. Respect context_selection: exclusions win; includes must be assigned to a relevant goal or clarified. Preserve selected_skill in exactly one compatible goal. This grants no execution permission.",
     parameters: {
       type: "object", additionalProperties: false,

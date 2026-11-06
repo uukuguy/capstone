@@ -1,6 +1,26 @@
 # Known issues and deferred work
 
+## Resolved: pending work skipped by a busy thread lock — 2026-11-03
+
+Real PostgreSQL capacities1/2 reproduce a lost wake after SKIP LOCKED returns no
+claim while accepted work remains. Candidate8dd51d0b adds a read-only pending
+predicate and bounded rescan without polling an empty queue.100 focused checks,
+types, independent inspection and canonical candidate rebuild pass. PR92 merged
+into dev7ad2529a after approved macOS CI41629449461 passed in3m05s
+(355 Python/92 skips,216 App,types/docs). See [follow-up](../reports/2026-11-03-capacity-wake-followup.md).
+
 ## User-local offline installer test failures — 2026-11-03
+
+Fixed in dev through [PR90](https://github.com/uukuguy/capstone/pull/90), merge `f7d40163`. Commit `d599331f` replaces the fixture's
+`ls -l` string comparison with `os.lstat`, regular-file, exact0600 and owner checks.
+The four failures were caused by macOS displaying extended attributes as a
+trailing `@` (`-rw-------@`); installer permissions were already correct.
+All51 offline-installer tests pass in8.52s. The isolated milestone gate including
+this file passes212 tests/3 skips in9.67s; workflow contracts21 pass.
+Approved macOS [CI41579803266](https://github.com/uukuguy/capstone/actions/runs/41579803266)
+passed212 tests/3 skips in13.06s; job duration33s. The merged branch was closed.
+Main and deployments remain unchanged. No remote-server call was made for this follow-up.
+The earlier failure account below is historical, not an unresolved diagnosis.
 
 The full local rebuild target reports four failures in
 `tools/tests/test_user_local_offline.py::test_loader_selects_only_verified_daemon_ids_in_private_file`
@@ -13,15 +33,24 @@ earlier shell-only rebuild check as the whole Make target.
 
 ## Native worker session concurrency — 2026-11-01
 
-Deferred at the user's request: one native worker executes one attempt at a time.
+2026-11-03: resolved in dev c3a0c472 through PR91, scoped CI41624694112 passed.
+Product b7dd440c implements bounded
+native slots (default1, local2), immediate unleased cancellation and consistent
+queued labels. Real parallel tasks, continuation CSV hashes and queued cancellation
+pass; final corrected-card browser/refresh acceptance passed after GUI recovery
+at19:02. Actual dev rebuild and historical product hashes pass. Earlier Mac
+sleep/Accessibility failures retained. Intranet was not updated.
+See [receipt](../reports/2026-11-03-execution-capacity.md).
+
+Historical deferral: one native worker executes one attempt at a time.
 Other sessions queue until that execution ends. This is not a one-session limit
 on the whole application. The intranet deployment currently has one native worker.
 Observed: the user's summer PPT attempt `attempt_3727b79a52ad2334` occupied it;
 the diagnostic attempt `attempt_7ba21eadca159af6` remained accepted and unleased.
 The diagnostic request was cancelled without interrupting the user's PPT task.
 The queued UI said “正在生成回答”, which did not describe the actual queue state.
-Future work: bounded cross-session scheduling with isolation, cancellation and
-accurate queue status. Do not increase concurrency as part of this deployment fix.
+Distributed fairness/global quotas remain separate work. Intranet capacity is
+unchanged; its earlier deployment fix did not include this candidate.
 
 ## Recovered dev baseline — 2026-10-12
 

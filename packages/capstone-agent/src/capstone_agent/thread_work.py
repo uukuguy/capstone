@@ -71,6 +71,10 @@ def transition_work(snapshot, task_context, attempt_id, status):
             work['consumed_message_count'] = len(work['messages'])
     if status in {'completed', 'failed', 'cancelled', 'interrupted'}:
         work['cancel_requested'] = False
+        if status != 'completed' and work.get('conversation_mode'):
+            # This instruction's input is closed. The text stays for an explicit
+            # retry; a later new instruction does not append to it.
+            work['consumed_message_count'] = len(work['messages'])
     return replace(snapshot, works=tuple(works)), work
 
 
@@ -95,10 +99,10 @@ def create_attempt(snapshot, work, *, turn_id=None):
 
 
 def work_instruction(work):
-    """Keep every unconsumed supplement; completed rounds use bounded history."""
+    """Keep every unconsumed supplement; a closed conversation retries its saved text."""
     pending = work['messages'][work.get('consumed_message_count', 0):]
     if work.get('conversation_mode'):
-        return '\n\n'.join(pending)
+        return '\n\n'.join(pending or work['messages'])
     if pending and pending[0] == work['goal']:
         pending = pending[1:]
     return work['goal'] if not pending else work['goal'] + '\n\nAdditional messages:\n' + json.dumps(pending, ensure_ascii=False)

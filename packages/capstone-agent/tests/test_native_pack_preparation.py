@@ -55,3 +55,32 @@ def test_failed_load_receipt_does_not_claim_prepared(tmp_path):
     host.capability['resource_profiles']['direct_pi']['load_receipt']['status'] = 'failed'
     with pytest.raises(DomainProvisioningError, match='publication'):
         prepare(host, tmp_path)
+
+
+def test_explicit_snapshot_uses_real_host_identity_without_reading_publication(tmp_path):
+    import hashlib
+    import json
+    from capstone_agent.native_pack_preparation import PiNativeBindingPreparer
+    snapshot = executor().capability
+    class Host:
+        identity = {'host_id': 'real-executor'}
+        @property
+        def capability(self):
+            raise AssertionError('the operation already captured this publication')
+    prepared = PiNativeBindingPreparer(Host()).prepare(binding=SimpleNamespace(binding_id='native'),
+        profile=SimpleNamespace(execution=NativeExecutionConfig('direct_pi', 'capstone-pi-task-result/1', ())),
+        workspace=tmp_path, credentials=SimpleNamespace(credentials={}), capability_snapshot=snapshot)
+    expected = hashlib.sha256(json.dumps(Host.identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    assert prepared.receipt.executor_identity_digest == expected
+    snapshot['resource_profiles']['direct_pi']['revision'] = 'd' * 64
+    assert prepared.receipt.resource_revision == 'a' * 64
+
+
+def test_explicit_snapshot_still_checks_resource_publication(tmp_path):
+    from capstone_agent.native_pack_preparation import PiNativeBindingPreparer
+    snapshot = executor().capability
+    snapshot['resource_profiles']['direct_pi']['load_receipt']['status'] = 'failed'
+    with pytest.raises(DomainProvisioningError, match='publication'):
+        PiNativeBindingPreparer(executor()).prepare(binding=SimpleNamespace(binding_id='native'),
+            profile=SimpleNamespace(execution=NativeExecutionConfig('direct_pi', 'capstone-pi-task-result/1', ())),
+            workspace=tmp_path, credentials=SimpleNamespace(credentials={}), capability_snapshot=snapshot)

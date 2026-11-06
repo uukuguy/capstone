@@ -1,67 +1,62 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-03 11:02. **Session remains active — not a final handoff.**
+Updated 2026-11-06. Active main/tag closeout; not a final handoff.
 
-User request: tag current state, merge main, then deploy latest to intranet.
-Server SSH/sudo Docker is reachable. Preserve data and disable intranet management.
+User authorized closeout, annotated tag and main integration. One dev PR macOS
+product/governance CI was explicitly approved and has been consumed. No second
+CI approval. Do not push PR updates or rerun CI until new explicit approval.
 
-## Git and CI
+PR94 https://github.com/uukuguy/capstone/pull/94 still OPEN, base dev, remote head
+d416707df6aa196c195a7ebcbeae69c8a8ff11d7. CI42137611817 FAILED after about28m44s:
+applications938/3skip, simulator279/2skip, governance61/2skip passed; backend3142
+passed/197skip,1failure quiet-provider idle count. No merge/tag/deployment occurred.
 
-- Actual dev HEADa8685cbf; task-owned control updates pending commit. Preserve unrelated untracked report.
-- Tag milestone-managed-resources-20261103-771259a7 pushed and fixed at771259a7.
-- PR87 release/managed-resources-20261103 → main, remote head263bad9f; NOT merged.
-- Main remainsd4b59a0f; local reference was advanced to match accepted remote.
-- CI41563425683 failed stale governance tests. CI41564504216 failed51 type errors.
-- Third approved CI41566986778 cancelled after local reproduction of a frozen-clock legacy test hang.
-- Fourth CI41570458423 failed macOS on obsolete dsv4 default expectation; remaining Linux cancellation requested. Later focused macOS dev-return CI remains approved.
-- Repairs9a3f75db,6c7722e8,263bad9f,ee625f38,3c923666.
-- Scope/evidence: docs/reports/2026-11-03-main-intranet-release.md.
+Local candidate branch uukuguy/native-execution-release-20261106 at Orca checkout:
+/Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106
+New code/test commit1a0fc847 is NOT pushed. It changes only test_general_pi_executor:
+fixed200ms child quiet period replaced with marker handshake after2idle callbacks;
+original count assertion and5s deadline retained. Controlled300ms callback delay
+reproduced2failures with old test; new handshake passes92related checks in16.13s.
+No production code changed. Earlier code repairs faa9bcc0/6c54b077/a8fbf683 retained.
 
-## Verification and runtime
+12original historical receipts existed only in root and were omitted from candidate.
+They are now copied to child with unchanged content; candidate/control and own links
+pass. Include these with final control docs in the next candidate commit. No secrets
+found in copied reports. Local doc/doctor/diff checks must finish before asking approval.
 
-- Backend3016 passed/191 skipped; App1502 passed; Kernel663 passed; E2E39 passed.
-- Split release targets completed: simulator, packs, inventory, PyPSA, offline/scripted/application validation, package artifacts and source setup.
-- Original aggregate was interrupted for diagnosis; do not call it a passing aggregate.
-- Types, doctor, protected paths and whitespace passed.
-- Canonical local rebuild and scoped cache maintenance completed.
-- Local backendb0402ca2/nativecd364dbf, source identity9a1083e9; ready and App reachable.
-- Intranet still70c42dab. No main merge or remote deployment occurred.
-- Logs: runs/main-intranet-release-20261103/.
+Earlier local release scope passed as split components (not one clean aggregate):
+backend3143/197skip,App1527,Kernel663,E2E39,workers3,workbench156,
+static7/10/8,application2,matrix24/24,package-artifacts/source-setup/build/doctor pass.
+Two original local failed receipts remain; first CI failure remains separate.
+Independent review P2 unbounded diagnostics fixed6c54; followup no new finding.
 
-## Next action
+Root checkout remains dev6c55e6ee and main0b68c607; remote dev/main unchanged.
+Root mixed work preserved, normal index empty. root-alignment-audit.json identifies
+128paths matching candidate+incoming,17matching incoming before repairs,5candidate
+only,18independent historical documents/template paths. Recompute before any sync.
+Do NOT stash/apply blindly or overwrite old source onto new repairs. On successful
+future dev merge, preserve complete recovery snapshot and independent paths before
+fast-forwarding actual dev. Ignored runtimes,var,data,auth must remain untouched.
 
-Control snapshot and existing Vivaldi control tab inspected. Fourth
-macOS/Linux release CI41570458423 failed. Async user question asks explicit
-one-time main scoped-gate exception (161 resource/runtime checks,2–5min) versus
-a new full dual-platform run. No answer yet; do not infer approval from delay.
-If scoped exception is approved, use a milestone/ head so the existing focused
-matrix runs on both platforms for main; do not claim full release acceptance.
-The candidate a8685cbf adds the fixed host-runtime test to that milestone gate.
-Merge only after the approved gate passes. Then
-deploy exact accepted source to existing intranet project. Return main history
-and control records to dev through a separate PR; its focused macOS CI has
-explicit approval. No additional runs are authorized.
+Private logs in root .capstone-agent/release-closeout-20261106/:
+dev-ci-receipt.json,dev-ci-failed.log,idle-scheduling-red.log (2fail),
+idle-scheduling-green.log (92pass),ci-authorization.json,missing-receipts-paths.json,
+local-summary.json, earlier failed/passing gate logs and PR body drafts.
 
-Linux amd64 candidate image preparation is active under .capstone-agent/main-intranet-25c71f85/.
-Backend/app builds completed through ab-multi and existing proxy7897. Backend imageba233b82, Appa0b7d4f9.
-Native Docker import hit layer depth. Rootfs/OCI exported; import_native.py preserves original runtime config in a single-layer image5abc0e56.
-Native offline smoke22 capabilities/24 packages/15 commands passes. Image archive/checksums exec48306 is active.
-OCI/rootfs/config/import receipts remain in the preparation directory. No intranet activation yet.
-Server stages are /home/dmdba/capstone-intranet/releases/25c71f85/.
-Transfer and SHA verification passed; Docker load/offline smoke active exec29105,
-log /tmp/capstone-intranet-preload-25c71f85.log. Activation script is staged but
-requires acceptance.json with confirmed main merge and accepted CI before running.
-Do not replace containers before main integration. Existing intranet source70c42dab.
+Docs/control snapshot updated in actual dev root and child; links/symlink,
+diff,doctor and1920px browser/source edges verified. Final documentation commit
+follows1a0fc847 and includes12unchanged receipts. Only append-only commit journal
+receipt may remain uncommitted until next state commit. Temporary server stopped;
+browser restored to5173. Root dev source/HEAD still unchanged.
+Next ask approval for second dev PR macOS product/governance CI, estimate25–35min
+(first28m44s). Do not update PR/body/head before approval. After it passes, merge
+through PR without bypass, synchronize actual dev preserving mixed work and record
+actual merge/control. Main PR full macOS+Linux release CI needs separate explicit
+approval. Tag exact accepted main merge only after passing main gate; suggested
+milestone-native-execution-20261106-<short-main-merge-sha>, no deployment tag.
 
-Correction: the full local rebuild target was incompletely covered earlier. It
-now has135 consumer passes/3skip plus208 installer passes and4 failures in
-test_user_local_offline.py. Those sources match existing main; root cause unknown.
-Full release acceptance is NOT passed. See KNOWN-ISSUES and corrected report.
-Do not activate intranet until main accepts this exact candidate.
-
-## Constraints
-
-- Local HTTP checks need NO_PROXY=127.0.0.1,localhost; proxy502 failures were environmental.
-- No automatic summer-case replay or full model install-and-use acceptance claim.
-- Keep tag fixed; never count cancelled/failed CI as passed.
-- Preserve unrelated docs/reports/2026-11-01-summer-session-audit.md and all user data.
+Root local-dev stays984131e3 (API/workerscb6678d6,native200f8447),AppPID91545 fixed
+batch-regression app5173→8767. 63/66 lastknown367374aa+overlay255c8855,disconnected,
+untouched. Gateway missing grid_database external assistance stays open.
+Current own browser sessionoffapp tab on5173; reuse it for control snapshot and
+restore it afterwards. Original temporary18976server was stopped. No user tabs close.

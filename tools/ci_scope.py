@@ -540,14 +540,62 @@ def gateway_bindings_paths(paths: list[str], *, deployment: bool = False, startu
         or _control_path(path)) for path in paths)
 
 
+SESSION_CAPACITY_FILES = {
+    'packages/capstone-agent/src/capstone_agent/' + name for name in (
+        'thread_worker.py', 'thread_worker_capacity.py', 'thread_service.py',
+        'native_hosted_worker.py', 'general_pi_server.py',
+        'resources/tool-composition.mjs', 'resources/observation-read-budget.mjs')
+} | {
+    'packages/capstone-agent/tests/' + name for name in (
+        'test_thread_worker_capacity.py', 'test_thread_worker_postgres_capacity.py',
+        'test_thread_work_execution.py', 'test_enterprise_normal_chat.py',
+        'fixtures/tool-composition.test.mjs')
+} | {'tools/tests/test_image_layer_order.py', 'tools/tests/test_ci_session_capacity.py',
+     'packages/capstone-app/src/CapstoneAssistantThread.tsx',
+     'packages/capstone-app/src/ThinkingProcess.test.tsx'}
+
+
+def session_capacity_deployment_document(path: str, old: str, new: str) -> bool:
+    line = {
+        'compose.yaml': '  CAPSTONE_NATIVE_MAX_CONCURRENT_ATTEMPTS: ${CAPSTONE_NATIVE_MAX_CONCURRENT_ATTEMPTS:-1}\n',
+        'deploy/general-pi.Dockerfile': '     packages/capstone-agent/src/capstone_agent/resources/observation-read-budget.mjs \\\n',
+    }.get(path)
+    return bool(line and old.count(line) <= new.count(line) <= 1
+                and old.replace(line, '') == new.replace(line, ''))
+
+
+def session_capacity_deployment_diff(paths: list[str], base: str, head: str) -> bool:
+    for path in set(paths) & {'compose.yaml', 'deploy/general-pi.Dockerfile'}:
+        try:
+            old, new = [subprocess.check_output(['git', 'show', f'{revision}:{path}'], text=True)
+                        for revision in (base, head)]
+            if not session_capacity_deployment_document(path, old, new):
+                return False
+        except (subprocess.CalledProcessError, OSError):
+            return False
+    return True
+
+
+def session_capacity_paths(paths: list[str], *, deployment: bool = False) -> bool:
+    anchors = {'packages/capstone-agent/src/capstone_agent/thread_worker.py',
+               'packages/capstone-agent/src/capstone_agent/resources/observation-read-budget.mjs'}
+    return bool(set(paths) & anchors) and all(
+        path in SESSION_CAPACITY_FILES or path in GOVERNANCE_FILES or path in DOC_FILES
+        or path.startswith(('docs/', 'tools/project_overview/'))
+        or deployment and path in {'compose.yaml', 'deploy/general-pi.Dockerfile'}
+        for path in paths)
+
+
 def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
              runtime_dependencies: bool = False, source_topology: bool = False,
              gateway_deployment: bool = False, gateway_bindings_deployment: bool = False,
-             gateway_bindings_startup: bool = False) -> str:
+             gateway_bindings_startup: bool = False, session_capacity_deployment: bool = False) -> str:
     if target == 'main' or release:
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    if session_capacity_paths(paths, deployment=session_capacity_deployment):
+        return 'session-capacity'
     if any(_app_path(path) for path in paths) and all(_app_path(path) or _control_path(path) for path in paths):
         return 'app'
     if gateway_bindings_paths(paths, deployment=gateway_bindings_deployment, startup=gateway_bindings_startup):
@@ -578,6 +626,7 @@ def main() -> None:
         print("Changed Markdown file links passed")
     else:
         print(classify(paths, target=args.target, release=args.release,
+                       session_capacity_deployment=session_capacity_deployment_diff(paths, args.base, args.head),
                        gateway_bindings_startup=gateway_bindings_startup_diff(paths, args.base, args.head),
                        gateway_bindings_deployment=gateway_bindings_deployment_diff(paths, args.base, args.head),
                        gateway_deployment=gateway_deployment_diff(paths, args.base, args.head),

@@ -72,6 +72,12 @@ def test_native_image_includes_every_published_shared_planning_resource():
                    for pattern in sources), resource.name
 
 
+def test_native_image_ships_observation_recovery_dependency():
+    steps = instructions((ROOT / 'deploy/general-pi.Dockerfile').read_text())
+    assert any('packages/capstone-agent/src/capstone_agent/resources/observation-read-budget.mjs'
+               in step for step in steps if step.startswith('COPY '))
+
+
 def test_pinned_pi_loader_reads_the_shipped_lock_and_installer():
     probe = ROOT / "deploy/install_pinned_pi.py"
     result = subprocess.run(

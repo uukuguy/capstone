@@ -22,21 +22,8 @@ RUN apt-get update \
 COPY packages/capstone-agent/src/capstone_agent/__init__.py capstone_agent/__init__.py
 COPY packages/capstone-agent/src/capstone_agent/runtime_resources.py capstone_agent/runtime_resources.py
 COPY packages/capstone-agent/src/capstone_agent/resource_installation.py capstone_agent/resource_installation.py
-COPY configs/runtime/power-samples.lock.json configs/runtime/power-samples.lock.json
-COPY configs/runtime/prepared-mcp-v1.schema.json configs/runtime/prepared-mcp-v1.schema.json
-COPY tools/power_sample_smoke.py tools/power_sample_smoke.py
-# Reuse the backend image's downloaded wheels. uv still installs CPython 3.12.12
-# into this image so its alias symlink stays inside the native runtime path.
-RUN --mount=type=bind,from=managed-runtime,source=/root/.cache/uv,target=/tmp/uv-seed,ro \
-    --mount=type=cache,target=/root/.cache/uv \
-    cp -a /tmp/uv-seed/. /root/.cache/uv/ \
-    && rm -f /root/.cache/uv/.lock \
-    && UV_PYTHON_INSTALL_DIR=/opt/general/.grid-agent/runtime/python \
-    python -m capstone_agent.resource_installation --config-root configs/runtime \
-    && mkdir /opt/general/resource-seed \
-    && cp -a /opt/general/.grid-agent/runtime/agent-resources /opt/general/resource-seed/agent-resources \
-    && cp -a /opt/general/.grid-agent/runtime/python /opt/general/resource-seed/python \
-    && mkdir -p /var/lib/general-pi/tasks /var/lib/general-pi/receipts /var/lib/general-pi/profiles \
+# The general executor does not install pandapower. Domain Pack workers own that runtime.
+RUN mkdir -p /var/lib/general-pi/tasks /var/lib/general-pi/receipts /var/lib/general-pi/profiles \
     && chmod 0711 /var/lib/general-pi /var/lib/general-pi/tasks \
     && chmod 0700 /var/lib/general-pi/receipts /var/lib/general-pi/profiles
 
@@ -71,8 +58,11 @@ COPY configs/runtime/resource-permissions.json configs/runtime/resource-permissi
 COPY packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py capstone_runtime_events.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_agent/general_pi_relay.py
+COPY packages/capstone-agent/src/capstone_agent/native_timing.py capstone_agent/native_timing.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py capstone_agent/data_gateway_mcp.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py
+COPY packages/capstone-agent/src/capstone_agent/domain_tool_client.py capstone_agent/domain_tool_client.py
+COPY packages/capstone-agent/src/capstone_agent/domain_tool_grant.py capstone_agent/domain_tool_grant.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_views.py capstone_agent/data_gateway_views.py
 COPY packages/capstone-agent/src/capstone_agent/gateway_connections.py capstone_agent/gateway_connections.py
 COPY packages/capstone-agent/src/capstone_agent/gateway_connections_runtime.py capstone_agent/gateway_connections_runtime.py
@@ -82,7 +72,7 @@ COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone
 COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json capstone_agent/resources/gateway-electrical-view-v2.schema.json
-COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs capstone_agent/resources/
+COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/general-domain-tools.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/incremental_artifacts.py \
      packages/capstone-agent/src/capstone_agent/native_llm_pool.py \
@@ -129,9 +119,11 @@ COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs ca
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/tool-call-scheduler.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json \
      packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs \
      packages/capstone-agent/src/capstone_agent/resources/observation-data.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/observation-read-budget.mjs \
      packages/capstone-agent/src/capstone_agent/resources/observed-action.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-identity.mjs capstone_agent/resources/tool-identity.mjs

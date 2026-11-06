@@ -1,5 +1,83 @@
 # 多线版本控制
 
+2026-11-06：PR #94 已推送候选d416707d，用户批准的macOS产品/治理CI42137611817约28分44秒失败：938业务应用、279模拟器、61治理通过；后端3142通过/197跳过，仅quiet-provider定时计数测试失败。1a0fc847用显式握手修正，先复现两项失败再通过92项；运行代码未改，12份遗漏原始回执补齐且候选链接通过。新候选尚未push，未获第二次CI批准，dev/main未合并、未tag，各部署来源保持。[收口回执](../reports/2026-11-06-native-execution-closeout.md)。
+
+2026-11-05：984131e3已部署local-dev，补齐独立分页链tools.map、稳定tool身份和helper同源契约；55Node/20Python通过、1环境跳过，1313运行输入一致。真实6链各2页，共12次查询最大并发4、查询区间1.5998秒、整轮40.9591秒、0工具错误，203字节CSV下载哈希及刷新通过。原任务42错误分为29网关/7组合/6bash；网关运行包缺grid_database已按用户授权通知，未收到回复，不声称原任务所有错误已修复。实际dev HEAD6c55e6ee未移动，无CI/合并，内网未联系。[补修回执](../reports/2026-11-05-batch-regression.md)。
+
+2026-11-05：结构化工具批次候选4ba17891已部署local-dev，全角色healthy且来源一致，私有配置未变。新增calls输入复用整批预检与结果引用，同一组合会话共享最多4路；未知/写入独占，取消与单项失败保留结果。141项通过/33环境跳过、11项新测试及固定Pi SDK参数验证通过。真实commercial模型采用calls，两次限量只读均成功且并发2，查询区间1.7953秒；整轮28.995秒，刷新恢复通过。会话归档后追加导出被拒，不重开或重查，不声明121次查询整体提速。dev HEAD6c55e6ee未移动，无CI/合并，两个内网未联系。[回执](../reports/2026-11-05-structured-tool-batches.md)。
+
+2026-11-05：用户授权先在local-dev部署7387ef7f，已全角色healthy；两个内网仍为最后确认367374aa加overlay255c8855，未触碰。私有阶段计时304项/35跳过/27.46秒、绑定复用93项/22跳过/5.00秒及复审沿用，代码未再修改。真实普通会话使用commercial-deepseek-flash，3.1359秒完成“你好”，HTTP确认0.1637秒，1轮LLM、无前置理解与工具，刷新恢复通过；模型未输出Thinking（0条preview/0条durable），不计DSV4首Thinking验证或与其6.2秒比较。私有计时记录资源59.403毫秒、Popen70.391毫秒、request556.693毫秒、headers965.836毫秒、firstbytes976.483毫秒、firsttext1843.916毫秒；只读binding仅1次GET23.89毫秒、总39.566毫秒。本地候选部分验证通过，DSV4与内网真实验证未通过，不声明其性能改善；实际dev HEAD6c55e6ee保持，未合入dev，无CI。[候选回执](../reports/2026-11-05-first-thinking-latency.md)。
+
+2026-11-05：直接native入口来源367374aa已部署三套联调，314项定向通过、33项跳过、17.01秒，复审无阻断项。本地普通会话9.5574秒完成，首preview6.1139秒，无前置理解，刷新恢复通过。63网关任务96.3927秒完成，discover_gateway334毫秒，26条preview、7条durable，入口级目录回答与370字符恢复通过，不代表全部底层业务服务覆盖。独立overlay255c8855通过22项/1.62秒，63与三区仅general-pi排除未启动专业端点，运行源码及镜像仍367374aa。63配置后普通会话8.0752秒、首preview6.1726秒、8条preview/2条durable、1轮LLM、无工具及前置理解，显示与恢复通过；准备1.7879秒，之前网关准备18.2904秒。专业工具可达并保存ieee39_overview.json，但超180秒试验预算后由操作者取消，不计完整任务通过或性能接受。实际dev HEAD6c55e6ee未移动，候选未合入dev，无CI。[回执](../reports/2026-11-05-direct-native-entry.md)。
+
+2026-11-05：Thinking模型能力修正来源3a8eaf76完成470项定向检查、38项跳过，耗时42.59秒并通过复审。三套全角色同源；内网默认18804、本地默认及明确选择保持。63真实任务完成，运行页面可见76次更新，76条preview对应12条durable，首preview比durable早1.3011秒，刷新展开恢复976字符。本地Python工具调用完成，267.421秒，7条durable（4条native），刷新恢复225与364字符两段。仅Thinking显示验收通过；本地耗时明显慢，63原问题返回模型目录而非网关工具，性能和回答语义未通过。数据、网关、凭据保持独立，无CI/合并。
+
+2026-11-05 16:55：按用户要求，63/三区新会话缺省统一dsv4（18804），本地原默认保持。三套全角色同步bfb16344，公开App/目录、运行身份通过；两个不指定模型的真实请求均完成，提交profile为18804且理解引擎为dsv4。137项定向/9跳过通过，明确Qwen选择仍保留。后续优先在63联调，各环境数据/网关/凭据继续独立，无CI/合并。[默认模型回执](../reports/2026-11-05-default-dsv4.md)。
+
+2026-11-05 16:35：按用户要求，三区研发、63内网联调、本地联调的API/worker/native/App统一源码f34bb4d3，运行身份与公开App包均核对。63已真实生成并下载version-check.txt，9字节及哈希通过，网关保持connected/契约可用；旧数据表与备份哈希一致。本地以同源固定构建联调，保留后续恢复工作树Vite路径。后续优先在63联调，三套凭据/数据保持独立。无CI/合并/其他部署更新。[同版本回执](../reports/2026-11-05-development-version-alignment.md)。
+
+2026-11-05 16:06：用户明确选择取消当前任务后立即更新，正常取消确认后部署后台f34bb4d3/nativec446063c，App保持073860ca；API/worker同镜像c8414ced健康。显示75毫秒/256字符，数据库仍5秒/16KiB，并补齐host任务ID关联。344项定向/32跳过、复审与本地真实57批推送通过；三区真实74批推送对应3条正式Thinking，执行57批中位接收间隔46.4毫秒，刷新与原产物哈希保持。未宣称原病态任务整体提速。[修正记录](../reports/2026-11-05-smooth-thinking.md)。
+
+2026-11-05 15:32：三区后台/App更新073860ca，直接Thinking推送和5秒有界异步入库试验已开启；API/worker同镜像5acaa8e8、App9556e9cd健康，native与数据保持。Qwen真实5批推送全部对应2条正式事件，首批3.446秒早于正式6.966秒；真实帧组件重放无重复。dsv4正常完成但无思考文本。原三份产物哈希保持；127后台/106前端定向、类型、构建及本机规范重建通过，一项已复现基线失败单列。完整病态算例性能和视觉由用户复测，无CI/合并。[回执](../reports/2026-11-05-direct-thinking-preview.md)。
+
+2026-11-05 14:43：三区后台更新68bd1e07，API/worker同镜像f875656f健康；去掉业务任务重复理解，保留完整冻结上下文。用户103.7/13.0秒已对齐到两轮RPC；早先16.3/5.7只是直接探测，不能代表会话。新完整规划验证Qwen38.140/dsv423.165秒、一轮各一次，非UI时间及固定提速承诺。等用户任务结束、活动数为0后切换；App22be9e5c、nativecc50f8d8及数据保持。[回执](../reports/2026-11-05-single-pass-understanding.md)。
+
+2026-11-05 13:54：三区App更新22be9e5c/image992ea422，缺少思考文本时保留活动Thinking状态，66项定向/类型/构建通过；只重建App，后台cc50f8d8及进程不变。用户主动重试的算例已完成，三份产物下载哈希通过；数值结论未独立复核。[显示补修](../reports/2026-11-05-thinking-visibility.md)。
+
+2026-11-05 13:38：三区修复cc50f8d8已部署，API/worker同镜像a6ee8475、native2d13aca8健康。思考/正文合并写入，两模型理解随冻结选择；原失败指令的有界真实理解Qwen16.346秒、dsv45.734秒通过，思考写入10/0，最大队列延迟0.028/0.001秒。两模型简短真实任务和恢复通过；完整病态算例未重跑。源引用未合入dev，无CI；.63/main/cloud不变。[回执](../reports/2026-11-05-intent-backpressure.md)。
+
+2026-11-05 13:06：dky3-dev缺省网关“三区研发”已连接，契约available；新会话确认默认来源可用。凭据仅在受保护配置，未调用模型；真实产物验收仍待完成。[回执](../reports/2026-11-05-dky3-dev-deployment.md)。
+
+2026-11-05 12:58：三区研发已部署，入口 http://192.168.72.66:5173/ ，标签dky3-dev。后台2b6dd8a3、App c4466005；四角色健康，API/worker同镜像f1e74483。独立数据卷和新凭据；用户选择稍后在页面配置网关，任务提交因网关未配置被拒绝，未调用模型、不打验收标签。[三区回执](../reports/2026-11-05-dky3-dev-deployment.md)。
+
+2026-11-05：内网运行未合入dev的源码快照2b6dd8a3，四角色healthy，API/worker同镜像776c30a5。真实CSV验证因120秒理解超时失败，下载/继续/恢复尚未验收，不打验收标签。旧镜像与数据库备份保留；dev仍6c55e6ee，main/cloud不变，无CI。[部署回执](../reports/2026-11-05-intranet-deployment.md)。以下11月4日条目为历史来源。
+
+2026-11-04 16:44：内网 App 换为 c0cacc597a79，脚本 index-D6zsKizj.js。页面仍显示 intranet-dev · v0.1.0 · 6c55e6e，宽 HTML 表格在右栏内横向滚动。API/worker 与 native 未重建。上一张 App 保留为 6c55e6ee-before-table（ff9eb4569105）。11:41 起内网与本机页面统一显示仓库提交 6c55e6ee。本机页为 local-dev · v0.1.0 · 6c55e6e。API/worker d501f0602126同镜像，native单层e4eb33b6a105，四角色healthy。管理开关0，原生槽位1。线程thr_e62c227c65f77ecebe76，CSV 28字节，SHA 2768941343fc416a853150b53375eac4a42c7dc67705a728bde8e0d89446a300，继续读取与快照恢复通过。postgres/objects仍为20261101。空白页镜像与user-local页镜像分别保留为6c55e6ee-blank-version、6c55e6ee-user-local。验收标签仍指向首张App，不移动。main 0b68c607与cloud/demo不变。这不是完整发布验收。[回执](../reports/2026-11-04-intranet-deployment.md)。
+
+2026-11-03 21:11：PR93字号修正已合入实际dev6c55e6ee，受检3e8625f5文件树与合并树一致。
+获批macOS CI41641127761通过5分06秒：1502项App测试、构建及232项治理/2跳过通过；原151项定向、类型和用户截图同一会话复验通过。
+来源2148db14：正文/表格/行内代码统一13px，标题约16/15/14px；实际dev规范重建ready，同镜像bc0ded4b，App仓库6c55e6ee/产品2148db14，doctor通过。main及远端部署不变。[证据](../reports/2026-11-03-conversation-typography.md)。
+
+2026-11-03 19:45：PR92锁释放后继续执行补修已合入实际dev7ad2529a，真实PG单/双槽位回归通过。
+补修来源8dd51d0b，受检eca9913d；独立批准的macOS CI41629449461通过3分05秒：355Python/92环境跳过、216App、类型/文档通过。
+本机100项真实PG/线程、类型与独立审查通过；页面复验通过，实际dev规范重建ready，同镜像cad0d7ea，10项入口检查/doctor通过。无剩余CI授权。
+[补修证据](../reports/2026-11-03-capacity-wake-followup.md)。main、内网和cloud/demo不变。
+
+2026-11-03 19:15：[PR91](https://github.com/uukuguy/capstone/pull/91)已合dev c3a0c472，本地与origin/dev一致，功能分支和隔离工作区已关闭。
+获批[CI41624694112](https://github.com/uukuguy/capstone/actions/runs/41624694112)通过4分02秒：定向Python353通过/90环境跳过、App216通过、类型与文档通过。
+本机411Python（含独立真实PG）/216App通过；最终真实排队文案、刷新、等待及运行取消通过。睡眠失败保留为历史，不算提速依据。
+actual dev规范重建ready；API/worker3bc47d1a同镜像，native dc430bff，App产品b7dd440c/仓库c3a0c472；原四份产物重建后哈希不变，容量2。
+main0b68c607、内网25c71f85及cloud/demo不变；全部本次CI授权已使用。[验收回执](../reports/2026-11-03-execution-capacity.md)。
+
+2026-11-03 18:57：执行可靠性与跨会话容量候选b7dd440c已在隔离分支feat/execution-capacity-20261103实现。
+本机411项Python通过/32平台跳过、216项App及类型通过；真实双会话并行、继续读取CSV哈希和未领取任务立即取消通过。
+最终排队文案浏览器复验因Mac睡眠及辅助功能阻塞未完成；保留失败记录，不称整体验收通过或业务提速。
+local-dev临时候选b7dd440c（API/worker421ce00d，native dc430bff，容量2）；dev仍f7d40163，main和内网来源不变。
+未推送、无PR、无CI；[实施与验收边界](../reports/2026-11-03-execution-capacity.md)。
+
+2026-11-03 12:45：[PR90](https://github.com/uukuguy/capstone/pull/90)已合入dev f7d40163，实际checkout与origin/dev一致；已关闭合并分支。
+获批macOS定向[CI41579803266](https://github.com/uukuguy/capstone/actions/runs/41579803266)通过212项/3跳过（测试13.06s，任务33s）。
+修复来源01732906及d599331f，文档收口6d44b123均已包含；main0b68c607及全部部署保持原来源，研发服务器保持断开。
+最终HEAD控制快照在实际dev生成并检查；不为嵌入快照自身哈希重复提交或启动CI。
+
+2026-11-03 12:38：本地候选`milestone/offline-selection-mode-20261103`（01732906）修复4项离线安装器测试误报。
+d599331f按真实文件状态校验普通文件、0600及所有者，避免macOS的ls权限后缀@；生产安装逻辑不变。
+51项离线测试通过8.52s；01732906补充既有定向门禁覆盖，隔离环境212通过/3跳过9.67s，工作流契约21通过。
+尚未推送、未创建PR、未启动CI；dev仍ef6effcb、main0b68c607，部署不变，研发服务器保持断开。
+
+用户随后明确确认研发服务器当前断开；停止远端探测。保留25c71f85已部署及验收通过的历史状态，当前离线不视为产品回归。
+
+2026-11-03 12:27：PR89已合dev ef6effcb，获批macOS定向CI41578091873通过27s；实际dev与origin/dev一致，main与origin/main均0b68c607。
+内网25c71f85此前两轮任务/产物/刷新验收通过并已标记；12:26最终复查SSH与HTTP均超时，当前主机及服务健康无法重新确认，不将旧验收当作实时可达证明。
+本次CI授权均已使用，无新CI运行；云端/demo未变。最终HEAD控制快照在实际dev工作区更新，不制造自引用提交循环。
+
+内网验收标签`intranet-20261103-1206-25c71f85`已推送到精确运行源25c71f85；原里程碑标签771259a7保持。
+
+2026-11-03 12:03：[内网部署验收](../reports/2026-11-03-intranet-release.md)。PR88已合main0b68c607；用户明确批准本次双平台定向门禁例外，CI41574376803的macOS24s/Linux33s通过。PR87因源码已包含而关闭为merged。
+内网实际运行源25c71f85已合main，运行目录与受检头一致；API/worker ba233b82、native单层5abc0e56、Appa0b7d4f9均healthy，管理开关均0。
+真实两轮24.3s/43.2s、6次模型响应，CSV下载28B与SHA及浏览器刷新通过；保留一次file命令缺失的恢复记录。旧数据/镜像/备份保留；full release未通过，4项旧离线安装器测试仍未解决。
+dev回流与控制记录集成进行中，使用已获批的macOS定向CI。云端与demo保持原来源。
+
 2026-11-03 11:41：第四轮完整CI41570458423的macOS通过App1502等检查后，在旧dsv4默认模型断言失败；剩余Linux已请求取消。
 a8685cbf改为读取已注册内网默认模型，并为既有milestone定向门禁增加主机运行契约；隔离环境161通过/3跳过，未启动新CI。
 完整重建目标另有4项离线安装器测试失败，与现有main相同源码，根因未确认，记录在KNOWN-ISSUES；此前“分段发布完成”不得当作完整发布通过。
@@ -1007,7 +1085,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 内网模型契约断言已修正；同源amd64部署包已暂存 | 第四轮完整CI失败，main定向门禁例外待明确答复；内网70c42dab保持 |
+| dev | 共同基座与企业工作台集成 | dev HEAD6c55e6ee；收口候选1a0fc847本地92项通过，PR94首轮CI失败，待获批重跑，local-dev运行984131e3，两内网最后确认367374aa加overlay255c8855 | 用户已授权tag/main；先入dev再main，CI未批准，现有部署保持 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1021,12 +1099,12 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev已快进f300，local-dev规范重建与真实源码核验通过；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
-| main | dev研发 / main发布 | 0 | 发布基线已收口 | main维护阶段完整对话应用；dev承接企业自主执行研发 | dev | Pi已合dev；后续按具体问题开研究分支 | 既有业务与交付资产 | PR #30发布范围为f209fb1；用户安装与交付包保留 | cf72393b已正常合入main，CI38861900687双平台完整release通过；main不安排近期大升级 |
+| main | dev研发 / main发布 | 1 | 本轮定向合入 | main纳入资源管理与执行恢复；保留全量发布缺口 | main | 本轮按用户定向门禁例外接受；dev回流进行中 | 既有业务与交付资产 | PR88合入0b68c607；用户安装与交付包保留 | CI41574376803双平台定向通过；完整发布未通过，4项离线安装器测试待处理 |
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
 | model-decision | 电网分析与决策 | 2 | PR69产品/PR70控制均已合入，远端分支关闭 | 动态准入、初始化指导、task菜单与成果保存 | dev | 当前HEAD f1e6e9fd，产品基线bcd1a5ad，运行ed0c5ff2，业务验收214c2e23；图形后续暂停 | dev9d691624 / PR68 | 214c非图业务验收及成果恢复保留，工作树恢复引用保留 | 产品CI40409319046通过27分16秒，文档CI40416427472通过1分35秒；潮流终端集成延后 |
-| shared-agent | 共同智能体基座 | 3 | 引用优先及本地专项通过；未推送 | 冻结引用、按需读取、可纠正诊断和自然过程展示 | bec075c3 | 按具体业务反馈推进；CI需明确同意 | origin/dev196e865a | 历史正文不预搬运，保留归属/版本/哈希；调用目的与耗时可读 | 317后端、144UI与Node专项/类型通过；现有标签页首次LLM1.273秒，非新业务验收。[验证](../reports/2026-10-31-latest-session-tool-errors.md) |
+| shared-agent | 共同智能体基座 | 3 | PR91/92执行容量及PR93会话字号已合dev | 按引用恢复、有界会话及一致阅读字号 | dev | 已完成本轮范围；远端部署保持原版 | dev 6c55e6ee | 锁释放后继续调度；正文/表格/代码同为13px | PR91/92验收保留；PR93获批macOS App CI1502项及构建通过。[证据](../reports/2026-11-03-conversation-typography.md) |
 | enterprise-analysis | 企业数据研究分析模式 | 0 | 讨论结论已记录，尚未实现 | 问题导航、AI主动引导、局部探索、报告修订与用户明确接受版本 | cf52cb4f | 按已接受路线先实现问题状态、导航及多轮引导；不新增默认调度池 | 现有统一工作台与直接轻量循环 | 过程产物与研究结论分开；目标属于研究任务；无证据不等于问题不成立 | [讨论](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)及[路线图](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md)；模式验收待实施 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
@@ -1097,6 +1175,28 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| native-closeout-20261106 | 1a0fc847 | dev | native执行与Thinking·收口候选 | 首轮CI失败：quiet-provider计数；1a0fc847握手修正后92项通过，待第二次CI批准 | 归集Thinking/native/工具批次修正；补齐类型与空路径契约，尚未合并或打tag。[收口](../reports/2026-11-06-native-execution-closeout.md) | shared-agent |
+| batch-regression-20261105 | 984131e3 | dev | 独立分页链与helper契约·本地补修 | 55Node/20Python、1跳过；真实12查询并发4、0错误及CSV/刷新通过 | 有界独立分页链；稳定工具身份与helper契约，网关缺包另行协查。[回执](../reports/2026-11-05-batch-regression.md) | shared-agent |
+| structured-batches-20261105 | 4ba17891 | dev | 结构化工具批次·前次本地候选 | 两查询验证通过；真实复杂任务仍串行及多错，由984131e3补修 | 独立调用结构化提交；共享会话限流、逐项失败和结果引用保持。[回执](../reports/2026-11-05-structured-tool-batches.md) | shared-agent |
+| first-thinking-latency-20261105 | 7387ef7f | dev | 首Thinking诊断·前次本地候选 | 两组定向及复审沿用；本地普通会话3.1359秒与计时部分通过，DSV4首Thinking未验证 | 私有首Thinking阶段计时；单次绑定publication快照复用，普通实测1次GET，未声明DSV4性能改善。[候选回执](../reports/2026-11-05-first-thinking-latency.md) | shared-agent |
+| intranet-tool-origins-20261105 | 255c8855 | dev | 内网配置·未启用专业端点隔离 | 22项/1.62秒通过；两内网生效，63普通8.0752秒、准备1.7879秒 | 保留显式专业域源；缺省不继承未启动专业worker映射。[回执](../reports/2026-11-05-direct-native-entry.md) | shared-agent |
+| direct-native-entry-20261105 | 367374aa | dev | 直接native入口·内网运行来源 | 314项/33跳过、17.01秒及复审通过；普通与入口目录通过，专业超预算取消 | 移除前置理解轮次，由执行模型直接响应；专业工具与保存可达，完整任务和性能未接受。[回执](../reports/2026-11-05-direct-native-entry.md) | shared-agent |
+| thinking-capability-20261105 | 3a8eaf76 | dev | Thinking模型能力·三套联调历史来源 | 470项定向/38跳过、42.59秒及复审通过；真实Thinking显示通过，性能与回答语义未通过 | dsv4显式声明reasoning并传入理解与native；内网默认18804不变。[回执](../reports/2026-11-05-thinking-model-capability.md) | shared-agent |
+| default-dsv4-20261105 | bfb16344 | dev | 三套联调同版本·内网默认dsv4 | 三套已部署；137项定向/9跳过及两套真实默认请求通过 | 内网缺省18804；保留明确选择和本地默认。[回执](../reports/2026-11-05-default-dsv4.md) | shared-agent |
+| smooth-thinking-20261105 | f34bb4d3 | dev | 三套联调共同版本·Thinking修正 | 三套同源；344项定向/32跳过、真实工具/产物/组件通过 | 显示75毫秒小批次，保持数据库批量；补齐host任务ID。[同版本](../reports/2026-11-05-development-version-alignment.md) | shared-agent |
+| direct-thinking-20261105 | 073860ca | dev | 三区Thinking直接推送试验 | 已部署；真实推送/恢复/去重通过，完整任务待用户复测 | 临时推送、异步批量持久化、终态屏障；理解结构化生成。[回执](../reports/2026-11-05-direct-thinking-preview.md) | shared-agent |
+| single-pass-intent-20261105 | 68bd1e07 | dev | 三区完整上下文单轮理解 | 已部署；完整规划验证通过，会话性能待同口径复核 | 去掉重复调用，保留用户上下文与深度控制；纠正诊断与UI耗时混用。[回执](../reports/2026-11-05-single-pass-understanding.md) | shared-agent |
+| thinking-visibility-20261105 | 22be9e5c | dev | 三区Thinking等待状态补修 | App已部署；66项/类型/构建通过，视觉待复验 | 等待模型仍显示状态，真实片段保留；无虚构思考正文。[回执](../reports/2026-11-05-thinking-visibility.md) | shared-agent |
+| intent-backpressure-20261105 | cc50f8d8 | dev | 三区理解流与模型绑定修复 | 已部署；定向与真实理解/简短任务验证通过 | 有界成片写入，保留持久化失败；理解器绑定本条冻结模型。[回执](../reports/2026-11-05-intent-backpressure.md) | shared-agent |
+| intranet-source-20261105 | 2b6dd8a3 | dev | 内网后台源码快照 · 未合入dev | .63与三区已部署；任务验收未通过 | 受管理解流程、执行收口和已有研发改动；内网模型配置适配。[回执](../reports/2026-11-05-intranet-deployment.md) | shared-agent |
+| dky3-app-20261105 | c4466005 | dev | 三区App源码快照 · 未合入dev | 标签定向检查和生产构建通过；已部署 | 显式dky3-dev环境与同源API；独立三区安装。[回执](../reports/2026-11-05-dky3-dev-deployment.md) | shared-agent |
+| main-managed-resources | 0b68c607 | release | main · 资源管理定向合入 | 用户例外授权，双平台定向通过 | 持久安装与执行恢复纳入main；全量发布缺口单列。[部署验收](../reports/2026-11-03-intranet-release.md) | shared-agent |
+| offline-selection-fixture | 01732906 | feature | 离线安装器 · 权限测试修复 | PR90已合dev | 以文件状态校验0600及所有者；macOS定向CI212通过/3跳过。[问题记录](KNOWN-ISSUES.md) | shared-agent |
+| execution-capacity | b7dd440c | feature | 执行可靠性 · 会话容量 | PR91已合dev并本机验收 | 大观察按引用恢复；两槽位与等待取消、真实并行/产物/页面通过，定向CI4分02秒。[回执](../reports/2026-11-03-execution-capacity.md) | shared-agent |
+| capacity-wake-fix | 8dd51d0b | feature | 会话容量 · 锁释放后继续执行 | PR92已合入；定向CI通过 | 已接纳状态确认；锁释放后无新通知也能继续执行，100项定向/类型/审查通过。[证据](../reports/2026-11-03-capacity-wake-followup.md) | shared-agent |
+| conversation-type | 2148db14 | feature | 会话阅读 · 统一字号 | PR93已合dev；App CI通过 | 修正工作空间覆盖；指令/正文/行内代码/表格同为13px，标题约16/15/14px。[证据](../reports/2026-11-03-conversation-typography.md) | shared-agent |
+| intranet-managed-runtime | 6c55e6ee | main | dev · 当前HEAD及历史内网基线 | dev HEAD未移动；内网367374aa，本地试验7387ef7f | 历史真实CSV、继续与快照通过；分支HEAD与运行源码分开。[部署验收](../reports/2026-11-04-intranet-deployment.md) | shared-agent |
+| intranet-runtime-25c71f85 | 25c71f85 | main | main · 前次内网运行源 | 2026-11-03验收通过，已由6c55e6ee承接 | 管理禁用与两轮真实任务；回滚镜像保留。[部署验收](../reports/2026-11-03-intranet-release.md) | shared-agent |
 | release-local-validation | ee625f38 | main | dev · 发布门禁修复 | 本机分段发布检查通过 | 类型契约与旧测试迁移；规范重建及同镜像检查。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
 | managed-resource-milestone | 771259a7 | main | dev · 资源管理里程碑标签 | 标签已推送，main待合 | 固定用户选定源码；内网管理禁用开关已实现，部署尚待更新。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
 | managed-installation-runtime | 6b28807a | main | dev · Skills/MCP持久安装 | 本机支持范围通过 | 统一契约、隔离安装、依赖、凭据与离线包。[验证](../reports/2026-11-03-managed-resource-installation.md) | shared-agent |
@@ -1217,10 +1317,32 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| release-local-validation | 当前本机运行来源 | dev | 类型契约与逐次思考测试迁移；API/worker规范重建与同镜像 | 本机分段发布检查通过，main与内网待更新 |
-| managed-resource-milestone | 固定标签里程碑 | dev | 持久安装与隔离依赖；内网管理入口与执行器禁用开关 | 标签已推送，发布CI尚未通过 |
+| native-closeout-20261106 | 当前收口候选 | uukuguy/native-execution-release-20261106（未合入dev/main） | 归集native与Thinking修正；补齐类型和空路径契约 | 首轮CI失败；握手修正92项通过，待重跑批准；未合并/tag或部署 |
+| batch-regression-20261105 | local-dev本地补修来源 | refs/capstone/fixes/batch-regression-20261105（未合入dev） | 独立分页链有界并发；稳定工具身份与helper契约 | 已部署；真实12查询并发4、0工具错误及CSV/刷新通过，网关缺包待协查 |
+| structured-batches-20261105 | 前次本地批次来源 | refs/capstone/features/structured-batches-20261105（未合入dev） | 独立调用结构化提交；共享会话限流与逐项结果恢复 | 两查询通过；复杂任务仍有串行与调用错误，当前由984131e3补修 |
+| first-thinking-latency-20261105 | 前次本地诊断来源 | refs/capstone/fixes/first-thinking-latency-20261105（未合入dev） | 私有首Thinking阶段计时；单次绑定publication快照复用 | 普通会话3.1359秒，DSV4首Thinking与性能未接受；本地由4ba17891承接 |
+| intranet-tool-origins-20261105 | 内网独立配置修正来源 | refs/capstone/fixes/intranet-tool-origins-20261105（未合入dev） | 缺省排除未启动专业端点；保留显式域源配置 | 22项通过；63与三区生效，运行源码367374aa，63普通8.0752秒/准备1.7879秒 |
+| direct-native-entry-20261105 | 两内网最后确认运行来源 | refs/capstone/fixes/direct-native-entry-20261105（未合入dev） | 移除前置理解轮次并直接执行；专业工具与网关发现保持授权边界 | 原普通与网关入口目录通过；专业超预算取消，完整任务/性能未接受；本地试验7387ef7f |
+| thinking-capability-20261105 | 三套联调历史共同来源 | refs/capstone/fixes/thinking-capability-20261105（未合入dev） | dsv4显式声明Thinking能力；理解与native传递模型能力 | 470项与复审通过；Thinking显示通过，性能与回答语义未通过，当前由367374aa承接 |
+| default-dsv4-20261105 | 三套联调前次共同来源 | refs/capstone/fixes/default-dsv4-20261105（未合入dev） | 内网默认dsv4（18804）；明确选择和本地默认保持 | 原默认请求验收保留；当前由3a8eaf76承接 |
+| smooth-thinking-20261105 | 三套联调前次共同来源 | refs/capstone/fixes/smooth-thinking-20261105（未合入dev） | 单轮理解与冻结模型；Thinking短批次/后台批量及准确任务归属 | f34验收保留，当前由bfb16344承接；63真实产物与网关验证通过 |
+| direct-thinking-20261105 | 三区后台与App试验来源 | refs/capstone/experiments/direct-thinking-20261105（未合入dev） | 真实Thinking先推送，后台批量入库；保持正式游标和失败边界 | 定向与两模型简短会话通过；Qwen推送早于入库，整体性能待用户复测 |
+| single-pass-intent-20261105 | 三区后台单轮理解来源 | refs/capstone/fixes/single-pass-intent-20261105（未合入dev） | 完整冻结请求一次理解；计时分清诊断与会话 | 定向与真实完整规划通过；不作固定延迟/全面提速承诺 |
+| thinking-visibility-20261105 | 三区App显示补修来源 | refs/capstone/fixes/thinking-visibility-20261105（未合入dev） | 无文本时保留活动指示；收到与完成后保留真实片段 | 66项/类型/构建通过；仅App更新，未重启用户任务后端 |
+| intent-backpressure-20261105 | 三区后台修复精确来源 | refs/capstone/fixes/intent-backpressure-20261105（未合入dev） | 理解与执行文本共享缓冲；理解绑定冻结模型 | 106项与97消费者通过；两模型真实理解及简短任务恢复通过 |
+| intranet-source-20261105 | 内网后台精确来源 | refs/capstone/intranet-candidates/20261105-fixed | 受管理解与执行收口；内网模型注册适配 | .63和三区已部署健康；任务验收未通过，未合入dev |
+| dky3-app-20261105 | 三区App精确来源 | refs/capstone/dky3-dev-candidates/20261105 | 显式dky3-dev环境标签；独立实例与同源API | 定向检查和构建通过；缺省三区研发网关已连接 |
+| main-managed-resources | main本轮合并 | main | 资源管理与执行恢复合入；用户授权双平台定向门禁例外 | PR88合入0b68c607；全量发布缺口保留 |
+| offline-selection-fixture | 权限测试修复来源 | milestone/offline-selection-mode-20261103（已合并关闭） | macOS权限显示误报修复；定向门禁覆盖离线安装器 | PR90合入dev；macOS CI212通过/3跳过，33秒 |
+| execution-capacity | 已合入功能来源 | feat/execution-capacity-20261103（已关闭） | 观察恢复与有界会话；排队取消与一致文案 | PR91合dev；定向CI及真实并行/产物/页面通过 |
+| capacity-wake-fix | 已合入锁竞争唤醒补修来源 | fix/capacity-lock-wake-20261103（已合并关闭） | 确认匹配的待执行状态；无新通知时按原间隔重试 | 100项真实PG/线程与类型/审查通过；PR92及定向CI3分05秒通过 |
+| conversation-type | 已合入会话字号来源 | fix/conversation-typography-20261103（已关闭） | 指令/回答与左栏正文同为13px；标题/表格保持比例层级 | 本机151项/类型/页面通过；PR93及macOS App CI1502项/构建通过 |
+| intranet-managed-runtime | 当前dev HEAD及历史内网源 | dev | 分支保持6c55e6ee；三套联调运行源按部署卡单列 | 历史CSV/继续/恢复验收保留，当前部署来源单列 |
+| intranet-runtime-25c71f85 | 前次内网运行来源 | main | 管理禁用与同镜像运行；两轮真实任务和刷新恢复 | 2026-11-03验收通过，现由6c55e6ee承接 |
+| release-local-validation | 当前本机运行来源 | dev | 类型契约与逐次思考测试迁移；API/worker规范重建与同镜像 | 本机分段验证；完整发布缺口保留 |
+| managed-resource-milestone | 固定标签里程碑 | dev | 持久安装与隔离依赖；内网管理入口与执行器禁用开关 | 标签固定；后续已按定向例外合main并部署内网 |
 | managed-installation-runtime | 前次本机验收 | dev | Skills/MCP隔离安装及持久恢复；依赖、凭据与离线预装包 | 支持范围本机通过，内网未更新 |
-| intranet-summer-runtime | 内网部署来源 | dev | 调用目的持久留存；非特权报告生成 | 内网历史验收，当前离线 |
+| intranet-summer-runtime | 前次内网部署来源 | dev | 调用目的持久留存；非特权报告生成 | 历史验收保留，后续内网运行源已更新到6c55e6ee |
 | execution-integrity-runtime | 当前本机验收 | dev | 原始异常与诊断保留；多轮资源恢复及失败后继续 | 本机验证通过，内网未更新 |
 | conversation-controls | 已合入会话修复来源 | 原fix/conversation-small-items-20261031 | 提交期指令与Thinking关联、ESC停止和终态确认；版本冲突保留输入、JSON/MCP错误摘要 | App1419及构建通过，22适配器复测通过；真实取消、续发及刷新通过，PR79已合 |
 | conversation-runtime | 当前本地重建来源 | fix/conversation-small-items-20261031 | d8b检出重建且后端源码未变；App提示修复由根Vite提供，产品来源d89248e0 | 规范ready、API/worker同镜像160e55be及清理通过 |
@@ -1261,7 +1383,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | 内网默认模型契约断言修复；部署包SHA与单层native离线检查通过 | 定向161通过；完整发布未通过，main门禁例外待明确授权 |
+| dev-head | 当前研发位置 | dev | PR93统一会话字号已合入；实际dev与远端一致 | macOS App CI5分06秒；1502项测试及构建通过 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1303,6 +1425,12 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 91 | shared-agent | feat/execution-capacity-20261103 | dev | MERGED | c3a0c472；受检f8e23ab3，macOS CI41624694112通过4分02秒；观察恢复、有界会话与真实排队取消；实际dev重建及产物恢复通过，来源分支已关闭 |
+| 92 | shared-agent | fix/capacity-lock-wake-20261103 | dev | MERGED | 7ad2529a；受检eca9913d，macOS CI41629449461通过3分05秒；真实PG单/双槽位锁释放恢复、100项定向及页面复验通过 |
+| 93 | shared-agent | fix/conversation-typography-20261103 | dev | MERGED | 6c55e6ee；受检3e8625f5，macOS CI41641127761通过5分06秒；1502项App/构建及治理通过，正文/表格/代码统一13px |
+| 90 | shared-agent | milestone/offline-selection-mode-20261103 | dev | MERGED | f7d40163；macOS定向CI41579803266通过212项/3跳过，33秒；离线安装器权限测试修复及部署收口记录，来源分支已关闭 |
+| 89 | shared-agent | milestone/dev-return-managed-resources-20261103 | dev | MERGED | ef6effcb；macOS定向CI41578091873通过27秒；main历史和内网部署验收记录回流，来源分支已关闭 |
+| 88 | shared-agent | milestone/managed-resources-main-20261103 | main | MERGED | 0b68c607；用户明确批准双平台定向门禁例外，CI41574376803通过macOS24秒/Linux33秒；非完整发布验收 |
 | 82 | shared-agent | docs/gateway-dynamic-closeout | dev | MERGED | 文档CI41147685192通过2分42秒，合并c282dc8f；PR81材料与本地接受记录集成，运行产品/镜像不变；本地及远端文档分支已关闭 |
 | 81 | shared-agent | refactor/gateway-dynamic-bindings | dev | MERGED | 合并61ec56c6；最终40c4c2e4精简CI41145432600通过3分33秒，前轮d9e24798来源CI41144188892通过4分2秒；local-dev规范重建及清理通过，目录及视图协议、真实任务通过，渲染和性能未接受，功能分支已验证合入，本地及远端分支已关闭 |
 | 78 | shared-agent | chore/gateway-control-ci-closeout | dev | MERGED | c01a81f2；受检0fea95fc的治理专项41122209605通过2分17秒，AGENTS非发布专项规则、网关定向范围与部署内容保护 |
@@ -1361,6 +1489,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 此表给现存分支分类；展示时与实际 Git heads 核对，未知分支显示待登记。archive 是保留的实现或资料，不等于四条永久开发主线。
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
+| fix/capacity-lock-wake-20261103 | 已合并关闭 | PR92合7ad2529a；来源8dd51d0b，受检eca9913d | 100项本机与批准的定向CI通过；保留恢复材料，远端部署不变 | shared-agent |
+| fix/conversation-typography-20261103 | 已合并关闭 | PR93合6c55e6ee；来源2148db14，受检3e8625f5 | 已批准的macOS App CI通过；保留恢复材料，远端部署不变 | shared-agent |
+| feat/execution-capacity-20261103 | 已合并关闭 | PR91合c3a0c472；产品b7dd440c，受检f8e23ab3 | 定向CI、实际dev与页面验收通过；保留恢复材料，云端/内网未更新 | shared-agent |
 | --- | --- | --- | --- | --- |
 | fix/gateway-entry-startup | 当前启动修正，未push | 565802f9从c282dc8f分出，首轮激活已准入网关入口，业务工具按需加载；159Python/32跳过、14JS、真实SDK及类型通过，独立复核清楚 | 同一源码与控制PR一次push，待CI和合入后规范重建及可见标签页验证；未部署 | shared-agent |
 | docs/gateway-dynamic-closeout（本地与远端已关闭） | 文档已合入，本地与远端已关闭 | PR82合并c282dc8f，文档专项2分42秒通过 | 本地与远端分支已关闭，工作树detach至origin/devc282dc8f；保留恢复引用，最终HEAD快照不形成提交循环 | shared-agent |
@@ -1377,7 +1508,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/user-local-offline | 已合入交付来源 | 精确7c包曾交付后撤回，现不可交付；PR #27正常合入37529ef，来源双CI通过 | 保留归档与原SHA，root dev快进/规范重建单列；业务失败和未跑样例继续验证，不覆盖已交付包 | dev-trial |
 | fix/user-local-network-view | 已合入运行修复来源 | c638受检，PR #28双平台CI通过后正常合入f300d1f；root dev已快进，packages一致 | local-dev规范重建及真实身份核验已通过；e2归档未升级，19173/demo/cloud不变；回答算术和source建模投影边界保留 | autonomous |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
-| main | 已发布应用维护主线 | PR #30合入cf72393b，范围f209fb1；双平台完整release通过，合并树一致 | 短期零星修复，未来按对话适用场景发展；用户交付包不自动更新 | main |
+| main | 已接受本轮main集成 | PR88合入0b68c607；双平台定向例外通过 | 内网运行源25c71f85；完整发布缺口与原交付包保留 | main |
+| milestone/offline-selection-mode-20261103 | 已合并关闭 | PR90合入dev f7d40163；修复来源01732906及d599331f | 获批macOS CI41579803266通过212项/3跳过，33秒；部署不变 | shared-agent |
 | feat/work-research-identity（已关闭） | 共同基座Task 2已合入来源 | 055a335f组件实现及08556cc2 CI分层通过双平台检查；PR #41合入85b6706f | dev继续生产Profile/v2前端接入 | shared-agent |
 | feat/thread-version-negotiation（已关闭） | 共同基座协议准备已合入来源 | 2d3f86c6/a2efb791通过本地与双平台CI；PR #44合入32f18d24 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
 | feat/shared-execution-baseline（已关闭） | 共同基座Task 1已合入来源 | 62f44366执行接缝与711f06a8回执通过双平台CI，PR #36合入d8fe6e27 | dev继续Task 2；来源提交保留在合并历史 | shared-agent |
@@ -1509,8 +1641,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端 `ee625f38`；App `3c923666` | ready通过；API/worker同镜像b0402ca2，native cd364dbf | 内容标识9a1083e9；1339个包文件与候选核对，4个生成资源单列；规范重建及缓存维护通过；[回执](../reports/2026-11-03-main-intranet-release.md) |
-| intranet-dev | API/worker/native/App `70c42dab`；Qwen3.8-Flash-Next默认 | 四应用服务healthy；API/worker同镜像53d6ddbe；目的留存及UID10001报告生成通过 | App http://192.168.72.63:5173/；[审计](../reports/2026-11-02-intranet-summer-chain-audit.md)；未重跑业务/未做视觉验收 |
+| local-dev | 全角色源码 `984131e3`；用户授权本地补修，实际dev HEAD6c55e6ee未移动 | API及所有worker同后台cb6678d6，native200f8447；固定源码Vite PID91545显示local-dev，全角色healthy，私有配置未变 | 6链×2页、12查询实际并发4、0工具错误；CSV203字节下载哈希及刷新通过。网关缺包另行协查，完整原任务未重跑 |
+| intranet-dev | 全角色源码 `367374aa`；独立overlay配置255c8855 | 四角色healthy；默认18804、reasoning已核对；旧数据/网关保持 | App http://192.168.72.63:5173/；后台eba295e5同镜像，nativec9d90199，App6378f982；网关入口目录与恢复通过，配置后普通8.0752秒/准备1.7879秒，显示恢复通过 |
+| dky3-dev | 全角色源码 `367374aa`；独立overlay配置255c8855 | 四角色healthy；内网默认18804保持；本轮未独立执行真实任务 | App http://192.168.72.66:5173/；后台423116ae同镜像，nativefe9b5f12，App01e3d41c；仅general-pi域源覆盖已生效，运行身份核对通过 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

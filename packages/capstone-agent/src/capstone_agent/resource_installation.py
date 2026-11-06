@@ -118,7 +118,8 @@ def install_managed_resources(config_root: Path, *, source_root: Path | None = N
             raise ValueError("installed dependencies differ from lock")
         _write(install / "dependencies.json", dependencies)
         for role in sorted(ROLES):
-            _write(install / "native" / role / "settings.json", {"skills": ["../../sources/PowerSkills/powerskills-tool/skills/pandapower"], "extensions": [], "packages": []})
+            skills = ["../../sources/PowerSkills/powerskills-tool/skills/pandapower"] if role == "harness_engine" else []
+            _write(install / "native" / role / "settings.json", {"skills": skills, "extensions": [], "packages": []})
         receipt_path = install / "smoke.json"
         _run([str(interpreter), "-I", str(project / "tools/power_sample_smoke.py"), str(install), str(receipt_path)], env=env, timeout=180)
         receipt = json.loads(receipt_path.read_text())

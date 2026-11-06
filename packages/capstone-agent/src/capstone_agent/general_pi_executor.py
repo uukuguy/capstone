@@ -225,10 +225,13 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
                      model: str, relay_url: str, relay_token: str,
                      context_extension: Path, sdk_config: dict | None = None,
                      input_directory: Path | None = None,
-                     context_policy: dict | None = None) -> tuple[tuple[str, ...], dict[str, str]]:
+                     context_policy: dict | None = None,
+                     model_reasoning: bool = False) -> tuple[tuple[str, ...], dict[str, str]]:
     """Load native managed config; no business launcher or developer HOME."""
     if not command or any(not isinstance(part, str) or not part for part in command):
         raise ValueError('General Pi command is invalid')
+    if not isinstance(model_reasoning, bool):
+        raise ValueError('General Pi model reasoning capability must be boolean')
     from .model_context_policy import checked_context_policy, compaction_settings
     policy = checked_context_policy(context_policy) if context_policy is not None else None
     context_tokens = policy['context_window_tokens'] if policy else limits.model_context_tokens
@@ -248,7 +251,7 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
             shutil.copyfile(path, target)
     models = {'providers': {'capstone-general': {
         'baseUrl': relay_url, 'api': 'openai-completions', 'apiKey': relay_token,
-        'models': [{'id': model, 'name': model, 'reasoning': False, 'input': ['text'],
+        'models': [{'id': model, 'name': model, 'reasoning': model_reasoning, 'input': ['text'],
                     'contextWindow': context_tokens, 'maxTokens': output_tokens,
                     'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}],
     }}}
@@ -399,7 +402,8 @@ class GeneralPiProcess:
         self.inventory: dict = {}
 
     def run(self, instruction: str, *, timeout: float, cancelled: Callable[[], bool],
-            on_event: Callable[[dict], None], inventory_only: bool = False) -> str:
+            on_event: Callable[[dict], None], inventory_only: bool = False,
+            on_process_started: Callable[[], None] | None = None) -> str:
         if timeout <= 0:
             raise ValueError('General Pi deadline is invalid')
         privilege = {} if self.uid is None else {'user': self.uid, 'group': self.uid, 'extra_groups': []}
@@ -407,6 +411,11 @@ class GeneralPiProcess:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             start_new_session=True, **privilege)
         process = self.process
+        if on_process_started is not None:
+            try:
+                on_process_started()
+            except Exception:
+                pass  # Optional host diagnostics must not change task execution.
         frames: Queue[bytes | None | Exception] = Queue(maxsize=limits.native_rpc_queue_frames)
         stopped = Event()
 
@@ -463,6 +472,9 @@ class GeneralPiProcess:
                 try:
                     frame = frames.get(timeout=0.05)
                 except Empty:
+                    on_idle = getattr(on_event, 'on_idle', None)
+                    if callable(on_idle):
+                        on_idle()
                     continue
                 if frame is None:
                     raise RuntimeError('General Pi ended before completion')

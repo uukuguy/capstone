@@ -11,6 +11,7 @@ import time
 
 import httpx
 from .bounded_http_loop import write_http
+from .native_timing import NativeTiming
 
 _LOG = logging.getLogger(__name__)
 
@@ -40,11 +41,13 @@ from .application_capacity import limits, current_capacity, CapacityExceeded
 
 class StreamDiagnostics:
     """Read protocol endings, never retain model text or tool arguments."""
-    def __init__(self):
+    def __init__(self, on_semantic=None):
         self.pending = b''
         self.dropping = False
         self.done = False
         self.finish_reason = None
+        self.on_semantic = on_semantic
+        self.semantic = set()
 
     def feed(self, chunk):
         data = self.pending + chunk
@@ -67,6 +70,13 @@ class StreamDiagnostics:
             if not isinstance(document, dict):
                 continue
             for choice in document.get('choices', []) if isinstance(document.get('choices'), list) else []:
+                delta = choice.get('delta') if isinstance(choice, dict) else None
+                if isinstance(delta, dict) and self.on_semantic is not None:
+                    for phase, fields in (('first_thinking', ('reasoning', 'reasoning_content', 'reasoning_text')),
+                                          ('first_text', ('content',))):
+                        if phase not in self.semantic and any(isinstance(delta.get(key), str) and delta[key].strip() for key in fields):
+                            self.semantic.add(phase)
+                            self.on_semantic(phase)
                 reason = choice.get('finish_reason') if isinstance(choice, dict) else None
                 if isinstance(reason, str) and reason in {'stop', 'tool_calls', 'function_call', 'length', 'network_error', 'content_filter'}:
                     self.finish_reason = reason
@@ -102,6 +112,7 @@ class RelayLease:
     task: asyncio.Task | None = None
     provider_observed: bool = False
     provider_failure: str | None = None
+    timing: NativeTiming | None = None
 
     def abort(self):
         self.cancelled.set()
@@ -131,14 +142,17 @@ class ProviderRelay:
         self.deadlines: dict[str, float] = {}
         self.active: set[RelayLease] = set()
         self.provider_failures: dict[str, str] = {}
+        self.timings = {}
         self.lock = RLock()
         self.available = Condition(self.lock)
 
-    def register(self, task_id, grant, deadline):
+    def register(self, task_id, grant, deadline, *, timing=None):
         if not grant or not math.isfinite(deadline) or deadline <= time.monotonic():
             raise ValueError('Provider relay grant is invalid')
         with self.lock:
             self.grants[task_id], self.deadlines[task_id] = grant, deadline
+            if timing is not None:
+                self.timings[task_id] = timing
             self.provider_failures.pop(task_id, None)
             self.available.notify_all()
 
@@ -166,6 +180,7 @@ class ProviderRelay:
                 # task grant/deadline stays authoritative while it waits.
                 self.available.wait(timeout=min(.1, max(.001, deadline-time.monotonic())))
             lease = RelayLease(task_id, grant, deadline, downstream, channel=channel)
+            lease.timing = self.timings.get(task_id)
             self.active.add(lease)
         def watch():
             while not lease.released.wait(0.02):
@@ -197,10 +212,33 @@ class ProviderRelay:
             self.grants.pop(task_id, None)
             self.deadlines.pop(task_id, None)
             self.provider_failures.pop(task_id, None)
+            timing = self.timings.pop(task_id, None)
             leases = [item for item in self.active if item.task_id == task_id]
             self.available.notify_all()
         for lease in leases:
             lease.abort()
+        if timing is not None:
+            timing.close()
+
+
+def _request_counts(body):
+    """Return sizes only; parsed request fields do not outlive this call."""
+    counts = {'request_bytes': len(body)}
+    try:
+        document = json.loads(body)
+        if isinstance(document, dict):
+            size = lambda value: len(json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+            tools = document.get('tools', [])
+            if isinstance(tools, list):
+                counts.update(tools_count=len(tools), tools_schema_bytes=size(tools))
+            messages = document.get('messages', [])
+            if isinstance(messages, list):
+                system = [item for item in messages if isinstance(item, dict) and item.get('role') in {'system', 'developer'}]
+                other = [item for item in messages if not isinstance(item, dict) or item.get('role') not in {'system', 'developer'}]
+                counts.update(system_message_bytes=size(system), other_messages_bytes=size(other))
+    except (ValueError, UnicodeError, RecursionError):
+        pass  # A diagnostic parser cannot alter relay admission.
+    return counts
 
 
 async def forward_provider(handler, lease: RelayLease, upstream: str, body: bytes, key: str):
@@ -210,12 +248,18 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
     if lease.cancelled.is_set():
         raise asyncio.CancelledError()
     started, total, status = time.monotonic(), 0, None
-    stream, diagnostics, failure = False, StreamDiagnostics(), None
+    # Keep every first-response phase in the same exchange, even if it has no text.
+    timing = lease.timing
+    first_exchange = timing is not None and timing.mark('provider_request_started',
+        counts=lambda: _request_counts(body))
+    mark = timing.mark if timing is not None and first_exchange else lambda phase: None
+    stream, diagnostics, failure = False, StreamDiagnostics(on_semantic=mark), None
     try:
         async with httpx.AsyncClient(timeout=model_transport_timeout(), trust_env=False) as client, client.stream(
             'POST', upstream.rstrip('/') + '/chat/completions', content=body,
             headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}) as response:
             status = response.status_code
+            mark('provider_headers')
             stream = response.headers.get('Content-Type', '').split(';')[0].strip() == 'text/event-stream'
             if lease.cancelled.is_set():
                 raise asyncio.CancelledError()
@@ -230,6 +274,8 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
                 if lease.cancelled.is_set() or time.monotonic() >= lease.deadline:
                     raise asyncio.CancelledError()
                 total += len(chunk)
+                if chunk:
+                    mark('first_bytes')
                 if stream and limits.provider_stream_bytes and total > limits.provider_stream_bytes:
                     failure = 'response_limit'
                     raise ValueError('Provider stream exceeds configured capacity')

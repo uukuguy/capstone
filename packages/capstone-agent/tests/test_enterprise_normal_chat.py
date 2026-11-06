@@ -153,7 +153,10 @@ def test_normal_conversation_stop_uses_existing_cancel_and_keeps_unconsumed_inpu
     factory = IntentRuntimeFactory(None, None, None, general_executor=executor)
     assert store.claim_attempt('professional', 30, 'pandapower') is None
     result = run_pending_attempt(store, factory, worker_id='native', implementation_family='native')
-    assert result.status == 'cancelled'
+    if phase == 'queued':
+        assert result is None and executor.requests == []
+    else:
+        assert result.status == 'cancelled'
     assert store.snapshot(thread_id).works[0]['messages'] == ['Continue explaining']
     assert store.snapshot(thread_id).works[0]['status'] == 'cancelled'
 
@@ -185,7 +188,8 @@ def test_new_conversation_instruction_does_not_replay_prior_unfinished_input(cha
     assert previous is not None
     store.finish_attempt(previous, phase=terminal, payload={})
     work = store.snapshot(thread_id).works[0]
-    assert work['messages'] == [old_text]  # Explicit retry remains possible before a new instruction.
+    assert work['messages'] == [old_text]
+    assert work['consumed_message_count'] == 1
     request = command(store, thread_id, 'send_message', 'superseding_new',
         work_id=work['work_id'], revision=work['revision'], payload={'text': new_text})
     accepted = store.submit_command(request)
@@ -210,6 +214,7 @@ def test_explicit_work_retry_keeps_the_cancelled_instruction(chat_store):
     assert old is not None
     store.finish_attempt(old, phase='cancelled', payload={})
     work = store.snapshot(thread_id).works[0]
+    assert work['messages'] == [text] and work['consumed_message_count'] == 1
     assert store.submit_command(command(store, thread_id, 'start_work', 'retry_exact',
         work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
     retried = store.claim_attempt('retry', 30)

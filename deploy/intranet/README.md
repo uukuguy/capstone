@@ -8,9 +8,9 @@ Do not reuse a gateway database or another Capstone installation's data volumes.
 
 The default profile is selected with `CAPSTONE_WORKBENCH_PRESET=intranet`.
 Its model endpoint belongs to `configs/runtime/workbench-llm-profiles.json`.
-The default model is `Qwen3.8-Flash-Next` at `http://192.168.72.69:8013/v1`,
-with a 262,144-token context reported by the service. Existing dsv4 profiles
-remain selectable. Previously submitted tasks retain their frozen model selection.
+The default model is `dsv4` at `http://192.168.72.69:18804/v1`.
+Qwen and the other registered profiles remain selectable. Context limits come
+from the selected profile. Previously submitted tasks retain their frozen model selection.
 Mount a mode-0600 `connection.json` in the private gateway configuration directory;
 select the server's gateway and label it `内网联调`. Do not copy local session state
 or put connection tokens in this repository or browser build variables.
@@ -21,11 +21,17 @@ The App serves its API through the same origin. Set `CAPSTONE_APP_ORIGIN` and
 Use `--no-build --pull never` when starting an offline image bundle. Professional
 solver workers are optional under the `professional` profile and need their own
 provider configuration. The default deployment starts the enterprise/native path.
+The intranet overlay leaves `CAPSTONE_DOMAIN_TOOL_ORIGINS` empty by default, so
+native tasks do not wait for optional solver workers that are not running.
+To use those workers, enable the `professional` profile and explicitly set
+`CAPSTONE_DOMAIN_TOOL_ORIGINS` in the private environment file to their worker
+origins. Enabling the profile alone does not grant a connection. The root local
+Compose configuration keeps its existing professional worker origins.
 
 For an offline x86_64 host, build Linux amd64 images from the recorded commit,
 save the backend, native executor, App, PostgreSQL and object-store images, and
 transfer them with checksums. Prepare the App from that exact source using
-`deploy/prepare_app_source.py` (same-origin `local-dev` identity), build its static
+`deploy/prepare_app_source.py` (same-origin `intranet-dev` identity), build its static
 files, then use `App.Dockerfile` here with the shared dev-trial `Caddyfile`.
 Keep the deployment receipt's host/stage separate from the App's development-lane
 label. Verify image identities, readiness, the default model and gateway, one real

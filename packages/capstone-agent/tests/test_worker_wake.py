@@ -69,12 +69,53 @@ def test_authenticated_wake_signals_legacy_and_thread_schedulers():
         assert legacy.is_set() and thread.is_set()
 
 
+def test_domain_tool_route_follows_the_worker_pack_and_rejects_other_packs():
+    class Pack:
+        def catalog(self, profile_id, profile_version):
+            if (profile_id, profile_version) != ('pandapower-static-analysis', '1.0.1'):
+                raise KeyError(profile_id)
+            return {'schema': 'capstone-domain-tool-catalog/1', 'tools': {'grid_context_open': {}}}
+
+        def invoke(self, body):
+            return {'ok': True, 'result': {'tool': body['name']}}
+
+    app = create_wake_app(threading.Event(), 'operator-secret', implementation_family='pandapower', domain_tools=Pack())
+    auth = {'Authorization': f"Bearer {wake_token('operator-secret')}"}
+    with TestClient(app) as client:
+        assert client.get('/domain-tools/catalog', params={'profile_id': 'other', 'profile_version': '1'}).status_code == 401
+        assert client.get('/domain-tools/catalog', headers=auth, params={'profile_id': 'other', 'profile_version': '1'}).status_code == 404
+        assert client.get('/domain-tools/catalog', headers=auth, params={
+            'profile_id': 'pandapower-static-analysis', 'profile_version': '1.0.1'}).json()['tools']['grid_context_open'] == {}
+        assert client.post('/domain-tools/invoke', headers=auth, json={
+            'task_id': 'pi-1', 'call_id': 'call-1', 'name': 'grid_context_open', 'arguments': {}}).json()['ok'] is True
+    bare = create_wake_app(threading.Event(), 'operator-secret', implementation_family='native')
+    with TestClient(bare) as client:
+        assert client.get('/domain-tools/catalog', headers=auth, params={'profile_id': 'x', 'profile_version': '1'}).status_code == 404
+
+
 def test_wake_cannot_report_ready_when_a_scheduler_has_stopped():
     wake = threading.Event()
     with TestClient(create_wake_app(wake, 'operator-secret', health_check=lambda: False)) as client:
         response = client.post('/wake', headers={'Authorization': f"Bearer {wake_token('operator-secret')}"})
         assert response.status_code == 503
         assert not wake.is_set()
+
+
+def test_family_wake_reaches_only_the_receiving_worker(monkeypatch):
+    from capstone_agent.worker_wake import configured_family_wake
+    calls = []
+
+    def wake(self, **_kwargs):
+        calls.append(self.url)
+        return True
+
+    monkeypatch.setattr(WorkerWakeClient, 'wake', wake)
+    callback = configured_family_wake(
+        'http://native:8766',
+        'native=http://native:8766,pandapower=http://grid:8766,pypsa=http://pypsa:8766',
+        'operator-secret')
+    assert callback('pandapower') is True
+    assert calls == ['http://grid:8766/wake']
 
 
 def test_federated_wake_reaches_every_family_even_when_one_is_unavailable(monkeypatch):
