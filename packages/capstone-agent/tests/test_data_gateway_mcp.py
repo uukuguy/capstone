@@ -708,3 +708,23 @@ def test_handshake_instance_identity_is_bound_and_safely_projected(tmp_path):
     assert 'secret-canary' not in json.dumps(publication)
     instance['instance_id'] = 'another-instance'
     assert asyncio.run(client.prepare())['revision'] != catalog['revision']
+
+
+def test_publication_accepts_additive_metadata_and_refreshes_when_it_changes(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    calling = session.call_tool
+    extension = {'new_service_revision': 'first', 'future_metadata': {'flags': ['supported']}}
+    async def call(name, arguments):
+        from types import SimpleNamespace
+        original = await calling(name, arguments)
+        document = original.model_dump()
+        if name == 'check_gateway_contract':
+            document['structuredContent']['data'].update(copy.deepcopy(extension))
+        return SimpleNamespace(model_dump=lambda **_: copy.deepcopy(document))
+    session.call_tool = call
+    first = asyncio.run(client.prepare())
+    assert first['contract_publication']['future_metadata'] == extension['future_metadata']
+    extension['new_service_revision'] = 'second'
+    second = asyncio.run(client.refresh_catalog(first))
+    assert second['revision'] != first['revision']
+    assert client._accepted[first['revision']] == first
