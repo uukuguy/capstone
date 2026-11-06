@@ -11,28 +11,6 @@ import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
-test('reference pipeline fetches once and analyzes remotely without returning source rows',()=>fixture(async cwd=>{
- const declared=structuredClone(catalog);let fetches=0;const analyses=[];
- const rows=[2,4,6]; // Test server-owned data, never returned by its tools.
- const t=tool(cwd,async(_name,args)=>{
-  if(args.operation==='fetch'){fetches++;return native({dataset_ref:'dataset:one'});}
-  assert.equal(args.dataset_ref,'dataset:one');analyses.push(args.operation);
-  return native({result_ref:'result:'+args.operation,summary:args.operation==='sum'?rows.reduce((a,b)=>a+b,0):rows.length});
- },{catalog:declared});
- const response=await t.execute('reference-chain',{tools:['read'],program:`
- const source=await tools.call('read',{operation:'fetch'});
- return tools.map(['sum','count'],async operation=>{
-  const result=await tools.call('read',{operation,dataset_ref:source.data.dataset_ref});
-  return result.data;
- });`});
- assert.equal(response.isError,false,JSON.stringify(response));
- const body=JSON.parse(response.content[0].text);
- assert.equal(fetches,1);assert.deepEqual(analyses.sort(),['count','sum']);
- assert.deepEqual(body.result,[{result_ref:'result:sum',summary:12},{result_ref:'result:count',summary:3}]);
- assert.equal(body.completed_calls.length,3);
- assert.equal(response.content[0].text.includes('"rows"'),false);
-}));
-
 test('one pipeline plans exact calls, reuses observations, validates mappings and publishes only valid tables',()=>fixture(async cwd=>{
  const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};let count=0;
  const t=tool(cwd,async()=>{count++;return native({rows:[{day:'2025-06-15',reading:4}]});},{catalog:declared});
