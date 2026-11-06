@@ -551,7 +551,19 @@ def test_dynamic_effects_fail_closed(tmp_path, effects):
         asyncio.run(client.call('data_gateway_previously_unknown_action', {}, catalog))
 
 
-@pytest.mark.parametrize('bad_name', ['UpperCase', 'bad-name', 'x' * 51, '', 'a.b'])
+@pytest.mark.parametrize('native_name', ['epri-catalog__describe_service', 'a.b', 'UpperCase', 'x' * 128])
+def test_dynamic_accepts_mcp_tool_names_and_keeps_provider_namespace(tmp_path, native_name):
+    client, session = dynamic_gateway(tmp_path)
+    session.tools[0].name = native_name
+    session.tools[0].value['name'] = native_name
+    catalog = asyncio.run(client.prepare())
+    exposed = 'data_gateway_' + native_name
+    assert catalog['tools'][exposed]['name'] == native_name
+    asyncio.run(client.call(exposed, {}, catalog))
+    assert session.calls[-1] == (native_name, {})
+
+
+@pytest.mark.parametrize('bad_name', ['bad name', 'a/b', 'x' * 129, '', '工具', 'a\n'])
 def test_dynamic_invalid_tool_names_reject_catalog(tmp_path, bad_name):
     client, session = dynamic_gateway(tmp_path)
     session.tools[0].name = bad_name
