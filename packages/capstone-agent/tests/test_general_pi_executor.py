@@ -26,22 +26,34 @@ def single_child_cleanup(monkeypatch):
 
 
 @pytest.mark.parametrize('diagnostic_fails', [False, True])
-def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, single_child_cleanup, diagnostic_fails):
+@pytest.mark.parametrize('idle_callback_delay', [0.0, 0.3])
+def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, single_child_cleanup, diagnostic_fails, idle_callback_delay):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     from capstone_agent.stream_progress import IdleFlushCallback
     script = tmp_path / 'quiet.py'
     final = {'type': 'agent_end', 'messages': [{'role': 'assistant', 'stopReason': 'stop',
         'content': [{'type': 'text', 'text': 'Done'}]}]}
-    script.write_text('import sys,time\nsys.stdin.readline()\ntime.sleep(.2)\nprint(' + repr(json.dumps(final)) + ',flush=True)\n')
+    flushed = tmp_path / 'idle-flushed'
+    # Finish only after the host flushes twice. Scheduler speed must not decide
+    # how many callbacks fit before an unrelated child-process sleep expires.
+    script.write_text('import sys,time\nfrom pathlib import Path\nsys.stdin.readline()\n'
+        'while not Path(' + repr(str(flushed)) + ').exists(): time.sleep(.01)\n'
+        'print(' + repr(json.dumps(final)) + ',flush=True)\n')
     idle = []
     started = []
+    def flush_idle():
+        idle.append(time.monotonic())
+        if len(idle) == 1:
+            time.sleep(idle_callback_delay)
+        if len(idle) >= 2:
+            flushed.touch()
     def process_started():
         started.append(process.process.pid)
         if diagnostic_fails:
             raise RuntimeError('Diagnostic sink unavailable')
     process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
     process.run('task', timeout=5, cancelled=lambda: False,
-                on_event=IdleFlushCallback(lambda event: None, lambda: idle.append(time.monotonic())),
+                on_event=IdleFlushCallback(lambda event: None, flush_idle),
                 on_process_started=process_started)
     assert len(started) == 1
     assert len(idle) >= 2
