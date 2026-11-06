@@ -1,6 +1,7 @@
 # Reference execution research
 
 Independent research branch based on dev 651e4cd3. No automatic dev integration or deployment.
+Continuously track dev through ordinary merges; see RESEARCH-BASELINE.md. Isolation applies to experimental delivery, not dependency evolution.
 Efficiency first: server computation, reference orchestration, bounded model feedback. Evaluate disclosure separately.
 Read docs/reports/2026-11-06-reference-execution-feasibility.md and the two 2026-11-06 design documents.
 Reference composition test migrated from ee3c9123; prior 41-test receipt is historical, not a fresh-worktree test.
