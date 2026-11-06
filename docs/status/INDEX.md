@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-06：[main/tag收口](../reports/2026-11-06-native-execution-closeout.md)PR94首轮macOS CI42137611817失败；1a0fc847修正安静Provider测试的定时计数假设，92项本地通过。补齐12份原始历史回执，候选链接通过；等待第二次CI批准，未合并/tag或部署。
+2026-11-06：[三套dev部署](../reports/2026-11-06-three-dev-deployment.md)与推进图对齐：dev a4efea0e、main22cd1728同内容；研发快照tag已创建，三套dev均运行22cd1728，健康/源码/同镜像与真实短会话通过。
 
 2026-11-05：[真实任务补修](../reports/2026-11-05-batch-regression.md)984131e3已部署local-dev；6链×2页实际并发4、12次查询、0工具错误，CSV下载哈希和刷新通过。原任务59/31调用组仍串行已定位；[网关缺包协查](../reports/2026-11-05-data-gateway-runtime-assist.md)通知已入队，未收到回复。
 
