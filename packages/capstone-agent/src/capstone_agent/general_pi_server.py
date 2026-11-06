@@ -270,7 +270,18 @@ class GeneralPiHost:
                        else self.capability.get('resource_profiles', {}).get(role, {}))
             published = set(self.capability.get('native_tools', ()))
             from .data_gateway_relay import research_gateway_tools
-            published.update(research_gateway_tools(native, self.capability.get('data_gateway', {})))
+            publication = self.capability.get('data_gateway', {})
+            binding = native.get('gateway_binding')
+            if binding is not None:
+                publication = {'available': False}
+                if binding['catalog_revision'] is not None:
+                    registry = getattr(self._run, 'gateway_registry', None)
+                    if registry is None:
+                        raise ValueError('gateway_bound_instance_unavailable')
+                    _, access = registry.access_for(binding['connection_id'], binding['instance_id'])
+                    publication = {**access.publication(),
+                                   'catalog': access.frozen_catalog(binding['catalog_revision'])}
+            published.update(research_gateway_tools(native, publication))
             published.update(profile.get('load_receipt', {}).get('published_tool_ids', ()))
             if request.research_binding is not None:
                 from .native_research_bridge import ALL_ENTERPRISE_RESEARCH_TOOLS
@@ -1615,8 +1626,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             # starts meanwhile, the guarded commit retains its original source.
             return registry.select(document['id'], commit_guard=commit_guard)
         if action == 'refresh' and document == {}:
-            return registry.refresh()
-        if action == 'reload' and document == {}:
+            registry.refresh()
+        if action in {'refresh', 'reload'} and document == {}:
             try:
                 result = registry.reload_contract()
             finally:

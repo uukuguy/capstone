@@ -4,11 +4,11 @@ import type {GatewayConnectionStatus} from './threadInput'
 import type {GatewayConnectionInput,GatewayConnections,GatewayProbe} from './gatewayConnectionTypes'
 import './GatewayStatus.css'
 
-type Props={gateway?:GatewayConnectionStatus;notice?:string;onRefresh?:()=>void;connections?:GatewayConnections;onSelect?:(id:string)=>Promise<void>;onRefreshAll?:()=>Promise<void>;onRefreshContract?:()=>Promise<void>;onProbe?:(input:GatewayConnectionInput)=>Promise<GatewayProbe>;onAdd?:(input:GatewayConnectionInput)=>Promise<void>}
+type Props={gateway?:GatewayConnectionStatus;notice?:string;onRefresh?:()=>void;connections?:GatewayConnections;onSelect?:(id:string)=>Promise<void>;onRefreshAll?:()=>Promise<void>;onProbe?:(input:GatewayConnectionInput)=>Promise<GatewayProbe>;onAdd?:(input:GatewayConnectionInput)=>Promise<void>}
 const statusLabels={unknown:'未检测',checking:'检测中',connected:'可连接',disconnected:'未连通'}
 function address(url:string){try{return new URL(url).host}catch{return '地址未知'}}
 function checkedTime(value?:string){if(!value)return undefined;const date=new Date(value);return Number.isNaN(date.getTime())?undefined:date.toLocaleString('zh-CN',{hour12:false})}
-export default function GatewayStatus({gateway,notice,onRefresh,connections,onSelect,onRefreshAll,onRefreshContract,onProbe,onAdd}:Props) {
+export default function GatewayStatus({gateway,notice,onRefresh,connections,onSelect,onRefreshAll,onProbe,onAdd}:Props) {
   const root=useRef<HTMLDetailsElement>(null)
   const inspection=useRef<HTMLDetailsElement>(null)
   const [adding,setAdding]=useState(false)
@@ -17,7 +17,6 @@ export default function GatewayStatus({gateway,notice,onRefresh,connections,onSe
   const [probing,setProbing]=useState(false)
   const [saving,setSaving]=useState(false)
   const [refreshing,setRefreshing]=useState(false)
-  const [updatingContract,setUpdatingContract]=useState(false)
   const [selecting,setSelecting]=useState<string>()
   const [inspectedId,setInspectedId]=useState<string>()
   const [error,setError]=useState('')
@@ -49,8 +48,7 @@ export default function GatewayStatus({gateway,notice,onRefresh,connections,onSe
   }
   const save=async()=>{if(!probe||!onAdd||saving)return;setSaving(true);setError('');try{await onAdd(input);clearForm()}catch(cause){setError(failure(cause,'保存失败，请重试'))}finally{setSaving(false)}}
   const refresh=async()=>{if(!onRefreshAll||refreshing)return;setRefreshing(true);setError('');try{await onRefreshAll()}catch(cause){setError(failure(cause,'刷新失败，请重试'))}finally{setRefreshing(false)}}
-  const updateContract=async()=>{if(!onRefreshContract||updatingContract)return;setUpdatingContract(true);setError('');try{await onRefreshContract()}catch(cause){setError(failure(cause,'契约更新失败，请重试'))}finally{setUpdatingContract(false)}}
-  const select=async(id:string)=>{if(!onSelect||selecting||connections?.locked)return;setSelecting(id);setError('');try{await onSelect(id)}catch(cause){setError(failure(cause,'切换失败'))}finally{setSelecting(undefined)}}
+  const select=async(id:string)=>{if(!onSelect||selecting)return;setSelecting(id);setError('');try{await onSelect(id)}catch(cause){setError(failure(cause,'切换失败'))}finally{setSelecting(undefined)}}
   const detailIdentity=connections?(inspected?.identity??{available:false,endpoint:inspected?address(inspected.url):undefined}):gateway
   const fields=[['实例名称',detailIdentity.instance_name],['配置连接',detailIdentity.connection_name],['环境',detailIdentity.environment_label],['数据源',detailIdentity.data_source_label],['离线模式',typeof detailIdentity.offline==='boolean'?(detailIdentity.offline?'是':'否'):undefined],['MCP 服务',detailIdentity.server_name],['MCP 版本',detailIdentity.server_version],['地址',detailIdentity.endpoint],['检测时间',inspected?.checked_at],['实例标识',detailIdentity.instance_id]]
   const primaryFields=connections?[['环境',detailIdentity.environment_label],['数据源',detailIdentity.data_source_label],['地址',inspected?.url],['检测时间',checkedTime(inspected?.checked_at)]]:fields
@@ -63,11 +61,6 @@ export default function GatewayStatus({gateway,notice,onRefresh,connections,onSe
   }} onToggle={()=>{if(root.current&&!root.current.open)clearForm()}}>
     <summary role="button" aria-label={`数据网关：${label}${unavailable?'（当前不可用）':''}`}><Database size={14} aria-hidden="true"/><span>{label==='数据网关'?label:`数据网关 · ${label}`}</span>{unavailable&&<em>当前不可用</em>}<ChevronUp aria-hidden="true"/></summary>
     <div className="gateway-status-panel" aria-label="数据网关连接详情"><header><strong>数据网关</strong>{connections&&onRefreshAll&&<button className="gateway-icon-button" type="button" title="刷新所有网关连接" aria-label="刷新所有网关连接" disabled={refreshing||connections.checking} onClick={()=>void refresh()}><RefreshCw size={15} className={refreshing||connections.checking?'is-spinning':''}/></button>}</header>
-    {connections?.locked&&<p role="status">本会话已绑定网关；使用其他实例请新建会话。</p>}
-    {selected&&onRefreshContract&&<div className="gateway-contract-update"><button type="button" className="gateway-use-button" disabled={updatingContract||Boolean(selecting)} onClick={()=>void updateContract()}>{updatingContract?'正在更新契约…':'更新当前网关契约'}</button>
-      <p>新会话自动更新；已运行任务保留原契约。</p>
-      {selected.contract&&<p role="status">{selected.contract.available?'契约已更新':'契约更新失败'} · {checkedTime(selected.contract.checked_at)}</p>}
-    </div>}
     {connections&&<><div className="gateway-connection-list">{connections.entries.map(entry=><button type="button" key={entry.id} className={`gateway-connection${entry.id===inspectedId?' is-inspected':''}`} aria-pressed={entry.id===connections.selected_id} onClick={()=>{setInspectedId(entry.id);if(inspection.current)inspection.current.open=true}}>
       <span className="gateway-connection-copy"><strong>{entry.label||entry.identity?.instance_name}</strong><small>{address(entry.url)}</small></span><span className={`gateway-connection-state is-${entry.status}`}><i aria-hidden="true"/>{selecting===entry.id?'切换中':statusLabels[entry.status]}</span>{entry.id===connections.selected_id&&<Check size={14} aria-label="当前连接"/>}
     </button>)}</div>{!connections.entries.length&&<p>尚未添加网关</p>}
@@ -81,7 +74,7 @@ export default function GatewayStatus({gateway,notice,onRefresh,connections,onSe
     </form>}</>}
     {error&&<p role="alert">{error}</p>}
     {connections?<details ref={inspection} className="gateway-instance-details" key={inspectedId??'initial'} open={inspectedId!==undefined}><summary>实例详情</summary>
-      {inspected&&<div className="gateway-inspector-heading"><strong>{inspected.label||inspected.identity?.instance_name}</strong><button className="gateway-use-button" type="button" disabled={connections.locked||!onSelect||Boolean(selecting)||inspected.id===connections.selected_id} onClick={()=>void select(inspected.id)}>{inspected.id===connections.selected_id?'当前使用':selecting===inspected.id?'切换中…':'使用此网关'}</button></div>}
+      {inspected&&<div className="gateway-inspector-heading"><strong>{inspected.label||inspected.identity?.instance_name}</strong><button className="gateway-use-button" type="button" disabled={!onSelect||Boolean(selecting)||inspected.id===connections.selected_id} onClick={()=>void select(inspected.id)}>{inspected.id===connections.selected_id?'当前使用':selecting===inspected.id?'切换中…':'使用此网关'}</button></div>}
       {details}
       {technicalFields.length>0&&<details className="gateway-technical-details"><summary>更多连接信息</summary><dl>{technicalFields.map(([name,value])=><div className="gateway-status-row" key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl></details>}
     </details>:details}

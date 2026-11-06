@@ -1450,9 +1450,6 @@ class InMemoryThreadService(NativeExecutionOwner):
     def select_thread_gateway(self, thread_id, binding):
         from copy import deepcopy
         with self._lock:
-            current = self.read_thread_gateway(thread_id)
-            if current and current['locked']:
-                raise ThreadProtocolError('gateway_session_locked')
             self._gateway_binding = {**deepcopy(binding), 'locked': False}
             return deepcopy(self._gateway_binding)
 
@@ -3063,9 +3060,6 @@ class PostgresThreadService(NativeExecutionOwner):
             row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread_id,)).fetchone()
             if row is None:
                 raise ThreadNotFound(thread_id)
-            current = self._thread_gateway_row(connection, row)
-            if current and current['locked']:
-                raise ThreadProtocolError('gateway_session_locked')
             value = {**binding, 'locked': False}
             connection.execute('UPDATE capstone_threads SET gateway_binding=%s WHERE thread_id=%s', (Jsonb(value), thread_id))
             return value

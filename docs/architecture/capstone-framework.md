@@ -1,5 +1,18 @@
 # Capstone Agent Framework
 
+## Gateway selection and automatic negotiation
+
+The application manages available gateway instances and a current selection.
+Selection is a preference for subsequent tasks, not an immutable conversation binding.
+The backend adapter negotiates the current catalog during initialization, selection
+and status refresh. It prepares a new selection before persisting it; failure retains
+the previous selection. Model tool definitions and task admission use the selected
+instance and exact admitted catalog revision, never the deployment default catalog.
+Running tasks keep their frozen instance, tool grants and catalog snapshot. Historical
+observations keep their original source. The client exposes selection, availability
+and retry; handshake and catalog consistency are internal, with no manual contract
+update action. This replaces the earlier session-wide selection lock.
+
 ## Incremental task organization candidate
 
 2026-11-05 native entry correction: new default native conversations enter the

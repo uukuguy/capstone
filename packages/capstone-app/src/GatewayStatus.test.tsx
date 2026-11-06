@@ -8,26 +8,13 @@ afterEach(cleanup)
 
 const connections={schema:'capstone-gateway-connections/1' as const,revision:1,selected_id:'a',checking:false,entries:[{id:'a',label:'当前实例',url:'http://one.test:8000/mcp',status:'connected' as const},{id:'b',label:'另一个实例',url:'https://two.test/mcp',status:'unknown' as const}]}
 
-it('locks selection for a nonempty conversation and restores selection for an empty one',()=>{
- const select=vi.fn()
- const {rerender}=render(<GatewayStatus connections={{...connections,locked:true}} onSelect={select}/>);
+it('refreshes connection information without exposing internal contract controls',async()=>{
+ const health=vi.fn().mockResolvedValue(undefined)
+ render(<GatewayStatus connections={connections} onRefreshAll={health}/>);
  fireEvent.click(screen.getByRole('button',{name:/数据网关：/}));
- fireEvent.click(screen.getByRole('button',{name:/另一个实例/}));
- expect(screen.getByText('本会话已绑定网关；使用其他实例请新建会话。')).toBeTruthy();
- expect(screen.getByRole('button',{name:'使用此网关'})).toBeDisabled();
- fireEvent.click(screen.getByRole('button',{name:'使用此网关'}));expect(select).not.toHaveBeenCalled();
- rerender(<GatewayStatus connections={{...connections,locked:false}} onSelect={select}/>);
- expect(screen.getByRole('button',{name:'使用此网关'})).not.toBeDisabled();
-})
-
-it('updates current tool contracts separately from connection health',async()=>{
- const reload=vi.fn().mockResolvedValue(undefined),health=vi.fn();
- render(<GatewayStatus connections={connections} onRefreshContract={reload} onRefreshAll={health}/>);
- fireEvent.click(screen.getByRole('button',{name:/数据网关：/}));
- fireEvent.click(screen.getByRole('button',{name:'更新当前网关契约'}));
- await waitFor(()=>expect(reload).toHaveBeenCalledTimes(1));
- expect(health).not.toHaveBeenCalled();
- expect(screen.getByText('新会话自动更新；已运行任务保留原契约。')).toBeTruthy();
+ expect(screen.queryByText('更新当前网关契约')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'刷新所有网关连接'}));
+ await waitFor(()=>expect(health).toHaveBeenCalledTimes(1));
 });
 it('shows the actionable backend failure once without replacing it with a generic error',async()=>{
   const message='有任务正在执行，请结束后切换网关。'
@@ -168,4 +155,14 @@ it('projects only public gateway metadata and rejects credential-bearing address
   for(const endpoint of ['gateway.test:8000','[::1]:443'])expect(parseInputCatalog({...base,data_gateway:{available:true,endpoint}}).data_gateway?.endpoint).toBe(endpoint)
   expect(()=>parseInputCatalog({...base,data_gateway:{available:true,endpoint:'user:secret@gateway.test:8000'}})).toThrow()
   expect(()=>parseInputCatalog({...base,data_gateway:{available:true,offline:'false'}})).toThrow()
+})
+
+it('allows a different gateway in an existing session without exposing contract operations',async()=>{
+ const select=vi.fn().mockResolvedValue(undefined)
+ render(<GatewayStatus connections={{...connections,locked:true}} onSelect={select}/>);
+ fireEvent.click(screen.getByRole('button',{name:/数据网关：/}));
+ expect(screen.queryByRole('button',{name:'更新当前网关契约'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:/另一个实例/}));
+ fireEvent.click(screen.getByRole('button',{name:'使用此网关'}));
+ await waitFor(()=>expect(select).toHaveBeenCalledWith('b'));
 })

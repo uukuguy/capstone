@@ -905,6 +905,9 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
             return self.snapshot()
         def refresh(self):
             return {**self.snapshot(), 'checking': True}
+        def reload_contract(self):
+            self.current_access.catalog = {'tools': {}, 'revision': 'refreshed'}
+            return {**self.snapshot(), 'checking': True}
 
     class Runner:
         gateway_registry = Registry()
@@ -933,6 +936,7 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
         assert runner.gateway.name == 'second'
         assert client.capability['data_gateway']['identity']['instance_name'] == 'second'
         assert client.control_gateway_connections('refresh', {})['checking'] is True
+        assert client.capability['data_gateway']['catalog']['revision'] == 'refreshed'
         # A selected service may recover after startup failed. Health prepares
         # its access independently; publication applies only when idle.
         runner.gateway = None
@@ -1409,3 +1413,37 @@ def test_terminal_receipt_failure_settles_and_prevents_replay(tmp_path, monkeypa
     restarted = GeneralPiHost(root=tmp_path, identity=host.identity, run_task=run)
     restarted.submit(request)
     assert calls == ['t1']
+
+
+@pytest.mark.parametrize('requested_tool,accepted', [('data_gateway_bound_only', True), ('data_gateway_default_only', False)])
+def test_admission_uses_bound_gateway_catalog_instead_of_default(tmp_path, monkeypatch, requested_tool, accepted):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.native_task_context import POLICY_TEXT
+    class Admitted(Exception):
+        pass
+    catalog = {'revision': 'bound-revision', 'tools': {'data_gateway_bound_only': {}}}
+    access = SimpleNamespace(publication=lambda: {'available': True, 'catalog': catalog},
+                             frozen_catalog=lambda revision: catalog if revision == 'bound-revision' else {})
+    bindings = []
+    def access_for(connection, instance):
+        bindings.append((connection, instance))
+        return connection, access
+    def runner(*args):
+        raise AssertionError('Admission test must not execute a task')
+    runner.gateway_registry = SimpleNamespace(access_for=access_for)
+    runner.gateway_publication = {'available': True, 'catalog': {'tools': {'data_gateway_default_only': {}}}}
+    host = module.GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=runner)
+    native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+        'allowed_tools': [requested_tool], 'external_lookup_enabled': False},
+        'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False,
+        'gateway_binding': {'connection_id': 'selected', 'instance_id': 'bound-instance', 'catalog_revision': 'bound-revision'}}
+    request = PiTaskRequest('bound-admission', 'attempt', 'direct', 'Explain', (), (), host.identity, 2,
+        business_context=BusinessContext.empty('workspace', 0),
+        resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Explain'}, native_context=native)
+    monkeypatch.setattr(host, '_make_room', lambda: (_ for _ in ()).throw(Admitted()))
+    with pytest.raises(Admitted if accepted else ValueError):
+        host.submit(request)
+    assert bindings == [('selected', 'bound-instance')]

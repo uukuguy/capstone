@@ -135,7 +135,10 @@ export class HttpThreadTransport implements ThreadTransport {
 
   private async gatewayRequest(action?:string,body?:unknown){
     const signal=AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms')*(action?2:1))
-    try{return await this.request('/api/v1/workspace/gateways'+(action?'/'+action:''),action?{method:'POST',body:JSON.stringify(body??{}),signal}:{signal})}
+    return this.gatewayOperation('/api/v1/workspace/gateways'+(action?'/'+action:''),action?{method:'POST',body:JSON.stringify(body??{}),signal}:{signal})
+  }
+  private async gatewayOperation(path:string,init:RequestInit={}){
+    try{return await this.request(path,init)}
     catch(error){
       if(error instanceof ThreadTransportError&&error.body&&typeof error.body==='object'&&'detail' in error.body){
         const detail=error.body.detail
@@ -148,9 +151,10 @@ export class HttpThreadTransport implements ThreadTransport {
   async refreshGatewayConnections(){return parseGatewayConnections(await this.gatewayRequest('refresh'))}
   async refreshGatewayContract(){return parseGatewayConnections(await this.gatewayRequest('reload'))}
   async selectGatewayConnection(id:string){return parseGatewayConnections(await this.gatewayRequest('select',{id}))}
-  async threadGatewayConnections(threadId:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways`))}
-  async selectThreadGatewayConnection(threadId:string,id:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/select`,{method:'POST',body:JSON.stringify({id})}))}
-  async refreshThreadGatewayContract(threadId:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/reload`,{method:'POST',body:'{}'}))}
+  async threadGatewayConnections(threadId:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways`))}
+  async selectThreadGatewayConnection(threadId:string,id:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/select`,{method:'POST',body:JSON.stringify({id})}))}
+  async refreshThreadGatewayConnections(threadId:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/refresh`,{method:'POST',body:'{}'}))}
+  async refreshThreadGatewayContract(threadId:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/reload`,{method:'POST',body:'{}'}))}
   async probeGatewayConnection(input:GatewayConnectionInput){return parseGatewayProbe(await this.gatewayRequest('probe',input))}
   async addGatewayConnection(input:GatewayConnectionInput){return parseGatewayConnections(await this.gatewayRequest('add',input))}
 

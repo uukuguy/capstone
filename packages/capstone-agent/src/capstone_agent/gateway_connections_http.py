@@ -172,7 +172,7 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize, thr
         executor = executor_provider()
         value = _snapshot(executor.gateway_connections())
         try:
-            publication = executor.thread_gateway_publication(saved, refresh=refresh)
+            publication = executor.thread_gateway_publication(saved, refresh=refresh or saved is None)
         except PiHTTPFailure:
             if not saved or refresh:
                 raise
@@ -187,7 +187,7 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize, thr
                     item['identity'] = _identity({**publication['identity'], 'available': publication.get('available') is True})
                     if not publication.get('available'):
                         item.update(status='disconnected', error='gateway_bound_instance_unavailable')
-        value['locked'] = bool(saved and saved['locked'])
+        value['locked'] = False
         if saved and saved.get('identity'):
             value['bound_instance'] = _identity(saved['identity'])
         return value
@@ -207,9 +207,6 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize, thr
         def select():
             from .thread_gateway import publication_binding
             from .thread_protocol import ThreadProtocolError
-            saved = thread_service.read_thread_gateway(thread_id)
-            if saved and saved['locked']:
-                raise _failure('gateway_session_locked')
             publication = executor_provider().thread_gateway_publication({'connection_id': document['id'], 'locked': False}, refresh=True)
             try:
                 thread_service.select_thread_gateway(thread_id, publication_binding(publication))
@@ -221,6 +218,7 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize, thr
         except PiHTTPFailure as error:
             raise _failure(error.diagnostic.get('protocol_code')) from None
 
+    @app.post('/api/v1/threads/{thread_id}/gateways/refresh')
     @app.post('/api/v1/threads/{thread_id}/gateways/reload')
     async def reload_thread_gateway(thread_id: str, request: Request):
         authorize(request)

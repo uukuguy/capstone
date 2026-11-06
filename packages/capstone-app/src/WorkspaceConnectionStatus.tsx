@@ -7,14 +7,13 @@ import type {GatewayConnectionStatus} from './threadInput'
 import {useEffect} from 'react'
 import './WorkspaceConnectionStatus.css'
 
-export function WorkspaceGatewayStatus({transport,threadId,locked=false,onConnection}:{transport:HttpThreadTransport;threadId?:string;locked?:boolean;onConnection?:(gateway:GatewayConnectionStatus|undefined)=>void}){
+export function WorkspaceGatewayStatus({transport,threadId,onConnection}:{transport:HttpThreadTransport;threadId?:string;locked?:boolean;onConnection?:(gateway:GatewayConnectionStatus|undefined)=>void}){
   const connection=useWorkspaceConnections(transport)
   const scoped=useMemo(()=>!threadId?transport:{
     workspaceConnectionsScope:{},
     gatewayConnections:()=>transport.threadGatewayConnections(threadId),
     selectGatewayConnection:(id:string)=>transport.selectThreadGatewayConnection(threadId,id),
-    refreshGatewayContract:()=>transport.refreshThreadGatewayContract(threadId),
-    refreshGatewayConnections:async()=>{await transport.refreshGatewayConnections();return transport.threadGatewayConnections(threadId)},
+    refreshGatewayConnections:()=>transport.refreshThreadGatewayConnections(threadId),
     probeGatewayConnection:transport.probeGatewayConnection.bind(transport),addGatewayConnection:transport.addGatewayConnection.bind(transport),
   },[transport,threadId])
   const instances=useGatewayConnections(scoped)
@@ -24,8 +23,8 @@ export function WorkspaceGatewayStatus({transport,threadId,locked=false,onConnec
     onConnection?.(selected?{...identity,instance_name:selected.label,endpoint:selected.url,available:selected.status==='connected'}:identity)
   },[instances.data,connection.data,threadId,onConnection])
   return <div className="workspace-connections-slot" aria-label="工作台数据网关">
-    {instances.data||(!threadId&&connection.data?.data_gateway)?<GatewayStatus gateway={threadId?undefined:connection.data?.data_gateway} connections={instances.data?{...instances.data,locked:locked||instances.data.locked}:undefined} notice={instances.error||(!threadId?connection.error:undefined)}
-      onSelect={instances.select} onRefreshAll={instances.refresh} onRefreshContract={instances.refreshContract} onProbe={instances.probe} onAdd={instances.add}
+    {instances.data||(!threadId&&connection.data?.data_gateway)?<GatewayStatus gateway={threadId?undefined:connection.data?.data_gateway} connections={instances.data} notice={instances.error||(!threadId?connection.error:undefined)}
+      onSelect={instances.select} onRefreshAll={instances.refresh} onProbe={instances.probe} onAdd={instances.add}
       onRefresh={instances.data?undefined:()=>void connection.refresh()}/>:instances.error?<span role="status">{instances.error}</span>:instances.loading?<span>读取会话网关信息…</span>:null}
   </div>
 }
