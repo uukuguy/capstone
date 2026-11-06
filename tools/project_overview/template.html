@@ -80,7 +80,7 @@ el('discussion-pending').innerHTML=discussionRows('待讨论').map(discussionCar
 const stageOrder=['local-dev','cloud-demo','local-demo','cloud-dev'];
 const graphStages=[...stageOrder.map(name=>data.environments.find(e=>e.name===name)),...data.environments.filter(e=>!stageOrder.includes(e.name))];
 const sourceNode=e=>data.nodes.find(n=>n.sha.startsWith(e.revision)||e.revision.startsWith(n.sha));
-const graphNodes=data.nodes.filter(n=>n.presentation);
+const graphNodes=data.nodes.filter(n=>n.presentation&&n.graph_visible!==false);
 const levels={};
 function depth(id,seen=new Set()){
  if(levels[id]!==undefined)return levels[id];
@@ -122,6 +122,9 @@ el('scope').innerHTML='<table class="scope-table">'+[
  ].map(([a,b])=>'<tr><td>'+esc(a)+'</td><td>'+esc(b)+'</td></tr>').join('')+'</table>';
 function packageDetailTable(id){const rows=data.package_details.filter(r=>r.package===id);if(!rows.length)return '';return '<div class="package-detail-scroll" style="overflow-x:auto;margin-bottom:12px"><table class="scope-table package-detail-table" style="min-width:900px;table-layout:fixed"><thead><tr>'+['开发项 / 当前状态','已有实现或依据','剩余工作与依赖','验收要求（非通过声明）'].map(h=>'<th scope="col" style="text-align:left;padding:7px 6px;background:#f3f7f5;border-top:1px solid #dbe4df">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+esc(r.item)+'</b><p class="muted" style="font-weight:400;margin:4px 0">'+esc(r.status)+'</p></td><td>'+esc(r.existing)+'</td><td>'+esc(r.remaining)+'</td><td>'+esc(r.acceptance)+'</td></tr>').join('')+'</tbody></table></div>';}
 el('detail-list').innerHTML=data.packages.filter(p=>!['live','main'].includes(p.id)&&!p.status.includes('已归档')).map(p=>'<details id="detail-'+p.id+'"><summary>'+esc(p.name)+' · '+esc(p.status)+'</summary><div class="detail-body"><div><p>范围：'+esc(p.scope)+'</p><p>下一步：'+esc(p.next)+'</p></div><div><p>'+esc(p.record)+'</p><p class="mono">'+esc(p.branch)+' · '+short(p.source)+'</p>'+data.prs.filter(pr=>pr.package===p.id).map(pr=>'<p><a href="https://github.com/uukuguy/capstone/pull/'+pr.number+'" target="_blank" rel="noopener noreferrer">PR #'+pr.number+'</a>：'+esc(pr.scope)+'</p>').join('')+'</div></div>'+packageDetailTable(p.id)+'</details>').join('');
+const historicalNodes=data.nodes.filter(n=>n.graph_visible===false);
+el('detail-list').insertAdjacentHTML('beforeend','<details><summary>历史提交与中间修复 · '+historicalNodes.length+' 项</summary><div class="detail-body"><table class="scope-table"><thead><tr><th>提交</th><th>变更</th><th>验证与记录</th></tr></thead><tbody>'+historicalNodes.map(n=>'<tr><td class="mono">'+short(n.sha)+'</td><td>'+esc(n.title)+'<br>'+esc(n.changes)+'</td><td>'+esc(n.status)+(n.links||[]).map(l=>' <a href="'+esc(l.href)+'">'+esc(l.label)+'</a>').join('')+'</td></tr>').join('')+'</tbody></table></div></details>');
+
 let fitView=false;
 function fitGraph(){
  const frame=el('graph-frame'),canvas=el('graph-canvas');

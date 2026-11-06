@@ -218,7 +218,15 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
         if (node["lane"] == "feature" and node["package"] == "autonomous"
                 and ancestor(node["sha"], dev)):
             node["lane"] = "main"
-    relations = {(a["id"], b["id"]) for a in nodes for b in nodes
+    selected = {plain(row[0]) for row in table(register, "主图里程碑")}
+    required_shas = {main, git("rev-parse", "dev")}
+    required_shas.update(source["sha"] for stage in environments
+                         for source in nodes if source["sha"].startswith(stage["revision"]))
+    for node in nodes:
+        node["graph_visible"] = (node["id"] in selected or node["sha"] in required_shas
+                                 or node["release_point"])
+    visible_nodes = [node for node in nodes if node["graph_visible"]]
+    relations = {(a["id"], b["id"]) for a in visible_nodes for b in visible_nodes
                  if a["sha"] != b["sha"] and ancestor(a["sha"], b["sha"])}
     edges = sorted((a, b) for a, b in relations
                    if not any((a, c) in relations and (c, b) in relations
@@ -241,7 +249,8 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 if not intermediate:
                     edges.append((parent["id"], node["id"]))
                 break
-    edges = sorted(set(edges))
+    visible_ids = {node["id"] for node in visible_nodes}
+    edges = sorted({(a, b) for a, b in edges if a in visible_ids and b in visible_ids})
     proposals = [dict(title=plain(row[0]), gap=plain(row[1]), record=plain(row[2]))
                  for row in table(register, "提出但未实施")]
     package_details = []
