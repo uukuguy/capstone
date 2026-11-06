@@ -160,7 +160,10 @@ class PreparedApplicationPiRuntimeFactory:
             session_ready = time.monotonic()
             admission = getattr(session, "admit_attempt", None)
             network_projection_provider = None
-            if self._network_projection_factory is not None and context.contributions:
+            # A published profile can start before any model is open. Projection
+            # compares a prepared grid binding with that open model, so it waits.
+            if (self._network_projection_factory is not None and context.contributions
+                    and context.model_context is not None):
                 network_projection_provider = self._network_projection_factory(claim, context)
             projection_ready = time.monotonic()
             record_timing = getattr(session, "record_preparation_timing", None)
@@ -221,6 +224,7 @@ class ThreadApplicationAssembly:
         [AttemptClaim, PreparedModelCapabilityContext],
         ThreadNetworkProjectionProvider | None,
     ] | None = None
+    domain_tool_service: object | None = None
 
     def __post_init__(self) -> None:
         if not callable(getattr(self.catalog, "resolve", None)):

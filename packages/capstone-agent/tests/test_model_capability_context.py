@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
@@ -691,3 +692,82 @@ def test_resource_identity_separates_prepared_cache_and_release():
     owner.release(second)
     owner.close()
     assert first.closed and second.closed
+
+
+def test_unbound_domain_acquire_does_not_require_an_open_model():
+    from test_unscoped_research_intent import governed_executor, open_store, submit
+    store = open_store(governed_executor())
+    submit(store)
+    claimed = store.claim_attempt("native", 30, "native")
+    assert claimed is not None and claimed.model_context is None
+    request = IntentRequest.from_document({
+        "schema": "capstone-intent-request/1", "thread_id": claimed.thread_id,
+        "turn_id": claimed.attempt.turn_id, "attempt_id": claimed.attempt.attempt_id,
+        "instruction": claimed.instruction, "history_cutoff": 0, "messages": [], "objects": [],
+        "capabilities": [{"capability_id": "pandapower-static-analysis@1.0.0", "available": True, "enabled": True}],
+        "mode_hint": None,
+    })
+    decision = IntentDecision.from_document({
+        "schema": "capstone-intent-decision/1", "attempt_id": claimed.attempt.attempt_id,
+        "history_cutoff": 0, "relationship": "independent", "clarification": None,
+        "goals": [{"goal_id": "calculation", "description": "Run the calculation",
+                   "operation": "business_execute", "message_refs": [], "object_refs": [],
+                   "capability_refs": ["pandapower-static-analysis@1.0.0"], "missing_requirements": []}],
+    }, request)
+    plan = TurnPlan(claimed.attempt.turn_id, claimed.attempt.attempt_id, "professional", "fixture",
+                    "plan_1", None, {}, intent_decision=decision)
+    claim = replace(claimed, submission={**claimed.submission, "_domain_execution": {"implementation_family": "pandapower"}},
+                    turn_plan=plan)
+    log = []
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    owner = ModelCapabilityContextOwner(catalog)
+    descriptor = ModelCapabilityDescriptor("pandapower-static-analysis", "1.0.0")
+    catalog.register_profile(
+        ModelCapabilityProfileInfo(descriptor, "pandapower-static-analysis", ("pandapower",)),
+        lambda: _Handle(descriptor, log),
+    )
+
+    class Adapter:
+        def __init__(self):
+            self.descriptor = descriptor
+            self.seen = []
+
+        def prepare(self, handle, *, model_context):
+            raise AssertionError("model prepare")
+
+        def prepare_for_claim(self, handle, claimed_attempt):
+            self.seen.append(claimed_attempt.model_context)
+            return SimpleNamespace(descriptor=descriptor, model_context=claimed_attempt.model_context, close=lambda: None)
+
+    adapter = Adapter()
+    owner.register_adapter(descriptor.reference, adapter)
+    registry.seal()
+    owner.seal()
+    context = owner.acquire(claim)
+    assert context.model_context is None
+    assert adapter.seen == [None]
+    assert context.selected_profiles == (("pandapower-static-analysis", "1.0.0"),)
+    owner.release(context)
+
+    class _Session:
+        def start(self):
+            return None
+
+        def stop(self):
+            return None
+
+    from capstone_agent.thread_application import PreparedApplicationPiRuntimeFactory
+    projected = []
+
+    def project(_claimed, _context):
+        projected.append(True)
+        raise RuntimeError("pandapower grid model binding is unavailable")
+
+    runtime = PreparedApplicationPiRuntimeFactory(
+        owner, lambda _claimed, _context: _Session(), network_projection_factory=project,
+    )(claim)
+    assert projected == []
+    assert runtime.network_projection_enabled is False
+    runtime.stop()
+    owner.close()

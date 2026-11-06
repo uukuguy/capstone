@@ -8,11 +8,12 @@ runtime, and lets :class:`HarnessAttemptRunner` persist the terminal result.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
@@ -27,6 +28,9 @@ if TYPE_CHECKING:
 
 RuntimeFactory = Callable[[AttemptClaim], HarnessRuntime]
 _LOG = logging.getLogger(__name__)
+# One decision call. Completed understandings on this deployment finish well
+# inside this limit; a call that is still thinking at the limit has no decision.
+_INTENT_RECOGNITION_SECONDS = 120
 
 
 def run_pending_attempt(
@@ -46,9 +50,28 @@ def run_pending_attempt(
     if claim is None:
         return None
     with AttemptLeaseRenewal(service, claim, lease_seconds) as lease:
-        return _run_claimed_attempt(
-            service, runtime_factory, claim, lease, lease_seconds, turn_router,
-        )
+        origin = os.environ.get('CAPSTONE_THINKING_PREVIEW_ORIGIN')
+        writer = None
+        if origin:
+            from .thinking_preview import ThinkingWriter, http_publisher
+            writer = ThinkingWriter(service, claim, http_publisher(
+                origin, os.environ.get('CAPSTONE_OPERATOR_TOKEN', ''), claim))
+        try:
+            return _run_claimed_attempt(
+                # ThinkingWriter delegates the remaining service operations.
+                cast(ThreadExecutionService, writer) if writer is not None else service,
+                runtime_factory, claim, lease, lease_seconds, turn_router,
+            )
+        except Exception:
+            if writer is not None and writer.error is not None:
+                # Use the original synchronous service: the failed writer cannot
+                # acknowledge a terminal result through its own flush barrier.
+                service.finish_attempt(claim, phase='failed', payload={
+                    'error_code': 'thinking_persistence_failed'})
+            raise
+        finally:
+            if writer is not None:
+                writer.close()
 
 
 def _run_claimed_attempt(
@@ -75,12 +98,30 @@ def _run_claimed_attempt(
                 raise InterruptedError('intent cancelled')
         try:
             semantic = getattr(runtime_factory, 'plan_intent', None)
+            intent_label = None
             if callable(semantic):
                 if not router.ordinary_conversation_enabled:
                     raise DecisionUnavailable('ordinary_conversation_disabled')
-                service.append_runtime_event(claim, event_type='intent_started',
-                                             payload={'stage': 'understanding'})
-                control = NodeControl(check_intent, time.monotonic() + 120)
+                stage_label = getattr(runtime_factory, 'intent_stage_label', None)
+                intent_label = stage_label(claim) if callable(stage_label) else '理解当前指令'
+                if intent_label is not None:
+                    if not isinstance(intent_label, str) or not intent_label.strip():
+                        raise ValueError('intent stage label must be nonempty text or None')
+                    service.append_runtime_event(claim, event_type='intent_started',
+                                                 payload={'stage': 'understanding'})
+                    service.append_runtime_event(claim, event_type='runtime_action', payload={
+                        'phase': 'started', 'response_intent': intent_label})
+                def notice(event: Mapping[str, object]) -> None:
+                    text = event.get('text') if event.get('type') == 'assistant_thinking_delta' else None
+                    if not isinstance(text, str) or not text:
+                        return
+                    thinking = getattr(service, 'append_thinking', None)
+                    if callable(thinking):
+                        thinking(claim, {'text': text[:4096]})
+                    else:
+                        service.append_runtime_event(
+                            claim, event_type='assistant_thinking_delta', payload={'text': text[:4096]})
+                control = NodeControl(check_intent, time.monotonic() + _INTENT_RECOGNITION_SECONDS, notice=notice)
                 if getattr(runtime_factory, 'supports_frozen_intent_decision', False):
                     plan = semantic(claim, control, service.freeze_attempt_input,
                                     freeze_decision=service.freeze_attempt_decision)
@@ -91,11 +132,16 @@ def _run_claimed_attempt(
                 plan = router.plan(routing_input_for_claim(claim))
             if not isinstance(plan, TurnPlan):
                 raise ValueError('intent node returned an invalid plan')
+            if intent_label is not None:
+                service.append_runtime_event(claim, event_type='runtime_action', payload={
+                    'phase': 'response_completed', 'response_intent': intent_label})
         except InterruptedError:
             service.finish_attempt(claim, phase='cancelled', payload={})
             return HarnessAttemptResult('cancelled', None, None)
         except Exception as error:
-            error_code = ('runtime_configuration_invalid' if isinstance(error, HarnessRuntimeConfigurationError)
+            error_code = ('intent_deadline_exceeded'
+                          if isinstance(error, TimeoutError) and str(error) == 'intent recognition deadline expired'
+                          else 'runtime_configuration_invalid' if isinstance(error, HarnessRuntimeConfigurationError)
                           else 'ordinary_conversation_disabled'
                           if isinstance(error, DecisionUnavailable) and str(error) == 'ordinary_conversation_disabled'
                           else 'llm_route_unavailable'
@@ -113,7 +159,22 @@ def _run_claimed_attempt(
                      "fallback": plan.fallback},
         )
         claim = replace(claim, turn_plan=plan)
-        if plan.route == "professional" and (claim.model_context is None or not claim.model_context.enabled_profiles):
+        resources = plan.intent_resources
+        family = resources.get('domain_dispatch_family') if isinstance(resources, Mapping) else None
+        if isinstance(family, str) and family:
+            release = getattr(service, 'release_attempt_for_domain', None)
+            if not callable(release):
+                return _preparation_failure(
+                    service, claim, 'runtime_configuration_invalid',
+                    error=HarnessRuntimeConfigurationError('domain execution handoff is unavailable'))
+            try:
+                lease.check()
+                release(claim, family)
+            except Exception as error:
+                return _preparation_failure(service, claim, 'runtime_configuration_invalid', error=error)
+            _wake_released_family(family)
+            return HarnessAttemptResult('released', None, None)
+        if plan.route == "professional" and claim.model_context is not None and not claim.model_context.enabled_profiles:
             error_code = "capability_required"
             service.finish_attempt(claim, phase="failed", payload={
                 "error_code": error_code,
@@ -191,7 +252,9 @@ def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, c
     from .execution_stages import ExecutionStages, preparation_seconds
     from .native_failure_origin import native_failure_origin
     stages = ExecutionStages(preparation_seconds=preparation_seconds(claim.started_at))
-    answer = "本次任务未能开始执行。运行准备未完成，因此没有生成新的计算结论。此前已完成的回答和记录仍保留。"
+    answer = (f"理解当前指令超时。{_INTENT_RECOGNITION_SECONDS} 秒内没有形成可执行的决策，因此没有开始后续执行。此前已完成的回答和记录仍保留。"
+              if code == 'intent_deadline_exceeded'
+              else "本次任务未能开始执行。运行准备未完成，因此没有生成新的计算结论。此前已完成的回答和记录仍保留。")
     service.finish_attempt(claim, phase="failed", payload={
         "answer": answer, "error_code": code, "result_refs": [], "evidence_refs": [],
         "outcome": {"status": "blocked", "stage": "preparation", "recovery": "unavailable"},
@@ -201,6 +264,19 @@ def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, c
             'failure_origin': native_failure_origin(rollback_error)}} if rollback_error is not None else {}),
     })
     return HarnessAttemptResult("failed", answer, code)
+
+
+def _wake_released_family(family: str) -> None:
+    """The receiving worker sleeps until an HTTP wake. Release must send one."""
+    origins = os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', '')
+    token = os.environ.get('CAPSTONE_OPERATOR_TOKEN', '')
+    if not origins or not token:
+        return
+    from .worker_wake import configured_family_wake
+    try:
+        configured_family_wake(os.environ.get('CAPSTONE_WORKER_WAKE_URL'), origins, token)(family)
+    except (OSError, TimeoutError, ValueError):
+        _LOG.warning('Domain handoff wake failed for family %s', family)
 
 
 def serve_thread_attempts(

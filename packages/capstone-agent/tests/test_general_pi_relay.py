@@ -9,6 +9,104 @@ import pytest
 from concurrent.futures import CancelledError
 
 
+def test_private_native_timing_is_fixed_bounded_and_released(capsys):
+    from capstone_agent.native_timing import NativeTiming
+    from capstone_agent.general_pi_relay import ProviderRelay
+    ticks = iter([10.0, 10.25, 10.5])
+    timing = NativeTiming('task-fixture', clock=lambda: next(ticks))
+    timing.mark('resources_configured')
+    timing.mark('resources_configured')
+    with pytest.raises(ValueError):
+        timing.mark('PRIVATE_SECRET')
+    relay = ProviderRelay()
+    relay.register('task-fixture', 'grant', time.monotonic()+5, timing=timing)
+    assert relay.timings['task-fixture'] is timing
+    relay.revoke('task-fixture')
+    assert relay.timings == {}
+    output = capsys.readouterr().err
+    assert 'PRIVATE_SECRET' not in output
+    assert '250.0' in output
+    assert output.count('resources_configured') == 1
+    assert timing.closed
+
+
+def test_native_timing_bounds_values_and_ignores_failed_diagnostic_sink(capsys, monkeypatch):
+    import json
+    from capstone_agent.native_timing import NativeTiming
+    ticks = iter([0, float('inf'), 10**12, 10**12])
+    timing = NativeTiming('task', clock=lambda: next(ticks))
+    timing.mark('resources_configured')
+    timing.mark('provider_request_started', counts={'request_bytes': 10**100, 'PRIVATE_SECRET': 1})
+    records = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert [item['phase'] for item in records] == ['task_started', 'provider_request_started']
+    assert records[-1]['elapsed_ms'] == 86400000
+    assert records[-1]['request_bytes'] == 2**53-1
+    assert 'PRIVATE_SECRET' not in records[-1]
+    class BrokenSink:
+        def write(self, _):
+            raise OSError('Unavailable sink')
+    monkeypatch.setattr('sys.stderr', BrokenSink())
+    timing.close()
+    assert timing.closed
+
+
+@pytest.mark.parametrize('counts', ['callback_error', 'invalid_type', 'items_error'])
+def test_native_timing_ignores_failed_optional_counts(capsys, counts):
+    import json
+    from capstone_agent.native_timing import NativeTiming
+    def broken_counts():
+        raise OSError('Private diagnostic failure')
+    class BrokenItems:
+        def items(self):
+            raise OSError('Private diagnostic failure')
+    value = {'callback_error': broken_counts, 'invalid_type': 17, 'items_error': BrokenItems()}[counts]
+    timing = NativeTiming('task')
+    assert timing.mark('provider_request_started', counts=value)
+    timing.close()
+    records = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert [item['phase'] for item in records] == ['task_started', 'provider_request_started', 'task_finished']
+    assert all(set(item) == {'event', 'task_id', 'scope', 'phase', 'elapsed_ms'} for item in records)
+
+
+def test_native_timing_close_blocks_late_phase_at_first_lock_release(capsys):
+    import json
+    from concurrent.futures import ThreadPoolExecutor
+    from capstone_agent.native_timing import NativeTiming
+    timing = NativeTiming('task')
+    original = timing.lock
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        class ExitInterleave:
+            invoked = False
+            def __enter__(self):
+                original.acquire()
+            def __exit__(self, *_):
+                original.release()
+                if not self.invoked:
+                    self.invoked = True
+                    assert worker.submit(timing.mark, 'first_bytes').result(timeout=2) is False
+        timing.lock = ExitInterleave()
+        timing.close()
+    records = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert [item['phase'] for item in records] == ['task_started', 'task_finished']
+    timing.close()
+    assert capsys.readouterr().err == ''
+
+
+@pytest.mark.parametrize('field,phase', [('reasoning', 'first_thinking'),
+    ('reasoning_content', 'first_thinking'), ('reasoning_text', 'first_thinking'), ('content', 'first_text')])
+def test_stream_diagnostics_marks_only_nonempty_semantics_without_retaining_text(field, phase):
+    import json
+    from capstone_agent.general_pi_relay import StreamDiagnostics
+    phases = []
+    trace = StreamDiagnostics(on_semantic=phases.append)
+    for value in ['', ' ', 'PRIVATE_SECRET', 'again']:
+        payload = ('data: '+json.dumps({'choices': [{'delta': {field: value}}]})+'\n\n').encode()
+        for position in range(0, len(payload), 7):
+            trace.feed(payload[position:position+7])
+    assert phases == [phase]
+    assert 'PRIVATE_SECRET' not in repr(vars(trace))
+
+
 def test_stream_diagnostics_retains_only_finish_metadata():
     from capstone_agent.general_pi_relay import StreamDiagnostics
     trace = StreamDiagnostics()
@@ -82,7 +180,9 @@ def test_relay_grants_bound_concurrency_and_revoke_active_connections():
         right.close()
 
 
-def test_stream_relay_does_not_count_protocol_overhead_as_a_document_limit(tmp_path):
+def test_stream_relay_does_not_count_protocol_overhead_as_a_document_limit(tmp_path, capsys):
+    import json
+    from capstone_agent.native_timing import NativeTiming
     from capstone_agent.general_pi_relay import ProviderRelay
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     event = b'data: {"metadata":{"padding":"' + b'x' * 8192 + b'"},"choices":[{"delta":{"content":"x"},"finish_reason":null}]}\n\n'
@@ -101,7 +201,7 @@ def test_stream_relay_does_not_count_protocol_overhead_as_a_document_limit(tmp_p
                 pass
     upstream = ThreadingHTTPServer(('127.0.0.1', 0), Upstream)
     relay = ProviderRelay()
-    relay.register('task', 'grant', time.monotonic() + 10)
+    relay.register('task', 'grant', time.monotonic() + 10, timing=NativeTiming('task'))
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('unused', {}))
     server = make_server(host, control_token='control', address=('127.0.0.1', 0),
         runner=SimpleNamespace(relay=relay, model='fixture'),
@@ -110,9 +210,24 @@ def test_stream_relay_does_not_count_protocol_overhead_as_a_document_limit(tmp_p
         Thread(target=item.serve_forever, daemon=True).start()
     try:
         result = httpx.post(f'http://127.0.0.1:{server.server_port}/provider/task/chat/completions',
-            json={'model': 'fixture', 'stream': True}, headers={'Authorization': 'Bearer grant'}, timeout=5)
+            json={'model': 'fixture', 'stream': True,
+                  'messages': [{'role': 'system', 'content': 'PRIVATE_PROMPT'}, {'role': 'user', 'content': 'PRIVATE_USER'}],
+                  'tools': [{'type': 'function', 'function': {'name': 'PRIVATE_TOOL'}}]},
+            headers={'Authorization': 'Bearer grant'}, timeout=5)
         assert result.status_code == 200
         assert result.content == payload
+        timings = [json.loads(line) for line in capsys.readouterr().err.splitlines()
+                   if line.startswith('{') and json.loads(line).get('event') == 'native_timing']
+        assert [item['phase'] for item in timings] == ['task_started', 'provider_request_started',
+            'provider_headers', 'first_bytes', 'first_text']
+        assert [item['elapsed_ms'] for item in timings] == sorted(item['elapsed_ms'] for item in timings)
+        assert all(set(item) <= {'event', 'task_id', 'scope', 'phase', 'elapsed_ms', 'request_bytes',
+            'tools_count', 'tools_schema_bytes', 'system_message_bytes', 'other_messages_bytes'} for item in timings)
+        assert timings[1]['tools_count'] == 1
+        assert timings[1]['request_bytes'] > 0
+        assert timings[1]['system_message_bytes'] > 0
+        assert timings[1]['other_messages_bytes'] > 0
+        assert 'PRIVATE_' not in json.dumps(timings)
     finally:
         relay.revoke('task')
         for item in (server, upstream):

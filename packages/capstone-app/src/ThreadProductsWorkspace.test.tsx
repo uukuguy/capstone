@@ -2,9 +2,15 @@ import {applicationCapacity} from './applicationCapacity'
 import {afterEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import ThreadProductsWorkspace from './ThreadProductsWorkspace'
+import {ResourceFullscreenContext} from './resourceFullscreen'
 import {parseProductRef,type ProductEntry} from './threadProducts'
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
+it('closes the product list when the display is fullscreen',async()=>{
+ const client={productIndex:vi.fn().mockResolvedValue({products:[],hasMore:false,nextCursor:null}),resolveProduct:vi.fn()}
+ render(<ResourceFullscreenContext.Provider value={true}><ThreadProductsWorkspace client={client} threadId="thr_one" revision={1}/></ResourceFullscreenContext.Provider>)
+ await waitFor(()=>expect(document.querySelector('.thread-products-directory')?.hasAttribute('open')).toBe(false))
+})
 it('opens a running primary once and retains its version through incremental updates',async()=>{
  const first:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'report'},title:'草稿.md',media_type:'text/markdown',source_status:'running',source:{file_name:'草稿.md',presentation_role:'primary'}}
  const next={...first,source_status:'completed',ref:{...first.ref,digest:'b'.repeat(64)}}

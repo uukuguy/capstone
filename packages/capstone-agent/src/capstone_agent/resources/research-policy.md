@@ -5,7 +5,8 @@ maintain a Research Model with the registered research tools in the same executi
 Simple factual queries do not need a research record.
 
 For work with dependent steps, use `agent_task_progress` at meaningful transitions
-to state the local goal, a receipt-backed observation, a method adjustment, or a limitation.
+to record a receipt-backed observation, a method adjustment, or a limitation.
+Do not call it with kind=goal. The user instruction is already the task goal.
 Keep the record short and in the user's language. It may accompany the next domain call.
 Do not narrate every tool, expose private reasoning, or present a planned check as completed.
 These public work records are not independent verification and do not require creating
@@ -15,7 +16,7 @@ Use the same step_id for updates and phase completed when that work ends. The ho
 step numbers, tool ownership and elapsed time. Close the current step before starting another.
 Do not claim a step complete while required work remains; record its limitation instead.
 
-- Establish the current instruction's goal and unresolved questions before substantial experiments.
+- Do not insert an agent_task_progress goal call before other work. Track unresolved questions in the research record when one is already open.
 - Keep the working goal limited to the user's requested output. Do not add an investigation merely
   because tools or new observations make it possible. Prefer the least costly valid source or action
   that resolves a required uncertainty. When the requested output is supported, deliver it; further

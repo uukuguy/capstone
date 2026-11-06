@@ -1,5 +1,27 @@
 # docs/status INDEX
 
+2026-11-06：[main/tag收口](../reports/2026-11-06-native-execution-closeout.md)PR94首轮macOS CI42137611817失败；1a0fc847修正安静Provider测试的定时计数假设，92项本地通过。补齐12份原始历史回执，候选链接通过；等待第二次CI批准，未合并/tag或部署。
+
+2026-11-05：[真实任务补修](../reports/2026-11-05-batch-regression.md)984131e3已部署local-dev；6链×2页实际并发4、12次查询、0工具错误，CSV下载哈希和刷新通过。原任务59/31调用组仍串行已定位；[网关缺包协查](../reports/2026-11-05-data-gateway-runtime-assist.md)通知已入队，未收到回复。
+
+2026-11-05：[结构化工具批次](../reports/2026-11-05-structured-tool-batches.md)4ba17891已部署local-dev；141项/33环境跳过、11项新检查通过，真实模型两查询并发2及刷新恢复通过。同一组合会话共享最多4路，未知/写入独占。完整任务性能与归档后导出未接受；dev未合并，内网未更新。
+
+2026-11-05：[理解耗时口径与单轮修复](../reports/2026-11-05-single-pass-understanding.md)核实用户103.7/13.0秒包含两轮；68bd1e07已在任务空闲后部署三区。单轮完整规划通过，尚不承诺页面耗时或两模型同时提速。
+
+2026-11-05：[Thinking显示补修](../reports/2026-11-05-thinking-visibility.md)App22be9e5c已部署三区，66项/类型/构建通过；只更新App，未重启后端。用户算例本轮完成，三份产物下载哈希通过；数值内容未独立复核。
+
+2026-11-05：[理解流与模型绑定修复](../reports/2026-11-05-intent-backpressure.md)cc50f8d8已部署三区；两模型真实理解及简短任务/恢复通过，完整病态算例尚未重跑。
+
+2026-11-05 13:06：三区研发网关已连接并设为dky3-dev缺省；新会话确认来源可用。[回执](../reports/2026-11-05-dky3-dev-deployment.md)。
+
+2026-11-05：[三区部署](../reports/2026-11-05-dky3-dev-deployment.md)已运行于192.168.72.66:5173，页面dky3-dev，独立存储与凭据；网关按用户选择待页面配置，真实任务验收未完成。
+
+2026-11-05：[内网更新](../reports/2026-11-05-intranet-deployment.md)运行2b6dd8a3，四角色健康；真实任务理解超时，未验收、无标签，旧版本可回退。
+
+16:44：内网 App 已换成 c0cacc597a79，脚本 index-D6zsKizj.js。页面仍是 intranet-dev · v0.1.0 · 6c55e6e，宽 HTML 表格在右栏内横向滚动。API/worker d501f0602126 与 native e4eb33b6a105 未重建。上一张 App 保留为 6c55e6ee-before-table。[回执](../reports/2026-11-04-intranet-deployment.md)。
+
+21:11：[PR93](https://github.com/uukuguy/capstone/pull/93)已合实际dev6c55e6ee；获批macOS CI41641127761用时5分06秒，1502项App测试/构建及治理通过。字号来源2148db14，main和远端部署不变。[证据](../reports/2026-11-03-conversation-typography.md)。
+
 20:14：[会话字号修正候选](../reports/2026-11-03-conversation-typography.md)2148db14修正初版遗漏的工作空间12px覆盖；正文/表格/行内代码统一13px，标题约16/15/14px；151项定向App、类型通过，用户截图同一会话复验及规范重建通过，未启动CI或合入dev。
 
 19:45：PR92已合入实际dev7ad2529a；独立批准的macOS CI41629449461用时3分05秒通过，355Python/92跳过、216App及类型/文档通过。本机100项真实PG/线程验证通过；[补修记录](../reports/2026-11-03-capacity-wake-followup.md)。远端部署不变。
@@ -853,3 +875,19 @@ Intranet deployment update (2026-11-02): VERSION-CONTROL records active source60
 App timing update (2026-11-02): VERSION-CONTROL records intranet App939a4d74 and delayed artifact-panel opening.
 
 Summer chain audit (2026-11-02): VERSION-CONTROL records70c42dab rollout, measured comparison and gateway handoff in docs/reports/2026-11-02-intranet-summer-chain-audit.md.
+
+Thinking preview trial (2026-11-05): [receipt](../reports/2026-11-05-direct-thinking-preview.md)
+records三区 source073860ca, direct display, required asynchronous persistence,
+real SSE/renderer checks and the remaining full-task/visual trial.
+
+Thinking cadence correction (2026-11-05): [receipt](../reports/2026-11-05-smooth-thinking.md)
+records后台f34bb4d3, nativec446063c, short display batches, trusted task matching,
+and real local/三区 execution checks. User authorized cancellation before switching.
+
+Development version alignment (2026-11-05): [receipt](../reports/2026-11-05-development-version-alignment.md)
+records all roles on local-dev/intranet-dev/dky3-dev at sourcef34bb4d3, independent
+environment state, exact App builds and the current63 integration focus.
+
+Default dsv4 (2026-11-05): [current receipt](../reports/2026-11-05-default-dsv4.md)
+records all three environments atbfb16344, intranet defaults18804, unchanged local
+default and explicit selections, plus two real default-model checks.

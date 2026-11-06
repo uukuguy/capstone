@@ -1,5 +1,91 @@
 from __future__ import annotations
 
+
+def test_preview_intent_uses_short_idle_flush_deadline(monkeypatch):
+    from capstone_agent.pi_intent import _ConversationPiPromptSession
+    monkeypatch.setenv('CAPSTONE_THINKING_PREVIEW', '1')
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+        def prompt_and_wait(self, question, **callbacks):
+            assert callbacks['heartbeat_seconds'] == .075
+            callbacks['on_event']({'type': 'message_update',
+                'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'actual thought'}})
+            return ''
+    observed = []
+    session = _ConversationPiPromptSession(Client(), None, intent=True)
+    session.prompt_and_wait('understand', on_semantic_event=observed.append,
+        correlation_id='preview', on_heartbeat=lambda: None)
+    assert observed == [{'type': 'assistant_thinking_delta', 'text': 'actual thought'}]
+
+
+def test_preview_idle_flush_does_not_accelerate_control_polling(monkeypatch):
+    from capstone_agent import pi_intent
+    monkeypatch.setenv('CAPSTONE_THINKING_PREVIEW', '1')
+    now = [0.0]
+    monkeypatch.setattr(pi_intent.time, 'monotonic', lambda: now[0])
+    checks = []
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+        def prompt_and_wait(self, question, **callbacks):
+            for tick in range(1, 21):
+                now[0] = tick * .075
+                callbacks['on_heartbeat']()
+            return ''
+    session = pi_intent._ConversationPiPromptSession(Client(), None, intent=True)
+    session.prompt_and_wait('understand', on_semantic_event=lambda event: None,
+        correlation_id='preview', on_heartbeat=lambda: checks.append(now[0]))
+    assert len(checks) == 1
+
+
+def test_intent_thinking_batches_before_durable_observer_and_flushes_before_decision():
+    from types import SimpleNamespace
+    from capstone_agent.pi_intent import _ConversationPiPromptSession
+    observed = []
+
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+
+        def prompt_and_wait(self, question, **callbacks):
+            for _ in range(2000):
+                callbacks['on_event']({'type': 'message_update',
+                    'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'x'}})
+            callbacks['on_event']({'type': 'tool_execution_start'})
+            assert ''.join(e['text'] for e in observed) == 'x' * 2000
+            assert len(observed) < 20
+            callbacks['on_semantic_event']({'type': 'tool_result'}, 1)
+            return ''
+
+    session = _ConversationPiPromptSession(Client(), SimpleNamespace(close=lambda: None), intent=True)
+    session.prompt_and_wait('understand', on_semantic_event=observed.append,
+        correlation_id='attempt_test', on_heartbeat=lambda: None)
+    assert observed[-1]['type'] == 'tool_result'
+
+
+def test_intent_thinking_flush_failure_remains_fatal():
+    from types import SimpleNamespace
+    import pytest
+    from capstone_agent.pi_intent import _ConversationPiPromptSession
+
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+
+        def prompt_and_wait(self, question, **callbacks):
+            callbacks['on_event']({'type': 'message_update',
+                'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'retained'}})
+            return ''
+
+    def fail(event):
+        raise OSError('durable event write failed')
+
+    session = _ConversationPiPromptSession(Client(), SimpleNamespace(close=lambda: None), intent=True)
+    with pytest.raises(OSError, match='durable event write failed'):
+        session.prompt_and_wait('understand', on_semantic_event=fail,
+            correlation_id='attempt_test', on_heartbeat=lambda: None)
+
 import json
 import os
 from pathlib import Path
@@ -59,6 +145,25 @@ class Session:
 
     def stop(self):
         self.stopped = True
+
+
+def test_recognizer_records_displayable_thinking_before_the_decision():
+    from capstone_agent.pi_intent import PiIntentRecognizer
+    from capstone_agent.request_intent import IntentRequest, IntentEngineIdentity
+    recorded = []
+    event = {"type": "tool_result", "capability": "capstone.intent.decision", "ok": True,
+             "result": decision_document()}
+    session = Session([
+        {"type": "assistant_thinking_delta", "text": "The instruction asks for a rewrite."},
+        {"type": "assistant_thinking_delta", "text": ""},
+        event,
+    ])
+    control = Control()
+    control.notice = recorded.append
+    recognizer = PiIntentRecognizer(lambda request, control: session,
+        IntentEngineIdentity(engine="pi", model="fixture", config_revision="fixture"))
+    recognizer.recognize(IntentRequest.from_document(request_document()), control)
+    assert recorded == [{"type": "assistant_thinking_delta", "text": "The instruction asks for a rewrite."}]
 
 
 def test_recognizer_uses_validated_terminating_tool_and_closes():
@@ -234,6 +339,59 @@ def test_real_native_context_selector_emits_bound_public_decision(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_intent_tool_strict_sampling_preserves_schema_and_boolean_contract(tmp_path):
+    import shutil
+    import subprocess
+    sdk = Path(__file__).resolve().parents[3] / '.grid-agent/runtime/pi/source/packages/ai/dist/api/constrained-sampling.js'
+    node = shutil.which('node')
+    if not sdk.is_file() or node is None:
+        pytest.skip('Managed Pi runtime is not installed')
+    request = request_document()
+    projection = tmp_path / 'context.json'
+    projection.write_text(json.dumps({'messages': request['messages'],
+        'supplemental_context': {'request': request}}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/intent-decision.mjs'
+    result = subprocess.run([node, '--input-type=module', '-e', '''
+        const {default: register} = await import(process.argv[1]);
+        const sdk = await import(process.argv[2]);
+        let tool;
+        register({registerTool: value => { tool = value; }, on: () => {}});
+        const strict = sdk.resolveJsonSchemaStrictSampling(tool, true);
+        const parameters = sdk.getJsonSchemaToolParameters(tool, strict);
+        const unsupportedFallback = sdk.resolveJsonSchemaStrictSampling(tool, false) === undefined;
+        console.log(JSON.stringify({sampling: tool.constrainedSampling, strict,
+            original: tool.parameters, parameters, unsupportedFallback}));
+        ''', extension.as_uri(), sdk.as_uri()],
+        env={**os.environ, 'CAPSTONE_PI_CONTEXT_PATH': str(projection)},
+        capture_output=True, text=True, check=True)
+    output = json.loads(result.stdout)
+    assert output['sampling'] == {'type': 'json_schema', 'strict': 'prefer'}
+    assert output['strict'] is True and output['unsupportedFallback'] is True
+    original = output['original']
+    schema = output['parameters']
+    assert schema['additionalProperties'] is False
+    assert 'capability_refs' not in schema['properties']
+    goal = schema['properties']['goals']['items']
+    original_goal = original['properties']['goals']['items']
+    assert goal['properties'] == original_goal['properties']
+    assert set(goal['required']) == set(original_goal['required'])
+    assert goal['additionalProperties'] is False
+    assert 'uses_selected_skill' in goal['required']
+    assert goal['properties']['uses_selected_skill']['type'] == 'boolean'
+    from capstone_agent.request_intent import IntentDecision, IntentRequest
+    decision = decision_document()
+    decision['goals'][0]['uses_selected_skill'] = False
+    IntentDecision.from_document(decision, IntentRequest.from_document(request))
+    for invalid in (None, 0, 'false'):
+        decision['goals'][0]['uses_selected_skill'] = invalid
+        with pytest.raises(ValueError, match='boolean'):
+            IntentDecision.from_document(decision, IntentRequest.from_document(request))
+    request['selected_skill'] = {'profile_id': 'delegated_pi', 'revision': 'v1',
+        'skill_id': 'rewrite', 'skill_version': 'v1'}
+    decision['goals'][0]['uses_selected_skill'] = True
+    IntentDecision.from_document(decision, IntentRequest.from_document(request))
 
 
 def test_intent_tool_schema_limits_references_to_supplied_source_ids(tmp_path):
@@ -535,6 +693,7 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
                 decision = decision_document()
                 decision.update(attempt_id=intent_request["attempt_id"], history_cutoff=intent_request["history_cutoff"])
                 decision['goals'][0]['instruction_excerpt'] = intent_request['instruction']
+                decision['goals'][0]['uses_selected_skill'] = False
                 decision['clarification_required'] = False
                 decision['goals'][0]['description'] = 'PRIVATE_DIAGNOSTIC unrelated capability inventory'
                 if history_present:
@@ -667,3 +826,145 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+@pytest.mark.parametrize('reasoning', [True, False, None])
+def test_session_reasoning_only_patches_private_selected_model(tmp_path, reasoning):
+    from dataclasses import replace
+    from capability_agent.runtime.environment import RuntimePaths, build_pi_launch
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    from capability_agent.application.workspace import ApplicationWorkspace
+    host, llm = runtime_inputs(tmp_path)
+    llm = replace(llm, config=replace(llm.config, auth_kind='api_key_env',
+        compatibility_profile='openai-completions', field_sources={'base_url': 'process'}))
+    builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', model_reasoning=reasoning)
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs')
+    paths = RuntimePaths(command=host.command, project_pi_dir=host.project_pi_dir,
+        session_dir=workspace.root / 'session', workspace=workspace.root)
+    launch = build_pi_launch(llm, paths, base_environment={})
+    configured = builder.apply_configuration(launch, workspace, 'attempt_1', intent=True)
+    path = Path(configured.environment['PI_CODING_AGENT_DIR']) / 'models.json'
+    model = json.loads(path.read_text())['providers']['fixture']['models'][0]
+    assert model.get('reasoning') is reasoning
+    assert ('reasoning' in model) == (reasoning is not None)
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert not (host.project_pi_dir / 'models.json').exists()
+    default = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs')
+    assert (builder.config_revision == default.config_revision) == (reasoning is None)
+
+@pytest.mark.parametrize('intent,effort', [(True, 'low'), (False, 'medium')])
+def test_private_reasoning_capability_reaches_real_sdk_and_thinking_observer(tmp_path, intent, effort):
+    import shutil
+    from dataclasses import replace
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    from capstone_agent.request_intent import IntentRequest, IntentDecision
+    cli = Path(__file__).resolve().parents[3] / '.grid-agent/runtime/pi/source/packages/coding-agent/dist/cli.js'
+    node = shutil.which('node')
+    if not cli.is_file() or node is None:
+        pytest.skip('Managed Pi runtime is not installed')
+    requests = []
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+        def do_POST(self):
+            requests.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.end_headers()
+            for delta, finish in [({'role': 'assistant', 'reasoning_content': 'Observed fixture reasoning.'}, None),
+                    ({'content': 'Fixture answer.'}, None), ({}, 'stop')]:
+                chunk = {'id': 'fixture', 'object': 'chat.completion.chunk', 'created': 0,
+                    'model': 'fixture-model', 'choices': [{'index': 0, 'delta': delta, 'finish_reason': finish}]}
+                self.wfile.write(('data: ' + json.dumps(chunk) + '\n\n').encode())
+            self.wfile.write(b'data: [DONE]\n\n')
+            self.wfile.flush()
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        command = PiCommand((node, str(cli)), PiRuntimeIdentity(path=cli, source='managed-fixture',
+            package_version='fixture', lock_sha256='fixture'))
+        host, llm = runtime_inputs(tmp_path, f'http://127.0.0.1:{server.server_port}/v1', command)
+        llm = replace(llm, config=replace(llm.config, auth_kind='api_key_env',
+            compatibility_profile='openai-completions', field_sources={'base_url': 'process'}))
+        builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+            workspace_root=tmp_path / 'runs', base_environment={'PATH': os.environ['PATH']}, model_reasoning=True)
+        request = IntentRequest.from_document(request_document())
+        session = (builder.build_intent(request, Control()) if intent else builder.build_execution(
+            SimpleNamespace(intent_request=request), IntentDecision.from_document(decision_document(), request)))
+        observed = []
+        try:
+            session.start()
+            session.set_thinking_level(effort)
+            session.prompt_and_wait('Reply once.', on_semantic_event=observed.append,
+                correlation_id='attempt_1', on_heartbeat=lambda: None)
+        finally:
+            session.stop()
+        assert len(requests) == 1
+        assert requests[0]['reasoning_effort'] == effort
+        assert ''.join(event['text'] for event in observed
+            if event['type'] == 'assistant_thinking_delta') == 'Observed fixture reasoning.'
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+@pytest.mark.parametrize('value', ['true', 1, {}, []])
+def test_session_reasoning_rejects_non_boolean_capability(tmp_path, value):
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    host, llm = runtime_inputs(tmp_path)
+    with pytest.raises(ValueError, match='boolean'):
+        NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+            workspace_root=tmp_path / 'runs', model_reasoning=value)
+
+
+@pytest.mark.parametrize('reasoning', [True, False, None])
+def test_session_reasoning_preserves_shared_builtin_transport(tmp_path, reasoning):
+    from capability_agent.runtime.environment import PiLaunch
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    host, llm = runtime_inputs(tmp_path)
+    host.project_pi_dir.mkdir()
+    path = host.project_pi_dir / 'models.json'
+    original = json.dumps({'providers': {'fixture': {'models': [{'id': 'fixture-model'}]}}})
+    path.write_text(original)
+    builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', model_reasoning=reasoning)
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs')
+    launch = PiLaunch(('pi',), {'PI_CODING_AGENT_DIR': str(host.project_pi_dir)})
+    if reasoning is None:
+        builder.apply_configuration(launch, workspace, 'attempt_1')
+    else:
+        with pytest.raises(ValueError, match='private'):
+            builder.apply_configuration(launch, workspace, 'attempt_1')
+    assert path.read_text() == original
+
+
+@pytest.mark.parametrize('case', ['missing', 'duplicate', 'symlink'])
+def test_session_reasoning_rejects_invalid_private_model_target(tmp_path, case):
+    from capability_agent.runtime.environment import PiLaunch
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    host, llm = runtime_inputs(tmp_path)
+    builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', model_reasoning=True)
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs')
+    private = workspace.root / 'provider-config'
+    private.mkdir()
+    path = private / 'models.json'
+    models = [{'id': 'fixture-model'}] * (2 if case == 'duplicate' else 1)
+    if case == 'missing':
+        models = [{'id': 'different-model'}]
+    original = json.dumps({'providers': {'fixture': {'models': models}}})
+    target = tmp_path / 'outside.json' if case == 'symlink' else path
+    target.write_text(original)
+    if case == 'symlink':
+        path.symlink_to(target)
+    launch = PiLaunch(('pi',), {'PI_CODING_AGENT_DIR': str(private)})
+    with pytest.raises(ValueError):
+        builder.apply_configuration(launch, workspace, 'attempt_1')
+    assert target.read_text() == original

@@ -2,6 +2,7 @@ import {afterEach} from 'vitest'
 import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
+import { projectProcessModelRequests } from './processModelRequests'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } from './threadProjectionStore'
 import { sampleDiagramView } from './networkFixture'
 import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
@@ -29,6 +30,71 @@ const idleFixture = {
     schema: 'capstone-thread-catalog/1', models: [], profiles: [],
   },
 }
+
+it('keeps thinking previews outside history and reconciles durable and late batches',async()=>{
+  const preview={thread_id:'thr_demo_39',attempt_id:'attempt_0',batch_id:'batch_1',text:'Live thought',created_at:'2026-11-05T00:00:00Z'}
+  let deliver:((value:typeof preview)=>void)|undefined
+  let advance:((value:ReturnType<typeof parseEventEnvelope>)=>void)|undefined
+  let finish:(()=>void)|undefined
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),
+    async *streamEvents(_id,_seq,_signal,onPreview){
+      deliver=onPreview
+      yield parseEventEnvelope(conversationalEvent(1,'attempt_started',0))
+      yield await new Promise<ReturnType<typeof parseEventEnvelope>>(resolve=>{advance=resolve})
+      await new Promise<void>(resolve=>{finish=resolve})
+    }}))
+  await store.load('thr_demo_39')
+  const consuming=store.consumeEvents()
+  await vi.waitFor(()=>expect(store.state.eventSeq).toBe(1))
+  deliver!({...preview,thread_id:'thr_wrong'})
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!(preview)
+  expect(store.thinkingPreviews[0]?.text).toBe('Live thought')
+  expect(store.state.eventSeq).toBe(1)
+  expect(store.conversationEvents).toHaveLength(1)
+  advance!(parseEventEnvelope(conversationalEvent(2,'assistant_thinking_delta',0,{text:'Live thought',preview_batch_ids:['batch_1']})))
+  await vi.waitFor(()=>expect(store.state.eventSeq).toBe(2))
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!(preview)
+  expect(store.thinkingPreviews).toEqual([])
+  expect(store.state.eventSeq).toBe(2)
+  finish!();await consuming
+})
+
+it('drops previews on disconnect and terminal events and rejects stale attempt previews',async()=>{
+  const preview={thread_id:'thr_demo_39',attempt_id:'attempt_0',batch_id:'batch_1',text:'Live thought',created_at:'2026-11-05T00:00:00Z'}
+  let deliver:((value:typeof preview)=>void)|undefined
+  let finish:(()=>void)|undefined
+  let terminal=false
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),
+    async *streamEvents(_id,seq,_signal,onPreview){
+      deliver=onPreview
+      if(!seq)yield parseEventEnvelope(conversationalEvent(1,'attempt_started',0))
+      await new Promise<void>(resolve=>{finish=resolve})
+      if(terminal)yield parseEventEnvelope(conversationalEvent(2,'attempt_completed',0,{answer:'Done'}))
+      else throw new Error('Disconnected')
+    }}))
+  await store.load('thr_demo_39')
+  const first=store.consumeEvents().catch(error=>error)
+  await vi.waitFor(()=>expect(finish).toBeDefined())
+  deliver!(preview)
+  expect(store.thinkingPreviews).toHaveLength(1)
+  finish!();await first
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!({...preview,batch_id:'late'})
+  expect(store.thinkingPreviews).toEqual([])
+  terminal=true;finish=undefined
+  const second=store.consumeEvents()
+  await vi.waitFor(()=>expect(finish).toBeDefined())
+  deliver!({...preview,attempt_id:'attempt_old'})
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!(preview)
+  expect(store.thinkingPreviews).toHaveLength(1)
+  finish!();await second
+  expect(store.thinkingPreviews).toEqual([])
+  expect(store.state.eventSeq).toBe(2)
+  expect(store.conversationEvents.map(event=>event.eventType)).toEqual(['attempt_started','attempt_completed'])
+})
 
 function conversationalEvent(eventSeq: number, eventType: string, attemptIndex: number, payload: Record<string, unknown> = {}) {
   return {
@@ -71,13 +137,38 @@ it('retains native routing identity beyond the raw window for exact tool groupin
  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:2}})
  const events=[conversationalEvent(1,'turn_route_selected',0,{route:'ordinary',source:'native_conversation'}),
   conversationalEvent(2,'runtime_action',0,{phase:'started',runtime_mode:'capstone'}),
-  conversationalEvent(3,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'tools'}),
-  conversationalEvent(4,'runtime_event',0,{native_type:'tool_execution_start',tool_call_id:'observed-call'})]
- const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:4}}
+  conversationalEvent(3,'assistant_thinking_delta',0,{text:'先核对已保存的结果。'}),
+  conversationalEvent(4,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'tools'}),
+  conversationalEvent(5,'runtime_event',0,{native_type:'tool_execution_start',tool_call_id:'observed-call',tool_name:'bash',task_id:'task'})]
+ const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:5}}
  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,2)}))
  await store.load('thr_demo_39');await store.restoreConversationHistory()
  expect(store.publicEvents.length).toBeLessThanOrEqual(2)
- expect(store.conversationEvents.some(event=>event.eventType==='turn_route_selected'&&event.payload.source==='native_conversation')).toBe(true)
+ expect(store.conversationEvents.map(event=>event.eventType)).toEqual(['turn_route_selected','runtime_action','assistant_thinking_delta','runtime_action','runtime_event'])
+ const calls=projectProcessModelRequests(store.conversationEvents,'attempt_0')
+ expect(calls).toHaveLength(1)
+ expect(calls[0].toolCallIds).toEqual(['observed-call'])
+ expect(calls[0].thinking).toBe('先核对已保存的结果。')
+})
+
+it('bounds archived diagnostic bytes while preserving conversation bodies',async()=>{
+ const budget=6000
+ initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{event_buffer_count:2,event_buffer_bytes:budget}})
+ const events=[conversationalEvent(1,'command_accepted',0,{kind:'send_auto',payload:{text:'保留问题'}}),
+  conversationalEvent(2,'attempt_completed',0,{answer:'保留回答'}),
+  ...Array.from({length:40},(_,i)=>conversationalEvent(i+3,
+   ['runtime_action','runtime_event','assistant_thinking_delta'][i%3],0,
+   {text:'x'.repeat(500),phase:'started',native_type:'tool_execution_start',tool_name:'read'}))]
+ const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:42}}
+ const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,5)}))
+ await store.load('thr_demo_39');await store.restoreConversationHistory()
+ const diagnostics=store.conversationEvents.filter(e=>['runtime_action','runtime_event','assistant_thinking_delta'].includes(e.eventType))
+ expect(diagnostics.length).toBeLessThan(40)
+ expect(diagnostics.reduce((n,e)=>n+new TextEncoder().encode(JSON.stringify(e)).byteLength,0)).toBeLessThanOrEqual(budget)
+ expect(store.conversationEvents.some(e=>e.eventSeq===1)).toBe(true)
+ expect(store.conversationEvents.some(e=>e.eventSeq===2)).toBe(true)
+ expect(diagnostics.at(-1)?.eventSeq).toBe(42)
+ expect(store.state.eventSeq).toBe(42)
 })
 
 it('loads durable model membership independently of the legacy snapshot', async () => {
@@ -379,6 +470,24 @@ it('recovers a lost model-control receipt with its original identity and one act
   expect(sendCommand).toHaveBeenCalledTimes(2)
   expect(store.publicEvents.filter((item) => item.eventType === 'model_context_activated')).toHaveLength(1)
   expect(store.state.snapshot?.currentAttempt).toBeNull()
+})
+
+it('keeps a short model purpose after live diagnostic opening text leaves the window',async()=>{
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:1}})
+  const events=[
+    conversationalEvent(1,'runtime_action',0,{phase:'started',runtime_mode:'capstone'}),
+    {...conversationalEvent(2,'assistant_process_delta',0,{text:'打开模型上下文\n后文'}),visibility:'diagnostic'},
+    conversationalEvent(3,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'text'}),
+  ]
+  // Diagnostic events arrive on the live stream, never the public history RPC.
+  const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:0}}
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),
+    readHistory:pagedHistory([],3),streamEvents:async function*(){for(const event of events)yield parseEventEnvelope(event)}}))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  const started=store.conversationEvents.find(event=>event.eventType==='runtime_action'&&event.payload.phase==='started')
+  expect(started?.payload.response_intent).toBe('打开模型上下文')
+  expect(projectProcessModelRequests(store.conversationEvents,'attempt_0')[0]?.intent).toBe('打开模型上下文')
 })
 
 it('keeps public task actions when diagnostic deltas exceed the local event budget', async () => {

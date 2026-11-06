@@ -329,6 +329,52 @@ def create_host_app(
         return catalog
 
     if thread_service is not None:
+        from .thinking_preview import PreviewBus, PREVIEW_METADATA
+        from datetime import datetime, timezone
+        preview_bus = PreviewBus()
+        preview_enabled = os.environ.get('CAPSTONE_THINKING_PREVIEW') == '1'
+        preview_wake = asyncio.Condition()
+        preview_version = 0
+
+        @app.post('/internal/thinking-preview')
+        async def publish_thinking_preview(request: Request):
+            nonlocal preview_version
+            # Open browser access never grants this backend publishing capability.
+            if not hmac.compare_digest(request.headers.get('authorization', ''), 'Bearer ' + operator_token):
+                raise HTTPException(401, 'unauthorized')
+            if not preview_enabled:
+                raise HTTPException(404, 'preview disabled')
+            raw = bytearray()
+            async for chunk in request.stream():
+                raw.extend(chunk)
+                if len(raw) > 32768:
+                    raise HTTPException(413, 'preview too large')
+            try:
+                body = json.loads(raw)
+                fields = ('thread_id', 'attempt_id', 'lease_token', 'workspace_name', 'batch_id', 'text')
+                if not isinstance(body, dict) or any(not isinstance(body.get(k), str) or not body[k] for k in fields):
+                    raise ValueError('invalid preview')
+                if len(body['text'].encode('utf-8')) > 16384 or len(body['batch_id']) != 32:
+                    raise ValueError('invalid preview')
+                int(body['batch_id'], 16)
+                metadata = body.get('payload', {})
+                if (not isinstance(metadata, dict) or not set(metadata).issubset(PREVIEW_METADATA)
+                    or any(not (isinstance(value, str) and len(value) <= 256
+                                or type(value) is int and 0 <= value <= 1_000_000)
+                           for value in metadata.values())):
+                    raise ValueError('invalid preview metadata')
+                await asyncio.to_thread(thread_service.validate_preview_claim,
+                    body['thread_id'], body['attempt_id'], body['lease_token'], body['workspace_name'])
+            except (ValueError, TypeError, ThreadExecutionError, ThreadNotFound):
+                raise HTTPException(409, 'preview claim invalid') from None
+            preview_bus.publish({**{key: body[key] for key in ('thread_id', 'attempt_id', 'batch_id', 'text')},
+                                 'created_at': datetime.now(timezone.utc).isoformat(),
+                                 'payload': metadata})
+            async with preview_wake:
+                preview_version += 1
+                preview_wake.notify_all()
+            return Response(status_code=204)
+
         def require_private_thread(request: Request) -> None:
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
@@ -753,12 +799,20 @@ def create_host_app(
 
             async def events():
                 cursor = after
+                preview_seen = set()
+                durable_preview_ids = set()
+                active_preview_attempt = None
+                if preview_enabled:
+                    snapshot = await asyncio.to_thread(thread_service.snapshot, thread_id)
+                    if snapshot.current_attempt is not None:
+                        active_preview_attempt = snapshot.current_attempt.attempt_id
                 page = initial_page
                 first_page = True
                 last_heartbeat = asyncio.get_running_loop().time()
                 last_worker_keepalive = last_heartbeat
                 idle_delay = 0.25
                 while True:
+                    observed_preview_version = preview_version
                     if not first_page:
                         try:
                             page = await asyncio.to_thread(thread_service.read_events, thread_id, cursor,
@@ -780,6 +834,12 @@ def create_host_app(
                     if page.events:
                         idle_delay = 0.25
                         for event in page.events:
+                            if event.event_type == 'attempt_started':
+                                active_preview_attempt = event.attempt_id
+                            elif event.event_type in {'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'} and event.attempt_id == active_preview_attempt:
+                                active_preview_attempt = None
+                            durable_preview_ids.update(event.payload.get('preview_batch_ids', ()))
+                            preview_bus.discard(event.payload.get('preview_batch_ids', ()))
                             cursor = event.event_seq
                             payload = json.dumps(event.to_document(), ensure_ascii=False)
                             yield f"id: {event.event_seq}\nevent: {event.event_type}\ndata: {payload}\n\n"
@@ -791,6 +851,16 @@ def create_host_app(
                         return
                     if await request.is_disconnected():
                         return
+                    if preview_enabled:
+                        rows = preview_bus.read(thread_id)
+                        present = {row['batch_id'] for row in rows}
+                        preview_seen.intersection_update(present)
+                        durable_preview_ids.intersection_update(present)
+                        for row in rows:
+                            key = row['batch_id']
+                            if active_preview_attempt == row['attempt_id'] and key not in preview_seen and key not in durable_preview_ids:
+                                preview_seen.add(key)
+                                yield 'event: thinking_preview\ndata: ' + json.dumps(row, ensure_ascii=False) + '\n\n'
                     now = asyncio.get_running_loop().time()
                     if now - last_worker_keepalive >= 120:
                         # A connected workbench is active use. Keep workers
@@ -801,7 +871,15 @@ def create_host_app(
                     if now - last_heartbeat >= 15:
                         yield ": keepalive\n\n"
                         last_heartbeat = now
-                    await asyncio.sleep(idle_delay)
+                    if preview_enabled:
+                        async with preview_wake:
+                            try:
+                                await asyncio.wait_for(preview_wake.wait_for(
+                                    lambda: preview_version != observed_preview_version), timeout=idle_delay)
+                            except TimeoutError:
+                                pass
+                    else:
+                        await asyncio.sleep(idle_delay)
                     idle_delay = min(idle_delay * 2, 2.0)
 
             return StreamingResponse(events(), media_type="text/event-stream")

@@ -17,6 +17,22 @@ equalitybc0ded4b; scoped cache cleanup receipt:
 The exact enterprise thread from the user's screenshot was revisited after
 correction: instruction, answer paragraphs, table, headings and inline code
 were visually checked together against the sidebar. No model request was sent.
-The shared stylesheet warrants the App-only CI route before dev integration;
-no CI is authorized for this new candidate yet. Dev remains7ad2529a.
+The user approved the App-only CI and dev merge. macOS CI41641127761 passes
+in5m06s:1502 App tests in131 files, production build and232 governance checks
+(2 skipped). PR93 merges as6c55e6ee; actual dev fast-forwards to that commit.
+The tested3e8625f5 tree is identical to the merge tree. All CI authorization
+for this candidate is consumed; no additional run was started.
 Main, intranet and cloud/demo are unchanged.
+
+Actual dev canonical rebuild passes readiness with API/all workers on
+bc0ded4b2fcd8e91db0e64e35bdbcc5058df6ec5a3a301f9f498e62b5489ebe7.
+App reports product2148db14/repository6c55e6ee, dirty=false. Doctor passes.
+Scoped cache cleanup receipt:.capstone-agent/cache-maintenance-20261103-211413-88790.log.
+Merged local/remote source branches are closed. Premerge journal stash reference:
+runs/execution-capacity-20261103/pr93-journal-stash.txt.
+Actual dev overview regenerated without remote probes and inspected in the
+existing browser tab: visible6c55e6ee node, merged source ancestry and exact
+local-dev source. Existing App instructions/answers pass final visual review;
+four retained product hashes match. Changed links/symlink/whitespace pass.
+Final control/report/checkpoint snapshots remain locally modified to record the
+actual merge/runtime without another CI or snapshot-self-hash commit cycle.

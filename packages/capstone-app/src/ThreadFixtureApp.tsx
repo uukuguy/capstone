@@ -882,7 +882,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
             instructionLocation={instructionLocation}
-            onLoadOlder={() => store.loadOlderHistory()} events={events} runtimeMode={(isActive && snapshot.currentAttempt?.runtimeMode) || snapshot.runtimeMode} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
+            thinkingPreviews={store.thinkingPreviews} onLoadOlder={() => store.loadOlderHistory()} events={events} runtimeMode={(isActive && snapshot.currentAttempt?.runtimeMode) || snapshot.runtimeMode} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={[...new Set([...store.networkTasks.map((task) => task.attemptId), ...events.filter((event) => event.attemptId && (event.eventType === 'network_diagram' || projection.modelWorkspace && event.eventType === 'attempt_completed' && event.modelContextId)).map((event) => event.attemptId!)])]} onShowNetwork={(attemptId) => {
               if (workspace) { setResourceView('model'); setResourcePanelOpen(true) }
               taskReturnGeneration.current++

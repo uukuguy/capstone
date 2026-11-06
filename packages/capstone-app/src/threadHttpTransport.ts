@@ -1,4 +1,5 @@
 import {sha256Hex} from './browserDigest'
+import {parseThinkingPreview,type ThinkingPreview} from './thinkingPreview'
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import { parseGridSourcePage, parseGridSourceScopes, type GridSourceQuery } from './gridSource'
@@ -454,7 +455,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   async *streamEvents(
-    threadId: string, afterEventSeq: number, signal?: AbortSignal,
+    threadId: string, afterEventSeq: number, signal?: AbortSignal, onPreview?:(preview:ThinkingPreview)=>void,
   ): AsyncGenerator<EventEnvelope> {
     const response = await this.streamRequest(
       `${this.resourcePath}/${encodeURIComponent(threadId)}/events/stream?after=${afterEventSeq}&follow=1`,
@@ -479,6 +480,7 @@ export class HttpThreadTransport implements ThreadTransport {
           if (!data) continue
           const eventName = frame.split('\n').find((line) => line.startsWith('event: '))?.slice(7)
           const payload = JSON.parse(data.slice(6)) as unknown
+          if(eventName==='thinking_preview') {onPreview?.(parseThinkingPreview(payload,threadId));continue}
           if (eventName === 'protocol_upgrade_required') throw responseError(409, payload)
           if (eventName === 'resync_required') {
             throw new ThreadTransportError(409, 'Thread SSE requires resync.', payload)

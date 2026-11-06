@@ -22,9 +22,7 @@
       "version": "05bda3a51d5f1ecad888d4d4663c28478c643a7e",
       "source": "https://github.com/Power-Agent/PowerSkills",
       "roles": [
-        "harness_engine",
-        "delegated_pi",
-        "direct_pi"
+        "harness_engine"
       ],
       "enabled": true,
       "managed": true,
@@ -42,9 +40,7 @@
       "version": "63341e67ce6ae5650396ab92b2be7f86e3409da1",
       "source": "https://github.com/Power-Agent/PowerMCP",
       "roles": [
-        "harness_engine",
-        "delegated_pi",
-        "direct_pi"
+        "harness_engine"
       ],
       "enabled": true,
       "managed": true,

@@ -423,7 +423,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       if (mounted.current) { setError(cause instanceof Error ? cause.message : '原请求结果待确认。'); if (canReconnect(cause)) setReload(value => value + 1) }
     } finally { writing.current = false; if (mounted.current) setBusy(false) }
   }
-  const conversation = projectWorkConversation(store.conversationEvents, selectedWork, snapshot?.works, !snapshot)
+  const conversation = projectWorkConversation(store.conversationEvents, selectedWork, snapshot?.works, !snapshot,store.thinkingPreviews)
   const latestAcceptedInstruction=useMemo(()=>store.publicEvents.reduce<EventEnvelope|undefined>((latest,event)=>
     event.eventType==='command_accepted'&&event.attemptId&&['send_message','send_auto','send_ordinary','send_professional'].includes(String(event.payload.kind))&&(!latest||event.eventSeq>latest.eventSeq)?event:latest,undefined),[store,projection])
   const declaredAttemptId=selectedWork?.latestAttemptId||currentAttempt?.attemptId
@@ -652,7 +652,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {restoredKey === key && (snapshot || professional || currentId === 'new') && <CapstoneAssistantThread nativeArtifactProjections={indexedArtifacts} resultHistoryNotice={resultProjectionHistoryText(professional)} key={liveConversation?`${key}.conversation`:`${key}.${selected}`} events={conversation.events}
       productReferenceReader={(ref,signal)=>client.resolveProduct(ref,signal)} requestedProductReference={requestedReference?.selection.ref.thread_id===currentId?requestedReference:undefined}
       projectedMessages={conversation.messages} composerMode={liveConversation?undefined:'text'} composerLabel={viewingLegacy?'历史记录草稿':nativeChat?undefined:selected === 'new' ? '任务目标' : '补充任务资料'}
-      instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
+      thinkingPreviews={store.thinkingPreviews} instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
       onOpenInstructionProducts={scope=>{markManualView();setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)}}
       onOpenNativeArtifact={nativeChat?openArtifact:undefined}
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}

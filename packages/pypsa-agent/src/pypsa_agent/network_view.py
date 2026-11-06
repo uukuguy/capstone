@@ -77,14 +77,17 @@ def build_pypsa_thread_network_provider(
 
     if not isinstance(context, PreparedModelCapabilityContext):
         raise TypeError("PyPSA topology context is invalid")
+    model_context = context.model_context
+    if model_context is None:
+        raise ValueError("PyPSA topology requires a selected model context")
     for contribution in context.contributions:
         prepared = getattr(contribution, "prepared", None)
         binding = getattr(prepared, "model_binding", None)
         if not isinstance(binding, AuthorityModelBinding) or binding.binding_id != "source":
             continue
         if (
-            binding.model_id != context.model_context.model_id
-            or binding.model_revision != context.model_context.model_revision
+            binding.model_id != model_context.model_id
+            or binding.model_revision != model_context.model_revision
         ):
             raise ValueError("PyPSA model binding does not match Thread context")
         application = getattr(prepared, "prepared_application", None)

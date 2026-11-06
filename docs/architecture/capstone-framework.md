@@ -2,6 +2,16 @@
 
 ## Incremental task organization candidate
 
+2026-11-05 native entry correction: new default native conversations enter the
+execution model directly with accepted context, skills, service publications and
+Domain Pack tool grants. There is no separate intent-recognition model call.
+The execution model answers or selects authorized tools for the current request;
+complex planning is on demand. Local input freezing does not count as an LLM
+stage. Existing frozen intent decisions retain their recovery path, and explicit
+professional entry points retain their contracts. Permission, schema, ownership
+and evidence checks remain enforced at the tool boundaries. Generic service
+discovery must not be replaced by an application model-table projection.
+
 2026-10-30 decision: the default lightweight loop uses the direct model runtime.
 The request and text-analysis pools remain opt-in experiments, disabled unless
 the backend sets `CAPSTONE_EXPERIMENTAL_LLM_POOL=1`. They do not establish a
@@ -214,8 +224,9 @@ tool schema checks must succeed before a resource is ready. Accepted profile
 revisions and protected installations persist for retry; revocation or missing
 bytes fail explicitly. New tasks use the new configuration.
 
-Native Pi loads the pinned PowerSkills pandapower skill and ten bounded PowerMCP
-tools through the managed MCP extension. Harness uses an original Domain Pack
+The general executor roles `delegated_pi` and `direct_pi` do not publish the
+PowerSkills pandapower skill or PowerMCP. Grid numbers stay on the Domain Pack
+and its registered Authority. Harness uses an original Domain Pack
 adapter guide and the Authority-owned `analysis.run` operation
 `diagnostic.structural`. The Authority exports its current model snapshot and
 invokes PowerMCP `load_network` and `audit_network`; exact contracts, frozen

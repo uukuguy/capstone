@@ -368,6 +368,7 @@ def main(
                                 input_catalog=thread_service.input_catalog,
                                 thread_family=lambda thread_id: thread_service.snapshot(thread_id).professional_context.implementation_family,
                                 prepare_model=prepare_thread_model,
+                                domain_tools=getattr(thread_application, 'domain_tool_service', None),
                                 resource_status=(thread_application.capability_context_owner.resource_counts
                                     if thread_application is not None and thread_application.capability_context_owner is not None else None),
                                 health_check=lambda: scheduler.is_alive()

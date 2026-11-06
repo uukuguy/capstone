@@ -73,6 +73,13 @@ it('keeps public thinking within its actual request and does not aggregate later
   expect(calls[0].thinking).toBe('First thought. ')
   expect(calls[1].thinking).toBe('Second thought.')
 })
+it('binds Pi tool calls to the model turn that requested them',()=>{
+  const route={...boundary(0,'route'),eventType:'turn_route_selected',payload:{source:'pi',route:'ordinary'}}
+  const tool=(seq:number,id:string):EventEnvelope=>({...boundary(seq,'tool'),eventType:'runtime_event',payload:{native_type:'tool_execution_start',tool_call_id:id,tool_name:'grid_result_compare'}})
+  const calls=projectProcessModelRequests([route,boundary(1,'started'),boundary(2,'response_completed','tools'),tool(3,'a'),tool(4,'b'),boundary(5,'completed')],'attempt')
+  expect(calls[0].toolAssociation).toBe('turn')
+  expect(calls[0].toolCallIds).toEqual(['a','b'])
+})
 it('binds observed native tools through explicit SDK turn boundaries, never just adjacent times',()=>{
   const native={...boundary(0,'route'),eventType:'turn_route_selected',payload:{source:'native_conversation'}}
   const tool=(seq:number,id:string):EventEnvelope=>({...boundary(seq,'tool'),eventType:'runtime_event',payload:{native_type:'tool_execution_start',tool_call_id:id,tool_name:'read'}})

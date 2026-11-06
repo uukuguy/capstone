@@ -1,6 +1,7 @@
 """Bind native Pack preparation to an already registered Pi executor host."""
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -31,7 +32,9 @@ class PiNativeBindingPreparer:
     def prepare(
         self, *, binding: DomainBinding, profile: NativeDomainRuntimeProfile,
         workspace: Path, credentials: CredentialLease,
+        capability_snapshot: Mapping | None = None,
     ) -> PreparedPiResources:
+        """Validate a publication captured by this binding operation, or read fresh."""
         del binding, workspace
         if credentials.credentials:
             raise DomainProvisioningError("native resources use host-owned credentials")
@@ -39,7 +42,7 @@ class PiNativeBindingPreparer:
         if execution.result_contract != 'capstone-pi-task-result/1':
             raise DomainProvisioningError("native result contract is unsupported")
         try:
-            capability = _json_document(self._executor.capability)
+            capability = _json_document(self._executor.capability if capability_snapshot is None else capability_snapshot)
             identity = _json_document(self._executor.identity)
             profiles = capability.get('resource_profiles', {})
             _resource_profiles(profiles)

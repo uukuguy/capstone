@@ -194,6 +194,8 @@ def build_registered_pandapower_thread_application():
         assembly = with_intent_runtime(assembly, conversation_builder,
             general_executor=configured_general_executor(environment),
             general_timeout_seconds=float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600')))
+    from grid_agent.domain_tools import PandapowerDomainToolService
+    assembly = replace(assembly, domain_tool_service=PandapowerDomainToolService())
     return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
             if validation_builder is not None else assembly)
 

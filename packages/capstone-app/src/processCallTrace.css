@@ -27,6 +27,7 @@
 .capstone-call-batch .capstone-call-tool > summary { flex-wrap: nowrap; }
 .capstone-call-tool > summary > strong { flex: 0 1 auto; max-width: min(60ch, 55%); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .capstone-call-batch .capstone-call-tool > summary > span, .capstone-call-batch .capstone-call-tool > summary > small { flex: none; white-space: nowrap; }
+.capstone-call-trace .capstone-call-tool > summary > small { margin-left: 0; color: var(--trace-secondary); font-size: inherit; }
 .capstone-call-tool > summary::-webkit-details-marker { display: none; }
 .capstone-call-tool > summary::marker { content: ''; }
 .capstone-call-tool > summary > svg { width: 11px; height: 11px; flex: none; }
@@ -47,6 +48,13 @@
 @keyframes capstone-call-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .capstone-call-state.is-running svg { animation: none; } }
 .is-compact .capstone-call-batch { width: fit-content; max-width: 100%; margin: 1px 0 1px 16px; }
+.capstone-call-nested { margin: 0 0 0 16px; }
+.capstone-call-nested > .capstone-thinking-process { margin: 0 0 2px; }
+.capstone-call-nested > .capstone-call-batch,
+.is-compact .capstone-call-nested > .capstone-call-batch { width: auto; max-width: 100%; margin: 1px 0; }
+.capstone-chat-activity-attached .capstone-call-trace .capstone-call-tool > summary { padding: 0; min-height: 0; }
+.capstone-call-nested .capstone-call-tool > summary { gap: 5px; }
+.capstone-call-nested .capstone-call-tool > summary > svg { width: 12px; height: 12px; }
 .is-compact .capstone-call-batch .capstone-call-tool > summary { width: fit-content; max-width: 100%; gap: 7px; }
 .is-compact .capstone-call-batch .capstone-call-tool > summary > strong { flex: 0 1 auto; max-width: 54ch; }
 .capstone-process-reader .answer-detail-heading { align-items: center; }
@@ -59,7 +67,10 @@
 .capstone-call-trace .capstone-call-tool-detail :is(p, pre, code), .capstone-call-trace .capstone-call-purpose { font-size: inherit; }
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled { opacity: .4; background: transparent; cursor: default; }
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled > svg { color: inherit; }
-.capstone-parallel-group { width: fit-content; max-width: 100%; padding: 0 0 0 5px; margin: 1px 0; border-left: 1px solid #c7d8cf; }
+.capstone-parallel-group { position: relative; width: auto; max-width: 100%; margin: 2px 0; padding: 0; border: 0; }
+.capstone-parallel-group::before { content: ''; position: absolute; left: -6px; top: 1px; bottom: 1px; width: 1px; background: #7ea898; }
+.capstone-parallel-heading { margin: 0 0 2px; color: #3d6b58; font-size: inherit; font-weight: 400; text-align: left; white-space: nowrap; }
+.capstone-call-trace .capstone-parallel-heading > .capstone-call-duration { display: inline; gap: 0; }
 .capstone-call-pool ul { list-style: none; margin: 4px 0; padding: 0 0 0 8px; border-left: 1px solid #c7d8cf; }
 .capstone-call-pool li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 3px 0; }
 .capstone-call-pool li > span:first-child { overflow-wrap: anywhere; }

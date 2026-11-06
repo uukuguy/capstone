@@ -31,6 +31,7 @@ import {summarizeModelRequestPool,uniqueModelRequests} from './processModelReque
 import {isExecutionLifecycleStep} from './executionLifecycle'
 import {nativeGraphFocus} from './nativeGraphFocus'
 import {projectInitialThinking,type InitialThinking} from './ThinkingProcess'
+import type {ThinkingPreview} from './thinkingPreview'
 import { projectExecutionGraph, type ExecutionGraph } from './executionGraph'
 import ResultExplorer from './ResultExplorer'
 import { taskResultCollections, type TaskResultCollection } from './taskResultCollections'
@@ -100,6 +101,8 @@ export type ChatActivity = {
   operation?: string
   outputExcerpt?: string
   warning?: string
+  /** Registered tool id. `label` may be the call's purpose sentence. */
+  toolName?: string
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -184,7 +187,7 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
       const previous=grouped.get(native.id)
       const startedAt=previous?.startedAt||(native.phase==='running'?event.occurredAt:undefined)
       const finishedAt=previous?.finishedAt||(native.phase==='completed'?event.occurredAt:undefined)
-      grouped.set(native.id,{id:native.id,label:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
+      grouped.set(native.id,{id:native.id,toolName:native.name,label:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
         taskStepId:typeof event.payload.task_step_id==='string'?event.payload.task_step_id:previous?.taskStepId,
         taskStepNumber:typeof event.payload.task_step_number==='number'?event.payload.task_step_number:previous?.taskStepNumber,
         stepToolNumber:typeof event.payload.step_tool_number==='number'?event.payload.step_tool_number:previous?.stepToolNumber,
@@ -360,10 +363,10 @@ function terminalContent(event: EventEnvelope): string {
   return '**本次 Attempt 已中断**\n\n可以查看执行过程，并在确认模型上下文后重新运行。'
 }
 
-export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
+export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = [], previews:readonly ThinkingPreview[]=[]): ThreadMessageLike[] {
   const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
   const runtimeModes = new Map<string, RuntimeMode>()
-  const nativeAttempts = new Set(events.filter(event => event.payload.source === 'native_conversation').map(event => event.attemptId || event.turnId))
+  const nativeAttempts = new Set(events.filter(event => ['native_conversation','pi','direct_pi'].includes(String(event.payload.source))).map(event => event.attemptId || event.turnId))
   for (const event of events) {
     const attempt = event.attemptId || event.turnId
     if (event.eventType === 'command_accepted' && attempt) {
@@ -557,6 +560,17 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       return Boolean(native&&native.name!=='agent_task_progress')
     }):undefined
     const initialProjection=attemptId?projectInitialThinking(events,attemptId,executionEvent?.eventSeq,organizationEvent?.eventSeq??Infinity):undefined
+    const activeCalls=modelRequests.filter(call=>!call.settled&&!call.thinkingSettled)
+    const call=activeCalls.length===1?activeCalls[0]:undefined
+    const callBoundary=call?events.find(event=>event.eventId===call.id):undefined
+    const previewText=previews.filter(preview=>preview.attempt_id===attemptId&&preview.thread_id===events[0]?.threadId&&
+      Object.entries(preview.payload??{}).every(([key,value])=>key==='runtime_mode'?value===runtimeMode:callBoundary?.payload[key]===value)&&
+      !events.some(event=>event.attemptId===attemptId&&(['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)||
+        (Array.isArray(event.payload.preview_batch_ids)&&event.payload.preview_batch_ids.includes(preview.batch_id))))).map(preview=>preview.text).join('')
+    if(previewText){
+      if(call)call.thinking=(call.thinking??'')+previewText
+      else if(initialProjection&&!initialProjection.handedOff)initialProjection.text+=previewText
+    }
     const initialThinking=nativeAttempts.has(attemptId)&&initialProjection?.handedOff&&modelRequests.some(call=>call.thinking)?undefined:initialProjection
     const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, compactions, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph) ?? (nativeAttempts.has(attemptId) ? 'tools' : undefined), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
@@ -750,7 +764,6 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
   const toolControls=(expanded:boolean)=><span className="capstone-process-controls" role="group" aria-label="思考与工具详情显示"><button type="button" aria-label="展开工具详情" disabled={!disclosureStates[+expanded].canExpand} title="展开全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,true)}}><ChevronsUpDown aria-hidden="true"/></button><button type="button" aria-label="折叠工具详情" disabled={!disclosureStates[+expanded].canCollapse} title="折叠全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,false)}}><ChevronsDownUp aria-hidden="true"/></button></span>
   const toolActivities = executionGraph || selectedGraphFocus === 'tools' ? activities : activities.filter(item => !item.source.includes('agent_task_progress') || item.status === 'failed')
   const taskGoal = executionGraph?.current.goal ?? progress.find(item => item.kind === 'goal')?.text ?? goal
-  const goalText = taskGoal?.replace(/^(?:任务目标|研究目标|目标)\s*[:：]\s*/u, '')
   const graphToolIds = new Set(executionGraph?.executions.flatMap(execution => execution.tools.map(tool => tool.id)))
   const callId = (activity: ChatActivity): string => {
     if (!activity.id.startsWith('native:')) return activity.id
@@ -863,7 +876,7 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
       </section>
       <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
     </>
-    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
+    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.toolName==='agent_tools_execute'?activity.toolName:activity.toolName?(TOOL_LABELS[activity.toolName]||activity.toolName):activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}
@@ -892,23 +905,21 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
         renderTools={stepId => <ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} />} /> :
       <div key={entry.id} title="未归属任务步骤">{expandedResearch ? readerTools(entry.activity ? [entry.activity] : []) : <ActivityItems activities={entry.activity ? [entry.activity] : []} />}</div>)}</>
   }
-  return <>{reading && <AnswerDetailSheet title="执行过程" showAnswerLabel={false} headerActions={focus==='tools'&&toolCount>0?toolControls(true):undefined} answerLabel={goalText ? goalText.slice(0, 80) : '当前指令'} className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{toolCount>0?` · ${toolCount} 次工具调用`:''}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>}>
+  return <>{reading && <AnswerDetailSheet title="执行过程" showAnswerLabel={false} headerActions={focus==='tools'&&toolCount>0?toolControls(true):undefined} answerLabel="当前指令" className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{toolCount>0?` · ${toolCount} 次工具调用`:''}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>}>
     <div ref={readerContent} className="capstone-chat-activity-frame">
       {steps.length > 1 && <nav className="capstone-process-directory" aria-label="任务步骤目录">{steps.map(step => <button type="button" key={step.id} title={step.title} onClick={() => {
         const node = [...(readerContent.current?.querySelectorAll<HTMLElement>('[data-step-id]') ?? [])].find(node => node.dataset.stepId === step.id)
         node?.scrollIntoView({ block: 'start', behavior: 'smooth' })
       }}>{String(step.number).padStart(2, '0')} {step.title}</button>)}</nav>}
-      {goalText && <p className="capstone-task-goal">{goalText}</p>}
-      {diagnostics.map(item => <StepErrorDetails key={item.id} label="进度登记未更新" reason={item.text} />)}
       <TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />
       {process(true)}
       {branches.some(branch => !steps.some(step => step.id === branch.parentStepId)) && <ResearchBranchItems expandedResearch branches={branches.filter(branch => !steps.some(step => step.id === branch.parentStepId))} storageKey={`${stepStorageKey}:reader`} />}
       {hasAuxiliary && <aside className="capstone-process-auxiliary">{auxiliary}</aside>}
     </div>
-  </AnswerDetailSheet>}{!hasProcess ? <button type="button" className="capstone-process-auxiliary-entry" aria-label="放大阅读执行过程" title="查看任务资料与记录" onClick={openReader}><Maximize2 aria-hidden="true" />任务资料与记录</button> : <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}>{branches.some(branch => !steps.some(step => step.id === branch.parentStepId)) && <div aria-label="父步骤未在当前记录中的子分支"><ResearchBranchItems branches={branches.filter(branch => !steps.some(step => step.id === branch.parentStepId))} storageKey={stepStorageKey} /></div>}{diagnostics.map(item => <StepErrorDetails key={item.id} label="进度登记未更新" reason={item.text} />)}<details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={processOpen} onToggle={event=>{if(followLightweight&&!event.currentTarget.open){event.currentTarget.open=true;return}onOpenChange(event.currentTarget.open)}}>
-    <summary><Activity aria-hidden="true" /><span title={toolCount===0?'当前记录未提供可核对的工具调用数量，可查看执行过程。':undefined}>{queued ? '排队中' : running ? '正在执行' : terminalLabel} {focus === 'thinking' ? (queued?'等待开始':running&&parentModels.length===0?'准备执行':'思考状态') : <>{focus === 'tasks' && foldSteps.length > 0 ? `${foldSteps.length} 个任务步骤 · ` : ''}{toolCount>0?`${toolCount} 次工具调用`:'工具调用数未记录'}</>}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{traceIssues.length > 0 && <button type="button" className="capstone-process-trace-warning" aria-label="定位工具记录缺失" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader(); setTraceFocus(previous => ({ ...traceIssues[0], revision: (previous?.revision ?? 0) + 1 })) }}><AlertTriangle aria-hidden="true" />工具记录缺失 · {traceIssues.reduce((sum, issue) => sum + issue.missingToolIds.length, 0)}项</button>}{!open && <small>查看执行过程</small>}<span className="capstone-process-toolbar">{processOpen&&focus==='tools'&&toolCount>0&&toolControls(false)}{open && focus === 'tasks' && foldSteps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" aria-label="展开步骤" title="展开全部步骤" disabled={foldSteps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}><ChevronsUpDown aria-hidden="true" /></button><button type="button" aria-label="折叠步骤" title="折叠全部步骤" disabled={foldSteps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}><ChevronsDownUp aria-hidden="true" /></button></span>}<button type="button" className="capstone-process-enlarge" title="放大阅读执行过程" aria-label="放大阅读执行过程" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader() }}><Maximize2 aria-hidden="true" /></button></span></summary>
-    {(!running || processOpen) && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-complete-process">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}
-  </details>{executionGraph&&<ResearchProgressSummary nodes={executionGraph.current.nodes} limitations={[...progress.filter(item=>item.kind==='limitation').map(item=>item.text),...executionGraph.executions.flatMap(item=>item.tools.flatMap(tool=>tool.returnLimitations?.notes??[]))]} running={running}/ >}{lastWork && <div className="capstone-chat-activity-preview" aria-label="中断前的工作记录"><p className="capstone-task-goal">中断前的工作记录（不代表任务已完成）</p><TaskProgressItems items={[lastWork]} /></div>}{running && !processOpen && !executionGraph && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-chat-activity-preview" aria-label="执行过程预览">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}</div>}</>
+  </AnswerDetailSheet>}{!hasProcess ? <button type="button" className="capstone-process-auxiliary-entry" aria-label="放大阅读执行过程" title="查看任务资料与记录" onClick={openReader}><Maximize2 aria-hidden="true" />任务资料与记录</button> : <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}>{branches.some(branch => !steps.some(step => step.id === branch.parentStepId)) && <div aria-label="父步骤未在当前记录中的子分支"><ResearchBranchItems branches={branches.filter(branch => !steps.some(step => step.id === branch.parentStepId))} storageKey={stepStorageKey} /></div>}<details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={processOpen} onToggle={event=>{if(followLightweight&&!event.currentTarget.open){event.currentTarget.open=true;return}if(event.currentTarget.open===processOpen)return;onOpenChange(event.currentTarget.open)}}>
+    <summary onClick={event=>{const target=event.target;if(target instanceof Element&&target.closest('button,a'))return;event.preventDefault();if(!followLightweight)onOpenChange(!open)}}><Activity aria-hidden="true" /><span title={toolCount===0?'当前记录未提供可核对的工具调用数量，可查看执行过程。':undefined}>{queued ? '排队中' : running ? '正在执行' : terminalLabel} {focus === 'thinking' ? (queued?'等待开始':running&&parentModels.length===0?'准备执行':'思考状态') : <>{focus === 'tasks' && foldSteps.length > 0 ? `${foldSteps.length} 个任务步骤 · ` : ''}{toolCount>0?`${toolCount} 次工具调用`:'工具调用数未记录'}</>}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{traceIssues.length > 0 && <button type="button" className="capstone-process-trace-warning" aria-label="定位工具记录缺失" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader(); setTraceFocus(previous => ({ ...traceIssues[0], revision: (previous?.revision ?? 0) + 1 })) }}><AlertTriangle aria-hidden="true" />工具记录缺失 · {traceIssues.reduce((sum, issue) => sum + issue.missingToolIds.length, 0)}项</button>}{!open && <small>查看执行过程</small>}<span className="capstone-process-toolbar">{processOpen&&focus==='tools'&&toolCount>0&&toolControls(false)}{open && focus === 'tasks' && foldSteps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" aria-label="展开步骤" title="展开全部步骤" disabled={foldSteps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}><ChevronsUpDown aria-hidden="true" /></button><button type="button" aria-label="折叠步骤" title="折叠全部步骤" disabled={foldSteps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}><ChevronsDownUp aria-hidden="true" /></button></span>}<button type="button" className="capstone-process-enlarge" title="放大阅读执行过程" aria-label="放大阅读执行过程" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader() }}><Maximize2 aria-hidden="true" /></button></span></summary>
+    {(!running || processOpen) && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-complete-process"><TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}
+  </details>{executionGraph&&<ResearchProgressSummary nodes={executionGraph.current.nodes} limitations={[...progress.filter(item=>item.kind==='limitation').map(item=>item.text),...executionGraph.executions.flatMap(item=>item.tools.flatMap(tool=>tool.returnLimitations?.notes??[]))]} running={running}/ >}{lastWork && <div className="capstone-chat-activity-preview" aria-label="中断前的工作记录"><p className="capstone-task-goal">中断前的工作记录（不代表任务已完成）</p><TaskProgressItems items={[lastWork]} /></div>}{running && !processOpen && !executionGraph && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-chat-activity-preview" aria-label="执行过程预览"><TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}</div>}</>
 }
 
 function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {
@@ -1030,6 +1041,10 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const [activityOpen, setActivityOpen] = useState(() => {
     try { return localStorage.getItem(processStorageKey) === 'true' } catch { return false }
   })
+  const rememberProcessOpen = (next: boolean) => {
+    try { localStorage.setItem(processStorageKey, String(next)) } catch { /* Retain state in this page. */ }
+    setActivityOpen(next)
+  }
   useEffect(() => {
     try { localStorage.setItem(processStorageKey, String(activityOpen)) } catch { /* Retain state in this page. */ }
   }, [activityOpen, processStorageKey])
@@ -1039,7 +1054,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const resultOpen = activePanel === 'result'
   const selectPanel = (panel: 'process' | 'result' | 'evidence' | null) => {
     if (activityRef.current) activityRef.current.open = panel === 'process'
-    setActivityOpen(panel === 'process')
+    rememberProcessOpen(panel === 'process')
     setProcessPanel(panel === 'process' ? 'process' : null)
     if (panel === 'result' || panel === 'evidence') detail.select({messageId:id, panel})
     else detail.select(undefined)
@@ -1050,10 +1065,11 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const toggleActivity = () => togglePanel('process')
   useEffect(()=>{
     if(role==='assistant'&&finishedAttempt?.id===attemptId){
+      try { localStorage.setItem(processStorageKey, 'false') } catch { /* Retain state in this page. */ }
       setActivityOpen(false);setProcessPanel(null)
       if(activityRef.current)activityRef.current.open=false
     }
-  },[finishedAttempt?.sequence,attemptId,role])
+  },[finishedAttempt?.sequence,attemptId,role,processStorageKey])
   const messageState = status?.type === 'running' ? 'running' : typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : status?.type
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) ||
     (custom?.terminalPhase === 'completed' && canRerunCompleted && instruction?.trim() &&
@@ -1189,6 +1205,7 @@ function EmptyThreadState({ disabled }: { disabled: boolean }) {
 }
 
 export type CapstoneAssistantThreadProps = {
+  thinkingPreviews?:readonly ThinkingPreview[]
   /** Application projection of persisted messages; no synthetic runtime events. */
   productReferenceReader?:ProductReferenceReader
   requestedProductReference?:{selection:ContextProductRef;nonce:number}
@@ -1274,7 +1291,7 @@ export function restoreVisibleConversation(viewport:HTMLElement){
 }
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
   const [answerDetail, setAnswerDetail] = useState<AnswerDetailSelection>()
   const nativeArtifacts=useMemo(()=>[...new Map([...projectNativeArtifacts(events),...(nativeArtifactProjections||[])].map(file=>[`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`,file])).values()],[events,nativeArtifactProjections])
   const [restoredInput]=useState(()=>{try{return {draft:readInputDraft(storageKey)||emptyInputDraft(runtimeMode),error:''}}catch(error){return {draft:emptyInputDraft(runtimeMode),error:error instanceof Error?error.message:'输入草稿无法恢复。'}}})
@@ -1300,10 +1317,10 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   const [submittingThinking,setSubmittingThinking]=useState<{id:string;text:string;afterSeq:number;at:string}>()
   const submitSequence=useRef(0)
   const allMessages = useMemo(() => {
-    const rows=bindInstructionAttachments(projectedMessages ? [...projectedMessages] : projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest),inputCatalog?.stored_resources||[])
+    const rows=bindInstructionAttachments(projectedMessages ? [...projectedMessages] : projectSystemNotices(projectAssistantMessages(events, instructionModels,thinkingPreviews), events, systemNotices, historyAtLatest),inputCatalog?.stored_resources||[])
     if(!submittingThinking||events.some(event=>event.eventType==='command_accepted'&&event.eventSeq>submittingThinking.afterSeq&&payloadText(event,true)===submittingThinking.text))return rows
     return [...rows,{id:`user-${submittingThinking.id}`,role:'user' as const,content:submittingThinking.text,metadata:{custom:{source:'optimistic-submit'}}},{id:submittingThinking.id,role:'assistant' as const,content:'',status:{type:'running' as const},metadata:{custom:{source:'optimistic-submit',initialThinking:{text:'',phase:'queued',handedOff:false,startedAt:submittingThinking.at} satisfies InitialThinking,stepStorageKey:submittingThinking.id}}}]
-  }, [projectedMessages, events, instructionModels, systemNotices, historyAtLatest,submittingThinking,inputCatalog?.stored_resources])
+  }, [thinkingPreviews, projectedMessages, events, instructionModels, systemNotices, historyAtLatest,submittingThinking,inputCatalog?.stored_resources])
   const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useSessionViewState<{ thread: string | undefined; ids: string[] }>('conversation.folds',{ thread: storageKey, ids: [] })
   const collapsedAnswers = new Set(foldState.thread === storageKey ? foldState.ids : [])

@@ -267,6 +267,15 @@ def test_electrical_view_tools_can_be_published_without_build_permissions(tmp_pa
     assert all('data_gateway_' + name in asyncio.run(admitted.prepare())['tools'] for name in names)
 
 
+def test_gateway_http_read_timeout_follows_the_admitted_tool_budget():
+    from capstone_agent.application_capacity import limits
+    from capstone_agent.data_gateway_mcp import gateway_http_timeout
+    timeout = gateway_http_timeout()
+    assert timeout.connect == 30
+    assert timeout.read == limits.mcp_tool_seconds
+    assert timeout.read > timeout.connect
+
+
 def test_wrapped_transport_failures_keep_safe_diagnostic_codes():
     import httpx
     from capstone_agent.data_gateway_mcp import public_failure

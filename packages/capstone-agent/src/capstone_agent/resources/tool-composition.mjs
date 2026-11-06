@@ -9,6 +9,7 @@ import {observedAction,readObservation} from './observed-action.mjs';
 import {observationReadBudgetError} from './observation-read-budget.mjs';
 import {setTimeout as wait} from 'node:timers/promises';
 import {prepareObservationTable} from './observation-data.mjs';
+import {createToolCallScheduler} from './tool-call-scheduler.mjs';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
 const canonical=(v)=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 function refreshReason(options){
@@ -33,8 +34,16 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
   // Transient timeouts retain their existing per-program policy.
   const rejectedRequests=new Map();
   const identities=createToolIdentityResolver(catalog.tools,admittedNames);
-  return {name:'agent_tools_execute',label:'执行多步数据处理',description:'Process source observations through one pipeline: tools.plan checks retrieval, tools.batch/call obtains or reuses results, tools.inspect/read finds exact fields, and tools.table validates and exports CSV. Prefer these helpers over shell exploration of saved JSON. Run the async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. For a known independent call list use tools.batch([{tool,arguments},...]): the host checks the whole batch against remaining capacity, selected tool identities and frozen input schemas before any call, reserves capacity, and runs it with bounded concurrency in input order. Any invalid input rejects the entire batch before invocation. Per-call validation still applies; batch execution is not transactional. Use tools.call for dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. tools.follow(ref,pointer) executes an action copied from a successful host observation at that JSON pointer, preserving exact tool names and arguments. Select its target tool in tools first. Prefer follow for returned actions instead of retyping identifiers; it honors returned waits and uses the same grant/schema checks. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Failed programs retain all completed_calls references; large manifests have an issued full_result readable with tools.read(full_result,"/completed_calls",{offset,limit}). Reuse completed results rather than reading again. A successful program also reports failed_call_count and failed_calls; do not confuse program completion with business success. Source packages are observations, not Authority evidence. tools.inspect(ref,pointer="") returns a bounded structure index without data values; use it and read in the same program instead of extra shell/model turns. tools.read returns the selected field directly, not a value wrapper; with an array page {offset,limit} it returns {items,total_items,next_offset,offset}. tools.read(ref,pointer) reads a bounded exact field from a previous observation, including failed results, without another upstream call. For blocked repeats inspect previous_call; do not recreate an unchanged rejected request. '+`Limits for this instance: max_calls=${policy.max_calls}, concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. Plan batches within these limits before writing a long program. `+gatewayToolUseGuidance,
-    parameters:{type:'object',properties:{program:{type:'string',description:"Async program body. Example: const r=await tools.call(name,args); const saved=await saveContext('shared',{bindings:{unit:{call:r.ref,pointer:'/data/unit'},method:{value:'mean'},missing:{unknown:true,reason:'not provided'}},datasets:[{name:'load',call:r.ref,pointer:'/data/rows'}]}); return saved; Use actual returned fields in pointers. loadContext(saved.path) returns bindings with basis/value and datasets keyed by name with data/status/provenance/gaps. Plain binding values are declared metadata, never verified facts. Actual call refs remain usable by later programs in this instruction/session; different tasks need explicit saved packages. Large returns are saved automatically; return selected fields to reduce model context."},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
+  const scheduler=createToolCallScheduler(policy.concurrency);
+  return {name:'agent_tools_execute',label:'执行多步数据处理',description:
+    'For known independent requests, submit calls:[{id,tool,arguments},...] directly, without program or tools. This is the normal retrieval form when all arguments are known. The host preflights the entire list and schedules it within shared session capacity; read-only operations may overlap, unknown or mutating operations execute exclusively. Results retain input IDs/order and issued refs; individual failures do not roll back successful calls or trigger retries. For independent multi-step or paginated chains use program with tools.map(items,async(item,index)=>value,{concurrency?}); await each dependent page inside its mapper while different chains overlap. tools.map returns input-ordered mapped values, stops starting items on error and drains active mappers before throwing; completed call refs remain recoverable. Do not serialize independent chains in an outer await loop. Use program/tools for processing saved observations and genuinely dependent operations. Discover only when needed, then submit the independent set supported by actual observations. Prefer contract-supported range/aggregate operations over unnecessary fragmented calls. '+
+    'Process source observations through tools.plan (preflight without execution), tools.batch/call (obtain/reuse results), tools.inspect/read (exact bounded fields), and tools.table (validate/export CSV). Program mode runs async JavaScript in the isolated task workspace. Select admitted gateway tools explicitly. In a program use tools.batch([{tool,arguments},...]) for independent calls and tools.call(name,args) for dependent calls. Batch preflight checks the whole list against remaining capacity, selected identities and frozen schemas before invocation. Any invalid input rejects the entire batch. Batch execution is not transactional. tools.call returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns the exact contract. tools.follow(ref,pointer) copies an action from a successful observation unchanged and honors returned waits; select its target tool first. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) and loadContext(path) preserve observed fields, issued refs, declared values and explicit unknowns. Return compact summaries and retain source data in packages. No automatic retries. Failed programs retain completed_calls; large manifests have an issued full_result readable with tools.read(full_result,"/completed_calls",{offset,limit}). Reuse completed observations instead of repeating retrieval. Inspect failed_call_count and failed_calls: program completion is not business success. Source observations are not Authority evidence. tools.inspect(ref,pointer="") returns a structure index without data values. tools.read(ref,pointer) returns the selected field directly, not a wrapper; array pages {offset,limit} return {items,total_items,next_offset,offset}. For blocked repeats inspect previous_call rather than recreating an unchanged rejected request. '+
+    `Limits: max_calls=${policy.max_calls}, shared_session_concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. `+gatewayToolUseGuidance,
+    parameters:{type:'object',properties:{
+      calls:{type:'array',minItems:1,maxItems:policy.max_calls,description:'Known independent calls with complete exact arguments. Submit together without writing a program. IDs are unique within this batch; results retain IDs and input order. The host validates the entire list before invocation and schedules within published execution constraints. Use returned refs in later processing or dependent stages.',items:{type:'object',properties:{id:{type:'string',minLength:1,maxLength:128},tool:{type:'string',minLength:1},arguments:{type:'object',additionalProperties:true}},required:['id','tool','arguments'],additionalProperties:false}},
+      program:{type:'string',description:'Async processing or dependent program. Mutually exclusive with calls. tools.help() returns exact helper signatures without upstream calls. tools.map(items,async mapper,{concurrency?}) overlaps independent chains while each mapper awaits its own dependencies. tools.batch submits independent requests; tools.call returns {tool,ref,ok,status,data,value,...}. tools.inspect/read access literal issued refs or full_result objects; full_result is not an ambient variable. tools.saveContext(name,{bindings:{},datasets:[{name,call:issuedRef,pointer:"/data/rows"}]}) retains source-backed packages; datasets is an array. tools.loadContext(path) restores them. Global saveContext/loadContext remain aliases. Return compact summaries; large results are saved automatically.'},
+      tools:{type:'array',items:{type:'string'},description:'Admitted tools selected for program mode only; calls mode derives these from the call list.'},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},
+      oneOf:[{required:['calls'],not:{anyOf:[{required:['program']},{required:['tools']}]}},{required:['program','tools'],not:{required:['calls']}}],additionalProperties:false},
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const completedCalls=[];
@@ -59,8 +68,19 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
       let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Map();let active=0,calls=0,requests=0,skipped=0,reused=0,finished=false;
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
-        if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
-        const selected=[...new Set(identities.resolveMany(input.tools))];
+        const direct=Object.hasOwn(input,'calls');
+        if(direct){
+          if(Object.hasOwn(input,'program')||Object.hasOwn(input,'tools'))throw Error('Use calls or program/tools, never both');
+          if(!Array.isArray(input.calls)||!input.calls.length||input.calls.length>policy.max_calls)throw Error('Invalid batch size');
+          const ids=new Set();
+          for(const item of input.calls){
+            if(!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).some(k=>!['id','tool','arguments'].includes(k))||
+                typeof item.id!=='string'||!item.id.trim()||item.id.length>128||ids.has(item.id)||
+                !item.arguments||typeof item.arguments!=='object'||Array.isArray(item.arguments))throw Error('Expected unique id, admitted tool and arguments object for every call');
+            ids.add(item.id);
+          }
+        }else if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
+        const selected=[...new Set(identities.resolveMany(direct?input.calls.map(c=>c.tool):input.tools))];
         const limit=input.max_calls??policy.max_calls,concurrency=input.concurrency??policy.concurrency;
         if(!Number.isInteger(limit)||limit<1||limit>policy.max_calls||!Number.isInteger(concurrency)||concurrency<1||concurrency>policy.concurrency)throw Error('Invalid composition limits');
         const timeout=Math.min(input.timeout_ms??policy.max_program_ms,policy.max_program_ms,deadlineAt-Date.now());
@@ -135,9 +155,10 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                 const failureKey=message.name+':'+argumentsHash;
                 const reason=refreshReason(message.options);
                 const reusable=reuseEligible(schemas[message.name],message.args);
+                const queuedAt=Date.now();
                 if(active>=concurrency)await new Promise((resolve,reject)=>queue.push(()=>abort.signal.aborted?reject(abort.signal.reason):resolve()));
                 abort.signal.throwIfAborted();active++;
-                let release;
+                let release,releaseShared,startedAt;
                 try{
                   while(reusable&&inFlight.has(failureKey))await inFlight.get(failureKey);
                   abort.signal.throwIfAborted();
@@ -145,19 +166,23 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   if(previous){
                     const record=records.get(previous);
                     reused++;completedCalls.push({ref:previous,tool:message.name,ok:true,reused:true});
-                    value={...record.value,ref:previous,ok:true,value:record.value,reused:true,observed_at:new Date(record.observedAt).toISOString()};
+                    value={...record.value,tool:message.name,ref:previous,ok:true,value:record.value,reused:true,observed_at:new Date(record.observedAt).toISOString()};
                   }else if(rejectedRequests.has(failureKey)){
                     const previous=rejectedRequests.get(failureKey);
-                    skipped++;value={ref:null,ok:false,status:'not_executed',data:null,
+                    const refused=previous.gaps?.some(gap=>gap?.scope?.retry_same_request===false);
+                    skipped++;value={tool:message.name,ref:null,ok:false,status:'not_executed',data:null,
                       previous_call:previous.ref,gaps:previous.gaps,
-                      recovery:'This exact request was already rejected as unexecuted and non-correctable. Inspect the previous observation; no new upstream call was made.',value:null};
+                      recovery:refused?'This exact request was refused. scope.retry_same_request is false. Use scope.suggested_request when present, otherwise narrow by scope.fields in order. No upstream call was made.':'This exact request was already rejected as unexecuted and non-correctable. Inspect the previous observation; no new upstream call was made.',value:null};
                   }else if(blocked.has(failureKey)){
-                    skipped++;value={ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'}],value:null};
+                    skipped++;value={tool:message.name,ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'}],value:null};
                   }else{
                   if(reusable&&reason)successfulRequests.delete(failureKey);
                   if(reusable&&!inFlight.has(failureKey))inFlight.set(failureKey,new Promise(resolve=>{release=()=>{inFlight.delete(failureKey);resolve();};}));
                   calls++;
                   if(message.waitMs)await wait(message.waitMs,undefined,{signal:abort.signal});
+                  const effects=schemas[message.name]?.annotations;
+                  releaseShared=await scheduler.acquire({signal:abort.signal,exclusive:effects?.readOnlyHint!==true||effects?.destructiveHint===true});
+                  abort.signal.throwIfAborted();startedAt=Date.now();
                   const nestedId=`${callId}:${run}:${message.id}`,native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal,...(reason?{refresh_reason:reason}:{})}));
                   const upstreamReuse=typeof native.details?.reused_from==='string';
                   if(upstreamReuse){calls--;reused++;}
@@ -173,13 +198,19 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   const observedAt=native.details?.observed_at?Date.parse(native.details.observed_at):Date.now();
                   records.set(ref,{ref,ok,value:observed,receipt:native.details??{},observedAt});
                   if(reusable&&ok&&observed?.status==='ok')successfulRequests.set(failureKey,ref);
-                  if(!ok&&Array.isArray(observed?.gaps)&&observed.gaps.some(g=>g?.scope?.executed===false&&g.scope.correctable===false))
-                    rejectedRequests.set(failureKey,{ref,gaps:structuredClone(observed.gaps)});
-                  completedCalls.push({ref,tool:message.name,ok,...(upstreamReuse?{reused:true,original_observation_ref:native.details.reused_from}:{}),...(reason?{refresh_reason:reason}:{})});
-                  value={...(observed&&typeof observed==='object'?observed:{}),ref,ok,value:observed,
+                  const gaps=Array.isArray(observed?.gaps)?observed.gaps:[];
+                  const refuseSame=!ok&&gaps.some(gap=>gap?.scope?.retry_same_request===false);
+                  if(!ok&&(refuseSame||gaps.some(gap=>gap?.scope?.executed===false&&gap.scope.correctable===false)))
+                    rejectedRequests.set(failureKey,{ref,gaps:structuredClone(gaps)});
+                  completedCalls.push({ref,tool:message.name,ok,...(message.index!==undefined?{index:message.index}:{}),queued_at:new Date(queuedAt).toISOString(),started_at:new Date(startedAt).toISOString(),ended_at:new Date().toISOString(),...(upstreamReuse?{reused:true,original_observation_ref:native.details.reused_from}:{}),...(reason?{refresh_reason:reason}:{})});
+                  value={...(observed&&typeof observed==='object'?observed:{}),tool:message.name,ref,ok,value:observed,
+                    ...(refuseSame?{recovery:'Do not send this request again. Follow scope.suggested_request when present, otherwise equality-constrain scope.fields in order before any time range. limit does not narrow the scan before an aggregate.'}:{}),
                     ...(upstreamReuse?{reused:true,original_observation_ref:native.details.reused_from,observed_at:native.details.observed_at}:{})};
                   }
-                }finally{release?.();active--;queue.shift()?.();}
+                }catch(error){
+                  if(direct&&!abort.signal.aborted)completedCalls.push({ref:null,tool:message.name,ok:false,index:message.index,execution_status:startedAt?'unknown':'not_started',error:String(error.message??error)});
+                  throw error;
+                }finally{releaseShared?.();release?.();active--;queue.shift()?.();}
               }else if(message.kind==='read'||message.kind==='inspect'){
                 value=typeof message.ref==='string'?readObservation(await sourceRecords(message.ref),message.ref,message.pointer):
                   await readSavedObservation(message.ref,message.pointer,{cwd});
@@ -209,9 +240,9 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
             const operation=handleMessage(message);operations.add(operation);
             operation.then(()=>operations.delete(operation),error=>{operations.delete(operation);settle(undefined,error);});
           });
-          child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
+          child.send({kind:'start',program:input.program,...(direct?{calls:input.calls}:{}),schemas,concurrency,outputBytes:policy.output_bytes});
         });
-        const failedCalls=completedCalls.filter(call=>!call.ok);
+        const failedCalls=(direct?result:completedCalls).filter(call=>!call.ok);
         const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,reused_call_count:reused,completed_calls:completedCalls,batch_plans:batchPlans,
           failed_call_count:failedCalls.length,failed_calls:failedCalls,limited_conditions:[...blocked.values()]});
         // Unlike gateway receipts, the program return has no host requirement

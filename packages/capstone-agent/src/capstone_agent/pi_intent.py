@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import time
@@ -38,14 +39,24 @@ class PiIntentRecognizer:
             raise TypeError("intent engine identity is required")
         self._factory = prepared_session_factory
         self.identity = identity
+        self.thinking_level = "medium"
 
     def recognize(self, request: IntentRequest, control: NodeControl) -> IntentDecision:
         control.checkpoint()
         session = self._factory(request, control)
+        apply_thinking = getattr(session, "set_thinking_level", None)
+        if callable(apply_thinking):
+            apply_thinking(self.thinking_level)
         decisions: list[IntentDecision] = []
 
         def observe(event: Mapping[str, object]) -> None:
             control.checkpoint()
+            if event.get("type") == "assistant_thinking_delta":
+                notice = getattr(control, "notice", None)
+                text = event.get("text")
+                if callable(notice) and isinstance(text, str) and text:
+                    notice({"type": "assistant_thinking_delta", "text": text[:4096]})
+                return
             if event.get("type") != "tool_result":
                 return
             if event.get("capability") != "capstone.intent.decision" or event.get("ok") is not True:
@@ -129,7 +140,10 @@ class NativeConversationPiSessionBuilder:
 
     def __init__(self, *, runtime_host: RuntimeHost, resolved_llm: ResolvedLLM,
                  workspace_root: Path, base_environment: Mapping[str, str] | None = None,
-                 config_root: Path | None = None) -> None:
+                 config_root: Path | None = None, model_reasoning: bool | None = None) -> None:
+        if model_reasoning is not None and type(model_reasoning) is not bool:
+            raise ValueError('Model reasoning capability must be a boolean')
+        self._model_reasoning = model_reasoning
         self._host = runtime_host
         self._llm = resolved_llm
         self._workspace_root = Path(workspace_root)
@@ -165,6 +179,7 @@ class NativeConversationPiSessionBuilder:
             digest.update(name.encode() + b'\0' + (Path(__file__).parent / name).read_bytes() + b'\0')
         digest.update(json.dumps({
             "provider": resolved_llm.config.provider, "model": resolved_llm.config.model,
+            "model_reasoning": model_reasoning,
             "base_url": resolved_llm.config.base_url, "pi_provider": resolved_llm.config.pi_provider,
             "compatibility_profile": resolved_llm.config.compatibility_profile,
             "public_headers": dict(resolved_llm.config.public_headers),
@@ -255,6 +270,24 @@ class NativeConversationPiSessionBuilder:
         """
         if (intent or context_selection) and domain_policy is not None:
             raise ValueError("Intent preparation cannot load a domain policy")
+        # Only the launch-owned override may change. Shared protected Provider
+        # configuration must retain its original content and permissions.
+        agent_dir = Path(launch.environment.get('PI_CODING_AGENT_DIR', self._host.project_pi_dir))
+        if self._model_reasoning is not None:
+            if agent_dir.resolve() == self._host.project_pi_dir.resolve():
+                raise ValueError('Model reasoning capability requires private Provider configuration')
+            agent_dir.resolve().relative_to(workspace.root.resolve())
+            model_path = agent_dir / 'models.json'
+            model_path.resolve().relative_to(workspace.root.resolve())
+            models = json.loads(model_path.read_text(encoding='utf-8'))
+            provider = models.get('providers', {}).get(self._llm.config.pi_provider, {})
+            matches = [model for model in provider.get('models', [])
+                       if model.get('id') == self._llm.config.model]
+            if len(matches) != 1:
+                raise ValueError('Model reasoning capability requires one exact private model target')
+            matches[0]['reasoning'] = self._model_reasoning
+            model_path.write_text(json.dumps(models), encoding='utf-8')
+            model_path.chmod(0o600)
         transport_config = self._host.project_pi_dir / "models.json"
         current_transport_sha256 = sha256(transport_config.read_bytes()).hexdigest() if transport_config.is_file() else None
         if current_transport_sha256 != self._transport_sha256:
@@ -330,16 +363,58 @@ class _RpcWorkspace:
 class _ConversationPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, intent: bool) -> None:
         self._client, self._trace, self._intent = client, trace, intent
+        self._thinking_level = "medium"
+
+    def set_thinking_level(self, level: str) -> None:
+        if level not in {"minimal", "low", "medium", "high", "xhigh"}:
+            raise ValueError("unsupported reasoning level")
+        self._thinking_level = level
 
     def start(self) -> None:
         self._client.start()
 
     def prompt_and_wait(self, question: str, *, on_semantic_event: Callable,
                         correlation_id: str | None, on_heartbeat: Callable) -> str:
-        return self._client.prompt_and_wait(question,
-            on_semantic_event=lambda event, sequence: on_semantic_event(event),
-            correlation_id=correlation_id, on_heartbeat=on_heartbeat,
-            heartbeat_seconds=1.0, require_answer_text=not self._intent)
+        if self._intent:
+            # Keep a visible reasoning stream. Ordinary instructions use the
+            # shorter budget; complex instructions raise it before the prompt.
+            self._client.set_thinking_level(self._thinking_level)
+        from .stream_progress import thinking_delta_buffer
+        thinking = thinking_delta_buffer(
+            lambda text: on_semantic_event({"type": "assistant_thinking_delta", "text": text}),
+            preview=os.environ.get('CAPSTONE_THINKING_PREVIEW') == '1')
+
+        def publish(event: Mapping[str, object]) -> None:
+            # Same display stream the general executor records. Completed
+            # thinking blocks and signatures stay out of the public row.
+            change = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
+            if (isinstance(change, Mapping) and change.get("type") == "thinking_delta"
+                    and isinstance(change.get("delta"), str) and change["delta"]):
+                thinking.push(change["delta"])
+            else:
+                thinking.flush()
+
+        last_control_heartbeat = time.monotonic()
+
+        def heartbeat() -> None:
+            nonlocal last_control_heartbeat
+            thinking.flush_due()
+            now = time.monotonic()
+            if now - last_control_heartbeat >= 1.0:
+                on_heartbeat()
+                last_control_heartbeat = now
+
+        def semantic(event, sequence) -> None:
+            thinking.flush()
+            on_semantic_event(event)
+
+        try:
+            return self._client.prompt_and_wait(question,
+                on_event=publish, on_semantic_event=semantic,
+                correlation_id=correlation_id, on_heartbeat=heartbeat,
+                heartbeat_seconds=thinking.interval, require_answer_text=not self._intent)
+        finally:
+            thinking.flush()
 
     def stop(self) -> None:
         try:

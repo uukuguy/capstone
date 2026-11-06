@@ -105,6 +105,7 @@
 .is-resource-expanded .thread-resource-panel .workspace-product-stage:has(.thread-products-workspace) { padding: 0; overflow: hidden; overflow-anchor: none; }
 .is-resource-expanded .thread-resource-panel .workspace-product-paper:has(> .thread-products-workspace) { height: 100%; min-height: 0; border: 0; box-shadow: none; }
 .is-resource-expanded .workspace-product-paper .thread-products-workspace { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px; overflow: hidden; overflow-anchor: none; }
+.is-resource-expanded .thread-products-workspace:has(> .thread-products-directory:not([open])) > .thread-products-scope > div > span { -webkit-line-clamp: 1; line-clamp: 1; }
 .is-resource-expanded .workspace-product-paper .thread-products-workspace > .thread-products-directory { position: static; flex: none; margin: 0; padding: 0; width: auto; border: 1px solid #cbdad5; }
 .is-resource-expanded .workspace-product-paper .thread-products-directory > summary { width: auto; height: auto; padding: 7px 10px; }
 .is-resource-expanded .workspace-product-paper .thread-products-directory > summary > span { display: inline; }

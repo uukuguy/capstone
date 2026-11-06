@@ -105,6 +105,18 @@ def fingerprint(value):
     return sha256(encode(value)).hexdigest()
 
 
+def gateway_http_timeout():
+    """Keep connection setup short. A tool read may use the admitted tool budget.
+
+    A fixed 30s client read expires before ``mcp_tool_seconds`` and is then
+    recorded as ``gateway_timeout``, which stops every later gateway call in
+    the same task.
+    """
+    import httpx
+    setup = 30.0
+    return httpx.Timeout(connect=setup, read=float(limits.mcp_tool_seconds), write=setup, pool=setup)
+
+
 def _deny(uri):
     raise NoSuchResource(ref=uri)
 
@@ -203,7 +215,7 @@ class DataGatewayMcp:
         import httpx
         from mcp import ClientSession
         from mcp.client.streamable_http import streamable_http_client
-        async with httpx.AsyncClient(headers=self._connection['headers'], timeout=30,
+        async with httpx.AsyncClient(headers=self._connection['headers'], timeout=gateway_http_timeout(),
                                      trust_env=False, follow_redirects=False) as client:
             async with streamable_http_client(self._connection['url'], http_client=client) as (reader, writer, _):
                 async with ClientSession(reader, writer) as session:

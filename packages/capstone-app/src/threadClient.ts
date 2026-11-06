@@ -1,4 +1,5 @@
 import {assertCapacity} from './applicationCapacity'
+import type {ThinkingPreview} from './thinkingPreview'
 import {
   parseCommandReceipt, parseContext, parseEventPage, parseThreadSnapshot,
   type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot,
@@ -52,7 +53,7 @@ export interface ThreadTransport {
   readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown>
   sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown>
   sendWorkCommand?(command: WorkCommand, signal?: AbortSignal): Promise<unknown>
-  streamEvents?(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope>
+  streamEvents?(threadId: string, afterEventSeq: number, signal?: AbortSignal, onPreview?:(preview:ThinkingPreview)=>void): AsyncGenerator<EventEnvelope>
   readonly connectionState?: ThreadTransportState
 }
 
@@ -255,8 +256,8 @@ export class CapstoneThreadClient {
     }), signal)
   }
 
-  async *events(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope> {
+  async *events(threadId: string, afterEventSeq: number, signal?: AbortSignal, onPreview?:(preview:ThinkingPreview)=>void): AsyncGenerator<EventEnvelope> {
     if (!this.transport.streamEvents) throw new Error('Thread transport does not support SSE')
-    for await (const event of this.transport.streamEvents(threadId, afterEventSeq, signal)) yield event
+    for await (const event of this.transport.streamEvents(threadId, afterEventSeq, signal,onPreview)) yield event
   }
 }

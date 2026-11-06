@@ -10,6 +10,7 @@ import type { AnyThreadCommand } from './threadClient'
 import { ThreadTransportError,isThreadVersionError } from './threadHttpTransport'
 import { ResultProjectionDelivery } from './resultProjectionDelivery'
 import {ResponseIntentProjection} from './responseIntentProjection'
+import {parseThinkingPreview,type ThinkingPreview} from './thinkingPreview'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -306,6 +307,23 @@ export class ThreadProjectionStore {
   }
 
   private loadedThreadId: string | null = null
+  private readonly previews=new Map<string,ThinkingPreview>()
+  get thinkingPreviews():readonly ThinkingPreview[]{return [...this.previews.values()]}
+
+  private receivePreview(preview:ThinkingPreview):void {
+    const ledger=this.ledger
+    if(!ledger||preview.thread_id!==ledger.threadId||preview.attempt_id!==ledger.currentAttempt?.attemptId)return
+    try{preview=parseThinkingPreview(preview,ledger.threadId)}catch{return}
+    // Search retained canonical history as well as the current event window.
+    if(this.conversationEvents.some(event=>event.attemptId===preview.attempt_id&&(
+      ['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)||
+      (Array.isArray(event.payload.preview_batch_ids)&&event.payload.preview_batch_ids.includes(preview.batch_id)))))return
+    const key=preview.attempt_id+':'+preview.batch_id
+    if(this.previews.has(key))return
+    this.previews.set(key,preview)
+    while(this.previews.size>256||[...this.previews.values()].reduce((n,item)=>n+item.text.length,0)>262144)this.previews.delete(this.previews.keys().next().value!)
+    this.notify()
+  }
   private olderHistoryCursor: number | null = null
   private networkContextEvents: EventEnvelope[] = []
   private readonly eventSizes = new Map<number, number>()
@@ -313,6 +331,11 @@ export class ThreadProjectionStore {
   private refreshingWorkSnapshot: number | null = null
   private readonly eventLog: EventEnvelope[] = []
   private readonly conversationArchive = new Map<number,EventEnvelope>()
+  // Diagnostic replay is recoverable from the ledger and has its own byte
+  // window. It must not turn the message archive into a second unbounded log.
+  private readonly conversationDiagnostics = new Map<number,EventEnvelope>()
+  private readonly conversationDiagnosticSizes = new Map<number,number>()
+  private conversationDiagnosticBytes = 0
   private conversationHistoryComplete = false
   private readonly resultDelivery = new ResultProjectionDelivery()
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
@@ -328,34 +351,60 @@ export class ThreadProjectionStore {
 
   private get ledger() { return this.current.workSnapshot ?? this.current.snapshot }
 
-  dispose(): void { this.loadGeneration += 1; this.listeners.clear() }
+  dispose(): void { this.loadGeneration += 1; this.previews.clear(); this.listeners.clear() }
 
   get state(): ThreadProjectionState {
     return this.current
   }
 
   get publicEvents(): readonly EventEnvelope[] {
-    return this.eventLog.filter((event) => event.visibility === 'public').map(event=>{
-      const intent=this.responseIntents.intent(event.eventId)
-      return intent?{...event,payload:{...event.payload,response_intent:intent}}:event
-    })
+    return this.eventLog.filter((event) => event.visibility === 'public').map(event=>this.withIntent(event))
+  }
+  private withIntent(event: EventEnvelope): EventEnvelope {
+    const intent=this.responseIntents.intent(event.eventId)
+    return intent&&event.payload.response_intent===undefined?{...event,payload:{...event.payload,response_intent:intent}}:event
+  }
+  private refreshIntents(): void {
+    const events=[...this.conversationArchive.values(),...this.conversationDiagnostics.values(),...this.eventLog]
+      .filter(event=>event.eventType==='runtime_action'||event.eventType==='assistant_process_delta')
+      .sort((a,b)=>a.eventSeq-b.eventSeq)
+    this.responseIntents.observe(events)
   }
   private readonly responseIntents=new ResponseIntentProjection()
 
   /** Message bodies outlive the bounded tool/token event window. */
   get conversationEvents(): readonly EventEnvelope[] {
-    return mergeHistoryEvents([...this.conversationArchive.values()],this.publicEvents)
+    return mergeHistoryEvents([...this.conversationArchive.values(),...this.conversationDiagnostics.values()].map(event=>this.withIntent(event)),this.publicEvents)
   }
   get conversationHistoryReady(): boolean {
     return !this.client.supportsHistory||this.conversationHistoryComplete
   }
 
   private retainConversation(events:readonly EventEnvelope[]):void {
-    for(const event of events)if(event.visibility==='public'&&[
-      'command_accepted','attempt_started','attempt_completed','attempt_failed',
-      'attempt_cancelled','attempt_interrupted','native_artifact_published',
-      'turn_route_selected','turn_plan_created',
-    ].includes(event.eventType))this.conversationArchive.set(event.eventSeq,event)
+    for(const event of events){
+      if(event.visibility==='public'&&['runtime_action','runtime_event','assistant_thinking_delta'].includes(event.eventType)){
+        if(!this.conversationDiagnostics.has(event.eventSeq)){
+          const bytes=new TextEncoder().encode(JSON.stringify(event)).byteLength
+          this.conversationDiagnostics.set(event.eventSeq,event)
+          this.conversationDiagnosticSizes.set(event.eventSeq,bytes)
+          this.conversationDiagnosticBytes+=bytes
+        }
+      }else if(event.eventType==='assistant_process_delta'||(event.visibility==='public'&&[
+        'command_accepted','attempt_started','attempt_completed','attempt_failed',
+        'attempt_cancelled','attempt_interrupted','native_artifact_published',
+        'turn_route_selected','turn_plan_created',
+      ].includes(event.eventType)))this.conversationArchive.set(event.eventSeq,event)
+    }
+    const budget=applicationCapacity('event_buffer_bytes')
+    if(this.conversationDiagnosticBytes>budget){
+      for(const seq of [...this.conversationDiagnostics.keys()].sort((a,b)=>a-b)){
+        this.conversationDiagnosticBytes-=this.conversationDiagnosticSizes.get(seq)??0
+        this.conversationDiagnostics.delete(seq)
+        this.conversationDiagnosticSizes.delete(seq)
+        if(this.conversationDiagnosticBytes<=budget)break
+      }
+    }
+    this.refreshIntents()
   }
 
   async restoreConversationHistory(signal?:AbortSignal):Promise<void> {
@@ -396,7 +445,6 @@ export class ThreadProjectionStore {
   }
 
   private trimHistory(keepLatest: boolean): void {
-    this.responseIntents.observe(this.eventLog)
     this.retainConversation(this.eventLog)
     let bytes = 0
     for (const event of this.eventLog) {
@@ -464,9 +512,14 @@ export class ThreadProjectionStore {
   }
 
   async load(threadId: string): Promise<void> {
+    this.previews.clear()
     const generation = ++this.loadGeneration
     const sameThread = this.loadedThreadId === threadId
-    if(!sameThread){this.conversationArchive.clear();this.conversationHistoryComplete=false;this.responseIntents.clear()}
+    if(!sameThread){
+      this.conversationArchive.clear();this.conversationDiagnostics.clear()
+      this.conversationDiagnosticSizes.clear();this.conversationDiagnosticBytes=0
+      this.conversationHistoryComplete=false;this.responseIntents.clear()
+    }
     const previousView = this.loadedThreadId === threadId ? this.current.viewedGridPageId : null
     this.current = {
       ...this.current,
@@ -717,6 +770,8 @@ export class ThreadProjectionStore {
   }
 
   async consumeEvents(signal?: AbortSignal): Promise<void> {
+    this.previews.clear();this.notify()
+    let receiving=true
     const generation = this.loadGeneration
     if (this.current.resyncRequired || this.current.connection === 'resync_required') {
       throw new Error('thread is resync_required')
@@ -724,7 +779,9 @@ export class ThreadProjectionStore {
     const snapshot = this.ledger
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     try {
-      for await (const event of this.client.events(snapshot.threadId, this.current.eventSeq, signal)) {
+      for await (const event of this.client.events(snapshot.threadId, this.current.eventSeq, signal,preview=>{
+        if(receiving&&generation===this.loadGeneration&&!signal?.aborted)this.receivePreview(preview)
+      })) {
         if (generation !== this.loadGeneration) return
         const previousSeq = this.current.eventSeq
         this.applyEvent(event)
@@ -749,6 +806,9 @@ export class ThreadProjectionStore {
       if (snapshot) this.eventLog.length = 0
       this.notify()
       throw error
+    } finally {
+      receiving=false
+      if(generation===this.loadGeneration){this.previews.clear();this.notify()}
     }
   }
 
@@ -896,6 +956,9 @@ export class ThreadProjectionStore {
       throw new Error('event stream is not contiguous')
     }
     event = this.internDiagramEvent(event)
+    for(const [key,preview] of this.previews)if(preview.attempt_id===event.attemptId&&(
+      ['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)||
+      (Array.isArray(event.payload.preview_batch_ids)&&event.payload.preview_batch_ids.includes(preview.batch_id))))this.previews.delete(key)
     const workSnapshot = this.current.workSnapshot
     // The host explicitly clears the active calculation context when a native
     // conversation closes its last model. Do this before the asynchronous

@@ -573,6 +573,76 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
         assert 'from this Attempt' in context['business_dependency_policy']
 
 
+def test_unbound_domain_session_keeps_this_workers_configuration(tmp_path, monkeypatch):
+    import json
+    from pathlib import Path
+    from dataclasses import replace
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    from capstone_agent.turn_router import TurnPlan
+    from test_pi_intent import runtime_inputs
+    from test_unscoped_research_intent import governed_executor, open_store, submit
+    import capstone_agent.kernel_pi_session as module
+
+    host, llm = runtime_inputs(tmp_path)
+    host.system_policy_path.write_text('RECEIVING DOMAIN POLICY')
+    host.extension_path.with_name('model-input-metrics.mjs').write_text('export {}')
+    native = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+                                               workspace_root=tmp_path / 'runs')
+    store = open_store(governed_executor())
+    submit(store)
+    claimed = store.claim_attempt('native', 30, 'native')
+    assert claimed is not None and claimed.model_context is None
+    source = IntentRequest.from_document({'schema': 'capstone-intent-request/1',
+        'thread_id': claimed.thread_id, 'turn_id': claimed.attempt.turn_id,
+        'attempt_id': claimed.attempt.attempt_id, 'instruction': '复现病态11节点算例',
+        'history_cutoff': 0, 'messages': [], 'objects': [], 'capabilities': [
+            {'capability_id': 'pandapower-static-analysis@1.0.0', 'available': True, 'enabled': True}],
+        'mode_hint': None})
+    decision = IntentDecision.from_document({'schema': 'capstone-intent-decision/1',
+        'attempt_id': claimed.attempt.attempt_id, 'history_cutoff': 0, 'relationship': 'independent',
+        'goals': [{'goal_id': 'g1', 'operation': 'business_execute',
+            'instruction_excerpt': '复现病态11节点算例', 'description': 'PRIVATE_DIAGNOSTIC inventory',
+            'message_refs': [], 'object_refs': [], 'capability_refs': ['pandapower-static-analysis@1.0.0'],
+            'missing_requirements': [], 'depends_on': []}], 'clarification': None}, source)
+    frozen_engine = {'engine': 'pi', 'model': 'recognizer-model', 'config_revision': 'sha256:' + 'ab' * 32}
+    assert native.identity.to_document() != frozen_engine
+    claim = replace(claimed, turn_plan=TurnPlan(
+        claimed.attempt.turn_id, claimed.attempt.attempt_id, 'professional', 'fixture', 'fixture-v1',
+        None, {}, intent_request=source, intent_decision=decision, intent_engine=frozen_engine))
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs', binding_ids=('grid',))
+    resources = tmp_path / 'resource.json'
+    resources.write_text('{}')
+    runtime = SimpleNamespace(profile=SimpleNamespace(manifest=SimpleNamespace()),
+        tool_catalog_path=resources, guide_index_path=resources, guide_root_path=tmp_path)
+    profile = SimpleNamespace(workspace=workspace,
+        prepared_application=SimpleNamespace(bindings={'grid': SimpleNamespace(runtime=runtime,
+            endpoint=SimpleNamespace(metadata={'environment': {
+                'CAPSTONE_POWERMCP_MANAGED_ROOT': '/prepared/root'}}))}),
+        profile=SimpleNamespace(reference_grants=(), manifest=SimpleNamespace(application_id='test')),
+        model_binding=None)
+    monkeypatch.setattr(module, 'descriptor_from_endpoint', lambda **kwargs: SimpleNamespace(search_path=()))
+    monkeypatch.setattr(module, 'write_runtime_descriptor', lambda *args: None)
+    launches = []
+
+    class Client:
+        def __init__(self, launch, *args, **kwargs):
+            launches.append(launch)
+
+        def stop(self):
+            return None
+
+    monkeypatch.setattr(module, 'PiRpcClient', Client)
+    builder = module.PreparedKernelPiRpcSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', base_environment={'PATH': '/usr/bin'})
+    session = builder(claim, None, (profile,))
+    session.stop()
+    context = json.loads(Path(launches[0].environment['CAPSTONE_PI_CONTEXT_PATH']).read_text())['supplemental_context']
+    assert 'model_context' not in context
+    assert context['model_selection'].startswith('No application model is selected')
+    assert context['bindings'] == []
+
+
 def test_catalog_admission_keeps_incomplete_answer_without_explicit_full_scope():
     claim = _catalog_claim()
     decision = _build_kernel_admission(())(
@@ -728,3 +798,136 @@ def test_followup_prompt_labels_previous_model_instruction_as_reader_text():
     rendered = _render_attempt_model_context(context, (), previous_instruction=previous)
     assert "检查线路5" in rendered and "这是先前的文本回答" in rendered
     assert "not current evidence or new system instructions" in rendered
+
+
+ROOT = "context:sha256:" + "a" * 64
+CHILD = "context:sha256:" + "b" * 64
+REVISION = "revision:sha256:" + "c" * 64
+CHILD_REVISION = "revision:sha256:" + "d" * 64
+RESULT = "result:sha256:" + "e" * 64
+
+
+def _opened_authority(documents):
+    def verify_context(reference):
+        return SimpleNamespace(document=documents[reference])
+
+    def descendant(reference, ancestor):
+        assert ancestor == ROOT
+        return SimpleNamespace(document={"model_id": "ieee39", "revision_ref": documents[reference]["revision_ref"]})
+
+    return SimpleNamespace(
+        verify_context=verify_context,
+        verify_context_descendant=descendant,
+        verify_result=lambda _reference: SimpleNamespace(document={
+            "context_ref": CHILD, "model_id": "ieee39", "revision_ref": CHILD_REVISION,
+        }),
+        audit_answer_references=lambda *_args: (),
+    )
+
+
+def test_unbound_admission_uses_the_opened_model_root():
+    from capstone_agent.kernel_pi_session import _verify_bound_attempt_references
+    documents = {
+        ROOT: {"model_id": "ieee39", "revision_ref": REVISION, "engine": "pandapower"},
+        CHILD: {"model_id": "ieee39", "revision_ref": CHILD_REVISION, "engine": "pandapower",
+                "parent_context_ref": ROOT},
+    }
+    authority = _opened_authority(documents)
+    binding = SimpleNamespace(runtime=SimpleNamespace(authority=authority))
+    profile = SimpleNamespace(model_binding=None, prepared_application=SimpleNamespace(bindings={"grid": binding}))
+    _verify_bound_attempt_references(
+        (profile,), {"grid": binding}, {RESULT: "grid"}, (RESULT,), (),
+        ({"binding_id": "grid", "ok": True, "context_ref": CHILD, "model_revision": CHILD_REVISION},),
+    )
+
+
+def test_unbound_admission_without_an_opened_context_is_a_gap():
+    from capstone_agent.kernel_pi_session import _verify_bound_attempt_references
+    authority = SimpleNamespace(
+        verify_result=lambda _reference: SimpleNamespace(document={"revision_ref": REVISION}),
+        audit_answer_references=lambda *_args: (),
+    )
+    binding = SimpleNamespace(runtime=SimpleNamespace(authority=authority))
+    profile = SimpleNamespace(model_binding=None, prepared_application=SimpleNamespace(bindings={"grid": binding}))
+    with pytest.raises(ValueError, match="no opened model context"):
+        _verify_bound_attempt_references(
+            (profile,), {"grid": binding}, {RESULT: "grid"}, (RESULT,), (), (),
+        )
+
+
+def test_unbound_projection_uses_the_opened_context_identity():
+    from capstone_agent.kernel_pi_session import _build_result_projections
+    context_ref = "context:sha256:" + "f" * 64
+    authority = SimpleNamespace(
+        verify_result=lambda _reference: SimpleNamespace(document={"context_ref": context_ref, "revision_ref": REVISION}),
+        verify_context=lambda _reference: SimpleNamespace(document={
+            "model_id": "ieee39", "revision_ref": REVISION, "engine": "pandapower",
+        }),
+    )
+    runtime = SimpleNamespace(authority=authority, profile=SimpleNamespace(id="pandapower-static-analysis"))
+    binding = SimpleNamespace(runtime=runtime)
+    profile = SimpleNamespace(model_binding=None, prepared_application=SimpleNamespace(bindings={"grid": binding}))
+
+    class Claim:
+        model_context = None
+        thread_id = "thr_1"
+        run_id = "run_1"
+        attempt = SimpleNamespace(attempt_id="attempt_1", turn_id="turn_1")
+
+        @property
+        def professional_context(self):
+            raise AssertionError("professional_context")
+
+    projections = _build_result_projections(
+        Claim(), (profile,), {"grid": binding}, (RESULT,), (),
+        ({"binding_id": "grid", "ok": True, "capability_id": "analysis.powerflow.ac.run",
+          "result_refs": [RESULT]},),
+    )
+    assert projections[0]["model_context_id"] == context_ref
+    assert projections[0]["model_id"] == "ieee39"
+    assert projections[0]["model_revision"] == REVISION
+    assert projections[0]["source"]["implementation_family"] == "pandapower"
+    assert projections[0]["status"] == "unavailable"
+
+
+def test_unbound_kernel_session_reaches_the_builder_without_a_model(tmp_path):
+    from capstone_agent.kernel_capability_preparation import PreparedKernelApplicationProfile
+    from capstone_agent.kernel_pi_session import PreparedKernelPiSessionFactory
+    from capstone_agent.model_capability_context import PreparedModelCapabilityContext
+    from test_unscoped_research_intent import governed_executor, open_store, submit
+    catalog = tmp_path / "tool-catalog.json"
+    guide = tmp_path / "guide-index.json"
+    catalog.write_text("{}")
+    guide.write_text("{}")
+    binding = SimpleNamespace(
+        runtime=SimpleNamespace(tool_catalog_path=catalog, guide_index_path=guide),
+        endpoint=SimpleNamespace(executor=SimpleNamespace(invoke=lambda *_args: None)),
+    )
+    prepared = PreparedKernelApplicationProfile(
+        profile=object(), prepared_application=SimpleNamespace(bindings={"grid": binding}),
+        workspace=SimpleNamespace(), model_binding=None,
+    )
+    contribution = SimpleNamespace(prepared=prepared, close=lambda: None)
+    context = PreparedModelCapabilityContext("thr_unscoped", "run_1", None, (), (contribution,))
+    store = open_store(governed_executor())
+    submit(store)
+    claim = store.claim_attempt("native", 30, "native")
+    seen = []
+
+    class Session:
+        def start(self):
+            return None
+
+        def prompt_and_wait(self, *_args, **_kwargs):
+            return "ok"
+
+        def stop(self):
+            return None
+
+    def builder(received_claim, _context, profiles):
+        seen.append((received_claim.model_context, profiles))
+        return Session()
+
+    session = PreparedKernelPiSessionFactory(builder)(claim, context)
+    assert isinstance(session, Session)
+    assert seen == [(None, (prepared,))]

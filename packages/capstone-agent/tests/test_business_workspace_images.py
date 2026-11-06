@@ -282,9 +282,13 @@ raise SystemExit(subprocess.call(['/app/deploy/entrypoint.sh','worker']))
                 assert catalog_response.status_code == 200, catalog_response.text
                 catalog = catalog_response.json()
                 profile = catalog["resource_profiles"][role]
-                skill = next(item for item in profile["resources"] if item["id"] == "powerskills-pandapower")
+                published = [item for item in profile["resources"] if item["id"] == "powerskills-pandapower"]
+                if role != "harness_engine":
+                    assert published == []
+                    continue
+                skill = published[0]
                 assert skill["ready"], skill
-                text = "Check the selected business model structure." if role == "harness_engine" else "Check the bundled sample resource; it is not the selected business model."
+                text = "Check the selected business model structure."
                 event_start = client.get(path).json()["last_event_seq"]
                 submit("send_auto", {"text": text, "input": {"kind": "skill_invocation", "text": text,
                     "skill_id": skill["id"], "skill_version": skill["version"]},

@@ -48,9 +48,26 @@ def load_runtime_environment(
     return merged
 
 
-def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> ResolvedLLM:
+def resolve_harness_llm(repo_root: Path, environment: dict[str, str], *,
+                        workbench_selection: Mapping[str, str] | None = None) -> ResolvedLLM:
     """Resolve application-selected Harness Provider settings at one shared seam."""
 
+    compatible_workbench = (environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-workbench-v1"
+        and (workbench_selection is not None or (
+            environment.get("CAPSTONE_PUBLIC_PROVIDER") == "openai-compatible"
+            and not environment.get("CAPABILITY_AGENT_LLM_PROVIDER"))))
+    workbench_base_url: str | None = None
+    if compatible_workbench:
+        from .workbench_llm_profiles import ProfileRegistry
+        registry = ProfileRegistry(repo_root / "configs/runtime/workbench-llm-profiles.json", environment=environment)
+        profile = registry.resolve(workbench_selection if workbench_selection is not None else registry.freeze())
+        workbench_base_url = profile['base_url']
+        environment = dict(environment)
+        environment.update(CAPABILITY_AGENT_LLM_PROVIDER=("openai" if profile["provider"] == "openai-compatible" else profile["provider"]),
+            CAPABILITY_AGENT_LLM_MODEL=profile["model"],
+            CAPABILITY_AGENT_LLM_BASE_URL=("https://api.openai.com/v1" if profile["provider"] == "openai-compatible" else profile["base_url"]),
+            CAPABILITY_AGENT_LLM_API_KEY_ENV="CAPSTONE_WORKBENCH_RESOLVED_KEY",
+            CAPSTONE_WORKBENCH_RESOLVED_KEY=profile["key"])
     environment.setdefault(
         "CAPABILITY_AGENT_LLM_PROVIDER",
         environment.get("CAPSTONE_PUBLIC_PROVIDER", "deepseek"),
@@ -66,7 +83,10 @@ def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> Resolve
             environ=environment,
             env_file=repo_root / ".env",
         )
-        if (environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-dev-trial-v1"
+        if workbench_base_url is not None:
+            # The registered workbench profile owns private HTTP targets.
+            resolved = replace(resolved, config=replace(resolved.config, base_url=workbench_base_url))
+        if ((environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-dev-trial-v1" or compatible_workbench)
                 and resolved.config.provider == "openai"
                 and resolved.config.base_url.rstrip("/") != "https://api.openai.com/v1"):
             resolved = replace(resolved, config=replace(
@@ -97,6 +117,7 @@ def resolve_recognition_llm(repo_root: Path, environment: dict[str, str], execut
 
 def build_runtime_host(
     repo_root: Path, profile: object, environment: Mapping[str, str] | None = None,
+    *, system_policy_path: Path | None = None,
 ) -> RuntimeHost:
     """Resolve the existing pinned Pi assets for any registered application."""
 
@@ -119,6 +140,10 @@ def build_runtime_host(
         ),
     ).resolve()
     manifest = domains[0].profile.manifest
+    if system_policy_path is None:
+        system_policy_path = getattr(manifest, "system_policy_path", None)
+    if not isinstance(system_policy_path, Path):
+        raise ValueError("application system policy is unavailable")
     model_library_dir = runtime_environment.get("CAPSTONE_PYPSA_MODEL_LIBRARY_DIR")
     if not model_library_dir:
         model_library_dir = str(root / ".grid-agent/runtime/pypsa-models")
@@ -126,6 +151,6 @@ def build_runtime_host(
         command=command,
         project_pi_dir=root / ".grid-agent/auth/pi",
         extension_path=extension,
-        system_policy_path=manifest.system_policy_path,
+        system_policy_path=system_policy_path,
         extra_environment={"CAPSTONE_PYPSA_MODEL_LIBRARY_DIR": model_library_dir},
     )

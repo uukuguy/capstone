@@ -31,7 +31,10 @@ from capability_agent.tools.catalog import CoreToolCatalog
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession, HarnessRuntimeConfigurationError, normalize_runtime_event
 from .application_capacity import current_capacity
-from .kernel_capability_preparation import PreparedKernelApplicationProfile
+from .kernel_capability_preparation import (
+    AuthorityModelBinding,
+    PreparedKernelApplicationProfile,
+)
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
@@ -81,12 +84,20 @@ class PreparedKernelPiSessionFactory:
             raise TypeError("claim must be an AttemptClaim")
         if not isinstance(context, PreparedModelCapabilityContext):
             raise TypeError("context must be a PreparedModelCapabilityContext")
-        if context.model_context != claim.professional_context:
-            raise ValueError("prepared Kernel context does not match Attempt snapshot")
-        prepared = tuple(
-            _require_prepared_kernel_profile(contribution, claim.professional_context)
-            for contribution in context.contributions
-        )
+        if claim.model_context is None:
+            if context.model_context is not None:
+                raise ValueError("prepared Kernel context does not match Attempt snapshot")
+            prepared = tuple(
+                _require_unbound_kernel_profile(contribution)
+                for contribution in context.contributions
+            )
+        else:
+            if context.model_context != claim.model_context:
+                raise ValueError("prepared Kernel context does not match Attempt snapshot")
+            prepared = tuple(
+                _require_prepared_kernel_profile(contribution, claim.model_context)
+                for contribution in context.contributions
+            )
         plan = claim.turn_plan
         selected = (plan.intent_request.to_document().get('selected_skill')
                     if plan is not None and plan.intent_request is not None else None)
@@ -162,7 +173,7 @@ class PreparedKernelPiRpcSessionBuilder:
             selected_task = claim.previous_instruction if claim.previous_instruction is not None and claim.previous_instruction.model_context is not None else None
             policy = _compose_attempt_policy(directory, None, include_generic=True,
                 application_catalog=claim.application_catalog,
-                model_context=claim.professional_context if selected_task is not None else None,
+                model_context=claim.model_context if selected_task is not None else None,
                 previous_instruction=selected_task,
                 context_products=(claim.submission or {}).get('_product_context', []))
             paths = RuntimePaths(command=self._runtime_host.command,
@@ -185,7 +196,7 @@ class PreparedKernelPiRpcSessionBuilder:
             active = self._research_is_active
             research = AttemptResearch(workspace.root.parent / "thread-research", thread_id=claim.thread_id,
                 run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
-                model_context=claim.professional_context if claim.task_context is None else None,
+                model_context=claim.model_context if claim.task_context is None else None,
                 task_context=claim.task_context,
                 research_generation=claim.research_generation if claim.task_context is None else None,
                 channel_root=workspace.core_path / "research-channels" / claim.attempt.attempt_id,
@@ -263,7 +274,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 include_generic=ordinary,
                 include_research=self._research_enabled,
                 application_catalog=claim.application_catalog,
-                model_context=claim.professional_context,
+                model_context=claim.model_context,
                 profiles=profiles,
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
@@ -298,8 +309,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
                 workspace_root=workspace.root.parent, base_environment=self._base_environment,
             )
-            if native.identity.to_document() != dict(claim.turn_plan.intent_engine or {}):
-                raise HarnessRuntimeConfigurationError('intent configuration changed before business execution')
+            _require_recognizer_identity(native.identity.to_document(), claim)
             launch = native.apply_configuration(launch, workspace, claim.attempt.attempt_id,
                                                  domain_policy=self._runtime_host.system_policy_path)
             request_document = intent_request.to_document()
@@ -308,9 +318,15 @@ class PreparedKernelPiRpcSessionBuilder:
                 'phase': 'execution', 'history_cutoff': request_document['history_cutoff'],
                 'history_truncated': request_document.get('history_truncated', False),
                 'execution_plan': execution_plan_for(intent_request, claim.turn_plan.intent_decision),
-                'model_context': claim.professional_context.to_document(),
-                'bindings': [{'binding_id': profile.model_binding.binding_id,
-                              'context_ref': profile.model_binding.context_ref} for profile in profiles],
+                **({'model_selection': (
+                        'No application model is selected for this attempt. '
+                        'Published domain tools may open a registered model when the task needs one. '
+                        'Do not invent network results.'),
+                    'bindings': []} if claim.model_context is None else {
+                    'model_context': claim.model_context.to_document(),
+                    'bindings': [{'binding_id': profile.model_binding.binding_id,
+                                  'context_ref': profile.model_binding.context_ref}
+                                 for profile in profiles if profile.model_binding is not None]}),
                 'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
                                    'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
                                   for ref in claim.prior_results],
@@ -425,6 +441,56 @@ def _with_selected_task_tool(launch: PiLaunch, reader: SelectedTaskRecordReader 
     return PiLaunch((*launch.argv, "--extension", str(extension)), environment)
 
 
+def _require_recognizer_identity(builder_identity: Mapping[str, object], claim: AttemptClaim) -> None:
+    """Keep a bound model's recognizer. An unbound handoff uses this worker."""
+    if claim.model_context is None:
+        return
+    engine = {} if claim.turn_plan is None else (claim.turn_plan.intent_engine or {})
+    if dict(builder_identity) != dict(engine):
+        raise HarnessRuntimeConfigurationError('intent configuration changed before business execution')
+
+
+def _require_unbound_kernel_profile(contribution: object) -> PreparedKernelApplicationProfile:
+    """Accept a prepared Domain Pack whose tools have not opened a model."""
+    prepared = getattr(contribution, "prepared", None)
+    if not isinstance(prepared, PreparedKernelApplicationProfile):
+        raise TypeError("Thread capability contribution is not Kernel-prepared")
+    if prepared.closed:
+        raise RuntimeError("Kernel-prepared profile is already closed")
+    if prepared.model_binding is not None:
+        raise ValueError("unbound domain profile has a model binding")
+    _require_kernel_profile_resources(prepared, binding_id=None)
+    return prepared
+
+
+def _require_kernel_profile_resources(
+    prepared: PreparedKernelApplicationProfile, *, binding_id: str | None,
+) -> Mapping:
+    bindings = getattr(prepared.prepared_application, "bindings", None)
+    if not isinstance(bindings, Mapping) or not bindings:
+        raise TypeError("Kernel-prepared application bindings are unavailable")
+    if binding_id is not None:
+        binding = bindings.get(binding_id)
+        if binding is None:
+            raise ValueError("Kernel-prepared Authority binding is unavailable")
+        _require_kernel_binding_resources(binding)
+    else:
+        for binding in bindings.values():
+            _require_kernel_binding_resources(binding)
+    return bindings
+
+
+def _require_kernel_binding_resources(binding: object) -> None:
+    runtime = getattr(binding, "runtime", None)
+    for name in ("tool_catalog_path", "guide_index_path"):
+        path = getattr(runtime, name, None)
+        if not isinstance(path, Path) or not path.is_file():
+            raise RuntimeError(f"Kernel-prepared {name} is unavailable")
+    endpoint = getattr(binding, "endpoint", None)
+    if not callable(getattr(getattr(endpoint, "executor", None), "invoke", None)):
+        raise RuntimeError("Kernel-prepared Authority endpoint is unavailable")
+
+
 def _require_prepared_kernel_profile(
     contribution: object, model_context: ModelContextSnapshot,
 ) -> PreparedKernelApplicationProfile:
@@ -433,16 +499,19 @@ def _require_prepared_kernel_profile(
         raise TypeError("Thread capability contribution is not Kernel-prepared")
     if prepared.closed:
         raise RuntimeError("Kernel-prepared profile is already closed")
-    if prepared.model_binding.model_id != model_context.model_id:
+    model_binding = prepared.model_binding
+    if model_binding is None:
+        raise ValueError("Kernel-prepared profile has no selected model binding")
+    if model_binding.model_id != model_context.model_id:
         raise ValueError("Kernel-prepared model does not match Thread snapshot")
-    if prepared.model_binding.model_revision != model_context.model_revision:
+    if model_binding.model_revision != model_context.model_revision:
         raise ValueError("Kernel-prepared revision does not match Thread snapshot")
-    if prepared.model_binding.implementation_family != model_context.implementation_family:
+    if model_binding.implementation_family != model_context.implementation_family:
         raise ValueError("Kernel-prepared family does not match Thread snapshot")
     bindings = getattr(prepared.prepared_application, "bindings", None)
     if not isinstance(bindings, Mapping):
         raise TypeError("Kernel-prepared application bindings are unavailable")
-    binding = bindings.get(prepared.model_binding.binding_id)
+    binding = bindings.get(model_binding.binding_id)
     if binding is None:
         raise ValueError("Kernel-prepared Authority binding is unavailable")
     runtime = getattr(binding, "runtime", None)
@@ -510,6 +579,8 @@ def _render_attempt_model_context(
     ]
     for profile in profiles:
         binding = profile.model_binding
+        if binding is None:
+            raise ValueError("model prompt requires a selected model binding")
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
         metadata = getattr(binding, "model_metadata", None)
         if isinstance(metadata, Mapping):
@@ -1033,6 +1104,130 @@ def _build_kernel_admission(
     return admit
 
 
+_CONTEXT_IDENTIFIER = re.compile(r"^[a-z][a-z0-9_.:-]{0,127}$")
+
+
+def _opened_binding(
+    binding_id: str,
+    authority: object,
+    tool_events: tuple[Mapping[str, object], ...],
+    result_refs: tuple[str, ...],
+    evidence_refs: tuple[str, ...],
+    owners: Mapping[str, str],
+    *,
+    sole: bool,
+) -> AuthorityModelBinding | None:
+    """Recover the model a domain tool opened during this attempt."""
+    references: list[str] = []
+    for event in tool_events:
+        if event.get("ok") is not True:
+            continue
+        event_binding = event.get("binding_id")
+        if event_binding != binding_id and not (event_binding is None and sole):
+            continue
+        reference = event.get("context_ref")
+        if isinstance(reference, str):
+            references.append(reference)
+    owned = [ref for ref in (*result_refs, *evidence_refs) if owners.get(ref) == binding_id]
+    if not references:
+        for kind, pool in (("result", result_refs), ("evidence", evidence_refs)):
+            method = getattr(authority, "verify_" + kind, None)
+            for reference in pool:
+                if owners.get(reference) != binding_id:
+                    continue
+                if not callable(method):
+                    raise ValueError("bound artifact authority verification is unavailable")
+                document = getattr(method(reference), "document", None)
+                context_ref = document.get("context_ref") if isinstance(document, Mapping) else None
+                if isinstance(context_ref, str):
+                    references.append(context_ref)
+    if not references:
+        if owned:
+            raise ValueError("authority artifact has no opened model context")
+        return None
+    verify_context = getattr(authority, "verify_context", None)
+    if not callable(verify_context):
+        raise ValueError("authority cannot verify an opened model context")
+    documents: dict[str, Mapping[str, object]] = {}
+    pending = list(dict.fromkeys(references))
+    while pending:
+        reference = pending.pop()
+        if reference in documents:
+            continue
+        if len(documents) >= 256:
+            raise ValueError("opened model context has no single verified root")
+        document = getattr(verify_context(reference), "document", None)
+        if not isinstance(document, Mapping):
+            raise ValueError("opened model context is invalid")
+        documents[reference] = document
+        parent = document.get("parent_context_ref")
+        if isinstance(parent, str) and parent not in documents:
+            pending.append(parent)
+    roots = [
+        reference for reference, document in documents.items()
+        if not isinstance(document.get("parent_context_ref"), str)
+    ]
+    if len(roots) != 1:
+        raise ValueError("opened model context has no single verified root")
+    document = documents[roots[0]]
+    model_id = document.get("model_id")
+    revision = document.get("revision_ref")
+    if not isinstance(revision, str):
+        revision = document.get("model_revision")
+    family = document.get("engine")
+    if not isinstance(family, str):
+        family = document.get("implementation_family")
+    if not isinstance(model_id, str) or not isinstance(revision, str) or not isinstance(family, str):
+        raise ValueError("opened model context identity is incomplete")
+    return AuthorityModelBinding(binding_id, model_id, revision, family, roots[0])
+
+
+def _projection_model_identity(
+    claim: AttemptClaim,
+    profile: PreparedKernelApplicationProfile,
+    authority: object,
+    owned_results: tuple[str, ...],
+) -> tuple[str, str, str, str, str]:
+    """Return context id, model id, revision, family, and context ref."""
+    if claim.model_context is not None:
+        binding = profile.model_binding
+        if binding is None:
+            raise ValueError("prepared model binding is unavailable")
+        return (
+            claim.model_context.id,
+            claim.model_context.model_id,
+            claim.model_context.model_revision,
+            claim.model_context.implementation_family,
+            binding.context_ref,
+        )
+    verify_result = getattr(authority, "verify_result", None)
+    if not owned_results or not callable(verify_result):
+        raise ValueError("projection result authority verification is unavailable")
+    document = getattr(verify_result(owned_results[0]), "document", None)
+    if not isinstance(document, Mapping):
+        raise ValueError("projection result artifact is invalid")
+    context_ref = document.get("context_ref")
+    if not isinstance(context_ref, str):
+        raise ValueError("projection result has no opened model context")
+    model_id = document.get("model_id")
+    revision = document.get("revision_ref") if isinstance(document.get("revision_ref"), str) else document.get("model_revision")
+    family = document.get("engine") if isinstance(document.get("engine"), str) else document.get("implementation_family")
+    if not isinstance(model_id, str) or not isinstance(revision, str) or not isinstance(family, str):
+        verify_context = getattr(authority, "verify_context", None)
+        opened = getattr(verify_context(context_ref), "document", None) if callable(verify_context) else None
+        if isinstance(opened, Mapping):
+            if not isinstance(model_id, str):
+                model_id = opened.get("model_id")
+            if not isinstance(revision, str):
+                revision = opened.get("revision_ref") if isinstance(opened.get("revision_ref"), str) else opened.get("model_revision")
+            if not isinstance(family, str):
+                family = opened.get("engine") if isinstance(opened.get("engine"), str) else opened.get("implementation_family")
+    if not isinstance(model_id, str) or not isinstance(revision, str) or not isinstance(family, str):
+        raise ValueError("projection result has no opened model context")
+    model_context_id = context_ref if _CONTEXT_IDENTIFIER.fullmatch(context_ref) else "context_" + context_ref[-12:]
+    return model_context_id, model_id, revision, family, context_ref
+
+
 def _verify_bound_attempt_references(
     profiles: tuple[PreparedKernelApplicationProfile, ...],
     bindings: Mapping[str, object],
@@ -1043,24 +1238,33 @@ def _verify_bound_attempt_references(
 ) -> None:
     """Verify authority artifacts against the immutable application binding."""
     for profile in profiles:
-        bound = profile.model_binding
         prepared_bindings = getattr(profile.prepared_application, "bindings", None)
         if not isinstance(prepared_bindings, Mapping):
             raise ValueError("prepared authority bindings are unavailable")
+        preset = profile.model_binding
         for binding_id in prepared_bindings:
             runtime = getattr(bindings[binding_id], "runtime", None)
             authority = getattr(runtime, "authority", None)
+            if preset is None:
+                bound = _opened_binding(
+                    str(binding_id), authority, tool_events, result_refs, evidence_refs, owners,
+                    sole=len(prepared_bindings) == 1,
+                )
+                if bound is None:
+                    continue
+            else:
+                bound = preset
             context_revisions = {bound.context_ref: bound.model_revision}
 
-            def context_revision(reference: object) -> str:
+            def context_revision(reference: object, *, model: AuthorityModelBinding = bound) -> str:
                 if not isinstance(reference, str):
                     raise ValueError("bound context reference is invalid")
                 if reference not in context_revisions:
                     method = getattr(authority, "verify_context_descendant", None)
                     if not callable(method):
                         raise ValueError("authority cannot verify derived context against the bound model")
-                    document = getattr(method(reference, bound.context_ref), "document", None)
-                    if not isinstance(document, Mapping) or document.get("model_id") != bound.model_id:
+                    document = getattr(method(reference, model.context_ref), "document", None)
+                    if not isinstance(document, Mapping) or document.get("model_id") != model.model_id:
                         raise ValueError("derived context does not match the bound model")
                     revision = document.get("revision_ref")
                     if not isinstance(revision, str):
@@ -1088,7 +1292,7 @@ def _verify_bound_attempt_references(
             evidence = tuple(ref for ref in evidence_refs if owners.get(ref) == binding_id)
             verified: set[tuple[str, str]] = set()
 
-            def verify(kind: str, reference: str) -> None:
+            def verify(kind: str, reference: str, *, model: AuthorityModelBinding = bound) -> None:
                 key = (kind, reference)
                 if key in verified:
                     return
@@ -1098,20 +1302,20 @@ def _verify_bound_attempt_references(
                 document = getattr(method(reference), "document", None)
                 if not isinstance(document, Mapping):
                     raise ValueError("bound authority artifact is invalid")
-                revision = context_revision(document.get("context_ref", bound.context_ref))
+                revision = context_revision(document.get("context_ref", model.context_ref))
                 for field, expected in (("revision_ref", revision), ("model_revision", revision),
-                                        ("model_id", bound.model_id)):
+                                        ("model_id", model.model_id)):
                     if field in document and document[field] != expected:
                         raise ValueError("authority artifact does not match the bound model context")
                 model_ref = document.get("model_ref")
-                accepted_model_ref = isinstance(model_ref, str) and bound.accepts_model_reference(model_ref)
+                accepted_model_ref = isinstance(model_ref, str) and model.accepts_model_reference(model_ref)
                 if "model_ref" in document and not accepted_model_ref:
                     raise ValueError("authority artifact does not match the bound model context")
                 linked_result = document.get("result_ref")
                 bound_identity = (
                     document.get("context_ref") in context_revisions
                     and document.get("revision_ref") == revision
-                ) if bound.context_ref.startswith("context:") else accepted_model_ref
+                ) if model.context_ref.startswith("context:") else accepted_model_ref
                 linked_evidence = kind == "evidence" and isinstance(linked_result, str)
                 if not bound_identity and not linked_evidence:
                     raise ValueError("authority artifact has incomplete bound model identity")
@@ -1157,7 +1361,7 @@ def _build_result_projections(
     def unavailable_projection(
         *, result_ref: str, evidence_refs_for_result: tuple[str, ...],
         domain_pack_id: str, capability_id: str, implementation_family: str,
-        reason: str,
+        reason: str, model_context_id: str, model_id: str, model_revision: str,
     ) -> Mapping[str, object]:
         raw: dict[str, object] = {
             "schema": "capstone-result-projection/1.0",
@@ -1168,9 +1372,9 @@ def _build_result_projections(
             "run_id": claim.run_id,
             "turn_id": claim.attempt.turn_id,
             "attempt_id": claim.attempt.attempt_id,
-            "model_context_id": claim.professional_context.id,
-            "model_id": claim.professional_context.model_id,
-            "model_revision": claim.professional_context.model_revision,
+            "model_context_id": model_context_id,
+            "model_id": model_id,
+            "model_revision": model_revision,
             "source": {
                 "capability_id": capability_id,
                 "domain_pack_id": domain_pack_id,
@@ -1183,7 +1387,7 @@ def _build_result_projections(
         return normalize_result_projection(
             raw,
             admitted_refs=tuple((*result_refs, *evidence_refs_for_result)),
-            expected_model_revision=claim.professional_context.model_revision,
+            expected_model_revision=model_revision,
         )
 
     owners: dict[str, str] = {}
@@ -1263,10 +1467,12 @@ def _build_result_projections(
             project_admitted = getattr(projector, "project_admitted", None)
             authority = getattr(runtime, "authority", None)
             invoke = getattr(getattr(runtime, "executor", None), "invoke", None)
-            context_ref = profile.model_binding.context_ref
             owned_results = tuple(result_ref for result_ref in result_refs if owners.get(result_ref) == binding_id)
             if not owned_results:
                 continue
+            model_context_id, model_id, model_revision, implementation_family, context_ref = _projection_model_identity(
+                claim, profile, authority, owned_results,
+            )
             owned_evidence = {result_ref: result_evidence.get(result_ref, ()) for result_ref in owned_results}
             if not callable(project_admitted):
                 # A selected Domain Pack may not have a business projection yet
@@ -1274,7 +1480,6 @@ def _build_result_projections(
                 # visible as an explicitly unavailable projection rather than
                 # silently dropping it or pretending another domain's shape.
                 domain_pack_id = str(getattr(domain_profile, "id", binding_id))
-                implementation_family = claim.professional_context.implementation_family
                 capability_id = next(
                     (
                         str(event.get("capability_id"))
@@ -1292,6 +1497,9 @@ def _build_result_projections(
                         capability_id=capability_id,
                         implementation_family=implementation_family,
                         reason="当前 Domain Pack 尚未提供结果展示投影",
+                        model_context_id=model_context_id,
+                        model_id=model_id,
+                        model_revision=model_revision,
                     ))
                 continue
             result_contexts: dict[str, tuple[str, str]] = {}
@@ -1304,9 +1512,9 @@ def _build_result_projections(
                         authority=authority,
                         invoke=invoke,
                         context_ref=context_ref,
-                        model_revision=claim.professional_context.model_revision,
-                        model_context_id=claim.professional_context.id,
-                        model_id=claim.professional_context.model_id,
+                        model_revision=model_revision,
+                        model_context_id=model_context_id,
+                        model_id=model_id,
                         thread_id=claim.thread_id,
                         run_id=claim.run_id,
                         turn_id=claim.attempt.turn_id,
@@ -1314,11 +1522,15 @@ def _build_result_projections(
                         result_refs=owned_results,
                         result_evidence=owned_evidence,
                     )
-                    if profile.model_binding.model_revision_resolver is None:
+                    model_binding = profile.model_binding
+                    revision_resolver = None if model_binding is None else model_binding.model_revision_resolver
+                    if revision_resolver is None:
                         raw_projections = project_admitted(**projection_arguments)
                     else:
                         # Application-owned lineage resolution supplies the exact
                         # context for each scenario; the Pack still checks equality.
+                        if model_binding is None:
+                            raise ValueError("projection lineage requires a selected model binding")
                         raw_projections = []
                         verify_result = getattr(authority, "verify_result", None)
                         if not callable(verify_result):
@@ -1330,7 +1542,7 @@ def _build_result_projections(
                             result_context = document.get("model_ref")
                             if not isinstance(result_context, str):
                                 raise ValueError("projection result model reference is invalid")
-                            result_revision = profile.model_binding.revision_for_model_reference(result_context)
+                            result_revision = model_binding.revision_for_model_reference(result_context)
                             result_contexts[result_ref] = (result_context, result_revision)
                             projected = project_admitted(**{
                                 **projection_arguments, "context_ref": result_context,
@@ -1345,7 +1557,6 @@ def _build_result_projections(
                     raw_projections = ()
                     projection_error = True
             domain_pack_id = str(getattr(domain_profile, "id", binding_id))
-            implementation_family = claim.professional_context.implementation_family
             capability_id = next(
                 (
                     str(event.get("capability_id"))
@@ -1364,6 +1575,9 @@ def _build_result_projections(
                         capability_id=capability_id,
                         implementation_family=implementation_family,
                         reason="结果展示投影暂不可用",
+                        model_context_id=model_context_id,
+                        model_id=model_id,
+                        model_revision=model_revision,
                     ))
                 continue
             seen_results: set[str] = set()
@@ -1385,7 +1599,7 @@ def _build_result_projections(
                         break
                     diagram_ids = list(raw_diagram_ids)
                 try:
-                    expected_revision = claim.professional_context.model_revision
+                    expected_revision = model_revision
                     verify_result = getattr(authority, "verify_result", None)
                     if raw_result_ref in result_contexts:
                         expected_revision = result_contexts[raw_result_ref][1]
@@ -1413,11 +1627,11 @@ def _build_result_projections(
                     break
                 if diagram_ids is not None:
                     normalized["_diagram_element_ids"] = diagram_ids
-                if expected_revision != claim.professional_context.model_revision:
+                if expected_revision != model_revision:
                     # Host-only receipt: added after Authority verification and
                     # projection normalization, never accepted from model text.
                     normalized["_verified_context_binding"] = {
-                        "base_model_revision": claim.professional_context.model_revision,
+                        "base_model_revision": model_revision,
                         "result_model_revision": expected_revision,
                         "result_ref": raw_result_ref,
                     }
@@ -1432,6 +1646,9 @@ def _build_result_projections(
                         capability_id=capability_id,
                         implementation_family=implementation_family,
                         reason="结果展示投影暂不可用",
+                        model_context_id=model_context_id,
+                        model_id=model_id,
+                        model_revision=model_revision,
                     ))
     return tuple(projections)
 

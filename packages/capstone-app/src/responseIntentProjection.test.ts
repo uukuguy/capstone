@@ -12,11 +12,16 @@ it('keeps explicit purpose after diagnostic eviction without publishing response
  expect(p.intent('e1')).toBe('检查字段')
  p.observe([]);expect(p.intent('e1')).toBeUndefined()
 })
-it('does not guess from prose or publish protected comment values',()=>{
- for(const text of ['Actual answer','// password=private']){
-  const p=new ResponseIntentProjection();p.observe([row(1,'runtime_action',{phase:'started'}),row(2,'assistant_process_delta',{text},'diagnostic')])
-  expect(p.intent('e1')).toBeUndefined()
- }
+it('keeps a short opening line and still hides a protected comment',()=>{
+ const shown=new ResponseIntentProjection()
+ shown.observe([row(1,'runtime_action',{phase:'started'}),row(2,'assistant_process_delta',{text:'核对字段与来源\n正文'},'diagnostic')])
+ expect(shown.intent('e1')).toBe('核对字段与来源')
+ const hidden=new ResponseIntentProjection()
+ hidden.observe([row(1,'runtime_action',{phase:'started'}),row(2,'assistant_process_delta',{text:'// password=private'},'diagnostic')])
+ expect(hidden.intent('e1')).toBeUndefined()
+ const long=new ResponseIntentProjection()
+ long.observe([row(1,'runtime_action',{phase:'started'}),row(2,'assistant_process_delta',{text:'甲'.repeat(81)},'diagnostic')])
+ expect(long.intent('e1')).toBeUndefined()
 })
 it('retains the opening comment after leading blank streaming chunks and diagnostic eviction',()=>{
  const p=new ResponseIntentProjection(),start=row(1,'runtime_action',{phase:'started'})

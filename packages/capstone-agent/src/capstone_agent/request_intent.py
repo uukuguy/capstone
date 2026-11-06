@@ -7,7 +7,7 @@ Capability references describe needs and never enable or authorize a capability.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 import json
 import math
@@ -335,11 +335,9 @@ class IntentDecision:
 
         This projection describes readiness only. Capability authorization and
         authority admission remain application and Domain Pack responsibilities.
-        A global clarification blocks execution of every goal.
+        Clarification text does not withhold a goal that is otherwise ready.
         """
         document = self.to_document()
-        if self.needs_clarification:
-            return ()
         prior_goals: list[str] = []
         executable: set[str] = set()
         ready: list[dict] = []
@@ -373,6 +371,7 @@ class NodeControl:
 
     check: Callable[[], None]
     deadline: float
+    notice: Callable[[Mapping[str, object]], None] | None = None
 
     def __post_init__(self) -> None:
         if not callable(self.check):

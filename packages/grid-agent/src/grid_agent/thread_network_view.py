@@ -380,15 +380,18 @@ def build_pandapower_thread_network_provider(
 
     if not isinstance(context, PreparedModelCapabilityContext):
         raise TypeError("pandapower topology context is invalid")
+    model_context = context.model_context
+    if model_context is None:
+        raise ValueError("pandapower topology requires a selected model context")
     for contribution in context.contributions:
         prepared = getattr(contribution, "prepared", None)
         binding = getattr(prepared, "model_binding", None)
         if not isinstance(binding, AuthorityModelBinding) or binding.binding_id != "grid":
             continue
         if (
-            binding.model_id != context.model_context.model_id
-            or binding.model_revision != context.model_context.model_revision
-            or binding.implementation_family != context.model_context.implementation_family
+            binding.model_id != model_context.model_id
+            or binding.model_revision != model_context.model_revision
+            or binding.implementation_family != model_context.implementation_family
             or binding.implementation_family != "pandapower"
         ):
             raise ValueError("pandapower model binding does not match Thread context")

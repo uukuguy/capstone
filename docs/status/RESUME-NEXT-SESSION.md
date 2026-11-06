@@ -1,56 +1,62 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-03 21:03 CST. 用户要求完成CI及合入dev，当前会话继续。
+Updated 2026-11-06. Active main/tag closeout; not a final handoff.
 
-## 当前状态
+User authorized closeout, annotated tag and main integration. One dev PR macOS
+product/governance CI was explicitly approved and has been consumed. No second
+CI approval. Do not push PR updates or rerun CI until new explicit approval.
 
-- 当前分支：fix/conversation-typography-20261103。
-- HEAD：a1b42cb1；本地提交，未推送、无PR。
-- dev与origin/dev一致：7ad2529a。
-- 本机运行字号候选2148db14；main及远端部署未变更。
+PR94 https://github.com/uukuguy/capstone/pull/94 still OPEN, base dev, remote head
+d416707df6aa196c195a7ebcbeae69c8a8ff11d7. CI42137611817 FAILED after about28m44s:
+applications938/3skip, simulator279/2skip, governance61/2skip passed; backend3142
+passed/197skip,1failure quiet-provider idle count. No merge/tag/deployment occurred.
 
-## 本轮交付
+Local candidate branch uukuguy/native-execution-release-20261106 at Orca checkout:
+/Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106
+New code/test commit1a0fc847 is NOT pushed. It changes only test_general_pi_executor:
+fixed200ms child quiet period replaced with marker handshake after2idle callbacks;
+original count assertion and5s deadline retained. Controlled300ms callback delay
+reproduced2failures with old test; new handshake passes92related checks in16.13s.
+No production code changed. Earlier code repairs faa9bcc0/6c54b077/a8fbf683 retained.
 
-1. PR91/92已合入dev：
-   观察预算恢复、有界并发、排队立即取消、排队文案及锁释放后的调度恢复。
-   两次独立批准的macOS CI均通过，授权已使用完毕。
-2. 字号调整：
-   09391ff5建立共享字号；用户截图发现遗漏的工作空间12px覆盖。
-   2148db14修正覆盖，正文、表格、行内代码统一13px，
-   标题约16/15/14px。a1b42cb1记录验证及控制状态。
+12original historical receipts existed only in root and were omitted from candidate.
+They are now copied to child with unchanged content; candidate/control and own links
+pass. Include these with final control docs in the next candidate commit. No secrets
+found in copied reports. Local doc/doctor/diff checks must finish before asking approval.
 
-## 验证
+Earlier local release scope passed as split components (not one clean aggregate):
+backend3143/197skip,App1527,Kernel663,E2E39,workers3,workbench156,
+static7/10/8,application2,matrix24/24,package-artifacts/source-setup/build/doctor pass.
+Two original local failed receipts remain; first CI failure remains separate.
+Independent review P2 unbounded diagnostics fixed6c54; followup no new finding.
 
-- 151项相关App检查及TypeScript检查通过。
-- 用户截图中的同一会话已复验。
-- 规范重建ready，API/worker同镜像bc0ded4b。
-- 项目范围缓存清理完成。
-- 候选控制图已生成并检查；尚未集成至dev。
+Root checkout remains dev6c55e6ee and main0b68c607; remote dev/main unchanged.
+Root mixed work preserved, normal index empty. root-alignment-audit.json identifies
+128paths matching candidate+incoming,17matching incoming before repairs,5candidate
+only,18independent historical documents/template paths. Recompute before any sync.
+Do NOT stash/apply blindly or overwrite old source onto new repairs. On successful
+future dev merge, preserve complete recovery snapshot and independent paths before
+fast-forwarding actual dev. Ignored runtimes,var,data,auth must remain untouched.
 
-## 下一步
+Private logs in root .capstone-agent/release-closeout-20261106/:
+dev-ci-receipt.json,dev-ci-failed.log,idle-scheduling-red.log (2fail),
+idle-scheduling-green.log (92pass),ci-authorization.json,missing-receipts-paths.json,
+local-summary.json, earlier failed/passing gate logs and PR body drafts.
 
-1. 用户明确要求执行此前说明的macOS App CI及dev合并，授权一次运行。
-2. 创建dev PR并执行App测试/构建及治理门禁，通过后合入dev。
-3. 同步实际dev，验证入口并刷新其正式控制图。
-4. 本次授权仅限这一次CI；若失败需修正，不自动重跑。
+Docs/control snapshot updated in actual dev root and child; links/symlink,
+diff,doctor and1920px browser/source edges verified. Final documentation commit
+follows1a0fc847 and includes12unchanged receipts. Only append-only commit journal
+receipt may remain uncommitted until next state commit. Temporary server stopped;
+browser restored to5173. Root dev source/HEAD still unchanged.
+Next ask approval for second dev PR macOS product/governance CI, estimate25–35min
+(first28m44s). Do not update PR/body/head before approval. After it passes, merge
+through PR without bypass, synchronize actual dev preserving mixed work and record
+actual merge/control. Main PR full macOS+Linux release CI needs separate explicit
+approval. Tag exact accepted main merge only after passing main gate; suggested
+milestone-native-execution-20261106-<short-main-merge-sha>, no deployment tag.
 
-## 工作区与恢复
-
-- 未提交：docs/status/JOURNAL.md、
-  docs/status/RESUME-NEXT-SESSION.md。
-- 无关未跟踪文件：
-  docs/reports/2026-11-01-summer-session-audit.md。
-  保持不动。
-- 字号报告：
-  docs/reports/2026-11-03-conversation-typography.md。
-- PR91/92证据：
-  runs/execution-capacity-20261103/。
-- 旧控制stash及runtime恢复目录保留，不直接覆盖当前状态。
-- 保留所有var、卷和认证数据。
-
-## 避免重复
-
-- 不只修改前部CSS；工作空间后部规则曾覆盖正文大小。
-- 不复用PR91/92的CI授权。
-- 不重复模型验收或扩大为完整发布验证。
-- 研发服务器192.168.72.63已断开，不探测、不部署。
+Root local-dev stays984131e3 (API/workerscb6678d6,native200f8447),AppPID91545 fixed
+batch-regression app5173→8767. 63/66 lastknown367374aa+overlay255c8855,disconnected,
+untouched. Gateway missing grid_database external assistance stays open.
+Current own browser sessionoffapp tab on5173; reuse it for control snapshot and
+restore it afterwards. Original temporary18976server was stopped. No user tabs close.

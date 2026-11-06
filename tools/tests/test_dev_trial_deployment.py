@@ -13,6 +13,31 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.skipif(not shutil.which('docker'), reason='Docker CLI is required for real Compose interpolation')
+@pytest.mark.parametrize('origins', [None, 'pandapower=http://professional-fixture:8766'])
+def test_intranet_native_only_compose_does_not_inherit_optional_worker_origins(tmp_path, origins):
+    environment = {key: os.environ[key] for key in ('PATH', 'HOME') if key in os.environ}
+    environment.update({key: 'fixture-only' for key in (
+        'POSTGRES_PASSWORD', 'CAPSTONE_OPERATOR_TOKEN', 'CAPSTONE_GENERAL_CONTROL_TOKEN',
+        'CAPSTONE_PUBLIC_PROVIDER', 'CAPSTONE_PUBLIC_MODEL', 'S3_ACCESS_KEY', 'S3_SECRET_KEY')})
+    environment.update({key: 'fixture/image:source' for key in (
+        'CAPSTONE_BACKEND_IMAGE', 'CAPSTONE_GENERAL_IMAGE', 'CAPSTONE_APP_IMAGE',
+        'CAPSTONE_POSTGRES_IMAGE', 'CAPSTONE_OBJECTS_IMAGE')})
+    environment['CAPSTONE_APP_ORIGIN'] = 'http://localhost:5173'
+    if origins is not None:
+        environment['CAPSTONE_DOMAIN_TOOL_ORIGINS'] = origins
+    empty_env = tmp_path / 'empty.env'
+    empty_env.write_text('')
+    result = subprocess.run(['docker', 'compose', '--env-file', str(empty_env),
+        '-f', str(ROOT / 'compose.yaml'), '-f', str(ROOT / 'deploy/intranet/compose.yaml'),
+        'config', '--format', 'json'], env=environment, capture_output=True, text=True, check=True)
+    services = json.loads(result.stdout)['services']
+    assert services['general-pi']['environment']['CAPSTONE_DOMAIN_TOOL_ORIGINS'] == (origins or '')
+    assert 'worker' not in services
+    assert 'worker-pypsa' not in services
+    assert not services['general-pi'].get('profiles')
+
+
 def test_user_local_default_port_is_separate_from_developer_services():
     assert 'CAPSTONE_APP_PORT=19173' in (ROOT / 'deploy/dev-trial/env.example').read_text()
     compose = (ROOT / 'deploy/dev-trial/compose.yaml').read_text()
