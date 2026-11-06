@@ -7059,3 +7059,5 @@ fixed-source VitePID77708 stays available for user validation.
 - PR96 图与部署台账已合入dev；纯文档按用户研发轻量授权管理员合并，跳过CI，保留本地定向验证与截图。
 
 - 2026-11-06 主图101节点收缩为9个；109项细节保留折叠历史，六环境引用、HEAD和真实祖先连线核对通过。
+
+- 2026-11-07: Isolated reference-execution research from development; migrated designs, feasibility findings and composition regression.
