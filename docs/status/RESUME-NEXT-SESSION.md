@@ -1,19 +1,47 @@
+# Progress graph alignment
+
+Canonical VERSION-CONTROL and PROJECT-OVERVIEW now record dev a4efea0e,
+main22cd1728, PR94/95, development snapshot tag and all three dev deployments
+at22cd1728. Old6c55e6ee is a historical baseline, not current HEAD.
+Current graph update uses focused local document/doctor/browser checks only.
+
+# Latest deployment result
+
+All three dev services now run22cd1728. Readiness, exact App source and API/worker
+image parity passed. Real short tasks completed local3.10s,63 8.86s,66 9.61s.
+Report: docs/reports/2026-11-06-three-dev-deployment.md.
+Private receipt: .capstone-agent/deploy-20261106/receipt.json.
+Local App PID stored in .capstone-agent/app-dev.pid; Vite preview serves exact bundle.
+No CI or production deployment. Existing data/configuration preserved.
+
+Previous recovery notes (superseded deployment status):
+# Current closeout result
+
+PR94 merged dev a4efea0e; macOS CI42147526730 passed.
+User explicitly authorized lightweight development exception. PR95 merged main
+22cd17287c97659bd487008be087b0948009d67c using administrator bypass.
+Duplicate release CI42153874461 cancellation requested. Annotated remote tag
+dev-snapshot-20261106-22cd1728 points to that main commit. Not a release acceptance.
+Git HTTPS fetch failed; original local checkout and mixed work preserved.
+Local branch synchronization/control graph refresh remains deferred; no deployment.
+
+Previous recovery details:
 # Live Session Checkpoint
 
 Updated 2026-11-06. Active main/tag closeout; not a final handoff.
 
-User authorized closeout, annotated tag and main integration. One dev PR macOS
-product/governance CI was explicitly approved and has been consumed. No second
-CI approval. Do not push PR updates or rerun CI until new explicit approval.
+User authorized closeout, annotated tag and main integration. Two dev PR macOS product/governance runs were explicitly approved. First failed;
+second run42147526730 is active at c9be2193b64951545e207398faedebcd7d78ac31.
+No third or main CI approval. Do not push updates or rerun without new approval.
 
 PR94 https://github.com/uukuguy/capstone/pull/94 still OPEN, base dev, remote head
-d416707df6aa196c195a7ebcbeae69c8a8ff11d7. CI42137611817 FAILED after about28m44s:
+c9be2193b64951545e207398faedebcd7d78ac31. CI42137611817 FAILED after about28m44s:
 applications938/3skip, simulator279/2skip, governance61/2skip passed; backend3142
 passed/197skip,1failure quiet-provider idle count. No merge/tag/deployment occurred.
 
 Local candidate branch uukuguy/native-execution-release-20261106 at Orca checkout:
 /Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106
-New code/test commit1a0fc847 is NOT pushed. It changes only test_general_pi_executor:
+Code/test fix1a0fc847 and docs c9be2193 were pushed under second CI approval. It changes only test_general_pi_executor:
 fixed200ms child quiet period replaced with marker handshake after2idle callbacks;
 original count assertion and5s deadline retained. Controlled300ms callback delay
 reproduced2failures with old test; new handshake passes92related checks in16.13s.
@@ -48,8 +76,8 @@ diff,doctor and1920px browser/source edges verified. Final documentation commit
 follows1a0fc847 and includes12unchanged receipts. Only append-only commit journal
 receipt may remain uncommitted until next state commit. Temporary server stopped;
 browser restored to5173. Root dev source/HEAD still unchanged.
-Next ask approval for second dev PR macOS product/governance CI, estimate25–35min
-(first28m44s). Do not update PR/body/head before approval. After it passes, merge
+Next monitor second dev PR macOS CI42147526730 (watch log dev-ci-second-watch.log).
+No new CI or PR update is authorized. After it passes, merge
 through PR without bypass, synchronize actual dev preserving mixed work and record
 actual merge/control. Main PR full macOS+Linux release CI needs separate explicit
 approval. Tag exact accepted main merge only after passing main gate; suggested
