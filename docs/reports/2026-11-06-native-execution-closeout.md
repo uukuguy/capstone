@@ -1,7 +1,7 @@
 # Native execution release closeout
 
-User requested closeout, tag and main integration on 2026-11-06. CI is not yet
-approved. No branch push, PR creation/update, merge or release tag has occurred.
+User requested closeout, tag and main integration on 2026-11-06. User approved one dev PR macOS CI run. PR #94 at d416707d ran
+42137611817 and failed; no merge or release tag has occurred. New CI is not approved.
 
 ## Exact sources and isolation
 
@@ -11,7 +11,8 @@ approved. No branch push, PR creation/update, merge or release tag has occurred.
 - Consolidated source/evidence parent:7295d6d57270bb0be55fbaf191838e61730a5c92.
 - Runtime repair source:faa9bcc05a93ae73865012bdb6b890ed9fe344a0.
 - Diagnostic archive/fixture repair source:6c54b0778c334a1c9644999b1bc10b6e57117d1f.
-- TUI test scheduling repair source:a8fbf683 (current code candidate).
+- TUI test scheduling repair source:a8fbf683.
+- Quiet-provider test handshake source:1a0fc847 (current code candidate; not pushed).
 - Integration branch:uukuguy/native-execution-release-20261106.
 - Orca checkout:/Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106.
 
@@ -75,7 +76,7 @@ application instantiation passed 2; capability matrix passed 24/24. Independent
 wheel/sdist/npm package installation, installed Authority/model operations,
 frozen source setup, App build and final doctor all passed. The remaining-target
 process started at 6c54b077; a8fbf683 changed only the TUI test, outside these targets.
-This is split local release evidence, not one clean aggregate run. No CI has run.
+This is split local release evidence, not one clean aggregate run.
 App build retains the existing large-chunk warning; there is no build error.
 
 Control graph was re-laid out and checked at 1920px: no horizontal overflow,
@@ -85,6 +86,30 @@ inspection checked card readability, connector attachment and crossings.
 
 Private logs and exact timing receipts:
 `.capstone-agent/release-closeout-20261106/` in the original checkout.
+
+## First dev CI and local correction
+
+User approved exactly one macOS product/governance run. PR #94 was created at
+source d416707df6aa196c195a7ebcbeae69c8a8ff11d7. Run42137611817 failed after about
+28minutes44seconds. Formal applications938passed/3skips (1016.35s), simulator
+279passed/2skips (240.97s), governance61passed/2skips. Agent3142passed/197skips,
+with one failure in the quiet-provider idle callback test (260.04s).
+
+The test assumed at least two idle callbacks during a child's fixed200ms pause.
+A controlled300ms callback delay reproduced two failures locally. Commit1a0fc847
+uses an explicit marker handshake: the child stays quiet until two host callbacks
+complete. The original callback-count assertion and5s task deadline remain. Both
+diagnostic success/failure cases and slow/fast callbacks are covered; related92tests
+passed in16.13s. Production code is unchanged by this correction.
+
+Clean-candidate link inspection also found12historical receipts that existed only
+in the root checkout. Original files were copied with no content change; candidate
+control links and the added receipts' links pass. The earlier root-only link check
+was insufficient. These documentation inputs are included with the next candidate.
+No automatic retry or PR update was sent; a second CI requires new user approval.
+
+[PR94](https://github.com/uukuguy/capstone/pull/94),
+[failed CI42137611817](https://github.com/uukuguy/capstone/actions/runs/42137611817).
 
 ## Known limits
 
@@ -100,8 +125,8 @@ No gateway source/runtime, intranet63/66, cloud or demo environment is changed h
 ## Integration and tag procedure
 
 1. Complete local candidate checks and preserve exact evidence.
-2. Request explicit approval for the dev PR CI: macOS, current product gate
-   (`make check-pr` plus governance/setup), estimated15–30minutes. The wide gate is
+2. Request explicit approval for the next dev PR CI: macOS, current product gate
+   (`make check-pr` plus governance/setup), estimated25–35minutes (first run28m44s). The wide gate is
    justified by the accumulated Application/Kernel/Domain/runtime/App changes;
    it is not an ordinary single-layer edit.
 3. Push/create the candidate-to-dev PR only after approval. Merge after its gate
@@ -114,4 +139,4 @@ No gateway source/runtime, intranet63/66, cloud or demo environment is changed h
    accepted main commit. Record source, CI receipts and limits in its annotation.
    This is a software milestone tag, not cloud/demo deployment acceptance.
 
-PR descriptions are prepared locally. No CI was started during preparation.
+PR descriptions are prepared locally. One explicitly approved dev CI ran and failed; no second CI has started.
