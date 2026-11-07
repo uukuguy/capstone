@@ -465,6 +465,7 @@ GATEWAY_BINDING_MODULES = {
     'data_gateway_views', 'data_gateway_relay', 'data_gateway_mcp',
     'grid_source_topology', 'grid_source_http', 'grid_electrical_view',
     'general_pi_server', 'pi_delegation', 'delegated_runtime',
+    'native_tool_diagnostics',
 }
 GATEWAY_BINDING_RESOURCES = {
     'gateway-tool-use', 'general-tool-discovery', 'tool-composition',
@@ -517,6 +518,10 @@ def gateway_bindings_startup_diff(paths: list[str], base: str, head: str) -> boo
 def gateway_bindings_paths(paths: list[str], *, deployment: bool = False, startup: bool = False) -> bool:
     source = 'packages/capstone-agent/src/capstone_agent/'
     resources = {source + 'resources/' + name + '.mjs' for name in GATEWAY_BINDING_RESOURCES}
+    progressive = {source + name for name in ('data_gateway_mcp.py', 'data_gateway_relay.py',
+                    'resources/general-data-gateway.mjs')} <= set(paths)
+    if progressive:
+        resources.update(source + 'resources/' + name + '.mjs' for name in ('general-data-gateway', 'general-sdk'))
     if startup:
         resources.add(source + 'resources/general-sdk.mjs')
     anchors = {source + 'data_gateway_views.py'} | {
@@ -527,7 +532,7 @@ def gateway_bindings_paths(paths: list[str], *, deployment: bool = False, startu
     sources = {source + name + '.py' for name in GATEWAY_BINDING_MODULES}
     tests = {'packages/capstone-agent/tests/test_' + name + '.py'
              for name in GATEWAY_BINDING_MODULES | {
-                 'graph_host_observation'}}
+                 'graph_host_observation', 'gateway_progressive', 'progress'}}
     fixtures = {'packages/capstone-agent/tests/fixtures/' + name + '.test.mjs'
                 for name in ('gateway-tool-use', 'tool-discovery', 'tool-composition',
                              'data-gateway-research')}
