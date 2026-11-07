@@ -226,3 +226,18 @@ def test_continuation_metadata_failure_preserves_completed_source_observation(tm
         assert access.view_bindings.action({'value': 5}) is None
         assert access._tasks['task']['diagnostic_calls'][0]['continuation_contract_error'] == 'gateway_publication_changed'
     asyncio.run(run())
+
+
+def test_gateway_transport_stop_also_blocks_metadata_probes_in_same_task(tmp_path):
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    client, session, _ = progressive_gateway(tmp_path)
+    async def run():
+        catalog = await client.prepare()
+        access = DataGatewayAccess(client, catalog)
+        access.bind('task', 'attempt', set(catalog['tools']))
+        access._tasks['task']['failure'] = 'gateway_transport_failed'
+        before = len(session.requests)
+        with pytest.raises(ValueError, match='gateway_transport_failed'):
+            await access.resolve_contracts('task', ['data_gateway_new_action'])
+        assert len(session.requests) == before
+    asyncio.run(run())

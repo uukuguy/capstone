@@ -209,6 +209,8 @@ class DataGatewayAccess:
             record = self._tasks.get(task_id)
             if record is None:
                 raise GatewayError('gateway_task_not_admitted')
+            if record.get('failure'):
+                raise GatewayError(record['failure'])
             if (not isinstance(names, list) or not names or len(names) > limits.tool_active_count
                     or any(not isinstance(name, str) or name not in record['allowed_tools'] for name in names)):
                 raise GatewayError('gateway_tool_not_admitted')
