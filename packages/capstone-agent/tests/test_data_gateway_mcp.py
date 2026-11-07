@@ -120,6 +120,27 @@ def test_contract_check_unchanged_does_not_download_catalog(tmp_path):
     assert session.lists == lists
 
 
+def test_initialization_never_fetches_all_tool_contracts_or_model_discovery(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    assert session.calls == [('check_gateway_contract', {}), ('check_gateway_contract', {})]
+    assert catalog['contract_publication']['instance_id'] == session.instance
+
+
+def test_initialization_rejects_publication_change_during_catalog_read(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    original = session.list_tools
+    async def changing():
+        result = await original()
+        if session.lists == 2:
+            session.stamp = '2026-11-07T22:00:00+08:00'
+        return result
+    session.list_tools = changing
+    with pytest.raises(GatewayError, match='gateway_publication_changed'):
+        asyncio.run(client.prepare())
+    assert not client._accepted
+
+
 @pytest.mark.parametrize('change', ['stamp', 'instance'])
 def test_contract_check_change_fetches_future_snapshot(tmp_path, change):
     client, session = publication_gateway(tmp_path)

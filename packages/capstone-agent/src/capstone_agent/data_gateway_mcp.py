@@ -326,14 +326,15 @@ class DataGatewayMcp:
         catalog = await self._catalog(session)
         if self.policy['namespace'] + 'check_gateway_contract' in catalog['tools']:
             before = await self._publication(session, 'check_gateway_contract')
-            discovery = await self._publication(session, 'discover_gateway')
+            # The first list detects supported publication guards. Bracket the
+            # admitted catalog with those guards; model discovery and complete
+            # usage contracts are not prerequisites for host admission.
             catalog = await self._catalog(session)
-            full = await self._publication(session, 'describe_gateway_contract')
             after = await self._publication(session, 'check_gateway_contract')
             if not isinstance(after, dict):
                 raise GatewayError('gateway_catalog_invalid')
             instance = catalog.get('instance', {}).get('instance_id')
-            if (before != after or discovery != full or full != after['contract_updated_at']
+            if (before != after
                     or (instance and instance != after['instance_id'])):
                 raise GatewayError('gateway_publication_changed')
             catalog.pop('revision')
