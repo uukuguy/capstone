@@ -1,6 +1,6 @@
 # Tool execution lifecycle and bounded queues
 
-Status: accepted in conversation on 2026-11-08. Implementation pending.
+Status: accepted on 2026-11-08; implemented and verified locally. Dev integration awaits separately approved focused CI.
 
 ## Contract
 

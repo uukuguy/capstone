@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-08：[通用执行记录与8路队列](../reports/2026-11-08-tool-execution-lifecycle.md)记录最终本机源码b473fe0d及2b45bc49真实16项同批/源进程峰值8、产物哈希与刷新恢复。dev8da7dc76，待批准定向CI及PR集成；其他部署不变。
+
 2026-11-07：[渐进发现v1实施与验证](../reports/2026-11-07-capstone-progressive-gateway-v1.md)：本机候选248865b1，首次执行零tools/list、断连后元数据与过程恢复通过；启动1.268/0.942秒，整轮110.45/133.55秒，性能未接受。独立审查及dev集成待完成，无新CI。
 
 2026-11-07：[分段契约复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)记录PR98及获批CI；控制PR99已合实际dev8da7dc76，图按当前HEAD刷新；完整读取归零、两项判断纠正，续轮复用与性能仍有缺口。

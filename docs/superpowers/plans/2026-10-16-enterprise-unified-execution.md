@@ -430,3 +430,14 @@ The real graph smoke completed but did not pass result-reuse acceptance: a resul
 Graph-specific execution guidance distinguishes the host-bound assignment from untrusted source contents. Filtering model context is not a per-node filesystem sandbox: the shared task UID and native bash remain. Acceptance must inspect actual reads and exact bindings, not infer isolation from prompt filtering or the task-UID immutability test. Real timing must distinguish native child execution from parent record/assessment and include actual parent plus child model responses. The smoke proves A/B overlap and C release before B assessment; it does not prove C/B native overlap.
 
 Implementation and real acceptance remain open. The focused source-scope brief is in ignored operator evidence; final requirements remain owned here and by the enterprise design.
+
+
+## 2026-11-08 local candidate: execution lifecycle and queue control
+
+- Accepted design: [generic owner lifecycle](../specs/2026-11-08-tool-execution-lifecycle-design.md).
+- Executable supplement: [implementation plan](2026-11-08-tool-execution-lifecycle.md).
+- Status: implemented and verified locally; dev integration and separately approved
+  focused macOS CI remain pending. No package or release closure is inferred.
+- Scope: rolling application/relay/source budgets, real process nodes, durable
+  receipts, whole native-turn batches and accurate unknown-state projection.
+- Evidence: [local real-model verification](../../reports/2026-11-08-tool-execution-lifecycle.md).
