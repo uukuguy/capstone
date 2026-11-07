@@ -29,7 +29,13 @@ def checked_execution_receipt(value, *, task_id, call_id):
             return None
         if not cancelling and (phase not in phases or phases.index(phase) <= last_phase):
             return None
-        if (type(elapsed) not in {int, float} or not math.isfinite(elapsed) or elapsed < last_time
+        if (not isinstance(elapsed, (int, float)) or isinstance(elapsed, bool)):
+            return None
+        try:
+            finite = math.isfinite(elapsed)
+        except OverflowError:
+            return None
+        if (not finite or elapsed < last_time
                 or event.get('provenance') != ('authority_process' if phase.startswith('execution_') else 'owner_scheduler')):
             return None
         try:

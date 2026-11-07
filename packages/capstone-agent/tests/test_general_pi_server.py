@@ -1177,6 +1177,7 @@ def test_verified_electrical_descriptor_keeps_v2_open_arguments():
 
 def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path):
     import ast
+    from capability_agent.runtime import execution_queue
     from hashlib import sha256
     from pathlib import Path
     import capstone_agent.general_pi_server as server_module
@@ -1197,7 +1198,8 @@ def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path
         'resources/gateway-electrical-view-v2.schema.json').read_bytes())
     # Exercise the exact production hash expression without starting services.
     compiled = compile(ast.Expression(expression), '<executor_revision>', 'eval')
-    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py')}
+    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py'),
+                 'execution_queue': execution_queue}
     before = eval(compiled, namespace)
     schema.write_bytes(schema.read_bytes() + b'\n')
     assert eval(compiled, namespace) != before

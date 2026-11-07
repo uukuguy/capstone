@@ -310,10 +310,11 @@ class DelegatedRuntime:
             public_tool = kind in {'tool_execution_start', 'tool_execution_end'} and (
                 isinstance(tool_name, str) and bool(tool_name) and isinstance(tool_call_id, str) and bool(tool_call_id))
             from .tool_execution_receipt import checked_execution_receipt
-            result_details = event.get('result', {}).get('details', {}) if isinstance(event.get('result'), Mapping) else {}
+            raw_result, raw_activity = event.get('result'), event.get('activity')
+            result_details = raw_result.get('details', {}) if isinstance(raw_result, Mapping) else {}
+            raw_receipt = raw_activity.get('execution_receipt') if isinstance(raw_activity, Mapping) else None
             execution_receipt = checked_execution_receipt(
-                (event.get('activity') or {}).get('execution_receipt') if isinstance(event.get('activity'), Mapping)
-                and 'execution_receipt' in event['activity'] else
+                raw_receipt if raw_receipt is not None else
                 result_details.get('execution_receipt') if isinstance(result_details, Mapping) else None,
                 task_id=task_id, call_id=tool_call_id)
             research_branch = kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}
