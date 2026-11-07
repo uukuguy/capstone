@@ -7,14 +7,20 @@ const phases = ['submitted', 'queued', 'acquired', 'execution_started', 'executi
 export function parseToolExecutionReceipt(value: unknown, callId: string): ToolExecutionReceipt | undefined {
   if (!object(value) || value.schema !== 'capstone-tool-execution/1' || value.call_id !== callId
     || !['owner_id', 'scope_id', 'task_id', 'call_id', 'policy_version'].every(key => identity(value[key]))
-    || !Number.isSafeInteger(value.capacity) || Number(value.capacity) < 1 || Number(value.capacity) > 1024 || !Array.isArray(value.events) || !value.events.length || value.events.length > phases.length) return
+    || !Number.isSafeInteger(value.capacity) || Number(value.capacity) < 1 || Number(value.capacity) > 1024 || !Array.isArray(value.events) || !value.events.length || value.events.length > phases.length + 1) return
   let previous = -1, elapsed = -1
+  const seen = new Set<string>()
   for (const event of value.events) {
-    if (!object(event) || typeof event.phase !== 'string' || phases.indexOf(event.phase) <= previous
+    if (!object(event) || typeof event.phase !== 'string' || seen.has(event.phase)
+      || (event.phase === 'cancellation_requested' ? !seen.has('queued') || seen.has('released') : phases.indexOf(event.phase) <= previous)
       || typeof event.at !== 'string' || !Number.isFinite(Date.parse(event.at))
       || typeof event.elapsed_ms !== 'number' || !Number.isFinite(event.elapsed_ms) || event.elapsed_ms < 0 || event.elapsed_ms < elapsed
       || event.provenance !== (event.phase.startsWith('execution_') ? 'authority_process' : 'owner_scheduler')) return
-    previous = phases.indexOf(event.phase); elapsed = event.elapsed_ms
+    if (event.phase === 'execution_started' && !seen.has('acquired')
+      || event.phase === 'execution_ended' && !seen.has('execution_started')
+      || event.phase === 'released' && seen.has('execution_started') && !seen.has('execution_ended')) return
+    if (event.phase !== 'cancellation_requested') previous = phases.indexOf(event.phase)
+    seen.add(event.phase); elapsed = event.elapsed_ms
   }
   return { schema: value.schema, owner_id: String(value.owner_id), scope_id: String(value.scope_id), task_id: String(value.task_id), call_id: String(value.call_id), policy_version: String(value.policy_version), capacity: Number(value.capacity), events: value.events.map(event => ({phase:event.phase,at:event.at,elapsed_ms:event.elapsed_ms,provenance:event.provenance})) }
 }

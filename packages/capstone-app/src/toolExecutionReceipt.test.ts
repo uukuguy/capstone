@@ -2,6 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { parseToolExecutionReceipt, receiptBatchSummary, receiptDuration } from './toolExecutionReceipt'
 import { receipt } from './toolExecutionReceipt.fixture'
 describe('owner execution receipts',()=>{
+  it('accepts queued cancellation without claiming actual execution',()=>{
+    const base=receipt(), cancel={phase:'cancellation_requested',at:base.events[1].at,elapsed_ms:100,provenance:'owner_scheduler' as const}
+    const queued={...base,events:[...base.events.slice(0,2),cancel]}
+    expect(parseToolExecutionReceipt(queued,'c')).toEqual(queued)
+    expect(receiptDuration(parseToolExecutionReceipt(queued,'c'),'execution_started','execution_ended')).toBeUndefined()
+    expect(receiptBatchSummary([parseToolExecutionReceipt(queued,'c')])).toEqual({capacity:8})
+    expect(parseToolExecutionReceipt({...queued,events:[...queued.events,cancel]},'c')).toBeUndefined()
+    expect(parseToolExecutionReceipt({...queued,events:[...queued.events,base.events[4]]},'c')).toBeUndefined()
+    const released={...queued,events:[...queued.events,base.events[5]]}
+    expect(parseToolExecutionReceipt(released,'c')).toEqual(released)
+    expect(receiptDuration(parseToolExecutionReceipt(released,'c'),'execution_started','execution_ended')).toBeUndefined()
+  })
+  it('rejects lease release as a substitute for a missing execution end',()=>{
+    const base=receipt()
+    expect(parseToolExecutionReceipt({...base,events:[...base.events.slice(0,4),base.events[5]]},'c')).toBeUndefined()
+  })
   it('validates identity and finite ordered owner measurements',()=>{
     expect(parseToolExecutionReceipt(receipt(),'c')).toBeDefined()
     expect(parseToolExecutionReceipt(receipt(),'other')).toBeUndefined()

@@ -108,9 +108,9 @@ describe('actual graph process reader', () => {
     const value = fixture(), execution = value.executions[0]
     execution.tools = [{ id: 'running', name: 'bash', status: 'running', startedAt: '2026-10-21T00:00:04Z' }]
     const view = render(<ExecutionGraphProcess graph={value} storageKey="running-tool" now={Date.parse('2026-10-21T00:00:06Z')} />)
-    expect(screen.getByText('工具 1次 / 2.0s')).toBeVisible()
+    expect(screen.getByText('工具 1次 / 调用区间 2.0s')).toBeVisible()
     view.rerender(<ExecutionGraphProcess graph={value} storageKey="running-tool" now={Date.parse('2026-10-21T00:00:07Z')} />)
-    expect(screen.getByText('工具 1次 / 3.0s')).toBeVisible()
+    expect(screen.getByText('工具 1次 / 调用区间 3.0s')).toBeVisible()
     expect(execution.tools[0].durationMs).toBeUndefined()
   })
   it('does not show blank timing counters for a step that never started', () => {
@@ -168,7 +168,7 @@ describe('actual graph process reader', () => {
     expect(within(screen.getByRole('group', { name: '并行任务 · 2 项' })).getByText('总耗时 11.0s')).toBeVisible()
     expect(screen.queryByText('总耗时 16.0s')).toBeNull()
     const heading = screen.getByRole('group', { name: '并行任务 · 2 项' }).querySelector('.capstone-graph-parallel-heading')!
-    expect(heading).toHaveTextContent('工具 2次 / 3.0s')
+    expect(heading).toHaveTextContent('工具 2次 / 调用区间 3.0s')
     expect(heading).toHaveTextContent('LLM 2次 / 13.0s')
   })
   it('shows concurrent live children only from open execution intervals and stops the live indicator at termination', () => {
@@ -228,10 +228,10 @@ describe('actual graph process reader', () => {
     expect(screen.getByText('本轮主流程 LLM 2次 / 5.0s')).toBeVisible()
     expect(screen.getByText('错误响应 1次 / 3.0s')).toBeVisible()
     const b = screen.getByRole('region', { name: 'Original question B' })
-    expect(within(b).getByText('工具 1次 / 1.0s')).toBeVisible()
+    expect(within(b).getByText('工具 1次 / 调用区间 1.0s')).toBeVisible()
     expect(within(b).getByText('LLM 2次 / 5.0s')).toBeVisible()
     expect(within(b).getByText('8.0s')).toBeVisible()
-    expect(b.querySelector('.capstone-graph-node-heading')?.textContent).toContain('工具 1次 / 1.0s')
+    expect(b.querySelector('.capstone-graph-node-heading')?.textContent).toContain('工具 1次 / 调用区间 1.0s')
     expect(within(b).getByText('父主流程共享模型，未提供按节点计量')).not.toBeVisible()
     expect(within(b).queryByText('执行耗时未知')).toBeNull()
     expect(screen.getByText('LLM 请求计时明细')).toBeVisible()
