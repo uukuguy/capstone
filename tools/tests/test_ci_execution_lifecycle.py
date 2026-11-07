@@ -22,6 +22,19 @@ def test_lifecycle_anchor_selects_only_its_registered_consumers():
     assert classify(paths[1:]) != 'execution-lifecycle'
 
 
+def test_shared_sdk_leaf_dispatch_uses_the_same_focused_gate():
+    source = 'packages/capstone-agent/src/capstone_agent/resources/'
+    paths = [ANCHOR, *[source + name for name in (
+        'tool-call-scheduler.mjs', 'general-sdk.mjs', 'tool-composition.mjs',
+        'delegation-tool.mjs', 'llm-call-tools.mjs')],
+        'packages/capstone-agent/tests/application-tool-dispatch.test.mjs']
+    assert classify(paths) == 'execution-lifecycle'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths, release=True) == 'release'
+    for extra in ('delegation-scheduler.mjs', 'research-tools.mjs', 'unknown-runtime.mjs'):
+        assert classify([*paths, source + extra]) != 'execution-lifecycle'
+
+
 @pytest.mark.parametrize('extra', [
     'packages/grid-simulator/src/grid_simulator/solver.py',
     'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
@@ -80,6 +93,7 @@ def test_workflow_has_scoped_setup_and_only_focused_consumers():
                    'ProcessCallTrace.test.tsx', 'executionGraph.test.ts',
                    'CapstoneAssistantThread.test.tsx', 'ExecutionGraphProcess.test.tsx',
                    'tool-composition.test.mjs', 'tool-discovery.test.mjs',
+                   'application-tool-dispatch.test.mjs',
                    'graph', 'npm --prefix packages/capstone-app run check'):
         assert target in block
     for forbidden in ('check-release','check-pr','test-kernel','test-capstone-app',

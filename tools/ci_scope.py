@@ -478,6 +478,7 @@ EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
     'packages/grid-agent/tests/test_domain_execution_lifecycle.py',
     'packages/pandapower-domain-pack/src/pandapower_domain/execution.py',
     'packages/pandapower-domain-pack/tests/test_execution.py',
+    'packages/capstone-agent/tests/application-tool-dispatch.test.mjs',
     '.github/workflows/verify.yml', 'tools/ci_scope.py',
     'tools/tests/test_ci_execution_lifecycle.py', 'tools/tests/test_ci_gateway_bindings.py',
     'tools/tests/test_execution_lifecycle_packaging.py',
@@ -488,7 +489,8 @@ EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
     for name in GATEWAY_BINDING_MODULES | {'tool_execution_receipt', 'graph_host_observation', 'gateway_progressive', 'progress'}
 } | {'packages/capstone-agent/src/capstone_agent/resources/' + name for name in (
     'gateway-tool-use.mjs', 'general-tool-discovery.mjs', 'tool-composition.mjs',
-    'general-data-gateway.mjs', 'general-sdk.mjs', 'general-domain-tools.mjs', 'tool-composition-policy.json')
+    'general-data-gateway.mjs', 'general-sdk.mjs', 'general-domain-tools.mjs', 'tool-composition-policy.json',
+    'tool-call-scheduler.mjs', 'delegation-tool.mjs', 'llm-call-tools.mjs')
 } | {'packages/capstone-agent/tests/fixtures/' + name + '.test.mjs' for name in (
     'gateway-tool-use', 'tool-discovery', 'tool-composition', 'data-gateway-research')
 } | {'packages/capstone-app/src/' + name for name in (
