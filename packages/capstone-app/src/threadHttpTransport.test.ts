@@ -227,3 +227,11 @@ describe('HttpThreadTransport', () => {
     expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_demo_39/events/stream?after=1&follow=1')
   })
 })
+
+it('refreshes session gateway through one backend action and reports its actionable failure',async()=>{
+ const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({detail:{code:'gateway_transport_failed',message:'无法连接网关，请检查服务和网络。'}}),{status:503}))
+ const transport=new HttpThreadTransport('','',fetcher)
+ await expect(transport.refreshThreadGatewayConnections('thr_gateway')).rejects.toThrow('无法连接网关，请检查服务和网络。')
+ expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_gateway/gateways/refresh')
+ expect(fetcher).toHaveBeenCalledTimes(1)
+})

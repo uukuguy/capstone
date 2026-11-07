@@ -277,6 +277,13 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
+    assert 'scope.executed true means the statement was cancelled' not in gateway_context
+    assert 'When no next action is returned, select the next operation from the current published contract' in gateway_context
+    assert 'A successful tool call does not prove that its job succeeded' in gateway_context
+    assert 'use this connected gateway capability snapshot to decompose' in gateway_context
+    assert 'Missing capability metadata remains unknown' in gateway_context
+    assert 'Structured table queries are also a fallback' not in gateway_context
+    assert 'Use native SQL as advanced exploration only when no admitted tool' not in gateway_context
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
     assert captured[0]['dataGateway']['onDemandTools'] is True
@@ -301,12 +308,13 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'For an inventory request' in gateway_context
     assert 'leading index prefix the tool reports' in gateway_context
     assert 'Compose published data_gateway_ tools' in gateway_context
-    assert 'Structured table queries are also a fallback' in gateway_context
+    assert 'current published access-selection policy' in gateway_context
+    assert 'When no suitable dedicated operation can express the needed analysis' in gateway_context
     assert 'One unavailable tool does not make other business tools unavailable' in gateway_context
     assert 'Do not issue a probe only to validate input schemas' in gateway_context
     assert 'independently of menu activation' in gateway_context
-    assert 'native SQL as advanced exploration' in gateway_context
-    assert 'suspected tool defect' in gateway_context
+    assert 'Use admitted SQL only within its published read-only scope' in gateway_context
+    assert 'For a suspected defect' in gateway_context
     assert 'actual observation reference' in gateway_context
     assert 'DATASOURCE_ID' not in gateway_context
     assert 'summary/default arguments' in gateway_context
@@ -905,6 +913,9 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
             return self.snapshot()
         def refresh(self):
             return {**self.snapshot(), 'checking': True}
+        def reload_contract(self):
+            self.current_access.catalog = {'tools': {}, 'revision': 'refreshed'}
+            return {**self.snapshot(), 'checking': True}
 
     class Runner:
         gateway_registry = Registry()
@@ -933,6 +944,7 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
         assert runner.gateway.name == 'second'
         assert client.capability['data_gateway']['identity']['instance_name'] == 'second'
         assert client.control_gateway_connections('refresh', {})['checking'] is True
+        assert client.capability['data_gateway']['catalog']['revision'] == 'refreshed'
         # A selected service may recover after startup failed. Health prepares
         # its access independently; publication applies only when idle.
         runner.gateway = None
@@ -1409,3 +1421,37 @@ def test_terminal_receipt_failure_settles_and_prevents_replay(tmp_path, monkeypa
     restarted = GeneralPiHost(root=tmp_path, identity=host.identity, run_task=run)
     restarted.submit(request)
     assert calls == ['t1']
+
+
+@pytest.mark.parametrize('requested_tool,accepted', [('data_gateway_bound_only', True), ('data_gateway_default_only', False)])
+def test_admission_uses_bound_gateway_catalog_instead_of_default(tmp_path, monkeypatch, requested_tool, accepted):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.native_task_context import POLICY_TEXT
+    class Admitted(Exception):
+        pass
+    catalog = {'revision': 'bound-revision', 'tools': {'data_gateway_bound_only': {}}}
+    access = SimpleNamespace(publication=lambda: {'available': True, 'catalog': catalog},
+                             frozen_catalog=lambda revision: catalog if revision == 'bound-revision' else {})
+    bindings = []
+    def access_for(connection, instance):
+        bindings.append((connection, instance))
+        return connection, access
+    def runner(*args):
+        raise AssertionError('Admission test must not execute a task')
+    runner.gateway_registry = SimpleNamespace(access_for=access_for)
+    runner.gateway_publication = {'available': True, 'catalog': {'tools': {'data_gateway_default_only': {}}}}
+    host = module.GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=runner)
+    native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+        'allowed_tools': [requested_tool], 'external_lookup_enabled': False},
+        'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False,
+        'gateway_binding': {'connection_id': 'selected', 'instance_id': 'bound-instance', 'catalog_revision': 'bound-revision'}}
+    request = PiTaskRequest('bound-admission', 'attempt', 'direct', 'Explain', (), (), host.identity, 2,
+        business_context=BusinessContext.empty('workspace', 0),
+        resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Explain'}, native_context=native)
+    monkeypatch.setattr(host, '_make_room', lambda: (_ for _ in ()).throw(Admitted()))
+    with pytest.raises(Admitted if accepted else ValueError):
+        host.submit(request)
+    assert bindings == [('selected', 'bound-instance')]

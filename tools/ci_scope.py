@@ -586,6 +586,22 @@ def session_capacity_paths(paths: list[str], *, deployment: bool = False) -> boo
         for path in paths)
 
 
+def gateway_capabilities_paths(paths: list[str]) -> bool:
+    source = 'packages/capstone-agent/src/capstone_agent/'
+    anchor = source + 'resources/general-tool-discovery.mjs'
+    modules = {'data_gateway_mcp', 'gateway_connections_http', 'general_pi_server', 'thread_service'}
+    allowed = {source + name + '.py' for name in modules} | {anchor}
+    allowed |= {'packages/capstone-agent/tests/' + name for name in (
+        'test_data_gateway_mcp.py', 'test_general_pi_server.py',
+        'test_thread_gateway.py', 'test_thread_gateway_http.py',
+        'fixtures/tool-discovery.test.mjs', 'fixtures/tool-composition.test.mjs')}
+    allowed |= {'packages/capstone-app/src/' + name for name in (
+        'GatewayStatus.tsx', 'GatewayStatus.test.tsx',
+        'WorkspaceConnectionStatus.tsx', 'WorkspaceConnectionStatus.test.tsx',
+        'threadHttpTransport.ts', 'threadHttpTransport.test.ts')}
+    return anchor in paths and all(path in allowed or _control_path(path) for path in paths)
+
+
 def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
              runtime_dependencies: bool = False, source_topology: bool = False,
              gateway_deployment: bool = False, gateway_bindings_deployment: bool = False,
@@ -594,6 +610,8 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    if gateway_capabilities_paths(paths):
+        return 'gateway-capabilities'
     if session_capacity_paths(paths, deployment=session_capacity_deployment):
         return 'session-capacity'
     if any(_app_path(path) for path in paths) and all(_app_path(path) or _control_path(path) for path in paths):

@@ -19,7 +19,7 @@ from referencing.exceptions import NoSuchResource
 from .application_capacity import limits, require_capacity, CapacityExceeded
 
 
-_TOOL_NAME = re.compile(r'[a-z][a-z0-9_]{0,49}')
+_TOOL_NAME = re.compile(r'[A-Za-z0-9_.-]{1,128}')
 _INSTRUCTIONS_BYTES = 16384
 # Agreed service entry points. Business operations never belong in this list.
 _GATEWAY_ENTRY_POINTS = ('discover_gateway', 'describe_gateway_contract')
@@ -316,7 +316,7 @@ class DataGatewayMcp:
         except (ValueError, TypeError):
             raise GatewayError('gateway_catalog_invalid', request_id) from None
         if tool == 'check_gateway_contract':
-            if set(data) != {'instance_id', 'contract_updated_at'} or not identity_text(data.get('instance_id')):
+            if not {'instance_id', 'contract_updated_at'} <= set(data) or not identity_text(data.get('instance_id')):
                 raise GatewayError('gateway_catalog_invalid', request_id)
             return deepcopy(data)
         return stamp

@@ -10,12 +10,16 @@ def test_session_selection_does_not_change_default_and_lock_cannot_be_bypassed()
     class Executor:
         default = 'one'
         calls = []
+        unavailable = None
         def gateway_connections(self):
             return {'schema':'capstone-gateway-connections/1','revision':1,'checking':False,'selected_id':self.default,
                     'entries':[{'id':name,'label':name,'url':'http://'+name+'.example/mcp','status':'connected'} for name in ('one','two')]}
         def thread_gateway_publication(self, binding=None, *, refresh=False):
             name = (binding or {}).get('connection_id') or self.default
             self.calls.append((name,refresh))
+            if name == self.unavailable:
+                from capstone_agent.pi_delegation import PiHTTPFailure
+                raise PiHTTPFailure(503, 'gateway_transport_failed')
             return publication(name, 'instance-'+name)
     executor = Executor()
     app = FastAPI()
@@ -36,11 +40,16 @@ def test_session_selection_does_not_change_default_and_lock_cannot_be_bypassed()
         assert executor.default == 'one'
         assert service.submit_gateway_command(message(thread), publication('two','instance-two')).status == 'accepted'
         locked = client.get(base).json()
-        assert locked['locked'] is True and locked['selected_id'] == 'two'
+        assert locked['locked'] is False and locked['selected_id'] == 'two'
         count = len(executor.calls)
-        rejected = client.post(base+'/select',json={'id':'one'})
-        assert rejected.status_code == 409
-        assert rejected.json()['detail']['code'] == 'gateway_session_locked'
-        assert len(executor.calls) == count
-        assert client.post(base+'/reload',json={}).status_code == 200
-        assert executor.calls[-1] == ('two',True)
+        switched = client.post(base+'/select',json={'id':'one'})
+        assert switched.status_code == 200
+        assert switched.json()['selected_id'] == 'one'
+        assert ('one', True) in executor.calls[count:]
+        assert client.post(base+'/refresh',json={}).status_code == 200
+        assert executor.calls[-1] == ('one',True)
+        executor.unavailable = 'two'
+        failed = client.post(base+'/select', json={'id':'two'})
+        assert failed.status_code == 503
+        assert failed.json()['detail']['code'] == 'gateway_transport_failed'
+        assert service.read_thread_gateway(thread)['connection_id'] == 'one'

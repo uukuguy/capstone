@@ -53,7 +53,7 @@ def message(thread_id, name='one', expected=0):
             'target': {'kind': 'work', 'id': 'new', 'expected_revision': expected}, 'payload': {'text': 'Inspect materials'}}
 
 
-def test_empty_selection_locks_on_first_accepted_instruction_and_rejects_switches():
+def test_selection_can_change_after_first_accepted_instruction():
     import pytest
     from capstone_agent.thread_gateway import publication_binding
     from capstone_agent.thread_protocol import ThreadProtocolError
@@ -62,10 +62,10 @@ def test_empty_selection_locks_on_first_accepted_instruction_and_rejects_switche
     assert not service.read_thread_gateway(thread)['locked']
     assert service.submit_gateway_command(message(thread), publication()).status == 'accepted'
     assert service.read_thread_gateway(thread)['locked']
-    with pytest.raises(ThreadProtocolError, match='gateway_session_locked'):
-        service.select_thread_gateway(thread, publication_binding(publication('two', 'instance-two')))
+    service.select_thread_gateway(thread, publication_binding(publication('two', 'instance-two')))
+    assert service.read_thread_gateway(thread)['connection_id'] == 'two'
     assert service.submit_gateway_command(message(thread), publication('two', 'instance-two')).status == 'accepted'  # idempotent receipt
-    assert service.submit_gateway_command(message(thread, 'next'), publication('two', 'instance-two')).rejection == 'gateway_instance_changed'
+    assert service.read_thread_gateway(thread)['locked'] is False
 
 
 def test_rejected_instruction_and_selection_race_do_not_lock_an_empty_session():
@@ -79,7 +79,7 @@ def test_rejected_instruction_and_selection_race_do_not_lock_an_empty_session():
     assert not service.read_thread_gateway(thread)['locked']
 
 
-def test_postgres_binding_survives_restart_and_blocks_switch(postgres_thread_service):
+def test_postgres_selection_survives_restart_and_can_switch(postgres_thread_service):
     import pytest
     from dataclasses import replace
     from capstone_agent.thread_service import PostgresThreadService
@@ -90,11 +90,15 @@ def test_postgres_binding_survives_restart_and_blocks_switch(postgres_thread_ser
     service.create_thread(replace(empty.snapshot(generated), thread_id=thread))
     service.select_thread_gateway(thread, publication_binding(publication()))
     assert service.submit_gateway_command(message(thread), publication()).status == 'accepted'
+    with service._connect() as connection:
+        frozen_before = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s', (thread,)).fetchall()
     restarted = PostgresThreadService(service.dsn)
     assert restarted.read_thread_gateway(thread)['instance_id'] == 'instance-one'
     assert restarted.read_thread_gateway(thread)['locked']
-    with pytest.raises(ThreadProtocolError, match='gateway_session_locked'):
-        restarted.select_thread_gateway(thread, publication_binding(publication('two', 'instance-two')))
+    restarted.select_thread_gateway(thread, publication_binding(publication('two', 'instance-two')))
+    assert restarted.read_thread_gateway(thread)['connection_id'] == 'two'
+    with service._connect() as connection:
+        assert connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s', (thread,)).fetchall() == frozen_before
 
 
 def test_postgres_switch_and_first_instruction_are_serialized(postgres_thread_service):
@@ -122,6 +126,20 @@ def test_postgres_switch_and_first_instruction_are_serialized(postgres_thread_se
         sent, switched = pool.submit(submit), pool.submit(select)
         receipt, changed = sent.result(), switched.result()
     saved = service.read_thread_gateway(thread)
-    assert (receipt.status == 'accepted', changed) in {(True, False), (False, True)}
+    assert changed is True
+    assert receipt.status in {'accepted', 'rejected'}
     assert saved['instance_id'] == ('instance-two' if changed else 'instance-one')
     assert saved['locked'] is not changed
+
+
+def test_changing_gateway_preserves_already_accepted_task_snapshot():
+    from copy import deepcopy
+    from capstone_agent.thread_gateway import publication_binding
+    service, thread = empty_service()
+    service.select_thread_gateway(thread, publication_binding(publication()))
+    assert service.submit_gateway_command(message(thread), publication()).status == 'accepted'
+    before = deepcopy(service._attempts)
+    service.select_thread_gateway(thread, publication_binding(publication('two', 'instance-two')))
+    assert service.read_thread_gateway(thread)['connection_id'] == 'two'
+    assert service.read_thread_gateway(thread)['locked'] is False
+    assert service._attempts == before

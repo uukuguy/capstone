@@ -19,7 +19,9 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   const entries=new Map(tools.filter(tool=>grants.has(tool.name)).map(tool=>{
     const publication=structuredClone(publications[tool.name]);
     if(!publication||tool.name.length>256)throw new Error('Invalid tool discovery publication');
-    return [tool.name,{tool,publication,hash:contractHashes[tool.name]??
+    const metadata=JSON.stringify(Object.fromEntries(['usage','metadata','_meta']
+      .filter(key=>Object.hasOwn(publication,key)).map(key=>[key,publication[key]])));
+    return [tool.name,{tool,publication,metadata,hash:contractHashes[tool.name]??
       createHash('sha256').update(JSON.stringify(publication)).digest('hex')}];
   }));
   const identities=createToolIdentityResolver(Object.fromEntries(
@@ -64,7 +66,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       const query=args.query.trim().toLowerCase(),terms=[...new Set(query.split(/\s+/).filter(Boolean))],offset=args.offset??0;
       const candidates=names.filter(name=>args.toolset===undefined||gatewayToolGroup(entries.get(name).publication)===args.toolset);
       const matched=new Map(candidates.map(name=>{
-        const p=entries.get(name).publication,text=(name+' '+(p.name??'')+' '+(p.description??'')).toLowerCase();
+        const entry=entries.get(name),p=entry.publication,text=(name+' '+(p.name??'')+' '+(p.description??'')+' '+entry.metadata).toLowerCase();
         return [name,terms.filter(term=>text.includes(term))];
       }));
       const exact=query?candidates.filter(name=>[name,entries.get(name).publication.name].some(value=>typeof value==='string'&&value.toLowerCase()===query)):[];
@@ -80,6 +82,9 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       searched.add(searchKey);
       return reply({capacity,match_mode:mode,active_entry_tools:initial,toolsets:[...groups.values()],selection_guidance:gatewayToolUseGuidance,
         tools:selected.map(name=>({name,active:active.has(name),matched_terms:matched.get(name),toolset:gatewayToolGroup(entries.get(name).publication),access:gatewayToolAccess(entries.get(name).publication),description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
+        ...(entries.get(name).metadata!=='{}'?{
+          published_metadata_preview:entries.get(name).metadata.slice(0,maxSummaryChars),
+          published_metadata_truncated:entries.get(name).metadata.length>maxSummaryChars}:{}),
         contract_sha256:entries.get(name).hash})),total:matches.length,
         next_offset:offset+selected.length<matches.length?offset+selected.length:null,
         ...(repeated?{discovery_feedback:{repeated_query:true,publication_changed:false,

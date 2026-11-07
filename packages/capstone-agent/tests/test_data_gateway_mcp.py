@@ -551,7 +551,19 @@ def test_dynamic_effects_fail_closed(tmp_path, effects):
         asyncio.run(client.call('data_gateway_previously_unknown_action', {}, catalog))
 
 
-@pytest.mark.parametrize('bad_name', ['UpperCase', 'bad-name', 'x' * 51, '', 'a.b'])
+@pytest.mark.parametrize('native_name', ['epri-catalog__describe_service', 'a.b', 'UpperCase', 'x' * 128])
+def test_dynamic_accepts_mcp_tool_names_and_keeps_provider_namespace(tmp_path, native_name):
+    client, session = dynamic_gateway(tmp_path)
+    session.tools[0].name = native_name
+    session.tools[0].value['name'] = native_name
+    catalog = asyncio.run(client.prepare())
+    exposed = 'data_gateway_' + native_name
+    assert catalog['tools'][exposed]['name'] == native_name
+    asyncio.run(client.call(exposed, {}, catalog))
+    assert session.calls[-1] == (native_name, {})
+
+
+@pytest.mark.parametrize('bad_name', ['bad name', 'a/b', 'x' * 129, '', '工具', 'a\n'])
 def test_dynamic_invalid_tool_names_reject_catalog(tmp_path, bad_name):
     client, session = dynamic_gateway(tmp_path)
     session.tools[0].name = bad_name
@@ -708,3 +720,23 @@ def test_handshake_instance_identity_is_bound_and_safely_projected(tmp_path):
     assert 'secret-canary' not in json.dumps(publication)
     instance['instance_id'] = 'another-instance'
     assert asyncio.run(client.prepare())['revision'] != catalog['revision']
+
+
+def test_publication_accepts_additive_metadata_and_refreshes_when_it_changes(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    calling = session.call_tool
+    extension = {'new_service_revision': 'first', 'future_metadata': {'flags': ['supported']}}
+    async def call(name, arguments):
+        from types import SimpleNamespace
+        original = await calling(name, arguments)
+        document = original.model_dump()
+        if name == 'check_gateway_contract':
+            document['structuredContent']['data'].update(copy.deepcopy(extension))
+        return SimpleNamespace(model_dump=lambda **_: copy.deepcopy(document))
+    session.call_tool = call
+    first = asyncio.run(client.prepare())
+    assert first['contract_publication']['future_metadata'] == extension['future_metadata']
+    extension['new_service_revision'] = 'second'
+    second = asyncio.run(client.refresh_catalog(first))
+    assert second['revision'] != first['revision']
+    assert client._accepted[first['revision']] == first

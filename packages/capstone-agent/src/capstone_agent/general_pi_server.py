@@ -270,7 +270,18 @@ class GeneralPiHost:
                        else self.capability.get('resource_profiles', {}).get(role, {}))
             published = set(self.capability.get('native_tools', ()))
             from .data_gateway_relay import research_gateway_tools
-            published.update(research_gateway_tools(native, self.capability.get('data_gateway', {})))
+            publication = self.capability.get('data_gateway', {})
+            binding = native.get('gateway_binding')
+            if binding is not None:
+                publication = {'available': False}
+                if binding['catalog_revision'] is not None:
+                    registry = getattr(self._run, 'gateway_registry', None)
+                    if registry is None:
+                        raise ValueError('gateway_bound_instance_unavailable')
+                    _, access = registry.access_for(binding['connection_id'], binding['instance_id'])
+                    publication = {**access.publication(),
+                                   'catalog': access.frozen_catalog(binding['catalog_revision'])}
+            published.update(research_gateway_tools(native, publication))
             published.update(profile.get('load_receipt', {}).get('published_tool_ids', ()))
             if request.research_binding is not None:
                 from .native_research_bridge import ALL_ENTERPRISE_RESEARCH_TOOLS
@@ -1258,17 +1269,17 @@ class NativeTaskRunner:
                         'Composition programs select admitted names independently of menu activation; tools.describe reads their exact frozen contracts without an upstream call. '
                         'For an inventory request, use summary/default arguments and answer from the returned list; do not expand into unrelated investigations or operations. '
                         'Use the current published tool descriptions and schemas to determine prerequisites and valid combinations; do not assume a fixed discovery or execution sequence. '
+                        'For a complex question, use this connected gateway capability snapshot to decompose it into supported actions before choosing execution calls. Read relevant published usage, prerequisites, output types and composition constraints through discovery and exact contracts. Revise the decomposition after observations; do not send the whole question straight to a generic query merely because it is complex. Missing capability metadata remains unknown. Simple questions need no separate planning stage. '
                         'Compose published data_gateway_ tools for almost all business data access. The gateway writes those queries and handles their performance. '
-                        'Choose by business semantics, not familiarity with a generic query schema. Structured table queries are also a fallback, not a substitute for applicable object, series, statistics or weather operations. '
+                        'Choose dedicated operations, structured queries or advanced exploration by task semantics and the current published access-selection policy, without imposing a fixed tool hierarchy. '
+                        'Prefer a suitable dedicated operation when its business semantics and constraints fit the task. When no suitable dedicated operation can express the needed analysis, use admitted structured queries or read-only SQL for bounded exploration. Do not require failed attempts through unrelated tools before using that fallback. '
                         'One unavailable tool does not make other business tools unavailable; inspect its stated scope and relevant alternatives without probing the entire catalog. '
                         'Before expanding unfamiliar business retrieval, establish its shape and status with a bounded observation; reuse an existing successful observation for the same shape and scope. '
                         'Do not issue a probe only to validate input schemas; batch preflight checks arguments before execution. Stop the batch on a shared contract error instead of repeating it for each object. '
                         'After a timeout, change the access path or selection only with a contract-backed reason; otherwise retain the gap and continue useful work. '
-                        'A query_timeout gap with scope.retry_same_request false must not be sent again. scope.executed true means the statement was cancelled during the scan. '
-                        'Follow scope.fields in order: equality-constrain the first field before later equality fields. Use a time field only after that leading equality, as a left-closed right-open range of one day or one series. '
-                        'A time range alone does not use the index, and limit does not reduce the scan before an aggregate. '
-                        'When scope.suggested_request is present, send that request instead of another full scan. Do not ask to raise the time budget. '
-                        'Use native SQL as advanced exploration only when no admitted tool expresses the necessary operation, or a documented suspected tool defect prevents a reliable result. '
+                        'Honor returned retry restrictions and execution diagnostics. Execution or timeout does not prove remote cancellation; unknown result state remains unknown. '
+                        'Apply index order, time ranges and suggested requests only when the current contract or observation declares them for this operation. LIMIT does not prove reduced source scanning. '
+                        'Use admitted SQL only within its published read-only scope, source policy and budgets; compare actual costs rather than assuming an execution location is faster. '
                         'For a suspected defect, retain the actual observation reference and describe why the published valid path cannot complete the operation; do not blindly retry or certify an unverified diagnosis. '
                         'When a tool description or result states connected indexes, limits, plans, or gaps, follow that statement. '
                         'Use only a leading index prefix the tool reports; do not apply functions to indexed columns or skip earlier index columns. '
@@ -1278,7 +1289,10 @@ class NativeTaskRunner:
                         'Do not copy instance-specific indexes or limits into application code. '
                         'Follow returned references and conditional next steps only when needed for the current instruction and admitted by the task grant. '
                         'Read fresh runtime.contracts for task and view states. Task states preparing, queued, running, succeeded and failed are distinct from ready views. '
-                        'Follow only actual data.next_action or provenance.agent_guidance.next_actions returned for this task; ready views publish reads in streams.*.read. '
+                        'Use returned data.next_action or provenance.agent_guidance.next_actions only after checking the current grant and contract; ready views publish reads in streams.*.read. '
+                        'When no next action is returned, select the next operation from the current published contract, including usage and input/output requirements; never invent action names, arguments or references. '
+                        'A successful tool call does not prove that its job succeeded. Inspect returned job state, errors and saved outputs. Creation and status reads do not imply automatic advancement; follow the published execution protocol. '
+                        'Before resuming, verify source identity, reference compatibility, committed progress and remaining budgets; reuse saved results without blindly replaying unknown operations. '
                         'Before polling, wait at least the maximum returned poll_after_seconds and not_before_seconds. Keep reads and follow-up calls bounded; do not retry failed operations automatically. '
                         'Refresh source data only when the current instruction requests it. Captured content may lack verified source transaction consistency. '
                         'Preserve returned status, provenance, source identity, version, time coverage, units, quality, completeness and gaps. '
@@ -1615,8 +1629,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             # starts meanwhile, the guarded commit retains its original source.
             return registry.select(document['id'], commit_guard=commit_guard)
         if action == 'refresh' and document == {}:
-            return registry.refresh()
-        if action == 'reload' and document == {}:
+            registry.refresh()
+        if action in {'refresh', 'reload'} and document == {}:
             try:
                 result = registry.reload_contract()
             finally:

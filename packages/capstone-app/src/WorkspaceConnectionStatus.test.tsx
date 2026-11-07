@@ -22,7 +22,7 @@ it('changes the sidebar identity and lock with the selected session without show
  fireEvent.click(await screen.findByRole('button',{name:'数据网关：实例 A'}));
  expect(onConnection).toHaveBeenLastCalledWith(expect.objectContaining({instance_name:'实例 A',endpoint:'http://one.example/mcp'}))
  fireEvent.click(screen.getByRole('button',{name:/实例 B.*可连接/}));
- expect(screen.getByRole('button',{name:'使用此网关'})).toBeDisabled();
+ expect(screen.getByRole('button',{name:'使用此网关'})).not.toBeDisabled();
  view.rerender(<WorkspaceGatewayStatus transport={transport} threadId="thr_b" onConnection={onConnection}/>);
  fireEvent.click(await screen.findByRole('button',{name:'数据网关：实例 B'}));
  expect(onConnection).toHaveBeenLastCalledWith(expect.objectContaining({instance_name:'实例 B',endpoint:'http://two.example/mcp'}))
