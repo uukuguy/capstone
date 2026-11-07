@@ -277,6 +277,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
+    assert 'scope.executed true means the statement was cancelled' not in gateway_context
+    assert 'When no next action is returned, select the next operation from the current published contract' in gateway_context
+    assert 'A successful tool call does not prove that its job succeeded' in gateway_context
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
     assert captured[0]['dataGateway']['onDemandTools'] is True
