@@ -5,6 +5,7 @@ export function createDomainTools(config, {fetchImpl = globalThis.fetch} = {}) {
   if (!domain?.catalog?.tools) return [];
   return Object.entries(domain.catalog.tools).map(([name, schema]) => ({
     name,
+    executionIdentity: 'owner',
     label: name,
     description: schema.description ?? name,
     parameters: schema.inputSchema,
