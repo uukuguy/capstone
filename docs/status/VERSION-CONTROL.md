@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-11-07：动态能力候选9773fca6已规范重建本机后端；191Python/32跳过、25Node通过。真实两轮方案121.21/117.68秒、产物下载哈希及API恢复通过；29→2份契约读取，分析准确性与成本仍有缺口。App保持df4ddf61，dev未合入、无CI，远端不变。[回执及网关建议](../reports/2026-11-07-gateway-capability-discovery.md)。
+
 2026-11-06：PR94已合入dev a4efea0e，macOS CI42147526730通过；PR95按用户明确研发快照例外合入main22cd1728，重复发布CI已取消。注释tag dev-snapshot-20261106-22cd1728。三套dev均部署22cd1728，页面/就绪/API-worker同镜像通过，真实短任务本机3.10秒、63为8.86秒、66为9.61秒完成。数据与网关保留，非双平台发布验收。[部署回执](../reports/2026-11-06-three-dev-deployment.md)。
 
 2026-11-05：984131e3已部署local-dev，补齐独立分页链tools.map、稳定tool身份和helper同源契约；55Node/20Python通过、1环境跳过，1313运行输入一致。真实6链各2页，共12次查询最大并发4、查询区间1.5998秒、整轮40.9591秒、0工具错误，203字节CSV下载哈希及刷新通过。原任务42错误分为29网关/7组合/6bash；网关运行包缺grid_database已按用户授权通知，未收到回复，不声称原任务所有错误已修复。实际dev HEAD6c55e6ee未移动，无CI/合并，内网未联系。[补修回执](../reports/2026-11-05-batch-regression.md)。
@@ -1185,6 +1187,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| gateway-auto-20261106 | df4ddf61 | dev | 网关选择与自动工具同步 | 后端/MCP/客户端定向及三套真实两轮会话通过 | 已有会话可切换；运行任务保留快照，新增发布字段自动接受。[验证](../reports/2026-11-06-gateway-auto-negotiation.md) | shared-agent |
+| dynamic-capabilities-20261107 | 9773fca6 | feature | 动态能力视图与能力驱动分解 | 本机机制与两轮方案交付通过；分析质量缺口保留，未合dev | 授权快照元数据检索；专业能力分解与有界兜底。[验证](../reports/2026-11-07-gateway-capability-discovery.md) | shared-agent |
 | native-closeout-20261106 | 22cd1728 | main | native执行与Thinking·研发快照 | PR94 macOS通过；PR95研发轻量例外合入，tag及三套部署完成 | Thinking/native/工具批次与类型修正；main与dev同内容。[收口](../reports/2026-11-06-native-execution-closeout.md) | shared-agent |
 | batch-regression-20261105 | 984131e3 | dev | 独立分页链与helper契约·本地补修 | 55Node/20Python、1跳过；真实12查询并发4、0错误及CSV/刷新通过 | 有界独立分页链；稳定工具身份与helper契约，网关缺包另行协查。[回执](../reports/2026-11-05-batch-regression.md) | shared-agent |
 | structured-batches-20261105 | 4ba17891 | dev | 结构化工具批次·前次本地候选 | 两查询验证通过；真实复杂任务仍串行及多错，由984131e3补修 | 独立调用结构化提交；共享会话限流、逐项失败和结果引用保持。[回执](../reports/2026-11-05-structured-tool-batches.md) | shared-agent |
@@ -1327,6 +1331,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| gateway-auto-20261106 | 三套dev当前部署来源 | fix/gateway-auto-negotiation-20261106 | 自动同步网关工具；按任务冻结来源快照 | 三套就绪及真实切换/刷新/后续指令通过 |
+| dynamic-capabilities-20261107 | 研发候选 | fix/gateway-auto-negotiation-20261106 | 动态能力与问题分解；契约复用与探索兜底 | 本机已运行，未合dev；分析验收未完成 |
 | native-closeout-20261106 | 三套dev精确部署源 | main · dev-snapshot-20261106-22cd1728 | native与Thinking修正；有界工具编排 | PR94通过；PR95研发例外；三套就绪及真实短会话通过 |
 | batch-regression-20261105 | local-dev本地补修来源 | refs/capstone/fixes/batch-regression-20261105（未合入dev） | 独立分页链有界并发；稳定工具身份与helper契约 | 已部署；真实12查询并发4、0工具错误及CSV/刷新通过，网关缺包待协查 |
 | structured-batches-20261105 | 前次本地批次来源 | refs/capstone/features/structured-batches-20261105（未合入dev） | 独立调用结构化提交；共享会话限流与逐项结果恢复 | 两查询通过；复杂任务仍有串行与调用错误，当前由984131e3补修 |
@@ -1393,7 +1399,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | PR94运行修正已合入；后续文档同步不改变部署源码 | 产品c9be2193的macOS CI通过；三套dev固定22cd1728 |
+| dev-head | 当前研发位置 | dev | PR94运行与PR97控制已合入；动态能力候选尚未合入 | dev651e4cd3；本机后端9773fca6、Appdf4ddf61；远端dev保持df4ddf61，main22cd1728 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1505,6 +1511,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | fix/conversation-typography-20261103 | 已合并关闭 | PR93合6c55e6ee；来源2148db14，受检3e8625f5 | 已批准的macOS App CI通过；保留恢复材料，远端部署不变 | shared-agent |
 | feat/execution-capacity-20261103 | 已合并关闭 | PR91合c3a0c472；产品b7dd440c，受检f8e23ab3 | 定向CI、实际dev与页面验收通过；保留恢复材料，云端/内网未更新 | shared-agent |
 | --- | --- | --- | --- | --- |
+| fix/gateway-auto-negotiation-20261106 | 活动修复候选 | 功能/门禁边界c11b497c；本机运行9773fca6；定向本机门禁通过 | CI待逐次批准；未合dev，分析质量缺口单列 | shared-agent |
 | fix/gateway-entry-startup | 当前启动修正，未push | 565802f9从c282dc8f分出，首轮激活已准入网关入口，业务工具按需加载；159Python/32跳过、14JS、真实SDK及类型通过，独立复核清楚 | 同一源码与控制PR一次push，待CI和合入后规范重建及可见标签页验证；未部署 | shared-agent |
 | docs/gateway-dynamic-closeout（本地与远端已关闭） | 文档已合入，本地与远端已关闭 | PR82合并c282dc8f，文档专项2分42秒通过 | 本地与远端分支已关闭，工作树detach至origin/devc282dc8f；保留恢复引用，最终HEAD快照不形成提交循环 | shared-agent |
 | refactor/gateway-dynamic-bindings（本地与远端已关闭） | 已验证合入，本地及远端分支已关闭 | 40c4c2e4通过精简CI，PR81合入61ec56c6；local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 本地协议及真实任务通过，分支已实际关闭，工作树转docs/gateway-dynamic-closeout保留；不声明人工渲染或性能接受 | shared-agent |
@@ -1653,9 +1660,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 全角色源码 `22cd1728` | API/全部worker同镜像095a2a81；native同源，页面local-dev源码核对通过 | App http://127.0.0.1:5173/；就绪通过，真实短会话3.10秒完成。[回执](../reports/2026-11-06-three-dev-deployment.md) |
-| intranet-dev | 全角色源码 `22cd1728` | API/worker同镜像038a6926；native/App同源；默认模型及网关保留 | App http://192.168.72.63:5173/；就绪通过，真实短会话8.86秒完成。[回执](../reports/2026-11-06-three-dev-deployment.md) |
-| dky3-dev | 全角色源码 `22cd1728` | API/worker同镜像038a6926；native/App同源；默认模型及网关保留 | App http://192.168.72.66:5173/；就绪通过，真实短会话9.61秒完成。[回执](../reports/2026-11-06-three-dev-deployment.md) |
+| local-dev | 后端 `9773fca6`；App `df4ddf61` | 后端API/worker同镜像eecd6e24；前端保留原构建，非同源发布验收 | App http://127.0.0.1:5173/；真实两轮能力方案与产物恢复通过，分析质量缺口保留。[验证](../reports/2026-11-07-gateway-capability-discovery.md) |
+| intranet-dev | 全角色源码 `df4ddf61` | API/worker同镜像；默认模型/网关保留，自动同步工具 | App http://192.168.72.63:5173/；切换三区研发后同一工作完成，69.75秒。[验证](../reports/2026-11-06-gateway-auto-negotiation.md) |
+| dky3-dev | 全角色源码 `df4ddf61` | API/worker同镜像；默认模型/网关保留，自动同步工具 | App http://192.168.72.66:5173/；切换内网联调后同一工作完成，58.84秒。[验证](../reports/2026-11-06-gateway-auto-negotiation.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |
