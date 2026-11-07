@@ -515,7 +515,9 @@ class DataGatewayMcp:
     async def _prepare_connected(self, session):
         declaration = self._progressive_declaration(session)
         if declaration is not None:
-            return await self._prepare_progressive(session, declaration)
+            catalog = await self._prepare_progressive(session, declaration)
+            self._accepted[catalog['revision']] = deepcopy(catalog)
+            return catalog
         catalog = await self._catalog(session)
         if self.policy['namespace'] + 'check_gateway_contract' in catalog['tools']:
             before = await self._publication(session, 'check_gateway_contract')

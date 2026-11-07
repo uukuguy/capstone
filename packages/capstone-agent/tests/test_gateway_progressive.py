@@ -57,7 +57,7 @@ def progressive_gateway(tmp_path, *, output=True, extra=False):
             op, encoded = str(uri).split('/')[-2:]
             args = json.loads(urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4)))
             self.requests.append((op, args))
-            packet = {'protocol_version': '1', 'status': 'ok', 'publication_revision': 'other' if self.changed else 'pub',
+            packet = {'protocol_version': '1', 'status': 'ok', 'publication_revision': 'other' if self.changed else declaration['publication_revision'],
                       'access_view_id': self.response_view, 'source_accessed': False}
             if op == 'catalog':
                 packet.update(view='tools', items=deepcopy(entries), total=len(entries), truncated=False, next_cursor=None)
@@ -84,6 +84,16 @@ def progressive_gateway(tmp_path, *, output=True, extra=False):
     client = DataGatewayMcp(path, {'schema': 'capstone-data-gateway/2', 'resource_id': 'data-gateway',
                                  'namespace': 'data_gateway_', 'admission': 'trusted-service-safe-effects'}, connect=connect)
     return client, session, declaration
+
+
+def test_changed_progressive_publication_remains_admitted_after_refresh(tmp_path):
+    client, session, declaration = progressive_gateway(tmp_path)
+    first = asyncio.run(client.prepare())
+    declaration['publication_revision'] = 'pub-next'
+    second = asyncio.run(client.refresh_catalog(first))
+    assert second['revision'] != first['revision']
+    assert asyncio.run(client.refresh_catalog(second)) == second
+    assert asyncio.run(client.exact_contracts(['data_gateway_new_action'], second))
 
 
 def test_progressive_prepare_contains_metadata_without_fake_schema(tmp_path):
