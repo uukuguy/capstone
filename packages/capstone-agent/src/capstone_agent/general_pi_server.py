@@ -2149,13 +2149,14 @@ def main():
     # between service restarts. Each task binds its gateway catalog separately;
     # mutable discovery metadata must not invalidate the executor identity.
     lock = json.loads(Path('/opt/general/pi-runtime.lock.json').read_bytes())
+    from capability_agent.runtime import execution_queue
     identity = {'engine': 'pi', 'model': provider['model'],
                 'provider': provider['provider'],
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'managed_resource_contract.py', 'managed_resource_dependencies.py', 'managed_resource_secrets.py', 'managed_resource_bundle.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
+                                 'native_resources.py', 'tool_execution_receipt.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'native_timing.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
@@ -2170,6 +2171,7 @@ def main():
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',
                                  'resources/graph-context-client.mjs', 'resources/research-products.mjs', 'resources/delivery-review.mjs', 'resources/product-path-policy.json', 'resources/research-policy-catalog.json',
                                  'resources/managed-subagents.mjs', 'resources/delegation-tool.mjs', 'resources/delegation-scheduler.mjs'))
+                    + Path(execution_queue.__file__).read_bytes()
                     + b''.join(path.relative_to(Path(__file__).parent).as_posix().encode() + path.read_bytes()
                         for directory in ('research-runtime', 'subagents')
                         for path in sorted((Path(__file__).parent / 'resources' / directory).rglob('*.mjs')))).hexdigest()}
