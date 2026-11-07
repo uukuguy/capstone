@@ -73,7 +73,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|app|gateway-controls|gateway-bindings|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|app|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -85,10 +85,10 @@ jobs:
         with:
           node-version: "22.19.0"
       - name: Set up standard dependencies
-        if: steps.scope.outputs.gate != 'gateway-bindings'
+        if: steps.scope.outputs.gate != 'gateway-bindings' && steps.scope.outputs.gate != 'gateway-capabilities'
         run: make setup
       - name: Set up gateway binding dependencies
-        if: steps.scope.outputs.gate == 'gateway-bindings'
+        if: steps.scope.outputs.gate == 'gateway-bindings' || steps.scope.outputs.gate == 'gateway-capabilities'
         run: |
           uv sync --project packages/grid-agent
           uv sync --project packages/capstone-agent
@@ -115,6 +115,17 @@ jobs:
         if: steps.scope.outputs.gate == 'app'
         timeout-minutes: 5
         run: make test-capstone-app build-capstone-app
+      - name: Verify gateway capability discovery and selection
+        if: steps.scope.outputs.gate == 'gateway-capabilities'
+        timeout-minutes: 5
+        run: |
+          make check-package-boundaries
+          npm --prefix packages/capstone-app run check
+          npm --prefix packages/capstone-app test -- src/GatewayStatus.test.tsx src/WorkspaceConnectionStatus.test.tsx src/threadHttpTransport.test.ts
+          npm --prefix packages/capstone-app run build
+          uv run --project packages/grid-agent pyright packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py packages/capstone-agent/src/capstone_agent/gateway_connections_http.py packages/capstone-agent/src/capstone_agent/general_pi_server.py packages/capstone-agent/src/capstone_agent/thread_service.py
+          uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_data_gateway_mcp.py packages/capstone-agent/tests/test_general_pi_server.py packages/capstone-agent/tests/test_gateway_connections.py packages/capstone-agent/tests/test_gateway_connections_runtime.py packages/capstone-agent/tests/test_thread_gateway.py packages/capstone-agent/tests/test_thread_gateway_http.py -q
+          node --test packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs packages/capstone-agent/tests/fixtures/tool-composition.test.mjs
       - name: Verify gateway controls
         if: steps.scope.outputs.gate == 'gateway-controls'
         timeout-minutes: 5

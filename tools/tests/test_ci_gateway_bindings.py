@@ -9,6 +9,24 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = 'packages/capstone-agent/src/capstone_agent/'
 
 
+def test_capability_discovery_and_selection_use_a_focused_gate():
+    paths = [SOURCE + name for name in (
+        'resources/general-tool-discovery.mjs', 'general_pi_server.py',
+        'data_gateway_mcp.py', 'gateway_connections_http.py', 'thread_service.py')]
+    paths += ['packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs',
+              'packages/capstone-agent/tests/test_thread_gateway.py',
+              'packages/capstone-app/src/GatewayStatus.tsx',
+              '.github/workflows/verify.yml', 'tools/ci_scope.py']
+    assert classify(paths) == 'gateway-capabilities'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths, release=True) == 'release'
+    for extra in ['packages/grid-simulator/src/grid_simulator/solver.py',
+                  SOURCE + 'thread_worker.py',
+                  'packages/capstone-app/src/App.tsx',
+                  'packages/capstone-agent/pyproject.toml']:
+        assert classify([*paths, extra]) != 'gateway-capabilities'
+
+
 def test_workflow_environment_has_no_case_insensitive_duplicate_keys():
     import re
     text = (ROOT / '.github/workflows/verify.yml').read_text()
