@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
-import {createDataGatewayTools,validateGatewayBatch,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
+import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
 import {createDomainTools} from './general-domain-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createManagedResourceTools} from './managed-resource-tools.mjs';
@@ -380,6 +380,7 @@ export function createGatewayToolDiscovery(config) {
   if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
     throw new Error('Application did not authorize task tool discovery');
   return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
+    resolveContracts:(names,options)=>resolveGatewayContracts(config,names,options),
     maxActiveTools:config.runtimeLimits?.tool_active_count,maxActiveSchemaChars:config.runtimeLimits?.tool_schema_chars,
     pageSize:config.runtimeLimits?.tool_search_page_items,maxSummaryChars:config.runtimeLimits?.tool_summary_chars,
     initialNames:config.dataGateway.catalog.entry_tools??[],
@@ -419,6 +420,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       return controller?await controller.completeTool(token,observed,{signal:args[1]}):observed;
     }};
   };
+  discovery?.setLoadedWrapper(wrap);
   const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config)].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
@@ -434,6 +436,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       reuseEligible:reusableGatewayRead,
       allowedInputs:(graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[]).map(s=>s.path),restore:restoreToolResult,
       validateCalls:(calls,{signal})=>validateGatewayBatch(config,calls,{signal}),
+      resolveContracts:(names,options)=>resolveGatewayContracts(config,names,options),
       async invoke(name,args,{callId,signal,refresh_reason}){
         const tool=selected.get(name);if(!tool)throw Error('Composition tool is not admitted');
         if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_start',toolName:name,toolCallId:callId,args}));

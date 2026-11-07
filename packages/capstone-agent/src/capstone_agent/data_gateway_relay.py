@@ -203,6 +203,24 @@ class DataGatewayAccess:
         with self._lock:
             self._tasks.pop(task_id, None)
 
+    async def resolve_contracts(self, task_id, names):
+        """Read exact metadata only for this frozen task's granted selections."""
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None:
+                raise GatewayError('gateway_task_not_admitted')
+            if (not isinstance(names, list) or not names or len(names) > limits.tool_active_count
+                    or any(not isinstance(name, str) or name not in record['allowed_tools'] for name in names)):
+                raise GatewayError('gateway_tool_not_admitted')
+            catalog = record['catalog']
+        tools = await self.client.exact_contracts(names, catalog)
+        with self._lock:
+            if self._tasks.get(task_id) is not record:
+                raise GatewayError('gateway_task_not_admitted')
+            record.setdefault('exact_tools', {}).update(deepcopy(tools))
+        return {'catalog_revision': catalog['revision'], 'tools': tools,
+                'tool_hashes': {name: catalog['tool_hashes'][name] for name in names}, 'executed': False}
+
     def validate_batch(self, task_id, calls):
         """Check the frozen task contract without connecting or consuming call IDs."""
         from .data_gateway_mcp import validate, argument_validation_details
@@ -228,7 +246,8 @@ class DataGatewayAccess:
                     errors.append({'index': index, 'code': 'gateway_tool_not_admitted'})
                     continue
                 try:
-                    validate(catalog['tools'][name]['inputSchema'], item['arguments'])
+                    exact = record.get('exact_tools', {}).get(name, catalog['tools'][name])
+                    validate(exact['inputSchema'], item['arguments'])
                 except ValidationError as error:
                     errors.append({'index': index, 'code': 'gateway_arguments_invalid',
                                    'validation_errors': argument_validation_details(error)})
@@ -311,7 +330,10 @@ class DataGatewayAccess:
             catalog = record['catalog']
             if name not in catalog['tools']:
                 raise GatewayError('gateway_request_invalid')
-            properties = catalog['tools'][name].get('inputSchema', {}).get('properties', {})
+            exact = record.get('exact_tools', {}).get(name, catalog['tools'][name])
+            if 'progressive' in catalog and 'inputSchema' not in exact:
+                raise GatewayError('gateway_contract_not_loaded')
+            properties = exact.get('inputSchema', {}).get('properties', {})
             consumes_job = 'job_ref' in properties or 'job_ref' in document['arguments']
             if name not in record['allowed_tools']:
                 raise GatewayError('gateway_tool_not_admitted')

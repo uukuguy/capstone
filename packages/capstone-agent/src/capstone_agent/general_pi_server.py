@@ -1265,6 +1265,15 @@ class NativeTaskRunner:
                         'tool_hashes': {name: task_catalog['tool_hashes'][name] for name in sorted(admitted_gateway)}}
                     sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,
                         'grant': grant, 'taskId': request.task_id, 'catalog': task_catalog, 'onDemandTools': True}
+                    if 'progressive' in task_catalog:
+                        sdk_config.setdefault('contextFiles', []).append({'path': 'registered-gateway-progressive-discovery',
+                            'content': 'This task has a current authorized capability index negotiated with the gateway. '
+                            'It contains summaries, not all exact schemas. Search that index only as needed for this instruction. '
+                            'Do not repeat remote discovery merely to initialize this service. Load selected tools for direct calls; '
+                            'composition resolves its selected tools before execution. Exact schemas are obtained and checked by the host, '
+                            'only for those selections. Usage and output details remain available when interpretation requires them. '
+                            'Contract publication does not establish source reachability, which remains unknown until observed. '
+                            'A source failure does not invalidate metadata or independent work.'})
                     if task_catalog.get('instructions'):
                         sdk_config.setdefault('contextFiles', []).append({
                             'path': 'registered-data-gateway-guidance',
@@ -1988,6 +1997,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 document = json.loads(self.rfile.read(length))
                 preflight = (isinstance(document, dict) and set(document) == {'operation', 'calls'}
                              and document['operation'] == 'validate_batch')
+                contract_load = (isinstance(document, dict) and set(document) == {'operation', 'names'}
+                                 and document['operation'] == 'resolve_contracts')
                 async def forward():
                     lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
                     if lease.cancelled.is_set():
@@ -1995,6 +2006,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     async with asyncio.timeout(max(.001, lease.deadline - time.monotonic())):
                         if preflight:
                             return gateway.validate_batch(task_id, document['calls'])
+                        if contract_load:
+                            return await gateway.resolve_contracts(task_id, document['names'])
                         return await gateway.call(task_id, document)
                 self.send_json(200, run_http(forward()))
             except GatewayError as error:

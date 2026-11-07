@@ -18,6 +18,68 @@ function fixture(options={}) {
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
 
+test('unresolved publications load exact contracts before registration without placeholder schemas',async t=>{
+ const cwd=await mkdtemp(join(tmpdir(),'progressive-discovery-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
+ const publications={selected:{name:'source',description:'Read selected',progressive:{tool_key:'key'}}};
+ const registrations=[],hooks=new Map();let reads=0;
+ const c=createToolDiscovery({cwd,publications,tools:[{name:'selected',execute:async()=>({content:[]})}],admittedNames:['selected'],
+  resolveContracts:async names=>{reads++;assert.deepEqual(names,['selected']);return {selected:{...publications.selected,inputSchema:{type:'object',required:['value']}}};}});
+ c.configure({on:(name,fn)=>hooks.set(name,fn),registerTool:t=>registrations.push(t),getActiveTools:()=>[],setActiveTools:()=>{}});
+ assert.equal(c.guardedTools.length,0);
+ await c.tools[1].execute('load',{names:['selected']});
+ assert.equal(reads,1);assert.equal(registrations.length,1);
+ assert.deepEqual(registrations[0].parameters,{type:'object',required:['value']});
+ await c.tools[1].execute('load-again',{names:['selected']});assert.equal(reads,1);
+});
+
+test('actual pinned SDK registers a progressive tool only after exact contract load',async()=>{
+ const sdk=await import('../../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js');
+ const ai=await import('../../../../.grid-agent/runtime/pi/source/packages/ai/dist/index.js');
+ const dir=await mkdtemp(join(tmpdir(),'progressive-sdk-'));
+ const menus=[],requests=[],errors=[];let session;
+ const metadata={name:'selected',description:'Selected action',progressive:{tool_key:'key',tool_contract_revision:'rev'}};
+ const inputSchema={type:'object',properties:{value:{type:'integer'}},required:['value'],additionalProperties:false};
+ const server=createServer(async(req,res)=>{
+  let raw='';for await(const chunk of req)raw+=chunk;
+  const body=JSON.parse(raw);requests.push(body);res.setHeader('Content-Type','application/json');
+  res.end(JSON.stringify(body.operation==='resolve_contracts'?{catalog_revision:'pub',executed:false,
+   tools:{data_gateway_selected:{...metadata,inputSchema}},tool_hashes:{data_gateway_selected:'rev'}}:
+   {result_json:JSON.stringify({structuredContent:{status:'ok',data:{value:4}}}),observation:{kind:'external_gateway_observation',
+    task_id:'task',tool_call_id:body.call_id,tool:body.name,catalog_revision:'pub',tool_schema_sha256:'rev'}}));
+ });
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const config={toolResultCwd:dir,deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load','data_gateway_selected']},
+  dataGateway:{onDemandTools:true,url:'http://127.0.0.1:'+server.address().port,grant:'fixture',taskId:'task',
+   catalog:{revision:'pub',tools:{data_gateway_selected:metadata},entry_tools:[],tool_hashes:{data_gateway_selected:'rev'}}}};
+ const discovery=host.createGatewayToolDiscovery(config);
+ const model={id:'fixture',name:'Fixture',provider:'capstone-general',api:'openai-completions',baseUrl:'http://127.0.0.1:1',
+  reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}};
+ let turn=0;
+ const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,getAuth:async()=>({auth:{apiKey:'offline'}}),isUsingOAuth:()=>false,
+  streamSimple(_model,context){
+   menus.push(context.tools.map(t=>({name:t.name,parameters:t.parameters})));
+   const call=[{name:'agent_tool_load',arguments:{names:['selected']}},{name:'data_gateway_selected',arguments:{value:4}}][turn++];
+   const message={role:'assistant',content:call?[{type:'toolCall',id:'call-'+turn,...call}]:[{type:'text',text:'Done'}],
+    api:model.api,provider:model.provider,model:model.id,timestamp:Date.now(),stopReason:call?'toolUse':'stop',
+    usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{total:0}}};
+   const stream=ai.createAssistantMessageEventStream();stream.push({type:'done',reason:message.stopReason,message});stream.end();return stream;
+  }};
+ try{
+  const settingsManager=sdk.SettingsManager.inMemory({compaction:{enabled:false}});
+  const loader=new sdk.DefaultResourceLoader({cwd:dir,agentDir:dir,settingsManager,noExtensions:true,noSkills:true,
+   noPromptTemplates:true,noThemes:true,noContextFiles:true,agentsFilesOverride:()=>({agentsFiles:[]}),extensionFactories:[pi=>discovery.configure(pi)]});
+  await loader.reload();
+  ({session}=await sdk.createAgentSession({cwd:dir,agentDir:dir,modelRuntime:runtime,model,resourceLoader:loader,
+   settingsManager,sessionManager:sdk.SessionManager.inMemory(),...host.applicationToolOptions(config,[],undefined,discovery)}));
+  await session.bindExtensions({onError:error=>errors.push(error)});
+  session.setActiveToolsByName(discovery.initialToolNames(config.applicationPolicy.allowed_tools));discovery.installSession(session);
+  await session.prompt('Use selected action');
+  assert.deepEqual(errors,[]);assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
+  assert.deepEqual(menus[1].find(t=>t.name==='data_gateway_selected')?.parameters,inputSchema);
+  assert.equal(requests.length,2);assert.equal(requests[0].operation,'resolve_contracts');assert.equal(requests[1].name,'data_gateway_selected');
+ }finally{session?.dispose();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
+});
+
 test('capability search uses bounded published metadata and isolates grants and snapshots',async()=>{
   const publications={alpha:{name:'opaque_alpha',description:'Operation',
     _meta:{usage:{purpose:'period comparison',constraints:'x'.repeat(300)}}},
@@ -214,7 +276,8 @@ test('selection guidance reaches both discovery and direct activation without ba
  const search=JSON.parse((await c.tools[0].execute('find',{query:''})).content[0].text);
  const load=JSON.parse((await c.tools[1].execute('load',{names:['renamed_table_reader']})).content[0].text);
  assert.equal(load.selection_guidance,search.selection_guidance);
- assert.match(load.selection_guidance,/current discovery/);
+ assert.match(load.selection_guidance,/current admitted capability index/);
+ assert.match(load.selection_guidance,/discovery response only for information missing/);
  assert.match(load.selection_guidance,/provider/);
  assert.match(load.selection_guidance,/validate one bounded call/);
  assert.equal(load.activation,'next_turn');

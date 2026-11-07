@@ -23,7 +23,7 @@ function refreshReason(options){
     throw Error('/options: retrieval plan needs purpose, output and issued basis_refs');
   return options.refresh_reason;
 }
-export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,validateCalls,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{},reuseEligible=(schema)=>schema?.annotations?.readOnlyHint===true&&schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true}){
+export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,validateCalls,resolveContracts,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{},reuseEligible=(schema)=>schema?.annotations?.readOnlyHint===true&&schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true}){
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
@@ -81,6 +81,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           }
         }else if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
         const selected=[...new Set(identities.resolveMany(direct?input.calls.map(c=>c.tool):input.tools))];
+        if(resolveContracts)await resolveContracts(selected,{signal});
         const limit=input.max_calls??policy.max_calls,concurrency=input.concurrency??policy.concurrency;
         if(!Number.isInteger(limit)||limit<1||limit>policy.max_calls||!Number.isInteger(concurrency)||concurrency<1||concurrency>policy.concurrency)throw Error('Invalid composition limits');
         const timeout=Math.min(input.timeout_ms??policy.max_program_ms,policy.max_program_ms,deadlineAt-Date.now());

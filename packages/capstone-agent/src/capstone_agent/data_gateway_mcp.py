@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from base64 import urlsafe_b64encode
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import re
+from threading import RLock
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -23,6 +25,7 @@ _TOOL_NAME = re.compile(r'[A-Za-z0-9_.-]{1,128}')
 _INSTRUCTIONS_BYTES = 16384
 # Agreed service entry points. Business operations never belong in this list.
 _GATEWAY_ENTRY_POINTS = ('discover_gateway', 'describe_gateway_contract')
+_PROGRESSIVE = 'data-gateway/progressive-discovery'
 
 def identity_text(value):
     return isinstance(value, str) and 0 < len(value) <= 256 and not any(ord(c) < 32 or ord(c) == 127 for c in value)
@@ -52,6 +55,7 @@ class InitializedGatewaySession:
     instructions: str | None = None
     server_info: object = None
     instance_identity: object = None
+    progressive: object = None
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
@@ -201,6 +205,8 @@ class DataGatewayMcp:
         self._connection = connection
         self.connect = connect or self._connect
         self._accepted = {}
+        self._exact_sections = {}
+        self._exact_lock = RLock()
 
     def public_identity(self):
         address = urlsplit(self._connection['url'])
@@ -223,7 +229,191 @@ class DataGatewayMcp:
                     initialized = await session.initialize()
                     experimental = initialized.capabilities.experimental
                     instance = experimental.get('data-gateway/identity') if isinstance(experimental, dict) else None
-                    yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump(), instance)
+                    declaration = experimental.get(_PROGRESSIVE) if isinstance(experimental, dict) else None
+                    yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump(), instance, declaration)
+
+    def _progressive_declaration(self, connection):
+        declaration = getattr(connection, 'progressive', None)
+        if not isinstance(declaration, dict) or declaration.get('version') != '1':
+            return None
+        try:
+            if (declaration['transport'] != 'resources/read'
+                    or declaration['request_encoding'] != 'base64url-unpadded-utf8-json'
+                    or declaration['fingerprint_version'] != 'canonical-json-sha256/1'
+                    or checked_instance_identity(declaration['identity']) is None
+                    or not all(identity_text(declaration[k]) for k in ('publication_revision', 'access_view_id'))):
+                raise ValueError()
+            for key in ('catalog_items', 'catalog_bytes', 'batch_items', 'batch_bytes', 'request_bytes'):
+                if type(declaration['limits'][key]) is not int or declaration['limits'][key] <= 0:
+                    raise ValueError()
+            for operation in ('catalog', 'contracts', 'check'):
+                entry = declaration['entries'][operation]
+                # Only service-owned metadata resource URIs, never endpoints or files.
+                uri = entry['uri_template']
+                if (not isinstance(uri, str) or not uri.startswith('gateway://discovery/')
+                        or uri.count('{request}') != 1 or len(uri) > 512):
+                    raise ValueError()
+                Draft202012Validator.check_schema(entry['input_schema'])
+        except (KeyError, TypeError, ValueError):
+            raise GatewayError('gateway_catalog_invalid') from None
+        return deepcopy(declaration)
+
+    async def _progressive_request(self, connection, declaration, operation, arguments):
+        entry = declaration['entries'][operation]
+        try:
+            validate(entry['input_schema'], arguments)
+            raw = encode(arguments)
+            if len(raw) > min(declaration['limits']['request_bytes'], limits.mcp_frame_bytes):
+                raise ValueError()
+            uri = entry['uri_template'].replace('{request}', urlsafe_b64encode(raw).decode().rstrip('='))
+            from pydantic import AnyUrl
+            session: Any = getattr(connection, 'session', connection)
+            result = await session.read_resource(AnyUrl(uri))
+            if len(result.contents) != 1 or not isinstance(getattr(result.contents[0], 'text', None), str):
+                raise ValueError()
+            body = result.contents[0].text
+            maximum = declaration['limits']['batch_bytes' if operation == 'contracts' else 'catalog_bytes']
+            if len(body.encode()) > min(maximum, limits.mcp_frame_bytes):
+                raise ValueError()
+            packet = json.loads(body)
+            if (not isinstance(packet, dict) or packet.get('protocol_version') != '1'
+                    or packet.get('source_accessed') is not False):
+                raise ValueError()
+            if packet.get('access_view_id') != declaration['access_view_id']:
+                raise GatewayError('gateway_publication_changed')
+            if packet.get('status') == 'error':
+                code = packet.get('error', {}).get('code')
+                raise GatewayError('gateway_publication_changed' if code in {
+                    'publication_changed', 'authorization_view_changed', 'tool_contract_changed'} else 'gateway_catalog_invalid')
+            if packet.get('status') not in ('ok', 'partial'):
+                raise ValueError()
+            if operation != 'check' and packet.get('publication_revision') != declaration['publication_revision']:
+                raise GatewayError('gateway_publication_changed')
+            return packet
+        except GatewayError:
+            raise
+        except (ValueError, TypeError, KeyError, AttributeError):
+            raise GatewayError('gateway_catalog_invalid') from None
+
+    async def _prepare_progressive(self, connection, declaration):
+        tools, cursors, cursor = {}, set(), None
+        for _ in range(128):
+            arguments = {'view': 'tools', 'publication_revision': declaration['publication_revision']}
+            if cursor:
+                arguments['cursor'] = cursor
+            packet = await self._progressive_request(connection, declaration, 'catalog', arguments)
+            items = packet.get('items')
+            if (packet.get('view') != 'tools' or not isinstance(items, list)
+                    or len(items) > declaration['limits']['catalog_items']):
+                raise GatewayError('gateway_catalog_invalid')
+            for item in items:
+                if (not isinstance(item, dict) or not isinstance(item.get('name'), str)
+                        or not _TOOL_NAME.fullmatch(item['name'])
+                        or not all(identity_text(item.get(k)) for k in ('tool_key', 'tool_contract_revision', 'summary_revision'))
+                        or item.get('output_schema_state') not in ('declared', 'absent')
+                        or not isinstance(item.get('section_fingerprints'), dict)):
+                    raise GatewayError('gateway_catalog_invalid')
+                name = self.policy['namespace'] + item['name']
+                if name in tools:
+                    raise GatewayError('gateway_catalog_invalid')
+                effects = item.get('effects')
+                if self.policy['schema'] == 'capstone-data-gateway/1':
+                    admitted = item['name'] in self.policy['allowed_tools']
+                else:
+                    admitted = (isinstance(effects, dict) and type(effects.get('readOnlyHint')) is bool
+                                and effects.get('destructiveHint') is False and effects.get('openWorldHint') is False)
+                if admitted:
+                    capability = item.get('capability') or {}
+                    description = capability.get('semantics', {}).get('purpose', item['name'])
+                    tools[name] = {'name': item['name'], 'description': description, 'annotations': effects,
+                        '_meta': {'data-gateway/capability': capability,
+                                  'data-gateway/toolset': item.get('toolset_id')}, 'progressive': deepcopy(item)}
+            cursor = packet.get('next_cursor')
+            if not cursor:
+                if packet.get('truncated') is not False:
+                    raise GatewayError('gateway_catalog_invalid')
+                break
+            if (not isinstance(cursor, str) or not 0 < len(cursor) <= 16384
+                    or any(ord(c) < 32 for c in cursor) or cursor in cursors or not items):
+                raise GatewayError('gateway_catalog_invalid')
+            cursors.add(cursor)
+        else:
+            raise GatewayError('gateway_catalog_invalid')
+        if not tools:
+            raise GatewayError('gateway_catalog_unavailable')
+        value = {'resource_id': self.policy['resource_id'], 'tools': tools,
+                 'tool_hashes': {name: item['progressive']['tool_contract_revision'] for name, item in tools.items()},
+                 'entry_tools': [], 'instructions': getattr(connection, 'instructions', '') or '',
+                 'instance': checked_instance_identity(declaration['identity']), 'progressive': declaration}
+        require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_catalog')
+        return {**value, 'revision': fingerprint(value)}
+
+    async def exact_contracts(self, names, catalog, *, connection=None):
+        """Resolve selected schemas without changing the admitted metadata snapshot."""
+        if (self._accepted.get(catalog.get('revision')) != catalog or not isinstance(names, list)
+                or any(name not in catalog['tools'] for name in names)):
+            raise GatewayError('gateway_tool_not_admitted')
+        if 'progressive' not in catalog:
+            return {name: deepcopy(catalog['tools'][name]) for name in names}
+        if connection is None:
+            async with self.connect() as connected:
+                return await self.exact_contracts(names, catalog, connection=connected)
+        declaration = catalog['progressive']
+        current = self._progressive_declaration(connection)
+        if current != declaration:
+            raise GatewayError('gateway_publication_changed')
+        pending, selected, resolved_sections = [], {}, {}
+        for name in dict.fromkeys(names):
+            item = catalog['tools'][name]['progressive']
+            key = (declaration['identity']['instance_id'], declaration['access_view_id'],
+                   item['tool_key'], item['tool_contract_revision'])
+            with self._exact_lock:
+                sections = deepcopy(self._exact_sections.get(key, {}))
+            resolved_sections[key] = sections
+            needed = [s for s in ('input_schema', 'output_schema')
+                      if s not in sections and (s != 'output_schema' or item['output_schema_state'] == 'declared')]
+            selected[name] = (item, key)
+            if needed:
+                pending.append({'tool_key': item['tool_key'], 'tool_contract_revision': item['tool_contract_revision'], 'sections': needed})
+        batch_size = min(8, declaration['limits']['batch_items'])
+        for start in range(0, len(pending), batch_size):
+            requests = pending[start:start + batch_size]
+            packet = await self._progressive_request(connection, declaration, 'contracts',
+                {'publication_revision': declaration['publication_revision'], 'requests': requests})
+            items = packet.get('items')
+            if not isinstance(items, list) or len(items) != len(requests):
+                raise GatewayError('gateway_catalog_invalid')
+            staged = []
+            for request, response in zip(requests, items):
+                item, key = next((i, k) for i, k in selected.values() if i['tool_key'] == request['tool_key'])
+                if (not isinstance(response, dict) or response.get('status') != 'ok'
+                        or any(response.get(k) != item.get(k) for k in ('tool_key', 'name', 'id', 'registration_id',
+                            'provider_id', 'toolset_id', 'tool_contract_revision', 'output_schema_state'))
+                        or set(response.get('sections', {})) != set(request['sections'])):
+                    raise GatewayError('gateway_catalog_invalid')
+                sections = response['sections']
+                for section, body in sections.items():
+                    digest = fingerprint(body)
+                    if (digest != item['section_fingerprints'].get(section)
+                            or digest != response.get('section_fingerprints', {}).get(section)
+                            or not isinstance(body, (dict, bool))):
+                        raise GatewayError('gateway_catalog_invalid')
+                    Draft202012Validator.check_schema(body)
+                staged.append((key, sections))
+            for key, sections in staged:
+                resolved_sections[key].update(deepcopy(sections))
+                with self._exact_lock:
+                    self._exact_sections.pop(key, None)
+                    self._exact_sections[key] = deepcopy(resolved_sections[key])
+                    while sum(len(encode(value)) for value in self._exact_sections.values()) > limits.history_context_bytes:
+                        self._exact_sections.pop(next(iter(self._exact_sections)))
+        result = {}
+        for name, (item, key) in selected.items():
+            sections = resolved_sections[key]
+            result[name] = {**deepcopy(catalog['tools'][name]), 'inputSchema': deepcopy(sections['input_schema'])}
+            if item['output_schema_state'] == 'declared':
+                result[name]['outputSchema'] = deepcopy(sections['output_schema'])
+        return result
 
     async def _catalog(self, session, *, tool_name=None):
         instructions = getattr(session, 'instructions', None) if hasattr(session, 'session') else None
@@ -323,6 +513,9 @@ class DataGatewayMcp:
         return stamp
 
     async def _prepare_connected(self, session):
+        declaration = self._progressive_declaration(session)
+        if declaration is not None:
+            return await self._prepare_progressive(session, declaration)
         catalog = await self._catalog(session)
         if self.policy['namespace'] + 'check_gateway_contract' in catalog['tools']:
             before = await self._publication(session, 'check_gateway_contract')
@@ -349,6 +542,11 @@ class DataGatewayMcp:
         try:
             async with asyncio.timeout(limits.mcp_catalog_seconds):
                 async with self.connect() as session:
+                    if 'progressive' in catalog:
+                        declaration = self._progressive_declaration(session)
+                        if declaration == catalog['progressive']:
+                            return deepcopy(catalog)
+                        return await self._prepare_connected(session)
                     if 'contract_publication' in catalog:
                         current = await self._publication(session, 'check_gateway_contract')
                         if current == catalog['contract_publication']:
@@ -417,6 +615,37 @@ class DataGatewayMcp:
                             item['name'] == target for item in catalog['tools'].values())):
                         raise GatewayError('gateway_arguments_invalid')
                     arguments = {**arguments, 'tool_name': published['name']}
+            if 'progressive' in catalog:
+                async with asyncio.timeout(limits.mcp_tool_seconds):
+                    async with self.connect() as connection:
+                        schemas = await self.exact_contracts([name], catalog, connection=connection)
+                        schema = schemas[name]
+                        try:
+                            validate(schema['inputSchema'], arguments)
+                        except Exception as error:
+                            from jsonschema.exceptions import ValidationError
+                            raise GatewayError('gateway_arguments_invalid', validation_errors=(
+                                argument_validation_details(error) if isinstance(error, ValidationError) else [])) from None
+                        from mcp import types
+                        declaration = catalog['progressive']
+                        item = schema['progressive']
+                        metadata = {_PROGRESSIVE: {'version': '1', 'access_view_id': declaration['access_view_id'],
+                            'expected_publication_revision': declaration['publication_revision'],
+                            'expected_tool_contract_revision': item['tool_contract_revision']}}
+                        if context is not None:
+                            metadata['gateway/diagnostics'] = context
+                        active: Any = getattr(connection, 'session', connection)
+                        response = await active.send_request(types.ClientRequest(types.CallToolRequest(
+                            params=types.CallToolRequestParams(name=schema['name'], arguments=arguments,
+                                _meta=types.RequestParams.Meta.model_validate(metadata)))), types.CallToolResult)
+                        value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
+                        require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
+                        if not value.get('isError') and 'outputSchema' in schema:
+                            try:
+                                validate(schema['outputSchema'], value.get('structuredContent'))
+                            except Exception:
+                                raise GatewayError('gateway_output_invalid') from None
+                        return value
             try:
                 validate(schema['inputSchema'], arguments)
             except Exception as error:

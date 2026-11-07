@@ -17,6 +17,32 @@ const resourceErrors=new Set(['gateway_authentication_failed',
   'gateway_connection_failed','gateway_call_failed_no_retry','gateway_timeout','gateway_transport_failed','gateway_catalog_invalid',
   'gateway_catalog_unavailable','gateway_unavailable','gateway_task_not_admitted','unauthorized']);
 
+export async function resolveGatewayContracts(config,names,{signal,fetchImpl=globalThis.fetch}={}){
+  const gateway=config.dataGateway;
+  const missing=names.filter(name=>gateway.catalog.tools[name]?.progressive&&!Object.hasOwn(gateway.catalog.tools[name],'inputSchema'));
+  if(missing.length){
+    const remaining=Math.min(1800000,config.deadlineAt-Date.now());
+    if(remaining<=0)throw Error('gateway task deadline exceeded');
+    const deadline=AbortSignal.timeout(Math.ceil(remaining));
+    const response=await fetchImpl(gateway.url,{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+gateway.grant},
+      body:JSON.stringify({operation:'resolve_contracts',names:missing}),
+      signal:signal?AbortSignal.any([signal,deadline]):deadline});
+    const result=await response.json();
+    if(!response.ok||result.catalog_revision!==gateway.catalog.revision||result.executed!==false)
+      throw Error('Selected contract load failed: '+(publicErrors.has(result.error)?result.error:'gateway_contract_invalid'));
+    for(const name of missing){
+      const original=gateway.catalog.tools[name],exact=result.tools?.[name];
+      if(!exact||!Object.hasOwn(exact,'inputSchema')||exact.name!==original.name||
+          exact.progressive?.tool_key!==original.progressive.tool_key||
+          exact.progressive?.tool_contract_revision!==original.progressive.tool_contract_revision||
+          result.tool_hashes?.[name]!==gateway.catalog.tool_hashes[name])throw Error('Selected contract identity changed');
+    }
+    Object.assign(gateway.catalog.tools,result.tools);
+  }
+  return Object.fromEntries(names.map(name=>[name,gateway.catalog.tools[name]]));
+}
+
 export async function validateGatewayBatch(config,calls,{signal,fetchImpl=globalThis.fetch}={}){
   const gateway=config.dataGateway;
   if(!gateway)throw Error('Batch preflight unavailable; no calls executed');
@@ -58,6 +84,7 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
   return Object.entries(gateway.catalog.tools).map(([name,schema])=>({
     name,label:name,description:schema.description??name,parameters:schema.inputSchema,
     async execute(callId,args,signal,_onUpdate,context){
+      await resolveGatewayContracts(config,[name],{signal,fetchImpl});
       const observationPolicy=context?.[gatewayInvocationOptions];
       signal?.throwIfAborted();
       if(stopped)throw new Error(stopped);
