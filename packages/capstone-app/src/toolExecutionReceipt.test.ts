@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { parseToolExecutionReceipt, receiptBatchSummary, receiptDuration } from './toolExecutionReceipt'
 import { receipt } from './toolExecutionReceipt.fixture'
 describe('owner execution receipts',()=>{
+  it('admits production owner and scoped call identities while rejecting actual control bytes',()=>{
+    const call='graph-child:action-17:call_01u7f'
+    const production={...receipt(call),owner_id:'execution-owner-001f007faabbccdd',scope_id:'execution-owner-001f007faabbccdd',task_id:'research-task-0017',policy_version:'rolling/1'}
+    expect(parseToolExecutionReceipt(production,call)).toEqual(production)
+    for(const key of ['owner_id','scope_id','task_id','policy_version'] as const){
+      for(const code of [0,1,15,31,127]){
+        expect(parseToolExecutionReceipt({...production,[key]:`prefix${String.fromCharCode(code)}suffix`},call)).toBeUndefined()
+      }
+    }
+    const invalidCall=`call${String.fromCharCode(31)}17`
+    expect(parseToolExecutionReceipt({...production,call_id:invalidCall},invalidCall)).toBeUndefined()
+  })
   it('accepts queued cancellation without claiming actual execution',()=>{
     const base=receipt(), cancel={phase:'cancellation_requested',at:base.events[1].at,elapsed_ms:100,provenance:'owner_scheduler' as const}
     const queued={...base,events:[...base.events.slice(0,2),cancel]}
