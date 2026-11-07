@@ -1,98 +1,61 @@
-# Compact progress graph
-
-Main graph now keeps9milestones;109intermediate records remain in folded history.
-Canonical selection table: VERSION-CONTROL.md / 主图里程碑. Current HEADs,
-all exact deployed sources and release milestones are always retained. Edges are
-reduced over Git-verified ancestry between visible nodes. Runtime code unchanged.
-Browser checked9cards,6source references and no horizontal overflow.
-
-# Progress graph alignment
-
-Canonical VERSION-CONTROL and PROJECT-OVERVIEW now record dev a4efea0e,
-main22cd1728, PR94/95, development snapshot tag and all three dev deployments
-at22cd1728. Old6c55e6ee is a historical baseline, not current HEAD.
-Current graph update uses focused local document/doctor/browser checks only.
-
-# Latest deployment result
-
-All three dev services now run22cd1728. Readiness, exact App source and API/worker
-image parity passed. Real short tasks completed local3.10s,63 8.86s,66 9.61s.
-Report: docs/reports/2026-11-06-three-dev-deployment.md.
-Private receipt: .capstone-agent/deploy-20261106/receipt.json.
-Local App PID stored in .capstone-agent/app-dev.pid; Vite preview serves exact bundle.
-No CI or production deployment. Existing data/configuration preserved.
-
-Previous recovery notes (superseded deployment status):
-# Current closeout result
-
-PR94 merged dev a4efea0e; macOS CI42147526730 passed.
-User explicitly authorized lightweight development exception. PR95 merged main
-22cd17287c97659bd487008be087b0948009d67c using administrator bypass.
-Duplicate release CI42153874461 cancellation requested. Annotated remote tag
-dev-snapshot-20261106-22cd1728 points to that main commit. Not a release acceptance.
-Git HTTPS fetch failed; original local checkout and mixed work preserved.
-Local branch synchronization/control graph refresh remains deferred; no deployment.
-
-Previous recovery details:
 # Live Session Checkpoint
 
-Updated 2026-11-06. Active main/tag closeout; not a final handoff.
+> Updated: 2026-11-07 20:20. **Session remains active — not a final handoff.**
 
-User authorized closeout, annotated tag and main integration. Two dev PR macOS product/governance runs were explicitly approved. First failed;
-second run42147526730 is active at c9be2193b64951545e207398faedebcd7d78ac31.
-No third or main CI approval. Do not push updates or rerun without new approval.
+## Source and deployment
 
-PR94 https://github.com/uukuguy/capstone/pull/94 still OPEN, base dev, remote head
-c9be2193b64951545e207398faedebcd7d78ac31. CI42137611817 FAILED after about28m44s:
-applications938/3skip, simulator279/2skip, governance61/2skip passed; backend3142
-passed/197skip,1failure quiet-provider idle count. No merge/tag/deployment occurred.
+- PR98 merged normally into dev9689c434. Approved macOS CI42370539679 passed in2m43s.
+  No second CI was started. Actual root dev fast-forwarded and its focused entry
+  checks/doctor passed. Root source matches deployed9773fca6 exactly.
+- Local backend9773fca6/imageeecd6e24 and Appdf4ddf61 remain distinct. Remote Capstone
+  stages and main22cd1728 were not changed. No release or numerical acceptance.
+- The merged fix branch is closed locally and remotely. Recovery source reference:
+  refs/capstone/recovery/gateway-capability-accepted-20261107 at9b4c0a86.
+- Control-only closeout branch:docs/gateway-capability-closeout-20261107, checkout
+  /Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106.
+  It records only reports, canonical plan/state and graph; integration uses the
+  existing lightweight documentation closeout authorization, no new CI.
 
-Local candidate branch uukuguy/native-execution-release-20261106 at Orca checkout:
-/Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106
-Code/test fix1a0fc847 and docs c9be2193 were pushed under second CI approval. It changes only test_general_pi_executor:
-fixed200ms child quiet period replaced with marker handshake after2idle callbacks;
-original count assertion and5s deadline retained. Controlled300ms callback delay
-reproduced2failures with old test; new handshake passes92related checks in16.13s.
-No production code changed. Earlier code repairs faa9bcc0/6c54b077/a8fbf683 retained.
+## New gateway verification
 
-12original historical receipts existed only in root and were omitted from candidate.
-They are now copied to child with unchanged content; candidate/control and own links
-pass. Include these with final control docs in the next candidate commit. No secrets
-found in copied reports. Local doc/doctor/diff checks must finish before asking approval.
+- Fresh 本机联调 publication remains43tools, with38capability summaries and sectioned
+  contracts. Snapshot fingerprint changed despite unchanged count. New tasks were
+  selected/refreshed against the new publication; old task snapshots stayed frozen.
+- Real two-turn comparison:complete reads31to0;updated25usage+11input_schema.
+  Contract JSON bytes675469to245784;all gateway bytes895304to777039.
+  Model responses30to26;time238.89to259.99seconds. No planning speedup established.
+- Updated plans correctly distinguish source-hour pagination from60second minute
+  samples and no longer infer over-budget from unknown windows/object counts.
+  Saved16007/27159byte products passed download SHA256 checks. Business records,
+  numerical execution and remote-job interruption were not tested.
+- A correct expected contract revision succeeded;using summary_revision was rejected.
+- Open Capstone issue:follow-up read22sections instead of reusing exact capability
+  context. Baseline had a separate contract artifact;new trial saved only its plan.
+  Improve bounded,versioned carryover without hardcoded business tool lists or
+  requiring large model-written contract files. Broad analytical quality remains open.
+- Detailed evidence:docs/reports/2026-11-07-gateway-sectioned-contract-recheck.md.
+  Private metrics/events/products:root .capstone-agent/gateway-guide-20261107/.
 
-Earlier local release scope passed as split components (not one clean aggregate):
-backend3143/197skip,App1527,Kernel663,E2E39,workers3,workbench156,
-static7/10/8,application2,matrix24/24,package-artifacts/source-setup/build/doctor pass.
-Two original local failed receipts remain; first CI failure remains separate.
-Independent review P2 unbounded diagnostics fixed6c54; followup no new finding.
+## Preservation and recovery
 
-Root checkout remains dev6c55e6ee and main0b68c607; remote dev/main unchanged.
-Root mixed work preserved, normal index empty. root-alignment-audit.json identifies
-128paths matching candidate+incoming,17matching incoming before repairs,5candidate
-only,18independent historical documents/template paths. Recompute before any sync.
-Do NOT stash/apply blindly or overwrite old source onto new repairs. On successful
-future dev merge, preserve complete recovery snapshot and independent paths before
-fast-forwarding actual dev. Ignored runtimes,var,data,auth must remain untouched.
+- Root dirty snapshot:refs/capstone/recovery/pre-pr98-root-20261107 atda0b9e1d.
+  Ignored pre-pr98-integration manifest stores29paths. Fourteen old code patches
+  were proved included before normalization;no user data or var data was removed.
+- Remaining unrelated root changes:deploy/intranet/README.md;
+  docs/reports/2026-11-06-three-dev-deployment.md;
+  docs/superpowers/plans/2026-11-05-structured-tool-batches.md;
+  docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md;
+  docs/superpowers/specs/2026-11-05-direct-thinking-preview.md.
+  Prior journal additions remain preserved;do not bulk stage them.
+- Git fetch failed via HTTP2 and timed out via HTTP1. Exact GitHub signed merge
+  object was imported only after SHA/tree/parent checks;no history was rewritten.
+- Independent research remains2bd086af in
+  /Users/sujiangwen/orca/workspaces/capstone/reference-execution-research.
+  Do not auto-merge research or update services under its authorization.
 
-Private logs in root .capstone-agent/release-closeout-20261106/:
-dev-ci-receipt.json,dev-ci-failed.log,idle-scheduling-red.log (2fail),
-idle-scheduling-green.log (92pass),ci-authorization.json,missing-receipts-paths.json,
-local-summary.json, earlier failed/passing gate logs and PR body drafts.
+## Immediate next action
 
-Docs/control snapshot updated in actual dev root and child; links/symlink,
-diff,doctor and1920px browser/source edges verified. Final documentation commit
-follows1a0fc847 and includes12unchanged receipts. Only append-only commit journal
-receipt may remain uncommitted until next state commit. Temporary server stopped;
-browser restored to5173. Root dev source/HEAD still unchanged.
-Next monitor second dev PR macOS CI42147526730 (watch log dev-ci-second-watch.log).
-No new CI or PR update is authorized. After it passes, merge
-through PR without bypass, synchronize actual dev preserving mixed work and record
-actual merge/control. Main PR full macOS+Linux release CI needs separate explicit
-approval. Tag exact accepted main merge only after passing main gate; suggested
-milestone-native-execution-20261106-<short-main-merge-sha>, no deployment tag.
-
-Root local-dev stays984131e3 (API/workerscb6678d6,native200f8447),AppPID91545 fixed
-batch-regression app5173→8767. 63/66 lastknown367374aa+overlay255c8855,disconnected,
-untouched. Gateway missing grid_database external assistance stays open.
-Current own browser sessionoffapp tab on5173; reuse it for control snapshot and
-restore it afterwards. Original temporary18976server was stopped. No user tabs close.
+Finish the documentation-only PR,refresh the graph in actual dev after integration,
+check its real nodes/edges and preserve the original browser tab. Then report source
+integration and new contract trial with the measured limitations. A new CI run or
+CI-triggering update needs another explicit user approval.

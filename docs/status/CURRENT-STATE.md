@@ -48,6 +48,14 @@ Applications select bindings and public projections. Domain Packs own semantic
 execution and policy. The Kernel owns neutral turns, context and trajectory.
 Authorities own models, revisions, numerical results and evidence.
 
+Connected gateway publications build task-admitted capability snapshots. The
+existing discovery index searches names, descriptions and published metadata; exact
+contracts stay provider-owned and are read on demand. The execution model uses
+these capabilities to decompose complex questions into professional actions, with
+bounded exploratory queries for gaps. This adds no fixed business inventory,
+mandatory first action or separate planning model. Published summary fingerprints
+and contract revisions remain distinct.
+
 Native Pi runs general tasks in isolated workspaces. Its source observations do
 not become simulator evidence. Published gateway tools use protected backend
 configuration and published contracts. Gateway entry points are adapter-owned;

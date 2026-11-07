@@ -1,6 +1,10 @@
 # docs/status INDEX
 
+2026-11-07：[分段契约复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)记录PR98、获批CI及实际dev9689c434；完整读取归零、两项判断纠正，续轮复用与性能仍有缺口。
+
 2026-11-07：[动态能力与网关建议](../reports/2026-11-07-gateway-capability-discovery.md)记录9773fca6本机候选、真实两轮方案及未通过的分析质量项；设计和计划见回执关联。未合dev、无CI。
+
+2026-11-06：[网关自动协商修复](../reports/2026-11-06-gateway-auto-negotiation.md)三套dev已运行df4ddf61；已有会话切换、状态刷新和同一工作继续执行均经真实模型验证，客户端移除手动契约按钮。
 
 2026-11-06：推进主图已精简为9个重要节点，109项细节移入折叠历史；部署引用与真实祖先关系保留。[三套dev部署](../reports/2026-11-06-three-dev-deployment.md)与推进图对齐：dev a4efea0e、main22cd1728同内容；研发快照tag已创建，三套dev均运行22cd1728，健康/源码/同镜像与真实短会话通过。
 
