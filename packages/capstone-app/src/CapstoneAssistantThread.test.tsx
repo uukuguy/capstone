@@ -1,3 +1,4 @@
+import { receipt } from './toolExecutionReceipt.fixture'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages,restoreVisibleConversation } from './CapstoneAssistantThread'
@@ -252,7 +253,7 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
     fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
     const tools=within(screen.getByRole('dialog',{name:'执行过程'})).getByRole('region',{name:'工具调用过程'})
-    expect(within(tools).getAllByText('并行调用')).toHaveLength(2)
+    expect(within(tools).queryByText('并行调用')).toBeNull()
     expect(within(tools).getByText('失败')).toBeTruthy()
     expect(within(tools).getByText('Source unavailable',{selector:'.capstone-tool-failure-reason'})).toBeTruthy()
   })
@@ -2044,4 +2045,11 @@ describe('CapstoneAssistantThread', () => {
 
     await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
   })
+})
+
+it('retains only owner-matched execution receipts during replay',()=>{
+ const observed=receipt('call')
+ const row=event('runtime_event',1,{task_id:'task',native_type:'tool_execution_end',tool_name:'read',tool_call_id:'call',activity:{execution_receipt:observed}},'attempt')
+ expect(projectAssistantActivity([row])[0].executionReceipt).toEqual(observed)
+ expect(projectAssistantActivity([{...row,payload:{...row.payload,task_id:'other'}}])[0].executionReceipt).toBeUndefined()
 })

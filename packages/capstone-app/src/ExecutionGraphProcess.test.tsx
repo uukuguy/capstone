@@ -90,7 +90,7 @@ describe('actual graph process reader', () => {
     const b = screen.getByRole('region', { name: 'Original question B' })
     fireEvent.click(within(b).getByText('调用过程', { selector: 'summary' }))
     fireEvent.click(within(b).getByText('bash', { selector: 'strong' }))
-    expect(within(b).getByText(/工具执行 2.7s · 记录区间 71.9s/)).toBeVisible()
+    expect(within(b).getByText(/工具执行 未知 · 记录区间 71.9s/)).toBeVisible()
   })
   it('reveals actual started steps progressively and retains future steps in an optional plan', () => {
     const value = fixture()

@@ -1,0 +1,22 @@
+import { describe, expect, it } from 'vitest'
+import { parseToolExecutionReceipt, receiptBatchSummary, receiptDuration } from './toolExecutionReceipt'
+import { receipt } from './toolExecutionReceipt.fixture'
+describe('owner execution receipts',()=>{
+  it('validates identity and finite ordered owner measurements',()=>{
+    expect(parseToolExecutionReceipt(receipt(),'c')).toBeDefined()
+    expect(parseToolExecutionReceipt(receipt(),'other')).toBeUndefined()
+    for(const elapsed_ms of [NaN,Infinity,-1]) expect(parseToolExecutionReceipt({...receipt(),events:[{...receipt().events[0],elapsed_ms}]},'c')).toBeUndefined()
+    expect(parseToolExecutionReceipt({...receipt(),events:[receipt().events[3],receipt().events[1]]},'c')).toBeUndefined()
+  })
+  it('keeps queue time separate and counts sixteen calls with a measured peak of eight',()=>{
+    const receipts=Array.from({length:16},(_,index)=>receipt(String(index),index<8?0:1000))
+    expect(receiptDuration(receipts[0],'queued','acquired')).toBe(1000)
+    expect(receiptDuration(receipts[0],'execution_started','execution_ended')).toBe(1000)
+    expect(receiptBatchSummary(receipts)).toEqual({capacity:8,peak:8,elapsedMs:3000})
+  })
+  it('never invents concurrency for missing receipts or incompatible owner clocks',()=>{
+    expect(receiptBatchSummary([receipt(),undefined])).toEqual({})
+    expect(receiptBatchSummary([receipt(),{...receipt('b'),scope_id:'another'}])).toEqual({})
+    expect(receiptBatchSummary([{...receipt(),events:receipt().events.slice(0,4)}])).toEqual({capacity:8})
+  })
+})

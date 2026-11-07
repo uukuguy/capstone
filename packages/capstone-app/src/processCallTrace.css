@@ -69,7 +69,7 @@
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled > svg { color: inherit; }
 .capstone-parallel-group { position: relative; width: auto; max-width: 100%; margin: 2px 0; padding: 0; border: 0; }
 .capstone-parallel-group::before { content: ''; position: absolute; left: -6px; top: 1px; bottom: 1px; width: 1px; background: #7ea898; }
-.capstone-parallel-heading { margin: 0 0 2px; color: #3d6b58; font-size: inherit; font-weight: 400; text-align: left; white-space: nowrap; }
+.capstone-parallel-heading { margin: 0 0 2px; color: #3d6b58; font-size: inherit; font-weight: 400; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .capstone-call-trace .capstone-parallel-heading > .capstone-call-duration { display: inline; gap: 0; }
 .capstone-call-pool ul { list-style: none; margin: 4px 0; padding: 0 0 0 8px; border-left: 1px solid #c7d8cf; }
 .capstone-call-pool li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 3px 0; }
