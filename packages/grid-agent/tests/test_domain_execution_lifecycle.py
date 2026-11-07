@@ -1,4 +1,6 @@
 from grid_agent.domain_tools import PandapowerDomainToolService
+import json
+import pytest
 
 
 def test_service_returns_owner_receipt_on_success_and_failure(tmp_path):
@@ -21,6 +23,36 @@ def test_service_returns_owner_receipt_on_success_and_failure(tmp_path):
         assert receipt['call_id'] == 'call'
         assert [e['phase'] for e in receipt['events']] == [
             'submitted','queued','acquired','execution_started','execution_ended','released']
+    saved = list((tmp_path / 'task' / 'execution-receipts').glob('*.json'))
+    assert len(saved) == 2  # Repeated task/call identity never overwrites an invocation.
+    assert all(json.loads(path.read_text())['events'][-1]['phase'] == 'released' for path in saved)
+
+
+def test_receipt_write_failure_is_fatal_and_releases_owner_capacity(tmp_path, monkeypatch):
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    service._capabilities = {'published': 'capability'}
+    def fail(*args, **kwargs): raise OSError('storage failed')
+    monkeypatch.setattr('grid_agent.domain_tools.os.replace', fail)
+    with pytest.raises(RuntimeError, match='execution receipt persistence failed'):
+        service.invoke({'task_id': 'task', 'call_id': 'call', 'name': 'published', 'arguments': {}})
+    assert not service._queue._active
+
+
+def test_owner_records_survive_without_a_response_consumer(tmp_path):
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    service._capabilities = {'published': 'capability'}
+    class Executor:
+        def invoke(self, capability, arguments, *, execution_observer):
+            execution_observer('execution_started')
+            execution_observer('execution_ended')
+            raise RuntimeError('source failed')
+    service._executors['task'] = Executor()
+    service.invoke({'task_id': 'task', 'call_id': 'call', 'name': 'published', 'arguments': {}})
+    saved, = (tmp_path / 'task' / 'execution-receipts').glob('*.json')
+    document = json.loads(saved.read_text())
+    assert document['call_id'] == 'call'
+    assert document['events'][-1]['phase'] == 'released'
+    assert 'arguments' not in document
 
 
 def test_mixed_entry_calls_use_one_owner_budget(tmp_path):

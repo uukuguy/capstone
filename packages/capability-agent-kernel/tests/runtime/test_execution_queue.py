@@ -93,3 +93,17 @@ def test_async_queue_cancellation_removes_pending_without_threads():
             assert not queue._pending
         assert not queue._active
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('phase', ['submitted', 'queued', 'acquired', 'released'])
+def test_required_receipt_failure_is_fatal_without_leaking_lease(phase):
+    queue = ExecutionQueue(capacity=1)
+    def observer(receipt):
+        if receipt['events'][-1]['phase'] == phase:
+            raise OSError('storage unavailable')
+    with pytest.raises(RuntimeError, match='execution receipt persistence failed'):
+        receipt = queue.receipt(task_id='task', call_id='one', observer=observer)
+        with queue.acquire(receipt, resource='shared'):
+            pass
+    assert not queue._active
+    assert not queue._pending

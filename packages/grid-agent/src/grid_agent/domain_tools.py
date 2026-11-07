@@ -12,7 +12,8 @@ import os
 import re
 from pathlib import Path
 from threading import Lock
-from capability_agent.runtime.execution_queue import ExecutionQueue
+from capability_agent.runtime.execution_queue import ExecutionQueue, ExecutionReceiptError
+from uuid import uuid4
 
 from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
 from pandapower_domain.profile import build_pandapower_profile
@@ -97,18 +98,40 @@ class PandapowerDomainToolService:
         call_id = document.get('call_id')
         if not isinstance(call_id, str) or not call_id or len(call_id) > 256:
             raise ValueError('domain tool call identity is invalid')
-        receipt = self._queue.receipt(task_id=task_id, call_id=call_id)
+        receipt = self._queue.receipt(task_id=task_id, call_id=call_id,
+            observer=self._receipt_writer(task_id))
         with self._queue.acquire(receipt, resource=task_id, read_only=self._read_only.get(name, False)):
             try:
                 result = self._executor(task_id).invoke(capability, arguments,
                     execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
                 response = ({'ok': True, 'result': result} if isinstance(result, dict)
                     else {'ok': False, 'error': {'message': 'domain tool call failed'}})
+            except ExecutionReceiptError:
+                raise
             except SimulatorCapabilityError as error:
                 response = {'ok': False, 'error': error.error if isinstance(error.error, dict) else {'message': 'domain tool call failed'}}
             except Exception:
                 response = {'ok': False, 'error': {'message': 'domain tool call failed'}}
         return {**response, 'execution_receipt': receipt}
+
+    def _receipt_writer(self, task_id):
+        # Each invocation gets a private control record, independent of HTTP
+        # delivery. This is host telemetry, never an Authority result/evidence.
+        directory = self._root / task_id / 'execution-receipts'
+        path = directory / (uuid4().hex + '.json')
+        def persist(receipt):
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            temporary = directory / ('.' + uuid4().hex + '.tmp')
+            try:
+                with temporary.open('x', encoding='utf-8') as stream:
+                    temporary.chmod(0o600)
+                    json.dump(receipt, stream, ensure_ascii=False, separators=(',', ':'))
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+            finally:
+                temporary.unlink(missing_ok=True)
+        return persist
 
     def _executor(self, task_id: str) -> GridctlExecutor:
         with self._lock:

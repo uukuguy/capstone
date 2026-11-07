@@ -8,6 +8,16 @@ from uuid import uuid4
 from concurrent.futures import CancelledError
 
 
+class ExecutionReceiptError(RuntimeError):
+    """Required owner telemetry could not be stored."""
+
+
+class _ObservedReceipt(dict):
+    def __init__(self, document, observer):
+        super().__init__(document)
+        self.observer = observer
+
+
 class ExecutionQueue:
     def __init__(self, *, capacity: int = 8, provenance: str = 'owner_scheduler'):
         if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity < 1:
@@ -23,11 +33,17 @@ class ExecutionQueue:
     def record(self, receipt, phase, *, provenance=None):
         receipt['events'].append({'phase': phase, 'at': datetime.now(timezone.utc).isoformat(),
             'elapsed_ms': (monotonic() - self._origin) * 1000, 'provenance': provenance or self.provenance})
+        observer = getattr(receipt, 'observer', None)
+        if observer is not None:
+            try:
+                observer(receipt)
+            except Exception as error:
+                raise ExecutionReceiptError('execution receipt persistence failed') from error
 
-    def receipt(self, *, task_id, call_id):
-        receipt = {'schema': 'capstone-tool-execution/1', 'owner_id': self.owner_id,
+    def receipt(self, *, task_id, call_id, observer=None):
+        receipt = _ObservedReceipt({'schema': 'capstone-tool-execution/1', 'owner_id': self.owner_id,
             'scope_id': self.owner_id, 'task_id': task_id, 'call_id': call_id,
-            'policy_version': 'rolling/1', 'capacity': self.capacity, 'events': []}
+            'policy_version': 'rolling/1', 'capacity': self.capacity, 'events': []}, observer)
         self.record(receipt, 'submitted')
         return receipt
 
@@ -69,8 +85,10 @@ class ExecutionQueue:
             with self._condition:
                 self._pending = [p for p in self._pending if p[0] is not ticket]
                 if acquired:
-                    self.record(receipt, 'released')
-                    del self._active[ticket]
+                    try:
+                        self.record(receipt, 'released')
+                    finally:
+                        del self._active[ticket]
                 self._condition.notify_all()
 
     @contextmanager
@@ -95,11 +113,18 @@ class ExecutionQueue:
                 raise
             self._pending = [p for p in self._pending if p[0] is not ticket]
             self._active[ticket] = (resource, read_only)
-            self.record(receipt, 'acquired')
+            try:
+                self.record(receipt, 'acquired')
+            except BaseException:
+                del self._active[ticket]
+                self._condition.notify_all()
+                raise
         try:
             yield
         finally:
             with self._condition:
-                self.record(receipt, 'released')
-                del self._active[ticket]
-                self._condition.notify_all()
+                try:
+                    self.record(receipt, 'released')
+                finally:
+                    del self._active[ticket]
+                    self._condition.notify_all()
