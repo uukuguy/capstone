@@ -307,6 +307,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'leading index prefix the tool reports' in gateway_context
     assert 'Compose published data_gateway_ tools' in gateway_context
     assert 'current published access-selection policy' in gateway_context
+    assert 'When no suitable dedicated operation can express the needed analysis' in gateway_context
     assert 'One unavailable tool does not make other business tools unavailable' in gateway_context
     assert 'Do not issue a probe only to validate input schemas' in gateway_context
     assert 'independently of menu activation' in gateway_context

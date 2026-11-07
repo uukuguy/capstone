@@ -1271,6 +1271,7 @@ class NativeTaskRunner:
                         'Use the current published tool descriptions and schemas to determine prerequisites and valid combinations; do not assume a fixed discovery or execution sequence. '
                         'Compose published data_gateway_ tools for almost all business data access. The gateway writes those queries and handles their performance. '
                         'Choose dedicated operations, structured queries or advanced exploration by task semantics and the current published access-selection policy, without imposing a fixed tool hierarchy. '
+                        'Prefer a suitable dedicated operation when its business semantics and constraints fit the task. When no suitable dedicated operation can express the needed analysis, use admitted structured queries or read-only SQL for bounded exploration. Do not require failed attempts through unrelated tools before using that fallback. '
                         'One unavailable tool does not make other business tools unavailable; inspect its stated scope and relevant alternatives without probing the entire catalog. '
                         'Before expanding unfamiliar business retrieval, establish its shape and status with a bounded observation; reuse an existing successful observation for the same shape and scope. '
                         'Do not issue a probe only to validate input schemas; batch preflight checks arguments before execution. Stop the batch on a shared contract error instead of repeating it for each object. '
