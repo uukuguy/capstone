@@ -409,7 +409,27 @@ class DataGatewayAccess:
             **({'refresh_reason': refresh_reason} if refresh_reason else {})}
         response = {'result_json': body, 'is_error': failed, 'observation': observation}
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
-        self.view_bindings.observe(name, arguments, result, catalog)
+        binding_catalog = catalog
+        if 'progressive' in catalog:
+            # Only declared response continuations justify loading another
+            # contract here. Never load schemas for arbitrary business rows.
+            targets = set()
+            for action in self.view_bindings.candidate_actions(result):
+                candidates = [n for n, tool in catalog['tools'].items()
+                              if action['tool'] in (n, tool['name']) and n in record['allowed_tools']]
+                if len(candidates) == 1:
+                    targets.add(candidates[0])
+            missing = sorted(targets - record.get('exact_tools', {}).keys())
+            for start in range(0, len(missing), limits.tool_active_count):
+                try:
+                    await self.resolve_contracts(task_id, missing[start:start + limits.tool_active_count])
+                except GatewayError as error:
+                    # A metadata failure must not erase an already returned
+                    # source result. Unresolved continuations remain unbound.
+                    span['continuation_contract_error'] = str(error)
+                    break
+            binding_catalog = {**catalog, 'tools': {**catalog['tools'], **record.get('exact_tools', {})}}
+        self.view_bindings.observe(name, arguments, result, binding_catalog)
         classify_contract = getattr(self.client, 'contract_context_entry', None)
         contract_entry = classify_contract(name, arguments, result, catalog) if classify_contract else None
         with self._lock:

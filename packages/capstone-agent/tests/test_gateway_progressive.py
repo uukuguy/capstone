@@ -13,7 +13,7 @@ from capstone_agent.data_gateway_mcp import DataGatewayMcp, InitializedGatewaySe
 EXTENSION = 'data-gateway/progressive-discovery'
 
 
-def progressive_gateway(tmp_path, *, output=True):
+def progressive_gateway(tmp_path, *, output=True, extra=False):
     path = tmp_path / 'connection.json'
     path.write_text(json.dumps({'transport': 'streamable-http', 'url': 'http://gateway.test/mcp',
                                'headers': {'Authorization': 'Bearer secret-canary'}}))
@@ -37,6 +37,9 @@ def progressive_gateway(tmp_path, *, output=True):
                         'input_schema': {'type': 'object'}} for op in ('catalog', 'contracts', 'check')},
         'limits': {'catalog_items': 50, 'catalog_bytes': 131072, 'batch_items': 8,
                    'batch_bytes': 524288, 'request_bytes': 16384}}
+    entries = [item]
+    if extra:
+        entries.append({**deepcopy(item), 'name': 'following_action', 'id': 'following', 'tool_key': 'f' * 64})
     class Session:
         def __init__(self):
             self.requests = []
@@ -44,6 +47,7 @@ def progressive_gateway(tmp_path, *, output=True):
             self.changed = False
             self.page_mode = False
             self.response_view = 'view'
+            self.contract_failure = False
         async def list_tools(self, **kwargs):
             pytest.fail('Progressive path must not call tools/list')
         async def call_tool(self, *args, **kwargs):
@@ -56,16 +60,18 @@ def progressive_gateway(tmp_path, *, output=True):
             packet = {'protocol_version': '1', 'status': 'ok', 'publication_revision': 'other' if self.changed else 'pub',
                       'access_view_id': self.response_view, 'source_accessed': False}
             if op == 'catalog':
-                packet.update(view='tools', items=[deepcopy(item)], total=1, truncated=False, next_cursor=None)
+                packet.update(view='tools', items=deepcopy(entries), total=len(entries), truncated=False, next_cursor=None)
                 if self.page_mode:
                     packet.update(total=2, truncated=True, next_cursor='c' * 300)
             elif op == 'check':
                 packet.update(changed=self.changed)
             else:
-                packet['items'] = [{**deepcopy(item), 'status': 'ok',
-                    'sections': {s: deepcopy(schemas[s]) for s in args['requests'][0]['sections']}}]
+                packet['items'] = [{**deepcopy(next(e for e in entries if e['tool_key'] == request['tool_key'])), 'status': 'ok',
+                    'sections': {s: deepcopy(schemas[s]) for s in request['sections']}} for request in args['requests']]
                 if self.corrupt:
                     packet['items'][0]['sections']['input_schema'] = {'type': 'null'}
+                if self.contract_failure:
+                    packet.update(status='error', error={'code': 'publication_changed'})
             return SimpleNamespace(contents=[SimpleNamespace(text=json.dumps(packet))])
         async def send_request(self, request, result_type):
             from mcp.types import CallToolResult, TextContent
@@ -174,3 +180,49 @@ def test_malformed_supported_handshake_is_not_silently_downgraded(tmp_path):
     with pytest.raises(ValueError, match='gateway_catalog_invalid'):
         asyncio.run(client.prepare())
     assert not session.requests
+
+
+@pytest.mark.parametrize('extra', [False, True])
+def test_progressive_observation_preserves_exact_continuation_binding(tmp_path, extra):
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    client, session, _ = progressive_gateway(tmp_path, extra=extra)
+    target = 'following_action' if extra else 'new_action'
+    original = session.send_request
+    async def with_action(*args):
+        response = await original(*args)
+        response.structuredContent['status'] = 'ok'
+        response.structuredContent['data'] = {'state': 'preparing', 'next_action': {
+            'tool': target, 'arguments': {'value': 5}}}
+        return response
+    session.send_request = with_action
+    async def run():
+        catalog = await client.prepare()
+        access = DataGatewayAccess(client, catalog)
+        access.bind('task', 'attempt', set(catalog['tools']))
+        await access.resolve_contracts('task', ['data_gateway_new_action'])
+        await access.call('task', {'call_id': 'one', 'name': 'data_gateway_new_action', 'arguments': {'value': 4}})
+        assert access.view_bindings.action({'value': 5}) == {'tool': target, 'arguments': {'value': 5}}
+    asyncio.run(run())
+
+
+def test_continuation_metadata_failure_preserves_completed_source_observation(tmp_path):
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    client, session, _ = progressive_gateway(tmp_path, extra=True)
+    original = session.send_request
+    async def with_action(*args):
+        response = await original(*args)
+        response.structuredContent.update(status='ok', data={'next_action': {
+            'tool': 'following_action', 'arguments': {'value': 5}}})
+        session.contract_failure = True
+        return response
+    session.send_request = with_action
+    async def run():
+        catalog = await client.prepare()
+        access = DataGatewayAccess(client, catalog)
+        access.bind('task', 'attempt', set(catalog['tools']))
+        await access.resolve_contracts('task', ['data_gateway_new_action'])
+        response = await access.call('task', {'call_id': 'one', 'name': 'data_gateway_new_action', 'arguments': {'value': 4}})
+        assert response['is_error'] is False and 'one' in access._tasks['task']['issued']
+        assert access.view_bindings.action({'value': 5}) is None
+        assert access._tasks['task']['diagnostic_calls'][0]['continuation_contract_error'] == 'gateway_publication_changed'
+    asyncio.run(run())
