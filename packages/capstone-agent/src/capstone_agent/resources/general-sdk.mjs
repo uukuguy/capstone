@@ -291,13 +291,15 @@ function graphChildTools(config,tools,binding){
     emit({type:'enterprise_graph_child_tool',...base,activity:'start',tool_name:tool.name,tool_call_id:scoped,args:args[0]});
     const executionStarted=performance.now();
     try{
-      const actual=await tool.execute(tool.name.startsWith('data_gateway_')?scoped:callId,...args);
+      const actual=await tool.execute(tool.executionIdentity==='owner'||tool.name.startsWith('data_gateway_')?scoped:callId,...args);
       const executionMs=performance.now()-executionStarted;
       const result=actual.isError===true?actual:nativeObservation(config,scoped,actual);
       receipts.push(result.isError===true?graphFailureReceipt(config,token,'failed'):
         {ref:result.details.native_research_source.source_ref,owner:action.owner,
           action_id:action.id,attempt_id:action.attempt_id,status:'completed'});
-      emit({type:'enterprise_graph_child_tool',...base,activity:'end',tool_name:tool.name,tool_call_id:scoped,execution_ms:executionMs,result:rpcEvent({type:'tool_execution_end',toolName:tool.name,result}).result,is_error:result.isError===true});
+      emit({type:'enterprise_graph_child_tool',...base,activity:'end',tool_name:tool.name,tool_call_id:scoped,execution_ms:executionMs,
+        ...(result.details?.execution_receipt?{execution_receipt:result.details.execution_receipt}:{}),
+        result:rpcEvent({type:'tool_execution_end',toolName:tool.name,result}).result,is_error:result.isError===true});
       if(binding.taskReturn&&result.isError!==true){
         const alias=binding.taskReturn.observe(result.details.native_research_source.source_ref);
         const advice=binding.turnGuidance&&taskTurnGuidance(binding.turnGuidance,binding.turnGuidance.started_at_ms);

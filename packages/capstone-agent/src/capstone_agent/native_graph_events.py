@@ -137,10 +137,15 @@ class NativeGraphEvents:
         elif identity not in self.children:
             raise ValueError('graph child start was not observed')
         elif kind == 'enterprise_graph_child_tool':
-            if (set(event) - base - {'activity', 'tool_name', 'tool_call_id', 'args', 'result', 'is_error', 'execution_ms'}
+            if (set(event) - base - {'activity', 'tool_name', 'tool_call_id', 'args', 'result', 'is_error', 'execution_ms', 'execution_receipt'}
                     or event.get('activity') not in {'start', 'end'}):
                 raise ValueError('graph child tool event is invalid')
             self._tool(event)
+            if 'execution_receipt' in event:
+                from .tool_execution_receipt import checked_execution_receipt
+                if (event['activity'] != 'end' or checked_execution_receipt(event['execution_receipt'],
+                        task_id=event['task_id'], call_id=event['tool_call_id']) is None):
+                    raise ValueError('graph child execution receipt is invalid')
             if self.action_for_call(event['tool_call_id'], event['tool_name']) != event['action_id']:
                 raise ValueError('graph child tool action changed')
             if 'is_error' in event and type(event['is_error']) is not bool:

@@ -234,6 +234,29 @@ def run(service, current, selected):
                                SimpleNamespace(check=lambda: None), 30, None)
 
 
+@pytest.mark.parametrize('valid', [True, False])
+def test_owner_execution_receipt_survives_saved_public_event(valid):
+    from test_tool_execution_receipt import receipt
+    class TimedExecutor(Executor):
+        def execute(self, request, control, on_event):
+            self.requests.append(request)
+            value = receipt()
+            value.update(task_id=request.task_id if valid else 'another-task', call_id='observed-call')
+            on_event({'type': 'tool_execution_end', 'tool_name': 'published-action',
+                      'tool_call_id': 'observed-call', 'result': {'details': {'execution_receipt': value}}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity, 'completed', 'Done', (), (), {})
+    service, current = claim()
+    executor = TimedExecutor()
+    result = run(service, current, factory(executor, Recognizer([goal('lookup', 'external_lookup', refs=['general-pi'])])))
+    assert result.status == 'completed'
+    saved = service.read_events(current.thread_id, 0).events
+    records = [e.payload.get('activity', {}).get('execution_receipt') for e in saved]
+    records = [value for value in records if value is not None]
+    assert len(records) == int(valid)
+    if records:
+        assert records[0]['task_id'] == executor.requests[0].task_id
+
+
 def test_worker_external_lookup_uses_actual_general_executor():
     service, current = claim()
     executor = Executor()
