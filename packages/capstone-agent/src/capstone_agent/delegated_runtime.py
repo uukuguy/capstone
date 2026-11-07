@@ -312,6 +312,8 @@ class DelegatedRuntime:
             from .tool_execution_receipt import checked_execution_receipt
             result_details = event.get('result', {}).get('details', {}) if isinstance(event.get('result'), Mapping) else {}
             execution_receipt = checked_execution_receipt(
+                (event.get('activity') or {}).get('execution_receipt') if isinstance(event.get('activity'), Mapping)
+                and 'execution_receipt' in event['activity'] else
                 result_details.get('execution_receipt') if isinstance(result_details, Mapping) else None,
                 task_id=task_id, call_id=tool_call_id)
             research_branch = kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}

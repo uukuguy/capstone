@@ -1048,6 +1048,24 @@ def test_private_frame_failure_has_fixed_operator_reason(tmp_path, message, reas
     assert record['reason_code'] == reason
 
 
+def test_host_publishes_owner_receipt_in_bounded_tool_activity(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from test_tool_execution_receipt import receipt
+    value = receipt()
+    value.update(task_id='t1', call_id='call-1')
+    def run(request, cancelled, emit):
+        emit({'type': 'tool_execution_end', 'toolName': 'published', 'toolCallId': 'call-1',
+              'result': {'details': {'execution_receipt': value}}})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('t1', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert host.read('t1')['events'][0]['activity']['execution_receipt'] == value
+
+
 def test_sources_reference_actual_host_observed_tool_results(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, cancelled, emit):

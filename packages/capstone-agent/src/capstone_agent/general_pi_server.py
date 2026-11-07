@@ -701,6 +701,13 @@ class GeneralPiHost:
                         (str(record['graph_context'].root),) if record.get('graph_context') is not None else ())
                 else:
                     activity = project_native_tool_activity(event)
+                if kind == 'tool_execution_end':
+                    from .tool_execution_receipt import checked_execution_receipt
+                    details = event.get('result', {}).get('details', {})
+                    receipt = checked_execution_receipt(details.get('execution_receipt') if isinstance(details, dict) else None,
+                        task_id=request.task_id, call_id=payload['tool_call_id'])
+                    if receipt is not None:
+                        activity = {**(activity or {}), 'execution_receipt': receipt}
                 if activity:
                     payload['activity'] = activity
                 if kind == 'tool_execution_end' and (type(event.get('isError')) is bool
