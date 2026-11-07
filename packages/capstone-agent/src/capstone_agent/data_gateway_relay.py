@@ -1,5 +1,6 @@
 """Task catalog grants and host-issued gateway observation receipts."""
 from copy import deepcopy
+from collections import OrderedDict
 from hashlib import sha256
 import asyncio
 import json
@@ -57,8 +58,28 @@ def gateway_discovery_tools(native_context, publication, *, gateway_available):
     return {'agent_tool_search', 'agent_tool_load'} if gateway_available and admitted else set()
 
 
+def stage_gateway_contract_context(inputs, context):
+    """Stage host-verified metadata under the task's protected input directory."""
+    directory = Path(inputs) / 'gateway-contract-context'
+    directory.mkdir(mode=0o700)
+    sections = []
+    for entry in context['sections']:
+        body = encode(entry)
+        digest = sha256(body).hexdigest()
+        path = directory / (digest + '.json')
+        path.write_bytes(body)
+        path.chmod(0o440)
+        sections.append({key: entry[key] for key in ('tool', 'section', 'contract_revision')} |
+                        {'path': str(path), 'sha256': digest, 'size_bytes': len(body)})
+    manifest = directory / 'index.json'
+    manifest.write_bytes(encode({'catalog_revision': context['catalog_revision'],
+                                'instance_id': context['instance_id'], 'sections': sections}))
+    manifest.chmod(0o440)
+    return manifest
+
+
 class DataGatewayAccess:
-    def __init__(self, client, catalog):
+    def __init__(self, client, catalog, *, contract_context_bytes=None):
         self.client, self.catalog = client, deepcopy(catalog)
         from .data_gateway_views import GatewayViewBindings
         self.view_bindings = GatewayViewBindings()
@@ -68,6 +89,12 @@ class DataGatewayAccess:
         self.contract_error = None
         self.contract_request_id = None
         self.contract_checked_at = datetime.now(timezone.utc).isoformat()
+        self._contract_context_limit = limits.history_context_bytes if contract_context_bytes is None else contract_context_bytes
+        if type(self._contract_context_limit) is not int or self._contract_context_limit <= 0:
+            raise ValueError('Invalid contract context capacity')
+        self._contract_sections = OrderedDict()
+        self._contract_section_bytes = 0
+        self._conflicting_contract_tools = set()
 
     async def reload_contract(self):
         """Refresh future grants; existing task receipts keep their catalog."""
@@ -75,6 +102,10 @@ class DataGatewayAccess:
             refresh = getattr(self.client, 'refresh_catalog', None)
             catalog = await refresh(self.catalog) if refresh else await self.client.prepare()
             with self._lock:
+                if catalog['revision'] != self.catalog.get('revision'):
+                    self._contract_sections.clear()
+                    self._contract_section_bytes = 0
+                    self._conflicting_contract_tools.clear()
                 self.catalog = deepcopy(catalog)
                 self._catalogs[catalog['revision']] = deepcopy(catalog)
                 self.contract_error = None
@@ -126,6 +157,47 @@ class DataGatewayAccess:
             if catalog is None:
                 raise GatewayError('gateway_publication_changed')
             return deepcopy(catalog)
+
+    def contract_context(self, task_id):
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None:
+                raise GatewayError('gateway_task_not_admitted')
+            catalog = record['catalog']
+            allowed = record['allowed_tools']
+            sections = ([] if catalog['revision'] != self.catalog.get('revision') or self.contract_error else
+                        [entry for entry, _ in self._contract_sections.values()
+                         if entry['tool'] in allowed and entry['lookup_tool'] in allowed])
+            return {'catalog_revision': catalog['revision'],
+                    'instance_id': catalog.get('instance', {}).get('instance_id'), 'sections': deepcopy(sections)}
+
+    def _remember_contract_context(self, entry):
+        if entry is None or entry['catalog_revision'] != self.catalog.get('revision'):
+            return
+        tool = entry['tool']
+        if tool in self._conflicting_contract_tools:
+            return
+        if any(old['tool'] == tool and old['contract_revision'] != entry['contract_revision']
+               for old, _ in self._contract_sections.values()):
+            self._conflicting_contract_tools.add(tool)
+            for key in list(self._contract_sections):
+                old, size = self._contract_sections[key]
+                if old['tool'] == tool:
+                    del self._contract_sections[key]
+                    self._contract_section_bytes -= size
+            return
+        size = len(encode(entry))
+        if size > self._contract_context_limit:
+            return
+        key = (tool, entry['section'])
+        previous = self._contract_sections.pop(key, None)
+        if previous is not None:
+            self._contract_section_bytes -= previous[1]
+        while self._contract_section_bytes + size > self._contract_context_limit:
+            _, (_, removed) = self._contract_sections.popitem(last=False)
+            self._contract_section_bytes -= removed
+        self._contract_sections[key] = (deepcopy(entry), size)
+        self._contract_section_bytes += size
 
     def revoke(self, task_id):
         with self._lock:
@@ -313,10 +385,13 @@ class DataGatewayAccess:
         response = {'result_json': body, 'is_error': result.get('isError') is True, 'observation': observation}
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
         self.view_bindings.observe(name, arguments, result, catalog)
+        classify_contract = getattr(self.client, 'contract_context_entry', None)
+        contract_entry = classify_contract(name, arguments, result, catalog) if classify_contract else None
         with self._lock:
             if self._tasks.get(task_id) is not record:
                 raise GatewayError('gateway_task_not_admitted')
             record['issued'][call_id] = {'response': deepcopy(response), 'arguments': arguments}
+            self._remember_contract_context(contract_entry)
             if successful and isinstance(data, dict):
                 # Only explicit operation references at the result's data root
                 # grant access. Business rows and nested objects never do.

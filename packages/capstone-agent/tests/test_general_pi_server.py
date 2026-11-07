@@ -253,7 +253,10 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     runner.environment_context = 'HOST VERIFIED ENVIRONMENT: offline libraries and report renderer'
     gateway_bindings = []
     runner.gateway = SimpleNamespace(publication=lambda: gateway_publication,
-        bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None)
+        bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None,
+        contract_context=lambda _: {'catalog_revision': 'catalog-revision', 'instance_id': 'instance',
+            'sections': [{'tool': 'data_gateway_discover_network_models', 'section': 'usage',
+                'contract_revision': 'contract-r', 'data': {'usage': 'EXACT_CONTRACT_DATA'}}]})
     ready = threading.Event()
     ready.set()
     runner.bind_research_reader(lambda _: SimpleNamespace(root=tmp_path / 'channel', ready=ready))
@@ -277,6 +280,10 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
+    cached_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'gateway-contract-context')
+    assert 'gateway-contract-context/index.json' in cached_context
+    assert 'EXACT_CONTRACT_DATA' not in cached_context
+    assert 'not live source availability' in cached_context
     assert 'scope.executed true means the statement was cancelled' not in gateway_context
     assert 'When no next action is returned, select the next operation from the current published contract' in gateway_context
     assert 'A successful tool call does not prove that its job succeeded' in gateway_context

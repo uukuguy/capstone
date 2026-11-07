@@ -18,6 +18,38 @@ class Tool:
         return copy.deepcopy(self.value)
 
 
+def contract_context_gateway(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    session.tools.append(Tool('alpha'))
+    client.policy['allowed_tools'].append('alpha')
+    catalog = asyncio.run(client.prepare())
+    result = {'isError': False, 'structuredContent': {'status': 'ok', 'data': {
+        'name': 'alpha', 'section': 'usage', 'contract_revision': 'contract-a',
+        'usage': {'purpose': 'Compare admitted inputs'}},
+        'provenance': {'request_id': 'not-carried-between-tasks'}}}
+    return client, session, catalog, result
+
+
+def test_contract_context_accepts_only_exact_successful_metadata(tmp_path):
+    client, _, catalog, result = contract_context_gateway(tmp_path)
+    name = 'data_gateway_describe_gateway_contract'
+    arguments = {'tool_name': 'data_gateway_alpha', 'section': 'usage'}
+    entry = client.contract_context_entry(name, arguments, result, catalog)
+    assert entry['tool'] == 'data_gateway_alpha'
+    assert entry['lookup_tool'] == name
+    assert entry['data'] == result['structuredContent']['data']
+    assert 'provenance' not in entry
+    assert client.contract_context_entry('data_gateway_alpha', arguments, result, catalog) is None
+    for changed in [dict(arguments, tool_name='absent'), dict(arguments, section='input_schema'),
+                    dict(arguments, expected_revision='summary-fingerprint'),
+                    dict(arguments, provider_id='other')]:
+        assert client.contract_context_entry(name, changed, result, catalog) is None
+    for changed in [dict(result, isError=True), {'structuredContent': []},
+                    {'structuredContent': {'status': 'error', 'data': result['structuredContent']['data']}},
+                    {'structuredContent': {'status': 'ok', 'data': {'name': 'other', 'contract_revision': 'a'}}}]:
+        assert client.contract_context_entry(name, arguments, changed, catalog) is None
+
+
 class Session:
     def __init__(self):
         self.tools = [Tool(), Tool('build_network_model'), Tool('new_unapproved_tool')]

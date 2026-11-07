@@ -1173,6 +1173,7 @@ class NativeTaskRunner:
                     'informational; editing it does not change host-enforced limits. '
                     'Tool JSON schemas and published composition limits also apply before execution.'})
             task_gateway = self.gateway
+            gateway_contract_context = None
             frozen_gateway = (document.get('native_context') or {}).get('gateway_binding')
             if frozen_gateway is not None:
                 if frozen_gateway['catalog_revision'] is None:
@@ -1240,6 +1241,22 @@ class NativeTaskRunner:
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
                             request.parent_attempt_id))
+                    retained_contracts = getattr(task_gateway, 'contract_context', None)
+                    if callable(retained_contracts):
+                        retained = retained_contracts(request.task_id)
+                        if retained['sections']:
+                            gateway_contract_context = retained
+                            sdk_config.setdefault('contextFiles', []).append({
+                                'path': 'gateway-contract-context',
+                                'content': ('Host-verified contract metadata from this connected gateway is available '
+                                    'for the current task grant and frozen publication. This is not live source availability, '
+                                    'data coverage, business results or Authority evidence. It does not select a service. '
+                                    'If relevant, read the compact index at '
+                                    + str(inputs / 'gateway-contract-context' / 'index.json')
+                                    + ' and only the exact sections needed for this instruction. Reuse these read-only '
+                                    'sections before requesting the same contract again; request missing sections from '
+                                    'the published lookup operation. Contract revisions and summary fingerprints are '
+                                    'distinct. The index contains ' + str(len(retained['sections'])) + ' saved sections.')})
                     # This is a menu projection, not a new accepted catalog.
                     # Receipts retain the full host catalog revision and exact tool hashes.
                     task_catalog = {**task_catalog,
@@ -1455,6 +1472,9 @@ class NativeTaskRunner:
             capacity_path = workspace / '.runtime-capacity.json'
             capacity_path.write_text(json.dumps(task_capacity, ensure_ascii=False, indent=2))
             capacity_path.chmod(0o444)
+            if gateway_contract_context is not None:
+                from .data_gateway_relay import stage_gateway_contract_context
+                stage_gateway_contract_context(inputs, gateway_contract_context)
             for path in [workspace, *workspace.rglob('*')]:
                 os.chown(path, uid, uid)
             for path in [inputs, *inputs.rglob('*')]:

@@ -371,6 +371,31 @@ class DataGatewayMcp:
         except Exception as error:
             raise GatewayError(public_failure(error, 'gateway_connection_failed')) from None
 
+    def contract_context_entry(self, name, arguments, result, catalog):
+        """Recognize only the registered gateway's exact contract-lookup protocol."""
+        if (self._accepted.get(catalog.get('revision')) != catalog
+                or catalog['tools'].get(name, {}).get('name') != _GATEWAY_ENTRY_POINTS[1]
+                or set(arguments) - {'tool_name', 'section', 'expected_revision'}):
+            return None
+        targets = [(registered, schema) for registered, schema in catalog['tools'].items()
+                   if arguments.get('tool_name') in (registered, schema.get('name'))]
+        if len(targets) != 1:
+            return None
+        target, schema = targets[0]
+        section = arguments.get('section', 'complete')
+        body = result.get('structuredContent', {})
+        data = body.get('data') if isinstance(body, dict) else None
+        if (not isinstance(section, str) or section not in {'complete', 'usage', 'input_schema', 'output_schema'}
+                or not isinstance(body, dict) or result.get('isError') is True
+                or body.get('status') not in {'ok', 'success'}
+                or not isinstance(data, dict) or data.get('name') != schema['name']
+                or data.get('section', 'complete') != section
+                or not identity_text(data.get('contract_revision'))
+                or arguments.get('expected_revision') not in (None, data['contract_revision'])):
+            return None
+        return {'catalog_revision': catalog['revision'], 'lookup_tool': name, 'tool': target,
+                'section': section, 'contract_revision': data['contract_revision'], 'data': deepcopy(data)}
+
     async def call(self, name, arguments, catalog, *, diagnostics=None):
         from .gateway_diagnostics import checked_diagnostics
         context = checked_diagnostics(diagnostics)
