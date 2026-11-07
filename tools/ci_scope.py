@@ -18,7 +18,7 @@ GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
                     "configs/development/issue-automation.json",
                     "tools/tests/test_ci_scope.py", "tools/tests/test_ci_workbench_scope.py",
                     "tools/tests/test_verification_targets.py", "tools/tests/test_ci_gateway_controls.py",
-                    "tools/tests/test_ci_gateway_bindings.py"}
+                    "tools/tests/test_ci_gateway_bindings.py", "tools/tests/test_ci_execution_lifecycle.py"}
 
 # Assembly and native-runtime contracts have bounded cross-package gates.
 # Authority protocols, solvers and unknown dependencies still require product.
@@ -471,6 +471,84 @@ GATEWAY_BINDING_RESOURCES = {
     'gateway-tool-use', 'general-tool-discovery', 'tool-composition',
 }
 
+EXECUTION_LIFECYCLE_ANCHOR = 'packages/capability-agent-kernel/src/capability_agent/runtime/execution_queue.py'
+EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
+    'packages/capability-agent-kernel/tests/runtime/test_execution_queue.py',
+    'packages/grid-agent/src/grid_agent/domain_tools.py',
+    'packages/grid-agent/tests/test_domain_execution_lifecycle.py',
+    'packages/pandapower-domain-pack/src/pandapower_domain/execution.py',
+    'packages/pandapower-domain-pack/tests/test_execution.py',
+    '.github/workflows/verify.yml', 'tools/ci_scope.py',
+    'tools/tests/test_ci_execution_lifecycle.py', 'tools/tests/test_ci_gateway_bindings.py',
+    'tools/tests/test_execution_lifecycle_packaging.py',
+    'tools/tests/test_host_runtime_contract.py', 'tools/tests/test_image_layer_order.py',
+} | {'packages/capstone-agent/src/capstone_agent/' + name + '.py'
+     for name in GATEWAY_BINDING_MODULES | {'native_graph_events', 'tool_execution_receipt'}} | {
+    'packages/capstone-agent/tests/test_' + name + '.py'
+    for name in GATEWAY_BINDING_MODULES | {'tool_execution_receipt', 'graph_host_observation', 'gateway_progressive', 'progress'}
+} | {'packages/capstone-agent/src/capstone_agent/resources/' + name for name in (
+    'gateway-tool-use.mjs', 'general-tool-discovery.mjs', 'tool-composition.mjs',
+    'general-data-gateway.mjs', 'general-sdk.mjs', 'general-domain-tools.mjs', 'tool-composition-policy.json')
+} | {'packages/capstone-agent/tests/fixtures/' + name + '.test.mjs' for name in (
+    'gateway-tool-use', 'tool-discovery', 'tool-composition', 'data-gateway-research')
+} | {'packages/capstone-app/src/' + name for name in (
+    'CapstoneAssistantThread.tsx', 'CapstoneAssistantThread.test.tsx',
+    'ExecutionGraphProcess.tsx', 'ExecutionGraphProcess.test.tsx',
+    'ProcessCallTrace.tsx', 'ProcessCallTrace.test.tsx', 'executionGraph.ts', 'executionGraph.test.ts',
+    'processCallTrace.css', 'toolExecutionReceipt.ts', 'toolExecutionReceipt.test.ts', 'toolExecutionReceipt.fixture.ts',
+    'electricalModelView.ts', 'electricalModelView.test.ts')
+} | {'docs/status/' + name for name in (
+    'CURRENT-STATE.md', 'INDEX.md', 'JOURNAL.md', 'PROJECT-OVERVIEW.html', 'VERSION-CONTROL.md', 'RESUME-NEXT-SESSION.md')
+} | {'docs/' + name for name in (
+    'reports/2026-11-07-capstone-progressive-gateway-v1.md',
+    'reports/2026-11-07-gateway-progressive-disclosure-proposal.md',
+    'reports/2026-11-08-tool-execution-lifecycle.md',
+    'superpowers/plans/2026-11-07-gateway-contract-context-reuse.md',
+    'superpowers/plans/2026-11-07-progressive-gateway-v1.md',
+    'superpowers/plans/2026-11-08-tool-execution-lifecycle.md',
+    'superpowers/specs/2026-11-07-gateway-contract-context-reuse-design.md',
+    'superpowers/specs/2026-11-08-tool-execution-lifecycle-design.md')}
+
+
+def execution_lifecycle_paths(paths: list[str], *, deployment: bool = False) -> bool:
+    allowed = EXECUTION_LIFECYCLE_FILES | ({'compose.yaml', 'deploy/general-pi.Dockerfile'} if deployment else set())
+    return EXECUTION_LIFECYCLE_ANCHOR in paths and all(path in allowed for path in paths)
+
+
+def execution_lifecycle_deployment_document(path: str, old: str, new: str) -> bool:
+    """Permit only the tested scheduler staging and worker receipt-volume binding."""
+    if path == 'compose.yaml':
+        anchor = '      CAPSTONE_THREAD_FAMILY: pandapower\n    command: [worker]'
+        replacement = '      CAPSTONE_THREAD_FAMILY: pandapower\n      CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT: /app/runs/domain-control\n    command: [worker]'
+    elif path == 'deploy/general-pi.Dockerfile':
+        source = 'packages/capstone-agent/src/capstone_agent/'
+        anchor = ''.join(f'COPY {source}{name}.py capstone_agent/{name}.py\n' for name in (
+            '__init__', 'runtime_resources', 'resource_installation'))
+        replacement = ('COPY ' + source + '__init__.py \\\n'
+            '     ' + source + 'tool_execution_receipt.py \\\n'
+            '     ' + source + 'runtime_resources.py \\\n'
+            '     ' + source + 'resource_installation.py capstone_agent/\n'
+            '# Stage only the stdlib-only Kernel primitive. Namespace packages avoid loading\n'
+            '# unrelated Kernel public exports into the isolated native host.\n'
+            'COPY packages/capability-agent-kernel/src/capability_agent/runtime/execution_queue.py capability_agent/runtime/execution_queue.py\n')
+    else:
+        return False
+    return old.count(anchor) == 1 and new == old.replace(anchor, replacement, 1)
+
+
+def execution_lifecycle_deployment_diff(paths: list[str], base: str, head: str) -> bool:
+    for path in ('compose.yaml', 'deploy/general-pi.Dockerfile'):
+        if path not in paths:
+            continue
+        try:
+            old, new = [subprocess.check_output(['git', 'show', f'{revision}:{path}'], text=True)
+                        for revision in (base, head)]
+            if not execution_lifecycle_deployment_document(path, old, new):
+                return False
+        except (subprocess.CalledProcessError, OSError):
+            return False
+    return True
+
 
 def gateway_bindings_deployment_document(old: str, new: str) -> bool:
     """Only the new view adapter COPY may change in this development route."""
@@ -610,11 +688,14 @@ def gateway_capabilities_paths(paths: list[str]) -> bool:
 def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
              runtime_dependencies: bool = False, source_topology: bool = False,
              gateway_deployment: bool = False, gateway_bindings_deployment: bool = False,
-             gateway_bindings_startup: bool = False, session_capacity_deployment: bool = False) -> str:
+             gateway_bindings_startup: bool = False, session_capacity_deployment: bool = False,
+             execution_lifecycle_deployment: bool = False) -> str:
     if target == 'main' or release:
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    if execution_lifecycle_paths(paths, deployment=execution_lifecycle_deployment):
+        return 'execution-lifecycle'
     if gateway_capabilities_paths(paths):
         return 'gateway-capabilities'
     if session_capacity_paths(paths, deployment=session_capacity_deployment):
@@ -649,6 +730,7 @@ def main() -> None:
         print("Changed Markdown file links passed")
     else:
         print(classify(paths, target=args.target, release=args.release,
+                       execution_lifecycle_deployment=execution_lifecycle_deployment_diff(paths, args.base, args.head),
                        session_capacity_deployment=session_capacity_deployment_diff(paths, args.base, args.head),
                        gateway_bindings_startup=gateway_bindings_startup_diff(paths, args.base, args.head),
                        gateway_bindings_deployment=gateway_bindings_deployment_diff(paths, args.base, args.head),
