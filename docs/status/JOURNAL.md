@@ -7059,3 +7059,18 @@ fixed-source VitePID77708 stays available for user validation.
 - PR96 图与部署台账已合入dev；纯文档按用户研发轻量授权管理员合并，跳过CI，保留本地定向验证与截图。
 
 - 2026-11-06 主图101节点收缩为9个；109项细节保留折叠历史，六环境引用、HEAD和真实祖先连线核对通过。
+
+- 2026-11-07 19:20: Correct contract-driven continuation and unknown cancellation; 190 checks pass, 32 skipped; live validation pending [2a9e9a53].
+
+- 2026-11-07: Select operations by published policy; preserve usage and output schemas; 191 checks pass, 32 skipped [74c110de].
+- 2026-11-07: Preserve bounded SQL exploration fallback without mandatory failed attempts; 22 context checks pass, 32 skipped [b1c31a13].
+- 2026-11-07: Live adapter admits 39 tools; enhanced usage and SQL unpublished. Host loopback works; container alias does not resolve.
+
+- 2026-11-07: Dynamic metadata retrieval supports capability-informed decomposition; 25 discovery and 191 consumer checks pass, 32 skipped [9773fca6].
+- 2026-11-07: Local9773fca6 rebuild ready;43tools discovered after gateway update;usage available in detailed contracts.
+- 2026-11-07: Two real plan turns completed121.21/117.68seconds;product hashes and browser recovery pass;analysis-quality gaps remain.
+- 2026-11-07: Focused gateway CI route prepared;221backend,34client,65Node and151scope checks pass locally;no remote CI [c11b497c].
+- 2026-11-07: Recorded exact local sources, real trial limits and gateway feedback;control graph browser checks pass [68413e4c].
+- 2026-11-07 20:00: User approved one focused macOS CI; unchanged-tree submission commit prepared [9b4c0a86].
+- 2026-11-07 20:04: Approved macOS CI42370539679 passed in2m43s; PR98 integration started; root recovery ref preserves29paths.
+- 2026-11-07 20:15: PR98 merged9689c434;actual dev verified. Sectioned trial:31complete reads to0;targeted judgments corrected;speedup unproven.

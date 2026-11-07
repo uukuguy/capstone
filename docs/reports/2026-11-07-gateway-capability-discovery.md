@@ -1,5 +1,9 @@
 # Dynamic gateway capability discovery
 
+> Initial trial record. PR98 has since merged into dev9689c434 after approved CI.
+> The [sectioned-contract recheck](2026-11-07-gateway-sectioned-contract-recheck.md)
+> supersedes the pending-integration state and records the updated gateway trial.
+
 ## Implemented candidate
 
 Candidate9773fca6 is on fix/gateway-auto-negotiation-20261106, not dev.
