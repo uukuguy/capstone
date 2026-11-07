@@ -14,6 +14,7 @@ import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {restoreToolResult,configureObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
+import {applicationToolDispatcher} from './tool-call-scheduler.mjs';
 import {createLlmCallTools,llmCallToolNames,buildLlmCallPrompt} from './llm-call-tools.mjs';
 import {createModelRequestPool} from './model-request-pool.mjs';
 import {configureCommittedDelivery} from './committed-delivery.mjs';
@@ -394,8 +395,9 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
   const gatewayTools=discovery?[...discovery.guardedTools,...discovery.tools]:createDataGatewayTools(config);
+  const dispatcher=applicationToolDispatcher(config,compositionPolicy.concurrency);
   const wrap=tool => {
-    const guarded = guardToolExecution(tool, async call => applicationToolAdmission(config, call.toolName));
+    const guarded = guardToolExecution(dispatcher.wrap(tool), async call => applicationToolAdmission(config, call.toolName));
     // Foundation records do not open a native graph action or produce business evidence.
     if (!config.researchChannelPath||diagnosisTools.includes(tool.name)) return guarded;
     return {...guarded, async execute(callId, ...args) {

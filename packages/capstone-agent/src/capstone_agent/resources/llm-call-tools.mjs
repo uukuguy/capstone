@@ -46,7 +46,7 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
     }});
   const status=()=>({schema:policy.schema,results:[],pool:state()});
   const tools=[{
-    name:llmCallToolNames[0],label:'提交并行分析',
+    name:llmCallToolNames[0],executionRole:'orchestrator',label:'提交并行分析',
     description:'Submit independent text analysis calls to the instruction-owned LLM pool and return immediately. Supply actual observations explicitly. Calls have no tools or external lookup. Dependencies receive actual successful returned answers. Continue independent work, then collect. This does not enable Deep Research. Never resubmit an uncertain running call; inspect or cancel it first.',
     parameters:{type:'object',additionalProperties:false,required:['calls'],properties:{calls:{type:'array',minItems:1,maxItems:policy.max_jobs,items:{type:'object',additionalProperties:false,required:['id','instruction','input'],properties:{
       id:{type:'string',minLength:1,maxLength:128},instruction:{type:'string',minLength:1,maxLength:policy.max_input_chars},
@@ -71,7 +71,7 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
       return reply(status());
     }
   },{
-    name:llmCallToolNames[1],label:'接收并行分析',
+    name:llmCallToolNames[1],executionRole:'orchestrator',label:'接收并行分析',
     description:'Collect actual returned analysis results and current queued/running/cancelling states. Completed results may already have arrived asynchronously: pass their job ids to read the saved answers again, instead of repeating analysis. Set wait_ms only when no independent work remains. A collection wait timeout is not a model failure and must not cause a duplicate retry.',
     parameters:{type:'object',additionalProperties:false,properties:{wait_ms:{type:'integer',minimum:0,maximum:policy.max_wait_ms},ids:{type:'array',minItems:1,maxItems:policy.max_jobs,uniqueItems:true,items:{type:'string',minLength:1,maxLength:128}}}},
     async execute(_id,args,callSignal){
@@ -90,7 +90,7 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
       return reply({...status(),results,wait_reason:reason});
     }
   },{
-    name:llmCallToolNames[2],label:'取消并行分析',
+    name:llmCallToolNames[2],executionRole:'orchestrator',label:'取消并行分析',
     description:'Request cancellation of selected calls. Running calls keep their capacity reservation until cleanup actually completes; cancelling is not settled. No retries are started.',
     parameters:{type:'object',additionalProperties:false,required:['ids'],properties:{ids:{type:'array',uniqueItems:true,items:{type:'string',minLength:1}}}},
     async execute(_id,args,callSignal){callSignal?.throwIfAborted();if(!exact(args,['ids']))throw new TypeError('Invalid LLM cancellation');pool.cancel(args.ids);return reply(status())}

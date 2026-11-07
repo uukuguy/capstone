@@ -23,3 +23,30 @@ export function createToolCallScheduler(limit){
     });
   }};
 }
+
+const applicationDispatchers=new WeakMap();
+const dispatchedBy=Symbol('hostApplicationDispatcher');
+
+export function applicationToolDispatcher(config,limit=8){
+  const existing=applicationDispatchers.get(config);
+  if(existing){
+    if(existing.limit!==limit)throw Error('Application dispatch capacity changed');
+    return existing;
+  }
+  const scheduler=createToolCallScheduler(limit);
+  const dispatcher={limit,wrap(tool){
+    // Only host executable factories declare this role. Remote catalog fields
+    // do not enter executable objects. Containers must leave slots to leaves.
+    if(tool.executionRole==='orchestrator'||tool[dispatchedBy]===dispatcher)return tool;
+    const execute=tool.execute.bind(tool);
+    return {...tool,[dispatchedBy]:dispatcher,async execute(callId,args,signal,...context){
+      const release=await scheduler.acquire({signal});
+      try{
+        signal?.throwIfAborted();
+        return await execute(callId,args,signal,...context);
+      }finally{release();}
+    }};
+  }};
+  applicationDispatchers.set(config,dispatcher);
+  return dispatcher;
+}
