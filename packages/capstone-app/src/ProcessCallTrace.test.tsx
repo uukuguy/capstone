@@ -323,4 +323,5 @@ it('connects sixteen queued calls and distinguishes batch count, capacity and ob
  const batch=screen.getByRole('group',{name:'同一响应工具批次 · 16 项'})
  expect(batch.querySelector('.capstone-parallel-heading')).toHaveTextContent('执行容量 8 · 观测峰值 8 · 批次耗时 3.0s')
  expect(within(batch).queryByText('实际执行并发未知')).toBeNull()
+ expect(within(batch).getAllByText(/执行端排队 1.0s · 工具执行 1.0s/)).toHaveLength(16)
 })

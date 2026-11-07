@@ -127,7 +127,7 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
 
     </summary>
     <div className="capstone-call-tool-detail">
-      <p>排队 {queueMs === undefined ? '未知' : time(queueMs)} · 工具执行 {executionMs === undefined ? '未知' : time(executionMs)} · 记录区间 {tool.durationMs === undefined ? '—' : time(timed(tool).durationMs!)}</p>
+      <p>执行端排队 {queueMs === undefined ? '未知' : time(queueMs)} · 工具执行 {executionMs === undefined ? '未知' : time(executionMs)} · 记录区间 {tool.durationMs === undefined ? '—' : time(timed(tool).durationMs!)}</p>
       {independent && tool.origin !== 'system' && <p>{tool.origin === 'parent' ? '由主链发起，不属于本任务的 LLM 轮次。' : '记录未提供对应的 LLM 调用标识。'}</p>}
       {tool.operation && !purposeIsEntireOperation && <p className="capstone-call-operation">{tool.operation}</p>}
       {tool.name==='agent_llm_submit'&&renderPool(tool.id)}
