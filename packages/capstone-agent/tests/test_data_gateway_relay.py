@@ -104,6 +104,35 @@ def test_declared_source_failure_blocks_replay_but_not_independent_metadata():
     assert failure['isError'] is False
 
 
+@pytest.mark.parametrize('nested', [False, True])
+def test_partial_declared_unknown_execution_blocks_replay_without_losing_partial_results(nested):
+    import json
+    resource = access(['independent'])
+    diagnostic = {'automatic_retry': False, 'request_sent': True,
+                  'remote_execution_possible': True, 'result_state': 'unknown'}
+    partial = {'status': 'partial', 'data': {'accepted': [1]},
+               'provenance': {'execution_diagnostics': diagnostic}}
+    if nested:
+        partial = {'status': 'partial', 'data': [
+            {'result': {'status': 'ok', 'data': [1]}},
+            {'result': {'status': 'failed', 'provenance': {'execution_diagnostics': diagnostic}}}],
+            'gaps': [{'reason': 'unrelated_gap'}, {'reason': 'child_failed', 'scope': {'query_index': 1}}]}
+    result = {'isError': False, 'structuredContent': partial}
+    calls = []
+    async def call(name, arguments, catalog):
+        calls.append((name, arguments))
+        return deepcopy(result)
+    resource.client.call = call
+    first = asyncio.run(resource.call('task-1', request()))
+    assert first['is_error'] is False
+    assert json.loads(first['result_json'])['structuredContent'] == partial
+    with pytest.raises(GatewayError, match='gateway_operation_retry_blocked'):
+        asyncio.run(resource.call('task-1', dict(request(), call_id='replay')))
+    asyncio.run(resource.call('task-1', dict(request(), call_id='changed', arguments={'different': True})))
+    asyncio.run(resource.call('task-1', dict(request(), call_id='independent', name='independent')))
+    assert len(calls) == 3
+
+
 def test_contract_sections_survive_turns_without_reusing_business_results(tmp_path):
     from test_data_gateway_mcp import contract_context_gateway
     client, _, catalog, result = contract_context_gateway(tmp_path)

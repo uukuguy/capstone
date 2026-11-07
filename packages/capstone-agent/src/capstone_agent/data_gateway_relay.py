@@ -460,15 +460,23 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_task_not_admitted')
             record['issued'][call_id] = {'response': deepcopy(response), 'arguments': arguments}
             self._remember_contract_context(contract_entry)
-            if failed:
-                from .native_tool_diagnostics import tool_execution_diagnostics
-                diagnostic = tool_execution_diagnostics(result)
+            # A partial answer can contain an uncertain failed operation.
+            # Replay policy is declared execution state, independent of the
+            # aggregate success flag. Inspect declared gaps, never business rows.
+            from .native_tool_diagnostics import tool_execution_diagnostics
+            candidates = [result]
+            gaps = content.get('gaps') if isinstance(content, dict) else None
+            if isinstance(gaps, list):
+                candidates.extend({**content, 'gaps': [gap]} for gap in gaps if isinstance(gap, dict))
+            for candidate in candidates:
+                diagnostic = tool_execution_diagnostics(candidate)
                 if diagnostic is not None and (diagnostic.get('automatic_retry') is False or
                         diagnostic.get('result_state') == 'unknown' and (
                             diagnostic.get('request_sent') is True or diagnostic.get('remote_execution_possible') is True)):
                     provenance = content.get('provenance', {}) if isinstance(content, dict) else {}
                     record.setdefault('blocked_requests', {})[operation_key] = (
                         provenance.get('request_id') if isinstance(provenance, dict) else None)
+                    break
             if successful and isinstance(data, dict):
                 # Only explicit operation references at the result's data root
                 # grant access. Business rows and nested objects never do.
