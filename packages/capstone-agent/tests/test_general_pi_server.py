@@ -280,6 +280,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'scope.executed true means the statement was cancelled' not in gateway_context
     assert 'When no next action is returned, select the next operation from the current published contract' in gateway_context
     assert 'A successful tool call does not prove that its job succeeded' in gateway_context
+    assert 'use this connected gateway capability snapshot to decompose' in gateway_context
+    assert 'Missing capability metadata remains unknown' in gateway_context
     assert 'Structured table queries are also a fallback' not in gateway_context
     assert 'Use native SQL as advanced exploration only when no admitted tool' not in gateway_context
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]

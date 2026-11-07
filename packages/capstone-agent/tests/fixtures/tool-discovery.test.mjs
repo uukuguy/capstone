@@ -18,6 +18,23 @@ function fixture(options={}) {
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
 
+test('capability search uses bounded published metadata and isolates grants and snapshots',async()=>{
+  const publications={alpha:{name:'opaque_alpha',description:'Operation',
+    _meta:{usage:{purpose:'period comparison',constraints:'x'.repeat(300)}}},
+    private:{name:'opaque_private',description:'Operation',_meta:{usage:'period comparison'}}};
+  const build=(source,admittedNames)=>createToolDiscovery({publications:source,
+    tools:Object.keys(source).map(name=>({name})),admittedNames,maxSummaryChars:80});
+  const c=build(publications,['alpha']);
+  const search=async controller=>JSON.parse((await controller.tools[0].execute('capabilities',{query:'period comparison'})).content[0].text);
+  publications.alpha._meta.usage.purpose='changed after snapshot';
+  const result=await search(c);
+  assert.deepEqual(result.tools.map(t=>t.name),['alpha']);
+  assert.ok(result.tools[0].published_metadata_preview.includes('period comparison'));
+  assert.ok(result.tools[0].published_metadata_preview.length<=80);
+  assert.equal(result.tools[0].published_metadata_truncated,true);
+  assert.equal((await search(build({beta:{name:'opaque_beta',description:'unrelated'}},['beta']))).total,0);
+});
+
 test('search returns bounded best partial matches and current activation without changing grants',async()=>{
   const publications={entry:{name:'published_entry',description:'Discover service catalog',inputSchema:{type:'object'}},
     check:{name:'published_check',description:'Check service contract time',inputSchema:{type:'object'}},
