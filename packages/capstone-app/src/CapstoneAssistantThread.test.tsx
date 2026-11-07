@@ -8,6 +8,28 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it.each([false,true])('connects all sixteen tools from native SDK turn projection (owner receipts: %s)',hasReceipts=>{
+ const attempt='native-batch'
+ const events=[event('attempt_started',1,{},attempt),
+  event('turn_route_selected',2,{source:'native_conversation'},attempt),
+  event('runtime_action',3,{phase:'started'},attempt),
+  event('runtime_action',4,{phase:'response_completed',response_kind:'tools'},attempt)]
+ for(let index=0;index<16;index++){
+  const id=`native-call-${index}`, observed=receipt(id,index<8?0:1000)
+  events.push(event('runtime_event',5+index*2,{task_id:'task',native_type:'tool_execution_start',tool_name:`read-${index}`,tool_call_id:id},attempt),
+   event('runtime_event',6+index*2,{task_id:'task',native_type:'tool_execution_end',tool_name:`read-${index}`,tool_call_id:id,activity:hasReceipts?{execution_receipt:observed}:{}},attempt))
+ }
+ events.push(event('attempt_completed',40,{answer:'完成'},attempt))
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+ const dialog=screen.getByRole('dialog',{name:'执行过程'})
+ const batch=within(dialog).getByRole('group',{name:'同轮工具批次 · 16 项'})
+ expect(batch.querySelectorAll('.capstone-call-tool-entry')).toHaveLength(16)
+ if(hasReceipts)expect(batch.querySelector('.capstone-parallel-heading')?.textContent).toContain('执行容量 8 · 观测峰值 8')
+ else expect(within(batch).getByText('实际执行并发未知')).toBeTruthy()
+ expect(within(dialog).queryByRole('group',{name:'同一响应工具批次 · 16 项'})).toBeNull()
+})
 it('shows public compaction records inside the process window and preserves LLM count on replay',()=>{
  const events=[event('attempt_started',1,{},'compact'),
   event('runtime_action',2,{phase:'started'},'compact','2026-11-01T00:00:01Z'),
