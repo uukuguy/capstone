@@ -20,6 +20,10 @@ RUN apt-get update \
     && python -c 'from pathlib import Path; import re, matplotlib; p=Path(matplotlib.get_data_path()) / "matplotlibrc"; s=re.sub(r"(?m)^#?(backend|font\.family|font\.sans-serif)\s*:.*$", "", p.read_text()); p.write_text(s + "\nbackend: Agg\nfont.family: sans-serif\nfont.sans-serif: Noto Sans CJK SC, DejaVu Sans\n")'
 
 COPY packages/capstone-agent/src/capstone_agent/__init__.py capstone_agent/__init__.py
+# Stage only the stdlib-only Kernel primitive. Namespace packages avoid loading
+# unrelated Kernel public exports into the isolated native host.
+COPY packages/capability-agent-kernel/src/capability_agent/runtime/execution_queue.py capability_agent/runtime/execution_queue.py
+COPY packages/capstone-agent/src/capstone_agent/tool_execution_receipt.py capstone_agent/tool_execution_receipt.py
 COPY packages/capstone-agent/src/capstone_agent/runtime_resources.py capstone_agent/runtime_resources.py
 COPY packages/capstone-agent/src/capstone_agent/resource_installation.py capstone_agent/resource_installation.py
 # The general executor does not install pandapower. Domain Pack workers own that runtime.
