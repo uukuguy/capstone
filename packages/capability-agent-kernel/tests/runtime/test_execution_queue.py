@@ -107,3 +107,18 @@ def test_required_receipt_failure_is_fatal_without_leaking_lease(phase):
             pass
     assert not queue._active
     assert not queue._pending
+
+
+def test_borrowed_lease_is_resource_bound_single_use_and_cannot_outlive_owner():
+    queue = ExecutionQueue(capacity=1)
+    receipt = queue.receipt(task_id='task', call_id='call')
+    with queue.acquire(receipt, resource='one') as lease:
+        with pytest.raises(ValueError):
+            with queue.borrow(lease, resource='other'): pass
+        with queue.borrow(lease, resource='one') as borrowed:
+            assert borrowed is receipt
+            with pytest.raises(ValueError):
+                with queue.borrow(lease, resource='one'): pass
+    with pytest.raises(ValueError):
+        with queue.borrow(lease, resource='one'): pass
+    assert [e['phase'] for e in receipt['events']] == ['submitted', 'queued', 'acquired', 'released']

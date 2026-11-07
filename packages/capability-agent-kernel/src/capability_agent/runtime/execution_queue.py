@@ -28,6 +28,8 @@ class ExecutionQueue:
         self._origin = monotonic()
         self._condition = Condition()
         self._active = {}
+        self._receipts = {}
+        self._borrowed = set()
         self._pending = []
 
     def record(self, receipt, phase, *, provenance=None):
@@ -59,6 +61,21 @@ class ExecutionQueue:
                 return False
         return False
 
+    @contextmanager
+    def borrow(self, lease, *, resource):
+        """Delegate one active lease to its execution owner without reacquiring."""
+        with self._condition:
+            if (lease not in self._active or self._active[lease][0] != resource
+                    or lease in self._borrowed):
+                raise ValueError('execution lease is invalid or already borrowed')
+            self._borrowed.add(lease)
+            receipt = self._receipts[lease]
+        try:
+            yield receipt
+        finally:
+            with self._condition:
+                self._borrowed.remove(lease)
+
     @asynccontextmanager
     async def acquire_async(self, receipt, *, resource, read_only=False):
         """Share leases across event loops without blocking them or starting threads."""
@@ -73,23 +90,26 @@ class ExecutionQueue:
                     if self._ready(ticket, resource, read_only):
                         self._pending = [p for p in self._pending if p[0] is not ticket]
                         self._active[ticket] = (resource, read_only)
+                        self._receipts[ticket] = receipt
                         acquired = True
                         self.record(receipt, 'acquired')
                         break
                 await asyncio.sleep(.005)
-            yield
+            yield ticket
         except asyncio.CancelledError:
             self.record(receipt, 'cancellation_requested')
             raise
         finally:
             with self._condition:
                 self._pending = [p for p in self._pending if p[0] is not ticket]
-                if acquired:
-                    try:
+                try:
+                    if acquired:
                         self.record(receipt, 'released')
-                    finally:
+                finally:
+                    if acquired:
                         del self._active[ticket]
-                self._condition.notify_all()
+                        del self._receipts[ticket]
+                    self._condition.notify_all()
 
     @contextmanager
     def acquire(self, receipt, *, resource, read_only=False, cancel=None):
@@ -113,18 +133,21 @@ class ExecutionQueue:
                 raise
             self._pending = [p for p in self._pending if p[0] is not ticket]
             self._active[ticket] = (resource, read_only)
+            self._receipts[ticket] = receipt
             try:
                 self.record(receipt, 'acquired')
             except BaseException:
                 del self._active[ticket]
+                del self._receipts[ticket]
                 self._condition.notify_all()
                 raise
         try:
-            yield
+            yield ticket
         finally:
             with self._condition:
                 try:
                     self.record(receipt, 'released')
                 finally:
                     del self._active[ticket]
+                    del self._receipts[ticket]
                     self._condition.notify_all()

@@ -8,7 +8,7 @@ def test_service_returns_owner_receipt_on_success_and_failure(tmp_path):
     service._capabilities = {'published': 'capability'}
     service._read_only = {'published': True}
     class Executor:
-        def invoke(self, capability, arguments, *, execution_observer):
+        def invoke(self, capability, arguments, *, execution_observer, execution_lease=None):
             execution_observer('execution_started')
             execution_observer('execution_ended')
             if arguments.get('fail'):
@@ -42,7 +42,7 @@ def test_owner_records_survive_without_a_response_consumer(tmp_path):
     service = PandapowerDomainToolService(workspace_root=tmp_path)
     service._capabilities = {'published': 'capability'}
     class Executor:
-        def invoke(self, capability, arguments, *, execution_observer):
+        def invoke(self, capability, arguments, *, execution_observer, execution_lease=None):
             execution_observer('execution_started')
             execution_observer('execution_ended')
             raise RuntimeError('source failed')
@@ -67,6 +67,45 @@ def test_receipt_storage_can_use_separate_persistent_root(tmp_path, monkeypatch)
     assert not (workspace / 'task' / 'execution-receipts').exists()
 
 
+def test_formal_and_service_execution_share_source_owner_budget(tmp_path, monkeypatch):
+    from pandapower_domain.execution import GridctlExecutor
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, Lock
+    from time import sleep
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    service._capabilities = {'published': 'capability'}
+    service._read_only = {'published': True}
+    lock, filled, release = Lock(), Event(), Event()
+    active, peak = 0, 0
+    def run_bounded(self, request_bytes, *, output_limit, execution_observer=None):
+        nonlocal active, peak
+        request = json.loads(request_bytes)
+        if execution_observer: execution_observer('execution_started')
+        with lock:
+            active += 1
+            peak = max(peak, active)
+            if active == 8: filled.set()
+        assert release.wait(5)
+        with lock: active -= 1
+        if execution_observer: execution_observer('execution_ended')
+        return 0, json.dumps({**request, 'ok': True, 'result': {}}).encode(), b'', False
+    monkeypatch.setattr(GridctlExecutor, '_run_bounded', run_bounded)
+    service._executors['task'] = GridctlExecutor(executable=tmp_path/'unused', workspace=tmp_path/'task')
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        calls = [pool.submit(service.invoke, {'task_id': 'task', 'call_id': str(i),
+            'name': 'published', 'arguments': {}}) for i in range(8)]
+        calls += [pool.submit(GridctlExecutor(executable=tmp_path/'unused', workspace=tmp_path/str(i)).invoke,
+            'capability', {}) for i in range(8)]
+        try:
+            assert filled.wait(3)
+            sleep(.03)
+            assert peak == 8
+        finally:
+            release.set()
+            for call in calls: call.result()
+    assert peak == 8
+
+
 def test_mixed_entry_calls_use_one_owner_budget(tmp_path):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event, Lock
@@ -76,7 +115,7 @@ def test_mixed_entry_calls_use_one_owner_budget(tmp_path):
     entered, release, lock = Event(), Event(), Lock()
     active, peak = 0, 0
     class Executor:
-        def invoke(self, capability, arguments, *, execution_observer):
+        def invoke(self, capability, arguments, *, execution_observer, execution_lease=None):
             nonlocal active, peak
             execution_observer('execution_started')
             with lock:

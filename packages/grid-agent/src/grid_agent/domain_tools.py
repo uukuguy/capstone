@@ -12,10 +12,10 @@ import os
 import re
 from pathlib import Path
 from threading import Lock
-from capability_agent.runtime.execution_queue import ExecutionQueue, ExecutionReceiptError
-from uuid import uuid4
+from capability_agent.runtime.execution_queue import ExecutionReceiptError
 
-from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
+from pandapower_domain.execution import (GridctlExecutor, SimulatorCapabilityError,
+    source_execution_queue, execution_receipt_writer)
 from pandapower_domain.profile import build_pandapower_profile
 from pandapower_domain.provisioning import PandapowerRuntimeProvisioner
 
@@ -39,7 +39,7 @@ class PandapowerDomainToolService:
         self._capabilities: dict[str, str] = {}
         self._executors: dict[str, GridctlExecutor] = {}
         self._read_only: dict[str, bool] = {}
-        self._queue = ExecutionQueue(capacity=int(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_CAPACITY', '8')))
+        self._queue = source_execution_queue()
 
     def _installed(self):
         if self._profile is None:
@@ -101,9 +101,11 @@ class PandapowerDomainToolService:
             raise ValueError('domain tool call identity is invalid')
         receipt = self._queue.receipt(task_id=task_id, call_id=call_id,
             observer=self._receipt_writer(task_id))
-        with self._queue.acquire(receipt, resource=task_id, read_only=self._read_only.get(name, False)):
+        resource = str((self._root / task_id).resolve())
+        with self._queue.acquire(receipt, resource=resource, read_only=self._read_only.get(name, False)) as lease:
             try:
                 result = self._executor(task_id).invoke(capability, arguments,
+                    execution_lease=lease,
                     execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
                 response = ({'ok': True, 'result': result} if isinstance(result, dict)
                     else {'ok': False, 'error': {'message': 'domain tool call failed'}})
@@ -118,27 +120,7 @@ class PandapowerDomainToolService:
     def _receipt_writer(self, task_id):
         # Each invocation gets a private control record, independent of HTTP
         # delivery. This is host telemetry, never an Authority result/evidence.
-        directory = self._receipt_root / task_id / 'execution-receipts'
-        path = directory / (uuid4().hex + '.json')
-        def persist(receipt):
-            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-            temporary = directory / ('.' + uuid4().hex + '.tmp')
-            try:
-                with temporary.open('x', encoding='utf-8') as stream:
-                    temporary.chmod(0o600)
-                    json.dump(receipt, stream, ensure_ascii=False, separators=(',', ':'))
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                os.replace(temporary, path)
-                if os.name == 'posix':
-                    descriptor = os.open(directory, os.O_RDONLY)
-                    try:
-                        os.fsync(descriptor)
-                    finally:
-                        os.close(descriptor)
-            finally:
-                temporary.unlink(missing_ok=True)
-        return persist
+        return execution_receipt_writer(self._receipt_root, task_id)
 
     def _executor(self, task_id: str) -> GridctlExecutor:
         with self._lock:

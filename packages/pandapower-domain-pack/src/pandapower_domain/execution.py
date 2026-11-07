@@ -9,6 +9,40 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
+from hashlib import sha256
+from capability_agent.runtime.execution_queue import ExecutionQueue
+
+
+_SOURCE_EXECUTION_QUEUE = ExecutionQueue(capacity=int(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_CAPACITY', '8')))
+
+
+def source_execution_queue():
+    """One source owner budget for every adapter entry in this process."""
+    return _SOURCE_EXECUTION_QUEUE
+
+
+def execution_receipt_writer(root, task_id):
+    directory = Path(root) / task_id / 'execution-receipts'
+    path = directory / (uuid4().hex + '.json')
+    def persist(receipt):
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = directory / ('.' + uuid4().hex + '.tmp')
+        try:
+            with temporary.open('x', encoding='utf-8') as stream:
+                temporary.chmod(0o600)
+                json.dump(receipt, stream, ensure_ascii=False, separators=(',', ':'))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+            if os.name == 'posix':
+                descriptor = os.open(directory, os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return persist
 
 
 # Keep this allowlist deliberately small.  These names are runtime inputs for
@@ -142,7 +176,25 @@ class GridctlExecutor:
         )
         self.last_diagnostics = ""
 
-    def invoke(self, capability: str, arguments: dict[str, object], *, execution_observer=None) -> dict[str, object]:
+    def invoke(self, capability: str, arguments: dict[str, object], *, execution_observer=None, execution_lease=None) -> dict[str, object]:
+        queue = source_execution_queue()
+        resource = str(self.workspace.resolve())
+        if execution_lease is not None:
+            with queue.borrow(execution_lease, resource=resource) as receipt:
+                return self._invoke_protocol(capability, arguments,
+                    execution_observer=lambda phase: queue.record(receipt, phase, provenance='authority_process'))
+        task_id = 'workspace-' + sha256(resource.encode()).hexdigest()[:32]
+        root = Path(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT') or self.workspace)
+        receipt = queue.receipt(task_id=task_id, call_id='invoke-' + uuid4().hex,
+            observer=execution_receipt_writer(root, task_id))
+        def observe(phase):
+            queue.record(receipt, phase, provenance='authority_process')
+            if execution_observer is not None:
+                execution_observer(phase)
+        with queue.acquire(receipt, resource=resource, read_only=False):
+            return self._invoke_protocol(capability, arguments, execution_observer=observe)
+
+    def _invoke_protocol(self, capability: str, arguments: dict[str, object], *, execution_observer=None) -> dict[str, object]:
         request_id = f"sim-{uuid4().hex}"
         request = {
             "protocol": "grid-capability",
