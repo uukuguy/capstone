@@ -1,6 +1,8 @@
 # docs/status INDEX
 
-2026-11-07：[分段契约复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)记录PR98、获批CI及实际dev9689c434；完整读取归零、两项判断纠正，续轮复用与性能仍有缺口。
+2026-11-07：[渐进发现v1实施与验证](../reports/2026-11-07-capstone-progressive-gateway-v1.md)：本机候选248865b1，首次执行零tools/list、断连后元数据与过程恢复通过；启动1.268/0.942秒，整轮110.45/133.55秒，性能未接受。独立审查及dev集成待完成，无新CI。
+
+2026-11-07：[分段契约复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)记录PR98及获批CI；控制PR99已合实际dev8da7dc76，图按当前HEAD刷新；完整读取归零、两项判断纠正，续轮复用与性能仍有缺口。
 
 2026-11-07：[动态能力与网关建议](../reports/2026-11-07-gateway-capability-discovery.md)记录9773fca6本机候选、真实两轮方案及未通过的分析质量项；设计和计划见回执关联。未合dev、无CI。
 

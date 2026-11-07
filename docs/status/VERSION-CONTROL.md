@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-11-07：渐进发现 v1 候选248865b1已规范重建local-dev，API与三worker同镜像99852876；App仍df4ddf61。728项Python/35跳过、83项Node、41项App及类型/边界通过；真实HTTP首次执行零tools/list，源连接失败后契约仍可读且阻止原样重放。两轮模型、产物及失败过程恢复通过；启动1.268/0.942秒，整轮110.45/133.55秒，未证明规划提速。独立审查连接失败，未合入dev、未启动CI；63/66及远端不变。[实施回执](../reports/2026-11-07-capstone-progressive-gateway-v1.md)。
+
 2026-11-07：PR98正常合入实际dev9689c434；获批macOS CI42370539679用时2分43秒通过。43工具的新分段契约两轮复验完整读取31→0、契约字节减少63.6%，总耗时238.89→259.99秒，未证明提速；两项指定判断在本例纠正。本机后端仍9773fca6、Appdf4ddf61，远端Capstone与main不变。[分段复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)。
 
 2026-11-07：动态能力候选9773fca6已规范重建本机后端；191Python/32跳过、25Node通过。真实两轮方案121.21/117.68秒、产物下载哈希及API恢复通过；29→2份契约读取，分析准确性与成本仍有缺口。App保持df4ddf61，dev未合入、无CI，远端不变。[回执及网关建议](../reports/2026-11-07-gateway-capability-discovery.md)。
@@ -1101,7 +1103,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR98已合9689c434；本机后端9773fca6、Appdf4ddf61；远端dev仍df4ddf61，main22cd1728 | 分段能力复验两类判断纠正；跨指令契约复用、数值与性能接受仍有缺口 |
+| dev | 共同基座与企业工作台集成 | 当前8da7dc76；渐进发现候选248865b1在独立分支与local-dev，Appdf4ddf61；main22cd1728 | 完成本机模型/页面验证后按明确批准的定向CI集成；业务和性能接受另记 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1192,6 +1194,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 保留原因 |
 | --- | --- |
 | gateway-capability-merge-20261107 | PR98能力发现与执行链主要合并 |
+| progressive-gateway-v1 | 当前渐进发现与失败处理候选；local-dev精确来源 |
 | workspace-merge | 企业工作空间主要合并 |
 | grid-scale-merge | 电网能力主要合并 |
 | shared-workspace | 电网应用研发分支来源 |
@@ -1202,6 +1205,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| progressive-gateway-v1 | 248865b1 | feature | 渐进契约发现与源端故障处理 | 本机机制与模型/页面通过；性能及独立审查未接受，未合入dev | 摘要目录、选中契约、版本派发、续接保真；源故障不阻断元数据。[回执](../reports/2026-11-07-capstone-progressive-gateway-v1.md) | shared-agent |
 | gateway-capability-merge-20261107 | 9689c434 | main | 网关能力与专业工具分解集成 | PR98正常合并；获批macOS2分43秒通过，实际dev定向检查通过 | 动态能力、专业动作分解、显式续进与有界兜底。[复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md) | shared-agent |
 | dynamic-capabilities-20261107 | 9773fca6 | feature | 动态能力视图与能力驱动分解 | PR98已集成；本机机制与方案通过，完整业务接受保留 | 授权快照元数据检索；专业能力分解与有界兜底。[验证](../reports/2026-11-07-gateway-capability-discovery.md) | shared-agent |
 | gateway-auto-20261106 | df4ddf61 | dev | 网关选择与自动工具同步 | 后端/MCP/客户端定向及三套真实两轮会话通过 | 已有会话可切换；运行任务保留快照，新增发布字段自动接受。[验证](../reports/2026-11-06-gateway-auto-negotiation.md) | shared-agent |
@@ -1347,6 +1351,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| progressive-gateway-v1 | 本机渐进发现候选，未合入 | feat/gateway-contract-context-reuse-20261107 | 摘要目录与按需精确契约；版本派发、失败显示与续接保真 | 定向与模型/页面通过；规划成本及独立审查未接受，无CI |
 | gateway-capability-merge-20261107 | 主要合并 | dev | 动态能力与专业动作分解；分段契约和版本边界复验 | PR98正常合并；macOS定向通过，业务及性能边界保留 |
 | dynamic-capabilities-20261107 | 已合入产品来源 | dev（原修复分支已关闭） | 动态能力与问题分解；契约复用与探索兜底 | 已经PR98集成并在本机运行；业务与性能接受未完成 |
 | gateway-auto-20261106 | 三套dev当前部署来源 | fix/gateway-auto-negotiation-20261106 | 自动同步网关工具；按任务冻结来源快照 | 三套就绪及真实切换/刷新/后续指令通过 |
@@ -1416,7 +1421,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | PR98代码已集成；文档控制提交与产品部署分开 | 功能CI42370539679通过2分43秒；本机9773fca6/Appdf4ddf61，main和远端不变 |
+| dev-head | 当前研发位置 | dev | PR98/99已集成；渐进v1仍为独立候选 | dev8da7dc76；local-dev248865b1/Appdf4ddf61，无新CI；main和远端不变 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1524,6 +1529,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 此表给现存分支分类；展示时与实际 Git heads 核对，未知分支显示待登记。archive 是保留的实现或资料，不等于四条永久开发主线。
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
+| feat/gateway-contract-context-reuse-20261107 | 活动候选，未push | 产品248865b1，HEAD由图生成时采集；本机机制/模型/页面通过 | 独立审查待网络恢复；需明确批准的macOS定向CI；不访问63/66 | shared-agent |
 | fix/capacity-lock-wake-20261103 | 已合并关闭 | PR92合7ad2529a；来源8dd51d0b，受检eca9913d | 100项本机与批准的定向CI通过；保留恢复材料，远端部署不变 | shared-agent |
 | fix/conversation-typography-20261103 | 已合并关闭 | PR93合6c55e6ee；来源2148db14，受检3e8625f5 | 已批准的macOS App CI通过；保留恢复材料，远端部署不变 | shared-agent |
 | feat/execution-capacity-20261103 | 已合并关闭 | PR91合c3a0c472；产品b7dd440c，受检f8e23ab3 | 定向CI、实际dev与页面验收通过；保留恢复材料，云端/内网未更新 | shared-agent |
@@ -1677,7 +1683,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端 `9773fca6`；App `df4ddf61` | 后端API/worker同镜像eecd6e24；前端保留原构建，非同源发布验收 | App http://127.0.0.1:5173/；真实两轮能力方案与产物恢复通过，分析质量缺口保留。[验证](../reports/2026-11-07-gateway-capability-discovery.md) |
+| local-dev | 后端 `248865b1`；App `df4ddf61` | 规范重建ready；API/三worker同镜像99852876，前端保留原构建；模型/产物/失败过程恢复通过 | App http://127.0.0.1:5173/；仅本机网关渐进v1，非发布或规划性能验收。[验证](../reports/2026-11-07-capstone-progressive-gateway-v1.md) |
 | intranet-dev | 全角色源码 `df4ddf61` | API/worker同镜像；默认模型/网关保留，自动同步工具 | App http://192.168.72.63:5173/；切换三区研发后同一工作完成，69.75秒。[验证](../reports/2026-11-06-gateway-auto-negotiation.md) |
 | dky3-dev | 全角色源码 `df4ddf61` | API/worker同镜像；默认模型/网关保留，自动同步工具 | App http://192.168.72.66:5173/；切换内网联调后同一工作完成，58.84秒。[验证](../reports/2026-11-06-gateway-auto-negotiation.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

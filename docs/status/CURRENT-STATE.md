@@ -2,6 +2,13 @@
 
 ## Project snapshot
 
+The progressive gateway v1 candidate is implemented and locally deployed from
+248865b1. It uses metadata-only discovery, selected exact schemas and version-bound
+dispatch. Source connection failure preserves metadata access and useful independent
+work. Local real-model and process restoration checks passed; broad planning cost,
+independent review and dev integration remain open. See the
+[verification report](../reports/2026-11-07-capstone-progressive-gateway-v1.md).
+
 Tool composition covers independent requests and dependent cursor chains with
 bounded session scheduling. Deployment and validation state belong to the session
 baton and [validation](../reports/2026-11-05-batch-regression.md).
