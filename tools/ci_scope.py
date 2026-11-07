@@ -473,6 +473,9 @@ GATEWAY_BINDING_RESOURCES = {
 
 EXECUTION_LIFECYCLE_ANCHOR = 'packages/capability-agent-kernel/src/capability_agent/runtime/execution_queue.py'
 EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
+    'configs/runtime/application-capacity.json',
+    'packages/capstone-agent/src/capstone_agent/resources/application-capacity.json',
+    'packages/capstone-agent/tests/test_application_capacity.py',
     'packages/capability-agent-kernel/tests/runtime/test_execution_queue.py',
     'packages/grid-agent/src/grid_agent/domain_tools.py',
     'packages/grid-agent/tests/test_domain_execution_lifecycle.py',

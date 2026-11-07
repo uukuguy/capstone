@@ -35,6 +35,17 @@ def test_shared_sdk_leaf_dispatch_uses_the_same_focused_gate():
         assert classify([*paths, source + extra]) != 'execution-lifecycle'
 
 
+def test_lifecycle_route_includes_only_named_application_relay_capacity_files():
+    paths = [ANCHOR, 'configs/runtime/application-capacity.json',
+             'packages/capstone-agent/src/capstone_agent/resources/application-capacity.json',
+             'packages/capstone-agent/tests/test_application_capacity.py']
+    assert classify(paths) == 'execution-lifecycle'
+    assert classify(paths, target='main') == 'release'
+    for extra in ('configs/runtime/model-budget.json', 'configs/runtime/provider-capacity.json',
+                  'packages/capstone-agent/src/capstone_agent/resources/model-budget.json'):
+        assert classify([*paths, extra]) != 'execution-lifecycle'
+
+
 @pytest.mark.parametrize('extra', [
     'packages/grid-simulator/src/grid_simulator/solver.py',
     'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
@@ -94,6 +105,7 @@ def test_workflow_has_scoped_setup_and_only_focused_consumers():
                    'CapstoneAssistantThread.test.tsx', 'ExecutionGraphProcess.test.tsx',
                    'tool-composition.test.mjs', 'tool-discovery.test.mjs',
                    'application-tool-dispatch.test.mjs',
+                   'test_application_capacity.py', 'test_relay_backpressure.py', 'test_general_pi_relay.py',
                    'graph', 'npm --prefix packages/capstone-app run check'):
         assert target in block
     for forbidden in ('check-release','check-pr','test-kernel','test-capstone-app',
