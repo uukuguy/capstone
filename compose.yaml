@@ -136,6 +136,7 @@ services:
       <<: *host-environment
       CAPSTONE_HOSTED_APPLICATION: pandapower
       CAPSTONE_THREAD_FAMILY: pandapower
+      CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT: /app/runs/domain-control
     command: [worker]
     networks: [default, general-pi]
     healthcheck:
