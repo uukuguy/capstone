@@ -41,6 +41,26 @@ def test_timeout_observes_exit_only_after_child_is_reaped(tmp_path):
     assert events == ['execution_started', 'execution_ended']
 
 
+@pytest.mark.parametrize('failure', ['observer', 'thread'])
+def test_setup_failure_reaps_started_child(tmp_path, monkeypatch, failure):
+    import subprocess
+    import threading
+    processes = []
+    original = subprocess.Popen
+    def start(*args, **kwargs):
+        process = original(*args, **kwargs)
+        processes.append(process)
+        return process
+    monkeypatch.setattr(subprocess, 'Popen', start)
+    def fail(*args): raise RuntimeError('setup failed')
+    if failure == 'thread': monkeypatch.setattr(threading.Thread, 'start', fail)
+    executable = _write_executable(tmp_path / 'slow', 'import time\ntime.sleep(30)\n')
+    executor = GridctlExecutor(executable=executable, workspace=tmp_path)
+    with pytest.raises(RuntimeError):
+        executor.invoke('test', {}, execution_observer=fail if failure == 'observer' else None)
+    assert processes[0].poll() is not None
+
+
 def _write_executable(path: Path, source: str) -> Path:
     path.write_text(f"#!{sys.executable}\n{source}", encoding="utf-8")
     path.chmod(0o755)

@@ -201,6 +201,22 @@ class GridctlExecutor:
         except OSError as exc:
             raise GridctlClientError("Grid simulator process could not complete") from exc
 
+        try:
+            return self._collect_bounded(process, request_bytes, output_limit=output_limit,
+                execution_observer=execution_observer)
+        finally:
+            # This guard starts immediately after Popen. Observer and thread
+            # startup failures must also stop and reap the process.
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+            if execution_observer is not None:
+                execution_observer('execution_ended')
+
+    def _collect_bounded(self, process, request_bytes, *, output_limit, execution_observer):
         if execution_observer is not None:
             execution_observer('execution_started')
 
@@ -243,9 +259,9 @@ class GridctlExecutor:
             threading.Thread(target=read_stream, args=(process.stderr, stderr_chunks)),
             threading.Thread(target=write_request),
         ]
-        for thread in threads:
-            thread.start()
         try:
+            for thread in threads:
+                thread.start()
             returncode = process.wait(timeout=self.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
             process.kill()
@@ -256,10 +272,9 @@ class GridctlExecutor:
             if process.poll() is None:
                 process.kill()
                 process.wait()
-            if execution_observer is not None:
-                execution_observer('execution_ended')
             for thread in threads:
-                thread.join()
+                if thread.ident is not None:
+                    thread.join()
             process.stdout.close()
             process.stderr.close()
         return returncode, b"".join(stdout_chunks), b"".join(stderr_chunks), exceeded.is_set()

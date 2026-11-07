@@ -14,6 +14,71 @@ class Client:
                 'structuredContent': {'status': 'partial', 'gaps': ['missing'], 'provenance': {'id': 'actual'}}}
 
 
+def test_all_access_instances_share_eight_rolling_dispatch_slots():
+    async def run():
+        resources = [access(), access()]
+        for resource in resources:
+            resource._tasks['task-1']['catalog']['tools'][request()['name']]['annotations'] = {'readOnlyHint': True}
+        gates = [asyncio.Event() for _ in range(16)]
+        entered = []
+        filled, refilled = asyncio.Event(), asyncio.Event()
+        async def upstream(name, arguments, catalog):
+            i = arguments['i']
+            entered.append(i)
+            if len(entered) == 8: filled.set()
+            if len(entered) == 9: refilled.set()
+            await gates[i].wait()
+            return {'isError': False, 'structuredContent': {'status': 'partial'}}
+        for resource in resources: resource.client.call = upstream
+        tasks = [asyncio.create_task(resources[i % 2].call('task-1', dict(request(), call_id=str(i), arguments={'i': i}))) for i in range(16)]
+        try:
+            await asyncio.wait_for(filled.wait(), 2)
+            await asyncio.sleep(.02)
+            assert len(entered) == 8
+            gates[entered[0]].set()
+            await asyncio.wait_for(refilled.wait(), 2)
+        finally:
+            for gate in gates: gate.set()
+            results = await asyncio.gather(*tasks)
+        receipts = [r['dispatch_receipt'] for r in results]
+        assert len({r['owner_id'] for r in receipts}) == 1
+        assert all(r['schema'] == 'capstone-tool-dispatch/1' for r in receipts)
+        assert all(e['provenance'] == 'host_transport' for r in receipts for e in r['events'])
+        assert all('execution_started' not in [e['phase'] for e in r['events']] for r in receipts)
+    asyncio.run(run())
+
+
+def test_pending_dispatch_cancel_does_not_start_transport_or_leak_lease():
+    async def run():
+        resource = access()
+        resource._tasks['task-1']['catalog']['tools'][request()['name']]['annotations'] = {'readOnlyHint': True}
+        filled, release = asyncio.Event(), asyncio.Event()
+        calls = []
+        async def upstream(name, arguments, catalog):
+            calls.append(arguments['i'])
+            if len(calls) == 8: filled.set()
+            await release.wait()
+            return {'isError': False, 'structuredContent': {'status': 'partial'}}
+        resource.client.call = upstream
+        tasks = [asyncio.create_task(resource.call('task-1', dict(request(), call_id=str(i), arguments={'i': i}))) for i in range(8)]
+        await asyncio.wait_for(filled.wait(), 2)
+        pending = asyncio.create_task(resource.call('task-1', dict(request(), call_id='queued', arguments={'i': 8})))
+        try:
+            await asyncio.sleep(.01)
+            pending.cancel()
+            with pytest.raises(asyncio.CancelledError): await pending
+            assert len(calls) == 8
+            span = resource.diagnostic_calls('task-1')[-1]
+            phases = [e['phase'] for e in span['dispatch_receipt']['events']]
+            assert phases == ['submitted', 'queued', 'cancellation_requested']
+        finally:
+            release.set()
+            await asyncio.gather(*tasks)
+        result = await resource.call('task-1', dict(request(), call_id='after', arguments={'i': 9}))
+        assert result['is_error'] is False
+    asyncio.run(run())
+
+
 def test_declared_source_failure_blocks_replay_but_not_independent_metadata():
     resource = access(['data_gateway_other'])
     calls = []

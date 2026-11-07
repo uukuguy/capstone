@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import stat
 import time
+import os
 from uuid import uuid4
 from threading import RLock
 from concurrent.futures import Future
@@ -15,6 +16,13 @@ from datetime import datetime, timezone
 
 from .application_capacity import limits, require_capacity, CapacityExceeded
 from .data_gateway_mcp import GatewayError, TASK_STOP_ERRORS, encode, fingerprint
+from capability_agent.runtime.execution_queue import ExecutionQueue
+
+
+# One process-wide dispatch budget also covers multiple access objects and tasks.
+# It bounds host transport only. Remote execution after cancellation is unknown.
+_DISPATCH_QUEUE = ExecutionQueue(capacity=int(os.environ.get('CAPSTONE_GATEWAY_DISPATCH_CAPACITY', '8')),
+    provenance='host_transport')
 
 
 def load_container_gateway(connection_file, policy_path, *, private_root=Path('/run/capstone-private'), owner_uid=0):
@@ -362,12 +370,23 @@ class DataGatewayAccess:
             record['diagnostic_calls'].append(span)
         arguments = deepcopy(document['arguments'])
         started = time.monotonic()
+        dispatch_receipt = None
         try:
             if reused is not None:
                 result = json.loads(reused['result_json'])
             else:
-                result = await self.client.call(name, deepcopy(arguments), catalog,
-                    **({'diagnostics': context} if context is not None else {}))
+                dispatch_receipt = _DISPATCH_QUEUE.receipt(task_id=task_id, call_id=call_id)
+                dispatch_receipt['schema'] = 'capstone-tool-dispatch/1'
+                span['dispatch_receipt'] = dispatch_receipt
+                hints = exact.get('annotations') or {}
+                read_only = hints.get('readOnlyHint') is True and hints.get('destructiveHint') is not True
+                async with _DISPATCH_QUEUE.acquire_async(dispatch_receipt, resource='gateway-transport', read_only=read_only):
+                    _DISPATCH_QUEUE.record(dispatch_receipt, 'dispatch_started')
+                    try:
+                        result = await self.client.call(name, deepcopy(arguments), catalog,
+                            **({'diagnostics': context} if context is not None else {}))
+                    finally:
+                        _DISPATCH_QUEUE.record(dispatch_receipt, 'dispatch_ended')
             with self._lock:
                 span.update(response_diagnostics(result))
                 body = result.get('structuredContent', {})
@@ -410,6 +429,8 @@ class DataGatewayAccess:
             **({'reused_from': reused['observation'].get('reused_from', reused['observation']['tool_call_id'])} if reused else {}),
             **({'refresh_reason': refresh_reason} if refresh_reason else {})}
         response = {'result_json': body, 'is_error': failed, 'observation': observation}
+        if dispatch_receipt is not None:
+            response['dispatch_receipt'] = deepcopy(dispatch_receipt)
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
         binding_catalog = catalog
         if 'progressive' in catalog:

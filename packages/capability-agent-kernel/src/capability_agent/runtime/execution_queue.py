@@ -1,5 +1,6 @@
 """Owner-scoped rolling execution leases. Effects are supplied by the owner."""
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
+import asyncio
 from datetime import datetime, timezone
 from threading import Condition
 from time import monotonic
@@ -8,19 +9,20 @@ from concurrent.futures import CancelledError
 
 
 class ExecutionQueue:
-    def __init__(self, *, capacity: int = 8):
+    def __init__(self, *, capacity: int = 8, provenance: str = 'owner_scheduler'):
         if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity < 1:
             raise ValueError('execution capacity must be a positive integer')
         self.capacity = capacity
+        self.provenance = provenance
         self.owner_id = 'execution-owner-' + uuid4().hex
         self._origin = monotonic()
         self._condition = Condition()
         self._active = {}
         self._pending = []
 
-    def record(self, receipt, phase, *, provenance='owner_scheduler'):
+    def record(self, receipt, phase, *, provenance=None):
         receipt['events'].append({'phase': phase, 'at': datetime.now(timezone.utc).isoformat(),
-            'elapsed_ms': (monotonic() - self._origin) * 1000, 'provenance': provenance})
+            'elapsed_ms': (monotonic() - self._origin) * 1000, 'provenance': provenance or self.provenance})
 
     def receipt(self, *, task_id, call_id):
         receipt = {'schema': 'capstone-tool-execution/1', 'owner_id': self.owner_id,
@@ -29,6 +31,48 @@ class ExecutionQueue:
         self.record(receipt, 'submitted')
         return receipt
 
+    def _ready(self, ticket, resource, read_only):
+        if len(self._active) >= self.capacity:
+            return False
+        if any(r == resource and not (read_only and ro) for r, ro in self._active.values()):
+            return False
+        for t, r, ro in self._pending:
+            if t is ticket:
+                return True
+            if r == resource and not (read_only and ro):
+                return False
+        return False
+
+    @asynccontextmanager
+    async def acquire_async(self, receipt, *, resource, read_only=False):
+        """Share leases across event loops without blocking them or starting threads."""
+        ticket = object()
+        acquired = False
+        with self._condition:
+            self.record(receipt, 'queued')
+            self._pending.append((ticket, resource, read_only))
+        try:
+            while True:
+                with self._condition:
+                    if self._ready(ticket, resource, read_only):
+                        self._pending = [p for p in self._pending if p[0] is not ticket]
+                        self._active[ticket] = (resource, read_only)
+                        acquired = True
+                        self.record(receipt, 'acquired')
+                        break
+                await asyncio.sleep(.005)
+            yield
+        except asyncio.CancelledError:
+            self.record(receipt, 'cancellation_requested')
+            raise
+        finally:
+            with self._condition:
+                self._pending = [p for p in self._pending if p[0] is not ticket]
+                if acquired:
+                    self.record(receipt, 'released')
+                    del self._active[ticket]
+                self._condition.notify_all()
+
     @contextmanager
     def acquire(self, receipt, *, resource, read_only=False, cancel=None):
         ticket = object()
@@ -36,16 +80,7 @@ class ExecutionQueue:
             self.record(receipt, 'queued')
             self._pending.append((ticket, resource, read_only))
             def ready():
-                if len(self._active) >= self.capacity:
-                    return False
-                if any(r == resource and not (read_only and ro) for r, ro in self._active.values()):
-                    return False
-                for t, r, ro in self._pending:
-                    if t is ticket:
-                        return True
-                    if r == resource and not (read_only and ro):
-                        return False
-                return False
+                return self._ready(ticket, resource, read_only)
             try:
                 while True:
                     if cancel is not None and cancel.is_set():

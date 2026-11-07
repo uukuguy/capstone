@@ -73,3 +73,23 @@ def test_conflicting_write_waits_for_read_and_blocks_later_read():
         write.result()
         read.result()
     assert writer.is_set() and reader.is_set()
+
+
+def test_async_queue_cancellation_removes_pending_without_threads():
+    import asyncio
+    queue = ExecutionQueue(capacity=1)
+    async def run():
+        held = queue.receipt(task_id='one', call_id='held')
+        cancelled = queue.receipt(task_id='two', call_id='queued')
+        async with queue.acquire_async(held, resource='shared', read_only=True):
+            async def pending():
+                async with queue.acquire_async(cancelled, resource='shared', read_only=True):
+                    pytest.fail('pending dispatch started')
+            task = asyncio.create_task(pending())
+            await asyncio.sleep(.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError): await task
+            assert len(queue._active) == 1
+            assert not queue._pending
+        assert not queue._active
+    asyncio.run(run())
