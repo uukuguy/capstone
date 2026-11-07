@@ -26,6 +26,8 @@ def test_untrusted_unknown_nonfinite_and_reordered_records_are_not_projected():
                    lambda v: v['events'][2].update(elapsed_ms=float('nan')),
                    lambda v: v['events'][2].update(elapsed_ms=-1),
                    lambda v: v['events'].reverse(),
+                   lambda v: v['events'].__delitem__(3),
+                   lambda v: v['events'].__delitem__(4),
                    lambda v: v['events'][3].update(provenance='owner_scheduler')]:
         invalid = deepcopy(value)
         update(invalid)

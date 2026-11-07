@@ -19,6 +19,7 @@ def checked_execution_receipt(value, *, task_id, call_id):
     if not isinstance(events, list) or not 1 <= len(events) <= len(phases) + 1:
         return None
     last_phase, last_time, cancelled = -1, -1, False
+    seen = set()
     for event in events:
         if not isinstance(event, Mapping) or set(event) != {'phase', 'at', 'elapsed_ms', 'provenance'}:
             return None
@@ -41,6 +42,10 @@ def checked_execution_receipt(value, *, task_id, call_id):
         else:
             if cancelled and phase in {'acquired', 'execution_started'}:
                 return None
+            if (phase == 'execution_ended' and 'execution_started' not in seen
+                    or phase == 'released' and 'execution_started' in seen and 'execution_ended' not in seen):
+                return None
             last_phase = phases.index(phase)
+        seen.add(phase)
         last_time = elapsed
     return deepcopy(dict(value))
