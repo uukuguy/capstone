@@ -10,3 +10,14 @@
    two-turn trial. Keep deployment identity distinct from branch/control commits.
 5. Record measured results and scoped changes. Preserve existing root work. Any
    new CI run requires separate explicit approval; use focused local checks first.
+
+## Service-bus failure follow-up
+
+Use declared transport diagnostics to show connection, send and response failures
+in the existing process record. A request with an unknown source outcome must
+not be described as cancelled. Block replay of the same operation within a task
+when the gateway forbids automatic retry. Keep independent tools available.
+The model must assess whether saved products and independent work can satisfy
+the goal, or report the missing source dependency. Test only the local gateway
+while the intranet is disconnected. Record live diagnostics separately from
+fixture coverage of send and receive uncertainty.

@@ -87,6 +87,21 @@ function config(){return {toolResultCwd:suiteCwd,deadlineAt:Date.now()+10000,app
     catalog:{revision:'a'.repeat(64),tool_hashes:{data_gateway_discover_data_capabilities:'b'.repeat(64)},
       tools:{data_gateway_discover_data_capabilities:{name:'discover_data_capabilities',description:'Discover data',inputSchema:{type:'object',properties:{}}}}}}};}
 
+test('blocked replay does not disable independent gateway work',async()=>{
+ let calls=0;
+ const c=config();
+ const tool=createDataGatewayTools(c,{fetchImpl:async(_url,options)=>{
+  calls++;const body=JSON.parse(options.body);
+  if(calls===1)return {ok:false,status:409,json:async()=>({error:'gateway_operation_retry_blocked'})};
+  return {ok:true,json:async()=>({result_json:JSON.stringify({structuredContent:{status:'ok',data:{}}}),observation:{
+   kind:'external_gateway_observation',task_id:'task-1',tool_call_id:body.call_id,tool:body.name,
+   catalog_revision:c.dataGateway.catalog.revision,tool_schema_sha256:'b'.repeat(64)}})};
+ }})[0];
+ await assert.rejects(tool.execute('blocked',{}),/当前操作禁止自动重放/);
+ assert.equal((await tool.execute('independent',{})).isError,false);
+ assert.equal(calls,2);
+});
+
 test('local validation failures identify schema paths without exposing other response fields',async()=>{
  const tool=createDataGatewayTools(config(),{fetchImpl:async()=>({ok:false,status:400,json:async()=>({
   error:'gateway_arguments_invalid',executed:false,private:'secret-canary',validation_errors:[

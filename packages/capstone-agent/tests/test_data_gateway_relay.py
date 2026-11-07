@@ -14,6 +14,31 @@ class Client:
                 'structuredContent': {'status': 'partial', 'gaps': ['missing'], 'provenance': {'id': 'actual'}}}
 
 
+def test_declared_source_failure_blocks_replay_but_not_independent_metadata():
+    resource = access(['data_gateway_other'])
+    calls = []
+    failure = {'isError': False, 'structuredContent': {'status': 'error',
+        'provenance': {'request_id': 'source-request', 'execution_diagnostics': {
+            'transport_phase': 'receive', 'request_sent': True, 'result_state': 'unknown',
+            'remote_execution_possible': True, 'automatic_retry': False}}}}
+    async def call(name, arguments, catalog):
+        calls.append(name)
+        return failure if name == request()['name'] else {'isError': False, 'structuredContent': {'status': 'ok', 'data': {}}}
+    resource.client.call = call
+    first = asyncio.run(resource.call('task-1', request()))
+    assert first['is_error'] is True
+    with pytest.raises(GatewayError, match='gateway_operation_retry_blocked'):
+        asyncio.run(resource.call('task-1', dict(request(), call_id='new-call-id')))
+    second = asyncio.run(resource.call('task-1', dict(request(), call_id='metadata', name='data_gateway_other')))
+    assert second['is_error'] is False
+    assert resource.publication()['available'] is True
+    assert calls == [request()['name'], 'data_gateway_other']
+    resource.bind('new-instruction', 'attempt-2', set(resource.catalog['tools']))
+    asyncio.run(resource.call('new-instruction', request()))
+    assert calls[-1] == request()['name']
+    assert failure['isError'] is False
+
+
 def test_contract_sections_survive_turns_without_reusing_business_results(tmp_path):
     from test_data_gateway_mcp import contract_context_gateway
     client, _, catalog, result = contract_context_gateway(tmp_path)

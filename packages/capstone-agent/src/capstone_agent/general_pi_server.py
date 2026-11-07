@@ -1244,7 +1244,7 @@ class NativeTaskRunner:
                     retained_contracts = getattr(task_gateway, 'contract_context', None)
                     if callable(retained_contracts):
                         retained = retained_contracts(request.task_id)
-                        if retained['sections']:
+                        if isinstance(retained, dict) and isinstance(retained.get('sections'), list) and retained['sections']:
                             gateway_contract_context = retained
                             sdk_config.setdefault('contextFiles', []).append({
                                 'path': 'gateway-contract-context',
@@ -1295,6 +1295,7 @@ class NativeTaskRunner:
                         'Do not issue a probe only to validate input schemas; batch preflight checks arguments before execution. Stop the batch on a shared contract error instead of repeating it for each object. '
                         'After a timeout, change the access path or selection only with a contract-backed reason; otherwise retain the gap and continue useful work. '
                         'Honor returned retry restrictions and execution diagnostics. Execution or timeout does not prove remote cancellation; unknown result state remains unknown. '
+                        'A source connection failure is not repaired by changing business filters. Stop work dependent on that connection until it is restored. If a request may have been sent and its outcome is unknown, do not replay it; first reconcile source state or seek operator help. Assess whether independent admitted work or saved products can still support the goal. If required input remains unavailable, state the blocked dependency and preserve partial products rather than claiming the analysis is complete. '
                         'Apply index order, time ranges and suggested requests only when the current contract or observation declares them for this operation. LIMIT does not prove reduced source scanning. '
                         'Use admitted SQL only within its published read-only scope, source policy and budgets; compare actual costs rather than assuming an execution location is faster. '
                         'For a suspected defect, retain the actual observation reference and describe why the published valid path cannot complete the operation; do not blindly retry or certify an unverified diagnosis. '

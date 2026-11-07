@@ -323,6 +323,9 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_call_already_started')
             if record.get('failure'):
                 raise GatewayError(record['failure'])
+            operation_key = fingerprint({'name': name, 'arguments': document['arguments']})
+            if operation_key in record.get('blocked_requests', {}):
+                raise GatewayError('gateway_operation_retry_blocked', record['blocked_requests'][operation_key])
             if consumes_job:
                 job_ref = document['arguments'].get('job_ref')
                 if ('job_ref' not in properties or not isinstance(job_ref, str)
@@ -344,7 +347,7 @@ class DataGatewayAccess:
             with self._lock:
                 span.update(response_diagnostics(result))
                 body = result.get('structuredContent', {})
-                failed = result.get('isError') is True or isinstance(body, dict) and body.get('status') in {'error', 'failed'}
+                failed = result.get('isError') is True or isinstance(body, dict) and body.get('status') in {'error', 'failed', 'denied'}
                 span['status'] = 'reused' if reused else 'business_error' if failed else 'received'
                 if reused:
                     span['reused_from'] = reused['observation'].get('reused_from', reused['observation']['tool_call_id'])
@@ -382,7 +385,7 @@ class DataGatewayAccess:
             'observed_at': reused['observation']['observed_at'] if reused else datetime.now(timezone.utc).isoformat(),
             **({'reused_from': reused['observation'].get('reused_from', reused['observation']['tool_call_id'])} if reused else {}),
             **({'refresh_reason': refresh_reason} if refresh_reason else {})}
-        response = {'result_json': body, 'is_error': result.get('isError') is True, 'observation': observation}
+        response = {'result_json': body, 'is_error': failed, 'observation': observation}
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
         self.view_bindings.observe(name, arguments, result, catalog)
         classify_contract = getattr(self.client, 'contract_context_entry', None)
@@ -392,6 +395,15 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_task_not_admitted')
             record['issued'][call_id] = {'response': deepcopy(response), 'arguments': arguments}
             self._remember_contract_context(contract_entry)
+            if failed:
+                from .native_tool_diagnostics import tool_execution_diagnostics
+                diagnostic = tool_execution_diagnostics(result)
+                if diagnostic is not None and (diagnostic.get('automatic_retry') is False or
+                        diagnostic.get('result_state') == 'unknown' and (
+                            diagnostic.get('request_sent') is True or diagnostic.get('remote_execution_possible') is True)):
+                    provenance = content.get('provenance', {}) if isinstance(content, dict) else {}
+                    record.setdefault('blocked_requests', {})[operation_key] = (
+                        provenance.get('request_id') if isinstance(provenance, dict) else None)
             if successful and isinstance(data, dict):
                 # Only explicit operation references at the result's data root
                 # grant access. Business rows and nested objects never do.

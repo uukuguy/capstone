@@ -59,6 +59,7 @@ TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
     'gateway_authentication_failed', 'gateway_endpoint_rejected', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
     'gateway_catalog_invalid', 'gateway_catalog_unavailable', 'contract_publication_unavailable'})
 _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gateway_output_invalid',
+    'gateway_operation_retry_blocked',
     'gateway_tool_not_admitted', 'gateway_policy_invalid', 'gateway_connection_config_invalid',
     'gateway_publication_changed', 'contract_publication_unavailable'}
 

@@ -8,6 +8,7 @@ export const reusableGatewayRead=(schema,args)=>schema?.annotations?.readOnlyHin
   schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true&&
   !['job_ref','preparation_ref'].some(key=>Object.hasOwn(args??{},key));
 const publicErrors=new Set(['gateway_arguments_invalid','gateway_request_invalid',
+  'gateway_operation_retry_blocked',
   'gateway_tool_not_admitted','gateway_task_not_admitted','gateway_call_already_started',
   'gateway_publication_changed','gateway_authentication_failed','gateway_connection_failed',
   'gateway_call_failed_no_retry','gateway_timeout','gateway_transport_failed','gateway_output_invalid','gateway_catalog_invalid',
@@ -49,7 +50,7 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
   function failure(code,stop=false,validation=[]){
     const types=new Set(['null','boolean','object','array','string','integer','number']);
     const details=Array.isArray(validation)?validation.slice(0,8).filter(item=>item&&typeof item.path==='string'&&item.path.length<=256&&typeof item.rule==='string'&&item.rule.length<=64&&types.has(item.actual_type)).map(item=>({path:item.path,rule:item.rule,actual_type:item.actual_type,...(types.has(item.expected)?{expected:item.expected}:{})})):[];
-    const message=code+'; do not retry this call'+(details.length?'; not executed; correct arguments using the exact contract: '+JSON.stringify(details):'')+(stop?
+    const message=(code==='gateway_operation_retry_blocked'?'当前操作禁止自动重放；请先核对原失败诊断、连接和源端执行状态。 code='+code:code)+'; do not retry this call'+(details.length?'; not executed; correct arguments using the exact contract: '+JSON.stringify(details):'')+(stop?
       ' or probe other gateway tools in this task. Report this failure only; gateway-wide availability is unverified.':'');
     if(stop)stopped=message;
     return new Error(message);
