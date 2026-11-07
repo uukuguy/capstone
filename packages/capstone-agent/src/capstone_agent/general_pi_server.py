@@ -1966,6 +1966,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     text = text.encode()[:200000].decode('utf-8', errors='ignore')
                 return self.send_json(200, {
                     'result_json': text, 'is_error': result.get('ok') is not True,
+                    'execution_receipt': result.get('execution_receipt'),
                     'tool': document['name'], 'call_id': document['call_id']})
             except (ValueError, OSError, TimeoutError):
                 return self.send_json(502, {'error': 'domain_tool_call_failed'})

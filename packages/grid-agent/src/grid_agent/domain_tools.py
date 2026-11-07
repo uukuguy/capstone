@@ -12,6 +12,7 @@ import os
 import re
 from pathlib import Path
 from threading import Lock
+from capability_agent.runtime.execution_queue import ExecutionQueue
 
 from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
 from pandapower_domain.profile import build_pandapower_profile
@@ -35,6 +36,8 @@ class PandapowerDomainToolService:
         self._profile = None
         self._capabilities: dict[str, str] = {}
         self._executors: dict[str, GridctlExecutor] = {}
+        self._read_only: dict[str, bool] = {}
+        self._queue = ExecutionQueue(capacity=int(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_CAPACITY', '8')))
 
     def _installed(self):
         if self._profile is None:
@@ -46,7 +49,7 @@ class PandapowerDomainToolService:
         manifest = profile.manifest
         if profile_id != manifest.domain_id or profile_version != manifest.version:
             raise KeyError('domain pack is not published by this worker')
-        tools, hashes, capabilities = {}, {}, {}
+        tools, hashes, capabilities, read_only = {}, {}, {}, {}
         for document in profile.contract_source.load():
             if document.get('availability') != 'published':
                 continue
@@ -63,10 +66,12 @@ class PandapowerDomainToolService:
             tools[name] = {'description': description, 'inputSchema': schema}
             hashes[name] = hashlib.sha256(_canonical(body).encode()).hexdigest()
             capabilities[name] = capability
+            read_only[name] = document.get('state_effect') == 'none'
         if not tools:
             raise KeyError('domain pack is not published by this worker')
         with self._lock:
             self._capabilities = capabilities
+            self._read_only = read_only
         return {
             'schema': 'capstone-domain-tool-catalog/1',
             'profile_id': manifest.domain_id,
@@ -89,15 +94,21 @@ class PandapowerDomainToolService:
         capability = self._capabilities.get(name)
         if capability is None:
             raise KeyError('domain tool is not published')
-        try:
-            result = self._executor(task_id).invoke(capability, arguments)
-        except SimulatorCapabilityError as error:
-            return {'ok': False, 'error': error.error if isinstance(error.error, dict) else {'message': 'domain tool call failed'}}
-        except Exception:
-            return {'ok': False, 'error': {'message': 'domain tool call failed'}}
-        if not isinstance(result, dict):
-            return {'ok': False, 'error': {'message': 'domain tool call failed'}}
-        return {'ok': True, 'result': result}
+        call_id = document.get('call_id')
+        if not isinstance(call_id, str) or not call_id or len(call_id) > 256:
+            raise ValueError('domain tool call identity is invalid')
+        receipt = self._queue.receipt(task_id=task_id, call_id=call_id)
+        with self._queue.acquire(receipt, resource=task_id, read_only=self._read_only.get(name, False)):
+            try:
+                result = self._executor(task_id).invoke(capability, arguments,
+                    execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
+                response = ({'ok': True, 'result': result} if isinstance(result, dict)
+                    else {'ok': False, 'error': {'message': 'domain tool call failed'}})
+            except SimulatorCapabilityError as error:
+                response = {'ok': False, 'error': error.error if isinstance(error.error, dict) else {'message': 'domain tool call failed'}}
+            except Exception:
+                response = {'ok': False, 'error': {'message': 'domain tool call failed'}}
+        return {**response, 'execution_receipt': receipt}
 
     def _executor(self, task_id: str) -> GridctlExecutor:
         with self._lock:

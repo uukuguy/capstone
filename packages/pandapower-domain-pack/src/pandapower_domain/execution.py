@@ -142,7 +142,7 @@ class GridctlExecutor:
         )
         self.last_diagnostics = ""
 
-    def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:
+    def invoke(self, capability: str, arguments: dict[str, object], *, execution_observer=None) -> dict[str, object]:
         request_id = f"sim-{uuid4().hex}"
         request = {
             "protocol": "grid-capability",
@@ -154,7 +154,7 @@ class GridctlExecutor:
         request_bytes = (json.dumps(request, separators=(",", ":")) + "\n").encode("utf-8")
         self.last_diagnostics = ""
         output_limit = self.max_operator_output_bytes if capability == "operator.diagram.get" else self.max_output_bytes
-        returncode, stdout, stderr, exceeded = self._run_bounded(request_bytes, output_limit=output_limit)
+        returncode, stdout, stderr, exceeded = self._run_bounded(request_bytes, output_limit=output_limit, execution_observer=execution_observer)
         self.last_diagnostics = stderr[:4096].decode("utf-8", errors="ignore")
         if exceeded:
             raise GridctlClientError("Grid simulator process output limit exceeded")
@@ -188,7 +188,7 @@ class GridctlExecutor:
             raise GridctlClientError("Grid simulator response has no result object")
         return result
 
-    def _run_bounded(self, request_bytes: bytes, *, output_limit: int) -> tuple[int, bytes, bytes, bool]:
+    def _run_bounded(self, request_bytes: bytes, *, output_limit: int, execution_observer=None) -> tuple[int, bytes, bytes, bool]:
         try:
             process = subprocess.Popen(
                 [str(self.executable), "request", "--workspace", str(self.workspace)],
@@ -200,6 +200,9 @@ class GridctlExecutor:
             )
         except OSError as exc:
             raise GridctlClientError("Grid simulator process could not complete") from exc
+
+        if execution_observer is not None:
+            execution_observer('execution_started')
 
         stdout_chunks: list[bytes] = []
         stderr_chunks: list[bytes] = []
@@ -249,6 +252,12 @@ class GridctlExecutor:
             process.wait()
             raise GridctlClientError("Grid simulator process could not complete") from exc
         finally:
+            # A caller interruption must not return its lease while the child lives.
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            if execution_observer is not None:
+                execution_observer('execution_ended')
             for thread in threads:
                 thread.join()
             process.stdout.close()

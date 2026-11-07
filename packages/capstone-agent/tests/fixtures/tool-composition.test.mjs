@@ -11,6 +11,10 @@ import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('application selects eight rolling composition slots',()=>{
+ assert.equal(compositionPolicy.concurrency,8);
+});
+
 test('one pipeline plans exact calls, reuses observations, validates mappings and publishes only valid tables',()=>fixture(async cwd=>{
  const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};let count=0;
  const t=tool(cwd,async()=>{count++;return native({rows:[{day:'2025-06-15',reading:4}]});},{catalog:declared});

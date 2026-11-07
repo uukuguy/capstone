@@ -15,6 +15,32 @@ from pandapower_domain.execution import (
 )
 
 
+def test_actual_process_lifecycle_is_observed_even_on_protocol_failure(tmp_path):
+    events = []
+    executable = _write_executable(tmp_path / 'bad', "print('invalid')\n")
+    executor = GridctlExecutor(executable=executable, workspace=tmp_path)
+    with pytest.raises(GridctlClientError):
+        executor.invoke('test', {}, execution_observer=events.append)
+    assert events == ['execution_started', 'execution_ended']
+
+
+def test_timeout_observes_exit_only_after_child_is_reaped(tmp_path):
+    import os
+    events = []
+    pid_path = tmp_path / 'pid'
+    executable = _write_executable(tmp_path / 'slow',
+        f"import os,time\nopen({str(pid_path)!r},'w').write(str(os.getpid()))\ntime.sleep(30)\n")
+    def observe(phase):
+        events.append(phase)
+        if phase == 'execution_ended':
+            with pytest.raises(ProcessLookupError):
+                os.kill(int(pid_path.read_text()), 0)
+    executor = GridctlExecutor(executable=executable, workspace=tmp_path, timeout_seconds=.2)
+    with pytest.raises(GridctlClientError):
+        executor.invoke('test', {}, execution_observer=observe)
+    assert events == ['execution_started', 'execution_ended']
+
+
 def _write_executable(path: Path, source: str) -> Path:
     path.write_text(f"#!{sys.executable}\n{source}", encoding="utf-8")
     path.chmod(0o755)

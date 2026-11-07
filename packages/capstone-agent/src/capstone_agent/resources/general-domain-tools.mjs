@@ -32,7 +32,8 @@ export function createDomainTools(config, {fetchImpl = globalThis.fetch} = {}) {
       }
       return {
         content: [{type: 'text', text: body.result_json}],
-        details: {tool: name, call_id: callId, ok: body.is_error !== true},
+        details: {tool: name, call_id: callId, ok: body.is_error !== true,
+          ...(body.execution_receipt ? {execution_receipt: body.execution_receipt} : {})},
         isError: body.is_error === true,
       };
     },
