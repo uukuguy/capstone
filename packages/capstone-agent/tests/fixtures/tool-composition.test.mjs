@@ -288,7 +288,9 @@ test('follow honors returned wait and rejects actions from failed observations',
 }));
 
 test('selection, program calls and describe share source and registration identities',()=>fixture(async cwd=>{
-  const actual={revision:'identity',tools:{transport_alpha:{name:'source_alpha',inputSchema:{type:'object'},description:'Alpha'},
+  const actual={revision:'identity',tools:{transport_alpha:{name:'source_alpha',inputSchema:{type:'object'},description:'Alpha',
+    outputSchema:{type:'object',properties:{job_state:{type:'string'}}},
+    _meta:{usage:{purpose:'Inspect saved progress',execution:'Status reads do not advance the job'}}},
     transport_beta:{name:'source_beta',inputSchema:{type:'object'},description:'Beta'}}};
   for(const selected of ['source_alpha','transport_alpha']){
     const issued=[];
@@ -296,6 +298,8 @@ test('selection, program calls and describe share source and registration identi
       tools:[selected,'source_alpha'],program:`
         if(tools.describe('source_alpha').name!=='source_alpha')throw Error('Source contract lost');
         if(tools.describe('transport_alpha').name!=='source_alpha')throw Error('Registered contract lost');
+        if(tools.describe('source_alpha')._meta.usage.execution!=='Status reads do not advance the job')throw Error('Usage lost');
+        if(tools.describe('transport_alpha').outputSchema.properties.job_state.type!=='string')throw Error('Output schema lost');
         await tools.call('source_alpha',{});return await tools.call('transport_alpha',{});`});
     assert.equal(result.isError,false,JSON.stringify(result));
     assert.deepEqual(issued,['transport_alpha','transport_alpha']);

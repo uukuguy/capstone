@@ -280,6 +280,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'scope.executed true means the statement was cancelled' not in gateway_context
     assert 'When no next action is returned, select the next operation from the current published contract' in gateway_context
     assert 'A successful tool call does not prove that its job succeeded' in gateway_context
+    assert 'Structured table queries are also a fallback' not in gateway_context
+    assert 'Use native SQL as advanced exploration only when no admitted tool' not in gateway_context
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
     assert captured[0]['dataGateway']['onDemandTools'] is True
@@ -304,12 +306,12 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'For an inventory request' in gateway_context
     assert 'leading index prefix the tool reports' in gateway_context
     assert 'Compose published data_gateway_ tools' in gateway_context
-    assert 'Structured table queries are also a fallback' in gateway_context
+    assert 'current published access-selection policy' in gateway_context
     assert 'One unavailable tool does not make other business tools unavailable' in gateway_context
     assert 'Do not issue a probe only to validate input schemas' in gateway_context
     assert 'independently of menu activation' in gateway_context
-    assert 'native SQL as advanced exploration' in gateway_context
-    assert 'suspected tool defect' in gateway_context
+    assert 'Use admitted SQL only within its published read-only scope' in gateway_context
+    assert 'For a suspected defect' in gateway_context
     assert 'actual observation reference' in gateway_context
     assert 'DATASOURCE_ID' not in gateway_context
     assert 'summary/default arguments' in gateway_context
