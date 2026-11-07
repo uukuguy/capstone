@@ -55,6 +55,18 @@ def test_owner_records_survive_without_a_response_consumer(tmp_path):
     assert 'arguments' not in document
 
 
+def test_receipt_storage_can_use_separate_persistent_root(tmp_path, monkeypatch):
+    receipt_root = tmp_path / 'persistent'
+    monkeypatch.setenv('CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT', str(receipt_root))
+    workspace = tmp_path / 'scratch'
+    service = PandapowerDomainToolService(workspace_root=workspace)
+    persist = service._receipt_writer('task')
+    persist({'task_id': 'task', 'call_id': 'call', 'events': []})
+    saved, = (receipt_root / 'task' / 'execution-receipts').glob('*.json')
+    assert json.loads(saved.read_text())['call_id'] == 'call'
+    assert not (workspace / 'task' / 'execution-receipts').exists()
+
+
 def test_mixed_entry_calls_use_one_owner_budget(tmp_path):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event, Lock

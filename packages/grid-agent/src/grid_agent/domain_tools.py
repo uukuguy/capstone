@@ -33,6 +33,7 @@ class PandapowerDomainToolService:
     def __init__(self, *, workspace_root: Path | None = None) -> None:
         configured = os.environ.get('CAPSTONE_DOMAIN_TOOL_WORKSPACE')
         self._root = Path(workspace_root or configured or (Path(os.environ.get('CAPSTONE_RUNS_ROOT', '/tmp')) / 'domain-tools'))
+        self._receipt_root = Path(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT') or self._root)
         self._lock = Lock()
         self._profile = None
         self._capabilities: dict[str, str] = {}
@@ -117,7 +118,7 @@ class PandapowerDomainToolService:
     def _receipt_writer(self, task_id):
         # Each invocation gets a private control record, independent of HTTP
         # delivery. This is host telemetry, never an Authority result/evidence.
-        directory = self._root / task_id / 'execution-receipts'
+        directory = self._receipt_root / task_id / 'execution-receipts'
         path = directory / (uuid4().hex + '.json')
         def persist(receipt):
             directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -129,6 +130,12 @@ class PandapowerDomainToolService:
                     stream.flush()
                     os.fsync(stream.fileno())
                 os.replace(temporary, path)
+                if os.name == 'posix':
+                    descriptor = os.open(directory, os.O_RDONLY)
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
             finally:
                 temporary.unlink(missing_ok=True)
         return persist
