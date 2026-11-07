@@ -505,6 +505,8 @@ EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
 } | {'docs/status/' + name for name in (
     'CURRENT-STATE.md', 'INDEX.md', 'JOURNAL.md', 'PROJECT-OVERVIEW.html', 'VERSION-CONTROL.md', 'RESUME-NEXT-SESSION.md')
 } | {'docs/' + name for name in (
+    'superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md',
+    'superpowers/plans/2026-10-16-enterprise-unified-execution.md',
     'reports/2026-11-07-capstone-progressive-gateway-v1.md',
     'reports/2026-11-07-gateway-progressive-disclosure-proposal.md',
     'reports/2026-11-08-tool-execution-lifecycle.md',

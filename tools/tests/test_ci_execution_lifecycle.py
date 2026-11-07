@@ -46,6 +46,14 @@ def test_lifecycle_route_includes_only_named_application_relay_capacity_files():
         assert classify([*paths, extra]) != 'execution-lifecycle'
 
 
+def test_lifecycle_closeout_admits_only_its_named_owning_control_documents():
+    paths = [ANCHOR,
+             'docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md',
+             'docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md']
+    assert classify(paths) == 'execution-lifecycle'
+    assert classify([*paths, 'docs/superpowers/specs/unrelated-research.md']) != 'execution-lifecycle'
+
+
 @pytest.mark.parametrize('extra', [
     'packages/grid-simulator/src/grid_simulator/solver.py',
     'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
