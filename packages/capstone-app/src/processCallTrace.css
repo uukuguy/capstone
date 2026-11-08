@@ -69,7 +69,13 @@
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled > svg { color: inherit; }
 .capstone-parallel-group { position: relative; width: auto; max-width: 100%; margin: 2px 0; padding: 0; border: 0; }
 .capstone-parallel-group::before { content: ''; position: absolute; left: -6px; top: 1px; bottom: 1px; width: 1px; background: #7ea898; }
-.capstone-parallel-heading { margin: 0 0 2px; color: #3d6b58; font-size: inherit; font-weight: 400; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.capstone-parallel-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; margin: 0 0 2px; color: #3d6b58; font-size: inherit; font-weight: 400; text-align: left; }
+.capstone-parallel-title, .capstone-batch-metrics > span { white-space: nowrap; }
+.capstone-batch-metrics { display: inline-flex; flex-wrap: wrap; max-width: 100%; }
+.capstone-batch-observation { position: relative; color: var(--trace-secondary, #576c70); }
+.capstone-batch-observation > summary { list-style: none; white-space: nowrap; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.capstone-batch-observation > summary::-webkit-details-marker { display: none; }
+.capstone-batch-observation > p { position: absolute; z-index: 4; right: 0; top: 100%; width: min(260px, 70vw); margin: 4px 0; padding: 8px 10px; border: 1px solid #ccd9d4; border-radius: 5px; background: #fff; color: var(--trace-text, #172d32); box-shadow: 0 3px 12px #172d321a; white-space: normal; }
 .capstone-call-trace .capstone-parallel-heading > .capstone-call-duration { display: inline; gap: 0; }
 .capstone-call-pool ul { list-style: none; margin: 4px 0; padding: 0 0 0 8px; border-left: 1px solid #c7d8cf; }
 .capstone-call-pool li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 3px 0; }

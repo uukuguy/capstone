@@ -28,6 +28,20 @@ const count = (value: unknown) => typeof value === 'number' && Number.isFinite(v
 const tokens = (value: number | undefined) => value === undefined ? '—' : value.toLocaleString('zh-CN')
 const time = (ms: number) => `${(ms / 1000).toFixed(1)}s`
 const toolTime = (ms: number) => ms < 1000 ? `${Math.round(ms)}ms` : time(ms)
+function BatchHeading({title,count,summary}:{title:string;count:number;summary:{capacity?:number;peak?:number;elapsedMs?:number}}){
+  return <div className="capstone-parallel-heading">
+    <span className="capstone-parallel-title">{title} · {count} 项</span>
+    {summary.peak===undefined?<details className="capstone-batch-observation">
+      <summary>重叠未核实</summary>
+      <p>同轮批次不代表同时执行。缺少实际执行区间，无法判断这些调用是否重叠；毫秒级耗时也不能证明并发或串行。</p>
+    </details>:null}
+    {(summary.capacity!==undefined||summary.peak!==undefined||summary.elapsedMs!==undefined)&&<span className="capstone-batch-metrics">
+      {summary.capacity!==undefined&&<span>执行容量 {summary.capacity}</span>}
+      {summary.peak!==undefined&&<span>{summary.capacity!==undefined?' · ':''}观测峰值 {summary.peak}</span>}
+      {summary.elapsedMs!==undefined&&<span>{summary.capacity!==undefined||summary.peak!==undefined?' · ':''}批次耗时 {toolTime(summary.elapsedMs)}</span>}
+    </span>}
+  </div>
+}
 function CallGlyph({label,kind}:{label:string;kind:string}){
   const Icon=kind==='done'?Check:kind==='failed'?CircleX:kind==='running'?LoaderCircle:kind==='cancelled'?Square:kind==='warning'?AlertTriangle:CircleDashed
   return <span role="img" aria-label={label} title={label} className={`capstone-call-state is-${kind}`}><Icon aria-hidden="true"/></span>
@@ -202,7 +216,7 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
         <details><summary>缺失明细</summary><ul>{issue.missingToolIds.map(id => <li key={id}>
           <strong>{model.toolRequests?.find(item => item.id === id)?.name ?? '工具名称未记录'}</strong> · {tools.some(tool => tool.id === id) ? '缺少结果记录' : '缺少执行记录'}<code>{id}</code>
         </li>)}</ul></details></div>}
-      {(model.thinking||selected.length>0)&&<div className="capstone-call-nested">{model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{selected.length>1?(()=>{const summary=receiptBatchSummary((model.toolCallIds??[]).map(id=>selected.find(tool=>tool.id===id)?.executionReceipt));return <div className="capstone-parallel-group" role="group" aria-label={`${batchTitle} · ${model.toolCallIds!.length} 项`} title={model.toolAssociation==='turn'?'连线表示同一 SDK 轮次中的工具批次，不表示同时执行。':'连线表示同一模型响应中的工具批次，不表示同时执行。'}><p className="capstone-parallel-heading">{batchTitle} · {model.toolCallIds!.length} 项{summary.capacity!==undefined&&<> · 执行容量 {summary.capacity}</>}{summary.peak===undefined?<> · <span>实际执行并发未知</span></>:<> · 观测峰值 {summary.peak}</>}{summary.elapsedMs!==undefined&&<> · 批次耗时 {toolTime(summary.elapsedMs)}</>}</p>{selected.map(tool=>renderTool(tool))}</div>})():selected.map(tool=>renderTool(tool))}</div>}</div>}
+      {(model.thinking||selected.length>0)&&<div className="capstone-call-nested">{model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{selected.length>1?(()=>{const summary=receiptBatchSummary((model.toolCallIds??[]).map(id=>selected.find(tool=>tool.id===id)?.executionReceipt));return <div className="capstone-parallel-group" role="group" aria-label={`${batchTitle} · ${model.toolCallIds!.length} 项`} title={model.toolAssociation==='turn'?'连线表示同一 SDK 轮次中的工具批次，不表示同时执行。':'连线表示同一模型响应中的工具批次，不表示同时执行。'}><BatchHeading title={batchTitle} count={model.toolCallIds!.length} summary={summary}/>{selected.map(tool=>renderTool(tool))}</div>})():selected.map(tool=>renderTool(tool))}</div>}</div>}
       {running&&!model.thinking&&!model.thinkingSettled&&<div className="capstone-call-nested"><ThinkingProcess kind="call" expanded={expandedThinking} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:'',startedAt:model.startedAt,handedOff:false,phase:'running'}}/></div>}
       {!issue && linked && model.toolCallIds!.length > selected.length && <p className="capstone-call-pending">等待工具记录 · {model.toolCallIds!.length - selected.length}项</p>}
       {mainDispatches.length>0&&<RequestPoolExecutions requests={mainDispatches} active={active} now={now}/>}

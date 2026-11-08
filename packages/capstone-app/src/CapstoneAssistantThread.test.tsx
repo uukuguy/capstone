@@ -27,7 +27,7 @@ it.each([false,true])('connects all sixteen tools from native SDK turn projectio
  const batch=within(dialog).getByRole('group',{name:'同轮工具批次 · 16 项'})
  expect(batch.querySelectorAll('.capstone-call-tool-entry')).toHaveLength(16)
  if(hasReceipts)expect(batch.querySelector('.capstone-parallel-heading')?.textContent).toContain('执行容量 8 · 观测峰值 8')
- else expect(within(batch).getByText('实际执行并发未知')).toBeTruthy()
+ else expect(within(batch).getByText('重叠未核实')).toBeTruthy()
  expect(within(dialog).queryByRole('group',{name:'同一响应工具批次 · 16 项'})).toBeNull()
 })
 it('shows public compaction records inside the process window and preserves LLM count on replay',()=>{

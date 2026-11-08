@@ -1,7 +1,7 @@
 import { receipt } from './toolExecutionReceipt.fixture'
 import { afterEach, expect, it } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 it('shows named skills with a distinct semantic badge and style',()=>{
@@ -14,6 +14,16 @@ it('styles graph skill calls using their observed operation identity',()=>{
  const view=render(<ProcessCallTrace models={[]} tools={[{id:'graph-skill',name:'agent_skill',operation:'systematic-debugging · 模型报告',status:'completed'}]} active={false}/>)
  expect(screen.getByText('使用任务技能 · systematic-debugging')).toBeTruthy()
  expect(view.container.querySelector('.capstone-call-tool-entry.is-skill')).toBeTruthy()
+})
+it('keeps a tiny same-turn batch distinct from observed execution overlap',()=>{
+ const view=render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:5,toolAssociation:'turn',toolCallIds:['a','b']}]} tools={[
+  {id:'a',name:'read',status:'completed',durationMs:2},
+  {id:'b',name:'read',status:'completed',durationMs:3},
+ ]} active={false}/>)
+ expect(view.container.querySelector('.capstone-parallel-title')?.textContent).toBe('同轮工具批次 · 2 项')
+ expect(screen.queryByText(/观测峰值/)).toBeNull()
+ fireEvent.click(screen.getByText('重叠未核实'))
+ expect(screen.getByText(/毫秒级耗时也不能证明并发或串行/)).toBeVisible()
 })
 
 it('shows compaction between model calls without an extra model round and stops incomplete timers',()=>{
@@ -175,13 +185,13 @@ it('uses compact glyphs and connects same-response tools without repeated status
   expect(screen.queryByText('已返回')).toBeNull()
   expect(screen.queryByText('并行调用')).toBeNull()
   expect(screen.getByRole('group',{name:'同一响应工具批次 · 2 项'})).toBeVisible()
-  expect(screen.getByText('实际执行并发未知')).toBeVisible()
+  expect(screen.getByText('重叠未核实')).toBeVisible()
 })
 it('keeps a long overlap chain in one admitted response batch',()=>{
   const tools=Array.from({length:8},(_,index)=>({id:`t${index}`,name:`query ${index}`,status:'completed' as const,startedAt:new Date(Date.parse('2026-11-04T17:17:09.000Z')+index*1000).toISOString(),durationMs:4000}))
   render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:1000,toolCallIds:tools.map(tool=>tool.id)}]} tools={tools}/>)
   expect(screen.getByRole('group',{name:'同一响应工具批次 · 8 项'})).toBeVisible()
-  expect(screen.getByText('实际执行并发未知')).toBeVisible()
+  expect(screen.getByText('重叠未核实')).toBeVisible()
 })
 it('groups all response calls including late starts',()=>{
   render(<ProcessCallTrace compact models={[{id:'m',number:47,ms:6500,toolCallIds:['parent','a','b','late']}]} tools={[
@@ -192,7 +202,7 @@ it('groups all response calls including late starts',()=>{
   ]}/>)
   expect(screen.getByRole('group',{name:'同一响应工具批次 · 4 项'})).toBeVisible()
   expect(screen.queryByRole('group',{name:/并行工具调用 · 4 项/})).toBeNull()
-  expect(screen.getByText('实际执行并发未知')).toBeVisible()
+  expect(screen.getByText('重叠未核实')).toBeVisible()
   expect(screen.getByText('同一组合已停止，这次调用被取消。')).toBeVisible()
   expect(screen.queryByText('Composition stopped')).toBeNull()
 })
@@ -220,7 +230,7 @@ it('groups tools only inside the same response and keeps each tool collapsed',()
     {id:'b',name:'read B',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
     {id:'c',name:'read C',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
   ]}/>)
-  expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).getByText('实际执行并发未知')).toBeVisible()
+  expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).getByText('重叠未核实')).toBeVisible()
   expect(within(screen.getByRole('group',{name:'LLM 调用 2'})).queryByText('并行调用')).toBeNull()
   expect(screen.getByText('read A').closest('details')).not.toHaveAttribute('open')
   expect(within(screen.getByText('read A').closest('summary')!).getByText('500ms')).toBeVisible()
@@ -334,6 +344,6 @@ it('connects sixteen queued calls and distinguishes batch count, capacity and ob
  render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:10,toolCallIds:tools.map(tool=>tool.id)}]} tools={tools}/>)
  const batch=screen.getByRole('group',{name:'同一响应工具批次 · 16 项'})
  expect(batch.querySelector('.capstone-parallel-heading')).toHaveTextContent('执行容量 8 · 观测峰值 8 · 批次耗时 3.0s')
- expect(within(batch).queryByText('实际执行并发未知')).toBeNull()
+ expect(within(batch).queryByText('重叠未核实')).toBeNull()
  expect(within(batch).getAllByText(/执行端排队 1.0s · 工具执行 1.0s/)).toHaveLength(16)
 })
