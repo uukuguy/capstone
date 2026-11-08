@@ -25,6 +25,15 @@ it('keeps a tiny same-turn batch distinct from observed execution overlap',()=>{
  fireEvent.click(screen.getByText('重叠未核实'))
  expect(screen.getByText(/毫秒级耗时也不能证明并发或串行/)).toBeVisible()
 })
+it('shows overall caller time for a batch without claiming source overlap',()=>{
+ render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:5,toolAssociation:'turn',toolCallIds:['a','b']}]} tools={[
+  {id:'a',name:'read',status:'completed',startedAt:'1970-01-01T00:00:00.000Z',finishedAt:'1970-01-01T00:00:00.100Z'},
+  {id:'b',name:'read',status:'completed',startedAt:'1970-01-01T00:00:00.200Z',finishedAt:'1970-01-01T00:00:00.300Z'},
+ ]} active={false}/>)
+ expect(screen.getByText(/批次耗时 300ms/)).toBeVisible()
+ expect(screen.getByText('调用区间')).toBeVisible()
+ expect(screen.queryByText(/观测峰值/)).toBeNull()
+})
 it('keeps one uniform Thinking row and tokens outside each highlighted model heading',()=>{
  const view=render(<ProcessCallTrace compact models={[
   {id:'no-thinking',number:1,ms:20,usage:{input:10,output:5,cacheRead:0,cacheWrite:0}},

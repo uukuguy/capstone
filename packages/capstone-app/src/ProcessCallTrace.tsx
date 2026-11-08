@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { AlertTriangle, ChevronRight, Check, CircleX, CircleDashed, LoaderCircle, Square, BrainCircuit } from 'lucide-react'
 import { receiptDuration, receiptBatchSummary, type ToolExecutionReceipt } from './toolExecutionReceipt'
-import { toolExecutionMs } from './processTiming'
+import { batchElapsedMs,toolExecutionMs } from './processTiming'
 import './processCallTrace.css'
 import ThinkingProcess from './ThinkingProcess'
 import {summarizeLlmPoolCalls,type ProcessLlmPoolCall} from './processLlmPool'
@@ -28,18 +28,20 @@ const count = (value: unknown) => typeof value === 'number' && Number.isFinite(v
 const tokens = (value: number | undefined) => value === undefined ? '—' : value.toLocaleString('zh-CN')
 const time = (ms: number) => `${(ms / 1000).toFixed(1)}s`
 const toolTime = (ms: number) => ms < 1000 ? `${Math.round(ms)}ms` : time(ms)
-function BatchHeading({title,count,summary}:{title:string;count:number;summary:{capacity?:number;peak?:number;elapsedMs?:number}}){
+function BatchHeading({title,count,summary,callerElapsedMs,running=false}:{title:string;count:number;summary:{capacity?:number;peak?:number;elapsedMs?:number};callerElapsedMs?:number;running?:boolean}){
+  const elapsed=summary.elapsedMs??callerElapsedMs
+  const callerTiming=summary.elapsedMs===undefined&&callerElapsedMs!==undefined
   return <div className="capstone-parallel-heading">
     <span className="capstone-parallel-title">{title} · {count} 项</span>
     {summary.peak===undefined?<details className="capstone-batch-observation">
       <summary>重叠未核实</summary>
       <p>同轮批次不代表同时执行。缺少实际执行区间，无法判断这些调用是否重叠；毫秒级耗时也不能证明并发或串行。</p>
     </details>:null}
-    {(summary.capacity!==undefined||summary.peak!==undefined||summary.elapsedMs!==undefined)&&<span className="capstone-batch-metrics">
+    <span className="capstone-batch-metrics">
       {summary.capacity!==undefined&&<span>执行容量 {summary.capacity}</span>}
       {summary.peak!==undefined&&<span>{summary.capacity!==undefined?' · ':''}观测峰值 {summary.peak}</span>}
-      {summary.elapsedMs!==undefined&&<span>{summary.capacity!==undefined||summary.peak!==undefined?' · ':''}批次耗时 {toolTime(summary.elapsedMs)}</span>}
-    </span>}
+      <span title={elapsed===undefined?'本批次缺少完整计时记录。':callerTiming?'调用区间：从本批次首个调用发起到最后返回，含等待；不能据此推断实际执行重叠。':'执行回执：从本批次首个提交到最后执行结束，含排队。'}>{summary.capacity!==undefined||summary.peak!==undefined?' · ':''}{running?'批次已用':'批次耗时'} {elapsed===undefined?'—':toolTime(elapsed)}{callerTiming&&<> · <small>调用区间</small></>}</span>
+    </span>
   </div>
 }
 function CallGlyph({label,kind}:{label:string;kind:string}){
@@ -215,7 +217,7 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
         <details><summary>缺失明细</summary><ul>{issue.missingToolIds.map(id => <li key={id}>
           <strong>{model.toolRequests?.find(item => item.id === id)?.name ?? '工具名称未记录'}</strong> · {tools.some(tool => tool.id === id) ? '缺少结果记录' : '缺少执行记录'}<code>{id}</code>
         </li>)}</ul></details></div>}
-      <div className="capstone-call-nested"><ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking??'',startedAt:model.thinking?model.thinkingStartedAt:undefined,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{selected.length>1?(()=>{const summary=receiptBatchSummary((model.toolCallIds??[]).map(id=>selected.find(tool=>tool.id===id)?.executionReceipt));return <div className="capstone-parallel-group" role="group" aria-label={`${batchTitle} · ${model.toolCallIds!.length} 项`} title={model.toolAssociation==='turn'?'连线表示同一 SDK 轮次中的工具批次，不表示同时执行。':'连线表示同一模型响应中的工具批次，不表示同时执行。'}><BatchHeading title={batchTitle} count={model.toolCallIds!.length} summary={summary}/>{selected.map(tool=>renderTool(tool))}</div>})():selected.map(tool=>renderTool(tool))}</div>}</div>
+      <div className="capstone-call-nested"><ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking??'',startedAt:model.thinking?model.thinkingStartedAt:undefined,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{selected.length>1?(()=>{const summary=receiptBatchSummary((model.toolCallIds??[]).map(id=>selected.find(tool=>tool.id===id)?.executionReceipt));return <div className="capstone-parallel-group" role="group" aria-label={`${batchTitle} · ${model.toolCallIds!.length} 项`} title={model.toolAssociation==='turn'?'连线表示同一 SDK 轮次中的工具批次，不表示同时执行。':'连线表示同一模型响应中的工具批次，不表示同时执行。'}><BatchHeading title={batchTitle} count={model.toolCallIds!.length} summary={summary} callerElapsedMs={model.toolCallIds!.length===selected.length?batchElapsedMs(selected,active,now):undefined} running={active&&selected.some(tool=>tool.status==='running')}/>{selected.map(tool=>renderTool(tool))}</div>})():selected.map(tool=>renderTool(tool))}</div>}</div>
 
       {!issue && linked && model.toolCallIds!.length > selected.length && <p className="capstone-call-pending">等待工具记录 · {model.toolCallIds!.length - selected.length}项</p>}
       {mainDispatches.length>0&&<RequestPoolExecutions requests={mainDispatches} active={active} now={now}/>}
