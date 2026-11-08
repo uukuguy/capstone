@@ -232,6 +232,12 @@ class DelegatedRuntime:
                 raise HarnessRuntimeConfigurationError('general Pi task schema does not support required context')
         if selected_input is not None and 'input' not in task_fields:
             raise HarnessRuntimeConfigurationError('general Pi task schema does not support selected skill')
+        from .session_skill_preferences import execution_scope
+        skill_scope = execution_scope(submission)
+        if skill_scope is not None:
+            if 'input' not in task_fields:
+                raise HarnessRuntimeConfigurationError('general Pi task schema does not support skill scope')
+            task_fields['skill_scope'] = skill_scope
         from .domain_tool_grant import domain_tool_grant
         granted_tools = domain_tool_grant(
             resources.get('application_catalog'), self._claim.model_context) if task_fields else None

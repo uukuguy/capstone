@@ -7,17 +7,18 @@ from capstone_agent.session_skill_preferences import revise_preferences, freeze_
 
 def catalog(version='v1', ready=True):
     return {'delegated_pi': {'revision': 'catalog-current', 'resources': [
-        {'id': 'method', 'kind': 'skill', 'version': version, 'ready': ready}]}}
+        {'id': 'method', 'kind': 'skill', 'version': version, 'ready': ready, 'loaded_identity': 'a' * 64}]}}
 
 
 CHOICE = {'id': 'method', 'version': 'v1', 'role': 'delegated_pi'}
+PINNED = {**CHOICE, 'loaded_identity': 'a' * 64, 'catalog_revision': 'catalog-current'}
 
 
 def test_revision_conflict_does_not_replace_session_choices():
     settings = revise_preferences(None, expected_revision=0, skills=[CHOICE], profiles=catalog(), mode='capstone')
     with pytest.raises(ValueError, match='skill_preferences_conflict'):
         revise_preferences(settings, expected_revision=0, skills=[], profiles=catalog(), mode='capstone')
-    assert settings == {'revision': 1, 'skills': [CHOICE]}
+    assert settings == {'revision': 1, 'skills': [PINNED]}
 
 
 def test_frozen_instruction_survives_disable_and_catalog_change():
@@ -25,14 +26,14 @@ def test_frozen_instruction_survives_disable_and_catalog_change():
     frozen = freeze_preferences(settings, profiles=catalog(), mode='capstone', excluded=[])
     disabled = revise_preferences(settings, expected_revision=1, skills=[], profiles=catalog(), mode='capstone')
     assert disabled == {'revision': 2, 'skills': []}
-    assert frozen == {'revision': 1, 'skills': [{**CHOICE, 'catalog_revision': 'catalog-current'}], 'excluded': []}
-    assert settings['skills'] == [CHOICE]
+    assert frozen == {'revision': 1, 'skills': [PINNED], 'excluded': []}
+    assert settings['skills'] == [PINNED]
     with pytest.raises(ValueError, match='session_skill_unavailable'):
         freeze_preferences(settings, profiles=catalog('v2'), mode='capstone', excluded=[])
 
 
 def test_instruction_exclusion_is_local_and_cannot_name_unknown_preferences():
-    settings = {'revision': 1, 'skills': [deepcopy(CHOICE)]}
+    settings = {'revision': 1, 'skills': [deepcopy(PINNED)]}
     assert freeze_preferences(settings, profiles=catalog(), mode='capstone', excluded=['method'])['skills'] == []
     assert len(freeze_preferences(settings, profiles=catalog(), mode='capstone', excluded=[])['skills']) == 1
     with pytest.raises(ValueError, match='skill_exclusion_invalid'):
@@ -60,7 +61,7 @@ def test_session_command_is_durable_idempotent_and_freezes_each_instruction():
     assert service.submit_command(change).status == 'accepted'
     assert service.submit_command(change).status == 'accepted'
     restored = ThreadSnapshot.from_document(service.snapshot('thr_intent').to_document())
-    assert restored.session_skills == {'revision': 1, 'skills': [CHOICE]}
+    assert restored.session_skills == {'revision': 1, 'skills': [PINNED]}
     assert service.submit_command(command(service, input={'kind': 'text', 'text': 'Use this method'})).status == 'accepted'
     attempt = service.claim_attempt('worker_test', 30)
     assert attempt.submission['session_skills']['skills'][0]['id'] == 'method'
@@ -73,11 +74,11 @@ def test_session_command_is_durable_idempotent_and_freezes_each_instruction():
 
 def test_method_guidance_is_optional_and_contains_no_prior_goal_or_evidence():
     from capstone_agent.session_skill_preferences import method_guidance
-    frozen = freeze_preferences({'revision': 1, 'skills': [CHOICE]}, profiles=catalog(), mode='capstone', excluded=[])
+    frozen = freeze_preferences({'revision': 1, 'skills': [PINNED]}, profiles=catalog(), mode='capstone', excluded=[])
     guidance = method_guidance({'session_skills': frozen})
     assert 'method' in guidance
     assert 'not mandatory' in guidance
-    assert method_guidance({'session_skills': {'revision': 2, 'skills': [], 'excluded': ['method']}}) == ''
+    assert 'method' in method_guidance({'session_skills': {'revision': 2, 'skills': [], 'excluded': ['method']}})
 
 
 def test_native_executor_receives_frozen_preference_without_skill_invocation():
@@ -92,7 +93,7 @@ def test_native_executor_receives_frozen_preference_without_skill_invocation():
                     {'object_id': context.id, 'model_id': context.model_id,
                      'model_revision': context.model_revision, 'implementation_family': context.implementation_family}],
                     'context_selection': {'include_refs': [], 'exclude_refs': []},
-                    'session_skills': {'revision': 3, 'skills': [CHOICE], 'excluded': []}})
+                    'session_skills': {'revision': 3, 'skills': [{**PINNED, 'role': 'direct_pi'}], 'excluded': []}})
     executor = Executor()
     result = run(service, current, factory(executor, SimpleNamespace(identity=None)))
     assert result.status == 'completed', result
@@ -115,7 +116,7 @@ def test_postgres_preferences_restore_after_new_service(postgres_thread_service)
         'payload': {'skills': [CHOICE]}}
     assert service.submit_command(command).status == 'accepted'
     restored = PostgresThreadService(service.dsn).snapshot(thread_id)
-    assert restored.session_skills == {'revision': 1, 'skills': [CHOICE]}
+    assert restored.session_skills == {'revision': 1, 'skills': [PINNED]}
     assert restored.current_attempt is None
 
 

@@ -13,7 +13,7 @@ import {productRefKey,parseContextProductRefs,type ContextProductRef} from './th
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadCommandMenu from './ThreadCommandMenu'
 import InstructionAttachments,{bindInstructionAttachments,type InstructionFile} from './InstructionAttachments'
-import { buildInputSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
+import { buildInputSubmission, composerSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
 import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
@@ -1189,7 +1189,7 @@ function ComposerSurface({ initialRestoreError, productReferenceReader, disabled
           const current = buildInputSubmission(acceptedDraft.text.trim(), inputDraft)
           const {deep_research:currentDeep=false,...currentInput}=current
           const {deep_research:acceptedDeep=false,...acceptedInput}=acceptedDraft.submission??{}
-          if (!acceptedDraft.submission || currentDeep===acceptedDeep&&JSON.stringify(currentInput)===JSON.stringify(acceptedInput)) {
+          if (!acceptedDraft.submission || currentDeep===acceptedDeep&&JSON.stringify(composerSubmission(currentInput))===JSON.stringify(composerSubmission(acceptedInput))) {
             aui.composer.setText('')
             onInputChange({...emptyInputDraft(inputDraft.mode),llm_profile_id:inputDraft.llm_profile_id,...(inputDraft.material_refs===undefined?{}:{material_refs:inputDraft.material_refs})})
           }
@@ -1685,7 +1685,7 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
         }
         const sent = inputDraft
         const metadata = buildInputSubmission(text.trim(), activeInput)
-        if(runtimeMode==='capstone'||metadata.llm_profile_id!==undefined||inputDraft.skill||inputDraft.literal||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
+        if(runtimeMode==='capstone'||metadata.llm_profile_id!==undefined||inputDraft.skill||inputDraft.literal||inputDraft.excluded_session_skills?.length||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
         else await onSend('automatic',text.trim())
         setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),llm_profile_id:metadata.llm_profile_id,...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
         returnToLatest()

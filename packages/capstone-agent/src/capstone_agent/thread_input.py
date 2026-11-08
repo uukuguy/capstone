@@ -128,6 +128,9 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
                 submission['session_skills'] = freeze_preferences(snapshot.session_skills,
                     profiles=catalog['resource_profiles'], mode=snapshot.runtime_mode,
                     excluded=payload.get('excluded_session_skills', []))
+                if (submission['input']['kind'] == 'skill_invocation'
+                        and submission['input']['skill_id'] in submission['session_skills']['excluded']):
+                    raise InputRejected('session_skill_selection_conflict')
             except ValueError as error:
                 raise InputRejected(str(error)) from error
         submission['model_context'] = None if context is None else context.to_document()

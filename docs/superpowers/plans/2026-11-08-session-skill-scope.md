@@ -42,3 +42,14 @@ A missing test database is a skipped persistence check, not a pass. Browser conn
 ## Successor
 
 IG2 adds optional editable start examples to the existing empty state. IG3 adds evidence-bound next actions. IG4 adds investigation continuity and scope-change recovery. These remain separate acceptance units in the canonical unified-execution worklist.
+
+## Independent-review repair slice
+
+- [x] R1: carry instruction exclusions through direct input and typed Pi skill_scope; enforce them in NativeResourceStore before SDK skill publication; reject explicit selection conflicts.
+- [x] R2: persist the selected loaded_identity and catalog revision; reject same-label content replacement; require explicit reselection of unpinned legacy preferences. Preserve old accepted catalogs for old instruction replay.
+- [x] R3: map stale/unavailable/content/exclusion failures to specific recovery instructions with retained drafts.
+- [x] R4: add explicit latest-configuration reload before resubmission; do not silently rebase stale choices. Add Escape, focus return and outside dismissal.
+- [x] R5: share composer-owned submission projection, retain exclusions and compare stable key order during accepted-draft recovery.
+- [ ] Canonical local-dev rebuild and exact API/worker/native identity check; use selected三区研发, preserve data and credentials.
+- [ ] Real model execution with persisted pinned preferences, allowed-method use and excluded-method denial at the native boundary; verify products and continuation.
+- [ ] Independent follow-up review and actual UI checks. Prior REQUEST CHANGES remains in force until evidence closes it. No CI authorization.

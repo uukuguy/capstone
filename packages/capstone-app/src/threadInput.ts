@@ -19,7 +19,7 @@ export type InputCatalog = {
   schema: 'capstone-thread-input-catalog/1'; revision: string; context_id: string; selection_revision: string
   objects: { object_id: string; model_id: string; model_revision: string; implementation_family: string }[]
   materials: { material_id: string; display_name: string; size_bytes?: number; media_type?: string; sha256?: string }[]
-  resource_profiles: Partial<Record<SkillRole, { revision: string; resources: { id: string; native_name?: string | null; description?: string | null; kind: string; version: string; source: string; ready: boolean; reason: string | null }[] }>>
+  resource_profiles: Partial<Record<SkillRole, { revision: string; resources: { id: string; loaded_identity?:string|null;native_name?: string | null; description?: string | null; kind: string; version: string; source: string; ready: boolean; reason: string | null }[] }>>
   operations: { operation_id: string; scope: string; role: string; available: boolean; reason: string | null; revision: string }[]
 }
 export const emptyInputDraft = (mode: RuntimeMode): InputDraft => ({ mode, context: { include_refs: [], exclude_refs: [] } })
@@ -64,6 +64,13 @@ export function buildInputSubmission(text: string, draft: InputDraft): InputSubm
     ...(draft.skill ? { resource_profile: { profile_id: draft.skill.role, revision: draft.skill.revision } } : {}), context_selection: draft.context,
     ...(draft.material_refs === undefined ? {} : {material_refs: [...draft.material_refs]}),
     ...(draft.context_product_refs===undefined?{}:{context_product_refs:parseContextProductRefs(draft.context_product_refs)}) }
+}
+// Keep only composer-owned fields; attachment admission belongs to the host.
+// Fixed key order also makes recovery comparison independent of payload order.
+export function composerSubmission(payload:Partial<InputSubmission>&{text?:string}):InputSubmission|undefined{
+  if(!payload.input||!payload.context_selection)return
+  const keys=['input','excluded_session_skills','deep_research','llm_profile_id','resource_profile','context_selection','material_refs','context_product_refs'] as const
+  return structuredClone(Object.fromEntries(keys.filter(key=>payload[key]!==undefined).map(key=>[key,payload[key]]))) as InputSubmission
 }
 function validMaterialRefs(value: unknown): value is string[] {
   return Array.isArray(value) && !exceedsCapacity(value.length,'inline_material_count') && value.every(ref => typeof ref === 'string' && /^material_[a-f0-9]{32}$/.test(ref)) && new Set(value).size === value.length

@@ -6,8 +6,32 @@ import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import {parseProductRef} from './threadProducts'
 import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
+import {composerSubmission,buildInputSubmission,emptyInputDraft} from './threadInput'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('sends instruction exclusions in direct mode without another explicit selection',async()=>{
+ const onSend=vi.fn().mockResolvedValue(undefined)
+ sessionStorage.setItem('direct-exclusion.input',JSON.stringify({mode:'pi_reference',context:{include_refs:[],exclude_refs:[]},excluded_session_skills:['method']}))
+ render(<CapstoneAssistantThread storageKey="direct-exclusion" runtimeMode="pi_reference" events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async()=>{}} inputCatalog={{schema:'capstone-thread-input-catalog/1',revision:'r',objects:[],materials:[],operations:[],resource_profiles:{},session_skills:{revision:1,skills:[{id:'method',version:'v1',role:'direct_pi'}]}} as never}/> )
+ fireEvent.change(screen.getByLabelText('Thread 指令'),{target:{value:'continue'}})
+ fireEvent.click(screen.getByRole('button',{name:'发送指令'}))
+ await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','continue',expect.objectContaining({excluded_session_skills:['method']})))
+})
+it('clears a recovered accepted exclusion draft once and keeps subsequent edits',async()=>{
+ const draft={...emptyInputDraft('pi_reference'),excluded_session_skills:['method']}
+ sessionStorage.setItem('recovered-exclusion.input',JSON.stringify(draft))
+ const props={storageKey:'recovered-exclusion',runtimeMode:'pi_reference' as const,events:[],disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+ const view=render(<CapstoneAssistantThread {...props}/>)
+ const input=screen.getByLabelText('Thread 指令') as HTMLTextAreaElement
+ fireEvent.change(input,{target:{value:'已接纳'}})
+ const submission=composerSubmission({...buildInputSubmission('已接纳',draft),text:'已接纳'})
+ const accepted={text:'已接纳',commandId:'accepted-exclusion',submission}
+ view.rerender(<CapstoneAssistantThread {...props} acceptedDraft={accepted}/> )
+ await waitFor(()=>expect(input.value).toBe(''))
+ fireEvent.change(input,{target:{value:'新草稿'}})
+ view.rerender(<CapstoneAssistantThread {...props} acceptedDraft={{...accepted}}/> )
+ expect(input.value).toBe('新草稿')
+})
 it('uses launcher elapsed time without adding batch receipts to the tool count',()=>{
  const attempt='launcher',batch={schema:'capstone-tool-batch/1',task_id:'task',batch_id:'batch',mode:'parallel',capacity:8,call_ids:['a','b'],elapsed_ms:1200}
  const events=[event('attempt_started',1,{},attempt),event('turn_route_selected',2,{source:'native_conversation'},attempt),event('runtime_action',3,{phase:'started'},attempt),event('runtime_action',4,{phase:'response_completed',response_kind:'tools'},attempt)]

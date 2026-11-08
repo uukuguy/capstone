@@ -28,6 +28,7 @@ import AnswerDetailSheet from './AnswerDetailSheet'
 import AttemptRecordPanel from './AttemptRecordPanel'
 import SessionNewPopover from './SessionNewPopover'
 import type {InputCatalog,InputSubmission,GatewayConnectionStatus} from './threadInput'
+import {composerSubmission} from './threadInput'
 import {sessionTypeNames} from './SessionEntry'
 import ProcessProductWorkspace from './ProcessProductWorkspace'
 import type {ProcessProduct} from './processProducts'
@@ -227,7 +228,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       try{const resources=await transport.readStoredResources(currentId);if(live)setInputCatalog({...value,stored_resources:resources})}catch(cause){rethrowDebugCapacity(cause) /* Keep the existing input catalog available. */}
     }).catch(cause=>{rethrowDebugCapacity(cause);if(live)setInputCatalog(undefined)}).finally(()=>{if(live)setCatalogLoading(false)})
     return()=>{live=false}
-  },[client,currentId,nativeChat,catalogReload,materialRevision])
+  },[client,currentId,nativeChat,catalogReload,materialRevision,snapshot?.sessionSkills?.revision])
   useEffect(() => {
     const refresh=()=>setListReload(value=>value+1)
     window.addEventListener('capstone-session-renamed',refresh)
@@ -361,7 +362,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const payload=command.payload as {text:string}&Partial<InputSubmission>
         setAttachments(files=>files.filter(file=>!payload.attachment_refs?.includes(file.resource_id)))
         setCatalogReload(value=>value+1)
-        const submission=payload.input&&payload.context_selection?{input:payload.input,context_selection:payload.context_selection,...(payload.llm_profile_id===undefined?{}:{llm_profile_id:payload.llm_profile_id}),...(payload.deep_research===undefined?{}:{deep_research:payload.deep_research}),...(payload.resource_profile?{resource_profile:payload.resource_profile}:{}),...(payload.material_refs!==undefined?{material_refs:payload.material_refs}:{}),...(payload.context_product_refs!==undefined?{context_product_refs:payload.context_product_refs}:{})}:undefined
+        const submission=composerSubmission(payload)
         setAcceptedDraft({text:payload.text,commandId:command.command_id,submission})
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message') { drafts.current[selected] = ''; persist(selected) }
@@ -638,6 +639,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           if(receipt.status!=='accepted')throw new Error(receipt.rejection==='skill_preferences_conflict'?'配置已变化，请刷新后重选。':'会话技能未保存，请检查版本和可用状态。')
           if(receipt.acceptedEventSeq)await store.catchUpThrough(receipt.acceptedEventSeq)
           await store.refreshWorkSnapshot()
+        }} onReload={async()=>{
+          await store.refreshWorkSnapshot()
+          const catalog=await client.inputCatalog(currentId)
+          if(catalog)setInputCatalog(catalog)
+          const latest=store.state.workSnapshot
+          if(!latest)throw new Error('会话配置暂时无法读取，请稍后重试。')
+          return latest.sessionSkills??{revision:0,skills:[]}
         }}/>}
         {nativeChat&&pending?.kind==='send_message'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
         {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}

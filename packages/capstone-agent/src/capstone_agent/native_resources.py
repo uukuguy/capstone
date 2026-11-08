@@ -268,6 +268,12 @@ class NativeResourceStore:
                   if item['enabled'] and item['installed'] and (inventory_only or item['ready'])}
         allowed = [item['native_name'] for item in json.loads(state['configuration_json'])['resources']
                    if item['kind'] == 'skill' and item['id'] in active]
+        skill_scope = request.to_document().get('skill_scope')
+        if skill_scope is not None:
+            from .session_skill_preferences import scoped_skill_names
+            allowed = scoped_skill_names(skill_scope, profile=state['profile'],
+                declarations=json.loads(state['configuration_json'])['resources'], allowed=allowed,
+                role=role, task_input=request.to_document().get('input', {}))
         context_files = []
         system_prompt, append_system_prompt = None, []
         for name in state['settings']:
@@ -282,6 +288,7 @@ class NativeResourceStore:
             if (base / 'APPEND_SYSTEM.md').is_file():
                 append_system_prompt.append((base / 'APPEND_SYSTEM.md').read_text())
         return {'profile': state['profile'], 'configuration': json.loads(state['configuration_json']),
+                **({'sessionSkillScope': skill_scope} if skill_scope is not None else {}),
                 'allowedSkills': allowed, 'contextFiles': context_files,
                 'systemPrompt': system_prompt, 'appendSystemPrompt': append_system_prompt,
                 'skillName': _input_name(request.to_document().get('input', {'kind': 'text', 'text': request.instruction}),
