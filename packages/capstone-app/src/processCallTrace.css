@@ -1,7 +1,8 @@
 .capstone-call-trace { --trace-text: var(--text, #172d32); --trace-secondary: var(--muted, #576c70); --trace-accent: #286b62; list-style: none; padding: 0; margin: 2px 0; font-size: var(--capstone-trace-font-size, 11px); line-height: 1.45; color: var(--trace-text); }
 .capstone-call-trace > li + li { margin-top: 3px; }
-.capstone-call-model { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; padding: 1px 0; }
+.capstone-call-model { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; padding: 2px 4px; background: #edf3f0; border-radius: 4px; }
 .capstone-call-model strong { font-weight: 600; }
+.capstone-call-model > strong.capstone-call-model-label { color: #275b52; border: 1px solid #b9cec5; border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .capstone-call-tokens { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 10px; color: var(--graph-muted, #647d76); font-variant-numeric: tabular-nums; }
 .capstone-call-intent, .capstone-call-response { font-size: 11px; margin: 4px 0; max-width: 85ch; overflow-wrap: anywhere; }
 .capstone-call-intent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--graph-muted, #647d76); }
@@ -82,9 +83,7 @@
 .capstone-call-pool li > span:first-child { overflow-wrap: anywhere; }
 .capstone-call-pool li > :not(:first-child) { color: var(--trace-muted, #64748b); white-space: nowrap; }
 .capstone-call-tool-entry { min-width: 0; max-width: 100%; }
-.capstone-call-tool-entry.is-skill,
-.capstone-chat-activity-item.is-skill { border-left: 2px solid #8871ad; border-radius: 3px; background: #f5f1fa; padding-left: 6px; }
-.capstone-skill-badge { display: inline-block; flex: none; color: #654787; background: #eee5f7; border: 1px solid #d5c4e7; border-radius: 3px; padding: 0 4px; font-size: .9em; line-height: 1.5; white-space: nowrap; }
+.capstone-skill-badge { display: inline-block; flex: none; color: var(--trace-secondary, #576c70); border: 1px solid #c7d2ce; border-radius: 3px; padding: 0 4px; font-size: .9em; line-height: 1.5; white-space: nowrap; }
 .capstone-call-notice { display: flex; align-items: baseline; gap: 5px; margin: 2px 0 5px 17px; padding: 3px 7px; border-left: 2px solid; border-radius: 0 3px 3px 0; max-width: 80ch; font-size: inherit; line-height: 1.45; }
 .capstone-call-notice svg { flex: none; width: 12px; height: 12px; align-self: flex-start; margin-top: 2px; }
 .capstone-call-notice span { overflow-wrap: anywhere; }
