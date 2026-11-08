@@ -118,15 +118,16 @@ def parse_command(command):
     if command.get('run_id') is not None:
         _identifier(command['run_id'], name='run_id')
     target = command['target']
+    target_kind = {'rename_session': 'session_title', 'set_session_skills': 'session_skills'}.get(command['kind'], 'work')
     if (not isinstance(target, dict) or set(target) != {'kind', 'id', 'expected_revision'}
-            or target['kind'] != ('session_title' if command['kind'] == 'rename_session' else 'work') or type(target['expected_revision']) is not int
+            or target['kind'] != target_kind or type(target['expected_revision']) is not int
             or target['expected_revision'] < 0):
         raise ThreadProtocolError('invalid Work target')
     _identifier(target['id'], name='target.id')
     if not isinstance(command['kind'], str) or not isinstance(command['payload'], dict):
         raise ThreadProtocolError('invalid Work command')
     if command['kind'] == 'send_message' and (set(command['payload']) - {
-            'text', 'input', 'context_selection', 'resource_profile', 'enabled_profiles', 'source_attempt_id', 'material_refs', 'context_product_refs', 'attachment_refs', 'deep_research', 'llm_profile_id'}):
+            'text', 'input', 'context_selection', 'resource_profile', 'enabled_profiles', 'source_attempt_id', 'material_refs', 'context_product_refs', 'attachment_refs', 'deep_research', 'llm_profile_id', 'excluded_session_skills'}):
         raise ThreadProtocolError('invalid message input fields')
     _validate_json(command['payload'], name='command.payload')
     require_capacity('command_bytes', len(_canonical(command).encode()), phase='command')
@@ -287,8 +288,8 @@ def parse_snapshot(document):
     if context is None:
         from .thread_protocol import RunSnapshot, _identifier, _sequence
         allowed = {'schema', 'runtime_mode', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id',
-                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state', 'session_title', 'session_type'}
-        required = allowed - {'runtime_mode', 'application_state', 'session_title', 'session_type'}
+                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state', 'session_title', 'session_type', 'session_skills'}
+        required = allowed - {'runtime_mode', 'application_state', 'session_title', 'session_type', 'session_skills'}
         if (set(base) - allowed or not required <= set(base)
                 or base.get('active_grid_page_id') is not None):
             raise ThreadProtocolError('invalid model-free snapshot')
@@ -299,6 +300,7 @@ def parse_snapshot(document):
                                   application_state=base.get('application_state'), runtime_mode=base.get('runtime_mode', 'capstone'),
                                   minimum_protocol_version=2,
                                   session_type=base.get('session_type'),
+                                  session_skills=base.get('session_skills'),
                                   session_title=None if base.get('session_title') is None else SessionTitle.from_document(base['session_title']))
     else:
         base['schema'] = 'capstone-thread-snapshot/1'

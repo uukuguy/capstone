@@ -2,14 +2,16 @@ import {assertCapacity,exceedsCapacity,CapacityError,rethrowDebugCapacity} from 
 import type { RuntimeMode } from './threadProtocol'
 import {parseContextProductRefs,type ContextProductRef} from './threadProducts'
 import type {StoredResource} from './resourceUploads'
+import {parseSessionSkills} from './sessionSkills'
 
 export type SkillRole = 'harness_engine' | 'direct_pi' | 'delegated_pi'
 export type SkillChoice = { id: string; version: string; role: SkillRole; revision: string }
 export type ContextChoice = { include_refs: string[]; exclude_refs: string[] }
 export type GatewayConnectionStatus={available:boolean;connection_name?:string;server_name?:string;server_version?:string;endpoint?:string;instance_id?:string;instance_name?:string;environment_label?:string;data_source_label?:string;offline?:boolean}
-export type InputDraft = { mode: RuntimeMode; llm_profile_id?:string; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
-export type InputSubmission = { llm_profile_id?:string; deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
+export type InputDraft = { excluded_session_skills?:string[];mode: RuntimeMode; llm_profile_id?:string; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
+export type InputSubmission = { excluded_session_skills?:string[];llm_profile_id?:string; deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
 export type InputCatalog = {
+  session_skills?:import('./sessionSkills').SessionSkills
   resource_management?:{enabled:boolean}
   data_gateway?:GatewayConnectionStatus
   llm_profiles?:{default_profile_id:string;profiles:{id:string;label:string;model:string;available:boolean;icon?:string}[]}
@@ -26,6 +28,7 @@ export function skillCompatible(skill: SkillChoice, mode: RuntimeMode) {
   return mode === 'pi_reference' ? skill.role === 'direct_pi' : skill.role === 'harness_engine' || skill.role === 'delegated_pi'
 }
 export function inputDraftError(draft: InputDraft, catalog?: InputCatalog): string | undefined {
+  if(draft.excluded_session_skills!==undefined&&(!validSkillExclusions(draft.excluded_session_skills)||catalog&&draft.excluded_session_skills.some(id=>!catalog.session_skills?.skills.some(skill=>skill.id===id))))return '本轮排除的会话技能已变化，请清除后重选。'
   if(draft.llm_profile_id!==undefined){
     if(!validLlmProfileId(draft.llm_profile_id))return 'LLM 选择无效，请重新选择。'
     if(!catalog)return '正在读取 LLM 目录。'
@@ -49,11 +52,13 @@ export function parseInputCommand(text: string): { kind: 'skills' | 'context'; r
   return { kind: 'unknown', name: match[1], rest: match[2] || '' }
 }
 export function buildInputSubmission(text: string, draft: InputDraft): InputSubmission {
+  if(draft.excluded_session_skills!==undefined&&!validSkillExclusions(draft.excluded_session_skills))throw new Error('本轮技能排除无效。')
   if(draft.llm_profile_id!==undefined&&!validLlmProfileId(draft.llm_profile_id))throw new Error('LLM 选择无效。')
   assertCapacity(text.length,'input_text_chars')
   if (draft.material_refs !== undefined && !validMaterialRefs(draft.material_refs)) throw new Error('所选资料无效。')
   if (draft.skill && !skillCompatible(draft.skill, draft.mode)) throw new Error('所选技能与当前模式不兼容，请重新选择。')
   return { input: draft.skill ? { kind: 'skill_invocation', text, skill_id: draft.skill.id, skill_version: draft.skill.version } : { kind: 'text', text },
+    ...(draft.excluded_session_skills?.length?{excluded_session_skills:[...draft.excluded_session_skills]}:{}),
     ...(draft.deep_research===undefined?{}:{deep_research:false}),
     ...(draft.llm_profile_id===undefined?{}:{llm_profile_id:draft.llm_profile_id}),
     ...(draft.skill ? { resource_profile: { profile_id: draft.skill.role, revision: draft.skill.revision } } : {}), context_selection: draft.context,
@@ -62,6 +67,9 @@ export function buildInputSubmission(text: string, draft: InputDraft): InputSubm
 }
 function validMaterialRefs(value: unknown): value is string[] {
   return Array.isArray(value) && !exceedsCapacity(value.length,'inline_material_count') && value.every(ref => typeof ref === 'string' && /^material_[a-f0-9]{32}$/.test(ref)) && new Set(value).size === value.length
+}
+function validSkillExclusions(value:unknown):value is string[]{
+  return Array.isArray(value)&&!exceedsCapacity(value.length,'context_references')&&value.every(id=>typeof id==='string'&&!!id.trim()&&id.length<=256)&&new Set(value).size===value.length
 }
 export function readInputDraft(key?: string): InputDraft | undefined {
   if (!key) return
@@ -72,6 +80,7 @@ export function readInputDraft(key?: string): InputDraft | undefined {
     const value = JSON.parse(text)
     if(value.llm_profile_id!==undefined&&!validLlmProfileId(value.llm_profile_id))return
     if(value.deep_research!==undefined&&typeof value.deep_research!=='boolean')return
+    if(value.excluded_session_skills!==undefined&&!validSkillExclusions(value.excluded_session_skills))return
     if (!['capstone', 'pi_reference'].includes(value.mode) || !Array.isArray(value.context?.include_refs) || !Array.isArray(value.context?.exclude_refs)) return
     if (value.skill && (!['harness_engine', 'direct_pi', 'delegated_pi'].includes(value.skill.role) || ['id', 'version', 'revision'].some(key => typeof value.skill[key] !== 'string'))) return
     if (value.material_refs !== undefined && !validMaterialRefs(value.material_refs)) return
@@ -86,6 +95,7 @@ export function writeInputDraft(key: string | undefined, value: InputDraft): voi
 }
 export function parseInputCatalog(value: unknown): InputCatalog {
   const item = value as InputCatalog
+  if(item?.session_skills!==undefined)parseSessionSkills(item.session_skills)
   if(item?.resource_management!==undefined&&typeof item.resource_management?.enabled!=='boolean')throw new Error('资源管理配置无效')
   if (!item || item.schema !== 'capstone-thread-input-catalog/1' || typeof item.revision !== 'string'
       || !Array.isArray(item.objects) || exceedsCapacity(item.objects.length,'resource_profile_items') || !Array.isArray(item.materials) || exceedsCapacity(item.materials.length,'inline_material_count')

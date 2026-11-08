@@ -32,6 +32,7 @@ import {sessionTypeNames} from './SessionEntry'
 import ProcessProductWorkspace from './ProcessProductWorkspace'
 import type {ProcessProduct} from './processProducts'
 import SessionHeading from './SessionHeading'
+import SessionSkillSettings from './SessionSkillSettings'
 import {displaySessionTitle} from './sessionTitle'
 import {parseCommandReceipt,type EventEnvelope} from './threadProtocol'
 import NativeArtifactsWorkspace from './NativeArtifactsWorkspace'
@@ -631,6 +632,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         window.dispatchEvent(new Event('capstone-session-renamed'))
       }:undefined} />
       <div className="thread-chat-heading-meta">
+        {nativeChat&&snapshot&&<SessionSkillSettings key={currentId} value={snapshot.sessionSkills??{revision:0,skills:[]}} catalog={inputCatalog} mode={snapshot.runtimeMode} disabled={projection.connection!=='live'} onSave={async(skills,revision)=>{
+          const request=commandKey()
+          const receipt=parseCommandReceipt(await transport.setSessionSkills(currentId,snapshot.runId,revision,skills,`cmd_${request}`,`idem_${request}`))
+          if(receipt.status!=='accepted')throw new Error(receipt.rejection==='skill_preferences_conflict'?'配置已变化，请刷新后重选。':'会话技能未保存，请检查版本和可用状态。')
+          if(receipt.acceptedEventSeq)await store.catchUpThrough(receipt.acceptedEventSeq)
+          await store.refreshWorkSnapshot()
+        }}/>}
         {nativeChat&&pending?.kind==='send_message'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
         {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}
         {pendingCommand?.schema === 'capstone-command/1' && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void recoverLegacyCommand()}>重试原对话请求</button>}

@@ -533,6 +533,7 @@ class ThreadSnapshot:
     native_execution: Mapping[str, Any] | None = None
     session_title: SessionTitle | None = None
     session_type: str | None = None
+    session_skills: Mapping[str, Any] | None = None
 
     @property
     def professional_context(self) -> ModelContextSnapshot:
@@ -542,6 +543,8 @@ class ThreadSnapshot:
         return self.active_model_context
 
     def __post_init__(self) -> None:
+        from .session_skill_preferences import checked_preferences
+        object.__setattr__(self, 'session_skills', checked_preferences(self.session_skills))
         if self.session_type not in {None, 'grid-analysis', 'enterprise-research', 'general-chat'}:
             raise ThreadProtocolError('invalid session type')
         if self.session_title is not None and not isinstance(self.session_title, SessionTitle):
@@ -577,12 +580,12 @@ class ThreadSnapshot:
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
             "current_attempt", "last_event_seq", "base_event_seq", "pending_selection", "session_title", "session_type",
-            "pending_model_switch", "result_projections", "application_state", "runtime_mode",
+            "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_skills",
         })
         _fields(document, allowed, name="snapshot")
         _required(
             document,
-            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_title", "session_type"},
+            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_title", "session_type", "session_skills"},
             name="snapshot",
         )
         if document["schema"] != _SNAPSHOT_SCHEMA:
@@ -654,6 +657,7 @@ class ThreadSnapshot:
             application_state=application_state,
             session_title=None if document.get('session_title') is None else SessionTitle.from_document(document['session_title']),
             session_type=document.get('session_type'),
+            session_skills=document.get('session_skills'),
             runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
         )
 
@@ -675,6 +679,8 @@ class ThreadSnapshot:
             document['session_title'] = self.session_title.to_document()
         if self.session_type is not None:
             document['session_type'] = self.session_type
+        if self.session_skills and self.session_skills['revision']:
+            document['session_skills'] = dict(self.session_skills)
         if self.pending_model_switch is not None:
             document["pending_model_switch"] = self.pending_model_switch.to_document()
         if self.result_projections:

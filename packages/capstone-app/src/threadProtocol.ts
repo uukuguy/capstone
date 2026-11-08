@@ -1,6 +1,7 @@
 import {applicationCapacity,assertCapacity,exceedsCapacity} from './applicationCapacity'
 import { parseNetworkDiagram } from './networkValidation'
 import { parseSessionTitle, type SessionTitle } from './sessionTitle'
+import {parseSessionSkills,type SessionSkills} from './sessionSkills'
 
 export type RunState = 'created' | 'open' | 'closing' | 'closed' | 'failed'
 export type RuntimeMode = 'capstone' | 'pi_reference'
@@ -61,6 +62,7 @@ export type ResultProjection = {
 export type ThreadSnapshot = {
   sessionType?: 'grid-analysis'|'enterprise-research'|'general-chat'
   sessionTitle?: SessionTitle
+  sessionSkills?: SessionSkills
   threadId: string
   runtimeMode: RuntimeMode
   run: RunSnapshot
@@ -527,6 +529,7 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
     ...(snapshot.resultProjections ? { result_projections: snapshot.resultProjections.map(resultProjectionDocument) } : {}),
     ...(snapshot.sessionTitle ? {session_title: {...snapshot.sessionTitle}} : {}),
     ...(snapshot.sessionType ? {session_type:snapshot.sessionType} : {}),
+    ...(snapshot.sessionSkills ? {session_skills:snapshot.sessionSkills} : {}),
     ...(snapshot.applicationState ? { application_state: {
       ...(snapshot.applicationState.result_projection_history?{result_projection_history:snapshot.applicationState.result_projection_history}:{}),
       ...(snapshot.applicationState.caseExecution ? { case_execution: {
@@ -558,9 +561,9 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
 
 export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   const document = object(value, 'snapshot')
-  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title', 'session_type']
+  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title', 'session_type', 'session_skills']
   fields(document, new Set(keys), 'snapshot')
-  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title', 'session_type'].includes(key)), 'snapshot')
+  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title', 'session_type', 'session_skills'].includes(key)), 'snapshot')
   if(document.session_type!=null && !['grid-analysis','enterprise-research','general-chat'].includes(String(document.session_type)))throw new ThreadProtocolError('会话类型无效')
   if (document.schema !== 'capstone-thread-snapshot/1') throw new ThreadProtocolError('snapshot.schema is invalid')
   const lastEventSeq = sequence(document.last_event_seq, 'snapshot.last_event_seq')
@@ -609,6 +612,7 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
     ...(applicationState ? { applicationState } : {}),
     ...(document.session_title == null ? {} : {sessionTitle: parseSessionTitle(document.session_title)}),
     ...(document.session_type == null ? {} : {sessionType: document.session_type as ThreadSnapshot['sessionType']}),
+    ...(document.session_skills == null ? {} : {sessionSkills:parseSessionSkills(document.session_skills)}),
     ...(document.pending_selection == null ? {} : { pendingSelection: parsePendingSelection(document.pending_selection) }),
     ...(document.pending_model_switch == null ? {} : { pendingModelSwitch: parsePendingModelSwitch(document.pending_model_switch) }),
   }

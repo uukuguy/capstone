@@ -1,6 +1,7 @@
 import {assertCapacity,exceedsCapacity} from './applicationCapacity'
 import { parseContext, parseThreadSnapshot, ThreadProtocolError, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
 import { parseSessionTitle, type SessionTitle } from './sessionTitle'
+import {parseSessionSkills,type SessionSkills} from './sessionSkills'
 import type { InputSubmission } from './threadInput'
 import {validLlmProfileId} from './threadInput'
 import {parseContextProductRefs} from './threadProducts'
@@ -17,6 +18,7 @@ export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPha
   targetModelContextId: string | null; runtimeMode: RuntimeMode; workId: string | null }
 export type WorkSnapshot = {
   sessionTitle?: SessionTitle
+  sessionSkills?: SessionSkills
   sessionType?: 'general-chat' | 'enterprise-research' | 'grid-analysis'
   runtimeMode: RuntimeMode
   nativeExecution?: { available: boolean; unavailableReason: string | null }
@@ -118,6 +120,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
     currentAttempt, runtimeMode, ...(nativeExecution ? {nativeExecution} : {}),
     ...(body.session_type == null ? {} : {sessionType: body.session_type as WorkSnapshot['sessionType']}),
     ...(body.session_title == null ? {} : {sessionTitle: parseSessionTitle(body.session_title)}),
+    ...(body.session_skills == null ? {} : {sessionSkills:parseSessionSkills(body.session_skills)}),
     toDocument: () => structuredClone(body) }
 }
 

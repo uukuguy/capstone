@@ -1439,6 +1439,22 @@ class InMemoryThreadService(NativeExecutionOwner):
         self._command_ids.add(parsed['command_id'])
         return receipt
 
+    def _submit_skill_preferences(self, parsed, request_hash):
+        from .session_skill_preferences import apply_preferences
+        settings, rejection = apply_preferences(self._snapshot, parsed,
+            archived=self._archived, provider=self._input_catalog_provider)
+        event_seq = None
+        if settings is not None:
+            event = self._append_control_event(event_type='session_skills_changed', payload={
+                'command_id': parsed['command_id'], 'session_skills': settings})
+            event_seq = event.event_seq
+            self._snapshot = replace(self._snapshot, session_skills=settings, last_event_seq=event_seq)
+        receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
+                                rejection=rejection, accepted_event_seq=event_seq)
+        self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
+        self._command_ids.add(parsed['command_id'])
+        return receipt
+
     def read_thread_gateway(self, thread_id):
         from copy import deepcopy
         with self._lock:
@@ -1575,6 +1591,8 @@ class InMemoryThreadService(NativeExecutionOwner):
             if command.get('schema') == 'capstone-command/2' and parsed['kind'] not in MODEL_COMMANDS:
                 if parsed['kind'] == 'rename_session':
                     return self._submit_title_command(parsed, request_hash)
+                if parsed['kind'] == 'set_session_skills':
+                    return self._submit_skill_preferences(parsed, request_hash)
                 return self._submit_work_command(parsed, request_hash)
             if self._snapshot.minimum_protocol_version > 1 and command.get('schema') != 'capstone-command/2':
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
@@ -2880,6 +2898,7 @@ ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_conte
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS submission_snapshot jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_skills jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
@@ -2895,6 +2914,31 @@ def _timestamp(value: Any) -> str:
 
 
 class PostgresThreadService(NativeExecutionOwner):
+    def _submit_skill_preferences(self, connection, thread, snapshot, parsed, request_hash):
+        from .session_skill_preferences import apply_preferences
+        duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
+                                       (snapshot.thread_id, parsed['command_id'])).fetchone()
+        if duplicate:
+            return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
+        settings, rejection = apply_preferences(snapshot, parsed,
+            archived=thread['archived'], provider=self._input_catalog_provider)
+        event_seq = None
+        if settings is not None:
+            event_seq = snapshot.last_event_seq + 1
+            event = EventEnvelope(event_id='evt_' + secrets.token_hex(8), event_seq=event_seq,
+                event_type='session_skills_changed', event_version=1, thread_id=snapshot.thread_id,
+                run_id=snapshot.run.run_id, turn_id=None, attempt_id=None, model_context_id=None,
+                selection_revision=None, occurred_at=_now(), visibility='public',
+                payload={'command_id': parsed['command_id'], 'session_skills': settings})
+            self._insert_event(connection, event)
+            connection.execute('UPDATE capstone_threads SET session_skills=%s, last_event_seq=%s WHERE thread_id=%s',
+                               (Jsonb(settings), event_seq, snapshot.thread_id))
+        receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id},
+            status='rejected' if rejection else 'accepted', rejection=rejection, accepted_event_seq=event_seq)
+        connection.execute('INSERT INTO capstone_thread_commands (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)',
+            (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
+        return receipt
+
     def _submit_title(self, connection, thread, snapshot, parsed, request_hash):
         from .session_title import rename_session
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
@@ -3126,10 +3170,10 @@ class PostgresThreadService(NativeExecutionOwner):
         if context is None:
             with self._connect() as connection:
                 connection.execute('''INSERT INTO capstone_threads
-                    (thread_id, run_id, run_state, minimum_protocol_version, works, session_title, session_type, workspace_name)
-                    VALUES (%s, %s, %s, 2, %s, %s, %s, %s)''',
+                    (thread_id, run_id, run_state, minimum_protocol_version, works, session_title, session_type, workspace_name, session_skills)
+                    VALUES (%s, %s, %s, 2, %s, %s, %s, %s, %s)''',
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state, Jsonb(list(snapshot.works)),
-                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type, name))
+                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type, name, Jsonb(dict(snapshot.session_skills))))
             return snapshot
         started = time.perf_counter()
         initial_diagram = None
@@ -3173,6 +3217,9 @@ class PostgresThreadService(NativeExecutionOwner):
             if snapshot.session_type is not None:
                 connection.execute('UPDATE capstone_threads SET session_type=%s WHERE thread_id=%s',
                                    (snapshot.session_type, snapshot.thread_id))
+            if snapshot.session_skills:
+                connection.execute('UPDATE capstone_threads SET session_skills=%s WHERE thread_id=%s',
+                                   (Jsonb(dict(snapshot.session_skills)), snapshot.thread_id))
             if initial_diagram is not None:
                 event = self._make_control_event({"thread_id": snapshot.thread_id, "run_id": snapshot.run.run_id}, context,
                     event_seq=snapshot.last_event_seq + 1, event_type="network_diagram", payload={"diagram": initial_diagram})
@@ -3535,6 +3582,8 @@ class PostgresThreadService(NativeExecutionOwner):
             if command.get('schema') == 'capstone-command/2' and parsed['kind'] not in MODEL_COMMANDS:
                 if parsed['kind'] == 'rename_session':
                     return self._submit_title(connection, thread, snapshot, parsed, request_hash)
+                if parsed['kind'] == 'set_session_skills':
+                    return self._submit_skill_preferences(connection, thread, snapshot, parsed, request_hash)
                 return self._submit_work(connection, thread, snapshot, parsed, request_hash)
             if snapshot.minimum_protocol_version > 1 and command.get('schema') != 'capstone-command/2':
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
@@ -5061,6 +5110,7 @@ class PostgresThreadService(NativeExecutionOwner):
             native_execution=self._native_binding,
             session_title=None if row.get('session_title') is None else SessionTitle.from_document(row['session_title']),
             session_type=row.get('session_type'),
+            session_skills=row.get('session_skills'),
         )
 
     @staticmethod

@@ -207,6 +207,10 @@ class DelegatedRuntime:
             messages.append(product_message)
         context = None if context_document is None else BusinessContext.from_document(context_document)
         submission = resources.get('submission')
+        from .session_skill_preferences import method_guidance
+        guidance = method_guidance(submission)
+        if guidance:
+            instruction += '\n\n' + guidance
         selected_input = (submission if submission and submission['input']['kind'] == 'skill_invocation'
                           and (self._direct or goal.get('uses_selected_skill')) else None)
         task_fields = {}
