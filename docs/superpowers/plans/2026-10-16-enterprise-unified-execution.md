@@ -454,3 +454,45 @@ Implementation and real acceptance remain open. The focused source-scope brief i
 - Scope: rolling application/relay/source budgets, real process nodes, durable
   receipts, whole native-turn batches and accurate unknown-state projection.
 - Evidence: [local real-model verification](../../reports/2026-11-08-tool-execution-lifecycle.md).
+
+## 2026-11-08 user-directed report compilation and later evidence planning
+
+Accepted 2026-11-08: first compile the main briefing from existing admitted data
+and products. Use a chapter argument, agenda, evidence/interpretation/implication
+on each opinion page, synthesized conclusions and a branded closing. Do not use
+a fixed 14-page target or rerun business data acquisition for this compilation.
+The scoped [compilation plan](2026-11-08-briefing-report-compilation.md) owns this
+unit. It does not close IG1 or the full template-library/PDF requirements.
+
+- [x] Finish and visually verify the real Capstone main report from existing
+  immutable inputs; retain old products and trace source/renderer identity.
+  V12 is a fresh original-only16-page local benchmark with13 visible explanations,
+  three actual isolated critiques and autonomous revisions. All16 developer
+  previews and input/output digests are checked; ready for user comparison with
+  v6. No human chapter outline, prior v6 text or per-page feedback is supplied.
+- [ ] Later implement report-led acquisition planning: audience/decision and
+  chapter questions map to candidate claims, evidence requirements, metrics,
+  comparators/windows/units, sources, planned visuals and explicit gap conditions.
+  Save and revise the plan before relevant acquisition. Verify on a new real task
+  and a second topic; do not hardcode the current case or a fixed tool sequence.
+  This item is recorded and accepted, but is not implemented by the current
+  post-analysis report compilation.
+- [x] Capstone's runtime report generator owns autonomous topic classification,
+  chapter organization, page arguments and composition. Developers supply generic
+  mechanisms/quality criteria. Guided v2's three-part outline proves guided
+  compilation only. V12 uses a fresh Work without supplied chapter names/count/
+  order and retains the generator's own argument plan. Do not hardcode this case's
+  categories. This verifies the existing-results benchmark, not universal quality.
+  V6 is reviewed with human feedback; fresh autonomous v7/v9 fail opinion-page
+  reasoning depth, while v8 improves but retains inference gaps. Runtime16845b10
+  adds generic visible-body review and an executable explanation contract,
+  not per-slide patches.4a638740 then fixes selected-call waiting;58 Python and36
+  Node checks pass, with prior106 contract checks retained. V12's three readers
+  return real findings and the runtime revises its own report. No fixed bullet
+  count or minimum text length is a
+  semantic quality gate. Preserve v6 until a replacement is independently accepted.
+- [ ] Broaden cross-topic/default reliability and native visual/PDF acceptance.
+  Cover-subtitle grouping and short final CJK lines remain generic nonblocking
+  polish. The text-reader pool is explicitly enabled only in the local candidate;
+  production defaults, full library/persistence and report-led acquisition remain
+  separate. Local results do not imply dev integration or release acceptance.
