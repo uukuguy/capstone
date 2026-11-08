@@ -58,6 +58,10 @@ def test_template_report_roles_preserve_chapter_context_and_branded_closing(tmp_
     deck = Presentation(tmp_path/'report.pptx')
     assert len(deck.slides) == 4
     assert '一、总体态势' in deck_text(deck)
+    chapter = next(s for s in deck.slides[2].shapes if s.has_text_frame and s.text == '一、总体态势')
+    assert chapter.text_frame.paragraphs[0].font.size.pt == 16
+    assert chapter.text_frame.paragraphs[0].font.bold is True
+    assert chapter.top + chapter.height <= 1.55*914400
     closing = deck.slides[-1]
     assert closing.slide_layout.part.partname == deck.slides[0].slide_layout.part.partname
     assert any(s.shape_type == 13 for s in closing.shapes)

@@ -364,7 +364,7 @@ def render_presentation(spec_path, output, *, check_only=False):
                     position = template_receipt['title_position']
             textbox(slide,*position,lines,34 if cover else 27,cover_ink if cover else title_ink,True,alignment)
             if section_label and not cover:
-                textbox(slide,.8,1.24,11.7,.25,[section_label],11,title_ink)
+                textbox(slide,.8,1.13,11.7,.35,[section_label],16,title_ink,True)
             if notes or speaker_notes:
                 slide.notes_slide.notes_text_frame.text = '\n'.join([*notes,*([speaker_notes] if speaker_notes else [])])
             footers.append((slide,notes))
