@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode,type RefObject } from 'react'
 import { useAui, useAuiState } from '@assistant-ui/react'
-import { Brain, Sparkles } from 'lucide-react'
+import { Brain, Sparkles, CircleCheck, CircleAlert } from 'lucide-react'
 import { parseInputCommand, skillCompatible, inputDraftError, type InputCatalog, type InputDraft, type SkillChoice, type SkillRole } from './threadInput'
 import ThreadContextPanel from './ThreadContextPanel'
 import LlmProfileMenu from './LlmProfileMenu'
@@ -93,7 +93,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
       <LlmProfileMenu catalog={catalog?.llm_profiles} value={draft.llm_profile_id} disabled={disabled||loading} onChange={id=>{if(onBeforeChange?.()!==false)onChange({...draft,llm_profile_id:id})}}/>
 
       {draft.mode==='capstone'&&<button disabled type="button" className="thread-settings-trigger thread-deep-research-toggle" aria-label="深度研究" aria-pressed={false} title="深度研究暂未开放"><Brain aria-hidden="true"/>深度研究</button>}
-      <button type="button" className="thread-settings-trigger" aria-label="技能" title="查看已安装技能" aria-expanded={panel==='skills'} onClick={()=>panel==='skills'?close():open('skills')}><Sparkles aria-hidden="true" size={16}/><span>技能</span></button>
+      <button type="button" className="thread-settings-trigger" aria-label="技能目录" title="查看已安装技能" aria-expanded={panel==='skills'} onClick={()=>panel==='skills'?close():open('skills')}><Sparkles aria-hidden="true" size={16}/><span>技能目录</span></button>
     </div>
   return <div ref={root} className="thread-input-controls" style={panelHeight === undefined ? undefined : { '--thread-input-panel-space': `${panelHeight}px` } as CSSProperties} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
     onClickCapture={event => {
@@ -127,9 +127,8 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
       {loading && <p role="status">正在读取已安装技能…</p>}
       {!loading && !skills.length && <p role="status">{search?'没有匹配的已安装技能。':'当前没有已安装技能。'}</p>}
       {skills.map(skill => <div className="thread-skill-entry" key={`${skill.role}:${skill.id}`}>
-        <strong>{skill.native_name || skill.id}</strong>
+        <div className="thread-skill-title"><strong>{skill.native_name || skill.id}</strong><span className={`thread-skill-status${skill.ready?' is-ready':''}`} role="img" aria-label={skill.ready?'可用':'暂不可用'} title={skill.ready?'可用，可由应用按需使用':`暂不可用：${skill.reason || '当前执行环境尚未就绪。'}`} tabIndex={0}>{skill.ready?<CircleCheck size={14} aria-hidden="true"/>:<CircleAlert size={14} aria-hidden="true"/>}</span></div>
         <span className="thread-skill-summary">{skillLabels[skill.id]?.description || skill.description || '暂无用途说明。'}</span>
-        <span>{skill.ready?'可用':'暂不可用'}</span>
         <details className="thread-skill-details"><summary>详情</summary>
           <dl><dt>标识</dt><dd>{skill.id}</dd><dt>版本</dt><dd>{skill.version}</dd><dt>来源</dt><dd>{skill.source}</dd></dl>
           {!skill.ready && <p>{skill.reason || '当前执行环境尚未就绪。'}</p>}
