@@ -72,7 +72,7 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
     }
   },{
     name:llmCallToolNames[1],executionRole:'orchestrator',label:'接收并行分析',
-    description:'Collect actual returned analysis results and current queued/running/cancelling states. Completed results may already have arrived asynchronously: pass their job ids to read the saved answers again, instead of repeating analysis. Set wait_ms only when no independent work remains. A collection wait timeout is not a model failure and must not cause a duplicate retry.',
+    description:'Collect actual returned analysis results and current queued/running/cancelling states. Pass ids to read selected saved answers. With wait_ms, wait until at least one selected call settles; without ids, wait for any new result. Set wait_ms only when no independent work remains. A collection wait timeout is not a model failure and must not cause a duplicate retry or cancellation of a still-required review.',
     parameters:{type:'object',additionalProperties:false,properties:{wait_ms:{type:'integer',minimum:0,maximum:policy.max_wait_ms},ids:{type:'array',minItems:1,maxItems:policy.max_jobs,uniqueItems:true,items:{type:'string',minLength:1,maxLength:128}}}},
     async execute(_id,args,callSignal){
       if(!exact(args,['wait_ms','ids'])||!Number.isSafeInteger(args.wait_ms??0)||(args.wait_ms??0)<0||(args.wait_ms??0)>policy.max_wait_ms)throw new TypeError('Invalid LLM collection wait');
@@ -81,9 +81,14 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
       if(args.ids){
         const records=pool.snapshot().jobs;
         if(args.ids.some(id=>!records.some(record=>record.id===id)))throw new TypeError('Unknown LLM collection ID');
-        const results=records.filter(record=>args.ids.includes(record.id)&&finalStates.has(record.status));
+        reason='saved_results';
+        if(args.wait_ms&&!records.some(record=>args.ids.includes(record.id)&&finalStates.has(record.status))){
+          reason=(await pool.waitForCompletion({signal:callSignal,waitMs:args.wait_ms,ids:args.ids})).reason;
+          capture();
+        }
+        const results=pool.snapshot().jobs.filter(record=>args.ids.includes(record.id)&&finalStates.has(record.status));
         for(const record of results)unread.delete(record.id);
-        return reply({...status(),results,wait_reason:'saved_results'});
+        return reply({...status(),results,wait_reason:reason});
       }
       if(!unread.size&&args.wait_ms){reason=(await pool.waitForCompletion({signal:callSignal,waitMs:args.wait_ms})).reason;capture()}
       const results=[...unread.values()];unread.clear();
