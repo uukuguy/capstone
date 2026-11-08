@@ -798,6 +798,26 @@ describe('CapstoneAssistantThread', () => {
       expect(body.style.maxHeight).toBe(height)
     } finally { rect.mockRestore() }
   })
+  it('allows a running process at the conversation tail to grow beyond its initial bottom space',()=>{
+    const rect=vi.spyOn(HTMLElement.prototype,'getBoundingClientRect').mockImplementation(function(this:HTMLElement){
+      const viewport=this.classList.contains('capstone-chat-viewport')
+      const top=viewport?100:550,height=viewport?500:40
+      return {top,bottom:top+height,left:0,right:800,width:800,height,x:0,y:top,toJSON:()=>({})}
+    })
+    try{
+      const events=[event('attempt_started',1,{},'tail-fit'),event('tool_started',2,{tool_name:'grid_context_get'},'tail-fit')]
+      render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
+      const viewport=document.querySelector('.capstone-chat-viewport') as HTMLElement
+      const preview=screen.getByLabelText('执行过程预览')
+      Object.defineProperties(viewport,{clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:1000}})
+      viewport.scrollTop=500
+      fireEvent.scroll(viewport)
+      expect(Number.parseFloat(preview.style.maxHeight)).toBe(Math.min(500*.72,window.innerHeight*.65))
+      viewport.scrollTop=100
+      fireEvent.scroll(viewport)
+      expect(preview.style.maxHeight).toBe('80px')
+    }finally{rect.mockRestore()}
+  })
   it('keeps all actions and a separate committed work explanation in the height-limited running window', () => {
     const snapshot = { research_id: 'research-1', revision: 1, goal: '核验故障影响', condition_refs: [], claims: [],
       notes: [{ note_id: 'finding', text: '已取得拓扑结果，继续检查失供范围。', refs: ['result:topology'] }], open_questions: [] }

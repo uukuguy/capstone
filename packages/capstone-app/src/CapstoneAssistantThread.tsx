@@ -818,7 +818,10 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
       const bottom = Math.min(bounds.bottom, window.innerHeight)
       const available = Math.max(0, bottom - node.getBoundingClientRect().top - 12)
       const maximum = Math.max(80, Math.min(bounds.height * .72, window.innerHeight * .65))
-      node.style.maxHeight = `${Math.min(maximum, Math.max(80, available))}px`
+      // At the live tail, content growth can move the outer viewport down.
+      // Do not pin the process to the small space below its initial position.
+      const atTail = viewport.clientHeight > 0 && viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 20
+      node.style.maxHeight = `${running && atTail ? maximum : Math.min(maximum, Math.max(80, available))}px`
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
