@@ -1,5 +1,7 @@
 # 会话技能作用域：本地实现与验证
 
+后续状态：[独立评审与复核](../reviews/2026-11-08-session-skill-scope-independent-review.md)已完成，结论REQUEST CHANGES。下文保留此前本地技术验证事实，不作为接受结论；运行实现仍406c7d7b。
+
 ## 状态
 
 候选406c7d7b，依赖2badb1ee及未合入7ea164de。IG1已实现，未关闭；IG2–IG4尚未实现。

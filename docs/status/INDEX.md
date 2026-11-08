@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-08：[独立评审与复核](../reviews/2026-11-08-session-skill-scope-independent-review.md)结论REQUEST CHANGES；原始意见与采纳/排除理由分开保存，IG1需修排除、内容身份和恢复路径，无运行代码变更或CI。
+
 2026-11-08：[会话技能作用域](../reports/2026-11-08-session-skill-scope.md)记录406c7d7b及local-dev连接三区研发的两轮真实执行；配置冻结、排除、PG恢复与产品哈希通过，界面/独立审查未接受，无CI。
 
 2026-11-08：[通用执行记录与8路队列](../reports/2026-11-08-tool-execution-lifecycle.md)记录最终本机源码b473fe0d及2b45bc49真实16项同批/源进程峰值8、产物哈希与刷新恢复。dev8da7dc76，待批准定向CI及PR集成；其他部署不变。

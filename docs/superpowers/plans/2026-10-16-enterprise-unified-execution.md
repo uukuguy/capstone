@@ -6,7 +6,7 @@
 
 | 包 | 状态 | 依赖 | 接受条件 |
 | --- | --- | --- | --- |
-| IG1 | active：406c7d7b技术验证通过，界面/独立审查待接受 | 六技能2badb1ee及其7ea164de依赖 | 会话方法、指令冻结、实际使用分开；两轮/排除/在途配置/PG恢复/哈希已验证，见[计划](2026-11-08-session-skill-scope.md)与[回执](../../reports/2026-11-08-session-skill-scope.md) |
+| IG1 | active：独立评审REQUEST CHANGES，需整改 | 六技能2badb1ee及其7ea164de依赖 | 406c7d7b原技术验证保留；按[评审](../../reviews/2026-11-08-session-skill-scope-independent-review.md)修排除传递、内容身份与恢复，再做实页验收，不关闭 |
 | IG2 | planned | IG1接口稳定 | 新会话可编辑示例；草稿保护、无自动业务扫描、现有实页验收 |
 | IG3 | planned | IG1、IG2 | 建议绑定证据与范围版本；用户发送才执行、过期不误用、真实继续 |
 | IG4 | planned | IG3 | 调查连续、改向和局部恢复；旧返回隔离、真实刷新与成果复用 |
