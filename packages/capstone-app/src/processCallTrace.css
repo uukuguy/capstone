@@ -76,6 +76,9 @@
 .capstone-call-pool li > span:first-child { overflow-wrap: anywhere; }
 .capstone-call-pool li > :not(:first-child) { color: var(--trace-muted, #64748b); white-space: nowrap; }
 .capstone-call-tool-entry { min-width: 0; max-width: 100%; }
+.capstone-call-tool-entry.is-skill,
+.capstone-chat-activity-item.is-skill { border-left: 2px solid #8871ad; border-radius: 3px; background: #f5f1fa; padding-left: 6px; }
+.capstone-skill-badge { display: inline-block; flex: none; color: #654787; background: #eee5f7; border: 1px solid #d5c4e7; border-radius: 3px; padding: 0 4px; font-size: .9em; line-height: 1.5; white-space: nowrap; }
 .capstone-call-notice { display: flex; align-items: baseline; gap: 5px; margin: 2px 0 5px 17px; padding: 3px 7px; border-left: 2px solid; border-radius: 0 3px 3px 0; max-width: 80ch; font-size: inherit; line-height: 1.45; }
 .capstone-call-notice svg { flex: none; width: 12px; height: 12px; align-self: flex-start; margin-top: 2px; }
 .capstone-call-notice span { overflow-wrap: anywhere; }

@@ -88,6 +88,7 @@ const EMPTY_PROMPTS = [
 ] as const
 
 export type ChatActivity = {
+  skillName?: string
   executionReceipt?: ToolExecutionReceipt
   id: string
   label: string
@@ -180,7 +181,10 @@ function nativeToolActivity(event:EventEnvelope) {
   const rawWarning=typeof activity?.warning==='string'?activity.warning:undefined
   const warning=rawWarning&&/(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(rawWarning)?'警告包含受保护信息，已隐藏。':rawWarning?.slice(0,241)
   const receipt = parseToolExecutionReceipt(activity?.execution_receipt,call)
-  return {executionReceipt:receipt?.task_id===task?receipt:undefined,id:`native:${JSON.stringify([event.threadId,event.attemptId,task,call])}`,name,phase,failed,operation,outputExcerpt,warning}
+  const skill=object(payload.skill_activity)
+  const declaredSkill=typeof skill?.name==='string'?skill.name:operation?.match(/^([a-z0-9][a-z0-9_-]{0,127}) · (?:已加载|模型报告)$/)?.[1]
+  const skillName=name==='agent_skill'&&declaredSkill&&/^[a-z0-9][a-z0-9_-]{0,127}$/.test(declaredSkill)?declaredSkill:undefined
+  return {skillName,executionReceipt:receipt?.task_id===task?receipt:undefined,id:`native:${JSON.stringify([event.threadId,event.attemptId,task,call])}`,name,phase,failed,operation,outputExcerpt,warning}
 }
 
 export function projectAssistantActivity(events: readonly EventEnvelope[]): ChatActivity[] {
@@ -191,7 +195,8 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
       const previous=grouped.get(native.id)
       const startedAt=previous?.startedAt||(native.phase==='running'?event.occurredAt:undefined)
       const finishedAt=previous?.finishedAt||(native.phase==='completed'?event.occurredAt:undefined)
-      grouped.set(native.id,{id:native.id,toolName:native.name,label:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
+      const skillName=native.skillName??previous?.skillName
+      grouped.set(native.id,{id:native.id,toolName:native.name,skillName,label:skillName?'使用任务技能 · '+skillName:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
         taskStepId:typeof event.payload.task_step_id==='string'?event.payload.task_step_id:previous?.taskStepId,
         taskStepNumber:typeof event.payload.task_step_number==='number'?event.payload.task_step_number:previous?.taskStepNumber,
         stepToolNumber:typeof event.payload.step_tool_number==='number'?event.payload.step_tool_number:previous?.stepToolNumber,
@@ -706,11 +711,11 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
     const reason = toolFailureReason(item.failure)
     const diagnostic = [reason, item.failure?.code ? `诊断：${item.failure.code}` : '',
       item.failure?.message ? `原文：${item.failure.message}` : ''].filter(Boolean).join('\n')
-    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}>
+    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}${item.toolName==='agent_skill'?' is-skill':''}`}>
       <span className="capstone-chat-activity-icon" aria-hidden="true" />
       <div className="capstone-tool-call-content">
         <div className="capstone-tool-call-heading">
-          <strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>
+          {item.toolName==='agent_skill'&&<span className="capstone-skill-badge">技能</span>}<strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>
           <small>{item.status === 'running' ? '执行中' : item.status === 'failed' ? '失败' : item.status === 'cancelled' ? '已停止' : '完成'}</small>
 
         </div>
@@ -874,7 +879,7 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
       </section>
       <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
     </>
-    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.toolName==='agent_tools_execute'?activity.toolName:activity.toolName?(TOOL_LABELS[activity.toolName]||activity.toolName):activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,executionReceipt:activity.executionReceipt,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
+    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),kind:activity.toolName==='agent_skill'?'skill' as const:undefined,name:activity.toolName==='agent_skill'?activity.label:activity.toolName==='agent_tools_execute'?activity.toolName:activity.toolName?(TOOL_LABELS[activity.toolName]||activity.toolName):activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,executionReceipt:activity.executionReceipt,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}

@@ -12,7 +12,7 @@ import {compactionDuration,type ProcessCompaction} from './processCompactions'
 
 export type ProcessModelCall = { retry?:{attempt:number;maximum?:number;delayMs?:number;success?:boolean;finished?:boolean}; id: string; number: number; ms: number; requestPool?:readonly ProcessModelRequest[];requestPoolOnly?:boolean;poolCalls?:readonly ProcessLlmPoolCall[]; label?: string; intent?: string; thinking?: string; thinkingStartedAt?: string; thinkingEndedAt?: string; thinkingSettled?: boolean; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolAssociation?: 'turn'; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
 const modelErrors:Record<string,string>={model_context_limit:'上下文超限',model_rate_limit:'请求限流',model_authentication:'模型认证失败',model_transport:'模型连接异常',model_output_invalid:'模型输出格式异常',model_output_rejected:'模型输出被拒绝',model_turn_incomplete:'原因未记录'}
-export type ProcessToolCall = { executionReceipt?: ToolExecutionReceipt; id: string; name: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; warning?: string; failure?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
+export type ProcessToolCall = { kind?: 'skill'; executionReceipt?: ToolExecutionReceipt; id: string; name: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; warning?: string; failure?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
 export type ProcessTraceFocus = { modelId: string; revision: number }
 export function callTraceIssues(models: readonly ProcessModelCall[], tools: readonly ProcessToolCall[], active = true) {
   return models.flatMap(model => {
@@ -112,15 +112,18 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
     </section>
   }
   const renderTool = (tool: ProcessToolCall, independent = false) => {
+    const isSkill=tool.kind==='skill'||tool.name==='agent_skill'
+    const skillName=tool.operation?.match(/^([a-z0-9][a-z0-9_-]{0,127}) · (?:已加载|模型报告)$/)?.[1]
+    const skillTitle=tool.name==='agent_skill'?'使用任务技能'+(skillName?' · '+skillName:''):tool.name
     const executionMs = receiptDuration(tool.executionReceipt, 'execution_started', 'execution_ended')
     const queueMs = receiptDuration(tool.executionReceipt, 'queued', 'acquired')
     const excerpt = tool.operation?.trim() ? operationExcerpt(tool.name, tool.operation) : tool.name
     const sentence = independent ? undefined : purposeTitle(tool.name, tool.operation)
-    const title = sentence ? tool.name : excerpt
+    const title = isSkill?skillTitle:sentence?tool.name:excerpt
     const purposeIsEntireOperation = !!sentence && !!tool.operation && sentence === tool.operation.replace(/\s+/g, ' ').trim()
-    return <div key={tool.id} className="capstone-call-tool-entry"><details className="capstone-call-tool" open={expandedTools||Boolean(active&&dispatches.some(request=>request.parentToolCallId===tool.id&&['running','cancelling'].includes(request.status)))||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
-    <summary><ChevronRight aria-hidden="true" /><strong title={tool.name}>{title}</strong>
-      {!sentence && tool.operation?.trim() && excerpt !== tool.name && <small>{tool.name}</small>}
+    return <div key={tool.id} className={`capstone-call-tool-entry${isSkill?' is-skill':''}`}><details className="capstone-call-tool" open={expandedTools||Boolean(active&&dispatches.some(request=>request.parentToolCallId===tool.id&&['running','cancelling'].includes(request.status)))||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
+    <summary><ChevronRight aria-hidden="true" />{isSkill&&<span className="capstone-skill-badge">技能</span>}<strong title={tool.name}>{title}</strong>
+      {!isSkill && !sentence && tool.operation?.trim() && excerpt !== tool.name && <small>{tool.name}</small>}
       {independent && tool.origin && <small>{tool.origin === 'system' ? '系统动作' : tool.origin === 'parent' ? '主链调用' : null}</small>}
       <span className="capstone-call-duration" data-latency={latencyGrade(executionMs??timed(tool).durationMs,'tool').level} title={`${executionMs === undefined ? '调用记录区间 · 实际执行未知' : '工具执行耗时'} · ${latencyGrade(executionMs??timed(tool).durationMs,'tool').label}`}>{executionMs === undefined && timed(tool).durationMs === undefined ? '耗时未记录' : toolTime(executionMs ?? timed(tool).durationMs!)}</span>
       {compact?<CallGlyph label={tool.status==='completed'?'完成':tool.status==='failed'?'失败':tool.status==='cancelled'?'已停止':active?'执行中':'未完整记录'} kind={tool.status==='completed'?'done':tool.status==='failed'?'failed':tool.status==='cancelled'?'cancelled':active?'running':'unknown'}/>:<span>{tool.status === 'completed' ? '完成' : tool.status === 'failed' ? '失败' : tool.status === 'cancelled' ? '已停止' : active ? '执行中' : '未完整记录'}</span>}

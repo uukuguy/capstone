@@ -4,6 +4,18 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
+it('shows named skills with a distinct semantic badge and style',()=>{
+ const view=render(<ProcessCallTrace models={[]} tools={[{id:'skill',name:'使用任务技能 · data-investigation',kind:'skill',operation:'data-investigation · 已加载',status:'completed'}]} active={false}/>)
+ expect(screen.getByText('使用任务技能 · data-investigation')).toBeTruthy()
+ expect(screen.getByText('技能')).toBeTruthy()
+ expect(view.container.querySelector('.capstone-call-tool-entry.is-skill')).toBeTruthy()
+})
+it('styles graph skill calls using their observed operation identity',()=>{
+ const view=render(<ProcessCallTrace models={[]} tools={[{id:'graph-skill',name:'agent_skill',operation:'systematic-debugging · 模型报告',status:'completed'}]} active={false}/>)
+ expect(screen.getByText('使用任务技能 · systematic-debugging')).toBeTruthy()
+ expect(view.container.querySelector('.capstone-call-tool-entry.is-skill')).toBeTruthy()
+})
+
 it('shows compaction between model calls without an extra model round and stops incomplete timers',()=>{
  const phases=[{id:'compact',reason:'threshold' as const,state:'started' as const,startedAt:'2026-11-01T00:00:02Z'}]
  const models=[{id:'one',number:1,ms:1000,startedAt:'2026-11-01T00:00:00Z'},
