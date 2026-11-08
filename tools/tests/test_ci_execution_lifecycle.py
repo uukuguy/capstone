@@ -22,6 +22,19 @@ def test_lifecycle_anchor_selects_only_its_registered_consumers():
     assert classify(paths[1:]) != 'execution-lifecycle'
 
 
+def test_investigation_skill_consumers_use_the_bounded_lifecycle_gate():
+    names = ('brainstorming', 'task-planning-and-tracking', 'systematic-debugging',
+             'verification-before-completion', 'data-investigation', 'data-quality-and-comparability')
+    paths = [ANCHOR, 'configs/runtime/agent-resources.json',
+             'packages/capstone-agent/src/capstone_agent/skill_activity.py',
+             'packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs',
+             'packages/capstone-agent/tests/test_investigation_skills.py',
+             'packages/capstone-app/src/skillActivity.test.tsx',
+             *['configs/runtime/general-pi/skills/' + name + '/SKILL.md' for name in names]]
+    assert classify(paths) == 'execution-lifecycle'
+    assert classify([*paths, 'configs/runtime/general-pi/skills/unregistered/SKILL.md']) != 'execution-lifecycle'
+
+
 def test_shared_sdk_leaf_dispatch_uses_the_same_focused_gate():
     source = 'packages/capstone-agent/src/capstone_agent/resources/'
     paths = [ANCHOR, *[source + name for name in (

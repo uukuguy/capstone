@@ -517,6 +517,24 @@ EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
     'superpowers/specs/2026-11-08-tool-execution-lifecycle-design.md')}
 
 
+EXECUTION_LIFECYCLE_FILES |= {
+    'README.md', 'README.zh-CN.md', 'configs/runtime/agent-resources.json',
+    'packages/capstone-agent/src/capstone_agent/skill_activity.py',
+    'packages/capstone-agent/src/capstone_agent/progress.py',
+    'packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs',
+    'packages/capstone-agent/tests/test_investigation_skills.py',
+    'packages/capstone-agent/tests/fixtures/investigation-skills.test.mjs',
+    'packages/capstone-app/src/skillActivity.test.tsx',
+    'packages/capstone-app/src/processTiming.ts',
+    'packages/capstone-app/src/processTiming.test.ts',
+    'docs/superpowers/specs/2026-11-08-investigation-skills-design.md',
+    'docs/superpowers/plans/2026-11-08-investigation-skills.md',
+    'docs/reports/2026-11-08-investigation-skills.md',
+} | {'configs/runtime/general-pi/skills/' + name + '/SKILL.md' for name in (
+    'brainstorming', 'task-planning-and-tracking', 'systematic-debugging',
+    'verification-before-completion', 'data-investigation', 'data-quality-and-comparability')}
+
+
 def execution_lifecycle_paths(paths: list[str], *, deployment: bool = False) -> bool:
     allowed = EXECUTION_LIFECYCLE_FILES | ({'compose.yaml', 'deploy/general-pi.Dockerfile'} if deployment else set())
     return EXECUTION_LIFECYCLE_ANCHOR in paths and all(path in allowed for path in paths)
@@ -529,6 +547,15 @@ def execution_lifecycle_deployment_document(path: str, old: str, new: str) -> bo
         replacement = '      CAPSTONE_THREAD_FAMILY: pandapower\n      CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT: /app/runs/domain-control\n    command: [worker]'
     elif path == 'deploy/general-pi.Dockerfile':
         source = 'packages/capstone-agent/src/capstone_agent/'
+        # Only the named skill modules and the SDK import smoke may accompany
+        # the existing owner staging; other Docker changes still fail closed.
+        new = new.replace(
+            f'COPY {source}general_pi_server.py {source}skill_activity.py capstone_agent/\n',
+            f'COPY {source}general_pi_server.py capstone_agent/general_pi_server.py\n', 1)
+        new = new.replace(
+            f'{source}resources/managed-resource-tools.mjs {source}resources/investigation-skills.mjs capstone_agent/resources/',
+            f'{source}resources/managed-resource-tools.mjs capstone_agent/resources/', 1)
+        new = new.replace('await import("./capstone_agent/resources/general-sdk.mjs"); ', '', 1)
         anchor = ''.join(f'COPY {source}{name}.py capstone_agent/{name}.py\n' for name in (
             '__init__', 'runtime_resources', 'resource_installation'))
         replacement = ('COPY ' + source + '__init__.py \\\n'
