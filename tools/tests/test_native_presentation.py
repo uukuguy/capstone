@@ -96,6 +96,8 @@ def test_state_grid_agenda_reuses_template_artwork_and_six_editable_rows(tmp_pat
     texts=[s for s in agenda.shapes if s.has_text_frame and s.text in [x.split('、')[1] for x in labels]]
     assert len(texts)==6 and all(s.left>6*914400 for s in texts)
     assert not any(s.has_table for s in agenda.shapes)
+    from pptx.oxml.ns import qn
+    assert any(f.get('type')=='slidenum' for f in agenda._element.iter(qn('a:fld')))
     assert '演示汇报' not in deck_text(deck) and '后续思路' not in deck_text(deck)
     with ZipFile(SCRIPT.parent/'presentation-templates/state-grid.pptx') as source, ZipFile(tmp_path/'report.pptx') as output:
         part=str(agenda.slide_layout.part.partname).lstrip('/')

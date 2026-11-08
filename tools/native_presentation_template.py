@@ -193,6 +193,9 @@ def load_template(workspace, selection, error):
             for shape in list(slide.shapes):slide.shapes._spTree.remove(shape.element)
             if agenda_source._element.cSld.bg is not None:
                 slide._element.cSld.insert(0,deepcopy(agenda_source._element.cSld.bg))
+            for shape in agenda_source.shapes:
+                if any(field.get('type')=='slidenum' for field in shape.element.iter(qn('a:fld'))):
+                    copy_shape(slide,shape)
             center=(circles[0].top+circles[1].top+circles[1].height)/2
             stride=min(circles[1].top-circles[0].top,int(.9*914400)) if len(labels)>2 else circles[1].top-circles[0].top
             top=round(center-(circles[0].height+(len(labels)-1)*stride)/2)
