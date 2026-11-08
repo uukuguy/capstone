@@ -53,3 +53,11 @@ IG2 adds optional editable start examples to the existing empty state. IG3 adds 
 - [ ] Canonical local-dev rebuild and exact API/worker/native identity check; use selected三区研发, preserve data and credentials.
 - [ ] Real model execution with persisted pinned preferences, allowed-method use and excluded-method denial at the native boundary; verify products and continuation.
 - [ ] Independent follow-up review and actual UI checks. Prior REQUEST CHANGES remains in force until evidence closes it. No CI authorization.
+
+## 2026-11-08 自动选用修正反馈
+
+用户最终采用只读“技能目录”，不再提供手动会话配置或本轮选择/排除界面；这些操作不作为当前用户验收条件，底层协议保留供历史恢复与回归检查。默认已安装就绪的方法由模型按上下文选用。
+
+eb97c116统一语义目录、加载入口与实际应用上下文。第一版f0f51b75的隐式试跑仍0技能，已明确判失败；第二版在本机联调完成不点名技能的两轮：调查准备自动加载/报告规划和可比性，复核改选核验与可比性；首轮3次网关元数据调用、续接0次，产物及原版本哈希通过。简单问题0工具。详见[修复回执](../../reports/2026-11-08-automatic-skill-selection-repair.md)。
+
+原PPT不补写记录；三区研发内网断开，完整业务任务及真实量测未回归。当前局部通过不关闭整个引导模块；执行期失效方法的错误映射等剩余问题独立保留。离线绑定网关阻塞本地附件任务的409另行跟踪，不以关键词判断是否可跳过授权。无CI/push/合并/远端部署。
