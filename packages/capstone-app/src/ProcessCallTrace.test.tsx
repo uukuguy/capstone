@@ -30,8 +30,9 @@ it('shows overall caller time for a batch without claiming source overlap',()=>{
   {id:'a',name:'read',status:'completed',startedAt:'1970-01-01T00:00:00.000Z',finishedAt:'1970-01-01T00:00:00.100Z'},
   {id:'b',name:'read',status:'completed',startedAt:'1970-01-01T00:00:00.200Z',finishedAt:'1970-01-01T00:00:00.300Z'},
  ]} active={false}/>)
- expect(screen.getByText(/批次耗时 300ms/)).toBeVisible()
- expect(screen.getByText('调用区间')).toBeVisible()
+ expect(screen.getByLabelText('本批次总耗时')).toHaveTextContent('300ms')
+ expect(screen.queryByText('调用区间')).toBeNull()
+ expect(screen.queryByText(/批次耗时/)).toBeNull()
  expect(screen.queryByText(/观测峰值/)).toBeNull()
 })
 it('keeps one uniform Thinking row and tokens outside each highlighted model heading',()=>{
@@ -368,7 +369,7 @@ it('connects sixteen queued calls and distinguishes batch count, capacity and ob
  const tools=Array.from({length:16},(_,index)=>({id:String(index),name:`tool ${index}`,status:'completed' as const,executionReceipt:receipt(String(index),index<8?0:1000)}))
  render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:10,toolCallIds:tools.map(tool=>tool.id)}]} tools={tools}/>)
  const batch=screen.getByRole('group',{name:'同一响应工具批次 · 16 项'})
- expect(batch.querySelector('.capstone-parallel-heading')).toHaveTextContent('执行容量 8 · 观测峰值 8 · 批次耗时 3.0s')
+ expect(batch.querySelector('.capstone-parallel-heading')).toHaveTextContent('执行容量 8 · 观测峰值 8 · 3.0s')
  expect(within(batch).queryByText('重叠未核实')).toBeNull()
  expect(within(batch).getAllByText(/执行端排队 1.0s · 工具执行 1.0s/)).toHaveLength(16)
 })

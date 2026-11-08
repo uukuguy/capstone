@@ -40,7 +40,7 @@ function BatchHeading({title,count,summary,callerElapsedMs,running=false}:{title
     <span className="capstone-batch-metrics">
       {summary.capacity!==undefined&&<span>执行容量 {summary.capacity}</span>}
       {summary.peak!==undefined&&<span>{summary.capacity!==undefined?' · ':''}观测峰值 {summary.peak}</span>}
-      <span title={elapsed===undefined?'本批次缺少完整计时记录。':callerTiming?'调用区间：从本批次首个调用发起到最后返回，含等待；不能据此推断实际执行重叠。':'执行回执：从本批次首个提交到最后执行结束，含排队。'}>{summary.capacity!==undefined||summary.peak!==undefined?' · ':''}{running?'批次已用':'批次耗时'} {elapsed===undefined?'—':toolTime(elapsed)}{callerTiming&&<> · <small>调用区间</small></>}</span>
+      <span aria-label={running?'本批次已用时间':'本批次总耗时'} title={elapsed===undefined?'本批次缺少完整计时记录。':callerTiming?'调用区间：从本批次首个调用发起到最后返回，含等待；不能据此推断实际执行重叠。':'执行回执：从本批次首个提交到最后执行结束，含排队。'}>{summary.capacity!==undefined||summary.peak!==undefined?' · ':''}{elapsed===undefined?'—':toolTime(elapsed)}</span>
     </span>
   </div>
 }
