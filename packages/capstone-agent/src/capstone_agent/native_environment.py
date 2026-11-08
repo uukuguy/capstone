@@ -131,6 +131,19 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
             'Use at most two targeted repair rounds for observed defects. Do not claim semantic or visual acceptance solely from renderer success '
             'or a self-assigned score; disclose unresolved issues and unavailable checks. '
         )
+    if presentation_context and {'template_presentations','argument_presentations'} <= set(checks):
+        presentation_context += (
+            '\nFor new evidence briefings with a template, use schema:"capstone-presentation/2". '
+            'Each ordinary content record requires argument:{"explanation":"The evidence-to-claim explanation for this page"}. '
+            'Derive explanation from the saved page argument; write concise supported reasoning, not a label or another reading. '
+            'Keep the saved figure/table and any selected facts in blocks. The renderer adds argument.explanation as a visible paragraph, '
+            'includes it in the real layout budget and binds its SHA-256/page in receipt.visible_arguments. '
+            'Do not duplicate the explanation in blocks. Agenda/closing records omit argument. '
+            'An omitted explanation is a contract error; an overlong one is slide_overflow. Revise the composition while keeping '
+            'its inference visible. Do not downgrade to schema1 to bypass this new-briefing contract. '
+            'Schema1 remains for original untemplated output and unchanged historical rerenders. '
+            'The contract guarantees visible authored explanation, not semantic accuracy or adequate reasoning; perform the skeptical review above. '
+        )
     return (
         'Verified base programming environment (default Python, not a separately selected MCP interpreter). '
         'Use these preinstalled libraries for authorized tasks; do not reinstall them or run a package '

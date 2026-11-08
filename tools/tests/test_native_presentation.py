@@ -36,6 +36,55 @@ import pytest
 SCRIPT = Path(__file__).parents[2] / 'tools/native_report.py'
 
 
+def test_argument_contract_renders_explanation_in_visible_text_and_binds_its_digest(tmp_path):
+    explanation = 'The two groups change at different rates, so one common adjustment would miss their difference.'
+    value = spec([], template={'id':'state-grid'})
+    value['schema'] = 'capstone-presentation/2'
+    value['slides'] = [
+        {'role':'agenda','title':'Contents','blocks':[{'type':'paragraph','text':'Comparison'}]},
+        {'title':'The groups differ','section':'Comparison','blocks':[],
+         'argument':{'explanation':explanation}, 'speaker_notes':'Supplementary calculation only.'},
+        {'role':'closing','title':'Thank you','blocks':[]},
+    ]
+    result = run(tmp_path, value)
+    assert result.returncode == 0, result.stderr
+    deck = Presentation(tmp_path/'report.pptx')
+    visible = '\n'.join(s.text for s in deck.slides[2].shapes if s.has_text_frame)
+    assert ''.join(explanation.split()) in ''.join(visible.split())
+    receipt = json.loads(result.stdout)
+    assert receipt['visible_arguments'] == [{'slide':3,
+        'explanation_sha256':hashlib.sha256(explanation.encode()).hexdigest()}]
+    assert receipt['source_sha256']['slides.json'] == hashlib.sha256((tmp_path/'slides.json').read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize('argument', [None, {}, {'explanation':''}, {'explanation':123},
+    {'explanation':'Explanation','unsupported':'value'}])
+def test_argument_contract_rejects_missing_or_invalid_explanation_without_replacing_output(tmp_path, argument):
+    value=spec([],template={'id':'state-grid'});value['schema']='capstone-presentation/2'
+    value['slides'][0]['speaker_notes']='Explanation in notes cannot satisfy the visible argument contract.'
+    if argument is not None:value['slides'][0]['argument']=argument
+    (tmp_path/'report.pptx').write_bytes(b'previous')
+    result=run(tmp_path,value)
+    assert result.returncode == 2 and 'argument' in result.stderr
+    assert (tmp_path/'report.pptx').read_bytes()==b'previous'
+
+
+def test_argument_explanation_uses_real_layout_capacity_without_silent_truncation(tmp_path):
+    value=spec([],template={'id':'state-grid'});value['schema']='capstone-presentation/2'
+    value['slides'][0]['argument']={'explanation':'This explanation must remain visible. '*150}
+    result=run(tmp_path,value)
+    assert result.returncode==2 and 'slide_overflow' in result.stderr
+    assert not (tmp_path/'report.pptx').exists()
+
+
+def test_argument_contract_requires_a_template_and_leaves_version_one_unchanged(tmp_path):
+    value=spec([]);value['schema']='capstone-presentation/2'
+    value['slides'][0]['argument']={'explanation':'A supported comparison.'}
+    result=run(tmp_path,value)
+    assert result.returncode==2 and 'template' in result.stderr
+    assert run(tmp_path,spec([{'type':'paragraph','text':'Original baseline.'}])).returncode==0
+
+
 def test_briefing_preserves_unicode_numeric_ranges_at_line_boundaries():
     import importlib.util
     loaded=importlib.util.spec_from_file_location('briefing_layout',SCRIPT.with_name('native_presentation_layout.py'))
@@ -419,3 +468,4 @@ def test_build_smoke_checks_real_pptx_cli_and_sources(tmp_path):
     module.exercise_presentation(tmp_path,renderer=[sys.executable,str(SCRIPT)])
     deck=Presentation(tmp_path/'presentation.pptx')
     assert len(deck.slides)>=4 and '001.2300' in deck_text(deck)
+    module.exercise_template_presentation(tmp_path,renderer=[sys.executable,str(SCRIPT)])

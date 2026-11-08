@@ -17,7 +17,7 @@ import unicodedata
 from xml.etree import ElementTree
 
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 CSS = '''
 :root{color-scheme:light;font-family:system-ui,-apple-system,"Noto Sans CJK SC",sans-serif;color:#172b3b;background:#edf2f5}
 *{box-sizing:border-box}body{margin:0;line-height:1.75}main{max-width:1100px;margin:32px auto;background:white;padding:48px 56px;border:1px solid #d8e2e8;border-radius:12px}
@@ -266,8 +266,11 @@ def render_presentation(spec_path, output, *, check_only=False):
     try:
         spec = json.loads(workspace.read(spec_path, maximum=1024 * 1024))
         fields(spec, ('schema', 'title', 'slides'), ('subtitle', 'template'))
-        if spec['schema'] != 'capstone-presentation/1':
-            raise ReportError('PPTX requires capstone-presentation/1')
+        if spec['schema'] not in ('capstone-presentation/1','capstone-presentation/2'):
+            raise ReportError('PPTX requires capstone-presentation/1 or capstone-presentation/2')
+        argument_contract = spec['schema'] == 'capstone-presentation/2'
+        if argument_contract and 'template' not in spec:
+            raise ReportError('capstone-presentation/2 requires a template')
         if not isinstance(spec['slides'], list) or not 1 <= len(spec['slides']) <= 40:
             raise ReportError('presentation slides must contain 1..40 content records')
         template_page, template_receipt = None, None
@@ -422,8 +425,10 @@ def render_presentation(spec_path, output, *, check_only=False):
             textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221),align=cover_alignment)
 
         block_errors = []
+        visible_arguments = []
         for index, content in enumerate(spec['slides']):
-            fields(content, ('title','blocks'), ('source_notes','speaker_notes','role','section'))
+            fields(content, ('title','blocks'), ('source_notes','speaker_notes','role','section',
+                *(('argument',) if argument_contract else ())))
             role = content.get('role','content')
             if role not in ('content','agenda','closing'):
                 raise ReportError('slide role must be content, agenda or closing')
@@ -444,6 +449,22 @@ def render_presentation(spec_path, output, *, check_only=False):
                 raise ReportError('source_notes exceed the two-line footer budget')
             if not isinstance(blocks,list) or len(blocks)>20:
                 raise ReportError('each content record allows at most 20 blocks')
+            explanation = None
+            if argument_contract:
+                if role == 'content':
+                    argument = content.get('argument')
+                    if not isinstance(argument,dict) or set(argument) != {'explanation'}:
+                        raise ReportError('content argument requires exactly one explanation field', diagnostic={
+                            'code':'visible_argument_invalid','location':f'slides[{index}].argument',
+                            'recovery':'Supply the supported page explanation as argument.explanation; notes do not replace visible reasoning.',
+                            'output_written':False})
+                    explanation = literal(argument['explanation'],'argument.explanation',20000)
+                    if len(blocks)>=20:
+                        raise ReportError('argument explanation and blocks exceed the 20-block budget')
+                    blocks = [*blocks,{'type':'paragraph','text':explanation}]
+                    content = {**content,'blocks':blocks}
+                elif 'argument' in content:
+                    raise ReportError('argument is supported only on ordinary content pages')
             speaker_notes = content.get('speaker_notes','')
             if not isinstance(speaker_notes,str):
                 raise ReportError('speaker_notes must be text')
@@ -469,6 +490,9 @@ def render_presentation(spec_path, output, *, check_only=False):
                 from native_presentation_layout import render_briefing_slide
                 stats = render_briefing_slide(content,workspace=workspace,page=page,textbox=textbox,
                     wrap=wrap,literal=literal,error=ReportError,title_color=title_ink,location=f'slides[{index}]')
+                if explanation is not None:
+                    visible_arguments.append({'slide':len(deck.slides),
+                        'explanation_sha256':hashlib.sha256(explanation.encode('utf-8')).hexdigest()})
                 figures += stats['figures']; tables += stats['tables']; table_rows += stats['table_rows']
                 image_bytes += stats['image_bytes']
                 if image_bytes>64*1024*1024:
@@ -630,6 +654,7 @@ def render_presentation(spec_path, output, *, check_only=False):
             **({'layout_policy':'one_content_record_per_slide',
                 'slide_roles':['cover',*[s.get('role','content') for s in spec['slides']]]} if template_receipt else {}),
             **({'chapters':chapters,'chapter_ranges':chapter_ranges,'outline_validation':'agenda_sections_in_order'} if chapters else {}),
+            **({'visible_arguments':visible_arguments} if argument_contract else {}),
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)
@@ -639,6 +664,7 @@ def main():
     parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.',
         epilog='PPTX: omit template for the original paginated baseline. Add template={"id":"state-grid"} for the built-in template, or template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Template output keeps one content record per slide, combining one visual and its reasoning. Optional role:agenda marks the agenda; section is a visible chapter label; final role:closing reuses cover branding and accepts zero blocks or one short paragraph. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; revise composition when content does not fit.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
+    parser.description += ' Template briefings also support capstone-presentation/2: each ordinary content record requires argument={"explanation":"Supported reasoning"}. This explanation is always rendered as visible prose and checked for overflow; agenda/closing records omit argument. Version 1 remains unchanged. Rendering does not certify reasoning.'
     parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
     parser.add_argument('--check-only', action='store_true', help='Validate saved sources and layout without writing output. Returns actual counts and source hashes; independent PPTX block errors are collected. Rendering rechecks sources when you later create the product.')
