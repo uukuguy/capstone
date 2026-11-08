@@ -15,7 +15,7 @@ it('restores skill loading and honest application details in the existing proces
   {...record(3,''),eventType:'attempt_completed',payload:{answer:'已保存阶段记录。'}}]
  const projected=projectAssistantActivity(events)
  expect(projected).toHaveLength(1)
- expect(projected[0].label).toBe('使用任务技能 · data-investigation')
+ expect(projected[0].label).toBe('data-investigation')
  expect(projected[0].skillName).toBe('data-investigation')
  expect(projected[0].operation).toBe('data-investigation · 已加载')
  render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)

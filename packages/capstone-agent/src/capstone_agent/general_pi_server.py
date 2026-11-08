@@ -592,7 +592,21 @@ class GeneralPiHost:
                 elif compaction_started is not None:
                     payload['runtime_phase']['elapsed_ms'] = round((time.monotonic() - compaction_started) * 1000)
                     compaction_started = None
-            if kind == 'llm_pool_call':
+            if kind == 'tool_batch':
+                from .tool_execution_receipt import checked_tool_batch
+                batch = checked_tool_batch(event.get('tool_batch'), task_id=request.task_id)
+                if batch is None:
+                    raise ValueError('native tool batch invalid')
+                payload = {'type': kind, 'tool_batch': batch}
+            elif kind == 'tool_dispatch':
+                from .tool_execution_receipt import checked_dispatch_receipt
+                call_id, name = event.get('tool_call_id'), event.get('tool_name')
+                receipt = checked_dispatch_receipt(event.get('dispatch_receipt'),
+                    task_id=request.task_id, call_id=call_id)
+                if receipt is None or not isinstance(name, str) or not 0 < len(name) <= 128:
+                    raise ValueError('native dispatch receipt invalid')
+                payload = {'type': kind, 'tool_call_id': call_id, 'tool_name': name, 'dispatch_receipt': receipt}
+            elif kind == 'llm_pool_call':
                 payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
             elif kind == 'model_request_pool':
                 from .native_model_request_pool import checked_model_request_pool
@@ -1146,7 +1160,7 @@ class NativeTaskRunner:
                 context['business_context'] = request.business_context.to_document()
             task_input = document.get('input', {'kind': 'text', 'text': request.instruction})
             sdk_config = {'sdk': str(Path(self.command[1]).with_name('index.js')),
-                          'input': task_input, 'skillName': None, 'settings': {}, 'allowedSkills': [],
+                          'input': task_input, 'taskId': request.task_id, 'skillName': None, 'settings': {}, 'allowedSkills': [],
                           'contextFiles': [], 'mcp': None, 'inventoryOnly': inventory_only,
                           'context': context,
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),

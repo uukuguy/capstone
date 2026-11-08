@@ -8,6 +8,18 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('uses launcher elapsed time without adding batch receipts to the tool count',()=>{
+ const attempt='launcher',batch={schema:'capstone-tool-batch/1',task_id:'task',batch_id:'batch',mode:'parallel',capacity:8,call_ids:['a','b'],elapsed_ms:1200}
+ const events=[event('attempt_started',1,{},attempt),event('turn_route_selected',2,{source:'native_conversation'},attempt),event('runtime_action',3,{phase:'started'},attempt),event('runtime_action',4,{phase:'response_completed',response_kind:'tools'},attempt)]
+ for(const [i,id] of ['a','b'].entries())events.push(event('runtime_event',5+i*2,{task_id:'task',native_type:'tool_execution_start',tool_name:'read',tool_call_id:id},attempt),event('runtime_event',6+i*2,{task_id:'task',native_type:'tool_execution_end',tool_name:'read',tool_call_id:id},attempt))
+ events.push(event('runtime_event',9,{task_id:'task',native_type:'tool_batch',tool_batch:batch},attempt),event('attempt_completed',10,{answer:'完成'},attempt))
+ const activities=projectAssistantActivity(events)
+ expect(activities.filter(item=>item.toolName)).toHaveLength(2)
+ expect(activities.filter(item=>item.toolName).every(item=>item.toolBatch?.elapsed_ms===1200)).toBe(true)
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ expect(document.querySelector('.capstone-parallel-heading')?.textContent).toBe('并行工具调用 · 2 项1.2s')
+})
 it.each([false,true])('connects all sixteen tools from native SDK turn projection (owner receipts: %s)',hasReceipts=>{
  const attempt='native-batch'
  const events=[event('attempt_started',1,{},attempt),
@@ -24,10 +36,10 @@ it.each([false,true])('connects all sixteen tools from native SDK turn projectio
  fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
  fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
  const dialog=screen.getByRole('dialog',{name:'执行过程'})
- const batch=within(dialog).getByRole('group',{name:'同轮工具批次 · 16 项'})
+ const batch=within(dialog).getByRole('group',{name:'并行工具调用 · 16 项'})
  expect(batch.querySelectorAll('.capstone-call-tool-entry')).toHaveLength(16)
  if(hasReceipts)expect(batch.querySelector('.capstone-parallel-heading')?.textContent).toContain('执行容量 8 · 观测峰值 8')
- else expect(within(batch).getByText('重叠未核实')).toBeTruthy()
+ else expect(within(batch).queryByText(/观测峰值/)).toBeNull()
  expect(within(dialog).queryByRole('group',{name:'同一响应工具批次 · 16 项'})).toBeNull()
 })
 it('shows public compaction records inside the process window and preserves LLM count on replay',()=>{

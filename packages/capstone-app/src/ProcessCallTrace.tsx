@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { AlertTriangle, ChevronRight, Check, CircleX, CircleDashed, LoaderCircle, Square, BrainCircuit } from 'lucide-react'
-import { receiptDuration, receiptBatchSummary, type ToolExecutionReceipt } from './toolExecutionReceipt'
+import { receiptDuration, receiptBatchSummary, dispatchDuration, type ToolBatch, type ToolDispatchReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
 import { batchElapsedMs,toolExecutionMs } from './processTiming'
 import './processCallTrace.css'
 import ThinkingProcess from './ThinkingProcess'
@@ -12,7 +12,7 @@ import {compactionDuration,type ProcessCompaction} from './processCompactions'
 
 export type ProcessModelCall = { retry?:{attempt:number;maximum?:number;delayMs?:number;success?:boolean;finished?:boolean}; id: string; number: number; ms: number; requestPool?:readonly ProcessModelRequest[];requestPoolOnly?:boolean;poolCalls?:readonly ProcessLlmPoolCall[]; label?: string; intent?: string; thinking?: string; thinkingStartedAt?: string; thinkingEndedAt?: string; thinkingSettled?: boolean; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolAssociation?: 'turn'; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
 const modelErrors:Record<string,string>={model_context_limit:'上下文超限',model_rate_limit:'请求限流',model_authentication:'模型认证失败',model_transport:'模型连接异常',model_output_invalid:'模型输出格式异常',model_output_rejected:'模型输出被拒绝',model_turn_incomplete:'原因未记录'}
-export type ProcessToolCall = { kind?: 'skill'; executionReceipt?: ToolExecutionReceipt; id: string; name: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; warning?: string; failure?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
+export type ProcessToolCall = { kind?: 'skill'; toolBatch?: ToolBatch; dispatchReceipt?: ToolDispatchReceipt; executionReceipt?: ToolExecutionReceipt; id: string; name: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; warning?: string; failure?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
 export type ProcessTraceFocus = { modelId: string; revision: number }
 export function callTraceIssues(models: readonly ProcessModelCall[], tools: readonly ProcessToolCall[], active = true) {
   return models.flatMap(model => {
@@ -33,10 +33,6 @@ function BatchHeading({title,count,summary,callerElapsedMs,running=false}:{title
   const callerTiming=summary.elapsedMs===undefined&&callerElapsedMs!==undefined
   return <div className="capstone-parallel-heading">
     <span className="capstone-parallel-title">{title} · {count} 项</span>
-    {summary.peak===undefined?<details className="capstone-batch-observation">
-      <summary>重叠未核实</summary>
-      <p>同轮批次不代表同时执行。缺少实际执行区间，无法判断这些调用是否重叠；毫秒级耗时也不能证明并发或串行。</p>
-    </details>:null}
     <span className="capstone-batch-metrics">
       {summary.capacity!==undefined&&<span>执行容量 {summary.capacity}</span>}
       {summary.peak!==undefined&&<span>{summary.capacity!==undefined?' · ':''}观测峰值 {summary.peak}</span>}
@@ -130,8 +126,8 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
   const renderTool = (tool: ProcessToolCall, independent = false) => {
     const isSkill=tool.kind==='skill'||tool.name==='agent_skill'
     const skillName=tool.operation?.match(/^([a-z0-9][a-z0-9_-]{0,127}) · (?:已加载|模型报告)$/)?.[1]
-    const skillTitle=tool.name==='agent_skill'?'使用任务技能'+(skillName?' · '+skillName:''):tool.name
-    const executionMs = receiptDuration(tool.executionReceipt, 'execution_started', 'execution_ended')
+    const skillTitle=tool.name==='agent_skill'?(skillName??'技能'):tool.name.replace(/^使用任务技能 · /,'')
+    const executionMs = dispatchDuration(tool.dispatchReceipt) ?? receiptDuration(tool.executionReceipt, 'execution_started', 'execution_ended')
     const queueMs = receiptDuration(tool.executionReceipt, 'queued', 'acquired')
     const excerpt = tool.operation?.trim() ? operationExcerpt(tool.name, tool.operation) : tool.name
     const sentence = independent ? undefined : purposeTitle(tool.name, tool.operation)
@@ -181,7 +177,7 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
     }
     if (entry.tool) return <li key={entry.id}>{renderTool(entry.tool, true)}</li>
     const model = entry.model!, selected = tools.filter(tool => owned(tool, model)), toolMs = toolExecutionMs(selected.map(timed))
-    const batchTitle = model.toolAssociation === 'turn' ? '同轮工具批次' : '同一响应工具批次'
+    const batchTitle = model.toolAssociation === 'turn' ? '并行工具调用' : '同一响应工具批次'
     const requests = model.toolRequests ?? selected.map(tool => ({ id: tool.id, name: tool.name, operation: tool.operation }))
     const ownPurpose=model.intent?.trim()||responseOpeningIntent(model.responseText)
     const lifted=ownPurpose?undefined:omittedCallPurpose(requests)
@@ -217,7 +213,7 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
         <details><summary>缺失明细</summary><ul>{issue.missingToolIds.map(id => <li key={id}>
           <strong>{model.toolRequests?.find(item => item.id === id)?.name ?? '工具名称未记录'}</strong> · {tools.some(tool => tool.id === id) ? '缺少结果记录' : '缺少执行记录'}<code>{id}</code>
         </li>)}</ul></details></div>}
-      <div className="capstone-call-nested"><ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking??'',startedAt:model.thinking?model.thinkingStartedAt:undefined,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{selected.length>1?(()=>{const summary=receiptBatchSummary((model.toolCallIds??[]).map(id=>selected.find(tool=>tool.id===id)?.executionReceipt));return <div className="capstone-parallel-group" role="group" aria-label={`${batchTitle} · ${model.toolCallIds!.length} 项`} title={model.toolAssociation==='turn'?'连线表示同一 SDK 轮次中的工具批次，不表示同时执行。':'连线表示同一模型响应中的工具批次，不表示同时执行。'}><BatchHeading title={batchTitle} count={model.toolCallIds!.length} summary={summary} callerElapsedMs={model.toolCallIds!.length===selected.length?batchElapsedMs(selected,active,now):undefined} running={active&&selected.some(tool=>tool.status==='running')}/>{selected.map(tool=>renderTool(tool))}</div>})():selected.map(tool=>renderTool(tool))}</div>}</div>
+      <div className="capstone-call-nested"><ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking??'',startedAt:model.thinking?model.thinkingStartedAt:undefined,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{selected.length>1?(()=>{const batch=selected[0]?.toolBatch;const exactBatch=batch&&batch.call_ids.length===model.toolCallIds?.length&&selected.every(tool=>tool.toolBatch?.batch_id===batch.batch_id&&batch.call_ids.includes(tool.id));const summary=exactBatch?{elapsedMs:batch.elapsed_ms}:receiptBatchSummary((model.toolCallIds??[]).map(id=>selected.find(tool=>tool.id===id)?.executionReceipt));return <div className="capstone-parallel-group" role="group" aria-label={`${batchTitle} · ${model.toolCallIds!.length} 项`} title={model.toolAssociation==='turn'?'同一 SDK 轮次异步提交，按执行容量排队；有依赖的调用等待前置结果。':'同一模型响应中的工具调用。'}><BatchHeading title={batchTitle} count={model.toolCallIds!.length} summary={summary} callerElapsedMs={model.toolCallIds!.length===selected.length?batchElapsedMs(selected,active,now):undefined} running={active&&selected.some(tool=>tool.status==='running')}/>{selected.map(tool=>renderTool(tool))}</div>})():selected.map(tool=>renderTool(tool))}</div>}</div>
 
       {!issue && linked && model.toolCallIds!.length > selected.length && <p className="capstone-call-pending">等待工具记录 · {model.toolCallIds!.length - selected.length}项</p>}
       {mainDispatches.length>0&&<RequestPoolExecutions requests={mainDispatches} active={active} now={now}/>}

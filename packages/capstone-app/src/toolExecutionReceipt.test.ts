@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { parseToolExecutionReceipt, receiptBatchSummary, receiptDuration } from './toolExecutionReceipt'
+import { parseToolExecutionReceipt, parseToolDispatchReceipt, dispatchBatchSummary, receiptBatchSummary, receiptDuration } from './toolExecutionReceipt'
 import { receipt } from './toolExecutionReceipt.fixture'
+it('measures native submission through release without using overlap to classify the batch',()=>{
+  const native=(id:string,offset:number)=>{
+    const base=receipt(id,offset)
+    return {...base,schema:'capstone-tool-dispatch/1',scope_id:base.task_id,events:base.events.map(event=>({...event,phase:event.phase==='execution_started'?'invocation_started':event.phase==='execution_ended'?'invocation_settled':event.phase,provenance:'native_dispatch'}))}
+  }
+  const a=native('a',0),b=native('b',4000)
+  const parsed=[parseToolDispatchReceipt(a,'a'),parseToolDispatchReceipt(b,'b')]
+  expect(parsed[0]).toEqual(a)
+  expect(dispatchBatchSummary(parsed)).toEqual({capacity:8,elapsedMs:b.events.at(-1)!.elapsed_ms-a.events[0].elapsed_ms})
+  expect(parseToolDispatchReceipt({...a,scope_id:'foreign'},'a')).toBeUndefined()
+  expect(parseToolDispatchReceipt(a,'foreign')).toBeUndefined()
+  expect(parseToolExecutionReceipt(a,'a')).toBeUndefined()
+  expect(dispatchBatchSummary([parsed[0],undefined])).toEqual({})
+})
 describe('owner execution receipts',()=>{
   it('admits production owner and scoped call identities while rejecting actual control bytes',()=>{
     const call='graph-child:action-17:call_01u7f'

@@ -1,4 +1,4 @@
-import { receiptDuration, parseToolExecutionReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
+import { receiptDuration, parseToolBatch, parseToolDispatchReceipt, parseToolExecutionReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
 import {serverNow} from './serverClock'
 import WelcomeConnections from './WelcomeConnections'
 import {instructionProductScopes,instructionProductLabel,type InstructionProductScope} from './instructionProducts'
@@ -88,6 +88,8 @@ const EMPTY_PROMPTS = [
 ] as const
 
 export type ChatActivity = {
+  toolBatch?: import('./toolExecutionReceipt').ToolBatch
+  dispatchReceipt?: import('./toolExecutionReceipt').ToolDispatchReceipt
   skillName?: string
   executionReceipt?: ToolExecutionReceipt
   id: string
@@ -109,7 +111,7 @@ export type ChatActivity = {
 }
 
 const TOOL_LABELS: Record<string, string> = {
-  agent_skill: '使用任务技能',
+  agent_skill: '技能',
   agent_resource_open: '读取引用资料',
   agent_research_read: '读取已保存的研究记录',
   agent_research_update: '保存研究进展与待解决问题',
@@ -189,6 +191,19 @@ function nativeToolActivity(event:EventEnvelope) {
 
 export function projectAssistantActivity(events: readonly EventEnvelope[]): ChatActivity[] {
   const grouped = new Map<string, ChatActivity>()
+  const dispatches=new Map<string,import('./toolExecutionReceipt').ToolDispatchReceipt>()
+  const batches=new Map<string,import('./toolExecutionReceipt').ToolBatch>()
+  for(const event of events){
+    if(event.visibility==='public'&&event.eventType==='runtime_event'&&event.payload.native_type==='tool_batch'&&event.attemptId&&typeof event.payload.task_id==='string'){
+      const batch=parseToolBatch(event.payload.tool_batch,event.payload.task_id)
+      if(batch)for(const call of batch.call_ids)batches.set(`native:${JSON.stringify([event.threadId,event.attemptId,batch.task_id,call])}`,batch)
+    }
+    if(event.visibility!=='public'||event.eventType!=='runtime_event'||event.payload.native_type!=='tool_dispatch'||!event.attemptId)continue
+    const payload=event.payload
+    if(typeof payload.tool_call_id!=='string'||typeof payload.task_id!=='string')continue
+    const receipt=parseToolDispatchReceipt(payload.dispatch_receipt,payload.tool_call_id)
+    if(receipt?.task_id===payload.task_id)dispatches.set(`native:${JSON.stringify([event.threadId,event.attemptId,payload.task_id,payload.tool_call_id])}`,receipt)
+  }
   for (const event of events) {
     const native=nativeToolActivity(event)
     if(native){
@@ -196,11 +211,11 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
       const startedAt=previous?.startedAt||(native.phase==='running'?event.occurredAt:undefined)
       const finishedAt=previous?.finishedAt||(native.phase==='completed'?event.occurredAt:undefined)
       const skillName=native.skillName??previous?.skillName
-      grouped.set(native.id,{id:native.id,toolName:native.name,skillName,label:skillName?'使用任务技能 · '+skillName:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
+      grouped.set(native.id,{id:native.id,toolName:native.name,skillName,label:skillName?skillName:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
         taskStepId:typeof event.payload.task_step_id==='string'?event.payload.task_step_id:previous?.taskStepId,
         taskStepNumber:typeof event.payload.task_step_number==='number'?event.payload.task_step_number:previous?.taskStepNumber,
         stepToolNumber:typeof event.payload.step_tool_number==='number'?event.payload.step_tool_number:previous?.stepToolNumber,
-        executionReceipt:native.executionReceipt??previous?.executionReceipt,operation:native.operation||previous?.operation,outputExcerpt:native.outputExcerpt||previous?.outputExcerpt,warning:native.warning||previous?.warning,
+        toolBatch:batches.get(native.id),dispatchReceipt:dispatches.get(native.id),executionReceipt:native.executionReceipt??previous?.executionReceipt,operation:native.operation||previous?.operation,outputExcerpt:native.outputExcerpt||previous?.outputExcerpt,warning:native.warning||previous?.warning,
         ...(native.failed&&native.outputExcerpt?{failure:{summary:native.outputExcerpt}}:previous?.failure?{failure:previous.failure}:{}),
         status:native.failed||previous?.status==='failed'?'failed':finishedAt?'completed':native.phase,
         ...(startedAt?{startedAt}:{}),...(finishedAt?{finishedAt}:{}),
@@ -879,7 +894,7 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
       </section>
       <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
     </>
-    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),kind:activity.toolName==='agent_skill'?'skill' as const:undefined,name:activity.toolName==='agent_skill'?activity.label:activity.toolName==='agent_tools_execute'?activity.toolName:activity.toolName?(TOOL_LABELS[activity.toolName]||activity.toolName):activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,executionReceipt:activity.executionReceipt,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
+    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),kind:activity.toolName==='agent_skill'?'skill' as const:undefined,name:activity.toolName==='agent_skill'?activity.label:activity.toolName==='agent_tools_execute'?activity.toolName:activity.toolName?(TOOL_LABELS[activity.toolName]||activity.toolName):activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,toolBatch:activity.toolBatch,dispatchReceipt:activity.dispatchReceipt,executionReceipt:activity.executionReceipt,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}

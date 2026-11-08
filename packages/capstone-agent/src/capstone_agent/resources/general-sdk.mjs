@@ -15,7 +15,7 @@ import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {restoreToolResult,configureObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
-import {applicationToolDispatcher} from './tool-call-scheduler.mjs';
+import {applicationToolDispatcher,createToolBatchObserver} from './tool-call-scheduler.mjs';
 import {createLlmCallTools,llmCallToolNames,buildLlmCallPrompt} from './llm-call-tools.mjs';
 import {createModelRequestPool} from './model-request-pool.mjs';
 import {configureCommittedDelivery} from './committed-delivery.mjs';
@@ -396,7 +396,11 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
   const gatewayTools=discovery?[...discovery.guardedTools,...discovery.tools]:createDataGatewayTools(config);
-  const dispatcher=applicationToolDispatcher(config,compositionPolicy.concurrency);
+  const dispatcher=applicationToolDispatcher(config,compositionPolicy.concurrency,{observe:(receipt,name)=>{
+    const callId=graphBinding?graphChildCallId(graphBinding.action.id,receipt.call_id):receipt.call_id;
+    hostEmit({type:'tool_dispatch',tool_name:name,tool_call_id:callId,
+      dispatch_receipt:{...receipt,call_id:callId}});
+  }});
   const wrap=tool => {
     const guarded = guardToolExecution(dispatcher.wrap(tool), async call => applicationToolAdmission(config, call.toolName));
     // Foundation records do not open a native graph action or produce business evidence.
@@ -574,7 +578,9 @@ export class ManagedContinuationStalledError extends Error {
 export async function runSettledPrompt(session, input, skillName, emit, continuation,control={}) {
   let terminal,completedTools=0,previousPending;
   const observedAssistants=[];
+  const observeBatch=typeof control.taskId==='string'?createToolBatchObserver({taskId:control.taskId,emit}):()=>{};
   const unsubscribe = session.subscribe(event => {
+    observeBatch(event);
     // agent_end can precede SDK compaction or a model-request retry. Only
     // completion of prompt() means those continuations have also settled.
     if(event.type==='tool_execution_end')completedTools++;
@@ -730,6 +736,9 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     modelRuntime, model, resourceLoader: loader, settingsManager,
     ...tools,
     sessionManager: sdk.SessionManager.inMemory()});
+  // The host owns admission capacity. Submit independent same-turn calls
+  // together; dependent arguments are resolved in a later turn or program.
+  session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,childConfig);
   const stopUnenteredTools=graphBinding?session.subscribe(event=>{
     if(event.type!=='tool_execution_end'||!(event.isError===true||event.result?.isError===true)||
@@ -1472,6 +1481,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     modelRuntime, model, resourceLoader: loader, settingsManager,
     ...toolOptions,
     sessionManager: sdk.SessionManager.inMemory() });
+  session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,config);
   const stopModelTurn=session.subscribe(event=>{if(event.type==='turn_start')mainModelTurn++});
   llmPool?.setCompletionSink(result=>session.sendCustomMessage({customType:'capstone-llm-pool-results',
@@ -1512,7 +1522,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       await runSettledPrompt(session, config.input, config.skillName,
         event => process.stdout.write(JSON.stringify(event) + "\n"),
         async()=>await llmPool?.continuation()??await researchController?.continuationState(),
-        {failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()});
+        {taskId:config.taskId,failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()});
       break;
     }
     lines.close();

@@ -1,6 +1,29 @@
 from copy import deepcopy
 
-from capstone_agent.tool_execution_receipt import checked_execution_receipt
+from capstone_agent.tool_execution_receipt import checked_execution_receipt, checked_dispatch_receipt, checked_tool_batch
+
+
+def test_native_dispatch_retains_invocation_boundaries_without_authority_claims():
+    value = receipt()
+    value.update(schema='capstone-tool-dispatch/1', scope_id='task')
+    for event in value['events']:
+        event['phase'] = {'execution_started': 'invocation_started', 'execution_ended': 'invocation_settled'}.get(event['phase'], event['phase'])
+        event['provenance'] = 'native_dispatch'
+    assert checked_dispatch_receipt(value, task_id='task', call_id='call') == value
+    assert checked_execution_receipt(value, task_id='task', call_id='call') is None
+    assert checked_dispatch_receipt(value, task_id='foreign', call_id='call') is None
+    value['events'][0]['elapsed_ms'] = 10 ** 1000
+    assert checked_dispatch_receipt(value, task_id='task', call_id='call') is None
+
+
+def test_launcher_batch_is_bound_and_finite():
+    value = {'schema': 'capstone-tool-batch/1', 'task_id': 'task', 'batch_id': 'batch',
+             'mode': 'parallel', 'capacity': 8, 'call_ids': ['a', 'b'], 'elapsed_ms': 110}
+    assert checked_tool_batch(value, task_id='task') == value
+    assert checked_tool_batch(value, task_id='foreign') is None
+    for update in [{'call_ids': ['a', 'a']}, {'elapsed_ms': -1}, {'elapsed_ms': float('inf')},
+                   {'elapsed_ms': 10 ** 1000}, {'mode': 'serial'}]:
+        assert checked_tool_batch({**value, **update}, task_id='task') is None
 
 
 def receipt():

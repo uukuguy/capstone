@@ -309,7 +309,10 @@ class DelegatedRuntime:
                     pending_tools.pop(tool_call_id, None)
             public_tool = kind in {'tool_execution_start', 'tool_execution_end'} and (
                 isinstance(tool_name, str) and bool(tool_name) and isinstance(tool_call_id, str) and bool(tool_call_id))
-            from .tool_execution_receipt import checked_execution_receipt
+            from .tool_execution_receipt import checked_execution_receipt, checked_dispatch_receipt, checked_tool_batch
+            tool_batch = checked_tool_batch(event.get('tool_batch'), task_id=task_id) if kind == 'tool_batch' else None
+            dispatch_receipt = checked_dispatch_receipt(event.get('dispatch_receipt'),
+                task_id=task_id, call_id=tool_call_id) if kind == 'tool_dispatch' else None
             raw_result, raw_activity = event.get('result'), event.get('activity')
             result_details = raw_result.get('details', {}) if isinstance(raw_result, Mapping) else {}
             raw_receipt = raw_activity.get('execution_receipt') if isinstance(raw_activity, Mapping) else None
@@ -368,6 +371,8 @@ class DelegatedRuntime:
                 **({'tool_name': tool_name[:256]} if isinstance(tool_name, str) else {}),
                 **({'tool_call_id': tool_call_id[:256]} if isinstance(tool_call_id, str) else {}),
                 **({'task_progress': event['task_progress']} if isinstance(event.get('task_progress'), Mapping) else {}),
+                **({'dispatch_receipt': dispatch_receipt} if dispatch_receipt is not None else {}),
+                **({'tool_batch': tool_batch} if tool_batch is not None else {}),
                 **({'skill_activity': event['skill_activity']} if isinstance(event.get('skill_activity'), Mapping)
                     and tool_name == 'agent_skill' and kind == 'tool_execution_end' else {}),
                 **({'source_view': source_view} if source_view is not None else {}),
@@ -394,7 +399,7 @@ class DelegatedRuntime:
                     **({'execution_receipt': execution_receipt} if execution_receipt is not None else {})}}
                     if isinstance(event.get('activity'), Mapping) or execution_receipt is not None else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},
-                visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
+                visibility='public' if tool_batch is not None or dispatch_receipt is not None or public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
         result: PiTaskResult | None = None

@@ -1,8 +1,40 @@
 export type ToolExecutionEvent = { phase: string; at: string; elapsed_ms: number; provenance: 'owner_scheduler' | 'authority_process' }
 export type ToolExecutionReceipt = { schema: 'capstone-tool-execution/1'; owner_id: string; scope_id: string; task_id: string; call_id: string; policy_version: string; capacity: number; events: ToolExecutionEvent[] }
+export type ToolDispatchReceipt = Omit<ToolExecutionReceipt, 'schema' | 'events'> & {schema:'capstone-tool-dispatch/1'; events:{phase:string;at:string;elapsed_ms:number;provenance:'native_dispatch'}[]}
+export type ToolBatch = {schema:'capstone-tool-batch/1';task_id:string;batch_id:string;mode:'parallel';capacity:number;call_ids:string[];elapsed_ms:number}
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const identity = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256 && value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value)
 const phases = ['submitted', 'queued', 'acquired', 'execution_started', 'execution_ended', 'released']
+export function parseToolBatch(value:unknown,taskId:string):ToolBatch|undefined{
+  if(!object(value)||value.schema!=='capstone-tool-batch/1'||value.task_id!==taskId||value.mode!=='parallel'||!identity(value.batch_id)||!Array.isArray(value.call_ids)||!value.call_ids.length||value.call_ids.length>1024||!value.call_ids.every(identity)||new Set(value.call_ids).size!==value.call_ids.length||!Number.isSafeInteger(value.capacity)||Number(value.capacity)<1||Number(value.capacity)>1024||typeof value.elapsed_ms!=='number'||!Number.isFinite(value.elapsed_ms)||value.elapsed_ms<0)return
+  return {schema:value.schema,task_id:taskId,batch_id:value.batch_id,mode:value.mode,capacity:Number(value.capacity),call_ids:[...value.call_ids],elapsed_ms:value.elapsed_ms}
+}
+export function dispatchDuration(receipt:ToolDispatchReceipt|undefined){
+  const start=receipt?.events.find(event=>event.phase==='invocation_started')?.elapsed_ms
+  const end=receipt?.events.find(event=>event.phase==='invocation_settled')?.elapsed_ms
+  return start!==undefined&&end!==undefined?end-start:undefined
+}
+/** Native invocation boundaries are separate from Authority process evidence. */
+export function parseToolDispatchReceipt(value: unknown, callId: string): ToolDispatchReceipt | undefined {
+  if(!object(value)||value.schema!=='capstone-tool-dispatch/1'||value.scope_id!==value.task_id||!Array.isArray(value.events))return
+  const converted={...value,schema:'capstone-tool-execution/1',events:value.events.map(event=>{
+    if(!object(event)||event.provenance!=='native_dispatch')return null
+    const phase=event.phase==='invocation_started'?'execution_started':event.phase==='invocation_settled'?'execution_ended':event.phase
+    if(!phases.includes(String(phase)))return null
+    return {...event,phase,provenance:String(phase).startsWith('execution_')?'authority_process':'owner_scheduler'}
+  })}
+  const checked=parseToolExecutionReceipt(converted,callId)
+  if(!checked)return
+  return {...checked,schema:'capstone-tool-dispatch/1',events:checked.events.map(event=>({...event,phase:event.phase==='execution_started'?'invocation_started':event.phase==='execution_ended'?'invocation_settled':event.phase,provenance:'native_dispatch'}))}
+}
+export function dispatchBatchSummary(receipts: readonly (ToolDispatchReceipt | undefined)[]) {
+  const first=receipts[0]
+  if(!first||receipts.some(receipt=>!receipt||receipt.owner_id!==first.owner_id||receipt.scope_id!==first.scope_id||receipt.capacity!==first.capacity||receipt.policy_version!==first.policy_version))return {}
+  const known=receipts as readonly ToolDispatchReceipt[]
+  const starts=known.map(receipt=>receipt.events.find(event=>event.phase==='submitted')?.elapsed_ms)
+  const ends=known.map(receipt=>receipt.events.find(event=>event.phase==='released')?.elapsed_ms)
+  return {capacity:first.capacity,elapsedMs:starts.every(value=>value!==undefined)&&ends.every(value=>value!==undefined)?Math.max(...ends as number[])-Math.min(...starts as number[]):undefined}
+}
 /** Reject unrelated, malformed and non-monotonic owner observations. */
 export function parseToolExecutionReceipt(value: unknown, callId: string): ToolExecutionReceipt | undefined {
   if (!object(value) || value.schema !== 'capstone-tool-execution/1' || value.call_id !== callId
