@@ -303,6 +303,41 @@ def render_presentation(spec_path, output, *, check_only=False):
                 raise ReportError(field + ' exceeds its text budget or contains control characters')
             return value
 
+        def agenda_labels(content):
+            labels=[]
+            blocks=content.get('blocks')
+            if not isinstance(blocks,list):raise ReportError('agenda blocks must be a list')
+            for block in blocks:
+                if isinstance(block,dict) and set(block)=={'type','items'} and block['type']=='bullets' and isinstance(block['items'],list):
+                    labels.extend(literal(v,'agenda title',100) for v in block['items'])
+                elif isinstance(block,dict) and set(block)=={'type','text'} and block['type']=='paragraph':
+                    labels.extend(literal(v,'agenda title',100) for v in literal(block['text'],'agenda titles',1000).splitlines())
+                else:raise ReportError('template agenda accepts chapter titles only, as paragraphs or bullets')
+            if not labels or len(set(labels))!=len(labels):raise ReportError('agenda titles must be nonempty and unique')
+            return labels
+
+        chapters=[];chapter_ranges={}
+        if template_page:
+            agendas=[s for s in spec['slides'] if isinstance(s,dict) and s.get('role')=='agenda']
+            if len(agendas)>1:raise ReportError('presentation allows one agenda')
+            if agendas:
+                chapters=agenda_labels(agendas[0]);order=[]
+                chapter_ranges={label:[] for label in chapters}
+                for index,content in enumerate(spec['slides']):
+                    if isinstance(content,dict) and content.get('role','content')=='content':
+                        section=content.get('section')
+                        if not isinstance(section,str) or section not in chapters:
+                            raise ReportError('content section must match an agenda chapter',
+                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False})
+                        rank=chapters.index(section)
+                        if order and rank<order[-1]:
+                            raise ReportError('content chapter order differs from the agenda',
+                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False})
+                        order.append(rank);chapter_ranges[section].append(index+2)
+                if order and len(set(order))!=len(chapters):
+                    raise ReportError('agenda includes a chapter with no content',
+                        diagnostic={'code':'chapter_order','output_written':False})
+
         def wrap(value, width):
             if template_page:
                 from native_presentation_layout import wrap_briefing
@@ -374,7 +409,7 @@ def render_presentation(spec_path, output, *, check_only=False):
                 raise ReportError('slide title is too long for its fixed layout')
             textbox(slide,*position,lines,34 if cover else 27,cover_ink if cover else title_ink,True,alignment)
             if section_label and not cover:
-                textbox(slide,chapter_x,position[1]+.16,3.3,.35,[section_label],14,title_ink,align=PP_ALIGN.RIGHT)
+                textbox(slide,chapter_x,position[1]+.04,3.3,.45,[section_label],22,title_ink,True,PP_ALIGN.RIGHT)
             if notes or speaker_notes:
                 slide.notes_slide.notes_text_frame.text = '\n'.join([*notes,*([speaker_notes] if speaker_notes else [])])
             footers.append((slide,notes))
@@ -397,7 +432,7 @@ def render_presentation(spec_path, output, *, check_only=False):
             if role == 'closing' and index != len(spec['slides'])-1:
                 raise ReportError('closing must be the last content record')
             section_label = literal(content['section'],'section',100) if 'section' in content else ''
-            if section_label and len(wrap(section_label,30))>1:
+            if section_label and len(wrap(section_label,20))>1:
                 raise ReportError('section label must fit one line in the right title-bar slot')
             title = literal(content['title'],'slide title',160)
             blocks = content['blocks']
@@ -415,6 +450,11 @@ def render_presentation(spec_path, output, *, check_only=False):
             if speaker_notes:
                 speaker_notes = literal(speaker_notes,'speaker_notes',20000)
             if template_page:
+                if role=='agenda' and hasattr(template_page,'agenda'):
+                    slide=template_page.agenda(agenda_labels(content))
+                    if notes or speaker_notes:slide.notes_slide.notes_text_frame.text='\n'.join([*notes,speaker_notes])
+                    footers.append((slide,notes))
+                    continue
                 if role == 'closing':
                     if len(blocks)>1 or any(not isinstance(b,dict) or set(b)!={'type','text'}
                             or b['type']!='paragraph' for b in blocks):
@@ -589,6 +629,7 @@ def render_presentation(spec_path, output, *, check_only=False):
             **({'template': template_receipt} if template_receipt else {}),
             **({'layout_policy':'one_content_record_per_slide',
                 'slide_roles':['cover',*[s.get('role','content') for s in spec['slides']]]} if template_receipt else {}),
+            **({'chapters':chapters,'chapter_ranges':chapter_ranges,'outline_validation':'agenda_sections_in_order'} if chapters else {}),
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)

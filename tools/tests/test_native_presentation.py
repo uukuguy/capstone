@@ -48,7 +48,7 @@ def test_briefing_preserves_unicode_numeric_ranges_at_line_boundaries():
 def test_template_report_roles_preserve_chapter_context_and_branded_closing(tmp_path):
     value = spec([], template={'id':'state-grid'})
     value['slides'] = [
-        {'role':'agenda','title':'汇报目录','blocks':[{'type':'paragraph','text':'一、总体态势：变化是什么？'}]},
+        {'role':'agenda','title':'汇报目录','blocks':[{'type':'paragraph','text':'一、总体态势'}]},
         {'section':'一、总体态势','title':'峰值增长集中于晚间',
          'blocks':[{'type':'paragraph','text':'晚间增幅高于午间，支持关注晚峰的判断。'}]},
         {'role':'closing','title':'汇报完毕','blocks':[{'type':'paragraph','text':'请批评指正'}]},
@@ -59,7 +59,8 @@ def test_template_report_roles_preserve_chapter_context_and_branded_closing(tmp_
     assert len(deck.slides) == 4
     assert '一、总体态势' in deck_text(deck)
     chapter = next(s for s in deck.slides[2].shapes if s.has_text_frame and s.text == '一、总体态势')
-    assert chapter.text_frame.paragraphs[0].font.size.pt == 14
+    assert chapter.text_frame.paragraphs[0].font.size.pt == 22
+    assert chapter.text_frame.paragraphs[0].font.bold is True
     from pptx.enum.text import PP_ALIGN
     assert chapter.text_frame.paragraphs[0].alignment == PP_ALIGN.RIGHT
     assert chapter.top < 914400
@@ -72,6 +73,48 @@ def test_template_report_roles_preserve_chapter_context_and_branded_closing(tmp_
     assert title.top > 914400
     assert str(title.text_frame.paragraphs[0].font.color.rgb) == 'FFFFFF'
     assert '请批评指正' in deck_text(deck)
+
+
+@pytest.mark.parametrize('uploaded',[False,True])
+def test_state_grid_agenda_reuses_template_artwork_and_six_editable_rows(tmp_path,uploaded):
+    from pptx.enum.shapes import MSO_SHAPE
+    labels=['一、总体判断','二、峰值水平','三、日内形态','四、时空集中','五、外部条件','六、结论与建议']
+    selection={'id':'state-grid'}
+    if uploaded:
+        (tmp_path/'brand.pptx').write_bytes((SCRIPT.parent/'presentation-templates/state-grid.pptx').read_bytes())
+        selection={'path':'brand.pptx','content_slide':3,'agenda_slide':2}
+    value=spec([],template=selection)
+    value['slides']=[{'role':'agenda','title':'目录','blocks':[{'type':'bullets','items':labels}]}]
+    result=run(tmp_path,value)
+    assert result.returncode == 0,result.stderr
+    deck=Presentation(tmp_path/'report.pptx');agenda=deck.slides[1]
+    original=Presentation(SCRIPT.parent/'presentation-templates/state-grid.pptx')
+    assert agenda.slide_layout.part.partname == original.slides[1].slide_layout.part.partname
+    circles=[s for s in agenda.shapes if s.shape_type==1 and s.auto_shape_type==MSO_SHAPE.OVAL]
+    assert len(circles)==6
+    assert [s.text for s in sorted(circles,key=lambda s:s.top)]==list('一二三四五六')
+    texts=[s for s in agenda.shapes if s.has_text_frame and s.text in [x.split('、')[1] for x in labels]]
+    assert len(texts)==6 and all(s.left>6*914400 for s in texts)
+    assert not any(s.has_table for s in agenda.shapes)
+    assert '演示汇报' not in deck_text(deck) and '后续思路' not in deck_text(deck)
+    with ZipFile(SCRIPT.parent/'presentation-templates/state-grid.pptx') as source, ZipFile(tmp_path/'report.pptx') as output:
+        part=str(agenda.slide_layout.part.partname).lstrip('/')
+        from lxml import etree
+        canonical=lambda data:etree.tostring(etree.fromstring(data),method='c14n')
+        assert canonical(output.read(part))==canonical(source.read(part))
+
+
+@pytest.mark.parametrize('sections',[['二、乙','一、甲'],['一、甲'],['一、甲','三、丙']])
+def test_agenda_order_is_enforced_before_a_later_chapter_can_precede_an_earlier_one(tmp_path,sections):
+    value=spec([],template={'id':'state-grid'})
+    value['slides']=[
+        {'role':'agenda','title':'目录','blocks':[{'type':'bullets','items':['一、甲','二、乙']}]},
+        *[{'section':section,'title':'本页观点','blocks':[]} for section in sections],
+    ]
+    (tmp_path/'report.pptx').write_bytes(b'prior product')
+    result=run(tmp_path,value)
+    assert result.returncode==2 and 'chapter_order' in result.stderr
+    assert (tmp_path/'report.pptx').read_bytes()==b'prior product'
 
 
 @pytest.mark.parametrize('slides', [

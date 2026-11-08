@@ -5,6 +5,39 @@ from io import BytesIO
 from zipfile import ZipFile, BadZipFile
 from xml.etree import ElementTree
 from pathlib import Path
+import re
+
+
+def copy_shape(slide, shape, *, offset_y=0, text=None):
+    """Copy editable artwork, keep its formatting, and bind every internal relation."""
+    from pptx.oxml.ns import qn
+    from pptx.oxml.xmlchemy import OxmlElement
+    element=deepcopy(shape.element)
+    for node in element.iter():
+        for attr in list(node.attrib):
+            if attr.startswith('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'):
+                relation=shape.part.rels[node.get(attr)]
+                node.set(attr,slide.part.relate_to(relation.target_part,relation.reltype))
+    for node in element.iter(qn('p:cNvPr')):
+        node.set('id',str(slide.shapes._next_shape_id))
+    offset=element.find('.//'+qn('a:xfrm')+'/'+qn('a:off'))
+    if offset is not None:
+        offset.set('y',str(int(offset.get('y'))+offset_y))
+    if text is not None:
+        body=element.find(qn('p:txBody'))
+        paragraph=deepcopy(body.find(qn('a:p')))
+        run=paragraph.find(qn('a:r'))
+        properties=deepcopy(run.find(qn('a:rPr'))) if run is not None else None
+        for child in list(paragraph):
+            if child.tag!=qn('a:pPr'):
+                paragraph.remove(child)
+        run=OxmlElement('a:r')
+        if properties is not None:run.append(properties)
+        value=OxmlElement('a:t');value.text=text;run.append(value);paragraph.append(run)
+        for child in list(body):
+            if child.tag==qn('a:p'):body.remove(child)
+        body.append(paragraph)
+    slide.shapes._spTree.insert_element_before(element,'p:extLst')
 
 
 def text_style(slide, fallback='172B3B'):
@@ -54,7 +87,7 @@ def load_template(workspace, selection, error):
     if builtin:
         raw = (Path(__file__).parent / 'presentation-templates/state-grid.pptx').read_bytes()
         selection = {'path': 'builtin:state-grid'}
-    elif (not isinstance(selection, dict) or set(selection) - {'path', 'cover_slide', 'content_layout', 'content_slide'}
+    elif (not isinstance(selection, dict) or set(selection) - {'path', 'cover_slide', 'content_layout', 'content_slide','agenda_slide'}
             or not isinstance(selection.get('path'), str) or not selection['path'].lower().endswith('.pptx')):
         raise error('template requires a workspace PPTX path')
     else:
@@ -104,6 +137,12 @@ def load_template(workspace, selection, error):
             title_position = [title_shape.left / 914400, title_shape.top / 914400,
                               title_shape.width / 914400, max(title_shape.height / 914400, .95)]
     cover_layout = cover.slide_layout
+    agenda_number=2 if builtin else selection.get('agenda_slide')
+    agenda_source=None
+    if agenda_number is not None:
+        if type(agenda_number) is not int or not 1<=agenda_number<=len(deck.slides):
+            raise error('template agenda_slide is outside the template')
+        agenda_source=deck.slides[agenda_number-1]
     pictures = []
     for shape in cover.shapes:
         # Cover pictures are brand artwork. Text and diagram groups are sample
@@ -132,10 +171,46 @@ def load_template(workspace, selection, error):
                 slide.shapes._spTree.insert_element_before(element, 'p:extLst')
         return slide
 
+    if agenda_source is not None:
+        def agenda(labels):
+            from pptx.enum.shapes import MSO_SHAPE
+            from native_presentation_layout import wrap_briefing
+            circles=sorted([s for s in agenda_source.shapes if s.shape_type==1
+                            and s.auto_shape_type==MSO_SHAPE.OVAL],key=lambda s:s.top)
+            bars=[s for s in agenda_source.shapes if s.shape_type==1 and s.width>3*s.height]
+            texts=[s for s in agenda_source.shapes if s.has_text_frame and s.shape_type!=14
+                   and s not in circles and s.text.strip()]
+            if len(circles)<2 or len(bars)<2 or len(texts)<2:
+                raise error('selected agenda_slide has no supported numbered-row prototypes')
+            if not 1<=len(labels)<=6:
+                raise error('selected agenda layout supports one to six chapter titles',
+                            diagnostic={'code':'slide_overflow','output_written':False})
+            clean=[re.sub(r'^(?:[一二三四五六七八九十]+|[0-9]+)[、.．]\s*','',v) for v in labels]
+            if any(not v or len(wrap_briefing(v,30))>1 for v in clean):
+                raise error('agenda chapter title exceeds the template row',
+                            diagnostic={'code':'slide_overflow','output_written':False})
+            slide=deck.slides.add_slide(agenda_source.slide_layout)
+            for shape in list(slide.shapes):slide.shapes._spTree.remove(shape.element)
+            if agenda_source._element.cSld.bg is not None:
+                slide._element.cSld.insert(0,deepcopy(agenda_source._element.cSld.bg))
+            center=(circles[0].top+circles[1].top+circles[1].height)/2
+            stride=min(circles[1].top-circles[0].top,int(.9*914400)) if len(labels)>2 else circles[1].top-circles[0].top
+            top=round(center-(circles[0].height+(len(labels)-1)*stride)/2)
+            for index,label in enumerate(clean):
+                circle=circles[0 if index==0 else 1]
+                nearest=lambda shapes:min(shapes,key=lambda s:abs(s.top+s.height/2-circle.top-circle.height/2))
+                delta=top+index*stride-circle.top
+                copy_shape(slide,nearest(bars),offset_y=delta)
+                copy_shape(slide,circle,offset_y=delta,text='一二三四五六'[index])
+                copy_shape(slide,nearest(texts),offset_y=delta,text=label)
+            return slide
+        page.agenda=agenda
+
     return deck, page, {**({'id': 'state-grid'} if builtin else {'path': selection['path']}), 'sha256': sha256(raw).hexdigest(),
                         'cover_text_rgb': cover_color,
                         'cover_alignment': cover_alignment, 'title_text_rgb': title_color,
                         'title_position': title_position,
                         'cover_slide': cover_number,
+                        **({'agenda_slide':agenda_number,'agenda_layout_part':str(agenda_source.slide_layout.part.partname)} if agenda_source is not None else {}),
                         'content_layout': list(layout.slide_master.slide_layouts).index(layout),
                         'content_layout_part': str(layout.part.partname)}
