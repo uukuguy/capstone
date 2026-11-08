@@ -33,7 +33,6 @@ import {sessionTypeNames} from './SessionEntry'
 import ProcessProductWorkspace from './ProcessProductWorkspace'
 import type {ProcessProduct} from './processProducts'
 import SessionHeading from './SessionHeading'
-import SessionSkillSettings from './SessionSkillSettings'
 import {displaySessionTitle} from './sessionTitle'
 import {parseCommandReceipt,type EventEnvelope} from './threadProtocol'
 import NativeArtifactsWorkspace from './NativeArtifactsWorkspace'
@@ -667,20 +666,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         attachments={attachments} onResourceUploaded={()=>setAttachmentReload(value=>value+1)} onRemoveAttachment={async id=>{
           await transport.cancelResourceUpload(currentId,id.replace('resource_','upload_'))
           setAttachments(files=>files.filter(file=>file.resource_id!==id))
-        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}{nativeChat&&snapshot&&<SessionSkillSettings key={currentId} value={snapshot.sessionSkills??{revision:0,skills:[]}} catalog={inputCatalog} mode={snapshot.runtimeMode} disabled={projection.connection!=='live'} onSave={async(skills,revision)=>{
-          const request=commandKey()
-          const receipt=parseCommandReceipt(await transport.setSessionSkills(currentId,snapshot.runId,revision,skills,`cmd_${request}`,`idem_${request}`))
-          if(receipt.status!=='accepted')throw new Error(receipt.rejection==='skill_preferences_conflict'?'配置已变化，请刷新后重选。':'会话技能未保存，请检查版本和可用状态。')
-          if(receipt.acceptedEventSeq)await store.catchUpThrough(receipt.acceptedEventSeq)
-          await store.refreshWorkSnapshot()
-        }} onReload={async()=>{
-          await store.refreshWorkSnapshot()
-          const catalog=await client.inputCatalog(currentId)
-          if(catalog)setInputCatalog(catalog)
-          const latest=store.state.workSnapshot
-          if(!latest)throw new Error('会话配置暂时无法读取，请稍后重试。')
-          return latest.sessionSkills??{revision:0,skills:[]}
-        }}/>}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
+        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||uploadBusy}
       welcomeGateway={welcomeGateway}

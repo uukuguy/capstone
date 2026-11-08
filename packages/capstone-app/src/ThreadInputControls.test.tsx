@@ -5,10 +5,11 @@ import type { InputCatalog } from './threadInput'
 import { MessageNotSentError } from '@assistant-ui/react'
 
 afterEach(() => { cleanup(); sessionStorage.clear() })
+function invokeSkill(){const composer=screen.getByRole('textbox',{name:'Thread 指令'});fireEvent.change(composer,{target:{value:'/skill:skill-a'}});fireEvent.keyDown(composer,{key:'Enter'});}
 function openSkills(){const composer=screen.getByRole('textbox',{name:'Thread 指令'});fireEvent.change(composer,{target:{value:'/skills'}});fireEvent.keyDown(composer,{key:'Enter'});}
 
 it('binds a unique native skill name and keeps same-name collisions in the picker', async () => {
-  const skill = { id: 'powerskills-pandapower', native_name: 'pandapower', kind: 'skill', version: 'version-A', source: 'managed', ready: true, reason: null }
+  const skill = { id: 'powerskills-pandapower', native_name: 'pandapower', kind: 'skill', installed:true, version: 'version-A', source: 'managed', ready: true, reason: null }
   const direct = { ...catalog, resource_profiles: { direct_pi: { revision: 'accepted-A', resources: [skill] } } }
   const onSend = vi.fn(async () => {})
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend, onCancel: async () => {}, runtimeMode: 'pi_reference' as const }
@@ -26,13 +27,13 @@ it('binds a unique native skill name and keeps same-name collisions in the picke
     revision: 'accepted-A', resources: [skill, { ...skill, id: 'other-pandapower', source: 'other' }] } } }} />)
   fireEvent.change(input, { target: { value: '/skill:pandapower second task' } })
   fireEvent.keyDown(input, { key: 'Enter' })
-  expect(screen.getByRole('dialog', { name: '本轮技能' })).toBeTruthy()
+  expect(screen.getByRole('dialog', { name: '已安装技能' })).toBeTruthy()
   expect(screen.getAllByText(/version-A/)).toHaveLength(2)
   expect(onSend).toHaveBeenCalledTimes(1)
 })
 const catalog: InputCatalog = { schema: 'capstone-thread-input-catalog/1', revision: 'cat1', context_id: 'ctx', selection_revision: 'sel',
   objects: [{ object_id: 'ctx', model_id: 'ieee39', model_revision: '7', implementation_family: 'pandapower' }], materials: [], operations: [],
-  resource_profiles: { delegated_pi: { revision: 'exact', resources: [{ id: 'skill-a', kind: 'skill', version: '1', source: 'managed', ready: true, reason: null }] } } }
+  resource_profiles: { delegated_pi: { revision: 'exact', resources: [{ id: 'skill-a', kind: 'skill', installed:true, version: '1', source: 'managed', ready: true, reason: null }] } } }
 
 it('opens UI commands without sending and completion Enter never submits', async () => {
   const onSend = vi.fn(async () => {})
@@ -49,17 +50,20 @@ it('opens UI commands without sending and completion Enter never submits', async
   fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
   expect(screen.queryByRole('dialog')).toBeNull()
   fireEvent.keyDown(input, { key: 'Enter' })
-  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
+  expect(screen.getByRole('dialog',{name:'已安装技能'})).toBeTruthy()
+  expect(screen.queryByRole('checkbox')).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:'关闭'}))
   fireEvent.change(input, { target: { value: 'use method' } })
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
-  await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', 'use method', expect.objectContaining({ resource_profile: { profile_id: 'delegated_pi', revision: 'exact' } })))
+  await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+  expect((onSend.mock.calls as unknown[][])[0][1]).toBe('use method')
+  expect((onSend.mock.calls as unknown[][])[0][2]).not.toHaveProperty('resource_profile')
 })
 
 it('preserves text and incompatible selection on mode change and requires re-selection', () => {
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: vi.fn(async () => {}), onCancel: async () => {}, inputCatalog: catalog }
   const view = render(<CapstoneAssistantThread {...props} />)
-  openSkills()
-  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
+  invokeSkill()
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: 'keep draft' } })
   view.rerender(<CapstoneAssistantThread {...props} runtimeMode="pi_reference" />)
@@ -72,8 +76,7 @@ it('restores the exact draft and skill after an uncertain submission and remount
   const onSend = vi.fn(async () => { throw new MessageNotSentError('receipt unknown') })
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend, onCancel: async () => {}, inputCatalog: catalog, storageKey: 'typed-recovery' }
   const view = render(<CapstoneAssistantThread {...props} />)
-  openSkills()
-  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
+  invokeSkill()
   fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: 'original draft' } })
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
   await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
@@ -82,7 +85,8 @@ it('restores the exact draft and skill after an uncertain submission and remount
   render(<CapstoneAssistantThread {...props} />)
   expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('original draft')
   openSkills()
-  expect(screen.getByRole('button', { name: '移除技能 skill-a' })).toBeTruthy()
+  expect(screen.getByRole('dialog',{name:'已安装技能'})).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '移除技能 skill-a' })).toBeNull()
 })
 
 it('unknown commands require a literal choice and do not silently submit', async () => {
@@ -100,8 +104,7 @@ it('unknown commands require a literal choice and do not silently submit', async
 it('clears recovered accepted metadata but keeps a changed next draft', async () => {
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, inputCatalog: catalog }
   const view = render(<CapstoneAssistantThread {...props} />)
-  openSkills()
-  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
+  invokeSkill()
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: 'original draft' } })
   const accepted = { text: 'original draft', commandId: 'cmd_recovered', submission: {
@@ -113,4 +116,20 @@ it('clears recovered accepted metadata but keeps a changed next draft', async ()
   fireEvent.change(input, { target: { value: 'next draft' } })
   view.rerender(<CapstoneAssistantThread {...props} acceptedDraft={{ ...accepted, commandId: 'cmd_other' }} />)
   expect((input as HTMLTextAreaElement).value).toBe('next draft')
+})
+
+it('shows installed methods read-only from the toolbar without changing the draft',()=>{
+ const onSend=vi.fn(async()=>{})
+ const resources=[{id:'installed',native_name:'调查',kind:'skill',version:'1',source:'local',installed:true,ready:true,reason:null},{id:'missing',kind:'skill',version:'1',source:'local',installed:false,ready:false,reason:'not installed'}]
+ render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async()=>{}} inputCatalog={{...catalog,resource_profiles:{delegated_pi:{revision:'r',resources}}}} />)
+ const input=screen.getByRole('textbox',{name:'Thread 指令'})
+ fireEvent.change(input,{target:{value:'保留这段问题'}})
+ fireEvent.click(screen.getByRole('button',{name:'技能'}))
+ expect(screen.getByRole('dialog',{name:'已安装技能'})).toBeTruthy()
+ expect(screen.getByText('调查')).toBeTruthy()
+ expect(screen.queryByText('missing')).toBeNull()
+ expect(screen.queryByRole('checkbox')).toBeNull()
+ expect(screen.queryByRole('button',{name:'保存'})).toBeNull()
+ expect((input as HTMLTextAreaElement).value).toBe('保留这段问题')
+ expect(onSend).not.toHaveBeenCalled()
 })
