@@ -11,7 +11,7 @@ export function createSkillRecordTool(skills){
     description:'Load an admitted skill by exact name, or report a meaningful public application phase after loading. Loading returns the method. Reports are model statements, not host verification. refs and tool_call_ids link reported work; they do not grant authority. Do not report private reasoning. Available skills: '+skills.map(s=>s.name+': '+s.description).join('; '),
     parameters:{type:'object',additionalProperties:false,required:['name','operation'],properties:{
       name:{type:'string',minLength:1,maxLength:128},operation:{type:'string',enum:['load','report']},
-      phase:{type:'string',maxLength:80},summary:{type:'string',minLength:1,maxLength:600},
+      phase:{type:'string',minLength:1,maxLength:80},summary:{type:'string',minLength:1,maxLength:600},
       refs:{type:'array',maxItems:32,items:{type:'string',minLength:1,maxLength:256}},
       tool_call_ids:{type:'array',maxItems:32,items:{type:'string',minLength:1,maxLength:256}}}},
     async execute(id,args,signal){
@@ -20,7 +20,7 @@ export function createSkillRecordTool(skills){
       const skill=admitted.get(args.name);
       if(!skill)return fail('skill_not_admitted');
       if(!['load','report'].includes(args.operation))return fail('skill_operation_invalid');
-      if(args.phase!==undefined&&(typeof args.phase!=='string'||args.phase.length>80))return fail('skill_arguments_invalid');
+      if(args.phase!==undefined&&(typeof args.phase!=='string'||!args.phase.trim()||args.phase.length>80))return fail('skill_arguments_invalid');
       for(const key of ['refs','tool_call_ids'])if(args[key]!==undefined&&(!Array.isArray(args[key])||args[key].length>32||args[key].some(v=>typeof v!=='string'||!v||v.length>256)))return fail('skill_arguments_invalid');
       let body;
       try{body=readFileSync(skill.filePath);}catch{return fail('skill_unavailable');}

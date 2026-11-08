@@ -55,6 +55,8 @@ COPY packages/capstone-agent/src/capstone_agent/answer_presentation.py capstone_
 COPY packages/capstone-agent/src/capstone_agent/native_network_policy.py capstone_agent/native_network_policy.py
 COPY packages/capstone-agent/src/capstone_agent/native_environment.py capstone_agent/native_environment.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py
+COPY packages/capstone-agent/src/capstone_agent/skill_activity.py capstone_agent/skill_activity.py
+COPY packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs capstone_agent/resources/investigation-skills.mjs
 COPY packages/capstone-agent/src/capstone_agent/resource_permissions.py capstone_agent/resource_permissions.py
 COPY packages/capstone-agent/src/capstone_agent/capacity_contract.py capstone_agent/capacity_contract.py
 COPY configs/runtime/capacity-policy.json configs/runtime/capacity-policy.json
@@ -169,7 +171,7 @@ RUN python -c "from capstone_agent.general_pi_executor import collect_artifacts;
     && python -c 'from capstone_agent.native_task_context import checked_native_context, registered_research_policies; [checked_native_context({"selected_task_records": [], "selected_task_source": None, "records_truncated": False, **({"graph_work": {"edition": entry.work_edition, "started_at_ms": 1792562400000}} if entry.work_edition else {}), "policy": {"schema": "capstone-conversation-policy/1", "system_policy": entry.system_policy, "allowed_tools": ["agent_research_cycle"] if entry.application_version == "1.1.0" else ["agent_research_plan", "agent_research_record", "agent_research_assess"], "external_lookup_enabled": False}}) for entry in registered_research_policies()]' \
     && python -c 'from capstone_agent.native_task_context import registered_research_policies; from enterprise_research import ResearchPolicy; [entry.capability() for entry in registered_research_policies()]; [(entry.work_policy(), ResearchPolicy(entry.pack_version, variant=entry.variant).progress_guidance()) for entry in registered_research_policies() if entry.work_edition]' \
     && node --check capstone_agent/resources/research-guidance.mjs \
-    && node --input-type=module -e 'await import("./capstone_agent/resources/delivery-review.mjs"); await import("./capstone_agent/resources/systematic-diagnosis.mjs")'
+    && node --input-type=module -e 'await import("./capstone_agent/resources/general-sdk.mjs"); await import("./capstone_agent/resources/delivery-review.mjs"); await import("./capstone_agent/resources/systematic-diagnosis.mjs")'
 EXPOSE 8790
 CMD ["python", "-m", "capstone_agent.general_pi_resource_seed"]
 

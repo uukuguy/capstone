@@ -18,6 +18,7 @@ test('skill records require an admitted load and distinguish reported use from v
     const loaded=await tool.execute('load',{name:'method',operation:'load'});
     assert.equal(loaded.details.skill_activity.state,'loaded');
     assert.equal(loaded.details.skill_activity.source,'host');
+    assert.equal((await tool.execute('empty-phase',{name:'method',operation:'report',summary:'Checked',phase:''})).isError,true);
     const report=await tool.execute('apply',{name:'method',operation:'report',summary:'Checked coverage',phase:'quality',refs:['result:one'],tool_call_ids:['read-1']});
     assert.equal(report.details.skill_activity.state,'reported');
     assert.equal(report.details.skill_activity.source,'model');
