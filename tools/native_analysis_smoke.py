@@ -107,19 +107,24 @@ def exercise_template_presentation(directory, *, renderer=None):
     from PIL import Image
     Image.new('RGB',(320,180),'teal').save(directory/'template-figure.png')
     spec = {'schema':'capstone-presentation/1', 'title':'模板生成检查',
-            'template':{'id':'state-grid'}, 'slides':[{'title':'内容检查',
+            'template':{'id':'state-grid'}, 'slides':[
+            {'role':'agenda','title':'汇报目录','blocks':[{'type':'paragraph','text':'一、已有成果'}]},
+            {'section':'一、已有成果','title':'内容检查',
             'blocks':[{'type':'bullets','items':['已保存的内容','不新增业务结论']},
                       {'type':'figure','path':'template-figure.png','caption':'已保存图表'}],
-            'speaker_notes':'详细说明保留在备注，不挤占主页面。'}]}
+            'speaker_notes':'详细说明保留在备注，不挤占主页面。'},
+            {'role':'closing','title':'汇报完毕','blocks':[]}]}
     (directory/'template-spec.json').write_text(json.dumps(spec, ensure_ascii=False))
     receipt = json.loads(command([*(renderer or ['capstone-report']), '--spec',
         'template-spec.json', '--output', 'template-output.pptx'], cwd=directory))
     assert receipt['template']['id'] == 'state-grid'
     assert len(receipt['template']['sha256']) == 64
     deck = Presentation(directory/'template-output.pptx')
-    assert len(deck.slides) == 2
+    assert len(deck.slides) == 4
     assert any(shape.shape_type == 13 for shape in deck.slides[0].shapes)
-    assert any(shape.shape_type == 13 for shape in deck.slides[1].shapes)
+    assert any(shape.shape_type == 13 for shape in deck.slides[2].shapes)
+    assert any(shape.shape_type == 13 for shape in deck.slides[3].shapes)
+    assert receipt['slide_roles'] == ['cover','agenda','content','closing']
     assert receipt['template']['cover_text_rgb'] == 'FFFFFF'
     assert receipt['layout_policy'] == 'one_content_record_per_slide'
 

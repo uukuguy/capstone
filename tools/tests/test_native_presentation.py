@@ -36,6 +36,41 @@ import pytest
 SCRIPT = Path(__file__).parents[2] / 'tools/native_report.py'
 
 
+def test_template_report_roles_preserve_chapter_context_and_branded_closing(tmp_path):
+    value = spec([], template={'id':'state-grid'})
+    value['slides'] = [
+        {'role':'agenda','title':'汇报目录','blocks':[{'type':'paragraph','text':'一、总体态势：变化是什么？'}]},
+        {'section':'一、总体态势','title':'峰值增长集中于晚间',
+         'blocks':[{'type':'paragraph','text':'晚间增幅高于午间，支持关注晚峰的判断。'}]},
+        {'role':'closing','title':'汇报完毕','blocks':[{'type':'paragraph','text':'请批评指正'}]},
+    ]
+    result = run(tmp_path,value)
+    assert result.returncode == 0, result.stderr
+    deck = Presentation(tmp_path/'report.pptx')
+    assert len(deck.slides) == 4
+    assert '一、总体态势' in deck_text(deck)
+    closing = deck.slides[-1]
+    assert closing.slide_layout.part.partname == deck.slides[0].slide_layout.part.partname
+    assert any(s.shape_type == 13 for s in closing.shapes)
+    title = next(s for s in closing.shapes if s.has_text_frame and s.text == '汇报完毕')
+    assert title.top > 914400
+    assert str(title.text_frame.paragraphs[0].font.color.rgb) == 'FFFFFF'
+    assert '请批评指正' in deck_text(deck)
+
+
+@pytest.mark.parametrize('slides', [
+    [{'role':'unknown','title':'Bad','blocks':[]}],
+    [{'role':'closing','title':'End','blocks':[]},{'title':'Later','blocks':[]}],
+    [{'role':'closing','title':'End','blocks':[{'type':'figure','path':'x.png','caption':'Bad'}]}],
+])
+def test_template_rejects_invalid_report_roles_without_replacing_output(tmp_path,slides):
+    value=spec([],template={'id':'state-grid'});value['slides']=slides
+    (tmp_path/'report.pptx').write_bytes(b'prior product')
+    result=run(tmp_path,value)
+    assert result.returncode == 2
+    assert (tmp_path/'report.pptx').read_bytes() == b'prior product'
+
+
 def test_template_preserves_master_size_and_removes_sample_content(tmp_path):
     template = Presentation()
     template.slide_width = 12192000

@@ -128,7 +128,7 @@ def render_briefing_slide(content, *, workspace, page, textbox, wrap, literal, e
                 lines.append('')
             wrapped = wrap(value,units-4 if bullet else units)
             lines.extend(['• '+wrapped[0]]+['  '+v for v in wrapped[1:]] if bullet else wrapped)
-        limit = min(10,max(1,int(height*72/(22*1.2))-1))
+        limit = max(1,int(height*72/(22*1.2))-1)
         if len(lines)>limit:
             fail(f'Visible briefing text needs {len(lines)} lines; the selected composition allows {limit}')
         return lines

@@ -295,6 +295,7 @@ def render_presentation(spec_path, output, *, check_only=False):
             shape.line.fill.background()
         footers, image_bytes, figures, tables, table_rows = [], 0, 0, 0, 0
         speaker_notes = ''
+        section_label = ''
 
         def literal(value, field, maximum):
             value = text(value, field)
@@ -362,6 +363,8 @@ def render_presentation(spec_path, output, *, check_only=False):
                 elif template_receipt['title_position']:
                     position = template_receipt['title_position']
             textbox(slide,*position,lines,34 if cover else 27,cover_ink if cover else title_ink,True,alignment)
+            if section_label and not cover:
+                textbox(slide,.8,1.24,11.7,.25,[section_label],11,title_ink)
             if notes or speaker_notes:
                 slide.notes_slide.notes_text_frame.text = '\n'.join([*notes,*([speaker_notes] if speaker_notes else [])])
             footers.append((slide,notes))
@@ -375,7 +378,17 @@ def render_presentation(spec_path, output, *, check_only=False):
 
         block_errors = []
         for index, content in enumerate(spec['slides']):
-            fields(content, ('title','blocks'), ('source_notes','speaker_notes'))
+            fields(content, ('title','blocks'), ('source_notes','speaker_notes','role','section'))
+            role = content.get('role','content')
+            if role not in ('content','agenda','closing'):
+                raise ReportError('slide role must be content, agenda or closing')
+            if not template_page and ('role' in content or 'section' in content):
+                raise ReportError('slide roles and sections require a template')
+            if role == 'closing' and index != len(spec['slides'])-1:
+                raise ReportError('closing must be the last content record')
+            section_label = literal(content['section'],'section',100) if 'section' in content else ''
+            if section_label and len(wrap(section_label,140))>1:
+                raise ReportError('section label must fit one line')
             title = literal(content['title'],'slide title',160)
             blocks = content['blocks']
             notes = content.get('source_notes',[])
@@ -392,6 +405,17 @@ def render_presentation(spec_path, output, *, check_only=False):
             if speaker_notes:
                 speaker_notes = literal(speaker_notes,'speaker_notes',20000)
             if template_page:
+                if role == 'closing':
+                    if len(blocks)>1 or any(not isinstance(b,dict) or set(b)!={'type','text'}
+                            or b['type']!='paragraph' for b in blocks):
+                        raise ReportError('closing supports at most one short paragraph')
+                    closing = page(title,notes,cover=True)
+                    if blocks:
+                        lines = wrap(literal(blocks[0]['text'],'closing text',240),84)
+                        if len(lines)>2:
+                            raise ReportError('closing text exceeds two lines')
+                        textbox(closing,.8,4,11.7,.8,lines,18,cover_ink,align=cover_alignment)
+                    continue
                 from native_presentation_layout import render_briefing_slide
                 stats = render_briefing_slide(content,workspace=workspace,page=page,textbox=textbox,
                     wrap=wrap,literal=literal,error=ReportError,title_color=title_ink,location=f'slides[{index}]')
@@ -553,7 +577,8 @@ def render_presentation(spec_path, output, *, check_only=False):
             'figures':figures,'tables':tables,'table_rows':table_rows,'source_sha256':workspace.sources,
             'output_written': not check_only,
             **({'template': template_receipt} if template_receipt else {}),
-            **({'layout_policy':'one_content_record_per_slide'} if template_receipt else {}),
+            **({'layout_policy':'one_content_record_per_slide',
+                'slide_roles':['cover',*[s.get('role','content') for s in spec['slides']]]} if template_receipt else {}),
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)
@@ -561,7 +586,7 @@ def render_presentation(spec_path, output, *, check_only=False):
 
 def main():
     parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.',
-        epilog='PPTX: omit template for the original paginated baseline. Add template={"id":"state-grid"} for the built-in template, or template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Template output keeps one content record per slide, combining one visual and short key points. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; shorten the visible content when it does not fit.')
+        epilog='PPTX: omit template for the original paginated baseline. Add template={"id":"state-grid"} for the built-in template, or template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Template output keeps one content record per slide, combining one visual and its reasoning. Optional role:agenda marks the agenda; section is a visible chapter label; final role:closing reuses cover branding and accepts zero blocks or one short paragraph. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; revise composition when content does not fit.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
     parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
