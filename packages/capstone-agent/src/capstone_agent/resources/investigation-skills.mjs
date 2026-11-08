@@ -1,6 +1,30 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 
+export function admitSkillPresentation(config,current){
+  const skills=current.skills.filter(skill=>config.allowedSkills.includes(skill.name));
+  config.taskSkills=skills;
+  // Keep SDK inventory and explicit invocation intact, but replace its generic
+  // file-reader scaffold with the application's version-checked semantic port.
+  const semantic=config.applicationPolicy?.allowed_tools.includes('agent_skill');
+  return {...current,skills:semantic?skills.map(skill=>({...skill,disableModelInvocation:true})):skills};
+}
+
+export function skillSelectionGuidance(config){
+  if(!config.applicationPolicy?.allowed_tools.includes('agent_skill')||!config.taskSkills?.length)return '';
+  const catalog=config.taskSkills.map(({name,description})=>({name,description}));
+  return 'Application methods for the current instruction (not mandatory workflow steps):\n'+JSON.stringify(catalog)+
+    '\nUsers do not need to select or name a method. Compare these descriptions with the current goal and admitted context. '+
+    'When a method applies, load its exact name with agent_skill operation load before doing the work governed by that method, and apply the returned instructions. '+
+    'For substantive multi-stage work, revisit relevant methods when the evidence, scope or delivery stage changes. '+
+    'Use the semantic loader rather than searching for method files with shell or read. Keep one task plan and evidence record. '+
+    'Record meaningful actual application with agent_skill operation report, concise public phases, related tool_call_ids and saved product refs when available. '+
+    'Loading alone is not application; reports are model statements, not host-certified results. Do not fabricate records for earlier work. '+
+    'Do not load all methods or invoke a method merely because it is installed. A direct answer or simple operation may need no method. '+
+    'There is no fixed first tool or service: select methods and services from this instruction, not keywords or previous service use. '+
+    'Methods grant no tools, data or authority; current grants and exclusions remain binding.';
+}
+
 // The caller supplies only task-admitted native resources, never model paths.
 export function createSkillRecordTool(skills){
   const admitted=new Map(skills.map(skill=>[skill.name,{...skill,
