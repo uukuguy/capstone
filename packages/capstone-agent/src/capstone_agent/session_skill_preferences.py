@@ -46,9 +46,15 @@ def revise_preferences(current, *, expected_revision, skills, profiles, mode):
         raise ValueError('skill_preferences_conflict')
     revised = checked_preferences({'revision': current['revision'] + 1, 'skills': skills})
     pinned = []
+    previous = {skill['id']: skill for skill in current['skills']}
     for skill in revised['skills']:
         admitted = _available(skill, profiles, mode)
-        if skill.get('loaded_identity') and skill['loaded_identity'] != admitted['loaded_identity']:
+        identity = skill.get('loaded_identity')
+        if not identity and skill['id'] in previous:
+            identity = previous[skill['id']].get('loaded_identity')
+            if not identity:
+                raise ValueError('session_skill_reselect_required')
+        if identity and identity != admitted['loaded_identity']:
             raise ValueError('session_skill_content_changed')
         pinned.append(admitted)
     revised['skills'] = pinned

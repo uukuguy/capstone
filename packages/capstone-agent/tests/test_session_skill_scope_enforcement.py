@@ -33,6 +33,17 @@ def test_legacy_preference_requires_explicit_reselection_but_can_be_excluded():
     assert 'method' in method_guidance({'session_skills': frozen})
 
 
+def test_identity_omission_cannot_rebind_an_existing_preference():
+    profiles = profile()
+    settings = revise_preferences(None, expected_revision=0, skills=[CHOICE], profiles=profiles, mode='pi_reference')
+    profiles['direct_pi']['resources'][0]['loaded_identity'] = 'b' * 64
+    with pytest.raises(ValueError, match='session_skill_content_changed'):
+        revise_preferences(settings, expected_revision=1, skills=[CHOICE], profiles=profiles, mode='pi_reference')
+    explicit = {**CHOICE, 'loaded_identity': 'b' * 64}
+    revised = revise_preferences(settings, expected_revision=1, skills=[explicit], profiles=profiles, mode='pi_reference')
+    assert revised['skills'][0]['loaded_identity'] == 'b' * 64
+
+
 def test_native_resource_loader_removes_excluded_method(tmp_path):
     from test_runtime_resources import config
     from capstone_agent.native_resources import NativeResourceStore
