@@ -54,9 +54,7 @@ COPY packages/capstone-agent/src/capstone_agent/general_pi_executor.py capstone_
 COPY packages/capstone-agent/src/capstone_agent/answer_presentation.py capstone_agent/answer_presentation.py
 COPY packages/capstone-agent/src/capstone_agent/native_network_policy.py capstone_agent/native_network_policy.py
 COPY packages/capstone-agent/src/capstone_agent/native_environment.py capstone_agent/native_environment.py
-COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py
-COPY packages/capstone-agent/src/capstone_agent/skill_activity.py capstone_agent/skill_activity.py
-COPY packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs capstone_agent/resources/investigation-skills.mjs
+COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py packages/capstone-agent/src/capstone_agent/skill_activity.py capstone_agent/
 COPY packages/capstone-agent/src/capstone_agent/resource_permissions.py capstone_agent/resource_permissions.py
 COPY packages/capstone-agent/src/capstone_agent/capacity_contract.py capstone_agent/capacity_contract.py
 COPY configs/runtime/capacity-policy.json configs/runtime/capacity-policy.json
@@ -78,7 +76,7 @@ COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone
 COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json capstone_agent/resources/gateway-electrical-view-v2.schema.json
-COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/general-domain-tools.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs capstone_agent/resources/
+COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/general-domain-tools.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/incremental_artifacts.py \
      packages/capstone-agent/src/capstone_agent/native_llm_pool.py \
