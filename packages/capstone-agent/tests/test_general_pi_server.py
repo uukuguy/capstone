@@ -795,7 +795,7 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     assert isinstance(state['observed_at_ms'], int)
     capacity = json.loads((root / 'tasks' / request.task_id / '.runtime-capacity.json').read_text())
     assert capacity['execution']['timeout_seconds'] == request.timeout_seconds
-    assert capacity['dimensions']['gateway_relay_task_requests']['effective'] == 4
+    assert capacity['dimensions']['gateway_relay_task_requests']['effective'] == 8
     assert capacity['dimensions']['mcp_call_count']['effective'] == 0
 
 

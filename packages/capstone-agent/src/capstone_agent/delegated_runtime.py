@@ -368,6 +368,8 @@ class DelegatedRuntime:
                 **({'tool_name': tool_name[:256]} if isinstance(tool_name, str) else {}),
                 **({'tool_call_id': tool_call_id[:256]} if isinstance(tool_call_id, str) else {}),
                 **({'task_progress': event['task_progress']} if isinstance(event.get('task_progress'), Mapping) else {}),
+                **({'skill_activity': event['skill_activity']} if isinstance(event.get('skill_activity'), Mapping)
+                    and tool_name == 'agent_skill' and kind == 'tool_execution_end' else {}),
                 **({'source_view': source_view} if source_view is not None else {}),
                 **({'research_cycle': {key: event[key] for key in
                     ('owner', 'attempt_id', 'action_id', 'checkpoint', 'progress') if key in event}}

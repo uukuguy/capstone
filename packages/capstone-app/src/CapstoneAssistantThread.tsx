@@ -108,6 +108,7 @@ export type ChatActivity = {
 }
 
 const TOOL_LABELS: Record<string, string> = {
+  agent_skill: '使用任务技能',
   agent_resource_open: '读取引用资料',
   agent_research_read: '读取已保存的研究记录',
   agent_research_update: '保存研究进展与待解决问题',

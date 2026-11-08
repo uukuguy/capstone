@@ -9,6 +9,7 @@ import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gate
 import {createDomainTools} from './general-domain-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createManagedResourceTools} from './managed-resource-tools.mjs';
+import {createSkillRecordTool} from './investigation-skills.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
@@ -425,7 +426,9 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
     }};
   };
   discovery?.setLoadedWrapper(wrap);
-  const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config)].map(wrap);
+  const skillTools=config.applicationPolicy.allowed_tools.includes('agent_skill')&&config.taskSkills?.length
+    ?[createSkillRecordTool(config.taskSkills)]:[];
+  const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...skillTools].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
@@ -678,6 +681,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     childTools.push(...discoveryToolNames.filter(name=>!childTools.includes(name)));
   }
   const childConfig = {...config, researchChannelPath:undefined,toolResultCwd:cwd,
+    taskSkills:skills,
     diagnosisNamespace:graphBinding?.action?.id??'child-'+randomUUID(),
     researchRuntime:{...config.researchRuntime,isolatedTaskExecution:false},
     applicationPolicy: {...config.applicationPolicy, allowed_tools: childTools}};
@@ -1321,6 +1325,8 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: config.contextFiles }),
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
+      ...(config.allowedSkills?.length&&config.applicationPolicy?.allowed_tools.includes('agent_skill')?[
+        'Select relevant skills from the current instruction and admitted descriptions. Use agent_skill operation load to read the exact method on demand; report meaningful public application phases with operation report, actual related tool IDs and product references. Reports describe your work, not host-certified checks. A loaded method is not a completed workflow. Keep one task plan and evidence record; do not invoke skills merely because they are available.']:[]),
       ...(config.researchRuntime?.deepResearch===true?['The user explicitly selected Deep Research for this instruction. Start by admitting a task plan, then use independent executors and a committed delivery. Do not replace this selection with direct native work or a direct final answer.']:config.researchRuntime?.deepResearch===false?['Deep Research is off for this instruction. Use the ordinary reasoning and authorized tool loop. Do not activate task organization.']:[]),
       ...(!organizationOnly?[nativeShellGuidance,nativeBatchGuidance,nativeExecutionGuidance,savedProductGuidance,
         'For large saved observations, inspect the supplied structure index and bounded preview first. Use actual observed field names. When authorized agent_tools_execute is available and multiple independent requests have complete exact arguments, submit calls:[{id,tool,arguments},...] directly without program or tools fields. The host validates and schedules the set; do not write a serial await loop for known independent requests. Use program/tools for processing issued observations or operations whose arguments require earlier results. Within a program use tools.describe for contracts, tools.batch for independent calls, tools.call for dependencies and saveContext/loadContext for source packages. Use tools.inspect/read on issued refs or full_result objects without fetching data again or using shell. A program may inspect results and continue dependent operations without a model round trip for every field. Return compact observations needed for a real decision. Prefer contract-supported range/aggregate operations over unnecessary fragmented requests. Do not guess semantics or expand queries merely because batching is available. Keep the bounded active tool set needed for the current cohesive work together; agent_tool_load replaces the set, so avoid swapping one tool at a time.',
@@ -1332,6 +1338,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   await loader.reload();
   const errors = [...loader.getExtensions().errors, ...loader.getSkills().diagnostics.filter(d => d.type === "collision")];
   if (errors.length) throw new Error("Native resources failed to load");
+  config.taskSkills=loader.getSkills().skills.filter(skill=>config.allowedSkills.includes(skill.name));
   const baseModelRuntime = suppliedModelRuntime ?? await sdk.ModelRuntime.create({ authPath: `${process.env.PI_CODING_AGENT_DIR}/auth.json`,
     modelsPath: `${process.env.PI_CODING_AGENT_DIR}/models.json`, allowModelNetwork: false });
   let mainModelTurn=0,modelRequestPool;

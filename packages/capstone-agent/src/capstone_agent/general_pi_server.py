@@ -721,6 +721,11 @@ class GeneralPiHost:
                             event.get('result', {}), ensure_ascii=False).encode()).hexdigest():
                         raise ValueError('native observation call identity changed content')
                 details = event.get('result', {}).get('details', {})
+                if kind == 'tool_execution_end' and payload['tool_name'] == 'agent_skill':
+                    from .skill_activity import checked_skill_activity
+                    skill_activity = checked_skill_activity(details.get('skill_activity'))
+                    if skill_activity is not None and event.get('isError') is not True:
+                        payload['skill_activity'] = skill_activity
                 if (request.research_binding is not None and kind == 'tool_execution_end'
                         and details.get('capability') == 'agent_task_progress' and details.get('ok') is True):
                     from jsonschema import Draft202012Validator
@@ -1213,6 +1218,9 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if sdk_config['allowedSkills']:
+                    sdk_config['applicationPolicy'] = {**sdk_config['applicationPolicy'], 'allowed_tools': sorted({
+                        *sdk_config['applicationPolicy']['allowed_tools'], 'agent_skill'})}
                 if request.managed_workspace is not None and self.managed_resource_service is not None:
                     from .resource_permissions import ResourcePrincipal
                     actions=self.managed_resource_service.store.permissions.allowed_actions(
