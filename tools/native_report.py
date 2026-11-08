@@ -264,17 +264,23 @@ def render_presentation(spec_path, output, *, check_only=False):
     workspace = Workspace()
     try:
         spec = json.loads(workspace.read(spec_path, maximum=1024 * 1024))
-        fields(spec, ('schema', 'title', 'slides'), ('subtitle',))
+        fields(spec, ('schema', 'title', 'slides'), ('subtitle', 'template'))
         if spec['schema'] != 'capstone-presentation/1':
             raise ReportError('PPTX requires capstone-presentation/1')
         if not isinstance(spec['slides'], list) or not 1 <= len(spec['slides']) <= 40:
             raise ReportError('presentation slides must contain 1..40 content records')
-        deck = Presentation()
-        deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
+        template_page, template_receipt = None, None
+        if 'template' in spec:
+            from native_presentation_template import load_template
+            deck, template_page, template_receipt = load_template(workspace, spec['template'], ReportError)
+        else:
+            deck = Presentation()
+            deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
         font = 'Noto Sans CJK SC'
         ink, teal, muted = RGBColor(23,43,59), RGBColor(33,119,120), RGBColor(82,103,116)
         from pptx.enum.shapes import MSO_SHAPE
         paper, white = RGBColor(243,247,247), RGBColor(255,255,255)
+        cover_ink = RGBColor.from_string(template_receipt['cover_text_rgb']) if template_receipt else white
 
         def panel(slide, x, y, width, height, color):
             shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(width), Inches(height))
@@ -319,19 +325,20 @@ def render_presentation(spec_path, output, *, check_only=False):
         def page(title, notes, *, cover=False):
             if len(deck.slides) >= 120:
                 raise ReportError('presentation exceeds the 120 rendered-slide budget; prepare a smaller content spec')
-            slide = deck.slides.add_slide(deck.slide_layouts[6])
-            slide.background.fill.solid()
-            slide.background.fill.fore_color.rgb = ink if cover else paper
-            if cover:
+            slide = template_page(cover) if template_page else deck.slides.add_slide(deck.slide_layouts[6])
+            if not template_page:
+                slide.background.fill.solid()
+                slide.background.fill.fore_color.rgb = ink if cover else paper
+            if cover and not template_page:
                 panel(slide,0,0,.18,7.5,teal)
                 panel(slide,.8,5.95,1.2,.08,RGBColor(98,194,182))
-            else:
+            elif not template_page:
                 panel(slide,0,0,13.333,.09,teal)
-            lines = wrap(literal(title, 'slide title', 160), 38 if cover else 52)
-            if len(lines) > (4 if cover else 2):
+            lines = wrap(literal(title, 'slide title', 160), 38 if cover and not template_page else 52)
+            if len(lines) > (4 if cover and not template_page else 2):
                 raise ReportError('slide title is too long for its fixed layout')
-            textbox(slide,.8,1.3 if cover else .35,11.7,2.3 if cover else .95,
-                    lines,34 if cover else 27,white if cover else ink,True)
+            textbox(slide,.8,(2.45 if template_page else 1.3) if cover else .35,11.7,(1.3 if template_page else 2.3) if cover else .95,
+                    lines,34 if cover else 27,cover_ink if cover else ink,True)
             if notes:
                 slide.notes_slide.notes_text_frame.text = '\n'.join(notes)
             footers.append((slide,notes))
@@ -340,7 +347,7 @@ def render_presentation(spec_path, output, *, check_only=False):
         cover = page(literal(spec['title'], 'title', 160), [], cover=True)
         if 'subtitle' in spec:
             lines = wrap(literal(spec['subtitle'], 'subtitle', 500),84)
-            if len(lines)>6:raise ReportError('subtitle is too long for the cover layout')
+            if len(lines)>(3 if template_page else 6):raise ReportError('subtitle is too long for the cover layout')
             textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221))
 
         block_errors = []
@@ -503,6 +510,7 @@ def render_presentation(spec_path, output, *, check_only=False):
         return {'schema':'capstone-presentation-receipt/1','output':output,'slides':len(deck.slides),
             'figures':figures,'tables':tables,'table_rows':table_rows,'source_sha256':workspace.sources,
             'output_written': not check_only,
+            **({'template': template_receipt} if template_receipt else {}),
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)

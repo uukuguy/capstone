@@ -79,6 +79,15 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
             'Check the resulting deck and source hashes; rendering does not verify claims. '
             'Use native Python only if the verified capability is absent or the requested layout is unsupported. '
         )
+    if presentation_context and 'template_presentations' in checks:
+        presentation_context += (
+            ' To generate with the State Grid template, add "template":{"id":"state-grid"} to the presentation spec. '
+            'For an admitted uploaded PPTX template, use "template":{"path":"<staged relative path>"}. '
+            'Omit template to retain the original untemplated layout. Template rendering requires 16:9; '
+            'the renderer preserves template masters and cover pictures and removes sample slides. '
+            'Save the content spec and referenced files for later rendering with another template. '
+            'Check all generated pages visually before calling the layout accepted; template loading alone does not prove design quality. '
+        )
     return (
         'Verified base programming environment (default Python, not a separately selected MCP interpreter). '
         'Use these preinstalled libraries for authorized tasks; do not reinstall them or run a package '

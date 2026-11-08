@@ -36,6 +36,52 @@ import pytest
 SCRIPT = Path(__file__).parents[2] / 'tools/native_report.py'
 
 
+def test_template_preserves_master_size_and_removes_sample_content(tmp_path):
+    template = Presentation()
+    template.slide_width = 12192000
+    template.slide_height = 6858000
+    sample = template.slides.add_slide(template.slide_layouts[0])
+    sample.shapes.title.text = 'SAMPLE MUST NOT SHIP'
+    template.save(tmp_path/'brand.pptx')
+    result = run(tmp_path, spec([{'type':'paragraph','text':'Verified content'}],
+        template={'path':'brand.pptx'}))
+    assert result.returncode == 0, result.stderr
+    deck = Presentation(tmp_path/'report.pptx')
+    assert deck.slide_width == template.slide_width
+    assert deck.slide_height == template.slide_height
+    assert 'SAMPLE MUST NOT SHIP' not in deck_text(deck)
+    assert 'Verified content' in deck_text(deck)
+    receipt = json.loads(result.stdout)
+    assert receipt['template']['sha256'] == hashlib.sha256((tmp_path/'brand.pptx').read_bytes()).hexdigest()
+    with ZipFile(tmp_path/'brand.pptx') as source, ZipFile(tmp_path/'report.pptx') as output:
+        assert source.read('ppt/theme/theme1.xml') == output.read('ppt/theme/theme1.xml')
+
+
+def test_builtin_state_grid_template_is_available_without_host_files(tmp_path):
+    result = run(tmp_path, spec([{'type':'paragraph','text':'Internal evaluation'}],
+        template={'id':'state-grid'}))
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt['template']['id'] == 'state-grid'
+    deck = Presentation(tmp_path/'report.pptx')
+    assert len(deck.slides) == 2
+    assert any(shape.shape_type == 13 for shape in deck.slides[0].shapes)
+    assert not any(text in deck_text(deck) for text in ['演示功能清单','核心观点的提炼与总结'])
+
+
+def test_template_rejects_external_relationships_without_replacing_output(tmp_path):
+    template = Presentation()
+    page = template.slides.add_slide(template.slide_layouts[0])
+    page.shapes.title.text = 'Example'
+    page.shapes.title.text_frame.paragraphs[0].runs[0].hyperlink.address = 'https://example.com'
+    template.save(tmp_path/'external.pptx')
+    (tmp_path/'report.pptx').write_bytes(b'old product')
+    result = run(tmp_path, spec([{'type':'paragraph','text':'Content'}], template={'path':'external.pptx'}))
+    assert result.returncode == 2
+    assert 'external' in result.stderr.lower()
+    assert (tmp_path/'report.pptx').read_bytes() == b'old product'
+
+
 def spec(blocks, **extra):
     return {'schema':'capstone-presentation/1','title':'通用研究汇报',
         'slides':[{'title':'已保存的观察','blocks':blocks,'source_notes':['Source dataset revision r1']}],**extra}

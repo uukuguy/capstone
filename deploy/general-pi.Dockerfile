@@ -39,6 +39,8 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s /opt/pi/node_modules/typescript/bin/tsc /usr/local/bin/tsc \
     && ln -s /opt/pi/node_modules/tsx/dist/cli.mjs /usr/local/bin/tsx
 COPY tools/native_report.py tools/native_report.py
+COPY tools/native_presentation_template.py tools/native_presentation_template.py
+COPY tools/presentation-templates/ tools/presentation-templates/
 RUN chmod 0755 /opt/general/tools/native_report.py \
     && ln -s /opt/general/tools/native_report.py /usr/local/bin/capstone-report
 # The smoke checks capstone-report, npm, tsc, and tsx, so it follows those links.

@@ -102,6 +102,21 @@ def exercise_presentation(directory, *, renderer=None):
         assert not any(b'TargetMode="External"' in archive.read(path) for path in archive.namelist() if path.endswith('.rels'))
 
 
+def exercise_template_presentation(directory, *, renderer=None):
+    from pptx import Presentation
+    spec = {'schema':'capstone-presentation/1', 'title':'模板生成检查',
+            'template':{'id':'state-grid'}, 'slides':[{'title':'内容检查',
+            'blocks':[{'type':'paragraph','text':'已保存的内容；不新增业务结论'}]}]}
+    (directory/'template-spec.json').write_text(json.dumps(spec, ensure_ascii=False))
+    receipt = json.loads(command([*(renderer or ['capstone-report']), '--spec',
+        'template-spec.json', '--output', 'template-output.pptx'], cwd=directory))
+    assert receipt['template']['id'] == 'state-grid'
+    assert len(receipt['template']['sha256']) == 64
+    deck = Presentation(directory/'template-output.pptx')
+    assert len(deck.slides) == 2
+    assert any(shape.shape_type == 13 for shape in deck.slides[0].shapes)
+
+
 def exercise(directory):
     import numpy as np
     import pandas as pd
@@ -229,6 +244,8 @@ def exercise(directory):
     verified.append('standalone_reports')
     exercise_presentation(directory)
     verified.append('standalone_presentations')
+    exercise_template_presentation(directory)
+    verified.append('template_presentations')
     return verified
 
 
