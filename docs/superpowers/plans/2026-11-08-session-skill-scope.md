@@ -21,9 +21,10 @@ In-flight work keeps its snapshot. New sessions start empty. All source and evid
 - [x] Extend `delegated_runtime.py`: optional frozen method guidance without changing plain input to skill invocation.
 - [x] Extend App snapshot parsing and event recovery; add `SessionSkillSettings.tsx` beside existing session controls. Keep the single composer and its per-instruction skill control.
 - [x] Add current-instruction exclusions to `threadInput.ts` and `ThreadCommandMenu.tsx`; accepted drafts reset these through the existing draft boundary.
-- [ ] Verify malformed exclusions and stale catalog behavior across the actual input contract; test frontend invalid saved drafts.
-- [ ] Verify PostgreSQL restoration, concurrent revisions, fresh-session isolation and real two-instruction skill records.
-- [ ] Run canonical rebuild; check readiness, role source/image identity, saved products and refresh in an existing browser tab.
+- [x] Verify malformed exclusions and stale catalog behavior across the actual input contract; test frontend invalid saved drafts.
+- [x] Verify PostgreSQL restoration, revision conflicts, fresh-session isolation and real two-instruction skill records. Real API rejects stale revisions and unpublished versions after rebuild.
+- [x] Run canonical rebuild; check readiness, role source/image identity and saved products. Backend bytes match406c7d7b; both rounds restore after rebuild.
+- [ ] Verify settings and refreshed products in an existing browser tab. Browser plugin has no connection; native tab selection was not verified, and Vivaldi then exited.
 - [ ] Review changed code; commit only task-owned files. Record limits, source identity and control state. CI/dev merge require separate approval.
 
 ## Focused commands

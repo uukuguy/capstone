@@ -2,6 +2,15 @@
 
 ## Project snapshot
 
+- Project route: managed
+- Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
+- Active work package: IG1 — session skill scope and instruction snapshots.
+
+Session methods are optional versioned preferences, separate from investigation goals.
+Instruction admission freezes the effective preference revision and local exclusions;
+actual skill loading and reports remain instruction-owned. See the
+[guidance design](../superpowers/specs/2026-11-08-adaptive-investigation-guidance-design.md).
+
 The local candidate uses neutral rolling queues and owner-observed lifecycle records.
 Application leaf calls, the private relay and source adapters enforce their own
 bounded capacities. Formal and hosted source calls share an adapter budget through
