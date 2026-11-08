@@ -25,10 +25,13 @@ def test_native_image_includes_executor_fingerprint_sources():
                 for element in node.elts)
         and node.elts[0].value == 'general_pi_server.py'
     )
-    sources = [token for step in instructions((ROOT / 'deploy/general-pi.Dockerfile').read_text())
-               if step.startswith('COPY ') for token in shlex.split(step)[1:-1]]
+    copies = [shlex.split(step)[1:] for step in instructions(
+        (ROOT / 'deploy/general-pi.Dockerfile').read_text()) if step.startswith('COPY ')]
+    sources = [token for copy in copies for token in copy[:-1]]
+    destinations = [copy[-1] for copy in copies]
     for dependency in dependencies:
-        assert any(fnmatchcase(package + dependency, source) for source in sources), dependency
+        assert ('capstone_agent/' + dependency in destinations
+                or any(fnmatchcase(package + dependency, source) for source in sources)), dependency
 
 
 def instructions(dockerfile: str) -> list[str]:
