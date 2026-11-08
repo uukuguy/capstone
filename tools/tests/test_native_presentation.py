@@ -96,6 +96,15 @@ def test_chapter_navigation_reserves_title_space_instead_of_overlapping(tmp_path
     assert (tmp_path/'report.pptx').read_bytes() == b'prior product'
 
 
+def test_dense_mixed_numeric_text_is_rejected_before_hitting_footer(tmp_path):
+    value=spec([{'type':'paragraph','text':'2025年 1,082.8 GW，日均+7.9%，最低+1.8%。'*17}],
+               template={'id':'state-grid'})
+    (tmp_path/'report.pptx').write_bytes(b'prior product')
+    result=run(tmp_path,value)
+    assert result.returncode == 2 and 'slide_overflow' in result.stderr
+    assert (tmp_path/'report.pptx').read_bytes() == b'prior product'
+
+
 def test_template_preserves_master_size_and_removes_sample_content(tmp_path):
     template = Presentation()
     template.slide_width = 12192000

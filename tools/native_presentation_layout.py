@@ -121,7 +121,9 @@ def render_briefing_slide(content, *, workspace, page, textbox, wrap, literal, e
             raise error('unknown presentation block type')
 
     def text_lines(width,height):
-        units = max(10,int(width*72/11)-2)
+        # Reserve glyph-width headroom for Noto's digits/Latin mixed with CJK.
+        # Otherwise Office can wrap a prewrapped line again and hit the footer.
+        units = max(10,int(width*72/12.5)-2)
         lines = []
         for bullet,value in text:
             if lines:
