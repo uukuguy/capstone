@@ -153,6 +153,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/delegation-scheduler.m
 COPY packages/capstone-agent/src/capstone_agent/resources/subagents/ capstone_agent/resources/subagents/
 COPY packages/capstone-agent/src/capstone_agent/resources/general-mcp.mjs capstone_agent/resources/general-mcp.mjs
 COPY packages/capstone-agent/src/capstone_agent/native_resources.py capstone_agent/native_resources.py
+COPY packages/capstone-agent/src/capstone_agent/session_skill_preferences.py capstone_agent/session_skill_preferences.py
 COPY packages/capstone-agent/src/capstone_agent/bounded_mcp.py capstone_agent/bounded_mcp.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_resource_seed.py capstone_agent/general_pi_resource_seed.py
 COPY configs/runtime/general-pi/ config/

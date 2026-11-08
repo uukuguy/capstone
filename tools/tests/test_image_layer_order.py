@@ -10,6 +10,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_native_image_includes_executor_fingerprint_sources():
+    import ast
+    import shlex
+    from fnmatch import fnmatchcase
+
+    package = 'packages/capstone-agent/src/capstone_agent/'
+    tree = ast.parse((ROOT / package / 'general_pi_server.py').read_text())
+    dependencies = next(
+        [element.value for element in node.elts]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Tuple) and node.elts
+        and all(isinstance(element, ast.Constant) and isinstance(element.value, str)
+                for element in node.elts)
+        and node.elts[0].value == 'general_pi_server.py'
+    )
+    sources = [token for step in instructions((ROOT / 'deploy/general-pi.Dockerfile').read_text())
+               if step.startswith('COPY ') for token in shlex.split(step)[1:-1]]
+    for dependency in dependencies:
+        assert any(fnmatchcase(package + dependency, source) for source in sources), dependency
+
+
 def instructions(dockerfile: str) -> list[str]:
     logical: list[str] = []
     buffer = ""
