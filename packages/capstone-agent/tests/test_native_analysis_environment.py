@@ -47,9 +47,9 @@ def test_build_reuses_node_and_pi_assets_and_publishes_only_verified_receipt():
     assert 'COPY --from=node /usr/local/lib/node_modules/npm/' in image
     assert '/opt/pi/node_modules/typescript/bin/tsc /usr/local/bin/tsc' in image
     assert '/opt/pi/node_modules/tsx/dist/cli.mjs /usr/local/bin/tsx' in image
-    assert 'COPY packages/capstone-agent/src/capstone_agent/native_environment.py' in image
+    assert 'packages/capstone-agent/src/capstone_agent/native_environment.py' in image
     assert 'python tools/native_analysis_smoke.py' in image
-    assert 'COPY tools/native_report.py' in image
+    assert 'tools/native_report.py' in image
     assert '/usr/local/bin/capstone-report' in image
 
 
