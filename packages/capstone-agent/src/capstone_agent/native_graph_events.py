@@ -52,6 +52,11 @@ def project_graph_tool_activity(event, private_roots=()):
         details = result.get('details')
         if isinstance(details, dict) and isinstance(details.get('execution_notice'), dict):
             projected_result['details'] = {'execution_notice': details['execution_notice']}
+        if isinstance(details, dict) and event.get('toolName', event.get('tool_name')) == 'agent_skill':
+            from .skill_activity import checked_skill_activity
+            skill = checked_skill_activity(details.get('skill_activity'))
+            if skill is not None:
+                projected_result.setdefault('details', {})['skill_activity'] = skill
         safe['result'] = projected_result
     return public_graph_activity(project_native_tool_activity(safe,
         text_filter=lambda value: _public_text(value, private_roots)), private_roots)

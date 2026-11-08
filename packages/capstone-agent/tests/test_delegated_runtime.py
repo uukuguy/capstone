@@ -1166,6 +1166,26 @@ def test_native_live_tool_projection_preserves_host_receipt_identity_without_pri
                if event.event_type == 'runtime_event' and not event.payload.get('native_type'))
 
 
+def test_skill_use_is_persisted_as_public_progress_without_authority_promotion():
+    service, current = claim()
+    activity = {'schema': 'capstone-skill-activity/1', 'name': 'data-investigation',
+                'version': 'sha256:' + 'a' * 64, 'state': 'loaded', 'source': 'host'}
+    class SkillExecutor(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'type': 'tool_execution_end', 'tool_name': 'agent_skill',
+                      'tool_call_id': 'skill-1', 'skill_activity': activity})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', 'General answer', (), (), {})
+    run(service, current, factory(SkillExecutor(), Recognizer([goal('one')])))
+    events = service.read_events(current.thread_id, 0).events
+    record = next(e for e in events if e.payload.get('skill_activity'))
+    assert record.visibility == 'public'
+    assert record.payload['skill_activity'] == activity
+    assert not record.payload.get('evidence_refs') and not record.payload.get('result_refs')
+    restored = service.read_events(current.thread_id, 0).events
+    assert next(e for e in restored if e.event_id == record.event_id).payload == record.payload
+
+
 @pytest.mark.parametrize('fails', [False, True])
 def test_text_is_complete_and_precedes_tools_and_child_failure(fails):
     service, current = claim()
