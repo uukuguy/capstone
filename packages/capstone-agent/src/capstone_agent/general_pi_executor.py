@@ -571,6 +571,7 @@ class GeneralPiProcess:
                     return answer
                 if event.get('type') in {'turn_start', 'turn_end', 'message_end', 'auto_retry_start', 'auto_retry_end',
                                          'compaction_start', 'compaction_end',
+                                         'tool_dispatch', 'tool_batch',
                                          'tool_execution_start', 'tool_execution_end', 'message_update',
                                          'enterprise_cycle_progress', 'enterprise_graph_progress',
                                          'systematic_diagnosis_request', 'enterprise_graph_context_request', 'enterprise_graph_tool_binding', 'enterprise_graph_tool_failure',

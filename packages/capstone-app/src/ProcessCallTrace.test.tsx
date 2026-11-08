@@ -23,7 +23,7 @@ it('keeps a tiny same-turn batch distinct from observed execution overlap',()=>{
  expect(view.container.querySelector('.capstone-parallel-title')?.textContent).toBe('并行工具调用 · 2 项')
  expect(screen.queryByText(/观测峰值/)).toBeNull()
  expect(screen.queryByText('重叠未核实')).toBeNull()
- expect(screen.getByRole('group',{name:'并行工具调用 · 2 项'}).getAttribute('title')).toContain('异步提交')
+ expect(screen.getByRole('group',{name:'并行工具调用 · 2 项'})).not.toHaveAttribute('title')
 })
 it('shows overall caller time for a batch without claiming source overlap',()=>{
  render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:5,toolAssociation:'turn',toolCallIds:['a','b']}]} tools={[
@@ -139,6 +139,18 @@ it('shows recorded tool purpose in the collapsed title and child response intent
  expect(screen.getByText('12.0s')).toHaveAttribute('data-latency','noticeable')
 });
 
+it('expands errors during their batch and collapses them after all sibling calls settle',()=>{
+ const models=[{id:'m',number:1,ms:100,toolCallIds:['a','b']}]
+ const failure='命令退出代码 141：完整错误详情\n第二行诊断'
+ const failed={id:'a',name:'bash',status:'failed' as const,failure}
+ const view=render(<ProcessCallTrace models={models} tools={[failed,{id:'b',name:'read',status:'running'}]} active/>)
+ const notice=screen.getByTitle(/命令退出代码 141/)
+ expect(notice).toHaveAttribute('aria-expanded','true')
+ view.rerender(<ProcessCallTrace models={models} tools={[failed,{id:'b',name:'read',status:'completed'}]} active/>)
+ expect(notice).toHaveAttribute('aria-expanded','false')
+ expect(notice).toHaveAttribute('title',failure)
+ fireEvent.click(notice);expect(notice).toHaveAttribute('aria-expanded','true')
+})
 it('keeps important tool errors and warnings visible outside collapsed details after later success',()=>{
  const models=[{id:'m1',number:1,ms:1000,settled:true,toolCallIds:['failed']},
   {id:'m2',number:2,ms:500,settled:true,toolCallIds:['fallback']}];

@@ -86,6 +86,10 @@
 .capstone-call-notice svg { flex: none; width: 12px; height: 12px; align-self: flex-start; margin-top: 2px; }
 .capstone-call-notice span { overflow-wrap: anywhere; }
 .capstone-call-notice.is-error { color: #873b2d; background: #fff3ef; border-color: #bf614b; }
+.capstone-tool-failure { width: calc(100% - 17px); min-width: 0; border: 0; border-left: 2px solid #bf614b; text-align: left; font-family: inherit; cursor: pointer; }
+.capstone-tool-failure:not(.is-expanded) > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.capstone-tool-failure.is-expanded > span { white-space: pre-wrap; }
+.capstone-tool-failure:focus-visible { outline: 2px solid #bf614b; outline-offset: 2px; }
 .capstone-call-notice.is-warning { color: #795514; background: #fff8e8; border-color: #bc8c35; }
 
 .capstone-call-model strong.capstone-call-purpose { font-weight: 600; }

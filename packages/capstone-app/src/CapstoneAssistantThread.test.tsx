@@ -18,7 +18,7 @@ it('uses launcher elapsed time without adding batch receipts to the tool count',
  expect(activities.filter(item=>item.toolName).every(item=>item.toolBatch?.elapsed_ms===1200)).toBe(true)
  render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
  fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
- expect(document.querySelector('.capstone-parallel-heading')?.textContent).toBe('并行工具调用 · 2 项1.2s')
+ expect(document.querySelector('.capstone-parallel-heading')?.textContent).toBe('并行工具调用 · 2 项 · 1.2s')
 })
 it.each([false,true])('connects all sixteen tools from native SDK turn projection (owner receipts: %s)',hasReceipts=>{
  const attempt='native-batch'
