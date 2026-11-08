@@ -128,6 +128,11 @@ The current model background includes identity, version and history; it does not
 include full model tables. Managed PowerSkills/PowerMCP resources have separate
 native Pi and professional adapters. See the [resource setup instructions](docs/RUNBOOK.md#共享背景与角色资源).
 
+General execution includes six on-demand investigation methods for goal exploration,
+planning and tracking, debugging, completion checks, data investigation and quality.
+Skill loads and model-reported application phases appear in the existing process record;
+loading a method does not prove verification. See the [skill design](docs/superpowers/specs/2026-11-08-investigation-skills-design.md).
+
 The conversation is the primary interface. Cases are an independent module; the
 default federated conversation does not yet assemble Case execution. Registered
 guided workflows and validation fixtures remain at the earlier `/old` entry.
