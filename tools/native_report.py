@@ -351,9 +351,6 @@ def render_presentation(spec_path, output, *, check_only=False):
                 panel(slide,.8,5.95,1.2,.08,RGBColor(98,194,182))
             elif not template_page:
                 panel(slide,0,0,13.333,.09,teal)
-            lines = wrap(literal(title, 'slide title', 160), (46 if template_page else 38) if cover else 52)
-            if len(lines) > (4 if cover and not template_page else 2):
-                raise ReportError('slide title is too long for its fixed layout')
             position = [.8, (2.45 if template_page else 1.3) if cover else .35,
                         11.7, (1.3 if template_page else 2.3) if cover else .95]
             alignment = None
@@ -361,10 +358,23 @@ def render_presentation(spec_path, output, *, check_only=False):
                 if cover:
                     alignment = cover_alignment
                 elif template_receipt['title_position']:
-                    position = template_receipt['title_position']
+                    position = list(template_receipt['title_position'])
+            title_units = (46 if template_page else 38) if cover else 52
+            if section_label and not cover:
+                chapter_x = position[0]+position[2]-3.3
+                position[2] -= 3.65
+                title_units = max(10,int(position[2]*144/27)-2)
+            lines = wrap(literal(title, 'slide title', 160),title_units)
+            if section_label and not cover and len(lines)>1:
+                raise ReportError('page title exceeds the width reserved beside chapter navigation',
+                    diagnostic={'code':'slide_overflow','location':f'slides[{index}].title',
+                        'output_written':False,'recovery':
+                        'Rewrite the page title to fit one line beside the chapter label; do not shrink or overlap either field.'})
+            if len(lines) > (4 if cover and not template_page else 2):
+                raise ReportError('slide title is too long for its fixed layout')
             textbox(slide,*position,lines,34 if cover else 27,cover_ink if cover else title_ink,True,alignment)
             if section_label and not cover:
-                textbox(slide,.8,1.13,11.7,.35,[section_label],16,title_ink,True)
+                textbox(slide,chapter_x,position[1]+.16,3.3,.35,[section_label],14,title_ink,align=PP_ALIGN.RIGHT)
             if notes or speaker_notes:
                 slide.notes_slide.notes_text_frame.text = '\n'.join([*notes,*([speaker_notes] if speaker_notes else [])])
             footers.append((slide,notes))
@@ -387,8 +397,8 @@ def render_presentation(spec_path, output, *, check_only=False):
             if role == 'closing' and index != len(spec['slides'])-1:
                 raise ReportError('closing must be the last content record')
             section_label = literal(content['section'],'section',100) if 'section' in content else ''
-            if section_label and len(wrap(section_label,140))>1:
-                raise ReportError('section label must fit one line')
+            if section_label and len(wrap(section_label,30))>1:
+                raise ReportError('section label must fit one line in the right title-bar slot')
             title = literal(content['title'],'slide title',160)
             blocks = content['blocks']
             notes = content.get('source_notes',[])

@@ -59,9 +59,12 @@ def test_template_report_roles_preserve_chapter_context_and_branded_closing(tmp_
     assert len(deck.slides) == 4
     assert '一、总体态势' in deck_text(deck)
     chapter = next(s for s in deck.slides[2].shapes if s.has_text_frame and s.text == '一、总体态势')
-    assert chapter.text_frame.paragraphs[0].font.size.pt == 16
-    assert chapter.text_frame.paragraphs[0].font.bold is True
-    assert chapter.top + chapter.height <= 1.55*914400
+    assert chapter.text_frame.paragraphs[0].font.size.pt == 14
+    from pptx.enum.text import PP_ALIGN
+    assert chapter.text_frame.paragraphs[0].alignment == PP_ALIGN.RIGHT
+    assert chapter.top < 914400
+    opinion = next(s for s in deck.slides[2].shapes if s.has_text_frame and s.text == '峰值增长集中于晚间')
+    assert opinion.left + opinion.width < chapter.left
     closing = deck.slides[-1]
     assert closing.slide_layout.part.partname == deck.slides[0].slide_layout.part.partname
     assert any(s.shape_type == 13 for s in closing.shapes)
@@ -81,6 +84,15 @@ def test_template_rejects_invalid_report_roles_without_replacing_output(tmp_path
     (tmp_path/'report.pptx').write_bytes(b'prior product')
     result=run(tmp_path,value)
     assert result.returncode == 2
+    assert (tmp_path/'report.pptx').read_bytes() == b'prior product'
+
+
+def test_chapter_navigation_reserves_title_space_instead_of_overlapping(tmp_path):
+    value=spec([],template={'id':'state-grid'})
+    value['slides']=[{'section':'一、总体态势','title':'数据支持这一判断但这个观点标题过长需要重新提炼而不能遮住章节名称','blocks':[]}]
+    (tmp_path/'report.pptx').write_bytes(b'prior product')
+    result=run(tmp_path,value)
+    assert result.returncode == 2 and 'slide_overflow' in result.stderr
     assert (tmp_path/'report.pptx').read_bytes() == b'prior product'
 
 
