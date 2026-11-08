@@ -47,18 +47,18 @@ RUN chmod 0755 /opt/general/tools/native_report.py \
 RUN python tools/native_analysis_smoke.py
 
 # Volatile executor and research source.
-COPY packages/capstone-agent/src/capstone_agent/application_capacity.py capstone_agent/application_capacity.py
-COPY packages/capstone-agent/src/capstone_agent/model_context_policy.py capstone_agent/model_context_policy.py
+COPY packages/capstone-agent/src/capstone_agent/application_capacity.py \
+     packages/capstone-agent/src/capstone_agent/model_context_policy.py \
+     packages/capstone-agent/src/capstone_agent/pi_delegation.py \
+     packages/capstone-agent/src/capstone_agent/business_context.py \
+     packages/capstone-agent/src/capstone_agent/answer_presentation.py \
+     packages/capstone-agent/src/capstone_agent/native_network_policy.py \
+     packages/capstone-agent/src/capstone_agent/native_environment.py \
+     packages/capstone-agent/src/capstone_agent/resource_permissions.py \
+     packages/capstone-agent/src/capstone_agent/capacity_contract.py capstone_agent/
 COPY configs/runtime/application-capacity.json capstone_agent/resources/application-capacity.json
-COPY packages/capstone-agent/src/capstone_agent/pi_delegation.py capstone_agent/pi_delegation.py
-COPY packages/capstone-agent/src/capstone_agent/business_context.py capstone_agent/business_context.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_executor.py capstone_agent/general_pi_executor.py
-COPY packages/capstone-agent/src/capstone_agent/answer_presentation.py capstone_agent/answer_presentation.py
-COPY packages/capstone-agent/src/capstone_agent/native_network_policy.py capstone_agent/native_network_policy.py
-COPY packages/capstone-agent/src/capstone_agent/native_environment.py capstone_agent/native_environment.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py packages/capstone-agent/src/capstone_agent/skill_activity.py capstone_agent/
-COPY packages/capstone-agent/src/capstone_agent/resource_permissions.py capstone_agent/resource_permissions.py
-COPY packages/capstone-agent/src/capstone_agent/capacity_contract.py capstone_agent/capacity_contract.py
 COPY configs/runtime/capacity-policy.json configs/runtime/capacity-policy.json
 COPY configs/runtime/resource-permissions.json configs/runtime/resource-permissions.json
 COPY packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py capstone_runtime_events.py

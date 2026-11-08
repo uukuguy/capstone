@@ -70,6 +70,13 @@ def test_backend_installs_dependencies_pi_and_models_before_source():
     assert all("COPY packages/ packages/" not in step for step in earlier)
 
 
+def test_native_image_keeps_headroom_below_container_layer_limit():
+    steps = instructions((ROOT / 'deploy/general-pi.Dockerfile').read_text())
+    start = max(i for i, step in enumerate(steps) if step.startswith('FROM '))
+    layers = [step for step in steps[start + 1:] if step.startswith(('COPY ', 'ADD ', 'RUN '))]
+    assert len(layers) <= 120, 'Keep room for base layers below the 128-layer container limit'
+
+
 def test_native_scientific_install_precedes_volatile_source_and_backend_image():
     steps = instructions((ROOT / "deploy/general-pi.Dockerfile").read_text())
     scientific = index_of(steps, "uv pip install --system --require-hashes --only-binary :all: -r configs/runtime/native-analysis.lock.txt")
