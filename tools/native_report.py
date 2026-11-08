@@ -303,6 +303,13 @@ def render_presentation(spec_path, output, *, check_only=False):
             return value
 
         def wrap(value, width):
+            if template_page:
+                from native_presentation_layout import wrap_briefing
+                try:
+                    return wrap_briefing(value,width)
+                except ValueError as exc:
+                    raise ReportError(str(exc),diagnostic={'code':'slide_overflow','output_written':False,
+                        'recovery':'Keep numbers and dates whole. Shorten visible text or move detail to speaker_notes; do not shrink fonts.'}) from None
             lines = []
             for line in value.split('\n'):
                 current, units = '', 0

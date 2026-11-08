@@ -1,7 +1,39 @@
 """Fit one planned briefing page without splitting or shrinking its content."""
 import csv
 import io
+import re
+import unicodedata
 from pathlib import Path
+
+
+def wrap_briefing(value, width):
+    """Keep numeric expressions, dates and Latin words whole at line breaks."""
+    pattern = re.compile(r'[+−-]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)(?:[/:−-]\d+)*'
+                         r'(?:[eE][+-]?\d+)?(?:%|\s+[A-Za-z°℃]{1,5}(?![A-Za-z])|\s*[年月日时分秒天])?'
+                         r'|[A-Za-z_][A-Za-z0-9_./%-]*|.')
+    def units(text):
+        return sum(0 if unicodedata.combining(c) else 2 if ord(c)>127 or c.isupper() or c in 'mw@%#&' else 1 for c in text)
+    lines=[]
+    for source in value.split('\n'):
+        tokens=[]
+        for match in pattern.finditer(source):
+            token=match.group()
+            if token in '，。；：！？、）】》”’.,;:!?)' and tokens:
+                tokens[-1]+=token
+            else:
+                tokens.append(token)
+        current='';used=0
+        for token in tokens:
+            size=units(token)
+            if size>width:
+                raise ValueError('A number, date or word exceeds its briefing text frame; move it to notes or use a wider composition')
+            if current and used+size>width:
+                lines.append(current.rstrip());current='';used=0
+            if not current:
+                token=token.lstrip();size=units(token)
+            current+=token;used+=size
+        lines.append(current.rstrip())
+    return lines
 
 
 def render_briefing_slide(content, *, workspace, page, textbox, wrap, literal, error, title_color, location):

@@ -126,6 +126,16 @@ def test_template_preserves_detail_in_speaker_notes_without_filling_the_slide(tm
     assert detail in deck.slides[1].notes_slide.notes_text_frame.text
 
 
+def test_briefing_wrap_keeps_numbers_and_dates_intact():
+    import runpy
+    wrap = runpy.run_path(str(SCRIPT.parent/'native_presentation_layout.py'))['wrap_briefing']
+    lines = wrap('最高负荷1,082.8 GW，窗口2025-06-15结束，同比+13.5%',16)
+    for token in ['1,082.8','2025-06-15','+13.5%']:
+        assert any(token in line for line in lines), (token,lines)
+    with pytest.raises(ValueError):
+        wrap('2025-06-15',5)
+
+
 def test_template_rejects_external_relationships_without_replacing_output(tmp_path):
     template = Presentation()
     page = template.slides.add_slide(template.slide_layouts[0])
