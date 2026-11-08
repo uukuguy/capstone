@@ -326,6 +326,12 @@ counts, prices, limits, versions, or deployment state here.
 
 ### Local rebuild and deployment
 
+- Group Docker source and resource copies by responsibility. Add new files to
+  existing groups; do not add a separate layer for each file or routine update.
+  Keep stable dependencies before frequently changed source. Add a new layer
+  only for a justified cache boundary, and check the final image layer count
+  and cache effect. Preserve the explicit runtime input allowlist.
+
 - After each local build and its validation/use, clean this project's unused
   images and build cache with the scoped `deploy/cleanup_local_build_cache.py`
   helper. This is a standing maintenance step, not a new service or global prune.
