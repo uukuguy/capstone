@@ -35,6 +35,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
     .filter(resource => resource.kind === 'skill' && skillCompatible({ role } as SkillChoice, draft.mode))
     .map(resource => ({ ...resource, role: role as SkillRole, revision: profile!.revision })))
   const skills = allSkills.filter(skill => skill.installed === true).filter(skill => `${skillLabels[skill.id]?.name || ''} ${skill.id} ${skill.native_name || ''} ${skill.description || ''} ${skill.source}`.toLowerCase().includes(search.toLowerCase()))
+    .sort((left,right)=>(left.native_name||left.id).localeCompare(right.native_name||right.id,'en',{sensitivity:'base'})||left.id.localeCompare(right.id,'en'))
   const panelVisible = Boolean(panel || candidates.length)
   useLayoutEffect(() => {
     if (!panelVisible || !root.current) return
