@@ -104,9 +104,13 @@ def exercise_presentation(directory, *, renderer=None):
 
 def exercise_template_presentation(directory, *, renderer=None):
     from pptx import Presentation
+    from PIL import Image
+    Image.new('RGB',(320,180),'teal').save(directory/'template-figure.png')
     spec = {'schema':'capstone-presentation/1', 'title':'模板生成检查',
             'template':{'id':'state-grid'}, 'slides':[{'title':'内容检查',
-            'blocks':[{'type':'paragraph','text':'已保存的内容；不新增业务结论'}]}]}
+            'blocks':[{'type':'bullets','items':['已保存的内容','不新增业务结论']},
+                      {'type':'figure','path':'template-figure.png','caption':'已保存图表'}],
+            'speaker_notes':'详细说明保留在备注，不挤占主页面。'}]}
     (directory/'template-spec.json').write_text(json.dumps(spec, ensure_ascii=False))
     receipt = json.loads(command([*(renderer or ['capstone-report']), '--spec',
         'template-spec.json', '--output', 'template-output.pptx'], cwd=directory))
@@ -115,6 +119,9 @@ def exercise_template_presentation(directory, *, renderer=None):
     deck = Presentation(directory/'template-output.pptx')
     assert len(deck.slides) == 2
     assert any(shape.shape_type == 13 for shape in deck.slides[0].shapes)
+    assert any(shape.shape_type == 13 for shape in deck.slides[1].shapes)
+    assert receipt['template']['cover_text_rgb'] == 'FFFFFF'
+    assert receipt['layout_policy'] == 'one_content_record_per_slide'
 
 
 def exercise(directory):

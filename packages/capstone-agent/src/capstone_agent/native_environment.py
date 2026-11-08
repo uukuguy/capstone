@@ -87,6 +87,12 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
             'the renderer preserves template masters and cover pictures and removes sample slides. '
             'Save the content spec and referenced files for later rendering with another template. '
             'Check all generated pages visually before calling the layout accepted; template loading alone does not prove design quality. '
+            ' Template output is a briefing: plan one core message per content record, usually one visual with a few short supporting points. '
+            'Each content record stays on one slide; a figure/table and its points share a composition. '
+            'Do not copy report-length narration into slides. Retain detailed scope, derivations and limitations in optional speaker_notes text '
+            'or saved supporting products, with short source_notes for citations. '
+            'A slide_overflow diagnostic requires editing the page plan or summarizing its visible content; do not shrink fonts, '
+            'silently split the page, delete support, or assert that unreadable output is accepted. '
         )
     return (
         'Verified base programming environment (default Python, not a separately selected MCP interpreter). '

@@ -258,6 +258,7 @@ def render_presentation(spec_path, output, *, check_only=False):
         from pptx import Presentation
         from pptx.dml.color import RGBColor
         from pptx.util import Inches, Pt
+        from pptx.enum.text import PP_ALIGN
     except ImportError:
         raise ReportError('PPTX output requires the verified python-pptx and Pillow environment') from None
 
@@ -281,6 +282,11 @@ def render_presentation(spec_path, output, *, check_only=False):
         from pptx.enum.shapes import MSO_SHAPE
         paper, white = RGBColor(243,247,247), RGBColor(255,255,255)
         cover_ink = RGBColor.from_string(template_receipt['cover_text_rgb']) if template_receipt else white
+        title_ink = RGBColor.from_string(template_receipt['title_text_rgb']) if template_receipt else ink
+        cover_alignment = ({'ctr':PP_ALIGN.CENTER,'r':PP_ALIGN.RIGHT,'l':PP_ALIGN.LEFT}.get(template_receipt['cover_alignment'])
+                           if template_receipt else None)
+        if template_receipt:
+            teal = title_ink
 
         def panel(slide, x, y, width, height, color):
             shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(width), Inches(height))
@@ -288,6 +294,7 @@ def render_presentation(spec_path, output, *, check_only=False):
             shape.fill.fore_color.rgb = color
             shape.line.fill.background()
         footers, image_bytes, figures, tables, table_rows = [], 0, 0, 0, 0
+        speaker_notes = ''
 
         def literal(value, field, maximum):
             value = text(value, field)
@@ -307,7 +314,7 @@ def render_presentation(spec_path, output, *, check_only=False):
                 lines.append(current)
             return lines
 
-        def textbox(slide, x, y, width, height, lines, size, color=ink, bold=False):
+        def textbox(slide, x, y, width, height, lines, size, color=ink, bold=False, align=None):
             shape = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(width), Inches(height))
             frame = shape.text_frame
             frame.word_wrap = True
@@ -316,6 +323,8 @@ def render_presentation(spec_path, output, *, check_only=False):
             for index, line in enumerate(lines):
                 paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
                 paragraph.text = line
+                if align is not None:
+                    paragraph.alignment = align
                 paragraph.font.name, paragraph.font.size = font, Pt(size)
                 paragraph.font.color.rgb, paragraph.font.bold = color, bold
                 paragraph.line_spacing = 1.2
@@ -334,13 +343,20 @@ def render_presentation(spec_path, output, *, check_only=False):
                 panel(slide,.8,5.95,1.2,.08,RGBColor(98,194,182))
             elif not template_page:
                 panel(slide,0,0,13.333,.09,teal)
-            lines = wrap(literal(title, 'slide title', 160), 38 if cover and not template_page else 52)
+            lines = wrap(literal(title, 'slide title', 160), (46 if template_page else 38) if cover else 52)
             if len(lines) > (4 if cover and not template_page else 2):
                 raise ReportError('slide title is too long for its fixed layout')
-            textbox(slide,.8,(2.45 if template_page else 1.3) if cover else .35,11.7,(1.3 if template_page else 2.3) if cover else .95,
-                    lines,34 if cover else 27,cover_ink if cover else ink,True)
-            if notes:
-                slide.notes_slide.notes_text_frame.text = '\n'.join(notes)
+            position = [.8, (2.45 if template_page else 1.3) if cover else .35,
+                        11.7, (1.3 if template_page else 2.3) if cover else .95]
+            alignment = None
+            if template_receipt:
+                if cover:
+                    alignment = cover_alignment
+                elif template_receipt['title_position']:
+                    position = template_receipt['title_position']
+            textbox(slide,*position,lines,34 if cover else 27,cover_ink if cover else title_ink,True,alignment)
+            if notes or speaker_notes:
+                slide.notes_slide.notes_text_frame.text = '\n'.join([*notes,*([speaker_notes] if speaker_notes else [])])
             footers.append((slide,notes))
             return slide
 
@@ -348,11 +364,11 @@ def render_presentation(spec_path, output, *, check_only=False):
         if 'subtitle' in spec:
             lines = wrap(literal(spec['subtitle'], 'subtitle', 500),84)
             if len(lines)>(3 if template_page else 6):raise ReportError('subtitle is too long for the cover layout')
-            textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221))
+            textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221),align=cover_alignment)
 
         block_errors = []
         for index, content in enumerate(spec['slides']):
-            fields(content, ('title','blocks'), ('source_notes',))
+            fields(content, ('title','blocks'), ('source_notes','speaker_notes'))
             title = literal(content['title'],'slide title',160)
             blocks = content['blocks']
             notes = content.get('source_notes',[])
@@ -363,6 +379,20 @@ def render_presentation(spec_path, output, *, check_only=False):
                 raise ReportError('source_notes exceed the two-line footer budget')
             if not isinstance(blocks,list) or len(blocks)>20:
                 raise ReportError('each content record allows at most 20 blocks')
+            speaker_notes = content.get('speaker_notes','')
+            if not isinstance(speaker_notes,str):
+                raise ReportError('speaker_notes must be text')
+            if speaker_notes:
+                speaker_notes = literal(speaker_notes,'speaker_notes',20000)
+            if template_page:
+                from native_presentation_layout import render_briefing_slide
+                stats = render_briefing_slide(content,workspace=workspace,page=page,textbox=textbox,
+                    wrap=wrap,literal=literal,error=ReportError,title_color=title_ink,location=f'slides[{index}]')
+                figures += stats['figures']; tables += stats['tables']; table_rows += stats['table_rows']
+                image_bytes += stats['image_bytes']
+                if image_bytes>64*1024*1024:
+                    raise ReportError('presentation images exceed their processing budget')
+                continue
             pending = []
             emitted = False
             def flush():
@@ -500,7 +530,12 @@ def render_presentation(spec_path, output, *, check_only=False):
                 'code': 'presentation_invalid', 'errors': block_errors, 'output_written': False})
         for number,(slide,notes) in enumerate(footers,1):
             if notes:textbox(slide,.8,6.85,10.7,.4,wrap(' · '.join(notes),140),10,muted)
-            textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,RGBColor(199,219,221) if number==1 else muted)
+            from pptx.oxml.ns import qn
+            inherited_number = template_page and any(field.get('type')=='slidenum'
+                for owner in (slide.slide_layout,slide.slide_layout.slide_master)
+                for field in owner._element.iter(qn('a:fld')))
+            if not inherited_number:
+                textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,RGBColor(199,219,221) if number==1 else muted)
         stream=io.BytesIO();deck.save(stream)
         if stream.tell()>64*1024*1024:raise ReportError('PPTX exceeds the 64 MiB output processing budget')
         if not check_only:
@@ -511,13 +546,15 @@ def render_presentation(spec_path, output, *, check_only=False):
             'figures':figures,'tables':tables,'table_rows':table_rows,'source_sha256':workspace.sources,
             'output_written': not check_only,
             **({'template': template_receipt} if template_receipt else {}),
+            **({'layout_policy':'one_content_record_per_slide'} if template_receipt else {}),
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.')
+    parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.',
+        epilog='PPTX: omit template for the original paginated baseline. Add template={"id":"state-grid"} for the built-in template, or template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Template output keeps one content record per slide, combining one visual and short key points. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; shorten the visible content when it does not fit.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
     parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')

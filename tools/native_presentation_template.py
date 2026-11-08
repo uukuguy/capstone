@@ -7,6 +7,46 @@ from xml.etree import ElementTree
 from pathlib import Path
 
 
+def text_style(slide, fallback='172B3B'):
+    """Resolve the first title's run, paragraph and theme color inheritance."""
+    from pptx.oxml.ns import qn
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+    master = slide.slide_layout.slide_master
+    color_map = dict(master._element.find(qn('p:clrMap')).attrib)
+    for owner in (slide.slide_layout, slide):
+        override = owner._element.find('.//' + qn('a:overrideClrMapping'))
+        if override is not None:
+            color_map.update(override.attrib)
+    theme = ElementTree.fromstring(master.part.part_related_by(RT.THEME).blob)
+    colors = theme.find('.//' + qn('a:clrScheme'))
+    for shape in slide._element.iter(qn('p:sp')):
+        body = shape.find(qn('p:txBody'))
+        if body is None:
+            continue
+        paragraph = next((p for p in body.findall(qn('a:p')) if list(p.iter(qn('a:t')))), None)
+        if paragraph is None:
+            continue
+        properties = paragraph.find(qn('a:pPr'))
+        level = int(properties.get('lvl', '0')) if properties is not None else 0
+        paths = [f'{qn("a:r")}/{qn("a:rPr")}/{qn("a:solidFill")}',
+                 f'{qn("a:pPr")}/{qn("a:defRPr")}/{qn("a:solidFill")}']
+        fills = [paragraph.find(path) for path in paths]
+        fills.append(body.find(f'{qn("a:lstStyle")}/{qn("a:lvl" + str(level + 1) + "pPr")}/{qn("a:defRPr")}/{qn("a:solidFill")}'))
+        for fill in fills:
+            if fill is None or not len(fill):
+                continue
+            color = fill[0]
+            if color.tag == qn('a:schemeClr'):
+                key = color_map.get(color.get('val'), color.get('val'))
+                entry = colors.find(qn('a:' + key)) if colors is not None else None
+                color = entry[0] if entry is not None and len(entry) else color
+            value = color.get('val') if color.tag == qn('a:srgbClr') else color.get('lastClr')
+            if value and len(value) == 6 and all(c in '0123456789abcdefABCDEF' for c in value):
+                return value.upper(), properties.get('algn', 'l') if properties is not None else 'l'
+        return fallback, properties.get('algn', 'l') if properties is not None else 'l'
+    return fallback, 'l'
+
+
 def load_template(workspace, selection, error):
     from pptx import Presentation
     from pptx.oxml.ns import qn
@@ -14,7 +54,7 @@ def load_template(workspace, selection, error):
     if builtin:
         raw = (Path(__file__).parent / 'presentation-templates/state-grid.pptx').read_bytes()
         selection = {'path': 'builtin:state-grid'}
-    elif (not isinstance(selection, dict) or set(selection) - {'path', 'cover_slide', 'content_layout'}
+    elif (not isinstance(selection, dict) or set(selection) - {'path', 'cover_slide', 'content_layout', 'content_slide'}
             or not isinstance(selection.get('path'), str) or not selection['path'].lower().endswith('.pptx')):
         raise error('template requires a workspace PPTX path')
     else:
@@ -41,19 +81,28 @@ def load_template(workspace, selection, error):
     if type(cover_number) is not int or not 1 <= cover_number <= len(deck.slides):
         raise error('template cover_slide is outside the template')
     layout_number = selection.get('content_layout')
-    if layout_number is not None:
+    content_number = 3 if builtin else selection.get('content_slide')
+    content_source = None
+    if content_number is not None:
+        if layout_number is not None or type(content_number) is not int or not 1 <= content_number <= len(deck.slides):
+            raise error('template content_slide must select an existing slide without content_layout')
+        content_source = deck.slides[content_number - 1]
+        layout = content_source.slide_layout
+    elif layout_number is not None:
         if type(layout_number) is not int or not 0 <= layout_number < len(deck.slide_layouts):
             raise error('template content_layout is outside the template')
         layout = deck.slide_layouts[layout_number]
     else:
         layout = min(deck.slide_layouts, key=lambda item: len(item.placeholders))
     cover = deck.slides[cover_number - 1]
-    cover_color = '172B3B'
-    for node in cover._element.iter(qn('a:rPr')):
-        color = node.find('.//' + qn('a:srgbClr'))
-        if color is not None:
-            cover_color = color.get('val', cover_color)
-            break
+    cover_color, cover_alignment = text_style(cover)
+    title_color = text_style(content_source)[0] if content_source is not None else '172B3B'
+    title_position = None
+    if content_source is not None:
+        title_shape = next((s for s in content_source.shapes if s.has_text_frame and s.text.strip()), None)
+        if title_shape is not None:
+            title_position = [title_shape.left / 914400, title_shape.top / 914400,
+                              title_shape.width / 914400, max(title_shape.height / 914400, .95)]
     cover_layout = cover.slide_layout
     pictures = []
     for shape in cover.shapes:
@@ -85,4 +134,8 @@ def load_template(workspace, selection, error):
 
     return deck, page, {**({'id': 'state-grid'} if builtin else {'path': selection['path']}), 'sha256': sha256(raw).hexdigest(),
                         'cover_text_rgb': cover_color,
-                        'cover_slide': cover_number, 'content_layout': list(deck.slide_layouts).index(layout)}
+                        'cover_alignment': cover_alignment, 'title_text_rgb': title_color,
+                        'title_position': title_position,
+                        'cover_slide': cover_number,
+                        'content_layout': list(layout.slide_master.slide_layouts).index(layout),
+                        'content_layout_part': str(layout.part.partname)}

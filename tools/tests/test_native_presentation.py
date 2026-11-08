@@ -69,6 +69,63 @@ def test_builtin_state_grid_template_is_available_without_host_files(tmp_path):
     assert not any(text in deck_text(deck) for text in ['演示功能清单','核心观点的提炼与总结'])
 
 
+def test_builtin_cover_resolves_inherited_light_text_color(tmp_path):
+    result = run(tmp_path, spec([{'type':'paragraph','text':'Content'}], template={'id':'state-grid'}))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['template']['cover_text_rgb'] == 'FFFFFF'
+
+
+def test_builtin_content_uses_the_templates_actual_body_layout(tmp_path):
+    result = run(tmp_path, spec([{'type':'paragraph','text':'Content'}], template={'id':'state-grid'}))
+    assert result.returncode == 0, result.stderr
+    deck = Presentation(tmp_path/'report.pptx')
+    original = Presentation(SCRIPT.parent/'presentation-templates/state-grid.pptx')
+    assert str(deck.slides[1].slide_layout.part.partname) == str(original.slides[2].slide_layout.part.partname)
+
+
+def test_template_combines_figure_and_key_points_without_fragmenting(tmp_path):
+    Image.new('RGB',(640,360),'teal').save(tmp_path/'figure.png')
+    result = run(tmp_path, spec([
+        {'type':'bullets','items':['第一项观察','第二项观察','第三项观察']},
+        {'type':'figure','path':'figure.png','caption':'保存的图表'}], template={'id':'state-grid'}))
+    assert result.returncode == 0, result.stderr
+    deck = Presentation(tmp_path/'report.pptx')
+    assert len(deck.slides) == 2
+    assert any(s.shape_type == 13 for s in deck.slides[1].shapes)
+    assert '第三项观察' in deck_text(deck)
+
+
+def test_template_combines_table_and_key_points_on_one_page(tmp_path):
+    (tmp_path/'data.csv').write_text('对象,数值\n甲,001.2300\n乙,12.50%\n')
+    result = run(tmp_path, spec([
+        {'type':'table','csv':'data.csv','max_rows':10},
+        {'type':'bullets','items':['保留原始字符串','不重新解释业务事实']}],template={'id':'state-grid'}))
+    assert result.returncode == 0, result.stderr
+    deck = Presentation(tmp_path/'report.pptx')
+    assert len(deck.slides) == 2
+    assert '001.2300' in deck_text(deck) and '12.50%' in deck_text(deck)
+
+
+def test_template_overflow_is_explicit_and_preserves_old_product(tmp_path):
+    (tmp_path/'report.pptx').write_bytes(b'previous product')
+    result = run(tmp_path, spec([{'type':'bullets','items':['过长的说明'*60]*20}], template={'id':'state-grid'}))
+    assert result.returncode == 2
+    assert 'slide_overflow' in result.stderr
+    assert (tmp_path/'report.pptx').read_bytes() == b'previous product'
+
+
+def test_template_preserves_detail_in_speaker_notes_without_filling_the_slide(tmp_path):
+    value = spec([{'type':'bullets','items':['核心要点']}],template={'id':'state-grid'})
+    detail = '完整口径与推导保留在备注。'*50
+    value['slides'][0]['speaker_notes'] = detail
+    result = run(tmp_path,value)
+    assert result.returncode == 0, result.stderr
+    deck = Presentation(tmp_path/'report.pptx')
+    assert len(deck.slides) == 2
+    assert detail not in deck_text(deck)
+    assert detail in deck.slides[1].notes_slide.notes_text_frame.text
+
+
 def test_template_rejects_external_relationships_without_replacing_output(tmp_path):
     template = Presentation()
     page = template.slides.add_slide(template.slide_layouts[0])

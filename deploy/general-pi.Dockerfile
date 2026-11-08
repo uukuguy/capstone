@@ -38,7 +38,8 @@ RUN ln -s /opt/pi/node_modules /opt/general/node_modules \
 
 COPY tools/native_analysis_smoke.py \
      tools/native_report.py \
-     tools/native_presentation_template.py tools/
+     tools/native_presentation_template.py \
+     tools/native_presentation_layout.py tools/
 
 COPY tools/presentation-templates/ tools/presentation-templates/
 
