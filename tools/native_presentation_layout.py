@@ -8,7 +8,7 @@ from pathlib import Path
 
 def wrap_briefing(value, width):
     """Keep numeric expressions, dates and Latin words whole at line breaks."""
-    pattern = re.compile(r'[+−-]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)(?:[/:−-]\d+)*'
+    pattern = re.compile(r'[+−-]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)(?:[/:−—–-]\d+)*'
                          r'(?:[eE][+-]?\d+)?(?:%|\s+[A-Za-z°℃]{1,5}(?![A-Za-z])|\s*[年月日时分秒天])?'
                          r'|[A-Za-z_][A-Za-z0-9_./%-]*|.')
     def units(text):

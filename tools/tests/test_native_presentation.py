@@ -36,6 +36,15 @@ import pytest
 SCRIPT = Path(__file__).parents[2] / 'tools/native_report.py'
 
 
+def test_briefing_preserves_unicode_numeric_ranges_at_line_boundaries():
+    import importlib.util
+    loaded=importlib.util.spec_from_file_location('briefing_layout',SCRIPT.with_name('native_presentation_layout.py'))
+    module=importlib.util.module_from_spec(loaded);loaded.loader.exec_module(module)
+    for expression in ['18—22 时','18–22 时']:
+        lines=module.wrap_briefing('覆盖'+expression,12)
+        assert any(expression in line for line in lines),lines
+
+
 def test_template_report_roles_preserve_chapter_context_and_branded_closing(tmp_path):
     value = spec([], template={'id':'state-grid'})
     value['slides'] = [
