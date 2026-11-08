@@ -36,6 +36,6 @@
 
 ## 复审后的补修与最终重建
 
-2980845d修复身份省略重存，加入native构建期导入；新增测试先失败，修复后48项检查通过、1项跳过。最终规范重建ready，API/三worker镜像`7a739cc4165eca5a3c1727c614dc61037c14255f3bbf22a4695f4835104af5b8`，native三份关键源码匹配；会话偏好revision1及两轮完成结果恢复成功，缓存维护完成。App报告内容来源5d4c8f5b，repositoryRevision2980845d；两种身份含义不同。
+2980845d修复身份省略重存，加入native构建期导入；新增测试先失败，修复后48项检查通过、1项跳过。最终规范重建ready，API/三worker镜像`7a739cc4165eca5a3c1727c614dc61037c14255f3bbf22a4695f4835104af5b8`，native三份关键源码匹配；会话偏好revision1及两轮完成结果恢复成功，缓存维护完成。最终App报告内容来源2980845d，文档提交后repositoryRevision0854b6a5；此前8a2ebec5重建时App报告5d4c8f5b。内容来源与仓库HEAD分别记录。
 
 设置弹层已在已有浏览器标签打开并核对选中方法与重读入口；界面截图保存在忽略回执目录。冲突恢复、刷新与原生执行期错误提示仍待验收。[独立复审与逐项复核](../reviews/2026-11-08-session-skill-scope-followup-review.md)。
