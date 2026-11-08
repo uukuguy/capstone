@@ -9,7 +9,7 @@ import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gate
 import {createDomainTools} from './general-domain-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createManagedResourceTools} from './managed-resource-tools.mjs';
-import {createSkillRecordTool,admitSkillPresentation,skillSelectionGuidance} from './investigation-skills.mjs';
+import {createSkillRecordTool,admitSkillPresentation,skillContextFiles} from './investigation-skills.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
@@ -1331,10 +1331,9 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     settingsManager, extensionFactories, additionalExtensionPaths: [...config.extensions.filter(path =>
       !managedResearch || !path.endsWith('/general-research.mjs')),
       fileURLToPath(new URL("./execution-guidance.mjs", import.meta.url))], noThemes: true,
-    noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: config.contextFiles }),
+    noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: skillContextFiles(config) }),
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
-      ...(skillSelectionGuidance(config)?[skillSelectionGuidance(config)]:[]),
       ...(config.researchRuntime?.deepResearch===true?['The user explicitly selected Deep Research for this instruction. Start by admitting a task plan, then use independent executors and a committed delivery. Do not replace this selection with direct native work or a direct final answer.']:config.researchRuntime?.deepResearch===false?['Deep Research is off for this instruction. Use the ordinary reasoning and authorized tool loop. Do not activate task organization.']:[]),
       ...(!organizationOnly?[nativeShellGuidance,nativeBatchGuidance,nativeExecutionGuidance,savedProductGuidance,
         'For large saved observations, inspect the supplied structure index and bounded preview first. Use actual observed field names. When authorized agent_tools_execute is available and multiple independent requests have complete exact arguments, submit calls:[{id,tool,arguments},...] directly without program or tools fields. The host validates and schedules the set; do not write a serial await loop for known independent requests. Use program/tools for processing issued observations or operations whose arguments require earlier results. Within a program use tools.describe for contracts, tools.batch for independent calls, tools.call for dependencies and saveContext/loadContext for source packages. Use tools.inspect/read on issued refs or full_result objects without fetching data again or using shell. A program may inspect results and continue dependent operations without a model round trip for every field. Return compact observations needed for a real decision. Prefer contract-supported range/aggregate operations over unnecessary fragmented requests. Do not guess semantics or expand queries merely because batching is available. Keep the bounded active tool set needed for the current cohesive work together; agent_tool_load replaces the set, so avoid swapping one tool at a time.',

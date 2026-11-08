@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createSkillRecordTool,admitSkillPresentation,skillSelectionGuidance} from '../../src/capstone_agent/resources/investigation-skills.mjs';
+import {createSkillRecordTool,admitSkillPresentation,skillSelectionGuidance,skillContextFiles} from '../../src/capstone_agent/resources/investigation-skills.mjs';
 import {applicationToolOptions} from '../../src/capstone_agent/resources/general-sdk.mjs';
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
@@ -36,11 +36,12 @@ test('pinned SDK uses the admitted semantic catalog instead of host-file instruc
     settingsManager:sdk.SettingsManager.inMemory({}),noSkills:true,noExtensions:true,noContextFiles:true,
     noPromptTemplates:true,noThemes:true,additionalSkillPaths:[resolve('configs/runtime/general-pi/skills')],
     skillsOverride:current=>admitSkillPresentation(config,current),
-    appendSystemPromptOverride:()=>[skillSelectionGuidance(config)]});
+    agentsFilesOverride:()=>({agentsFiles:skillContextFiles(config)})});
   await loader.reload();
   assert.deepEqual(config.taskSkills.map(s=>s.name),['data-investigation']);
   assert.equal(sdk.formatSkillsForPrompt(loader.getSkills().skills),'');
-  const guidance=loader.getAppendSystemPrompt().join('\n');
+  const guidance=loader.getAgentsFiles().agentsFiles.at(-1).content;
+  assert.equal(loader.getAgentsFiles().agentsFiles.at(-1).path,'application-methods');
   assert.ok(guidance.includes('data-investigation'));
   assert.ok(guidance.includes('agent_skill'));
   assert.ok(!guidance.includes('SKILL.md')&&!guidance.includes(process.cwd()));

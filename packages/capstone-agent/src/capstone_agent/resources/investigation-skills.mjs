@@ -13,16 +13,22 @@ export function admitSkillPresentation(config,current){
 export function skillSelectionGuidance(config){
   if(!config.applicationPolicy?.allowed_tools.includes('agent_skill')||!config.taskSkills?.length)return '';
   const catalog=config.taskSkills.map(({name,description})=>({name,description}));
-  return 'Application methods for the current instruction (not mandatory workflow steps):\n'+JSON.stringify(catalog)+
+  return 'Application method instructions for this instruction (on demand, no fixed sequence):\n'+JSON.stringify(catalog)+
     '\nUsers do not need to select or name a method. Compare these descriptions with the current goal and admitted context. '+
-    'When a method applies, load its exact name with agent_skill operation load before doing the work governed by that method, and apply the returned instructions. '+
-    'For substantive multi-stage work, revisit relevant methods when the evidence, scope or delivery stage changes. '+
+    'When a description matches a substantive part of the requested work, you must load its exact name with agent_skill operation load before doing that part, then follow the returned instructions. '+
+    'Do not bypass a matching method merely because a direct tool or program can perform the action. '+
+    'For substantive multi-stage work, select the relevant methods and revisit that selection when the evidence, scope or delivery stage changes. '+
     'Use the semantic loader rather than searching for method files with shell or read. Keep one task plan and evidence record. '+
     'Record meaningful actual application with agent_skill operation report, concise public phases, related tool_call_ids and saved product refs when available. '+
     'Loading alone is not application; reports are model statements, not host-certified results. Do not fabricate records for earlier work. '+
     'Do not load all methods or invoke a method merely because it is installed. A direct answer or simple operation may need no method. '+
     'There is no fixed first tool or service: select methods and services from this instruction, not keywords or previous service use. '+
     'Methods grant no tools, data or authority; current grants and exclusions remain binding.';
+}
+
+export function skillContextFiles(config){
+  const guidance=skillSelectionGuidance(config);
+  return [...(config.contextFiles??[]),...(guidance?[{path:'application-methods',content:guidance}]:[])];
 }
 
 // The caller supplies only task-admitted native resources, never model paths.
