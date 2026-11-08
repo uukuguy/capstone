@@ -17,8 +17,9 @@ IG2–IG4明确未实施，其设计准备度与IG1缺陷分开评价。未声�
 审查Thread：`thr_cf517ab3d49f5fd2c4a7`；Attempt：`attempt_8e9da8cb080d79b0`。
 工具事件仅有bash，无网关工具调用。报告持久化内容SHA256：
 `fde612bd1515ab1c2bbce4e4f7bda836435f4645d99905406e2af07e13baed12`。
-原生存储中报告和复现脚本存在；公开旧artifacts投影返回空列表。本次经操作端从持久化存储恢复并核对哈希，
-不把这次任务作为App成果展示通过证据；投影原因另待定位，不归因于IG1。
+原生存储中报告和复现脚本存在，已核对哈希。后续纠正：此前只读到旧artifacts接口的空第一页，
+忽略了其has_more/next_after，误记为待定位投影问题。按返回游标续页和读取当前product-index均能找到报告，
+经公开受控下载核对同一SHA256通过。不存在该记录所怀疑的文件投影故障；本次仍未进行App实页展示验收。
 私有回执与语义复现脚本位于候选`.capstone-agent/independent-skill-scope-review-20261108/`。
 
 ## 已确认、需修正的实现问题
