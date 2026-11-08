@@ -25,6 +25,21 @@ it('keeps a tiny same-turn batch distinct from observed execution overlap',()=>{
  fireEvent.click(screen.getByText('重叠未核实'))
  expect(screen.getByText(/毫秒级耗时也不能证明并发或串行/)).toBeVisible()
 })
+it('keeps one uniform Thinking row and tokens outside each highlighted model heading',()=>{
+ const view=render(<ProcessCallTrace compact models={[
+  {id:'no-thinking',number:1,ms:20,usage:{input:10,output:5,cacheRead:0,cacheWrite:0}},
+  {id:'thinking',number:2,ms:30,thinking:'公开思考片段',usage:{input:11,output:6,cacheRead:0,cacheWrite:0}},
+ ]} tools={[]} active={false}/>)
+ expect(screen.getAllByText('Thinking')).toHaveLength(2)
+ expect(screen.queryByText(/Thinking 未记录/)).toBeNull()
+ const heads=view.container.querySelectorAll('.capstone-llm-call-heading')
+ expect(heads).toHaveLength(2)
+ for(const head of heads){
+  expect(head.querySelector('.capstone-call-tokens')).toBeNull()
+  expect(head.querySelector('.capstone-thinking-heading')).toBeNull()
+ }
+ expect(view.container.querySelectorAll('.capstone-thinking-heading')).toHaveLength(2)
+})
 
 it('shows compaction between model calls without an extra model round and stops incomplete timers',()=>{
  const phases=[{id:'compact',reason:'threshold' as const,state:'started' as const,startedAt:'2026-11-01T00:00:02Z'}]
@@ -53,7 +68,8 @@ it('keeps Thinking visible while a model runs before any reasoning text arrives'
  expect(within(thinking).getByText('Thinking…')).toBeVisible()
  expect(thinking.querySelector('.capstone-thinking-copy')).toBeNull()
  view.rerender(<ProcessCallTrace active models={[{...model,settled:true}]} tools={[]}/> )
- expect(screen.queryByRole('region',{name:'LLM 思考'})).not.toBeInTheDocument()
+ expect(screen.getByRole('region',{name:'LLM 思考'})).toBeInTheDocument()
+ expect(screen.getByRole('region',{name:'LLM 思考'}).querySelector('.capstone-thinking-copy')).toBeNull()
 })
 
 it('shows supplied thinking batches after the waiting indicator and retains them when settled',()=>{
