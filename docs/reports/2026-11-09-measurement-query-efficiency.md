@@ -62,3 +62,7 @@
 
 UI目标完成状态单列后续项。本轮未运行CI、未push或合入dev，未部署远端Capstone，IG1保持开放。
 
+## 本地补丁复验
+
+ccb549e6规范重建已ready，API/worker共同镜像ecfa3e8ba4c2，native执行器23713f0bd494；两份修改源文件在API、worker-native与源码中的SHA256一致。规范缓存维护完成。真实正式网关探针回传同一client_call_id并给出request_id/span_id；此次为单独元数据检查，不混入前述自然语言任务计数。133项聚焦检查及make doctor通过。未重跑模型效率验收，既有未通过结论保持。
+
