@@ -28,6 +28,15 @@ The other completions are39 composition wrappers,5 discovery searches and1 shell
    observations for any requested export; do not reconstruct numerical arrays
    from reader-facing prose.
 
+Operational transport correction: a protected loopback connection may be reached
+through the configured Docker host alias. Its private generated client config
+retains the original loopback authority, with the same port; the MCP HTTP client
+uses it as Host. The registry/API still accepts only its existing URL/token/name
+inputs and Authorization header. No arbitrary Host input, new endpoint permission,
+DNS-rebinding disablement, redirect or ambient proxy is introduced. Non-loopback,
+credential-bearing, path-bearing, cross-port and control-character authorities
+are rejected. This preserves HTTP authority; it does not alter TLS verification.
+
 Gateway owns source-supported name/relationship resolution, schema bounds,
 typed source references, exact result shapes and next-action publications. Do not
 hardcode station/device/metric/table semantics, guessed paging, key_ref conversion

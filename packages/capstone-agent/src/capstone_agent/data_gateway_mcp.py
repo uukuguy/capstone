@@ -210,7 +210,18 @@ class DataGatewayMcp:
             address = urlsplit(connection['url'])
             if address.port is not None and not 0 < address.port <= 65535:
                 raise ValueError()
-            if (not {'transport', 'url', 'headers'} <= set(connection) or set(connection) - {'transport', 'url', 'headers', 'name'}
+            if 'origin_authority' in connection:
+                origin = connection['origin_authority']
+                if not isinstance(origin, str) or len(origin) > 256 or any(ord(c) <= 32 or ord(c) == 127 for c in origin):
+                    raise ValueError()
+                original = urlsplit(address.scheme + '://' + origin)
+                default_port = 443 if address.scheme == 'https' else 80
+                if (original.netloc != origin or original.hostname not in {'localhost', '127.0.0.1', '::1'}
+                        or original.username is not None or original.password is not None
+                        or original.path or original.query or original.fragment
+                        or (original.port or default_port) != (address.port or default_port)):
+                    raise ValueError()
+            if (not {'transport', 'url', 'headers'} <= set(connection) or set(connection) - {'transport', 'url', 'headers', 'name', 'origin_authority'}
                     or ('name' in connection and not identity_text(connection['name']))
                     or connection['transport'] != 'streamable-http'
                     or address.scheme not in {'http', 'https'} or not address.hostname
@@ -244,7 +255,10 @@ class DataGatewayMcp:
         import httpx
         from mcp import ClientSession
         from mcp.client.streamable_http import streamable_http_client
-        async with httpx.AsyncClient(headers=self._connection['headers'], timeout=gateway_http_timeout(),
+        headers = dict(self._connection['headers'])
+        if 'origin_authority' in self._connection:
+            headers['Host'] = self._connection['origin_authority']
+        async with httpx.AsyncClient(headers=headers, timeout=gateway_http_timeout(),
                                      trust_env=False, follow_redirects=False) as client:
             async with streamable_http_client(self._connection['url'], http_client=client) as (reader, writer, _):
                 async with ClientSession(reader, writer) as session:
