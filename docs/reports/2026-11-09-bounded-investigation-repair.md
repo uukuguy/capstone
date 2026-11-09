@@ -85,6 +85,15 @@ Private full arguments, references, source values, saved answers and verificatio
 receipts remain in ignored runs/local-chain-20261109/. Production keys and expected
 source values were not added to runtime code or fixtures.
 
+Real-model negative fixture controlthr_b916867af28478affe04 completed in13.38s.
+It actually read the uploaded fixture and distinguished empty-page/unknown load,
+timeout/unknown effects, invalid unissued reference and out-of-year samples.
+It did not call a gateway or treat the fixture as Authority evidence. One summary
+phrase inaccurately calls the point-count-only sample a value-bearing case;
+the source fixture contains a count, not actual measurement values. Retain this
+as a nonblocking semantic precision gap, not a fully passed negative gate.
+This control is not a live gateway fault/empty-source test.
+
 ## Remaining scope
 
 - A reminder is not a hard call/time/token/cost budget and does not prove long
@@ -96,5 +105,7 @@ source values were not added to runtime code or fixtures.
   execution must not imply business acceptance; UI is outside this patch.
 - The independent review agent could not start because its model was unavailable.
   Inline review is not an independent review receipt.
+- Canonical dev register and overview are refreshed; graph browser inspection
+  remains unavailable and is not claimed as visual acceptance.
 - No CI, push, merge or intranet/cloud/demo update was performed for this patch.
   Existing unrelated dirty state in both checkouts is preserved.
