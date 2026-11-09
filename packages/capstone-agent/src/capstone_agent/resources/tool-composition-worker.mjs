@@ -26,6 +26,10 @@ process.on('message',async message=>{
       saveContext:'await tools.saveContext(name,{bindings:{key:{call:issuedRef,pointer:"/data/unit"},method:{value:"declared"},missing:{unknown:true,reason:"..."}},datasets:[{name:"rows",call:issuedRef,pointer:"/data/rows"}]}); datasets is an array, not an object. Global saveContext is the same function.',
       loadContext:'await tools.loadContext(saved.path); returns {bindings,datasets:{datasetName:{data,status,provenance,gaps}}}. Global loadContext is the same function.',
       call:'await tools.call(admittedName,arguments); returns {tool,ref,ok,status,data,value,...}. tool is the host-resolved registered name. Check ok before reading data.',
+      python:'await tools.python(code,data) or python(code,data); identical private-workspace helper. Receives JSON stdin and returns stdout as text. It grants no additional tools, source access or host permissions.',
+      describe:'tools.describe(admittedName) returns the exact admitted tool contract. Use its inputSchema and the returned result structure; do not guess parameter names or result fields.',
+      inspect:'await tools.inspect(issuedRef,pointer="") returns structure and bounded field pointers, not data values. When needed, inspect and read selected fields in the same program.',
+      follow:'await tools.follow(issuedRef,pointer); executes an unchanged action from an issued observation with grant/schema checks and returned waits. A returned source result reference is not an observation ref.',
     }),
     map:async(items,mapper,options={})=>{
       const concurrency=options?.concurrency??message.concurrency;
@@ -49,6 +53,7 @@ process.on('message',async message=>{
     child.on('close',code=>code===0?resolve(output):reject(Error(error||`Python exited ${code}`)));
     child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(data));
   });
+  tools.python=python;
   try{
     if(message.calls){
       const plan=await request('preflight',{calls:message.calls.map(({tool,arguments:args})=>({tool,arguments:args}))});

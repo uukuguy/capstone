@@ -25,6 +25,21 @@ import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('private Python helper has identical global/tools entry points and discoverable contracts',()=>fixture(async cwd=>{
+ let upstream=0;
+ const t=tool(cwd,async()=>{upstream++;return native({});});
+ const result=await t.execute('python-alias',{tools:[],program:`
+ const answer=await tools.python('import json,sys; print(json.dumps(json.load(sys.stdin)))',{items:[1,2,3]});
+ return {same:tools.python===python,answer:JSON.parse(answer),help:tools.help()};`});
+ assert.equal(result.isError,false,JSON.stringify(result));
+ const value=JSON.parse(result.content[0].text).result;
+ assert.equal(value.same,true);assert.deepEqual(value.answer,{items:[1,2,3]});
+ assert.match(value.help.python,/JSON stdin/);
+ assert.match(value.help.describe,/exact/);
+ assert.match(value.help.follow,/issued/);
+ assert.equal(upstream,0);
+}));
+
 test('application selects eight rolling composition slots',()=>{
  assert.equal(compositionPolicy.concurrency,8);
 });
