@@ -23,7 +23,8 @@ export default function (pi) {
 
 export function configureGeneralResearch(pi, config, {getControllerState,readReference,waitForDecision} = {}) {
   if (!config.researchChannelPath) return;
-  configureResearchGuidance(pi, config.researchGuidance, {lightweight:config.researchRuntime?.deepResearch===false});
+  configureResearchGuidance(pi, config.researchGuidance, {lightweight:config.researchRuntime?.deepResearch===false,
+    checkpointCalls:config.researchRuntime?.investigationGuidance?.checkpointCalls??12});
   // The managed native model currently declares reasoning unsupported. Do not
   // claim that changing a label enables reasoning on this model transport.
   const research = new Proxy(pi, { get(target, key) {

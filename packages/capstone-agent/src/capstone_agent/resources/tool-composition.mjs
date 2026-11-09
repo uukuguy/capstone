@@ -47,9 +47,11 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const completedCalls=[];
+      let completedLeafCalls=0;
       const batches=new Map();
       const batchPlans=[];
       const retainProgram=async(result)=>{
+        result={...result,details:{...result.details,kind:policy.schema,completed_leaf_calls:completedLeafCalls}};
         const bounded=await boundToolResult(result,{cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes,retain:true});
         const saved=savedToolObservation(bounded);
         if(saved){
@@ -184,9 +186,12 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   const effects=schemas[message.name]?.annotations;
                   releaseShared=await scheduler.acquire({signal:abort.signal,exclusive:effects?.readOnlyHint!==true||effects?.destructiveHint===true});
                   abort.signal.throwIfAborted();startedAt=Date.now();
-                  const nestedId=`${callId}:${run}:${message.id}`,native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal,...(reason?{refresh_reason:reason}:{})}));
+                  const nestedId=`${callId}:${run}:${message.id}`;
+                  let native;
+                  try{native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal,...(reason?{refresh_reason:reason}:{})}));}
+                  finally{completedLeafCalls++;}
                   const upstreamReuse=typeof native.details?.reused_from==='string';
-                  if(upstreamReuse){calls--;reused++;}
+                  if(upstreamReuse){calls--;reused++;completedLeafCalls--;}
                   let raw;try{raw=JSON.parse(native.content.find(c=>c.type==='text')?.text??'null');}catch{raw={text:native.content};}
                   const observed=raw?.structuredContent??raw;
                   const ref=`program-call:${run}:${message.id}`;

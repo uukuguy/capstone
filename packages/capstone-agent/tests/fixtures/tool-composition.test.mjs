@@ -1,4 +1,18 @@
 import test from 'node:test';
+
+test('composition reports completed dispatches across success, reuse and local failure',()=>fixture(async cwd=>{
+ const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};
+ const t=tool(cwd,async()=>native({status:'ok',rows:[1]}),{catalog:declared});
+ const call={tools:['read'],program:`await tools.call('read',{id:1});return 'ok';`};
+ const first=await t.execute('first',call);
+ assert.equal(first.details.completed_leaf_calls,1);
+ const reuse=await t.execute('reuse',call);
+ assert.equal(reuse.details.completed_leaf_calls,0);
+ const failed=await t.execute('failure',{tools:['read'],program:`await tools.call('read',{id:2});throw Error('processing');`});
+ assert.equal(failed.isError,true);
+ assert.equal(failed.details.kind,'capstone-tool-composition/1');
+ assert.equal(failed.details.completed_leaf_calls,1);
+}));
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
