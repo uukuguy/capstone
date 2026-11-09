@@ -87,3 +87,8 @@ business-specific tool ordering violates ownership. Select the bounded adapter
 projection instead, with tests for grants, ambiguity, omitted text and actual
 SDK model menus. Then freeze publication/model and run one original-instruction
 trial. Attribute only with matched catalog identities; retain failed targets.
+
+Existing tests also reproduce small load receipts becoming file previews because
+the full shared guidance alone exceeds their context budget. Keep that guidance
+in before_agent_start and composition context; search/load return a short reminder
+instead of duplicating it. Small activation receipts must stay directly readable.

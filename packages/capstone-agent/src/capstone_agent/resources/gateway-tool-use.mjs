@@ -1,4 +1,6 @@
 // Gateway publications own selection policy. Hints never grant tools.
+import {readFileSync} from 'node:fs';
+const summaryChars=JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits.tool_summary_chars;
 const ledgers=new WeakMap();
 export function createGatewayUseLedger(){
   const observations=new Map();
@@ -22,6 +24,34 @@ export function gatewayToolGroup(publication){
 }
 // Compatibility projection: names do not imply an access class.
 export function gatewayToolAccess(){return 'published_operation';}
+// This versioned gateway declaration is adapted here, not in the neutral Kernel.
+// Preserve whole values: cutting a condition mid-sentence can reverse its meaning.
+export function gatewaySelectionSummary(publication,maxChars=summaryChars){
+  const capability=publication?._meta?.['data-gateway/capability']??publication?.progressive?.capability;
+  if(capability?.summary_version!=='capability-summary/1'||capability.declaration_basis!=='provider_declared')return;
+  const semantics=capability.semantics;
+  if(!semantics||typeof semantics!=='object'||Array.isArray(semantics))return;
+  const keys=['execution_choice','prerequisites','applicable_questions','exploration',
+    'input_reference_kinds','output_reference_kinds','composition_constraints','budgets','pagination']
+    .filter(key=>Object.hasOwn(semantics,key)&&semantics[key]!==null);
+  if(!keys.length)return;
+  let result={basis:'provider_declared',fields:{},omitted_fields:keys};
+  if(JSON.stringify(result).length>maxChars){
+    const omitted={partial:true};
+    return JSON.stringify(omitted).length<=maxChars?omitted:undefined;
+  }
+  for(const key of keys){
+    const candidate={...result,fields:{...result.fields,[key]:semantics[key]},
+      omitted_fields:result.omitted_fields.filter(name=>name!==key)};
+    if(JSON.stringify(candidate).length<=maxChars)result=candidate;
+  }
+  return structuredClone(result);
+}
+export function gatewayToolDescription(publication,maxChars=summaryChars){
+  const description=publication.description??publication.name;
+  const selection=gatewaySelectionSummary(publication,maxChars);
+  return selection?description+'\nProvider-declared selection conditions (omitted fields require tools.describe): '+JSON.stringify(selection):description;
+}
 export const gatewayToolUseGuidance=[
  'The following service rules apply only when this service is relevant to the current instruction.',
  'Use the current admitted capability index and published provider, selection, preference and fallback rules. Read a discovery response only for information missing from that index or accepted context. Reuse exact contracts without repeated discovery. Do not infer policy from names.',

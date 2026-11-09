@@ -18,6 +18,19 @@ function fixture(options={}) {
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
 
+test('an explicit identity inside a search is not replaced by description references',async()=>{
+ const publications={a_related:{name:'related',description:'Use requested_action contract fields'},
+  z_requested:{name:'requested_action',description:'Read an exact snapshot'},
+  hidden:{name:'private_action',description:'requested_action contract fields'}};
+ const c=createToolDiscovery({publications,tools:Object.keys(publications).map(name=>({name})),
+  admittedNames:['a_related','z_requested'],pageSize:1});
+ const result=JSON.parse((await c.tools[0].execute('find',{query:'requested_action contract fields'})).content[0].text);
+ assert.deepEqual(result.tools.map(t=>t.name),['z_requested']);
+ assert.equal(result.match_mode,'identity_terms');assert.equal(result.total,1);
+ const hidden=JSON.parse((await c.tools[0].execute('find',{query:'private_action'})).content[0].text);
+ assert.equal(hidden.total,0);
+});
+
 test('unresolved publications load exact contracts before registration without placeholder schemas',async t=>{
  const cwd=await mkdtemp(join(tmpdir(),'progressive-discovery-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
  const publications={selected:{name:'source',description:'Read selected',progressive:{tool_key:'key'}}};
@@ -37,7 +50,10 @@ test('actual pinned SDK registers a progressive tool only after exact contract l
  const ai=await import('../../../../.grid-agent/runtime/pi/source/packages/ai/dist/index.js');
  const dir=await mkdtemp(join(tmpdir(),'progressive-sdk-'));
  const menus=[],requests=[],errors=[];let session;
- const metadata={name:'selected',description:'Selected action',progressive:{tool_key:'key',tool_contract_revision:'rev'}};
+ const metadata={name:'selected',description:'Selected action',
+  _meta:{'data-gateway/capability':{summary_version:'capability-summary/1',declaration_basis:'provider_declared',
+   semantics:{prerequisites:['Use a current issued reference.'],execution_choice:'Use only for the selected scope.'}}},
+  progressive:{tool_key:'key',tool_contract_revision:'rev'}};
  const inputSchema={type:'object',properties:{value:{type:'integer'}},required:['value'],additionalProperties:false};
  const server=createServer(async(req,res)=>{
   let raw='';for await(const chunk of req)raw+=chunk;
@@ -57,7 +73,7 @@ test('actual pinned SDK registers a progressive tool only after exact contract l
  let turn=0;
  const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,getAuth:async()=>({auth:{apiKey:'offline'}}),isUsingOAuth:()=>false,
   streamSimple(_model,context){
-   menus.push(context.tools.map(t=>({name:t.name,parameters:t.parameters})));
+   menus.push(context.tools.map(t=>({name:t.name,parameters:t.parameters,description:t.description})));
    const call=[{name:'agent_tool_load',arguments:{names:['selected']}},{name:'data_gateway_selected',arguments:{value:4}}][turn++];
    const message={role:'assistant',content:call?[{type:'toolCall',id:'call-'+turn,...call}]:[{type:'text',text:'Done'}],
     api:model.api,provider:model.provider,model:model.id,timestamp:Date.now(),stopReason:call?'toolUse':'stop',
@@ -76,6 +92,7 @@ test('actual pinned SDK registers a progressive tool only after exact contract l
   await session.prompt('Use selected action');
   assert.deepEqual(errors,[]);assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
   assert.deepEqual(menus[1].find(t=>t.name==='data_gateway_selected')?.parameters,inputSchema);
+  assert.ok(menus[1].find(t=>t.name==='data_gateway_selected')?.description.includes('Use a current issued reference.'));
   assert.equal(requests.length,2);assert.equal(requests[0].operation,'resolve_contracts');assert.equal(requests[1].name,'data_gateway_selected');
  }finally{session?.dispose();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
 });
@@ -107,7 +124,7 @@ test('search returns bounded best partial matches and current activation without
   const hooks=new Map();c.configure({on:(name,fn)=>hooks.set(name,fn),getActiveTools:()=>[],setActiveTools:()=>{}});
   const search=async query=>JSON.parse((await c.tools[0].execute('find',{query})).content[0].text);
   const partial=await search('service discover contract check');
-  assert.equal(partial.match_mode,'partial_terms');
+  assert.equal(partial.match_mode,'identity_terms');
   assert.deepEqual(partial.tools.map(t=>t.name),['check']);
   assert.deepEqual(partial.tools[0].matched_terms,['service','contract','check']);
   assert.equal(partial.tools[0].active,false);
@@ -268,18 +285,21 @@ test('arbitrary toolset labels have no client ordering or activation gate',async
  }
 });
 
-test('selection guidance reaches both discovery and direct activation without banning generic tools',async()=>{
+test('full guidance stays in task context while search and activation return compact receipts',async()=>{
  const publications={renamed_operation:{description:'Compute a business statistic',inputSchema:{type:'object'}},
   renamed_table_reader:{description:'Query a discovered table',inputSchema:{type:'object'}}};
  const tools=Object.entries(publications).map(([name,p])=>({name,parameters:p.inputSchema,execute:async()=>({content:[]})}));
  const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications)});
+ const hooks=new Map();c.configure({on:(name,fn)=>hooks.set(name,fn),getActiveTools:()=>[],setActiveTools:()=>{}});
  const search=JSON.parse((await c.tools[0].execute('find',{query:''})).content[0].text);
  const load=JSON.parse((await c.tools[1].execute('load',{names:['renamed_table_reader']})).content[0].text);
  assert.equal(load.selection_guidance,search.selection_guidance);
- assert.match(load.selection_guidance,/current admitted capability index/);
- assert.match(load.selection_guidance,/discovery response only for information missing/);
- assert.match(load.selection_guidance,/provider/);
- assert.match(load.selection_guidance,/validate one bounded call/);
+ assert.ok(load.selection_guidance.length<400);
+ const prompt=hooks.get('before_agent_start')({systemPrompt:'Current instruction'}).systemPrompt;
+ assert.match(prompt,/current admitted capability index/);
+ assert.match(prompt,/discovery response only for information missing/);
+ assert.match(prompt,/provider/);
+ assert.match(prompt,/validate one bounded call/);
  assert.equal(load.activation,'next_turn');
  assert.deepEqual(c.admittedTools.map(tool=>tool.name).sort(),Object.keys(publications).sort());
 });

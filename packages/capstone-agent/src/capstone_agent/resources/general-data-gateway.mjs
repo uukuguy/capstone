@@ -2,7 +2,7 @@
 // and endpoint selectors are never tool parameters or native task inputs.
 import {boundToolResult,savedToolObservation} from './tool-result-context.mjs';
 import {createHash} from 'node:crypto';
-import {gatewayUseLedger} from './gateway-tool-use.mjs';
+import {gatewayUseLedger,gatewayToolDescription} from './gateway-tool-use.mjs';
 export const gatewayInvocationOptions=Symbol('gatewayInvocationOptions');
 export const reusableGatewayRead=(schema,args)=>schema?.annotations?.readOnlyHint===true&&
   schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true&&
@@ -83,7 +83,7 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
     return new Error(message);
   }
   return Object.entries(gateway.catalog.tools).map(([name,schema])=>({
-    name,label:name,description:schema.description??name,parameters:schema.inputSchema,
+    name,label:name,description:gatewayToolDescription(schema,config.runtimeLimits?.tool_summary_chars)??name,parameters:schema.inputSchema,
     async execute(callId,args,signal,_onUpdate,context){
       await resolveGatewayContracts(config,[name],{signal,fetchImpl});
       const observationPolicy=context?.[gatewayInvocationOptions];
