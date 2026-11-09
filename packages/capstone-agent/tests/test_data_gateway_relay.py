@@ -763,7 +763,10 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
         process = subprocess.run(['node', str(fixture)], cwd=Path(__file__).resolve().parents[3],
             input=json.dumps(config), text=True, capture_output=True, timeout=20)
         assert process.returncode == 0, process.stderr
-        value = json.loads(process.stdout)
+        frames = [json.loads(line) for line in process.stdout.splitlines() if line.strip()]
+        assert all(frame.get('type') == 'tool_dispatch' for frame in frames[:-1])
+        assert all(frame['dispatch_receipt']['schema'] == 'capstone-tool-dispatch/1' for frame in frames[:-1])
+        value = frames[-1]
         event = value['event']
         assert value['turns'] == 2
         assert len(resource._tasks['task-1']['started']) == 1

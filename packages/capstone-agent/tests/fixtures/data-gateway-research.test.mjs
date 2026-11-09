@@ -102,6 +102,18 @@ test('blocked replay does not disable independent gateway work',async()=>{
  assert.equal(calls,2);
 });
 
+test('required-property and numeric-bound corrections survive native validation transport',async()=>{
+ const tool=createDataGatewayTools(config(),{fetchImpl:async()=>({ok:false,status:400,json:async()=>({
+  error:'gateway_arguments_invalid',validation_errors:[
+   {path:'/selection/ref',rule:'required',actual_type:'missing',private:'secret-canary'},
+   {path:'/count',rule:'maximum',actual_type:'integer',bound:4,actual_value:'secret-canary'}]})})})[0];
+ await assert.rejects(tool.execute('bad',{}),error=>{
+  assert.match(error.message,/\/selection\/ref/);assert.match(error.message,/missing/);
+  assert.match(error.message,/"bound":4/);assert.match(error.message,/not executed/);
+  assert.doesNotMatch(error.message,/secret-canary/);return true;
+ });
+});
+
 test('local validation failures identify schema paths without exposing other response fields',async()=>{
  const tool=createDataGatewayTools(config(),{fetchImpl:async()=>({ok:false,status:400,json:async()=>({
   error:'gateway_arguments_invalid',executed:false,private:'secret-canary',validation_errors:[

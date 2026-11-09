@@ -8,6 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+import math
 from pathlib import Path
 import re
 from threading import RLock
@@ -91,13 +92,34 @@ def argument_validation_details(error):
     for item in sorted(leaves, key=lambda item: len(item.absolute_path), reverse=True)[:8]:
         path = '/' + '/'.join(str(part).replace('~', '~0').replace('/', '~1') for part in item.absolute_path)
         value = item.instance
+        if item.validator == 'required' and isinstance(value, dict) and isinstance(item.validator_value, list):
+            for field in item.validator_value:
+                if not isinstance(field, str) or field in value:
+                    continue
+                missing = path.rstrip('/') + '/' + field.replace('~', '~0').replace('/', '~1')
+                detail = {'path': missing[:256], 'rule': 'required', 'actual_type': 'missing'}
+                if detail not in result:
+                    result.append(detail)
+                if len(result) >= 8:
+                    return result
+            continue
         actual = ('null' if value is None else 'boolean' if isinstance(value, bool) else
                   'object' if isinstance(value, dict) else 'array' if isinstance(value, list) else
                   'string' if isinstance(value, str) else 'integer' if isinstance(value, int) else 'number')
         detail = {'path': path[:256], 'rule': str(item.validator)[:64], 'actual_type': actual}
         if item.validator == 'type':
             detail['expected'] = item.validator_value
-        result.append(detail)
+        if item.validator in {'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'minItems', 'maxItems', 'minLength', 'maxLength'}:
+            bound = item.validator_value
+            try:
+                if type(bound) in {int, float} and math.isfinite(bound):
+                    detail['bound'] = bound
+            except OverflowError:
+                pass
+        if detail not in result:
+            result.append(detail)
+        if len(result) >= 8:
+            break
     return result
 
 
