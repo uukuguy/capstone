@@ -1,7 +1,28 @@
 import {spawn} from 'node:child_process';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 let seq=0;const pending=new Map();
-const request=(kind,args)=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});process.send({kind,id,...args});});
+const unconsumed=new Set(),inFlight=new Set();
+function missingAwait(kinds){
+  const error=Error(JSON.stringify({code:'composition_unawaited_helper',helpers:[...new Set(kinds)],
+    instruction:'Use await for asynchronous helpers before inspecting, transforming or serializing their results. Reuse completed_calls; do not repeat source retrieval.'}));
+  error.code='composition_unawaited_helper';return error;
+}
+function tracked(kind,promise){
+  const record={kind,promise};inFlight.add(record);
+  if(kind!=='print')unconsumed.add(record);
+  // Observe rejection even when model code forgets to consume this handle.
+  promise.then(()=>inFlight.delete(record),()=>inFlight.delete(record));
+  const consume=(method,args)=>{unconsumed.delete(record);return promise[method](...args);};
+  return {then:(...args)=>consume('then',args),catch:(...args)=>consume('catch',args),
+    finally:(...args)=>consume('finally',args),toJSON(){throw missingAwait([kind]);}};
+}
+const drain=async()=>{while(inFlight.size)await Promise.allSettled([...inFlight].map(record=>record.promise));};
+const request=(kind,args)=>{
+  let complete,fail;
+  const promise=new Promise((resolve,reject)=>{complete=resolve;fail=reject;});
+  const id=++seq;pending.set(id,{resolve:complete,reject:fail});
+  const handle=tracked(kind,promise);process.send({kind,id,...args});return handle;
+};
 process.on('message',async message=>{
   if(message.kind==='reply'){const p=pending.get(message.id);if(p){pending.delete(message.id);message.error?p.reject(Error(message.error)):p.resolve(message.value);}return;}
   if(message.kind!=='start')return;
@@ -46,13 +67,16 @@ process.on('message',async message=>{
       }));
       if(failed)throw failure;return out;
     }};
-  const python=(code,data)=>new Promise((resolve,reject)=>{
+  for(const name of ['batch','map']){
+    const operation=tools[name];tools[name]=(...args)=>tracked(name,operation(...args));
+  }
+  const python=(code,data)=>tracked('python',new Promise((resolve,reject)=>{
     const child=spawn('python3',['-c',code],{stdio:['pipe','pipe','pipe']});let output='',error='';
     child.stdout.on('data',b=>{output+=b;if(Buffer.byteLength(output)>message.outputBytes){child.kill();reject(Error('Python output budget exceeded'));}});
     child.stderr.on('data',b=>{error=(error+b).slice(-4096);});child.on('error',reject);
     child.on('close',code=>code===0?resolve(output):reject(Error(error||`Python exited ${code}`)));
     child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(data));
-  });
+  }));
   tools.python=python;
   try{
     if(message.calls){
@@ -65,6 +89,16 @@ process.on('message',async message=>{
     const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
     const value=await new AsyncFunction('tools','python','saveContext','loadContext','print',message.program)(tools,python,
       saveContext,loadContext,text=>request('print',{text:String(text)}));
-    process.send({kind:'done',value});
-  }catch(error){process.send({kind:'failed',error:String(error.message??error)});}
+    const unfinished=[...new Set([...unconsumed,...inFlight].filter(record=>record.kind!=='print').map(record=>record.kind))];
+    if(unfinished.length){await drain();throw missingAwait(unfinished);}
+    await drain(); // Print acknowledgements need not be explicitly awaited.
+    const serialized=JSON.stringify(value,(_key,item)=>{
+      if(item&&typeof item.then==='function')throw missingAwait(['async_result']);
+      return item;
+    });
+    process.send({kind:'done',value:serialized===undefined?null:JSON.parse(serialized)});
+  }catch(error){
+    if(error.code==='composition_unawaited_helper')await drain();
+    process.send({kind:'failed',error:String(error.message??error)});
+  }
 });

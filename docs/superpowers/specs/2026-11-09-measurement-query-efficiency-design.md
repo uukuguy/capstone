@@ -101,3 +101,12 @@ providers, and project complete text into task context. Selected exact contracts
 also retain fingerprint-checked usage metadata, without JSON-Schema validation
 of that metadata. Verify actual SDK context, not just packet receipt. These are
 provider declarations, not source facts, tool grants or a mandatory first action.
+
+The provider trial also reproduces silent asynchronous misuse: unawaited
+tools.inspect/read promises serialize as empty objects, causing later discovery
+and repeated partial source queries without a reported helper error. IPC helper
+handles must retain Promise-compatible await/then/catch/finally behavior while
+rejecting serialization or program completion with unconsumed non-print work.
+Drain issued work before this diagnostic so completed references survive; never
+retry or rewrite the program. Synchronous tools.describe/help remain synchronous.
+Print acknowledgements may drain at completion without requiring explicit await.

@@ -25,6 +25,46 @@ import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+for(const local of ['return {index:tools.inspect(r.ref)};',
+ 'return {text:JSON.stringify(tools.read(r.ref,"/data"))};',
+ 'const fields=tools.read(r.ref,"/data");return Object.keys(fields);']){
+ test('unawaited observation helpers fail explicitly and retain completed source calls: '+local,()=>fixture(async cwd=>{
+  let calls=0;const t=tool(cwd,async()=>{calls++;return native({value:7});});
+  const result=await t.execute('forgot-await',{tools:['read'],program:`const r=await tools.call('read',{});${local}`});
+  assert.equal(result.isError,true);
+  const body=JSON.parse(result.content[0].text);
+  assert.match(body.message,/composition_unawaited_helper/);assert.match(body.message,/await/);
+  assert.equal(body.completed_calls.length,1);assert.equal(calls,1);
+  const restored=await t.execute('recover-await',{tools:[],program:`return await tools.read(${JSON.stringify(body.completed_calls[0].ref)},'/data/value');`});
+  assert.equal(restored.isError,false);assert.equal(JSON.parse(restored.content[0].text).result,7);
+  assert.equal(calls,1);
+ }));
+}
+
+test('discarded source handles drain before failure and remain recoverable',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>{calls++;await new Promise(resolve=>setTimeout(resolve,10));return native({value:7});});
+ const result=await t.execute('discarded',{tools:['read'],program:`tools.call('read',{});return 'finished';`});
+ assert.equal(result.isError,true);const body=JSON.parse(result.content[0].text);
+ assert.match(body.message,/composition_unawaited_helper/);assert.equal(body.completed_calls.length,1);assert.equal(calls,1);
+}));
+
+test('unawaited batches drain issued calls without claiming success or retrying',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>native({value:++calls}));
+ const result=await t.execute('batch-discarded',{tools:['read'],program:`tools.batch([{tool:'read',arguments:{i:1}},{tool:'read',arguments:{i:2}}]);return 'finished';`});
+ assert.equal(result.isError,true);const body=JSON.parse(result.content[0].text);
+ assert.match(body.message,/composition_unawaited_helper/);assert.equal(body.completed_calls.length,2);assert.equal(calls,2);
+}));
+
+test('Promise combinators and progress prints keep their supported behavior',()=>fixture(async cwd=>{
+ const progress=[];const t=tool(cwd,async()=>native({value:7}),{onProgress:text=>progress.push(text)});
+ const result=await t.execute('awaited',{tools:['read'],program:`
+ const values=await Promise.all([tools.call('read',{}).then(r=>r.data.value).finally(()=>{}),
+  tools.python('import json,sys;print(json.load(sys.stdin))',8)]);
+ print('bounded progress');return values;`});
+ assert.equal(result.isError,false);assert.deepEqual(JSON.parse(result.content[0].text).result,[7,'8\n']);
+ assert.deepEqual(progress,['bounded progress']);
+}));
+
 test('private Python helper has identical global/tools entry points and discoverable contracts',()=>fixture(async cwd=>{
  let upstream=0;
  const t=tool(cwd,async()=>{upstream++;return native({});});
