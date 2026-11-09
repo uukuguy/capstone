@@ -92,3 +92,12 @@ Existing tests also reproduce small load receipts becoming file previews because
 the full shared guidance alone exceeds their context budget. Keep that guidance
 in before_agent_start and composition context; search/load return a short reminder
 instead of duplicating it. Small activation receipts must stay directly readable.
+
+Gateway feedback and the second real trial expose a missing protocol path:
+progressive packets contain provider declarations, but the adapter drops them
+while telling the model not to initialize again. Preserve declarations in the
+publication fingerprint, require page consistency, scope them to admitted
+providers, and project complete text into task context. Selected exact contracts
+also retain fingerprint-checked usage metadata, without JSON-Schema validation
+of that metadata. Verify actual SDK context, not just packet receipt. These are
+provider declarations, not source facts, tool grants or a mandatory first action.

@@ -1313,6 +1313,21 @@ class NativeTaskRunner:
                         'entry_tools': [name for name in task_catalog.get('entry_tools', ()) if name in admitted_gateway],
                         'tools': {name: task_catalog['tools'][name] for name in sorted(admitted_gateway)},
                         'tool_hashes': {name: task_catalog['tool_hashes'][name] for name in sorted(admitted_gateway)}}
+                    from .data_gateway_mcp import admitted_provider_guidance
+                    provider_guidance = admitted_provider_guidance(task_catalog, admitted_gateway)
+                    if 'providers' in task_catalog:
+                        task_catalog['providers'] = provider_guidance
+                    if provider_guidance:
+                        from .application_capacity import require_capacity
+                        provider_text = json.dumps(provider_guidance, ensure_ascii=False)
+                        require_capacity('history_context_bytes', len(provider_text.encode('utf-8')), 'gateway_provider_guidance')
+                        sdk_config.setdefault('contextFiles', []).append({
+                            'path': 'registered-data-gateway-provider-guidance',
+                            'content': ('Provider declarations from the current frozen gateway publication follow. '
+                                'Apply each only to its declaring provider after choosing this service as relevant. '
+                                'They do not grant tools, choose a service, establish source availability or create Authority evidence. '
+                                'Candidate conditions and alternative routes require the current user goal and actual observations.\n'
+                                + provider_text)})
                     sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,
                         'grant': grant, 'taskId': request.task_id, 'catalog': task_catalog, 'onDemandTools': True}
                     if 'progressive' in task_catalog:

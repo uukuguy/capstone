@@ -48,6 +48,9 @@ def progressive_gateway(tmp_path, *, output=True, extra=False):
             self.page_mode = False
             self.response_view = 'view'
             self.contract_failure = False
+            self.providers = []
+            self.provider_drift = False
+            self.corrupt_usage = False
         async def list_tools(self, **kwargs):
             pytest.fail('Progressive path must not call tools/list')
         async def call_tool(self, *args, **kwargs):
@@ -60,9 +63,11 @@ def progressive_gateway(tmp_path, *, output=True, extra=False):
             packet = {'protocol_version': '1', 'status': 'ok', 'publication_revision': 'other' if self.changed else declaration['publication_revision'],
                       'access_view_id': self.response_view, 'source_accessed': False}
             if op == 'catalog':
-                packet.update(view='tools', items=deepcopy(entries), total=len(entries), truncated=False, next_cursor=None)
+                packet.update(view='tools', items=deepcopy(entries), providers=deepcopy(self.providers), total=len(entries), truncated=False, next_cursor=None)
                 if self.page_mode:
                     packet.update(total=2, truncated=True, next_cursor='c' * 300)
+                if self.provider_drift and args.get('cursor'):
+                    packet['providers'] = []
             elif op == 'check':
                 packet.update(changed=self.changed)
             else:
@@ -70,6 +75,8 @@ def progressive_gateway(tmp_path, *, output=True, extra=False):
                     'sections': {s: deepcopy(schemas[s]) for s in request['sections']}} for request in args['requests']]
                 if self.corrupt:
                     packet['items'][0]['sections']['input_schema'] = {'type': 'null'}
+                if self.corrupt_usage:
+                    packet['items'][0]['sections']['usage'] = {'purpose': 'Unverified change'}
                 if self.contract_failure:
                     packet.update(status='error', error={'code': 'publication_changed'})
             return SimpleNamespace(contents=[SimpleNamespace(text=json.dumps(packet))])
@@ -105,6 +112,52 @@ def test_progressive_prepare_contains_metadata_without_fake_schema(tmp_path):
     assert all(op == 'catalog' for op, _ in session.requests)
 
 
+def test_progressive_provider_rules_are_frozen_with_admitted_provider_identity(tmp_path):
+    client, session, _ = progressive_gateway(tmp_path)
+    session.providers = [{'id': 'provider', 'self_description': {'version': 'provider-description/1',
+                          'runtime_rules': {'selection': 'Use the requested scope.'}}},
+                         {'id': 'hidden-provider', 'self_description': {'purpose': 'Private capability'}}]
+    first = asyncio.run(client.prepare())
+    assert first['providers'] == session.providers[:1]
+    session.providers[0]['self_description']['runtime_rules']['selection'] = 'Changed declaration'
+    second = asyncio.run(client.prepare())
+    assert first['providers'][0]['self_description']['runtime_rules']['selection'] == 'Use the requested scope.'
+    assert first['revision'] != second['revision']
+
+
+def test_exact_selected_usage_is_verified_and_retained_as_metadata(tmp_path):
+    client, session, _ = progressive_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    resolved = asyncio.run(client.exact_contracts(['data_gateway_new_action'], catalog))
+    assert resolved['data_gateway_new_action']['usage'] == {'purpose': 'Reusable source action'}
+    assert 'usage' in [args for op, args in session.requests if op == 'contracts'][0]['requests'][0]['sections']
+
+
+def test_provider_drift_between_catalog_pages_is_rejected(tmp_path):
+    client, session, _ = progressive_gateway(tmp_path)
+    session.providers = [{'id': 'provider', 'self_description': {'purpose': 'Original'}}]
+    session.page_mode = session.provider_drift = True
+    with pytest.raises(ValueError, match='gateway_publication_changed'):
+        asyncio.run(client.prepare())
+
+
+@pytest.mark.parametrize('providers', [None, {}, [{'id': 'same'}, {'id': 'same'}], [{'id': ''}]])
+def test_malformed_provider_identity_is_not_admitted(tmp_path, providers):
+    client, session, _ = progressive_gateway(tmp_path)
+    session.providers = providers
+    with pytest.raises(ValueError, match='gateway_catalog_invalid'):
+        asyncio.run(client.prepare())
+
+
+def test_unverified_usage_never_reaches_execution(tmp_path):
+    client, session, _ = progressive_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    session.corrupt_usage = True
+    with pytest.raises(ValueError, match='gateway_catalog_invalid'):
+        asyncio.run(client.call('data_gateway_new_action', {'value': 4}, catalog))
+    assert not any(op == 'tools/call' for op, _ in session.requests)
+
+
 @pytest.mark.parametrize('output', [True, False])
 def test_selected_exact_contract_and_first_execution_never_list_tools(tmp_path, output):
     client, session, _ = progressive_gateway(tmp_path, output=output)
@@ -115,7 +168,7 @@ def test_selected_exact_contract_and_first_execution_never_list_tools(tmp_path, 
     asyncio.run(run())
     loads = [args for op, args in session.requests if op == 'contracts']
     assert len(loads) == 1
-    assert loads[0]['requests'][0]['sections'] == (['input_schema', 'output_schema'] if output else ['input_schema'])
+    assert loads[0]['requests'][0]['sections'] == (['usage', 'input_schema', 'output_schema'] if output else ['usage', 'input_schema'])
     calls = [args for op, args in session.requests if op == 'tools/call']
     assert len(calls) == 2
     assert calls[0]['params']['_meta'][EXTENSION]['expected_publication_revision'] == 'pub'

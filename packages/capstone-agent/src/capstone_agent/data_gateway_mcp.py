@@ -32,6 +32,15 @@ def identity_text(value):
     return isinstance(value, str) and 0 < len(value) <= 256 and not any(ord(c) < 32 or ord(c) == 127 for c in value)
 
 
+def admitted_provider_guidance(catalog, names):
+    """Provider declarations are scoped by actual admitted tool identities."""
+    identifiers = {tool.get('progressive', {}).get('provider_id') or
+        tool.get('_meta', {}).get('data-gateway/capability', {}).get('provider_id')
+        for name in names if isinstance(tool := catalog.get('tools', {}).get(name), dict)}
+    return deepcopy([provider for provider in catalog.get('providers', [])
+                     if provider.get('id') in identifiers])
+
+
 
 def checked_instance_identity(value):
     """Project only the published v1 handshake identity; malformed means unknown."""
@@ -332,7 +341,7 @@ class DataGatewayMcp:
             raise GatewayError('gateway_catalog_invalid') from None
 
     async def _prepare_progressive(self, connection, declaration):
-        tools, cursors, cursor = {}, set(), None
+        tools, cursors, cursor, providers = {}, set(), None, None
         for _ in range(128):
             arguments = {'view': 'tools', 'publication_revision': declaration['publication_revision']}
             if cursor:
@@ -342,6 +351,14 @@ class DataGatewayMcp:
             if (packet.get('view') != 'tools' or not isinstance(items, list)
                     or len(items) > declaration['limits']['catalog_items']):
                 raise GatewayError('gateway_catalog_invalid')
+            current_providers = packet.get('providers', [])
+            if (not isinstance(current_providers, list) or any(not isinstance(provider, dict)
+                    or not identity_text(provider.get('id')) for provider in current_providers)
+                    or len({provider['id'] for provider in current_providers}) != len(current_providers)):
+                raise GatewayError('gateway_catalog_invalid')
+            if providers is not None and providers != current_providers:
+                raise GatewayError('gateway_publication_changed')
+            providers = deepcopy(current_providers)
             for item in items:
                 if (not isinstance(item, dict) or not isinstance(item.get('name'), str)
                         or not _TOOL_NAME.fullmatch(item['name'])
@@ -381,6 +398,9 @@ class DataGatewayMcp:
                  'tool_hashes': {name: item['progressive']['tool_contract_revision'] for name, item in tools.items()},
                  'entry_tools': [], 'instructions': getattr(connection, 'instructions', '') or '',
                  'instance': checked_instance_identity(declaration['identity']), 'progressive': declaration}
+        retained_providers = admitted_provider_guidance({**value, 'providers': providers or []}, tools)
+        if retained_providers:
+            value['providers'] = retained_providers
         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_catalog')
         return {**value, 'revision': fingerprint(value)}
 
@@ -406,7 +426,7 @@ class DataGatewayMcp:
             with self._exact_lock:
                 sections = deepcopy(self._exact_sections.get(key, {}))
             resolved_sections[key] = sections
-            needed = [s for s in ('input_schema', 'output_schema')
+            needed = [s for s in ('usage', 'input_schema', 'output_schema')
                       if s not in sections and (s != 'output_schema' or item['output_schema_state'] == 'declared')]
             selected[name] = (item, key)
             if needed:
@@ -432,9 +452,10 @@ class DataGatewayMcp:
                     digest = fingerprint(body)
                     if (digest != item['section_fingerprints'].get(section)
                             or digest != response.get('section_fingerprints', {}).get(section)
-                            or not isinstance(body, (dict, bool))):
+                            or not isinstance(body, dict if section == 'usage' else (dict, bool))):
                         raise GatewayError('gateway_catalog_invalid')
-                    Draft202012Validator.check_schema(body)
+                    if section != 'usage':
+                        Draft202012Validator.check_schema(body)
                 staged.append((key, sections))
             for key, sections in staged:
                 resolved_sections[key].update(deepcopy(sections))
@@ -446,7 +467,8 @@ class DataGatewayMcp:
         result = {}
         for name, (item, key) in selected.items():
             sections = resolved_sections[key]
-            result[name] = {**deepcopy(catalog['tools'][name]), 'inputSchema': deepcopy(sections['input_schema'])}
+            result[name] = {**deepcopy(catalog['tools'][name]), 'inputSchema': deepcopy(sections['input_schema']),
+                            'usage': deepcopy(sections['usage'])}
             if item['output_schema_state'] == 'declared':
                 result[name]['outputSchema'] = deepcopy(sections['output_schema'])
         return result

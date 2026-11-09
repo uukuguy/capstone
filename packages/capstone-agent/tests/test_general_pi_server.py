@@ -198,6 +198,11 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         'data_gateway_discover_network_models': {'name': 'discover_network_models'},
         'data_gateway_other': {'name': 'other'}}}}
     gateway_publication['catalog']['entry_tools'] = ['data_gateway_discover_network_models', 'data_gateway_other']
+    gateway_publication['catalog']['providers'] = [
+        {'id': 'visible-provider', 'self_description': {'version': 'provider-description/1', 'purpose': 'VISIBLE_PROVIDER_RULE'}},
+        {'id': 'hidden-provider', 'self_description': {'version': 'provider-description/1', 'purpose': 'HIDDEN_PROVIDER_RULE'}}]
+    for name, provider in [('data_gateway_discover_network_models', 'visible-provider'), ('data_gateway_other', 'hidden-provider')]:
+        gateway_publication['catalog']['tools'][name]['_meta'] = {'data-gateway/capability': {'provider_id': provider}}
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities(),
         'data_gateway': gateway_publication, 'tool_composition': COMPOSITION_POLICY,
@@ -297,6 +302,19 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert catalog['entry_tools'] == ['data_gateway_discover_network_models']
     guidance = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-data-gateway-guidance')
     assert 'SERVICE_GUIDANCE_SENTINEL' in guidance
+    provider_context = next(item['content'] for item in captured[0]['contextFiles']
+                            if item['path'] == 'registered-data-gateway-provider-guidance')
+    assert 'VISIBLE_PROVIDER_RULE' in provider_context
+    assert 'HIDDEN_PROVIDER_RULE' not in provider_context
+    assert len(catalog['providers']) == 1
+    if version == '1.20.0' and choice is None and not experimental_llm_pool:
+        import subprocess
+        sdk_config_path = tmp_path / 'provider-sdk-config.json'
+        sdk_config_path.write_text(json.dumps(captured[0]))
+        fixture = Path(__file__).parent / 'fixtures/provider-guidance-sdk.mjs'
+        checked = subprocess.run(['node', str(fixture), str(sdk_config_path)],
+                                 capture_output=True, text=True, timeout=30)
+        assert checked.returncode == 0, checked.stderr
     assert 'only after selecting this service as relevant' in guidance
     assert 'do not determine which service to select' in guidance
     assert 'Do not query this service merely because another capability is unavailable' in gateway_context

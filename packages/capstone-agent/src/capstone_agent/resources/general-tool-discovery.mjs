@@ -128,6 +128,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       // Input schemas enter the next model menu; full output contracts are
       // available here without injecting the rest of the catalog.
       return boundToolResult({...reply({activation:'next_turn',name_resolutions:args.names.map((requested_name,i)=>({requested_name,name:resolved[i]})),selection_guidance:selectionReminder,tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
+        ...('usage' in publication?{usage:publication.usage}:{}),
         ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))})},
         {cwd,toolName:'agent_tool_load',callId:_id});
     }};
