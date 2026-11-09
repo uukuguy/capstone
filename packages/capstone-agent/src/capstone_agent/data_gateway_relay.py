@@ -367,6 +367,10 @@ class DataGatewayAccess:
             record['started'].add(call_id)
             span = {**(context or {}), 'span_id': uuid4().hex, 'tool_call_id': call_id,
                     'status': 'sending', **({'retry_of': retry_of} if retry_of is not None else {})}
+            # Host-owned leaf identity, independent of model-selected call labels.
+            span['client_call_id'] = span['span_id']
+            if context is not None:
+                context = {**context, 'client_call_id': span['client_call_id']}
             record['diagnostic_calls'].append(span)
         arguments = deepcopy(document['arguments'])
         started = time.monotonic()
