@@ -59,7 +59,7 @@ test('actual pinned SDK registers a progressive tool only after exact contract l
   let raw='';for await(const chunk of req)raw+=chunk;
   const body=JSON.parse(raw);requests.push(body);res.setHeader('Content-Type','application/json');
   res.end(JSON.stringify(body.operation==='resolve_contracts'?{catalog_revision:'pub',executed:false,
-   tools:{data_gateway_selected:{...metadata,inputSchema}},tool_hashes:{data_gateway_selected:'rev'}}:
+   tools:{data_gateway_selected:{...metadata,inputSchema,usage:{rules:'EXACT_USAGE_SENTINEL'}}},tool_hashes:{data_gateway_selected:'rev'}}:
    {result_json:JSON.stringify({structuredContent:{status:'ok',data:{value:4}}}),observation:{kind:'external_gateway_observation',
     task_id:'task',tool_call_id:body.call_id,tool:body.name,catalog_revision:'pub',tool_schema_sha256:'rev'}}));
  });
@@ -74,6 +74,7 @@ test('actual pinned SDK registers a progressive tool only after exact contract l
  const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,getAuth:async()=>({auth:{apiKey:'offline'}}),isUsingOAuth:()=>false,
   streamSimple(_model,context){
    menus.push(context.tools.map(t=>({name:t.name,parameters:t.parameters,description:t.description})));
+   if(turn===1)assert.ok(JSON.stringify(context.messages).includes('EXACT_USAGE_SENTINEL'));
    const call=[{name:'agent_tool_load',arguments:{names:['selected']}},{name:'data_gateway_selected',arguments:{value:4}}][turn++];
    const message={role:'assistant',content:call?[{type:'toolCall',id:'call-'+turn,...call}]:[{type:'text',text:'Done'}],
     api:model.api,provider:model.provider,model:model.id,timestamp:Date.now(),stopReason:call?'toolUse':'stop',

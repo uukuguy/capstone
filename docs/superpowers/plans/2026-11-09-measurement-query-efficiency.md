@@ -25,13 +25,22 @@ JOURNAL/RESUME and all mixed main-checkout work.
 
 ## Continued Capstone projection work
 
-- [ ] Reproduce embedded-identity search and selection-clause omission using
+- [x] Reproduce embedded-identity search and selection-clause omission using
   the saved joint publication without source calls.
-- [ ] Add failing discovery and transport/SDK menu tests. Implement exact identity
+- [x] Add failing discovery and transport/SDK menu tests. Implement exact identity
   term matching and a version-checked gateway selection summary, bounded by the
   existing summary budget; preserve complete values and flag omitted fields.
-- [ ] Verify focused discovery, gateway and composition consumers, inspect diff,
+- [x] Verify focused discovery, gateway and composition consumers, inspect diff,
   commit and journal. Rebuild local-dev with the canonical entrypoint.
-- [ ] Freeze current publication/model identity, run one original named instruction,
+- [x] Freeze current publication/model identity, run one original named instruction,
   check ten final source pairs and count model/local/remote work separately.
-- [ ] Update report and actualdev control register/graph. No CI or remote deployment.
+- [x] Update report and actualdev working control register/graph. No CI or remote deployment.
+
+Result: source8ce35865 is running locally;178 focused Python/97 Node checks pass.
+Current task takes99.979s/20model responses/21tools-call requests/2errors;ten final
+source pairs and requested device/window/unit basis match. Efficiency remains
+unaccepted. Progressive provider declarations, selected exact usage and unawaited
+helper failure paths have verified mechanical fixes. Repeated model contract
+search, additional object exploration and argument mistakes require separate
+fixed-interface strategy evaluation. Dev PR integration remains pending;no CI
+approval exists. Canonical workingdev control files remain mixed and unstaged.
