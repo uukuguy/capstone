@@ -24,7 +24,7 @@ export function configureResearchGuidance(pi, guidance, {lightweight=false,check
       if(receipt?.kind==='capstone-tool-composition/1'){
         if(Number.isSafeInteger(receipt.completed_leaf_calls)&&receipt.completed_leaf_calls>=0)
           completed+=receipt.completed_leaf_calls;
-      }else if(!receipt?.reused_from)completed++;
+      }else if(event.toolName!=='agent_tools_execute'&&!receipt?.reused_from)completed++;
     });
     pi.on('context',event=>{
       if(!pending&&completed-reviewed<checkpointCalls)return;

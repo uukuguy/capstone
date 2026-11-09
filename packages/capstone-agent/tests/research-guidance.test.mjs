@@ -49,6 +49,7 @@ test('composition receipt counts only completed leaves and zero-leaf programs do
   const review=()=>hooks.context({messages});
   const receipt=n=>({kind:'capstone-tool-composition/1',completed_leaf_calls:n});
   hooks.tool_execution_end({toolCallId:'wrapper-empty',result:{details:receipt(0)}});
+  hooks.tool_execution_end({toolName:'agent_tools_execute',toolCallId:'wrapper-rejected',isError:true});
   hooks.tool_execution_end({toolCallId:'wrapper',result:{details:receipt(2)}});
   assert.equal(review(),undefined);
   hooks.tool_execution_end({toolCallId:'failed',isError:true,result:{details:receipt(1)}});

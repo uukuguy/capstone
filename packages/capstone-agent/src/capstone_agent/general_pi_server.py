@@ -34,6 +34,7 @@ def _checked_investigation_checkpoint(event, record):
     if (set(event) != required or event['schema'] != 'capstone-investigation-checkpoint/1'
             or type(event['checkpoint_id']) is not int or not 1 <= event['checkpoint_id'] <= 1_000_000
             or type(event['completed_leaf_calls']) is not int or not 1 <= event['completed_leaf_calls'] <= 1_000_000_000
+            or not isinstance(event['state'], str)
             or event['state'] not in {'context_prepared', 'response_received'}):
         raise ValueError('Invalid investigation checkpoint')
     value = {key: event[key] for key in required - {'type'}}
