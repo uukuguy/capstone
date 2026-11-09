@@ -22,3 +22,16 @@ JOURNAL/RESUME and all mixed main-checkout work.
 7. After gateway supplies candidate contracts, test the exact frozen publication,
    mechanical adaptation and joint named-case acceptance. Do not widen permissions
    or substitute fixtures for the real source task.
+
+## Continued Capstone projection work
+
+- [ ] Reproduce embedded-identity search and selection-clause omission using
+  the saved joint publication without source calls.
+- [ ] Add failing discovery and transport/SDK menu tests. Implement exact identity
+  term matching and a version-checked gateway selection summary, bounded by the
+  existing summary budget; preserve complete values and flag omitted fields.
+- [ ] Verify focused discovery, gateway and composition consumers, inspect diff,
+  commit and journal. Rebuild local-dev with the canonical entrypoint.
+- [ ] Freeze current publication/model identity, run one original named instruction,
+  check ten final source pairs and count model/local/remote work separately.
+- [ ] Update report and actualdev control register/graph. No CI or remote deployment.

@@ -63,3 +63,27 @@ or gateway contract gaps explicitly; do not privately seed the named task.
 No CI, push or remote deployment. Local real checks follow canonical rebuild.
 Gateway-dependent acceptance remains pending until the candidate publication and
 its exact revision are available. No package closure follows from this patch.
+
+## Capstone selection projection follow-up
+
+The user requested continued Capstone work after forwarding the joint report.
+The frozen joint catalog reproduces two adapter defects: a query containing a
+published tool identity returns tools whose descriptions merely mention it;
+raw metadata prefix slicing hides complete declared prerequisites. These are
+projection defects, not proof that fixing them meets model efficiency targets.
+
+Recognize complete whitespace-delimited registered/published identities before
+description matching, preserving exact-name ambiguity and task grants. In the
+gateway adapter, project capability-summary/1 provider-declared selection fields
+as complete JSON values within the existing per-summary character budget. Mark
+omitted fields; never truncate a policy clause into an apparent complete rule.
+Use the same projection in search and direct tool descriptions so an activated
+tool retains its declared conditions. Preserve exact input/output schemas,
+full publication access through tools.describe, capacity checks and model choice.
+Unknown summary versions retain the existing generic metadata preview.
+
+Alternatives: more global prompting lacks mechanical visibility guarantees;
+business-specific tool ordering violates ownership. Select the bounded adapter
+projection instead, with tests for grants, ambiguity, omitted text and actual
+SDK model menus. Then freeze publication/model and run one original-instruction
+trial. Attribute only with matched catalog identities; retain failed targets.
