@@ -5,6 +5,18 @@ import math
 from collections.abc import Mapping
 
 
+def checked_investigation_checkpoint(value):
+    keys = {'schema', 'checkpoint_id', 'completed_leaf_calls', 'state'}
+    if (not isinstance(value, Mapping) or set(value) != keys
+            or value.get('schema') != 'capstone-investigation-checkpoint/1'
+            or type(value.get('checkpoint_id')) is not int or not 1 <= value['checkpoint_id'] <= 1_000_000
+            or type(value.get('completed_leaf_calls')) is not int or not 1 <= value['completed_leaf_calls'] <= 1_000_000_000
+            or not isinstance(value.get('state'), str)
+            or value['state'] not in {'context_prepared', 'response_received'}):
+        return None
+    return dict(value)
+
+
 def checked_tool_batch(value, *, task_id):
     keys = {'schema', 'task_id', 'batch_id', 'mode', 'capacity', 'call_ids', 'elapsed_ms'}
     if (not isinstance(value, Mapping) or set(value) != keys

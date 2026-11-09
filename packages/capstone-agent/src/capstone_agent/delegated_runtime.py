@@ -319,7 +319,8 @@ class DelegatedRuntime:
                     pending_tools.pop(tool_call_id, None)
             public_tool = kind in {'tool_execution_start', 'tool_execution_end'} and (
                 isinstance(tool_name, str) and bool(tool_name) and isinstance(tool_call_id, str) and bool(tool_call_id))
-            from .tool_execution_receipt import checked_execution_receipt, checked_dispatch_receipt, checked_tool_batch
+            from .tool_execution_receipt import checked_execution_receipt, checked_dispatch_receipt, checked_tool_batch, checked_investigation_checkpoint
+            investigation_checkpoint = checked_investigation_checkpoint(event.get('investigation_checkpoint'))
             tool_batch = checked_tool_batch(event.get('tool_batch'), task_id=task_id) if kind == 'tool_batch' else None
             dispatch_receipt = checked_dispatch_receipt(event.get('dispatch_receipt'),
                 task_id=task_id, call_id=tool_call_id) if kind == 'tool_dispatch' else None
@@ -368,7 +369,8 @@ class DelegatedRuntime:
                     except (GridSourceError, ValueError):
                         pass  # Optional presentation metadata cannot block the task.
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
-                'native_type': 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
+                'native_type': 'investigation_checkpoint' if investigation_checkpoint is not None else 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
+                **({'investigation_checkpoint': investigation_checkpoint} if investigation_checkpoint is not None else {}),
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
                 **({'runtime_phase': {key: cast(Mapping, runtime_phase)[key] for key in
                     ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in cast(Mapping, runtime_phase)}}

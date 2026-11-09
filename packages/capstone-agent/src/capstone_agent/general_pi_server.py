@@ -30,14 +30,10 @@ from .application_capacity import limits, initialize_capacity, current_capacity,
 
 def _checked_investigation_checkpoint(event, record):
     """Bound neutral attempt-local context delivery receipts, never goal truth."""
-    required = {'type', 'schema', 'checkpoint_id', 'completed_leaf_calls', 'state'}
-    if (set(event) != required or event['schema'] != 'capstone-investigation-checkpoint/1'
-            or type(event['checkpoint_id']) is not int or not 1 <= event['checkpoint_id'] <= 1_000_000
-            or type(event['completed_leaf_calls']) is not int or not 1 <= event['completed_leaf_calls'] <= 1_000_000_000
-            or not isinstance(event['state'], str)
-            or event['state'] not in {'context_prepared', 'response_received'}):
+    from .tool_execution_receipt import checked_investigation_checkpoint
+    value = checked_investigation_checkpoint({key: item for key, item in event.items() if key != 'type'})
+    if value is None or event.get('type') != 'investigation_checkpoint':
         raise ValueError('Invalid investigation checkpoint')
-    value = {key: event[key] for key in required - {'type'}}
     previous = record.get('investigation_checkpoint')
     if previous != value:
         if event['state'] == 'response_received':

@@ -799,6 +799,23 @@ def test_general_receipts_preserve_sources_and_artifacts_without_authority_refs(
     assert result.result_refs == result.evidence_refs == ()
 
 
+def test_host_checkpoint_crosses_runtime_without_becoming_result_evidence():
+    service, current = claim()
+    checkpoint = {'schema':'capstone-investigation-checkpoint/1', 'checkpoint_id':1,
+                  'completed_leaf_calls':13, 'state':'context_prepared'}
+    class WithCheckpoint(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'event_id':'event-1', 'investigation_checkpoint':checkpoint})
+            on_event({'event_id':'event-2', 'investigation_checkpoint':{**checkpoint, 'completed_leaf_calls':True}})
+            return super().execute(request,control,on_event)
+    result = run(service,current,factory(WithCheckpoint(),Recognizer([goal('one')])))
+    events = [e for e in service.read_events(current.thread_id,0).events if 'investigation_checkpoint' in e.payload]
+    assert len(events) == 1
+    assert events[0].payload['native_type'] == 'investigation_checkpoint'
+    assert events[0].payload['investigation_checkpoint'] == checkpoint
+    assert result.result_refs == result.evidence_refs == ()
+
+
 def test_host_checked_llm_pool_record_crosses_runtime_as_public_non_research_progress():
     service, current = claim()
     pool = {'type':'llm_pool_call','schema':'capstone-llm-call-pool/1',
