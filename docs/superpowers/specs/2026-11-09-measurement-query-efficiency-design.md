@@ -20,6 +20,9 @@ The other completions are39 composition wrappers,5 discovery searches and1 shell
    do not mandate a separate discovery/inspection model round. Follow only issued
    version/grant-checked actions and actual dependencies. Never infer tool choice
    or reference conversion from business field names.
+   Within the existing structure-index budget, expose populated arrays/objects
+   before empty slots and mark omitted keys/containers as partial. Preserve the
+   original response and values; do not infer semantic field importance.
 4. Keep requested output scope. A bounded display request does not automatically
    require full-dataset statistics, CSV products or a report. Use saved source
    observations for any requested export; do not reconstruct numerical arrays
