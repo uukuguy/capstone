@@ -28,6 +28,28 @@ from .bounded_http_loop import run_http
 from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity
 
 
+def _checked_investigation_checkpoint(event, record):
+    """Bound neutral attempt-local context delivery receipts, never goal truth."""
+    required = {'type', 'schema', 'checkpoint_id', 'completed_leaf_calls', 'state'}
+    if (set(event) != required or event['schema'] != 'capstone-investigation-checkpoint/1'
+            or type(event['checkpoint_id']) is not int or not 1 <= event['checkpoint_id'] <= 1_000_000
+            or type(event['completed_leaf_calls']) is not int or not 1 <= event['completed_leaf_calls'] <= 1_000_000_000
+            or event['state'] not in {'context_prepared', 'response_received'}):
+        raise ValueError('Invalid investigation checkpoint')
+    value = {key: event[key] for key in required - {'type'}}
+    previous = record.get('investigation_checkpoint')
+    if previous != value:
+        if event['state'] == 'response_received':
+            if previous != {**value, 'state': 'context_prepared'}:
+                raise ValueError('Investigation response has no prepared context')
+        elif (event['checkpoint_id'] != (previous['checkpoint_id'] + 1 if previous else 1)
+              or previous and (previous['state'] != 'response_received'
+                               or event['completed_leaf_calls'] <= previous['completed_leaf_calls'])):
+            raise ValueError('Investigation checkpoint lineage changed')
+    record['investigation_checkpoint'] = value
+    return dict(value)
+
+
 def _checked_llm_pool_call(event, native, capability, record):
     """Admit only bounded presentation events from this task's observed submit calls."""
     from .native_llm_pool import LLM_CALL_POOL_POLICY, registered_llm_call_pool
@@ -606,6 +628,8 @@ class GeneralPiHost:
                 if receipt is None or not isinstance(name, str) or not 0 < len(name) <= 128:
                     raise ValueError('native dispatch receipt invalid')
                 payload = {'type': kind, 'tool_call_id': call_id, 'tool_name': name, 'dispatch_receipt': receipt}
+            elif kind == 'investigation_checkpoint':
+                payload = {'investigation_checkpoint': _checked_investigation_checkpoint(event, record)}
             elif kind == 'llm_pool_call':
                 payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
             elif kind == 'model_request_pool':

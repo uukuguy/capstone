@@ -35,6 +35,10 @@ test('lightweight checkpoints coalesce at model boundaries without new user mess
   assert.match(note,/6 completed leaf calls/);
   assert.match(note,/sampled absence/);
   assert.match(note,/requested/);
+  assert.equal(review().messages[1].content.at(-1).text,note);
+  hooks.message_end({message:{role:'assistant',stopReason:'error'}});
+  assert.equal(review().messages[1].content.at(-1).text,note);
+  hooks.message_end({message:{role:'assistant',stopReason:'toolUse'}});
   assert.equal(review(),undefined);
 });
 
@@ -49,6 +53,7 @@ test('composition receipt counts only completed leaves and zero-leaf programs do
   assert.equal(review(),undefined);
   hooks.tool_execution_end({toolCallId:'failed',isError:true,result:{details:receipt(1)}});
   assert.match(review().messages[0].content.at(-1).text,/3 completed leaf calls/);
+  hooks.message_end({message:{role:'assistant',stopReason:'stop'}});
   hooks.tool_execution_end({toolCallId:'pending',result:{details:receipt(4)}});
   hooks.session_start();
   assert.equal(review(),undefined);
