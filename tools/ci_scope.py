@@ -542,6 +542,17 @@ def execution_lifecycle_paths(paths: list[str], *, deployment: bool = False) -> 
 
 def execution_lifecycle_deployment_document(path: str, old: str, new: str) -> bool:
     """Permit only the tested scheduler staging and worker receipt-volume binding."""
+    if path == 'deploy/general-pi.Dockerfile':
+        # The grouped recipe also stages frozen skill scope and report readers.
+        # Admit only this reviewed transition, not arbitrary COPY regrouping.
+        # Source-path classification and consumer gates remain independent.
+        from hashlib import sha256
+        reviewed = (
+            '09ed804e47b5f246f6cc3b5a532b6ccb0eceb5f8d1a7b311d2918d6e83cbcbb7',
+            '094341dd6feb9b66cb3b7f20342dd8e0bed64567ef1a5d42fada74473e3b86cf',
+        )
+        if (sha256(old.encode()).hexdigest(), sha256(new.encode()).hexdigest()) == reviewed:
+            return True
     if path == 'compose.yaml':
         anchor = '      CAPSTONE_THREAD_FAMILY: pandapower\n    command: [worker]'
         replacement = '      CAPSTONE_THREAD_FAMILY: pandapower\n      CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT: /app/runs/domain-control\n    command: [worker]'

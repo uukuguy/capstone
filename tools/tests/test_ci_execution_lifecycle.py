@@ -79,7 +79,7 @@ def test_lifecycle_route_rejects_uncovered_paths(extra):
     assert classify([ANCHOR, extra]) != 'execution-lifecycle'
 
 
-def test_current_development_diff_uses_route_after_exact_deployment_validation():
+def test_joint_development_diff_keeps_uncovered_consumers_out_of_lifecycle_route():
     from tools.ci_scope import execution_lifecycle_deployment_diff
     base = next((ref for ref in ('origin/dev', 'dev') if subprocess.run(
         ['git', 'rev-parse', '--verify', ref], cwd=ROOT, capture_output=True).returncode == 0), None)
@@ -89,7 +89,10 @@ def test_current_development_diff_uses_route_after_exact_deployment_validation()
     if ANCHOR not in paths:
         pytest.skip('This checkout has no lifecycle development diff')
     assert execution_lifecycle_deployment_diff(paths, base, 'HEAD')
-    assert classify(paths, execution_lifecycle_deployment=True) == 'execution-lifecycle'
+    # The joint candidate now also changes report rendering, session contracts
+    # and skill UI. Recipe acceptance must not silently grant source coverage.
+    assert 'tools/native_report.py' in paths
+    assert classify(paths, execution_lifecycle_deployment=True) == 'product'
     if {'compose.yaml', 'deploy/general-pi.Dockerfile'} & set(paths):
         assert classify(paths) != 'execution-lifecycle'
 
@@ -106,6 +109,22 @@ def test_deployment_allowance_rejects_changes_outside_the_exact_binding(monkeypa
     assert execution_lifecycle_deployment_diff(['compose.yaml'], 'base', 'head')
     new += 'unrelated: true\n'
     assert not execution_lifecycle_deployment_diff(['compose.yaml'], 'base', 'head')
+
+
+def test_reviewed_grouped_recipe_is_exact_and_does_not_admit_other_changes():
+    from tools.ci_scope import execution_lifecycle_deployment_document
+    old = subprocess.check_output(['git', 'show', '8da7dc76:deploy/general-pi.Dockerfile'], cwd=ROOT, text=True)
+    new = (ROOT / 'deploy/general-pi.Dockerfile').read_text()
+    assert execution_lifecycle_deployment_document('deploy/general-pi.Dockerfile', old, new)
+    for changed in (
+        new.replace('session_skill_preferences.py', 'unreviewed.py'),
+        new.replace('node:24.20.0', 'node:25.0.0'),
+        new + '\nRUN chmod -R 777 /opt/general\n',
+        new.replace('USER ', '# USER ', 1),
+    ):
+        if changed != new:
+            assert not execution_lifecycle_deployment_document('deploy/general-pi.Dockerfile', old, changed)
+    assert not execution_lifecycle_deployment_document('deploy/general-pi.Dockerfile', old + '\n', new)
 
 
 def test_workflow_has_scoped_setup_and_only_focused_consumers():
