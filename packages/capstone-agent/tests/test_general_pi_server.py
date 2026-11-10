@@ -1199,14 +1199,21 @@ def test_service_bus_public_event_uses_host_issued_receipt(tmp_path,forged,faile
     if calls:assert calls[0]['attempt_count']==17 and calls[0]['reused'] is False
 
 
-def test_failed_requested_render_cannot_become_completed_prose(tmp_path):
+@pytest.mark.parametrize('success',[False,True])
+def test_failed_requested_render_cannot_become_completed_prose(tmp_path,success):
     from capstone_agent.general_pi_server import GeneralPiHost
+    from hashlib import sha256
     class Runner:
         def __call__(self,request,cancelled,emit):
             emit({'type':'tool_execution_start','toolName':'agent_presentations','toolCallId':'deck',
-                'args':{'operation':'render','document':{'spec':'slides.json','output':'report.pptx'}}})
+                'args':{'operation':'render','document':{'spec':'slides.json','output':'report.pptx','pdf':False}}})
+            if success:
+                workspace=tmp_path/'tasks'/request.task_id;workspace.mkdir(parents=True,exist_ok=True)
+                (workspace/'report.pptx').write_bytes(b'saved renderer output')
             emit({'type':'tool_execution_end','toolName':'agent_presentations','toolCallId':'deck',
-                'isError':True,'result':{'details':{'capability':'agent_presentations','ok':False}}})
+                'isError':not success,'result':{'details':{'capability':'agent_presentations','ok':success,
+                    'result':{'schema':'capstone-presentation-library-render/1','output':'report.pptx',
+                        'output_sha256':sha256(b'saved renderer output').hexdigest()}}}})
             return 'I will fix the report.',{}
     host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=Runner())
     request=PiTaskRequest('report-failure','attempt','direct','Render saved report',(),(),host.identity,2)
@@ -1214,9 +1221,10 @@ def test_failed_requested_render_cannot_become_completed_prose(tmp_path):
     deadline=time.monotonic()+2
     while host.read(request.task_id)['status']=='running' and time.monotonic()<deadline:time.sleep(.005)
     result=host.read(request.task_id)['result']
-    assert result['status']=='failed'
-    assert result['failure']['code']=='native_product_delivery_incomplete'
-    assert not result['answer']
+    assert result['status']==('completed' if success else 'failed')
+    if not success:
+        assert result['failure']['code']=='native_product_delivery_incomplete'
+        assert not result['answer']
 
 
 @pytest.fixture
