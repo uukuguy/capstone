@@ -1598,7 +1598,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 此表给现存分支分类；展示时与实际 Git heads 核对，未知分支显示待登记。archive 是保留的实现或资料，不等于四条永久开发主线。
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
-| uukuguy/ppt-template-library-20261110 | 活动实现，待PR | 受检部署源码eb481485；后续仅补子工具测试及回执，当前HEAD由生成器核对 | 请求批准聚焦macOS CI后合入dev；无新CI | shared-agent |
+| uukuguy/ppt-template-library-20261110 | 已push，待PR | 受检部署源码eb481485；回执/控制HEAD4b8d3b83，生成器核对实际分支HEAD | 请求批准聚焦macOS CI后合入dev；无新CI | shared-agent |
 | uukuguy/investigation-skills-20261108 | PR100合入后已关闭 | 精确受检a1978ffb，远端dev合并d7358eac；恢复工作区保留 | IG1与业务效率接受仍开放；非远端部署 | shared-agent |
 | uukuguy/presentation-templates-20261108 | 历史来源保留，待差异核对后关闭 | HEADcadc2f3a；渲染实现已随PR100合入dev | 新增模板库由20261110分支接续；不覆盖后续宿主修复，保留工作区日志 | shared-agent |
 | feat/gateway-contract-context-reuse-20261107 | 已合入并关闭本地分支 | 7ea164de经PR100进入dev；恢复工作区保留 | 不再作为活动实现；既有性能限制保留 | shared-agent |
@@ -1755,7 +1755,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 模板库/服务总线候选 `eb481485`；App产品f3d1f5cf，仓库eb481485 | API/三worker同镜像f8488c5b5e92，native382a14ced31d；规范重建ready；458后端/275原生源码摘要一致，既有development镜像标签不作为Git来源 | App http://127.0.0.1:5173/；真实源查询24.90秒、PPT33.81秒，4下载摘要、标题栏及刷新通过；[验证](../reports/2026-11-10-service-bus-execution-records.md)，未合dev |
+| local-dev | 模板库/服务总线候选 `eb481485`；App产品f3d1f5cf，仓库回执HEAD4b8d3b83 | API/三worker同镜像f8488c5b5e92，native382a14ced31d；规范重建ready；458后端/275原生源码摘要一致，既有development镜像标签不作为Git来源 | App http://127.0.0.1:5173/；真实源查询24.90秒、PPT33.81秒，4下载摘要、标题栏及刷新通过；[验证](../reports/2026-11-10-service-bus-execution-records.md)，未合dev |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `eb481485` | API/worker同镜像1582f4266b7d；native3f84382d948c，App405f4258bfda；四角色healthy；458/275源码摘要一致，原数据/配置/缺省模型保留 | App http://192.168.72.66:5173/；真实源/PPT任务89.41秒、4下载摘要、PDF两页及标题栏刷新通过；标签dky3-dev-20261110-1729-eb481485；[验证](../reports/2026-11-10-service-bus-execution-records.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

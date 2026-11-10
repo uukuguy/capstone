@@ -1,13 +1,14 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-10 17:33 CST. Session remains active; this is not a final handoff.
+> Updated: 2026-11-10 17:40 CST. Session remains active; this is not a final handoff.
 
 ## Current result and immediate next step
 
 - Service-bus title statistics and per-tool details are implemented. Only current-call provenance is counted. Job accumulation is ignored, unknown is not zero, host-marked reuse is excluded and graph/event projections deduplicate by call ID.
 - User authorized deployment to local-dev and dky3-dev. Both now run the exact tested source `eb481485bb21ce0b36d7fdd8ba53f0218e5be9ab`. No other stage changed. Both pass458 backend and275 native exact-source file checks.
-- Isolated implementation checkout: `/Users/sujiangwen/orca/workspaces/capstone/ppt-template-library-20261110`, branch `uukuguy/ppt-template-library-20261110`. HEAD `1b9e6772` adds only child persistence/graph tests and CI allowlist registration after deployed eb481485. Runtime product revision is f3d1f5cf.
-- Next: finish canonical report/control snapshot browser check, copy task-owned control/report updates into candidate, focused documentation checks, commit and push branch plus deployment tag. No PR exists. Then request one explicit focused macOS CI approval before opening/updating a PR. Do not trigger CI without that approval.
+- Isolated implementation checkout: `/Users/sujiangwen/orca/workspaces/capstone/ppt-template-library-20261110`, branch `uukuguy/ppt-template-library-20261110`. Current HEAD4b8d3b83 records reports/control; preceding1b9e6772 adds only child persistence/graph tests and CI allowlist registration after deployed eb481485. Runtime product revision is f3d1f5cf.
+- Candidate/report/control HEAD4b8d3b83 and exact-source deployment tag have been pushed. No PR exists and no new CI ran. Graph browser inspection passed27 edges with no card intersections and both deployment sources exact. Doctor,663 relative links,symlink/diff checks and scoped cache cleanup pass.
+- Next: await one explicit focused macOS CI approval, expected5–8 minutes for template library/service-bus and direct consumers. Then create the dev PR, verify its selected scope, run that one approved gate and integrate on success. Do not trigger CI before approval. Candidate feature JOURNAL.md has one uncommitted append-only receipt for4b8d3b83; preserve it for the next integration checkpoint rather than creating an endless self-reference commit cycle.
 
 ## Verified stages
 
@@ -17,7 +18,7 @@
 - Local final-source PPT thread `thr_f47f3cf9fa60fed92cc6` completed33.81s; State Grid default, four downloads and full render receipt/digests pass.
 - dky3-dev is SSH root@192.168.72.66, deployment root /data/capstone-dky3-dev. API/worker image `1582f4266b7d`, native `3f84382d948c`, App `405f4258bfda`; all four healthy and exact eb481485 source labels. RootFS layers108/41/20. Prior images and protected configs/database dump remain private/backups/deploy-eb481485/.
 - Remote real task `thr_dcac776c667066f52c1f` completed89.41s: one source attempt59.346ms, actual State Grid template tool, four downloaded product digests, two PDF pages inspected, browser title and reload pass. Public receipt: docs/reports/receipts/2026-11-10-dky3-dev-eb481485.json.
-- Annotated tag `dky3-dev-20261110-1729-eb481485` exists locally at deployed eb481485; not yet pushed at checkpoint. Tag annotation records exact images, roles, task, backup and verification receipt.
+- Annotated tag `dky3-dev-20261110-1729-eb481485` is pushed at deployed eb481485. Annotation records exact images, roles, task, backup and verification receipt.
 - Browser plugin list is empty; documented troubleshooting completed. Existing Playwright CLI session capstone-unified has one owned Capstone tab; reuse it. It currently shows dky3-dev. The pointer action first hit the existing footer overlay; keyboard opening worked. Track that as separate existing polish, not new scope.
 
 ## Implementation and bounded evidence
@@ -38,7 +39,7 @@
 - Feature staging .capstone-agent/service-bus-deployment-20261110/ contains exact git-archive source, native input allowlist projection, final Dockerfiles and same-origin dky3 App build. Root staging holds125MB141 amd64 .debs and candidate.tar.gz. Remote source/build logs /data/capstone-dky3-dev/builds/eb481485/.
 - Remote build failures were contained before activation: apt --no-download local-file bug, staged executable permission, unavailable registry. Final offline dpkg install, canonical CLI modes and installed App dependency base pass. Do not describe derivative images as clean release-image acceptance.
 - App helper's standalone export omitted its shared capacity JSON. The staged repository layout adds that exact-source JSON; build passes. No product-source workaround or dependency/runtime secret was copied.
-- Scoped local cache cleanup is still due after final validation/use; use deploy/cleanup_local_build_cache.py --apply, never global prune.
+- Scoped local cache cleanup passed after final validation/use: /tmp/capstone-service-bus-post-use-cleanup.log. Never use global prune.
 
 ## Git, recovery and preserved work
 

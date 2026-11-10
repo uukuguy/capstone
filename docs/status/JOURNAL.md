@@ -7100,6 +7100,7 @@ fixed-source VitePID77708 stays available for user validation.
 These recovered notes keep their original dates and acceptance limits; they are not new verification claims.
 
 - 17:39 Final focused documentation check passed663 relative links,including3 preserved runtime artifacts;doctor,symlink and diff checks pass. Scoped post-use cache cleanup completed.
+- 17:40 Recorded deployment reports/control history and pushed candidate plus exact-source tag;CI approval remains pending.[4b8d3b83]
 
 ### Recovered context: 2026-11-06
 
