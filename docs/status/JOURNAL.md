@@ -7101,6 +7101,10 @@ These recovered notes keep their original dates and acceptance limits; they are 
 
 - 17:39 Final focused documentation check passed663 relative links,including3 preserved runtime artifacts;doctor,symlink and diff checks pass. Scoped post-use cache cleanup completed.
 - 17:40 Recorded deployment reports/control history and pushed candidate plus exact-source tag;CI approval remains pending.[4b8d3b83]
+- 17:47 Displayed active HEAD separately from deployed source;20 graph checks and browser geometry pass;runtime unchanged.[fabd5741]
+- 18:36 Exposed report content contracts and required verified saved render outputs;focused regression checks pass.[139c9700]
+- 18:36 Confirmed saved renderer bytes permit completion;positive/negative host2 checks pass.[1bf44c99]
+- 18:36 Deployed both dev stages;real repair and expected failure tests pass with no gateway calls. User ends scope at fixes/deployments.
 
 ### Recovered context: 2026-11-06
 

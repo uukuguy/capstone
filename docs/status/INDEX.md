@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-10：[PPT报告生成修复](../reports/2026-11-10-presentation-report-repair.md)已更新local-dev/dky3-dev，源码139c9700。内容契约/字段与章节诊断、真实产物落盘核验已修；两环境真实生成与预期失败状态均通过，不重新取业务数据。本轮只修复和部署，无CI或新PR。
+
 2026-11-10：[服务总线执行记录](../reports/2026-11-10-service-bus-execution-records.md)及[PPT模板库集成](../reports/2026-11-10-presentation-template-library.md)已在local-dev/dky3-dev验证。精确源码eb481485，源调用1次及标题栏刷新通过；本地PPT33.81秒、远端组合任务89.41秒，下载摘要及PDF页面通过。未合入，无新CI；部署标签与[公开回执](../reports/receipts/2026-11-10-dky3-dev-eb481485.json)区分开发接受和正式发布。
 
 2026-11-10：[调查分支收口](../reports/2026-11-10-investigation-branch-closeout.md)记录PR100合入远端dev d7358eac；macOS定向CI4分29秒通过。实际dev重建同镜像及两轮9.33/8.29秒、CSV哈希/快照通过；调查/基础分支关闭，恢复工作区和stash保留。远端环境不变，视觉、IG1及业务效率仍开放。

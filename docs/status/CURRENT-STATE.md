@@ -7,6 +7,7 @@
 - Active work package: IG1 — session skill scope and instruction snapshots.
 - User-directed integration includes the application-owned [PPT template library](../reports/2026-11-10-presentation-template-library.md). Its verified development candidate awaits dev integration; broader acceptance remains open.
 - Gateway execution records use host-verified current-call [service-bus receipts](../reports/2026-11-10-service-bus-execution-records.md). Title totals and per-tool details use persisted events; job accumulation is excluded and missing counters remain unknown.
+- Presentation content has a discoverable renderer contract. Actual render requests require matching saved product hashes before completion; missing required output remains a failed attempt with saved inputs retained. See the [report repair](../reports/2026-11-10-presentation-report-repair.md).
 - Measurement efficiency acceptance separates exact-reference retrieval, zero-seed discovery and named-object lookup; see [joint evidence](../reports/2026-11-09-measurement-query-efficiency.md). Reminder checkpoints do not enforce a hard budget.
 - Gateway task context retains grant-scoped provider declarations and verified selected usage. Async composition helpers reject unawaited-result serialization and retain completed observations for recovery; model route selection remains an open efficiency concern.
 - Guidance design: [free exploration and timely help](../superpowers/specs/2026-11-08-adaptive-investigation-guidance-design.md).
