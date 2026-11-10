@@ -29,13 +29,17 @@ PRESENTATION_LIBRARY_FILES = {
 } | {'packages/capstone-agent/src/capstone_agent/' + name + '.py' for name in (
     'presentation_templates', 'presentation_template_contract', 'presentation_template_http',
     'native_presentation_tasks', 'host_api', 'thread_service', 'general_pi_server',
-    'native_task_context', 'failure_delivery',
+    'native_task_context', 'failure_delivery', 'gateway_diagnostics', 'data_gateway_relay', 'delegated_runtime',
 )} | {'packages/capstone-agent/src/capstone_agent/resources/' + name for name in (
     'general-sdk.mjs', 'presentation-templates.mjs',
 )} | {'packages/capstone-agent/tests/' + name for name in (
     'test_presentation_templates.py', 'test_presentation_template_http.py',
     'test_native_presentation_tasks.py', 'test_presentation_task_relay.py',
     'test_native_skill_recovery.py', 'fixtures/presentation-templates.test.mjs',
+    'test_gateway_diagnostics.py', 'test_general_pi_server.py', 'test_delegated_runtime.py',
+)} | {'packages/capstone-app/src/' + name for name in (
+    'CapstoneAssistantThread.tsx', 'CapstoneAssistantThread.test.tsx', 'ProcessCallTrace.tsx',
+    'executionGraph.ts', 'serviceBusCalls.ts', 'serviceBusCalls.test.ts', 'ServiceBusCallDetails.tsx',
 )}
 
 
