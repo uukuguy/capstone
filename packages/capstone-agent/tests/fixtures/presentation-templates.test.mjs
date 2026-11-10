@@ -6,6 +6,24 @@ const config=()=>({taskId:'task',deadlineAt:Date.now()+10000,
   applicationPolicy:{allowed_tools:['agent_presentations']},
   presentationLibrary:{url:'http://private/presentation-template-tasks/task',grant:'test',inputRoot:'/inputs/task'}});
 
+test('render freezes the selected template and invokes only the fixed renderer with source bundle support',async()=>{
+ const sha='a'.repeat(64),reference={template_id:'state-grid',version:'sha256:'+sha,sha256:sha};
+ let request,executed;
+ const [tool]=createPresentationTools(config(),{
+  fetchImpl:async(url,options)=>{request=JSON.parse(options.body);return new Response(JSON.stringify({ok:true,result:{
+   path:'/inputs/task/presentation-templates/state-grid/'+sha+'.pptx',template:reference}}));},
+  runRenderer:async(command,argv,options)=>{executed={command,argv,options};return {stdout:JSON.stringify({
+   schema:'capstone-presentation-library-render/1',output:'new.pptx',template_sha256:sha,pdf:{status:'failed'}})};}});
+ const result=await tool.execute('render-one',{operation:'render',document:{bundle:'saved.source.zip',output:'new.pptx'}});
+ assert.equal(request.operation,'materialize');assert.deepEqual(request.document,{});
+ assert.equal(executed.command,'/usr/local/bin/capstone-presentation');
+ assert.deepEqual(executed.argv.slice(0,4),['--bundle','saved.source.zip','--output','new.pptx']);
+ assert.equal(executed.argv.at(-1),'--pdf');
+ assert.equal(result.details.result.pdf.status,'failed');
+ assert.deepEqual(result.details.result.template_reference,reference);
+ assert.deepEqual(result.details.evidence_refs,[]);
+});
+
 test('presentation tools require an admitted host binding and application tool grant',()=>{
   assert.deepEqual(createPresentationTools({}),[]);
   const c=config();c.applicationPolicy.allowed_tools=[];

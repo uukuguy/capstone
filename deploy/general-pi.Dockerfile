@@ -38,12 +38,15 @@ RUN ln -s /opt/pi/node_modules /opt/general/node_modules \
 
 COPY tools/native_analysis_smoke.py \
      tools/native_report.py \
+     tools/native_presentation_library.py \
      tools/native_presentation_template.py \
      tools/native_presentation_layout.py tools/
 
 COPY tools/presentation-templates/ tools/presentation-templates/
 
-RUN chmod 0755 /opt/general/tools/native_report.py && ln -s /opt/general/tools/native_report.py /usr/local/bin/capstone-report
+RUN chmod 0755 /opt/general/tools/native_report.py /opt/general/tools/native_presentation_library.py \
+    && ln -s /opt/general/tools/native_report.py /usr/local/bin/capstone-report \
+    && ln -s /opt/general/tools/native_presentation_library.py /usr/local/bin/capstone-presentation
 
 RUN python tools/native_analysis_smoke.py
 

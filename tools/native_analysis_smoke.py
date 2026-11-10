@@ -264,7 +264,23 @@ def exercise(directory):
     exercise_template_presentation(directory)
     verified.append('template_presentations')
     verified.append('argument_presentations')
+    exercise_library_presentation(directory)
+    verified.append('presentation_library_pdf')
     return verified
+
+
+def exercise_library_presentation(directory):
+    from pypdf import PdfReader
+    template = Path(__file__).parent / 'presentation-templates/state-grid.pptx'
+    (directory / 'library-content.json').write_text(json.dumps({
+        'schema': 'capstone-presentation/1', 'title': '模板库验证',
+        'slides': [{'title': '固定内容', 'blocks': [{'type': 'paragraph', 'text': '保存内容可以再次生成。'}]}]}))
+    receipt = json.loads(command(['capstone-presentation', '--spec', 'library-content.json',
+        '--output', 'library-result.pptx', '--template', str(template),
+        '--template-sha256', hashlib.sha256(template.read_bytes()).hexdigest(), '--pdf'], cwd=directory))
+    assert receipt['pdf']['status'] == 'ready'
+    assert len(PdfReader(directory / 'library-result.pdf').pages) == receipt['renderer']['slides']
+    assert hashlib.sha256((directory / 'library-result.pptx').read_bytes()).hexdigest() == receipt['output_sha256']
 
 
 def main():
