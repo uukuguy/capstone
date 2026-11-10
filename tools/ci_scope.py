@@ -39,7 +39,7 @@ PRESENTATION_LIBRARY_FILES = {
     'test_gateway_diagnostics.py', 'test_general_pi_server.py', 'test_delegated_runtime.py',
 )} | {'packages/capstone-app/src/' + name for name in (
     'CapstoneAssistantThread.tsx', 'CapstoneAssistantThread.test.tsx', 'ProcessCallTrace.tsx',
-    'executionGraph.ts', 'serviceBusCalls.ts', 'serviceBusCalls.test.ts', 'ServiceBusCallDetails.tsx',
+    'executionGraph.ts', 'executionGraph.test.ts', 'serviceBusCalls.ts', 'serviceBusCalls.test.ts', 'ServiceBusCallDetails.tsx',
 )}
 
 

@@ -521,7 +521,9 @@ def test_graph_native_frames_keep_public_projection_and_restore_in_thread_histor
                     'checkpoint': {'ref': 'committed', 'revision': 1}, 'tool_call_id': 'child-call',
                     'tool_name': 'read', 'activity': 'end', 'response_number': 1, 'response_ms': 12,
                     'usage': {'totalTokens': 5}, 'status': 'completed', 'result_summary': 'Native child completed.',
-                    **({'execution_ms': 2710.25} if kind == 'enterprise_graph_child_tool' else {}),
+                    **({'execution_ms': 2710.25,'service_bus_calls':{
+                        'schema':'capstone-service-bus-calls/1','scope':'current_tool_call',
+                        'attempt_count':2,'reused':False}} if kind == 'enterprise_graph_child_tool' else {}),
                     **({'tool_call_ids': ['child-call'], 'stop_reason': 'toolUse'} if kind == 'enterprise_graph_child_response' else {}),
                     'args': {'path': '/private/child/source'}, 'result': {'raw': 'private observation'}})
             return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
@@ -541,6 +543,7 @@ def test_graph_native_frames_keep_public_projection_and_restore_in_thread_histor
     assert all('args' not in frame and 'result' not in frame for frame in frames)
     assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_response')['usage'] == {'totalTokens': 5}
     assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_tool')['execution_ms'] == 2710.25
+    assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_tool')['service_bus_calls']['attempt_count'] == 2
     assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_response')['tool_call_ids'] == ['child-call']
 
 
