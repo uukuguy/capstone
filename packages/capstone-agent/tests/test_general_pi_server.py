@@ -1199,6 +1199,26 @@ def test_service_bus_public_event_uses_host_issued_receipt(tmp_path,forged,faile
     if calls:assert calls[0]['attempt_count']==17 and calls[0]['reused'] is False
 
 
+def test_failed_requested_render_cannot_become_completed_prose(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    class Runner:
+        def __call__(self,request,cancelled,emit):
+            emit({'type':'tool_execution_start','toolName':'agent_presentations','toolCallId':'deck',
+                'args':{'operation':'render','document':{'spec':'slides.json','output':'report.pptx'}}})
+            emit({'type':'tool_execution_end','toolName':'agent_presentations','toolCallId':'deck',
+                'isError':True,'result':{'details':{'capability':'agent_presentations','ok':False}}})
+            return 'I will fix the report.',{}
+    host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=Runner())
+    request=PiTaskRequest('report-failure','attempt','direct','Render saved report',(),(),host.identity,2)
+    host.submit(request)
+    deadline=time.monotonic()+2
+    while host.read(request.task_id)['status']=='running' and time.monotonic()<deadline:time.sleep(.005)
+    result=host.read(request.task_id)['result']
+    assert result['status']=='failed'
+    assert result['failure']['code']=='native_product_delivery_incomplete'
+    assert not result['answer']
+
+
 @pytest.fixture
 def small_answer_envelope():
     from capstone_agent.application_capacity import initialize_capacity

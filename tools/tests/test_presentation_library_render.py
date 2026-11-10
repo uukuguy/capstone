@@ -16,6 +16,28 @@ def run(root, *args):
     return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=root, capture_output=True, text=True)
 
 
+def test_contract_is_available_without_template_access_or_rendering(tmp_path):
+    result=run(tmp_path,'--contract')
+    assert result.returncode==0,result.stderr
+    contract=json.loads(result.stdout)
+    assert contract['schema']=='capstone-presentation-content-contract/1'
+    assert contract['slide_defaults']['role']=='content'
+    assert contract['example']['slides'][1]['section']==contract['example']['slides'][0]['blocks'][0]['items'][0]
+    assert not list(tmp_path.iterdir())
+
+
+def test_unknown_fields_have_actionable_diagnostics(tmp_path):
+    (tmp_path/'content.json').write_text(json.dumps({'schema':'capstone-presentation/1','title':'Saved',
+        'slides':[{'title':'Point','blocks':[],'unknown_setting':True}]}))
+    result=run(tmp_path,'--spec','content.json','--output','new.pptx','--template-id','state-grid',
+        '--template',str(TEMPLATE),'--template-sha256',hashlib.sha256(TEMPLATE.read_bytes()).hexdigest())
+    assert result.returncode==2
+    diagnostic=json.loads(result.stderr)['diagnostic']
+    assert diagnostic['unknown_fields']==['unknown_setting']
+    assert diagnostic['location']=='slides[0]'
+    assert 'role' in diagnostic['allowed_fields']
+
+
 def test_render_and_rerender_keep_frozen_content_and_exact_dependencies(tmp_path):
     document = {'schema': 'capstone-presentation/1', 'title': 'Saved comparison',
         'slides': [{'title': 'Exact values', 'blocks': [

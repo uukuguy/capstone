@@ -20,6 +20,30 @@ from native_report import ReportError, Workspace, render_presentation
 BUDGET = 128 * 1024 * 1024
 
 
+def content_contract():
+    return {'schema':'capstone-presentation-content-contract/1',
+        'formats':['capstone-presentation/1','capstone-presentation/2'],
+        'required_fields':['schema','title','slides'],'optional_fields':['subtitle'],
+        'slide_required_fields':['title','blocks'],
+        'slide_optional_fields':['role','section','source_notes','speaker_notes','argument'],
+        'slide_defaults':{'role':'content'},'roles':['content','agenda','closing'],
+        'rules':[
+            'Version 2 content slides require argument:{explanation:<literal visible reasoning>}; version 1 omits argument.',
+            'An agenda uses paragraph(text) or bullets(items) with unique exact chapter titles.',
+            'When an agenda exists, each content slide section must equal one chapter title in nondecreasing agenda order; each chapter has content.',
+            'Missing role means content. Closing is last and has zero blocks or one short paragraph.',
+            'The library selects the template. Do not add author, date, cover or other unsupported root fields.',
+            'Template composition keeps one saved record per slide. Fix overflow without silently splitting pages or shrinking fonts.'],
+        'blocks':{'paragraph':{'required':['type','text']},'bullets':{'required':['type','items']},
+            'table':{'required':['type','csv','max_rows'],'optional':['columns','caption']},
+            'figure':{'required':['type','path','caption']}},
+        'example':{'schema':'capstone-presentation/2','title':'Supported findings',
+            'slides':[{'role':'agenda','title':'Contents','blocks':[{'type':'bullets','items':['Scope']}]},
+                {'section':'Scope','title':'Available evidence','argument':{'explanation':'State the supported finding and its limits.'},
+                 'blocks':[{'type':'paragraph','text':'Use saved source facts; retain unresolved gaps.'}]},
+                {'role':'closing','title':'Thank you','blocks':[]}]}}
+
+
 def encoded(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
 
@@ -224,15 +248,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', action='version', version='capstone-presentation 1.0.0')
     source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--contract',action='store_true')
     source.add_argument('--spec')
     source.add_argument('--bundle')
-    parser.add_argument('--output', required=True)
-    parser.add_argument('--template', required=True)
-    parser.add_argument('--template-sha256', required=True)
+    parser.add_argument('--output')
+    parser.add_argument('--template')
+    parser.add_argument('--template-sha256')
     parser.add_argument('--template-id')
     parser.add_argument('--pdf', action='store_true')
+    arguments=vars(parser.parse_args())
+    if arguments.pop('contract'):
+        print(json.dumps(content_contract(),ensure_ascii=False))
+        return
+    if any(not arguments[key] for key in ('output','template','template_sha256')):
+        parser.error('render requires --output, --template and --template-sha256; use agent_presentations render for the admitted session template, or --contract to read content fields')
     try:
-        print(json.dumps(render_library(**vars(parser.parse_args())), ensure_ascii=False))
+        print(json.dumps(render_library(**arguments), ensure_ascii=False))
     except ReportError as error:
         failure = {'schema': 'capstone-presentation-render-error/1',
             'code': 'presentation_render_rejected', 'message': str(error)[:600],

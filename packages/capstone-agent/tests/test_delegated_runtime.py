@@ -275,6 +275,18 @@ def test_host_service_bus_counts_survive_saved_public_event():
     assert retained==[calls]
 
 
+def test_unconfirmed_required_report_delivery_fails_attempt():
+    class IncompleteExecutor(Executor):
+        def execute(self,request,control,on_event):
+            return PiTaskResult(request.task_id,request.parent_attempt_id,self.identity,'failed','',(),(),{},
+                {'code':'native_product_delivery_incomplete','phase':'persistence'})
+    service,current=claim()
+    result=run(service,current,factory(IncompleteExecutor(),Recognizer([goal('report','external_lookup',refs=['general-pi'])])))
+    assert result.status=='failed'
+    saved=service.read_events(current.thread_id,0).events
+    assert any(e.event_type=='attempt_failed' and e.payload.get('error_code')=='native_product_delivery_incomplete' for e in saved)
+
+
 def test_worker_external_lookup_uses_actual_general_executor():
     service, current = claim()
     executor = Executor()

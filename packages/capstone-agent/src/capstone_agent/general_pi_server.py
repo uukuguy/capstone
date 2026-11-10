@@ -598,8 +598,11 @@ class GeneralPiHost:
                 'metadata': {'tool_name': tool_name, 'tool_call_id': call_id,
                     'output_sha256': digest, **provenance, 'action_id': action_id, 'status': status}})
         compaction_started = None
+        from .native_product_roles import PresentationDeliveries
+        presentation_deliveries = PresentationDeliveries()
         def emit(event):
             nonlocal compaction_started
+            presentation_deliveries.observe(event)
             # Public transport uses bounded receipts, never raw native frames.
             kind = event.get('type')
             # The isolated image includes this exact dependency-free Kernel
@@ -1040,6 +1043,9 @@ class GeneralPiHost:
             self.storage.artifacts(request.task_id, workspace, artifacts)
             if record.get('graph_context') is not None:
                 artifacts.extend(record['graph_context'].artifacts(presentation))
+            if status == 'completed' and not presentation_deliveries.confirmed(artifacts):
+                status, answer = 'failed', ''
+                public_failure = {'code':'native_product_delivery_incomplete','phase':'persistence'}
             saved_artifacts = artifacts
             result = PiTaskResult.from_document({'schema': 'capstone-pi-task-result/2' if public_failure else 'capstone-pi-task-result/1',
                 'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,

@@ -13,7 +13,7 @@ export function createPresentationTools(config,{fetchImpl=globalThis.fetch,runRe
  if(!binding||!config.applicationPolicy?.allowed_tools?.includes('agent_presentations'))return [];
  const tool={name:'agent_presentations',label:'PPT 模板库',
   description:'Use the presentation template library when relevant. catalog returns the current session selection, built-in State Grid template, immutable library versions and admitted PPTX uploads. add takes resource {resource_id,version,sha256} and name; it creates a session-only template. publish takes reference {template_id,version,sha256}; use it only when the user explicitly asks to save to the library. select takes reference and expected_revision from the catalog and persists for this conversation. materialize takes optional reference for a one-render override and returns a verified read-only template path without changing selection. Unknown mutations must not be replayed: operation with the original request_id reads the durable receipt. No workspace, thread, endpoint or host path can be supplied. The library does not grant source tools or Authority evidence.',
-  parameters:{type:'object',properties:{operation:{type:'string',enum:['catalog','add','select','publish','materialize','render','operation']},
+  parameters:{type:'object',properties:{operation:{type:'string',enum:['contract','catalog','add','select','publish','materialize','render','operation']},
    document:{type:'object',properties:{reference:referenceSchema,
     resource:{type:'object',properties:{resource_id:{type:'string'},version:{type:'integer',minimum:1},sha256:{type:'string'}},
      required:['resource_id','version','sha256'],additionalProperties:false},
@@ -22,9 +22,19 @@ export function createPresentationTools(config,{fetchImpl=globalThis.fetch,runRe
    required:['operation','document'],additionalProperties:false},
   async execute(callId,args,signal){
    if(!binding.url||!binding.grant)throw Error('Presentation library task binding is missing');
-   if(!args||!['catalog','add','select','publish','materialize','render','operation'].includes(args.operation)||
+   if(!args||!['contract','catalog','add','select','publish','materialize','render','operation'].includes(args.operation)||
       !args.document||typeof args.document!=='object'||Array.isArray(args.document))throw Error('Presentation request is invalid');
    const remaining=config.deadlineAt-Date.now();if(!(remaining>0))throw Error('Presentation task deadline expired');
+   if(args.operation==='contract'){
+    if(Object.keys(args.document).length)throw Error('contract requires an empty document');
+    try{
+     const rendered=await runRenderer('/usr/local/bin/capstone-presentation',['--contract'],{
+       cwd:config.toolResultCwd??process.cwd(),signal,timeout:Math.max(1,remaining),maxBuffer:128*1024});
+     const result=JSON.parse(rendered.stdout);
+     if(result.schema!=='capstone-presentation-content-contract/1')throw Error('Invalid contract');
+     return {isError:false,content:[{type:'text',text:JSON.stringify(result)}],details:{capability:'agent_presentations',ok:true,result,evidence_refs:[]}};
+    }catch{signal?.throwIfAborted();return {isError:true,content:[{type:'text',text:'Presentation content contract is unavailable.'}],details:{capability:'agent_presentations',ok:false}};}
+   }
    if(args.operation==='render'){
     const d=args.document;
     if(Object.keys(d).some(k=>!['spec','bundle','output','reference','pdf'].includes(k))||
@@ -89,5 +99,6 @@ export function createPresentationTools(config,{fetchImpl=globalThis.fetch,runRe
      details:{capability:'agent_presentations',ok:!isError,result:value.result,request_id,evidence_refs:[]}};
   }};
  tool.description+=' render takes either spec (saved capstone-presentation/1 or /2 JSON) or bundle (a previous .source.zip), output (a new relative .pptx path), optional reference and pdf (defaults true). Minimal /1 content: {"schema":"capstone-presentation/1","title":"Title","slides":[{"title":"Point","blocks":[{"type":"paragraph","text":"Supported text"}]}]}. Version /2 additionally requires argument:{explanation:"Visible reasoning"} on each content slide. Table blocks require csv (workspace-relative CSV), columns and max_rows; figure blocks require path and caption. It freezes exact content/dependencies, applies the session template or one-render override, registers products and returns PPTX, reproducible source bundle and conversion status. A failed or unavailable PDF is not PDF delivery. Rerender the bundle to change template without requerying source systems. Keep the existing capstone-report CLI for explicitly untemplated output.';
+ tool.description+=' contract with document:{} returns the exact content fields and a complete agenda/content/closing example without rendering. Read it when authoring a deck or resolving field/chapter errors. Missing slide role defaults to content; with an agenda, each content section must exactly match a chapter title in agenda order. Use this render operation rather than invoking the low-level CLI without its host-selected template arguments.';
  return [tool];
 }

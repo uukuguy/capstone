@@ -24,12 +24,12 @@ GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
 PRESENTATION_LIBRARY_ANCHOR = 'packages/capstone-agent/src/capstone_agent/presentation_templates.py'
 PRESENTATION_LIBRARY_FILES = {
     'compose.yaml', 'deploy/general-pi.Dockerfile', 'configs/runtime/native-analysis.json',
-    'tools/native_analysis_smoke.py', 'tools/native_presentation_library.py',
+    'tools/native_analysis_smoke.py', 'tools/native_presentation_library.py', 'tools/native_report.py',
     'tools/tests/test_presentation_library_render.py',
 } | {'packages/capstone-agent/src/capstone_agent/' + name + '.py' for name in (
     'presentation_templates', 'presentation_template_contract', 'presentation_template_http',
     'native_presentation_tasks', 'host_api', 'thread_service', 'general_pi_server',
-    'native_task_context', 'failure_delivery', 'gateway_diagnostics', 'data_gateway_relay', 'delegated_runtime',
+    'native_task_context', 'failure_delivery', 'gateway_diagnostics', 'data_gateway_relay', 'delegated_runtime', 'native_product_roles',
 )} | {'packages/capstone-agent/src/capstone_agent/resources/' + name for name in (
     'general-sdk.mjs', 'presentation-templates.mjs',
 )} | {'packages/capstone-agent/tests/' + name for name in (
@@ -37,6 +37,7 @@ PRESENTATION_LIBRARY_FILES = {
     'test_native_presentation_tasks.py', 'test_presentation_task_relay.py',
     'test_native_skill_recovery.py', 'fixtures/presentation-templates.test.mjs',
     'test_gateway_diagnostics.py', 'test_general_pi_server.py', 'test_delegated_runtime.py',
+    'test_presentation_delivery.py',
 )} | {'packages/capstone-app/src/' + name for name in (
     'CapstoneAssistantThread.tsx', 'CapstoneAssistantThread.test.tsx', 'ProcessCallTrace.tsx',
     'executionGraph.ts', 'executionGraph.test.ts', 'serviceBusCalls.ts', 'serviceBusCalls.test.ts', 'ServiceBusCallDetails.tsx',

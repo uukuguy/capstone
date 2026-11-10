@@ -42,9 +42,15 @@ def text(value, field):
     return value
 
 
-def fields(value, required, optional=()):
+def fields(value, required, optional=(), *, location='document'):
     if not isinstance(value, dict) or not set(required) <= value.keys() or set(value) - set(required) - set(optional):
-        raise ReportError('missing or unknown report fields')
+        names=lambda values:[str(v)[:128] for v in sorted(values,key=str)][:32]
+        raise ReportError('missing or unknown report fields', diagnostic={
+            'code':'report_fields_invalid','location':location,'output_written':False,
+            'missing_fields':names(set(required)-set(value) if isinstance(value,dict) else required),
+            'unknown_fields':names(set(value)-set(required)-set(optional) if isinstance(value,dict) else []),
+            'allowed_fields':names([*required,*optional]),
+            'recovery':'Use the published content contract; supply required fields and remove unsupported fields. Do not guess a replacement schema.'})
 
 
 class Workspace:
@@ -331,7 +337,9 @@ def render_presentation(spec_path, output, *, check_only=False):
                         section=content.get('section')
                         if not isinstance(section,str) or section not in chapters:
                             raise ReportError('content section must match an agenda chapter',
-                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False})
+                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False,
+                                    'expected_sections':chapters,'observed_section':section,
+                                    'recovery':'Match section to an exact agenda title. Missing role defaults to content; do not omit such slides when checking chapters.'})
                         rank=chapters.index(section)
                         if order and rank<order[-1]:
                             raise ReportError('content chapter order differs from the agenda',
@@ -428,7 +436,7 @@ def render_presentation(spec_path, output, *, check_only=False):
         visible_arguments = []
         for index, content in enumerate(spec['slides']):
             fields(content, ('title','blocks'), ('source_notes','speaker_notes','role','section',
-                *(('argument',) if argument_contract else ())))
+                *(('argument',) if argument_contract else ())),location=f'slides[{index}]')
             role = content.get('role','content')
             if role not in ('content','agenda','closing'):
                 raise ReportError('slide role must be content, agenda or closing')

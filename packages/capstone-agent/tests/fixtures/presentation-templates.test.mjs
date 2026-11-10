@@ -6,6 +6,16 @@ const config=()=>({taskId:'task',deadlineAt:Date.now()+10000,
   applicationPolicy:{allowed_tools:['agent_presentations']},
   presentationLibrary:{url:'http://private/presentation-template-tasks/task',grant:'test',inputRoot:'/inputs/task'}});
 
+test('content contract is returned by the fixed renderer without template mutation or source access',async()=>{
+ const [tool]=createPresentationTools(config(),{fetchImpl:async()=>{throw Error('Unexpected host mutation');},
+  runRenderer:async(command,args)=>{
+   assert.equal(command,'/usr/local/bin/capstone-presentation');assert.deepEqual(args,['--contract']);
+   return {stdout:JSON.stringify({schema:'capstone-presentation-content-contract/1',slide_defaults:{role:'content'}})};
+  }});
+ const result=await tool.execute('contract',{operation:'contract',document:{}});
+ assert.equal(result.isError,false);assert.equal(result.details.result.slide_defaults.role,'content');
+});
+
 test('render freezes the selected template and invokes only the fixed renderer with source bundle support',async()=>{
  const sha='a'.repeat(64),reference={template_id:'state-grid',version:'sha256:'+sha,sha256:sha};
  let request,executed;

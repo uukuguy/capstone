@@ -517,6 +517,8 @@ class DelegatedRuntime:
                         sort_keys=True, separators=(',', ':')).encode()).hexdigest()}
                 self._emit(on_event, {'goal_id': goal['goal_id'], 'external_reference_kind': kind,
                                       'reference': reference})
+        if result.failure is not None and result.failure.get('code') == 'native_product_delivery_incomplete':
+            raise GoalReceiptPersistenceError('required report delivery was not confirmed')
         return result.status, result.answer
 
     def bind_artifact_store(self, objects):
