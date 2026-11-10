@@ -11,4 +11,3 @@ Record accepted scope, assumptions and unresolved choices in the current task pl
 Hand the accepted objective to task-planning-and-tracking when sustained work needs a plan.
 
 When the native skill record tool is available, load this exact admitted skill and report meaningful public phases with related tool IDs and product references. Loading does not prove application or successful verification. Use a bounded summary; never include credentials or private reasoning.
-

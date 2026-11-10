@@ -15,4 +15,3 @@ Prefer existing result references. Expand source coverage only when it answers a
 Use current Provider contracts and optional guides for exact operations. Do not invent server-side clustering, forecasts, correlations or causal diagnosis. Any authorized local computation must retain inputs and algorithm and remain distinct from Authority evidence.
 
 When the native skill record tool is available, load this exact admitted skill and report meaningful public phases with related tool IDs and product references. Loading does not prove application or successful verification. Use a bounded summary; never include credentials or private reasoning.
-

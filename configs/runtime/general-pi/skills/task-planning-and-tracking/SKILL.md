@@ -13,4 +13,3 @@ At recovery, verify current authorization, instance, environment, contract, refe
 Stop at the budget or evidence boundary and deliver useful partial findings, missing scope and recovery conditions. Never mark the whole task complete merely because its current queue is empty.
 
 When the native skill record tool is available, load this exact admitted skill and report meaningful public phases with related tool IDs and product references. Loading does not prove application or successful verification. Use a bounded summary; never include credentials or private reasoning.
-

@@ -12,4 +12,3 @@ Apply a correction supported by evidence, then check the original failure and di
 When the cause remains unknown, deliver observations, ruled-out explanations, missing evidence and a bounded next action. Use existing diagnosis records where available; keep their outcome linked to the shared task plan.
 
 When the native skill record tool is available, load this exact admitted skill and report meaningful public phases with related tool IDs and product references. Loading does not prove application or successful verification. Use a bounded summary; never include credentials or private reasoning.
-

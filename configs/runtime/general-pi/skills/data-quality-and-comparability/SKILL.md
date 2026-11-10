@@ -14,4 +14,3 @@ Require evidence for additive and mutually exclusive relationships before contri
 Record the permitted interpretation and limits in the shared evidence record. If a prerequisite fails, choose a suitable method, acquire a bounded missing slice, or narrow the conclusion. Do not silently clean, interpolate, convert or guess mappings. Host schema and reference checks remain authoritative.
 
 When the native skill record tool is available, load this exact admitted skill and report meaningful public phases with related tool IDs and product references. Loading does not prove application or successful verification. Use a bounded summary; never include credentials or private reasoning.
-
