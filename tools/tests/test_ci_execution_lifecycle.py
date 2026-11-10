@@ -151,8 +151,12 @@ def test_joint_scope_manifest_has_executable_consumers_and_rejects_unknown_sourc
 
 
 def test_cli_checks_proposed_branch_changes_instead_of_target_only_commits():
+    base = next((ref for ref in ('dev', 'origin/dev') if subprocess.run(
+        ['git', 'rev-parse', '--verify', ref], cwd=ROOT, capture_output=True).returncode == 0), None)
+    if base is None:
+        pytest.skip('Development base is unavailable in this checkout')
     result = subprocess.check_output(
-        ['python3', 'tools/ci_scope.py', '--base', 'dev', '--head', 'HEAD'], cwd=ROOT, text=True)
+        ['python3', 'tools/ci_scope.py', '--base', base, '--head', 'HEAD'], cwd=ROOT, text=True)
     assert result.strip() == 'execution-lifecycle'
 
 
