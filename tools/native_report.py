@@ -275,14 +275,15 @@ def render_presentation(spec_path, output, *, check_only=False):
         if spec['schema'] not in ('capstone-presentation/1','capstone-presentation/2'):
             raise ReportError('PPTX requires capstone-presentation/1 or capstone-presentation/2')
         argument_contract = spec['schema'] == 'capstone-presentation/2'
-        if argument_contract and 'template' not in spec:
+        selection = spec.get('template', {'id':'state-grid'})
+        if argument_contract and selection is None:
             raise ReportError('capstone-presentation/2 requires a template')
         if not isinstance(spec['slides'], list) or not 1 <= len(spec['slides']) <= 40:
             raise ReportError('presentation slides must contain 1..40 content records')
         template_page, template_receipt = None, None
-        if 'template' in spec:
+        if selection is not None:
             from native_presentation_template import load_template
-            deck, template_page, template_receipt = load_template(workspace, spec['template'], ReportError)
+            deck, template_page, template_receipt = load_template(workspace, selection, ReportError)
         else:
             deck = Presentation()
             deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
@@ -670,10 +671,10 @@ def render_presentation(spec_path, output, *, check_only=False):
 
 def main():
     parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.',
-        epilog='PPTX: omit template for the original paginated baseline. Add template={"id":"state-grid"} for the built-in template, or template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Template output keeps one content record per slide, combining one visual and its reasoning. Optional role:agenda marks the agenda; section is a visible chapter label; final role:closing reuses cover branding and accepts zero blocks or one short paragraph. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; revise composition when content does not fit.')
+        epilog='PPTX: omitting template uses the built-in State Grid template. Select template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Only an explicit template:null selects the unbranded paginated layout. Template output keeps one content record per slide, combining one visual and its reasoning. Optional role:agenda marks the agenda; section is a visible chapter label; final role:closing reuses cover branding and accepts zero blocks or one short paragraph. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; revise composition when content does not fit.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
-    parser.description += ' Template briefings also support capstone-presentation/2: each ordinary content record requires argument={"explanation":"Supported reasoning"}. This explanation is always rendered as visible prose and checked for overflow; agenda/closing records omit argument. Version 1 remains unchanged. Rendering does not certify reasoning.'
-    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
+    parser.description += ' Template briefings also support capstone-presentation/2: each ordinary content record requires argument={"explanation":"Supported reasoning"}. This explanation is always rendered as visible prose and checked for overflow; agenda/closing records omit argument. Both versions use State Grid when template is omitted. Rendering does not certify reasoning.'
+    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. The default State Grid layout keeps one content record per slide; split an overfull composition into focused records. Only explicit template:null uses automatic unbranded pagination. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
     parser.add_argument('--check-only', action='store_true', help='Validate saved sources and layout without writing output. Returns actual counts and source hashes; independent PPTX block errors are collected. Rendering rechecks sources when you later create the product.')
     args = parser.parse_args()

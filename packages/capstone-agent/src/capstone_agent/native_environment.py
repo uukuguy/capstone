@@ -62,6 +62,7 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
         presentation_context = (
             '\nFor an ordinary PPTX deck, prefer the verified reusable renderer instead of generating layout or assembly Python: '
             'capstone-report --spec slides.json --output slides.pptx. '
+            'PPTX output uses the built-in State Grid template by default, including when template is omitted. '
             'Write only supported content, captions and source notes. Reuse saved figures instead of regenerating them for assembly. '
             'Minimal spec: {"schema":"capstone-presentation/1","title":"Report","slides":'
             '[{"title":"Findings","source_notes":["Saved source revision"],"blocks":'
@@ -69,7 +70,7 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
             '{"type":"table","csv":"display.csv","columns":["label","value"],"max_rows":100},'
             '{"type":"figure","path":"chart.png","caption":"Caption matched to the saved chart"}]}]}. '
             'Bullets use {"type":"bullets","items":["Supported point"]}. '
-            'The helper adds a title cover, wraps text and paginates, repeating table headers; inspect receipt.slides for the actual slide count. '
+            'The helper adds a branded cover and keeps one content record per slide. Use one visual and concise reasoning per record; overflow requires revising the saved spec. Inspect receipt.template and receipt.slides. '
             'It never recalculates CSV strings or infers conclusions. '
             'Use 1..8 selected CSV columns and an explicit max_rows of 1..1000; excess rows fail rather than silently truncate. '
             'Prepare a compact display CSV from actual computations if the source is too large or wide. '
@@ -81,9 +82,9 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
         )
     if presentation_context and 'template_presentations' in checks:
         presentation_context += (
-            ' To generate with the State Grid template, add "template":{"id":"state-grid"} to the presentation spec. '
+            ' The default State Grid selection can also be written as "template":{"id":"state-grid"}. '
             'For an admitted uploaded PPTX template, use "template":{"path":"<staged relative path>"}. '
-            'Omit template to retain the original untemplated layout. Template rendering requires 16:9; '
+            'Use "template":null only when the user explicitly asks for an unbranded deck; never use it to recover from a template error. Template rendering requires 16:9; '
             'the renderer preserves template masters and cover pictures and removes sample slides. '
             'Save the content spec and referenced files for later rendering with another template. '
             'Check all generated pages visually before calling the layout accepted; template loading alone does not prove design quality. '
@@ -153,7 +154,7 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
             'Do not duplicate the explanation in blocks. Agenda/closing records omit argument. '
             'An omitted explanation is a contract error; an overlong one is slide_overflow. Revise the composition while keeping '
             'its inference visible. Do not downgrade to schema1 to bypass this new-briefing contract. '
-            'Schema1 remains for original untemplated output and unchanged historical rerenders. '
+            'Schema1 also uses the State Grid default; historical rerenders retain their explicit saved template selection. '
             'The contract guarantees visible authored explanation, not semantic accuracy or adequate reasoning; perform the skeptical review above. '
         )
     return (

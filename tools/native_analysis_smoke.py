@@ -78,20 +78,22 @@ def exercise_presentation(directory, *, renderer=None):
     (directory/'slide-values.csv').write_text('label,value,ratio\n中文,001.2300,12.50%\n',encoding='utf-8')
     Image.new('RGB',(320,180),'teal').save(directory/'slide-figure.png')
     spec={'schema':'capstone-presentation/1','title':'中文演示校验','slides':[{
-        'title':'结果与限制','source_notes':['保存的输入；不验证结论'], 'blocks':[
-            {'type':'paragraph','text':'保存的数值 < 不作重算'},
-            {'type':'table','csv':'slide-values.csv','max_rows':10},
-            {'type':'figure','path':'slide-figure.png','caption':'实际保存的示意图'}]}]}
+        'title':'结果与限制','source_notes':['保存的输入；不验证结论'],
+        'blocks':[{'type':'paragraph','text':'保存的数值 < 不作重算'}]},
+        {'title':'保存的数值','blocks':[{'type':'table','csv':'slide-values.csv','max_rows':10}]},
+        {'title':'保存的图表','blocks':[{'type':'figure','path':'slide-figure.png','caption':'实际保存的示意图'}]}]}
     (directory/'presentation-spec.json').write_text(json.dumps(spec,ensure_ascii=False),encoding='utf-8')
     receipt=json.loads(command([*(renderer or ['capstone-report']),'--spec','presentation-spec.json',
         '--output','presentation.pptx'],cwd=directory))
     assert receipt['schema']=='capstone-presentation-receipt/1'
+    assert receipt['template']['id']=='state-grid'
     deck=Presentation(directory/'presentation.pptx')
     assert len(deck.slides)==receipt['slides'] and len(deck.slides)>=4
     text='\n'.join(shape.text if shape.has_text_frame else '\n'.join(cell.text for row in shape.table.rows for cell in row.cells)
         if shape.has_table else '' for slide in deck.slides for shape in slide.shapes)
     assert all(value in text for value in ['001.2300','12.50%','保存的数值','实际保存的示意图'])
-    assert sum(shape.shape_type==13 for slide in deck.slides for shape in slide.shapes)==1
+    assert any(shape.shape_type==13 and shape.image.blob==(directory/'slide-figure.png').read_bytes()
+        for slide in deck.slides for shape in slide.shapes)
     for slide in deck.slides:
         for shape in slide.shapes:
             assert shape.left>=0 and shape.top>=0
