@@ -257,6 +257,26 @@ read/write/edit/bash 在独立 UID 和工作区中运行；宿主凭据通过可
 
 基础 Python、CLI、依赖锁、构建检查及环境收据见[原生隔离编程环境](architecture/capstone-native-programming-environment.md)。
 
+### PPT template library
+
+启用模板库的会话缺省使用国网模板。可通过对话要求“这次使用上传的模板”“把模板保存到模板库”
+或“恢复默认国网模板”。单次指定只影响本次生成；会话选择持续到下次明确更改。
+模板导入缺省为 session 作用域，不能把导入成功当作跨会话入库成功。明确保存入库时，
+须发布并核对实际目录的 library 作用域；同工作空间的其他会话才能复用。
+
+生成后保存 PPTX、内容源包与渲染回执；成功转换时同时保存 PDF。换模板时使用源包，
+不重新查询业务数据。旧 PPTX 若没有对应源包，只能先恢复内容，不能声称完全相同内容重生成。
+每次生成使用新版本，保留旧成果。排版溢出需修改明确的内容或页计划；不要静默缩小字体。
+PDF 转换失败或不可用时保留有效 PPTX，并明确报告 PDF 状态。渲染回执不认证业务结论。
+
+本地 Compose 已为原生宿主设置 `CAPSTONE_PRESENTATION_API_ORIGIN=http://api:8766`。
+其他环境在原生宿主的受保护环境中设置所选 API origin，并沿用后端保护的 operator token。
+该 origin、令牌和私有对象存储凭据不放入 App 构建变量，也不交给模型选择。
+宿主从当前任务绑定取得工作空间和 Thread，只向隔离任务提供已验证的模板文件。
+库元数据使用共享 PostgreSQL，模板字节使用私有对象存储；API 与 worker 仍须同源码/镜像。
+上传和存储配额与 PPTX 处理预算分开。现有无模板 `capstone-report` 命令保留为独立基线。
+设计与接受标准见[PPT 模板库设计](superpowers/specs/2026-11-08-presentation-template-library-design.md)。
+
 ### 企业生产数据 MCP
 
 enterprise-research 可按应用授权使用 data-gateway 的远程工具。设置
