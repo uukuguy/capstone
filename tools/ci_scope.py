@@ -771,6 +771,10 @@ def main() -> None:
     parser.add_argument("--release", action="store_true")
     parser.add_argument("--check-docs", action="store_true")
     args = parser.parse_args()
+    # A target branch may contain independent commits. Scope only the proposed
+    # branch delta, as a PR does, rather than treating target-only files as removals.
+    args.base = subprocess.check_output(
+        ['git', 'merge-base', args.base, args.head], text=True).strip()
     # Include both names of a rename so moving product code into docs is not a shortcut.
     output = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", "-z",
                                       args.base, args.head, "--"], text=True)

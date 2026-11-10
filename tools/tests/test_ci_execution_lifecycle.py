@@ -150,6 +150,12 @@ def test_joint_scope_manifest_has_executable_consumers_and_rejects_unknown_sourc
     assert classify(paths, release=True) == 'release'
 
 
+def test_cli_checks_proposed_branch_changes_instead_of_target_only_commits():
+    result = subprocess.check_output(
+        ['python3', 'tools/ci_scope.py', '--base', 'dev', '--head', 'HEAD'], cwd=ROOT, text=True)
+    assert result.strip() == 'execution-lifecycle'
+
+
 def test_workflow_has_scoped_setup_and_only_focused_consumers():
     workflow = (ROOT / '.github/workflows/verify.yml').read_text()
     assert 'execution-lifecycle|' in workflow
