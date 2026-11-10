@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-10：[普通PPT入口默认国网模板修复](../reports/2026-11-10-default-state-grid-template.md)，local-dev源码c051a832已更新，真实模型生成及实际封面检查通过；dky3-dev镜像已备，按用户要求等待运行任务结束后再更新。
+2026-11-10：[普通PPT入口默认国网模板修复](../reports/2026-11-10-default-state-grid-template.md)，local-dev/dky3-dev均已更新c051a832，普通入口真实模型14.64/34.85秒、实际国网封面及文件摘要通过。远端在原任务结束后更新，数据保留。
 
 2026-11-10：[PPT报告生成修复](../reports/2026-11-10-presentation-report-repair.md)已更新local-dev/dky3-dev，源码139c9700。内容契约/字段与章节诊断、真实产物落盘核验已修；两环境真实生成与预期失败状态均通过，不重新取业务数据。本轮只修复和部署，无CI或新PR。
 

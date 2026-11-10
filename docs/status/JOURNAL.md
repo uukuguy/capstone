@@ -7382,3 +7382,4 @@ check passed. No CI, integration or remote deployment performed.
 - Kept the default template example within one visual per page;19 environment checks pass.[c051a832]
 - Local canonical rebuild and real omitted-template14.64s pass;actual State Grid cover inspected and cache cleanup completed.
 - Remote candidate built;user requires waiting for its active task before service replacement.
+- Recorded local default-template acceptance and pending remote update to preserve exact deployment state.[42795183]

@@ -35,12 +35,31 @@ actual deck was converted to PDF and its cover inspected: original State Grid
 logo and green cover artwork are visible. No business data or gateway call was
 needed. Original business reports and their history remain unchanged.
 
-## dky3-dev update
+## dky3-dev acceptance
 
-Candidate images are built at `/data/capstone-dky3-dev/builds/c051a832/`.
-The user requires waiting for active thread `thr_1f2cf7a0d71a8cb3b371` before
-restarting. Current source remains `139c9700`; the candidate is not yet accepted.
+The existing task ended before deployment; its terminal failure remains in the
+ledger. No running task was interrupted. Backup:
+`private/backups/deploy-c051a832/`. Source and images are staged at
+`/data/capstone-dky3-dev/builds/c051a832/`.
+
+All four roles are healthy and labelled with the exact `c051a832` source.
+API/worker image:
+`sha256:6f661c9a8ba63046a6fec67d9790e21cc0db6625e3d3076facacb17423523ea0`.
+Native image:
+`sha256:450f0fb9310800d403d6c8e5a66ac69f323e18b69193872b2cb56dec05449529`.
+App image:
+`sha256:9879cfa50ba48f5698916ff24078d73ef27d11d7be2c2273eecc7b9267671a8c`.
+Backend488 and native275 file-byte comparisons pass. The served App asset
+`/assets/index-D75__l-r.js` matches the staged build and exact source.
+
+Real model task `thr_6f54800767f5e103b7e6` passed in 34.85 seconds. Its unchanged
+spec omits template; the ordinary CLI produced three pages, a matching State Grid
+template digest and downloaded product hashes. The source binding also matches.
+Both real tests used only bash/write and made no gateway calls. Both browser
+previews show the original logo and green artwork.
 
 Private verification inputs, receipts and actual products:
 `.capstone-agent/dky3-summer-report-20261110/default-template/`.
 No CI, new PR, main/dev merge or unrelated stage update.
+
+Exact-source acceptance tag: `dky3-dev-20261110-1919-c051a832`.

@@ -3,8 +3,8 @@
 ## 2026-11-10 默认模板入口补修
 
 用户实测发现普通capstone-report入口可绕过模板库，修复c051a832将缺省国网选择落实在
-渲染器。local-dev已规范重建、真实模型14.64秒及实际封面检查通过；dky3-dev镜像已备，
-按用户要求等运行任务结束再更新，不中断它。见[执行计划](2026-11-10-default-presentation-template.md)
+渲染器。local-dev已规范重建、真实模型14.64秒及实际封面检查通过；dky3-dev在运行任务
+结束后完成更新，真实普通入口34.85秒及文件摘要通过。见[执行计划](2026-11-10-default-presentation-template.md)
 及[验证](../../reports/2026-11-10-default-state-grid-template.md)。仍只做修复与两dev更新，无CI/PR。
 
 ## 2026-11-10 当前边界：PPT错误修复及两dev更新
