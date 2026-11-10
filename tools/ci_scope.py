@@ -495,7 +495,7 @@ EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
     'general-data-gateway.mjs', 'general-sdk.mjs', 'general-domain-tools.mjs', 'tool-composition-policy.json',
     'tool-call-scheduler.mjs', 'delegation-tool.mjs', 'llm-call-tools.mjs')
 } | {'packages/capstone-agent/tests/fixtures/' + name + '.test.mjs' for name in (
-    'gateway-tool-use', 'tool-discovery', 'tool-composition', 'data-gateway-research')
+    'gateway-tool-use', 'tool-discovery', 'tool-composition', 'data-gateway-research', 'general-sdk-graph')
 } | {'packages/capstone-app/src/' + name for name in (
     'CapstoneAssistantThread.tsx', 'CapstoneAssistantThread.test.tsx',
     'ExecutionGraphProcess.tsx', 'ExecutionGraphProcess.test.tsx',
@@ -536,7 +536,12 @@ EXECUTION_LIFECYCLE_FILES |= {
 
 
 def execution_lifecycle_paths(paths: list[str], *, deployment: bool = False) -> bool:
-    allowed = EXECUTION_LIFECYCLE_FILES | ({'compose.yaml', 'deploy/general-pi.Dockerfile'} if deployment else set())
+    manifest = Path(__file__).resolve().parents[1] / 'configs/development/investigation-closeout-gate.json'
+    joint = json.loads(manifest.read_text())['groups'] if manifest.exists() else {}
+    covered = {path for group in joint.values() for path in group['paths'] if group.get('command')}
+    allowed = EXECUTION_LIFECYCLE_FILES | covered | {
+        'configs/development/investigation-closeout-gate.json', 'tools/check_investigation_closeout.py',
+    } | ({'compose.yaml', 'deploy/general-pi.Dockerfile'} if deployment else set())
     return EXECUTION_LIFECYCLE_ANCHOR in paths and all(path in allowed for path in paths)
 
 

@@ -120,6 +120,7 @@ jobs:
         if: steps.scope.outputs.gate == 'execution-lifecycle'
         timeout-minutes: 5
         run: |
+          python3 tools/check_investigation_closeout.py
           make check-package-boundaries
           uv run --project packages/grid-agent pyright packages/capstone-agent/src/capstone_agent/skill_activity.py packages/capability-agent-kernel/src/capability_agent/runtime/execution_queue.py packages/capstone-agent/src/capstone_agent/tool_execution_receipt.py packages/capstone-agent/src/capstone_agent/native_graph_events.py packages/capstone-agent/src/capstone_agent/grid_source_topology.py packages/capstone-agent/src/capstone_agent/grid_source_http.py packages/capstone-agent/src/capstone_agent/grid_electrical_view.py packages/capstone-agent/src/capstone_agent/pi_delegation.py packages/capstone-agent/src/capstone_agent/data_gateway_views.py packages/capstone-agent/src/capstone_agent/data_gateway_relay.py packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py packages/capstone-agent/src/capstone_agent/native_tool_diagnostics.py packages/capstone-agent/src/capstone_agent/general_pi_server.py packages/capstone-agent/src/capstone_agent/delegated_runtime.py packages/grid-agent/src/grid_agent/domain_tools.py packages/pandapower-domain-pack/src/pandapower_domain/execution.py
           uv run --project packages/capability-agent-kernel pytest packages/capability-agent-kernel/tests/runtime/test_execution_queue.py -q

@@ -79,7 +79,7 @@ def test_lifecycle_route_rejects_uncovered_paths(extra):
     assert classify([ANCHOR, extra]) != 'execution-lifecycle'
 
 
-def test_joint_development_diff_keeps_uncovered_consumers_out_of_lifecycle_route():
+def test_joint_development_diff_uses_its_named_direct_consumer_gate():
     from tools.ci_scope import execution_lifecycle_deployment_diff
     base = next((ref for ref in ('origin/dev', 'dev') if subprocess.run(
         ['git', 'rev-parse', '--verify', ref], cwd=ROOT, capture_output=True).returncode == 0), None)
@@ -89,10 +89,10 @@ def test_joint_development_diff_keeps_uncovered_consumers_out_of_lifecycle_route
     if ANCHOR not in paths:
         pytest.skip('This checkout has no lifecycle development diff')
     assert execution_lifecycle_deployment_diff(paths, base, 'HEAD')
-    # The joint candidate now also changes report rendering, session contracts
-    # and skill UI. Recipe acceptance must not silently grant source coverage.
+    # Report, session and UI consumers have an explicit manifest and executable
+    # workflow step; recipe acceptance alone never grants source coverage.
     assert 'tools/native_report.py' in paths
-    assert classify(paths, execution_lifecycle_deployment=True) == 'product'
+    assert classify(paths, execution_lifecycle_deployment=True) == 'execution-lifecycle'
     if {'compose.yaml', 'deploy/general-pi.Dockerfile'} & set(paths):
         assert classify(paths) != 'execution-lifecycle'
 
@@ -125,6 +125,29 @@ def test_reviewed_grouped_recipe_is_exact_and_does_not_admit_other_changes():
         if changed != new:
             assert not execution_lifecycle_deployment_document('deploy/general-pi.Dockerfile', old, changed)
     assert not execution_lifecycle_deployment_document('deploy/general-pi.Dockerfile', old + '\n', new)
+
+
+def test_joint_scope_manifest_has_executable_consumers_and_rejects_unknown_sources():
+    import json
+    manifest = ROOT / 'configs/development/investigation-closeout-gate.json'
+    groups = json.loads(manifest.read_text())['groups']
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    block = workflow.split('- name: Verify tool execution lifecycle', 1)[1].split('- name:', 1)[0]
+    assert 'python3 tools/check_investigation_closeout.py' in block
+    for group in ('reports', 'app', 'runtime', 'sdk'):
+        assert group in groups
+    paths = [ANCHOR, 'configs/development/investigation-closeout-gate.json',
+             'tools/check_investigation_closeout.py']
+    for group in groups.values():
+        assert group['command']
+        for path in group['paths']:
+            assert (ROOT / path).is_file(), path
+        paths.extend(group['paths'])
+    assert classify(paths) == 'execution-lifecycle'
+    for extra in ('tools/unreviewed.py', 'packages/capstone-agent/src/capstone_agent/unreviewed.py'):
+        assert classify([*paths, extra]) != 'execution-lifecycle'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths, release=True) == 'release'
 
 
 def test_workflow_has_scoped_setup_and_only_focused_consumers():
