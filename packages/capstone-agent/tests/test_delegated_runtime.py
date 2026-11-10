@@ -257,6 +257,24 @@ def test_owner_execution_receipt_survives_saved_public_event(valid):
         assert records[0]['task_id'] == executor.requests[0].task_id
 
 
+def test_host_service_bus_counts_survive_saved_public_event():
+    calls={'schema':'capstone-service-bus-calls/1','scope':'current_tool_call',
+        'attempt_count':23,'response_count':22,'reused':False,'details_truncated':True,'details':[]}
+    class CountedExecutor(Executor):
+        def execute(self,request,control,on_event):
+            self.requests.append(request)
+            on_event({'type':'tool_execution_end','tool_name':'data_gateway_query',
+                'tool_call_id':'source-call','is_error':True,'activity':{'service_bus_calls':calls}})
+            return PiTaskResult(request.task_id,request.parent_attempt_id,self.identity,'completed','Done',(),(),{})
+    service,current=claim()
+    result=run(service,current,factory(CountedExecutor(),Recognizer([goal('lookup','external_lookup',refs=['general-pi'])])))
+    assert result.status=='completed'
+    saved=service.read_events(current.thread_id,0).events
+    retained=[e.payload['activity']['service_bus_calls'] for e in saved
+        if isinstance(e.payload.get('activity'),dict) and 'service_bus_calls' in e.payload['activity']]
+    assert retained==[calls]
+
+
 def test_worker_external_lookup_uses_actual_general_executor():
     service, current = claim()
     executor = Executor()

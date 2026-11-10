@@ -325,6 +325,11 @@ class DelegatedRuntime:
             dispatch_receipt = checked_dispatch_receipt(event.get('dispatch_receipt'),
                 task_id=task_id, call_id=tool_call_id) if kind == 'tool_dispatch' else None
             raw_result, raw_activity = event.get('result'), event.get('activity')
+            from .gateway_diagnostics import checked_service_bus_calls
+            service_bus_calls = checked_service_bus_calls(raw_activity.get('service_bus_calls')) if (
+                kind == 'tool_execution_end' and isinstance(raw_activity, Mapping)) else None
+            child_service_bus_calls = checked_service_bus_calls(event.get('service_bus_calls')) if (
+                kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end') else None
             result_details = raw_result.get('details', {}) if isinstance(raw_result, Mapping) else {}
             raw_receipt = raw_activity.get('execution_receipt') if isinstance(raw_activity, Mapping) else None
             execution_receipt = checked_execution_receipt(
@@ -398,7 +403,7 @@ class DelegatedRuntime:
                     ('type', 'owner', 'attempt_id', 'task_id', 'action_id', 'step_id', 'checkpoint',
                      'tool_call_id', 'tool_name', 'child_id', 'activity', 'tool_activity', 'is_error',
                      'execution_ms', 'execution_receipt', 'response_number', 'response_ms', 'tool_call_ids', 'tool_requests', 'response_text', 'stop_reason', 'usage', 'status', 'result_summary', 'model_responses', 'turns')
-                    if key in event}} if research_graph_event else {}),
+                    if key in event} | ({'service_bus_calls': child_service_bus_calls} if child_service_bus_calls is not None else {})} if research_graph_event else {}),
                 **({'research_branch': {key: event[key] for key in ('type', 'subordinate', 'owner', 'attempt_id',
                     'parent_action_id', 'parent_step_id', 'parent_tool_call_id', 'child_id', 'title', 'questions',
                     'expected_outputs', 'checkpoint', 'status', 'result_summary', 'error', 'response_number', 'response_ms',
@@ -408,6 +413,7 @@ class DelegatedRuntime:
                 **({'activity': {**{key: value[:limit] for key, limit in
                     (('operation', 241), ('input_excerpt', 4000), ('output_excerpt', 601), ('warning', 241))
                     if isinstance((value := cast(Mapping, event.get('activity') or {}).get(key)), str)},
+                    **({'service_bus_calls':service_bus_calls} if service_bus_calls is not None else {}),
                     **({'execution_receipt': execution_receipt} if execution_receipt is not None else {})}}
                     if isinstance(event.get('activity'), Mapping) or execution_receipt is not None else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},

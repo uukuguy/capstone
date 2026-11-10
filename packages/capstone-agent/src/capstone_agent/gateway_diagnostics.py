@@ -12,10 +12,22 @@ def service_bus_calls(result):
 
     Absence is unknown. Details are bounded diagnostics, not business evidence.
     """
-    output: dict[str, Any] = {'schema': 'capstone-service-bus-calls/1', 'scope': 'current_tool_call'}
     content = result.get('structuredContent')
     provenance = content.get('provenance') if isinstance(content, dict) else None
     source = provenance.get('service_bus_calls') if isinstance(provenance, dict) else None
+    return _service_bus_projection(source)
+
+
+def checked_service_bus_calls(value):
+    """Validate the host event DTO at the application persistence boundary."""
+    if (not isinstance(value, dict) or value.get('schema') != 'capstone-service-bus-calls/1'
+            or value.get('scope') != 'current_tool_call' or type(value.get('reused')) is not bool):
+        return None
+    return {**_service_bus_projection(value), 'reused': value['reused']}
+
+
+def _service_bus_projection(source):
+    output: dict[str, Any] = {'schema': 'capstone-service-bus-calls/1', 'scope': 'current_tool_call'}
     if not isinstance(source, dict) or source.get('scope') != 'current_tool_call':
         return output
     counts = ('attempt_count', 'observed_attempt_count', 'finished_count', 'response_count',
@@ -29,6 +41,8 @@ def service_bus_calls(result):
         if type(source.get(key)) is bool:
             output[key] = source[key]
     for key in ('observed_elapsed_ms', 'completed_observed_elapsed_ms'):
+        if key not in source:
+            continue
         value = source.get(key)
         if value is None or isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 9007199254740991 and math.isfinite(value):
             output[key] = value
