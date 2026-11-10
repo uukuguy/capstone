@@ -289,6 +289,9 @@ class GeneralPiHost:
             profile = (store.accepted(role, request.resource_profile['revision']) if store is not None
                        else self.capability.get('resource_profiles', {}).get(role, {}))
             published = set(self.capability.get('native_tools', ()))
+            from .presentation_template_contract import PRESENTATION_LIBRARY_CAPABILITY
+            if self.capability.get('presentation_library') == PRESENTATION_LIBRARY_CAPABILITY:
+                published.add('agent_presentations')
             from .data_gateway_relay import research_gateway_tools
             publication = self.capability.get('data_gateway', {})
             binding = native.get('gateway_binding')
@@ -1099,7 +1102,7 @@ class NativeTaskRunner:
     managed_resource_service: ManagedResourceService | None = None
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
                  model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
-                 experimental_llm_pool: bool = False) -> None:
+                 experimental_llm_pool: bool = False, presentation_api_origin: str | None = None) -> None:
         if os.geteuid() != 0 or os.name != 'posix':
             raise RuntimeError('General Pi requires its isolated Linux container')
         self.root, self.config_root, self.command = root, config_root, command
@@ -1109,6 +1112,8 @@ class NativeTaskRunner:
         self.task_llm_profiles = {}
         self.task_resource_references = {}
         self.task_resource_inputs = {}
+        self.task_presentations = {}
+        self.presentation_api_origin = presentation_api_origin
         self.task_gateways = {}
         self.task_domain_routes = {}
         from .native_environment import environment_context
@@ -1441,6 +1446,18 @@ class NativeTaskRunner:
                       for item in native.get('resource_manifests', [])),
                 })
                 references=native.get('resource_manifests', [])
+                if 'agent_presentations' in native['policy']['allowed_tools']:
+                    from .native_presentation_tasks import TemplateBackendClient, PresentationTaskPort
+                    if not self.presentation_api_origin or request.business_context is None or request.managed_workspace is None:
+                        raise ValueError('presentation_task_scope_missing')
+                    client = TemplateBackendClient(self.presentation_api_origin,
+                        os.environ.get('CAPSTONE_OPERATOR_TOKEN', ''), request.managed_workspace,
+                        request.business_context.to_document()['workspace_id'])
+                    self.task_presentations[request.task_id] = PresentationTaskPort(client,
+                        task_id=request.task_id, inputs=inputs, uid=uid, admitted_resources=references)
+                    sdk_config['presentationLibrary'] = {
+                        'url': self.relay_origin + '/presentation-template-tasks/' + request.task_id,
+                        'grant': grant, 'inputRoot': str(inputs)}
                 if references:
                     from .native_resource_references import NativeResourceReferences
                     port=NativeResourceReferences(self.root/'tasks'/'.resource-references'/request.task_id,
@@ -1608,6 +1625,9 @@ class NativeTaskRunner:
                 with self._lock:
                     self.task_llm_profiles.pop(request.task_id,None)
                     self.task_resource_inputs.pop(request.task_id,None)
+                    presentation = self.task_presentations.pop(request.task_id, None)
+                    if presentation is not None:
+                        run_runtime_cleanup(presentation.client.close, operation='presentation_client_close')
                     port=self.task_resource_references.pop(request.task_id,None)
                     if port is not None:shutil.rmtree(port.root,ignore_errors=True)
                 gateway=self.task_gateways.pop(request.task_id,None)
@@ -1844,6 +1864,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if self.path.startswith('/presentation-template-tasks/'):
+                return self.relay_presentation_templates()
             if self.path.startswith('/managed-resource-tasks/'):
                 return self.relay_managed_resources()
             if self.path.startswith('/data-gateway/'):
@@ -1957,6 +1979,48 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(400, {'error': 'invalid_task'})
             except (RuntimeError, OSError):
                 self.send_json(503, {'error': 'executor_capacity'})
+
+        def relay_presentation_templates(self):
+            from .native_presentation_tasks import TemplateOutcomeUnknown
+            task_id = self.path.removeprefix('/presentation-template-tasks/')
+            port = getattr(runner, 'task_presentations', {}).get(task_id)
+            if runner is None or port is None:
+                return self.send_json(404, {'error': 'presentation_task_unavailable'})
+            try:
+                lease = runner.relay.acquire(task_id,
+                    self.headers.get('Authorization', '').removeprefix('Bearer '),
+                    self.connection, channel='gateway')
+            except PermissionError:
+                return self.send_json(401, {'error': 'unauthorized'})
+            try:
+                with host._lock:
+                    record = host._tasks.get(task_id)
+                    request = None if record is None else record['request']
+                    status = None if record is None else record['status']
+                if status != 'running':
+                    return self.send_json(409, {'error': 'presentation_task_closed'})
+                context = None if request is None else request.business_context
+                if (request is None or context is None or port.task_id != task_id
+                        or port.client.workspace != request.managed_workspace
+                        or port.client.thread_id != context.to_document().get('workspace_id')):
+                    return self.send_json(403, {'error': 'presentation_task_scope_invalid'})
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 16384:
+                    return self.send_json(413, {'error': 'presentation_request_too_large'})
+                body = json.loads(self.rfile.read(length))
+                if (not isinstance(body, dict) or set(body) != {'call_id', 'operation', 'document'}
+                        or not isinstance(body['call_id'], str) or not 0 < len(body['call_id']) <= 256
+                        or not isinstance(body['operation'], str) or not isinstance(body['document'], dict)):
+                    return self.send_json(400, {'error': 'presentation_request_invalid'})
+                result = port.invoke(body['operation'], body['document'], call_id=body['call_id'])
+                return self.send_json(200, {'ok': True, 'result': result})
+            except TemplateOutcomeUnknown as error:
+                return self.send_json(502, {'error': 'presentation_operation_outcome_unknown',
+                    'request_id': error.request_id})
+            except (ValueError, KeyError):
+                return self.send_json(400, {'error': 'presentation_request_rejected'})
+            finally:
+                runner.relay.release(lease)
 
         def relay_managed_resources(self):
             from .managed_resource_dispatch import dispatch_resource_request
@@ -2208,6 +2272,7 @@ def main():
                       + current_capacity().fingerprint.encode())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
+    revision.update(os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN', '').encode())
     from .capacity_contract import load_capacity_policy
     revision.update(json.dumps(load_capacity_policy(), sort_keys=True, separators=(',', ':')).encode())
     # Gateway publications can change independently of the executor, including
@@ -2221,6 +2286,7 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'managed_resource_contract.py', 'managed_resource_dependencies.py', 'managed_resource_secrets.py', 'managed_resource_bundle.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
+                                 'presentation_template_contract.py', 'native_presentation_tasks.py', 'resources/presentation-templates.mjs',
                                  'native_resources.py', 'session_skill_preferences.py', 'tool_execution_receipt.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'resources/investigation-skills.mjs', 'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'native_timing.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
@@ -2243,7 +2309,8 @@ def main():
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
         relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway, llm_profiles=llm_profiles,
-        experimental_llm_pool=os.environ.get('CAPSTONE_EXPERIMENTAL_LLM_POOL', '0') == '1')
+        experimental_llm_pool=os.environ.get('CAPSTONE_EXPERIMENTAL_LLM_POOL', '0') == '1',
+        presentation_api_origin=os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN'))
     runner.gateway_publication = gateway_publication
     runner.gateway_registry = gateway_registry
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
@@ -2253,6 +2320,9 @@ def main():
     host.record_network_policy('startup_default', network_policy.state())
     host.capability['native_tools'] = runner.verify_tools(identity)
     host.capability['native_builtin_tools'] = runner.builtin_tools
+    if runner.presentation_api_origin:
+        from .presentation_template_contract import PRESENTATION_LIBRARY_CAPABILITY
+        host.capability['presentation_library'] = dict(PRESENTATION_LIBRARY_CAPABILITY)
     host.capability['resource_profiles'] = runner.verify_resources(identity)
     server = make_server(host, control_token=os.environ['CAPSTONE_GENERAL_CONTROL_TOKEN'],
         address=('0.0.0.0', port), runner=runner, upstream=provider['base_url'], provider_key=key,

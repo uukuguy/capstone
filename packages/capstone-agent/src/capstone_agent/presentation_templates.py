@@ -11,25 +11,15 @@ from xml.etree import ElementTree
 
 from .thread_materials import _mutate, _write_event
 from .thread_resources import ResourceUploads
+from .presentation_template_contract import (
+    CHUNK_BYTES, PROCESSING_BYTES, EXPANDED_BYTES, checked_template_reference as _reference,
+)
 
 KINDS = ('presentation_template_added', 'presentation_template_published', 'presentation_template_selected')
-CHUNK_BYTES = 1024 * 1024
-PROCESSING_BYTES = 32 * 1024 * 1024
-EXPANDED_BYTES = 128 * 1024 * 1024
 
 
 def _canonical(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
-
-
-def _reference(value):
-    if (not isinstance(value, dict) or set(value) != {'template_id', 'version', 'sha256'}
-            or not isinstance(value['template_id'], str)
-            or not re.fullmatch(r'(?:state-grid|tpl_[a-f0-9]{32})', value['template_id'])
-            or not isinstance(value['sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', value['sha256'])
-            or value['version'] != 'sha256:' + value['sha256']):
-        raise ValueError('template_identity_changed')
-    return dict(value)
 
 
 class PresentationTemplates:

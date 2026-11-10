@@ -51,6 +51,8 @@ RUN python tools/native_analysis_smoke.py
 
 COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/tool_execution_receipt.py \
+     packages/capstone-agent/src/capstone_agent/presentation_template_contract.py \
+     packages/capstone-agent/src/capstone_agent/native_presentation_tasks.py \
      packages/capstone-agent/src/capstone_agent/runtime_resources.py \
      packages/capstone-agent/src/capstone_agent/resource_installation.py \
      packages/capstone-agent/src/capstone_agent/application_capacity.py \
@@ -119,6 +121,7 @@ COPY configs/runtime/application-capacity.json \
      packages/capstone-agent/src/capstone_agent/resources/general-domain-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/presentation-templates.mjs \
      packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs \
      packages/capstone-agent/src/capstone_agent/resources/async-call-pool.mjs \

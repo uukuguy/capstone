@@ -8,7 +8,7 @@ are byte-identical to the old template branch; do not merge duplicate history.
 
 Application/native report capability only. Keep baseline capstone-report behavior,
 existing conversation, product versions, Authority boundaries and source evidence.
-Reuse the protected native resource workspace and its persistent volume. Library
+Reuse the application PostgreSQL ledger and private object storage. Library
 metadata/files must never become caller-selected host paths or storage credentials.
 Use application-admitted workspace/session identity, exact version/digest and grants.
 Keep upload/storage quotas separate from bounded PPTX processing and model context.
@@ -25,7 +25,8 @@ Keep upload/storage quotas separate from bounded PPTX processing and model conte
    package structure, digest, grants and processing bounds before publication.
 3. Native semantic tool: catalog/select/publish/materialize through a fixed private
    host adapter. Bind workspace/thread from admitted task context, never arguments.
-   Reuse existing permission rules and task grants. Add sources to existing Docker
+   Reuse application task grants; do not depend on Skills/MCP installation grants.
+   Add sources to existing Docker
    responsibility groups and runtime identity closure; retain baseline CLI.
 4. Repeatable rendering: freeze template/content/dependencies, render new PPTX
    versions without business requery, save content and receipts, preserve history.

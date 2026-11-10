@@ -9,6 +9,7 @@ import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gate
 import {createDomainTools} from './general-domain-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createManagedResourceTools} from './managed-resource-tools.mjs';
+import {createPresentationTools} from './presentation-templates.mjs';
 import {createSkillRecordTool,admitSkillPresentation,skillContextFiles} from './investigation-skills.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
@@ -432,7 +433,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   discovery?.setLoadedWrapper(wrap);
   const skillTools=config.applicationPolicy.allowed_tools.includes('agent_skill')&&config.taskSkills?.length
     ?[createSkillRecordTool(config.taskSkills)]:[];
-  const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...skillTools].map(wrap);
+  const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...createPresentationTools(config),...skillTools].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
