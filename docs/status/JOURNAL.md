@@ -7094,3 +7094,281 @@ fixed-source VitePID77708 stays available for user validation.
 - 11:51 Explicit SDK parallel mode and shared eight-slot dispatch passed dependency, capacity, cancellation and launcher-clock checks. Batch elapsed is measured at SDK launch/turn settlement, separate from each invocation. Native records remain distinct from Authority evidence. Focused checks:32 Node,204 Python with32 skips,184 App; types pass. Final canonical rebuild and live receipt check remain in progress. User withdrew the full group frame; retain the thin group line and remove redundant skill wording.
 - 11:52 Preserved asynchronous dispatch and launcher timing so batch duration reflects actual completion boundaries [0a3245a5].
 - 11:58 Removed the batch tooltip, added the duration separator and collapsed errors after sibling calls settle. App185 and executor82 focused checks pass. Real two-tool trial completed concurrently; it exposed an RPC whitelist omission for new timing events, now covered and fixed. Final transport rebuild is ready; live receipt recheck is running.
+
+## 2026-11-10 — Preserved dev working-copy history
+
+These recovered notes keep their original dates and acceptance limits; they are not new verification claims.
+
+- 17:39 Final focused documentation check passed663 relative links,including3 preserved runtime artifacts;doctor,symlink and diff checks pass. Scoped post-use cache cleanup completed.
+
+### Recovered context: 2026-11-06
+
+> Recovered pending pre-PR99 entries; historical dates are retained, not new deployment states.
+
+- 5b9e4a5d 主图仅保留9个里程碑，109项历史可展开；完整部署源与Git祖先关系保留，定向检查通过。
+- PR97 已合入dev651e4cd3，实际dev主图刷新为9节点/109历史；沿用用户研发轻量收口授权管理员合并，未运行CI。
+- 2026-11-06 三套部署的网关选项均补齐“内网联调/三区研发”，全部connected；各环境既有缺省选择保持。
+- a07e6013 网关切换与刷新自动协商，按任务冻结工具快照；后端166与边界127、客户端37及类型构建通过。
+- df4ddf61 将网关契约按可扩展权威发布处理，新增字段自动接受并触发快照更新；69项检查通过。
+- df4ddf61 三套dev真实两轮会话、切换与刷新通过；本机26.02s/63为69.75s/66为58.84s，旧任务快照保留。
+- 2026-11-06：DataGatewayMcp 工具名兼容 MCP 命名空间的源码补丁及测试已验证（72项）；`packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py` 同时保留原有 publication extra-fields 未提交改动，`packages/capstone-agent/tests/test_data_gateway_mcp.py` 含边界测试。均未提交、未部署；恢复见 `docs/status/RESUME-NEXT-SESSION.md`，三套 dev 的 22cd1728 记录不变。
+- 2026-11-06: Recorded accepted reference-execution direction; evaluate efficiency, task capability and outbound disclosure separately. Implementation remains pending.
+- 2026-11-07 · ee3c9123: Verified reference-only analysis composition; 41 local tests pass. Real intranet validation blocked by routing.
+- 2026-11-07: Live local MCP exposes 57 tools, zero measurement tools; real reference analysis awaits provider publication and intranet routing.
+- 2026-11-07 · 2289ab3a / 4d03f17a: Isolated research test and designs; development compatibility branch excludes the experiment.
+- 2026-11-07 00:28: 用户确认并保存主线与独立研究交接；下一步分别收口网关修复、同步研究依赖。
+- 2026-11-07 20:21: Documentation-only closeout records sectioned metrics and PR98 integration;local checks passed,no new CI [d9d2c876].
+- 2026-11-07 20:26: PR99 docs merged8da7dc76 via authorized lightweight administrator exception;local checks only,no new CI;branches closed.
+- 2026-11-07 21:12: Versioned contract carryover implemented;234focused checks pass,32skip;source-failure live trial waits for gateway update [4f0b918f].
+- 2026-11-07: Transport diagnostics and task replay guards preserve independent gateway work after source failure [1f26fd30].
+- 2026-11-07: Removed eager full-contract fetch; proposed negotiated progressive discovery to reduce redundant context [54555fa9].
+- 2026-11-07: Negotiated progressive discovery and exact selected schemas; zero-list dispatch preserves version and schema checks [67468de6].
+- 2026-11-07: Restored exact continuation bindings; metadata failures preserve completed source observations [6cd108ee].
+- 2026-11-07: Blocked metadata probes after gateway transport failure; source failures still allow independent metadata [690cdb51].
+- 2026-11-07: Scoped progressive gateway CI to changed contracts and direct consumers; no CI started [248865b1].
+- 2026-11-07: Recorded verified local progressive discovery, restored products and source-failure limits; dev integration remains pending [ed7e6445].
+- 2026-11-07: Verified browser summer-peak capability plan, product hash and restoration; recorded remaining discovery overhead [1ae8e58e].
+- 2026-11-07 23:33: Handoff audit: runtime healthy; INDEX has one orphan; final baton draft awaits review.
+- 2026-11-07: Confirmed handoff saved; runtime identity and independent-review/CI boundaries preserved.
+
+- 2026-11-08 00:54: local-dev gateway admission repaired [ab337981]; 91 tests, live API and repeated reload pass; backend rebuilt.
+
+### Recovered context: 2026-11-08
+
+- 12:03 Investigation candidate2badb1ee passed local native parallel timing and compact-record checks; batch2.087s versus two2.021s tools. NoCI or dev integration.
+- 02:32 Partial-result no-replay declarations enforced;146 checks and scoped typing pass [b473fe0d].
+- 03:01 Verified runtime bytes, healthy roles, restored products and actual-dev graph; source b473fe0d, closeout7ea164de.
+
+- 03:07 用户确认并保存交接；下一步待单独批准定向CI，保留未提交状态与所有数据。
+- 10:00 用户接受六项调查技能、统一任务记录与执行显示；设计已保存，尚未实现或部署。
+- 10:15 Six adapted skills and public use records committed; focused checks pass; local rebuild starts for acceptance [49da4559].
+- 10:40 Canonical local rebuild recovered;327 historical phases preserved. Real products hash-check passed; interpretation gaps retained [9e52c45a].
+- 10:40 Named skill styling verified; graph summaries and numerical-label checks corrected; final local rebuild running [326055ab/05a39dd2].
+- 12:22 用户确认交接；双工作树保存最终技能、并行计时与界面状态，待独立CI批准后集成 [2badb1ee]。
+- 12:41 用户接受自由探索与按需帮助并授权持续实现；设计已保存，IG1启动会话技能作用域合同细化，未运行CI。
+- 13:07 Session skill preferences persist and freeze per instruction; local two-turn evidence passes, UI review remains open [406c7d7b].
+- 13:16 Recorded verified local scope and remaining UI/review gates for safe continuation [d69c01a5].
+- 13:37 Independent review requests changes; verified exclusions, content identity and recovery gaps, rejected unsupported claims [c8149a9c].
+- 14:00 Enforced native skill exclusions and pinned content; repaired conflict and draft recovery after independent review [5d4c8f5b].
+- 14:02 Correction: review artifacts are publicly indexed and downloadable; the empty first legacy page required its returned continuation cursor.
+
+- 2026-11-08: Shipped missing native skill policy module and added fingerprint dependency coverage [e99704d1]; corrected renamed-copy test support; seven checks pass.
+- 2026-11-08: Recognized renamed image dependency destinations so fingerprint closure checks match shipped files [8a2ebec5]; seven checks pass.
+- 2026-11-08: Rebuilt local-dev at 8a2ebec5; matched seven source files and backend images; two real scope/product continuation rounds passed.
+- 2026-11-08: Preserved pinned identities on legacy saves and added native import smoke [a pending hash correction follows]; 48 checks passed, one skipped.
+- 2026-11-08: Commit identity correction: 2980845d retains pinned content on identity-omitting saves; native import smoke catches missing imports during build.
+- 2026-11-08: Rebuilt 2980845d with matched runtime images; restored saved preferences/products; independently reviewed repairs and opened settings UI.
+- 2026-11-08: Recorded independent follow-up review and real repair verification [0854b6a5]; kept unresolved acceptance items explicit.
+- 2026-11-08: Inspected refreshed dev control graph in existing browser; deployment source2980845d is distinct from branch HEAD0854b6a5.
+- 2026-11-08: Corrected final App source identity after canonical rebuild [ecbb0b6e]; backend and App both2980845d.
+- 2026-11-08: Moved optional session methods into composer settings, removing top entry [7051701c]; typecheck and twelve component checks passed.
+- 2026-11-08: Verified existing browser shows composer Settings with inline session methods and no top skill entry; screenshot saved.
+- 2026-11-08: Rebuilt composer settings7051701c; readiness and三区研发selection retained; scoped maintenance completed after browser checks.
+- 2026-11-08: Recorded composer settings relocation and local verification [17f7e154]; runtime source7051701c, no CI or integration.
+- 2026-11-08: Replaced manual skill pickers with read-only installed catalog; 154 component checks and typecheck passed; rebuild started.
+- 2026-11-08: Read-only installed catalog implementation [7f7ef323] passed154 focused App checks; canonical rebuild and maintenance completed.
+- 2026-11-08: Added Skills text before grid models and kept English method names primary [f64063a8]; twenty focused checks passed.
+- 2026-11-08: Compacted skill status into titled inline icons and named toolbar entry技能目录 [8f1269f9]; English names stay primary.
+- 2026-11-08: Sorted read-only skill catalog by English names [a9acbbb3]; seven component checks and typecheck passed.
+- 2026-11-08: Final catalog rebuild ready; backend8f1269f9/Appa9acbbb3,三区研发retained, scoped cache maintenance complete; IG1 remaining checks stay open.
+- 2026-11-08: Recorded final read-only catalog verification [8c0c7b5d]; preserved remaining IG1 gates and exact runtime/source distinctions.
+- 2026-11-08: Fixed live process height at conversation tail; failing80px-versus360px regression now passes;142 component checks and types pass.
+- 2026-11-08: Process tail growth fix committed [076f0d14];142 component checks/types and doctor pass; local rebuild in progress.
+- 2026-11-08: Recorded process-tail regression repair and local readiness [a334d2b6]; runtime076f0d14,三区研发preserved, scoped maintenance complete.
+- 2026-11-08: Audited latest迎峰度夏1354events: zero skill calls; explicit isolated probe loaded successfully; automatic selection remains unverified and failed this case.
+- 2026-11-08: Unified admitted semantic skill catalog and removed conflicting SDK file-read scaffold [f0f51b75];17 Python and10 SDK checks passed.
+- 2026-11-08: Broader graph fixture fails identically before repairs (missing fake session.runtime); interrupted unsettled graph/subagent run, not counted passed.
+- 2026-11-08: First implicit local-integration task still skipped all skills onf0f51b75; simple answer correctly used no tools; not accepted.
+- 2026-11-08: Bound relevant method instructions into final application context [eb97c116];10 SDK checks passed; rebuilding for fresh implicit trials.
+- 2026-11-08: eb97c116 implicit local-integration trial loaded/reported planning and comparability; three gateway calls and two verified products; simple question used zero tools.
+- 2026-11-08: Recorded two implicit local method trials, saved-product lineage and zero-tool simple case [8ef35c8a]; runtimeeb97c116, default gateway unchanged.
+- 2026-11-08: Refreshed canonical dev control graph for eb97c116; inspected real source edges in existing browser and restored prior tab.
+
+- 18:02 User-approved handoff saved in both worktrees; next: skill-failure recovery; preserve mixed changes.
+- 2026-11-08: Saved approved PPT template-library design [adfecbab]; written-spec review precedes implementation planning; no CI or push.
+- 18:16 Template plan saved [3e120d2d]; verified 18 original product copies; primary summer deck has 14 slides; engine choice pending.
+- 2026-11-08: Runtime plan clarified [7ffaeba7]; artifact-tool license excludes deployment/benchmarking; retain distributable renderer and independently implement visual workflow.
+- 2026-11-08: User clarified internal evaluation; both engines round-tripped 5/14-slide sources; PDFs retain charts but Chinese fonts fail; selection unresolved.
+- 2026-11-08: Artifact internal preview omissions differ from exported PDF; do not infer PPTX corruption from preview alone.
+- 2026-11-08: Added opt-in template report rendering [2419dc5e]; 60 focused checks and packaged-template smoke pass; baseline remains available.
+- 2026-11-08: Rebuild image smoke passed; container creation rejected 129 layers. Reduced COPY layers [5bb18ab7]; seven packaging checks pass.
+- 2026-11-08: Layer correction integrated [8a7d5122], eight candidate packaging checks pass; rebuilding. Private fontconfig restores Chinese source-cover preview.
+- 2026-11-08: Grouped native image inputs [f78fde47]; 116→32 filesystem instructions, 271 mappings unchanged, 15 focused checks pass; rebuilding.
+- 2026-11-08: Recorded stable Docker copy-group policy [1fe3c400]; doctor/diff and relative CLAUDE symlink checks pass; branch copies aligned.
+- 2026-11-08: Grouped native image has 37 layers; f78fde47 local rebuild ready, backend92edc18425e2; real renderer attempt08ce5ea33be352b6 accepted.
+- 2026-11-08: Real generator produced two 33-page decks with identical content specs; user rejected fragmented layout and verbose report-style wording.
+- 2026-11-08: Added briefing composition [0bb684ef]: one planned record per slide, explicit overflow, notes and template style inheritance; 81 focused checks pass.
+- 2026-11-08: Real continuation66c99eb90fca94c5 produced 14-page built-in/uploaded-template decks; semantic and visual checks continue; baseline33 preserved.
+- 2026-11-08: Protected briefing numbers/dates from character splitting [3392afe5]; 52 renderer checks pass; original baseline wrapping unchanged.
+
+- 2026-11-08 20:02 CST — Canonical local rebuild of 3392afe5 passed; API and workers share 010b63c3. Real continuation attempt_bf46eff75fc2d4e3 corrects existing 14-page briefing semantics and chart labels. Preserved baseline; no CI or remote deployment. Accepted design now requires concise page expression and explicit overflow.
+
+- 2026-11-08 20:05 CST — d8590e33 records runtime trial scope and stable Docker grouping to preserve the approved baseline and recovery path.
+
+- 2026-11-08 20:07 CST — 5253818b/eaa923ab port briefing layout and numeric wrapping to isolated template branch; Docker grouping needs baseline-specific adaptation.
+
+- 2026-11-08 20:12 CST — be2c4bca retains tool cache boundaries and concise briefing contract; 67 renderer/environment and 7 image checks pass.
+
+- 2026-11-08 20:16 CST — Fourteen-page visual review caught stale same-name image restoration; immutable corrected assets attached to attempt_9cd6462c052161b6 for runtime rerender.
+
+- 2026-11-08 20:22 CST — 73920dba records real 14-slide outputs; pinned inputs, content parity, baseline preservation and repaired pages verified.
+
+- 2026-11-08 — 40d6c811 adds agenda, chapter labels and branded closing; 86 checks pass. fdaee000 records compilation and deferred acquisition planning.
+
+- 2026-11-08 — 1d47791f ports report roles; canonical40d6c811 rebuild ready with37 native layers. attempt_100bd760037d3292 compiles existing evidence into main report.
+
+- 2026-11-08 — 6f33dd71/b2bcf206 preserve Unicode time ranges; e4cf9d75 assigns autonomous report organization to Capstone, distinct from guided compilation.
+
+- 2026-11-08 — 80052c7e makes chapter navigation16pt bold; failing visibility test reproduced11pt, then87 checks pass. Main report review continues.
+
+- 2026-11-08 — 5d9bf307 reserves left claim/right chapter slots and title overflow checks;88 tests pass. Fresh evidence-only report trial derives its own themes.
+
+- 2026-11-08 — bc4cf312 records data-derived total/detail/total and title-only agenda.5d9bf307 rebuilt ready; fresh-thread v4 runtime review attempt_852155b860819044 active.
+
+- 2026-11-08 — e8026ce5 reserves mixed-script glyph width after PDF revealed footer collision; regression failed before fix,89 focused checks pass.
+
+- 2026-11-08 — 16da1f51 ports mixed-script overflow guard; v4 title-bar layout verified, agenda table and overview/footer collision require bounded runtime correction.
+
+- 2026-11-08 — 3dabf9b9 reuses real template agenda and22pt title-family chapter labels; chapter-order errors reject misplaced pages.5bc01e55 retains template page numbers;94 checks pass.
+
+- 2026-11-08 — v7 quality rejected: visible points repeat readings; notes cannot substitute for page reasoning.
+- 2026-11-08 — cff267b3 adds visible argument review to prevent terse numeric-only pages;96 focused checks pass. Port03ef29e9.
+
+- 2026-11-08 — 038d7f7a records reusable argument acceptance; prohibits case-specific chapters, metrics and quality-count heuristics.
+
+- 2026-11-08 — cff267b3 rebuilt ready with same API/workers and37 native layers; unassisted v8 started, graph/browser state refreshed.
+
+- 2026-11-08 — v8 completed16 pages with visible reasoning and two repairs; unsupported inference review remains weak, not full acceptance.
+- 2026-11-08 — 9766b7a7 adds skeptical inference review to avoid field-presence acceptance;17 environment checks pass. Port40cd653c.
+
+- 2026-11-08 — 9766b7a7 rebuilt ready, backenda9ada9f3/native34dc8279 with37 layers; original-only v9 attempt_9eae2de1fba82948 started.
+
+- 2026-11-08 — v9 completed16 slides; inference critique improved but visible reasoning still collapses to fragments, so guidance-only stability fails.
+- 2026-11-08 — 16845b10 adds visible explanation contract and build smoke to prevent notes-only reasoning;106 focused checks pass. Port0925e641.
+
+- 2026-11-08 — 774b0180 records executable argument input and guidance-only failures; task document links pass,91 isolated checks pass.
+
+- 2026-11-08 — 16845b10 rebuilt ready; actual native smoke/guidance confirmed,37 layers retained. Original-only v10 attempt_82b20a8a7ab37908 started.
+
+- 2026-11-08 — v10 completed16 slides with13 visible explanations; self-review leaves unsupported inferences, so semantic acceptance remains open.
+- 2026-11-08 — e639baf4 selects granted isolated text critique to reduce self-review bias;58 focused Python and10 Node checks pass.
+
+- 2026-11-08 — e639baf4 rebuilt ready with37 native layers and explicit local text pool; fresh v11 attempt_5e530083a27c5089 started.
+
+- 2026-11-08 — v11 cancelled its still-running critic without a reply; no independent-review acceptance, no duplicate request or false success.
+- 2026-11-08 — 4a638740 honors selected-call waits to prevent immediate polling; two regressions failed first,36 Node/58 Python checks pass.
+
+- 2026-11-08 — 3afb60f9 ports selected waits without unrelated role metadata; setup/install-pi/doctor and36 Node checks pass on recovery tree.
+- 2026-11-08 — 4a638740 rebuilt ready with37 layers and text pool enabled; original-only v12 attempt_d030f87ccbdf8b13 started.
+
+- 2026-11-08 — V12 completed16 pages/13 visible explanations; three actual critiques returned and drove runtime revisions, without human outline or edits.
+- 2026-11-08 — V12 source/PPT hashes and all16 previews verified; no overlap, baseline changes or missing page numbers; minor generic typography remains.
+- 2026-11-08 — Independent development code-review agent unavailable; inline source audit done, independent source review retained as a pre-merge item.
+
+- 2026-11-08 — cadc2f3a/5f6a5d92 record V12 benchmark and limits; deployed code remains4a638740, distinct from documentation HEADs.
+# 2026-11-08 — V12 final checkpoint
+
+V12 artifacts and16-page visual review are complete. Refreshed and inspected the
+actual dev control graph: source4a638740, documentation HEAD5f6a5d92, actual
+devadfecbab remain distinct. Preserved mixed changes and recoverycadc2f3a.
+Final scoped cache maintenance applied; no image removals selected. Final diff
+check passed. No CI, integration or remote deployment performed.
+
+## 2026-11-09
+
+- 用户要求模板库本轮收口；内网已接通（用户确认，未重新探测）；交接稿待审阅。
+- 用户确认交接稿；已覆盖保存最终交接，模板库本轮收口，后续范围不自动续做。
+- 10:43 两套内网研发部署4a638740；健康、真实文件下载哈希及API恢复通过；浏览器连接不可用，无CI。
+- 2026-11-09 数据网关四项评审已纳入有界调查修复设计；提醒无预算保证，两轨验收及十个源值核对，UI另列。
+- 15:00 2c4c3ac7 adds advisory scope checkpoints and completed-leaf receipts;56 focused checks pass, live acceptance pending.
+- 13:26 correction: preceding commit entry occurred13:26;15:00 was an incorrect timestamp.
+- 13:29 59077bf0 fixes stale four-slot consumer assertions; parent failure reproduced, Python composition gate passes.
+- 13:37 0cc404af retains retry-pending checkpoints and bounded delivery receipts;200 consumer checks pass,32 environment checks skipped.
+- 13:38 99f10a3a excludes rejected composition wrappers;retry/SDK and receipt checks pass;discovery answer matches ten source values.
+- 13:46 0147f0af fixes application checkpoint projection;283 consumers pass/32 skip;both live retrieval tracks match ten source values.
+- 13:50 Final0147f0af rebuild/hash checks pass;live13-call checkpoint pair persists;prior60-row CSV survives with matching SHA256.
+- 13:51 f564c4fc records live acceptance and limits;dev control reflects0147f0af local source;remote stages unchanged, noCI.
+- 13:54 9d7a4f5d records fixture classification and point-count wording gap;source acceptance stands, independent review and live negatives remain.
+- 14:12 Named-query audit:44 model requests consume180.95s;26 gateway calls total35s/23.32s union;entity resolution and contract repair dominate.
+- 14:26 449795c3 unifies private Python namespaces and helper contracts;43 real-worker tests pass without new source access.
+- 14:28 a79cfd94 preserves missing-field paths and schema bounds;126 Python/15 Node checks pass without parameter-value disclosure.
+- 14:30 1be87e65 keeps known response processing and requested projections scoped;60 worker/gateway helper checks pass.
+- 14:33 518226aa prioritizes populated result structure without expanding context;68 direct helper/context checks pass, original bytes retained.
+- 14:40 correction:518226aa landed14:37;the preceding14:33 timestamp was incorrect.
+- 14:40 Candidate614bca120481 handoff read;private SSH80622 forwards127.0.0.1:19131 to66 loopback19121;shared deployments unchanged.
+- 14:54 d2d47a4e preserves loopback HTTP authority through container alias;155 gateway/registry checks pass without relaxing Host policy.
+- 15:10 ccb549e6 adds host-generated gateway leaf correlation;133 focused checks pass;named-query efficiency remains unaccepted.
+- 15:14 79187ff7 records joint correctness and failed efficiency targets;provider guidance and model decisions remain separate causes.
+- 15:14 ccb549e6 canonical rebuild ready;runtime hashes match,real gateway echoes leaf identity;efficiency acceptance remains open.
+- 15:16 be22afa1 saves rebuild and real correlation receipts;no repeated model trial or efficiency acceptance claim.
+- 15:43 54386a2d scopes declared selection projection;frozen catalog reproduces identity-search and hidden-condition defects,without source calls.
+- 15:46 1aea14e3 preserves exact identity search and complete declared conditions;compact receipts avoid repeated guidance;91 direct checks pass.
+- 16:02 19e4da2e retains scoped progressive provider declarations and verified usage;178 Python/91 Node checks pass,including actual SDK context.
+- 16:05 613e8d1b records99.847s joint trial and provider-guidance loss;ten source pairs pass,efficiency remains unaccepted.
+- 16:13 8ce35865 rejects silently serialized unawaited helpers,drains issued work and preserves source handles;97 Node/SDK checks pass.
+- 2026-11-09 — 75cb9790 records verified local runtime and100s/20model/21tools-call trial;ten values match,efficiency remains unaccepted.
+- 17:04 User approved final handoff;preserved failed efficiency acceptance,next strategy evaluation,and unstaged recovery boundaries.
+
+- 18:58 Beijing query audit: zero-point completion followed by date/sampling drift and retries;28 model responses,38 gateway starts by snapshot.
+- 18:58 correction: saved Beijing snapshot contains29 model responses and37 gateway starts;later live event reaches model31.
+- 19:27 dky3-dev75cb9790 deployed;health/source pass,dsv4 empty-stream90s timeout;verification cancellation accepted,no acceptance tag or CI.
+- 19:42 dky3 default set to intranet-dsv4-16804;restored three role profile mounts using separate private file.
+- 19:45 dky3 public catalog confirms intranet-dsv4-16804;external profile path preserves image identity;four roles healthy,no model call.
+- 22:09 User approved handoff covering Beijing divergence,dky3 deployment and16804 default;five journal entries synthesized,acceptance gaps preserved.
+
+## 2026-11-10
+- 09:52 Froze75cb9790 closeout into four review windows;113 commits/172 files;report links,symlink,doctor,diff pass.[c797bbe0]
+- 10:00 C1 snapshot passes74 Python/6 Node;provider guidance and later dispatch fixes require dependency closure before integration.[53b32722]
+- 10:10 Joint candidate passes184 Python/65 Node;33 skipped;trimmed eight trailing blanks for integration preflight.[ede3d27a]
+- 10:11 Recorded joint baseline and remaining App/control acceptance to avoid unsafe historical patch extraction.[a7d2333f]
+- 10:15 App189/types pass;gate17pass/1fail exposes Dockerfile validation mismatch;graph regenerated,visual blocked by empty browser list.[121a1781]
+- 10:20 Pinned reviewed Docker recipe transition;137 gate/packaging checks pass;uncovered joint source scope remains rejected.[8c71761a]
+- 10:25 Narrowed event types and removed timeout PID-file race;typecheck and123/21 targeted tests pass.[ed2438f3]
+- 10:26 Added executable joint-consumer gate and repaired SDK session fixture;local consumer groups pass.[d78cc528]
+- 10:27 Corrected PR diff ancestry;194 governance checks pass and CLI selects execution-lifecycle.[cd684de1]
+- 10:28 Enabled origin/dev-only CI checkout regression;21 gate checks pass,CI remains unstarted.[f9ff0de0]
+- 10:28 Recorded final local consumer results and CI approval boundary;no latest-runtime or package acceptance claim.[0104638a]
+- 10:28 Refreshed actual-dev candidate node and recovery copies;20 graph checks pass,visual acceptance remains blocked by browser connection.
+- 10:30 User approved one macOS focused CI;empty trigger preserves f9ff0de0 source tree.[d4091076]
+- 10:39 Pushed exact d4091076 through existing matching SSH identity;PR100 starts approved macOS CI42744202996 againstdev8da7dc76.
+- 10:44 CI42744202996 fails after5m10s:one28-call relay regression;868pass/35skip.No rerun authorized.
+- 10:47 Reproduced grant expiry during20s fixture setup;34 Python3.12 relay checks pass after setup-order repair.[29da4b4f]
+- 10:48 Preserved relay regression in named gate;194 governance checks pass,CLI execution-lifecycle;local fixes remain unpushed.[730ef180]
+- 10:48 Saved first CI failure and reproduced fixture defect;second-run approval remains required.[a87a9461]
+- 10:49 Refreshed local/remote CI source nodes and both recovery batons;20 graph checks pass,visual remains unavailable.
+- 12:58 User approved second focused macOS CI;empty triggera1978ffb matches730ef180 source and is pushed toPR100.
+- 13:03 Second approved macOS CI42759192341 passes4m29s at a1978ffb;PR100 CLEAN,unmerged and undeployed.
+- 13:04 Recorded exact successful CI source and separate open acceptance boundaries.[d4065486]
+- 13:09 PR100 merged todevd7358eac without new CI;local3010d29c preserves report commits and restores mixed work fromstashaccc48a2.
+- 13:21 Actual-dev rebuild ready on3a7abd4910ef;19 checks and two real-model rounds9.33/8.29s pass,CSV hash andreload verified.
+- 13:21 Closed merged investigation/foundation refs;detached Orca recovery checkouts and all dirty status/observations remain preserved.
+- 13:22 Recorded integration,real-model products and accepted-design status without claimingIG1 closure.[38e2f1f2]
+- 13:26 Rebound Vite to actualdev;App productd78cc528/repository38e2f1f2 verified;native37layers/cache99hits,scoped cleanup passes.
+- 13:27 Saved actual-dev App provenance and scoped cache receipt.[d5c9b1fe]
+- 13:27 Actual-dev graph regenerated with remote merge/local runtime sources;20 checks pass;visual acceptance remains open.
+- 13:53 New isolated template-library branch fixes frozen-skill failure mapping;129 checks/32 skips and types pass.[0dd953c0]
+- 14:15 Template catalog/selection API uses PostgreSQL and object storage;17 isolated database checks pass,1 memory-only skip.[2a8d97e6]
+- 14:40 Bound template tools to live task grants; focused Python, SDK and type checks pass.[760caf31]
+- 14:49 Added frozen presentation source bundles and PPTX-derived PDF;66 local renderer checks pass;image validation pending.[bde30e8f]
+- 14:54 Bound renderer bytes to native configuration identity;types pass;first image PDF smoke and rebuild ready.[1a081533]
+- 15:04 Template trial rejected before execution: rebuild overrode gateway mount with an empty directory; restoring original environment-file path.
+- 15:02 Correction: the prior mount event occurred at15:01, not15:04; candidate1a081533 images are recorded; real acceptance remains open.
+- 15:08 Returned bounded renderer diagnostics for model correction; real104.46s trial exposed hidden layout errors;4Python/6SDK checks pass.[2bbc2c54]
+- 15:15 Published exact template arguments and content schemas to reduce invalid model calls;10 SDK checks pass.[1c2407f0]
+- 15:15 Added focused presentation CI route;195 governance checks pass,1 skip;312 direct-consumer checks pass,58 skip.No CI run.[e05dea18]
+- 15:29 Corrected integer upload-version schema after stopping blocked continuation;10Python/7SDK checks pass,4database skips;types pass.[b296abc0]
+- 15:31 Preserved State Grid body and agenda layouts with frozen template bytes;77 renderer and7 SDK checks pass.[922b0956]
+- 15:48 Projected current publication scope without changing frozen selection identity;catalog/API8 checks pass,10 database skips;types pass.[ca447267]
+- 15:48 Made missing historical source content recoverable;PDF failure retains PPTX;8 renderer checks pass.[93fe7446]
+- 15:54 Merged accepted actual-dev audit documents into template candidate;runtime source unchanged.[509d301b]
+- 16:00 Documented automatic App skill selection and conversation template operations in both READMEs and runbook;links/doctor pass.[bc4c0691]
+- 16:05 Rejected boolean/float upload versions at API and task adapter;14 focused checks pass,12 database skips;types pass.[8a8dd944]
+- 16:49 Confirmed live 三区研发 current-call service-bus contract; user excludes job accumulation, requires title-bar totals and authorizes local-dev/dky3-dev deployment after verification. Adapter/relay64 and App323 focused checks pass; host/live/browser acceptance remains open. No new CI.
+- 16:54 Persisted trusted service-bus receipts and title-bar counts; gateway/host295 and App323 focused checks pass; live deployment follows.[18e87f4b]
+- 17:02 Real bounded directory task completed28.90s but application event projection dropped service-bus fields; acceptance failed. Added persistence regression before repair; retained trialthr_ef754df5cd25910032ad.
+- 17:05 Preserved host service-bus DTOs across application persistence, including error and child events;99 focused checks pass.[f3d1f5cf]
+- 17:06 Extended prepared focused closeout gate to service-bus direct consumers;256 governance checks pass,3 skip. No CI started.[eb481485]
+- 17:25 Verified local-dev real source query24.90s, persisted title/details and reload; PPT33.81s with four verified products. Exact-source458 backend/275 native files match.
+- 17:25 Deployed eb481485 to dky3-dev with backup;four roles healthy,89.41s real source/PPT task,one source call,product hashes/PDF/browser reload pass. Acceptance tag dky3-dev-20261110-1729-eb481485 created locally.
+- 17:28 Added child-event persistence and graph-dedup checks;focused Python1/App143 and route2 checks pass;runtime unchanged.[1b9e6772]
+- 17:36 Updated actual-dev control register and regenerated overview;20 graph checks pass,1800px browser shows27 edges,no card intersections and exact deployment sources. No CI.

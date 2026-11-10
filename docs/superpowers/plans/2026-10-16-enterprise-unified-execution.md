@@ -1,17 +1,51 @@
 # Unified Enterprise Execution Implementation Plan
 
-## 自由探索与按需帮助（2026-11-08，用户授权持续推进）
+## 2026-11-10 服务总线统计与部署收口
 
-按[设计](../specs/2026-11-08-adaptive-investigation-guidance-design.md)复用现有会话与任务记录，不设固定向导。
+按用户要求完成执行过程标题栏及逐工具服务总线统计，仅纳入当前调用
+`provenance.service_bus_calls`，忽略后台任务累计值；未知不补零，历史复用不重复计数。
+见[执行切片](2026-11-10-service-bus-closeout.md)和[验证回执](../../reports/2026-11-10-service-bus-execution-records.md)。
+源码eb481485已部署local-dev/dky3-dev，真实调用、持久记录、刷新及国网模板PPT/PDF通过。
+剩余为聚焦CI批准、PR合入dev及控制状态同步；CI尚未启动，不扩展IG2–IG4或监控页面。
 
-| 包 | 状态 | 依赖 | 接受条件 |
+## 2026-11-10 PPT模板库纳入本轮集成
+
+用户明确要求一并合入PPT模板库。按[接受设计](../specs/2026-11-08-presentation-template-library-design.md)
+及[集成回执](../../reports/2026-11-10-presentation-template-library.md)推进持久目录、会话选择、
+显式入库、单次覆盖、源包重生成及PPTX/PDF一致来源。候选分支基于远端dev d7358eac，
+尚未合入dev、无新CI；local-dev/dky3-dev已验证。保留IG1整体接受开放，不启动IG2–IG4。
+旧模板分支已有渲染工作随PR100合入，按差异核对新增功能，不直接覆盖后续宿主修复。
+
+## 2026-11-10 分支收口优先
+
+按用户要求冻结调查候选75cb9790的新增范围，先按[收口清单](../../reports/2026-11-10-investigation-branch-closeout.md)
+核对C1基础、C2技能、C3编报、C4执行补修。共享宿主与补修保留联合审查基线，
+候选f9ff0de0的具名联合门禁已完成本地验证；治理194、报告72、App186/413、
+运行时248/869、SDK69/158及Kernel/源执行/Domain Pack检查通过，跳过不计通过。
+首次获批macOS CI42744202996失败记录保留；第二次获批CI42759192341通过4分29秒。
+PR100已合入远端dev d7358eac；实际dev保留本地审计提交，源码一致，规范重建通过。
+真实两轮生成CSV/继续读取及哈希/快照通过（9.33/8.29秒），无第三次CI；
+浏览器、真实错误恢复与IG1接受仍开放。
+IG1保持开放，但首轮R1–R5已补修；下表首轮评审状态为历史，不代表这些缺陷仍全部存在。
+当前UI为只读技能目录，取消手动选择；IG2–IG4不启动。查询效率与北京执行偏离单列未完成。
+调查及前置基础分支已关闭，detached恢复工作区保留；控制图在实际dev刷新，视觉核对仍未完成。
+
+## 自由探索与按需帮助工作包（2026-11-08）
+
+用户已授权持续推进[整体设计](../specs/2026-11-08-adaptive-investigation-guidance-design.md)。
+整体方向已接受；技能作用域细化待结合实现合同核对，不冒称已完成。
+
+| 包 | 状态 | 依赖 | 范围与接受条件 |
 | --- | --- | --- | --- |
-| IG1 | active：独立评审REQUEST CHANGES，需整改 | 六技能2badb1ee及其7ea164de依赖 | 406c7d7b原技术验证保留；按[评审](../../reviews/2026-11-08-session-skill-scope-independent-review.md)修排除传递、内容身份与恢复，再做实页验收，不关闭 |
-| IG2 | planned | IG1接口稳定 | 新会话可编辑示例；草稿保护、无自动业务扫描、现有实页验收 |
-| IG3 | planned | IG1、IG2 | 建议绑定证据与范围版本；用户发送才执行、过期不误用、真实继续 |
-| IG4 | planned | IG3 | 调查连续、改向和局部恢复；旧返回隔离、真实刷新与成果复用 |
+| IG1 | active：实现与补修已随PR100合入，接受验证开放 | 六技能与7ea164de基础均已合入dev d7358eac | 保留原评审及补修证据；当前只读目录和自动选用，待最终视觉及原生错误恢复接受，不关闭 |
+| IG2 | planned | IG1接口稳定 | 现有新会话起步示例；草稿保护、直接输入、无自动业务扫描、实页验证 |
+| IG3 | planned | IG1、IG2 | 建议关联证据与范围版本；用户发送才执行、过期建议不误用、真实继续 |
+| IG4 | planned | IG3 | 调查状态连续、改向与局部恢复；旧返回不覆盖新范围、真实刷新与成果复用 |
 
-当前用户指定先local-dev连接“三区研发”；无CI授权，不推送或合并触发CI。
+实施保留现有任务账本与会话组件；不编码网关业务工具名或固定技能流程。
+先在候选依赖上做定向实现与本地检查；未获单独CI批准前不执行触发CI的推送、PR更新或合并。
+
+2026-11-08：用户接受[六技能设计](../specs/2026-11-08-investigation-skills-design.md)。候选uukuguy/investigation-skills-20261108基于未合入7ea164de，源码2badb1ee。六项适配方法、统一任务记录与技能过程显示完成本地试跑；异步8槽、启动器整批计时和单项执行计时分开验证。分析质量仍有明确限制；未合dev、无CI，不将技能报告提升为Authority证据。
 
 2026-11-07：网关动态能力与专业动作分解已由PR98合入dev9689c434。分段契约两轮复验完整读取31→0；未知规模超预算和分页/采样混淆在本例纠正。跨指令精确能力上下文复用、实际生产执行与性能接受仍待验证；不以研究分支替代主线交付。见[复验](../../reports/2026-11-07-gateway-sectioned-contract-recheck.md)。
 
@@ -445,16 +479,6 @@ Graph-specific execution guidance distinguishes the host-bound assignment from u
 Implementation and real acceptance remain open. The focused source-scope brief is in ignored operator evidence; final requirements remain owned here and by the enterprise design.
 
 
-## 2026-11-08 local candidate: execution lifecycle and queue control
-
-- Accepted design: [generic owner lifecycle](../specs/2026-11-08-tool-execution-lifecycle-design.md).
-- Executable supplement: [implementation plan](2026-11-08-tool-execution-lifecycle.md).
-- Status: implemented and verified locally; dev integration and separately approved
-  focused macOS CI remain pending. No package or release closure is inferred.
-- Scope: rolling application/relay/source budgets, real process nodes, durable
-  receipts, whole native-turn batches and accurate unknown-state projection.
-- Evidence: [local real-model verification](../../reports/2026-11-08-tool-execution-lifecycle.md).
-
 ## 2026-11-08 user-directed report compilation and later evidence planning
 
 Accepted 2026-11-08: first compile the main briefing from existing admitted data
@@ -496,3 +520,31 @@ unit. It does not close IG1 or the full template-library/PDF requirements.
   polish. The text-reader pool is explicitly enabled only in the local candidate;
   production defaults, full library/persistence and report-led acquisition remain
   separate. Local results do not imply dev integration or release acceptance.
+
+## 2026-11-08 local candidate: execution lifecycle and queue control
+
+2026-11-09紧急执行链补修另见[有界调查设计](../specs/2026-11-09-bounded-investigation-repair-design.md)与[验证回执](../../reports/2026-11-09-bounded-investigation-repair.md)。提醒只改善收敛，不保证预算；两轨正向取数均逐项核对最终回答十个源值。候选未合dev，不关闭IG1或其他工作包。
+
+指定设备查询效率另见[联合回执](../../reports/2026-11-09-measurement-query-efficiency.md)：8ce35865累计补叶子关联、完整选择规则、provider/usage接线及未await静默失败。178Python/97Node通过，实际上下文与完整声明一致；最新100秒/20模型/21次tools/call、2错误，最终10源值正确但效率未通过。剩余模型重复契约检索和参数使用单独评估；不以手写8调用链代替模型验收，不关闭IG1。
+
+- [ ] Application/runtime后续：按明确合同实现可配置源请求/模型轮次/时间预算与跨attempt恢复；语义策略重复由业务能力层解释，Kernel保持中立。
+- [ ] App后续：检查objective_status与终态文案；验收执行结束但目标未达成时不显示目标成功。本补丁不改UI。
+- [ ] 独立负向验收：空页且装载unknown、源超时、无效观察引用、年份分区不符，分别保留结果，不能用正向成功替代。
+
+- Accepted design: [generic owner lifecycle](../specs/2026-11-08-tool-execution-lifecycle-design.md).
+- Executable supplement: [implementation plan](2026-11-08-tool-execution-lifecycle.md).
+- Status: implemented and verified locally; dev integration and separately approved
+  focused macOS CI remain pending. No package or release closure is inferred.
+- Scope: rolling application/relay/source budgets, real process nodes, durable
+  receipts, whole native-turn batches and accurate unknown-state projection.
+- Evidence: [local real-model verification](../../reports/2026-11-08-tool-execution-lifecycle.md).
+
+### 2026-11-08 会话技能评审修正恢复点
+
+IG1保持开放：R1–R5修正及复审无身份重存补修已在local-dev2980845d完成聚焦验证，48项补修检查/1跳过；三区研发两轮真实任务与成果续接通过。设置弹层已实页打开，冲突恢复/刷新及原生执行期内容变化的错误文案仍待验收。独立复审及逐项复核见[复审记录](../../reviews/2026-11-08-session-skill-scope-followup-review.md)，真实验证见[回执](../../reports/2026-11-08-session-skill-scope-repair.md)。无CI/push/合并或远端部署，不转IG2。
+
+2026-11-08交互最终修订：取消手动技能配置（取代此前设置内配置方案），输入工具栏“技能目录”只读展示安装项，默认就绪技能由模型按需选择。英文名主标题、A–Z排序、名称旁状态图标；位于“电网模型”前。代码及本地回执HEAD8c0c7b5d，后端8f1269f9/Appa9acbbb3。既有IG1执行期错误映射及恢复验收继续，不转IG2。
+
+2026-11-08技能自动选用实际缺口：最新“迎峰度夏电网数据研究PPT”thr_cd1b31f9d58377e87084全1354公开事件无agent_skill/skill_activity，冻结目录7项就绪；独立显式加载探针thr_619a02c8f3a1f6785ff9成功。安装、可见、显式可调用不能替代自动选用验收。需补应用上下文方法选用引导，并以不点名技能的真实任务验证加载/应用报告；禁止固定首步、关键词路由、默认加载全部或给旧会话补虚构记录。
+
+2026-11-08自动选用缺口修正：eb97c116采用统一语义加载入口和application-methods应用上下文；首版隐式试跑失败保留，最终本机联调thr_7d124aa99cafebf0b96d两轮自然业务输入自动选用相应方法并报告，首轮3次元数据/续接0次，原版与新版产品哈希通过，简单问题0工具。回执HEAD8ef35c8a。[验证](../../reports/2026-11-08-automatic-skill-selection-repair.md)。手动配置/本轮选择界面已按用户决定撤销，不再作为当前验收；底层历史协议仍保留。三区研发断网，原PPT完整业务未重跑，不自动关闭引导模块；执行期方法错误映射和离线绑定409分别跟踪。

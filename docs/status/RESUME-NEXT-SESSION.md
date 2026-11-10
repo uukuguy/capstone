@@ -1,85 +1,50 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-08 11:51 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-11-10 17:33 CST. Session remains active; this is not a final handoff.
 
-## Current parallel dispatch correction
+## Current result and immediate next step
 
-- Explicit parallel SDK mode for parent and managed child sessions. Shared FIFO admission has eight active slots; independent chains overlap and dependent calls await their inputs.
-- Launcher owns `capstone-tool-batch/1` elapsed time from the first launch boundary through turn settlement. Per-tool native invocation records use `capstone-tool-dispatch/1`; neither record is Authority execution evidence. Frontend uses the launcher duration when present and does not add batch records to tool counts.
-- User removed the full group frame. Keep one thin group line, compact title and numeric duration. Skill badge remains; omit `使用任务技能`. Thinking rows remain uniform and only LLM main headings receive the light-blue fill.
-- Focused checks pass:32 Node,204 Python plus32 skipped,184 App and typecheck. Final rebuild session7102 writes `/tmp/capstone-investigation-parallel-final-rebuild.log`. Previous intermediate rebuild passed with image67e4663d; it does not contain the final batch timer. Verify final readiness and actual batch records before claiming runtime acceptance.
-- All remote CI, push and integration remain pending explicit CI approval. Preserve parent dependency7ea164de and unrelated root work. Refresh root control state at the final verification boundary.
+- Service-bus title statistics and per-tool details are implemented. Only current-call provenance is counted. Job accumulation is ignored, unknown is not zero, host-marked reuse is excluded and graph/event projections deduplicate by call ID.
+- User authorized deployment to local-dev and dky3-dev. Both now run the exact tested source `eb481485bb21ce0b36d7fdd8ba53f0218e5be9ab`. No other stage changed. Both pass458 backend and275 native exact-source file checks.
+- Isolated implementation checkout: `/Users/sujiangwen/orca/workspaces/capstone/ppt-template-library-20261110`, branch `uukuguy/ppt-template-library-20261110`. HEAD `1b9e6772` adds only child persistence/graph tests and CI allowlist registration after deployed eb481485. Runtime product revision is f3d1f5cf.
+- Next: finish canonical report/control snapshot browser check, copy task-owned control/report updates into candidate, focused documentation checks, commit and push branch plus deployment tag. No PR exists. Then request one explicit focused macOS CI approval before opening/updating a PR. Do not trigger CI without that approval.
 
-## Active investigation skills candidate
+## Verified stages
 
-- Latest candidate 05a39dd2; UI naming/style326055ab. Local backend last verified9e52c45a; next canonical rebuild admits graph-summary and method corrections. Vite now runs from this skills worktree on5173.
-- Real browser thread thr_e0f23ce778db7b96bd65 / attempt_e701f132ba9b24f9 completed70s, seven tools with one recovered shell141 failure. Six products downloaded and hashes verified under root .capstone-agent/investigation-skills-20261108.
-- Calculation arrays are correct, but first report incorrectly calls A flat and infers a transition at00:00 across disconnected dates. This is a failed interpretation check, not business acceptance. New method guidance strengthens these checks; next action is rebuild then same-thread correction/history comparison and refresh.
-- Native packaging omission,128-layer rejection and interrupted Compose temporary containers were repaired. Canonical rebuild exited0; all roles healthy and327 historical task phases preserved. No volumes removed. Scoped cache maintenance passed.
-- Independent review tool could not start because its configured model is unavailable. Do not claim independent review.
+- local-dev API and three workers share image `f8488c5b5e927a11bf79c50c620c013dc56a41d212ac55da8f0a39637418a95f`; native `382a14ced31d344e3a2e4301aca669e0bad8a5432a1f01709ebfd2cf0f18d922`. Canonical rebuild completed: /tmp/capstone-service-bus-rebuild-persistence.log. Existing canonical image-source label is development; the source bytes and image digests establish identity.
+- Local App launcher PID92961 uses the candidate checkout. /__capstone-build showed product f3d1f5cf, repository eb481485, dirty false, local-dev. Later test/docs changes may change repository metadata; do not confuse that with product revision.
+- Local real source task `thr_d380ead17af9fe8e21e1` completed24.90s: one source attempt69.339ms. Discovery statistics are absent and stay unknown. Process title/details and full reload pass. The earlier trial `thr_ef754df5cd25910032ad` completed28.90s but failed statistics propagation; its receipt is retained separately. Fix f3d1f5cf has failing-then-passing persistence regression.
+- Local final-source PPT thread `thr_f47f3cf9fa60fed92cc6` completed33.81s; State Grid default, four downloads and full render receipt/digests pass.
+- dky3-dev is SSH root@192.168.72.66, deployment root /data/capstone-dky3-dev. API/worker image `1582f4266b7d`, native `3f84382d948c`, App `405f4258bfda`; all four healthy and exact eb481485 source labels. RootFS layers108/41/20. Prior images and protected configs/database dump remain private/backups/deploy-eb481485/.
+- Remote real task `thr_dcac776c667066f52c1f` completed89.41s: one source attempt59.346ms, actual State Grid template tool, four downloaded product digests, two PDF pages inspected, browser title and reload pass. Public receipt: docs/reports/receipts/2026-11-10-dky3-dev-eb481485.json.
+- Annotated tag `dky3-dev-20261110-1729-eb481485` exists locally at deployed eb481485; not yet pushed at checkpoint. Tag annotation records exact images, roles, task, backup and verification receipt.
+- Browser plugin list is empty; documented troubleshooting completed. Existing Playwright CLI session capstone-unified has one owned Capstone tab; reuse it. It currently shows dky3-dev. The pointer action first hit the existing footer overlay; keyboard opening worked. Track that as separate existing polish, not new scope.
 
-- Branch uukuguy/investigation-skills-20261108 at 49da4559 depends on unmerged 7ea164de.
-- Six adapted native methods and agent_skill load/report records are implemented.
-- Focused checks: 74 resource/projection, 198 execution checks (32 skipped), 33 App checks and types pass; real pinned SDK load passes.
-- Local rebuild runs from this worktree using root deploy/local.env and verified root PyPSA asset cache. No credentials were copied. CAPSTONE_START_APP=0 preserves the existing Vite process until backend validation.
-- Next: finish rebuild, inspect runtime publication, switch the existing local-dev Vite entry and verify real model/tool/product and refresh paths.
-- No CI authorization, push, PR or merge. Keep root uncommitted work and both earlier candidate/research branches.
-- Source/deployment notes below describe earlier snapshots, not this candidate's verified deployment.
+## Implementation and bounded evidence
 
-## Source and deployment
+- 18e87f4b: adapter-issued, host-verified service-bus projection; current counters independent of latest ten details; UI title and expandable details.
+- f3d1f5cf: retain typed DTO through delegated_runtime application and child-event persistence.
+- eb481485: joint focused presentation-library/service-bus macOS gate. 1b9e6772: child/graph regression checks only.
+- Focused gateway/relay/host/graph/transport295 pass/32 skips; persistence/diagnostics99 pass; App323 pass plus child/graph143 focused checks (overlap, do not add counts); governance256 pass/3 skips; types pass. Proposed PR scope resolves presentation-library. No new CI or independent-review acceptance.
+- Current 三区研发 connection gateway-3fdd43699bbb4c40ae0a19f795240f3c; instance0c266ac6-bf86-4137-ab7c-0e283331ab1f. Catalog fe9077d7fd55dd2472c5b7666ca46f9e946ed4f8f23b438fc0d126ff0e5b71a3,14 business+5 platform tools. Contract/zero-source receipts runs/2026-11-10-gateway-service-bus/.
+- No inference policy change: bounded real trials obeyed current schemas and no redundant source-read defect was observed. Do not add business-name routing, fixed first actions, broad monitoring, IG2–IG4 or a full release gate.
+- PPT library prior acceptance covers blue import, one-render override, explicit publication/selection, independent cross-session reuse, restore to State Grid, unchanged content/dependency hashes and protected source bundles. Stable-ID version updates and quota/GC remain explicit design gaps.
+- Independent review tools failed configured model/transport earlier. Do not claim independent review. No need for another runaway retry.
 
-- PR98 merged normally into dev9689c434. Approved macOS CI42370539679 passed in2m43s.
-  No second CI was started. Actual root dev fast-forwarded and its focused entry
-  checks/doctor passed. Root source matches deployed9773fca6 exactly.
-- Local backend9773fca6/imageeecd6e24 and Appdf4ddf61 remain distinct. Remote Capstone
-  stages and main22cd1728 were not changed. No release or numerical acceptance.
-- The merged fix branch is closed locally and remotely. Recovery source reference:
-  refs/capstone/recovery/gateway-capability-accepted-20261107 at9b4c0a86.
-- Control-only closeout branch:docs/gateway-capability-closeout-20261107, checkout
-  /Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106.
-  It records only reports, canonical plan/state and graph; integration uses the
-  existing lightweight documentation closeout authorization, no new CI.
+## Private operational references
 
-## New gateway verification
+- Root ignored receipts: .capstone-agent/service-bus-live-20261110/, service-bus-deployment-20261110/, template-library-live-20261110{,-diagnostics,-service-bus}/.
+- Root drivers: verify_service_bus_live.py, verify_template_library_final_source.py, download_dky3_template_trial.py; remote verify/activate scripts are under service-bus-deployment-20261110/.
+- Feature staging .capstone-agent/service-bus-deployment-20261110/ contains exact git-archive source, native input allowlist projection, final Dockerfiles and same-origin dky3 App build. Root staging holds125MB141 amd64 .debs and candidate.tar.gz. Remote source/build logs /data/capstone-dky3-dev/builds/eb481485/.
+- Remote build failures were contained before activation: apt --no-download local-file bug, staged executable permission, unavailable registry. Final offline dpkg install, canonical CLI modes and installed App dependency base pass. Do not describe derivative images as clean release-image acceptance.
+- App helper's standalone export omitted its shared capacity JSON. The staged repository layout adds that exact-source JSON; build passes. No product-source workaround or dependency/runtime secret was copied.
+- Scoped local cache cleanup is still due after final validation/use; use deploy/cleanup_local_build_cache.py --apply, never global prune.
 
-- Fresh 本机联调 publication remains43tools, with38capability summaries and sectioned
-  contracts. Snapshot fingerprint changed despite unchanged count. New tasks were
-  selected/refreshed against the new publication; old task snapshots stayed frozen.
-- Real two-turn comparison:complete reads31to0;updated25usage+11input_schema.
-  Contract JSON bytes675469to245784;all gateway bytes895304to777039.
-  Model responses30to26;time238.89to259.99seconds. No planning speedup established.
-- Updated plans correctly distinguish source-hour pagination from60second minute
-  samples and no longer infer over-budget from unknown windows/object counts.
-  Saved16007/27159byte products passed download SHA256 checks. Business records,
-  numerical execution and remote-job interruption were not tested.
-- A correct expected contract revision succeeded;using summary_revision was rejected.
-- Open Capstone issue:follow-up read22sections instead of reusing exact capability
-  context. Baseline had a separate contract artifact;new trial saved only its plan.
-  Improve bounded,versioned carryover without hardcoded business tool lists or
-  requiring large model-written contract files. Broad analytical quality remains open.
-- Detailed evidence:docs/reports/2026-11-07-gateway-sectioned-contract-recheck.md.
-  Private metrics/events/products:root .capstone-agent/gateway-guide-20261107/.
+## Git, recovery and preserved work
 
-## Preservation and recovery
-
-- Root dirty snapshot:refs/capstone/recovery/pre-pr98-root-20261107 atda0b9e1d.
-  Ignored pre-pr98-integration manifest stores29paths. Fourteen old code patches
-  were proved included before normalization;no user data or var data was removed.
-- Remaining unrelated root changes:deploy/intranet/README.md;
-  docs/reports/2026-11-06-three-dev-deployment.md;
-  docs/superpowers/plans/2026-11-05-structured-tool-batches.md;
-  docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md;
-  docs/superpowers/specs/2026-11-05-direct-thinking-preview.md.
-  Prior journal additions remain preserved;do not bulk stage them.
-- Git fetch failed via HTTP2 and timed out via HTTP1. Exact GitHub signed merge
-  object was imported only after SHA/tree/parent checks;no history was rewritten.
-- Independent research remains2bd086af in
-  /Users/sujiangwen/orca/workspaces/capstone/reference-execution-research.
-  Do not auto-merge research or update services under its authorization.
-
-## Immediate next action
-
-Finish the documentation-only PR,refresh the graph in actual dev after integration,
-check its real nodes/edges and preserve the original browser tab. Then report source
-integration and new contract trial with the measured limitations. A new CI run or
-CI-triggering update needs another explicit user approval.
+- PR100 merged remote dev d7358eac, accepted a1978ffb. Approved CI42759192341 passed4m29s after first failure42744202996. Those approvals are consumed; no approval exists for this follow-up.
+- Actual dev checkout stays d5c9b1fe,11 local audit commits beyond origin/dev. Product tree there matches remote dev; actual running local runtime is the recorded feature candidate. Do not pretend the candidate has merged.
+- Canonical control/worklist owner is actual dev. VERSION-CONTROL and PROJECT-OVERVIEW have been regenerated there for eb481485 deployment;20 graph checks pass. Browser graph inspection is next.
+- Preserve recovery branch recovery/investigation-closeout-dev-20261110 and stash accc48a278cbb6c3bdeb7afaa7eac07005f446f7. Old investigation/foundation workspaces are detached; do not delete their dirty observations. Old presentation branch cadc2f3a contains duplicate render code already in dev; do not merge blindly.
+- Root mixed control history is preserved. Other dirty user paths remain: deploy/intranet/README.md, docs/reports/2026-11-06-three-dev-deployment.md, plans/2026-11-05-structured-tool-batches.md, specs/2026-10-07-capstone-core-evolution-discussion.md, specs/2026-11-05-direct-thinking-preview.md. Do not stage these unrelated files.
+- New/updated task reports: presentation-template-library, service-bus-execution-records, receipt JSON and service-bus-closeout plan. Root untracked prior intranet deployment report is related stage history; preserve it when recording current dky3 state. Stage only explicit reviewed paths.

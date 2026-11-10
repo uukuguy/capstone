@@ -5,13 +5,13 @@
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
 - Active work package: IG1 — session skill scope and instruction snapshots.
+- User-directed integration includes the application-owned [PPT template library](../reports/2026-11-10-presentation-template-library.md). Its verified development candidate awaits dev integration; broader acceptance remains open.
+- Gateway execution records use host-verified current-call [service-bus receipts](../reports/2026-11-10-service-bus-execution-records.md). Title totals and per-tool details use persisted events; job accumulation is excluded and missing counters remain unknown.
+- Measurement efficiency acceptance separates exact-reference retrieval, zero-seed discovery and named-object lookup; see [joint evidence](../reports/2026-11-09-measurement-query-efficiency.md). Reminder checkpoints do not enforce a hard budget.
+- Gateway task context retains grant-scoped provider declarations and verified selected usage. Async composition helpers reject unawaited-result serialization and retain completed observations for recovery; model route selection remains an open efficiency concern.
+- Guidance design: [free exploration and timely help](../superpowers/specs/2026-11-08-adaptive-investigation-guidance-design.md).
 
-Session methods are optional versioned preferences, separate from investigation goals.
-Instruction admission freezes the effective preference revision and local exclusions;
-actual skill loading and reports remain instruction-owned. See the
-[guidance design](../superpowers/specs/2026-11-08-adaptive-investigation-guidance-design.md).
-
-The local candidate uses neutral rolling queues and owner-observed lifecycle records.
+The shared execution baseline uses neutral rolling queues and owner-observed lifecycle records.
 Application leaf calls, the private relay and source adapters enforce their own
 bounded capacities. Formal and hosted source calls share an adapter budget through
 opaque leases. Source process start/exit, queue and release records are persisted
@@ -34,6 +34,15 @@ systems. The repository uses managed project control. The canonical delivery
 worklist is [unified execution](../superpowers/plans/2026-10-16-enterprise-unified-execution.md).
 The current themes are continuing conversations, instruction-scoped resources,
 bounded diagnosis, source data access and large grid views.
+
+The local report candidate keeps report reasoning in the application-owned native
+workflow. Its versioned briefing contract renders authored page explanations in
+the visible body; the renderer checks composition and source identity, not truth.
+Granted isolated text readers can critique bounded visible-text/source packets
+without tool or Authority access. Model findings remain observations for the
+author to verify. Autonomous report quality, template quotas and garbage
+collection remain acceptance concerns in the
+[report design](../superpowers/specs/2026-11-08-presentation-template-library-design.md).
 
 Shared tool execution retains host-observed actions and source references instead
 of requiring copied business identifiers. Public error summaries are extracted
@@ -65,6 +74,11 @@ remain independent. Research node quality gaps support user judgement across
 turns; scientific calculations retain objective Domain Pack/Authority checks.
 
 ## Architecture
+
+Lightweight investigations use instruction-scoped advisory reminders and neutral
+completed-tool receipts. Retry-pending reminders are separate from confirmed
+response delivery; neither delivery nor execution completion proves objective
+attainment. Attempt-local reminder intervals are not source or work budgets.
 
 Ownership follows Application → Domain Pack → Kernel → registered Authority.
 Applications select bindings and public projections. Domain Packs own semantic

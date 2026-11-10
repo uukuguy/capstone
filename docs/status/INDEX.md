@@ -1,8 +1,22 @@
 # docs/status INDEX
 
+2026-11-10：[服务总线执行记录](../reports/2026-11-10-service-bus-execution-records.md)及[PPT模板库集成](../reports/2026-11-10-presentation-template-library.md)已在local-dev/dky3-dev验证。精确源码eb481485，源调用1次及标题栏刷新通过；本地PPT33.81秒、远端组合任务89.41秒，下载摘要及PDF页面通过。未合入，无新CI；部署标签与[公开回执](../reports/receipts/2026-11-10-dky3-dev-eb481485.json)区分开发接受和正式发布。
+
+2026-11-10：[调查分支收口](../reports/2026-11-10-investigation-branch-closeout.md)记录PR100合入远端dev d7358eac；macOS定向CI4分29秒通过。实际dev重建同镜像及两轮9.33/8.29秒、CSV哈希/快照通过；调查/基础分支关闭，恢复工作区和stash保留。远端环境不变，视觉、IG1及业务效率仍开放。
+
+2026-11-09：dky3-dev更新75cb9790，健康/源码通过；dsv4空流超时，真实任务未通过。[回执](../reports/2026-11-09-intranet-development-update.md)。
+
+2026-11-09：[量测查询效率联调](../reports/2026-11-09-measurement-query-efficiency.md)记录工具选择、provider接线19e4da2e和异步静默失败8ce35865，文档HEAD75cb9790；最新100秒/20模型/21次tools/call，10源值正确但效率未通过；178Python/97Node通过，无CI、合入或远端Capstone更新。[有界调查补修](../reports/2026-11-09-bounded-investigation-repair.md)保留早期两轨证据。
+
+2026-11-09：[两套内网研发更新](../reports/2026-11-09-intranet-development-update.md)记录4a638740部署、独立数据保留、镜像身份和真实任务检查；非dev合入或发布验收。
+
+2026-11-08：[模板报告生成器](../reports/2026-11-08-presentation-template-generator.md)记录可选模板、无模板基线、结构化页论证与隔离文本复核候选；[编制计划](../superpowers/plans/2026-11-08-briefing-report-compilation.md)区分现有成果编报、自主质量验收和后续数据规划前置，未合入dev。
+
 2026-11-08：[独立评审与复核](../reviews/2026-11-08-session-skill-scope-independent-review.md)结论REQUEST CHANGES；原始意见与采纳/排除理由分开保存，IG1需修排除、内容身份和恢复路径，无运行代码变更或CI。
 
-2026-11-08：[会话技能作用域](../reports/2026-11-08-session-skill-scope.md)记录406c7d7b及local-dev连接三区研发的两轮真实执行；配置冻结、排除、PG恢复与产品哈希通过，界面/独立审查未接受，无CI。
+2026-11-08：[会话技能作用域](../reports/2026-11-08-session-skill-scope.md)记录406c7d7b与local-dev/三区研发两轮真实执行。整体方向见[自由探索设计](../superpowers/specs/2026-11-08-adaptive-investigation-guidance-design.md)，IG1实现、界面/独立审查待接受；IG2–IG4待实施，无CI。
+
+2026-11-08：[六技能设计](../superpowers/specs/2026-11-08-investigation-skills-design.md)已在独立候选2badb1ee实现。技能真实试跑、保存产品及本地并行计时通过；模型解释与调查方案仍有质量限制。未合dev、无CI。
 
 2026-11-08：[通用执行记录与8路队列](../reports/2026-11-08-tool-execution-lifecycle.md)记录最终本机源码b473fe0d及2b45bc49真实16项同批/源进程峰值8、产物哈希与刷新恢复。dev8da7dc76，待批准定向CI及PR集成；其他部署不变。
 
@@ -905,3 +919,11 @@ environment state, exact App builds and the current63 integration focus.
 Default dsv4 (2026-11-05): [current receipt](../reports/2026-11-05-default-dsv4.md)
 records all three environments atbfb16344, intranet defaults18804, unchanged local
 default and explicit selections, plus two real default-model checks.
+
+- 2026-11-08：VERSION-CONTROL与PROJECT-OVERVIEW更新会话技能修正8a2ebec5的local-dev验证；[回执](../reports/2026-11-08-session-skill-scope-repair.md)。独立复审及设置实页验收未完成。
+- 2026-11-08：更新2980845d最终local-dev及0854b6a5评审文档HEAD；[复审复核](../reviews/2026-11-08-session-skill-scope-followup-review.md)。控制页已重新生成，浏览器边线检查仍待完成。
+- 2026-11-08：候选文档HEAD更新ecbb0b6e，local-dev/App实际来源2980845d；台账与图同步，浏览器已检查主视图，完整交叉边验收仍保留。
+- 2026-11-08：台账/图同步输入区设置入口7051701c及文档HEAD17f7e154，local-dev验证通过；保留IG1剩余验收。
+- 2026-11-08：台账与图更新只读技能目录最终来源（后端8f1269f9/Appa9acbbb3，HEAD8c0c7b5d），替代手动配置方案。
+- 2026-11-08：台账/图新增076f0d14执行记录底部高度修复与本地来源，HEADa334d2b6回执；[验证](../reports/2026-11-08-process-tail-height.md)。
+- 2026-11-08：台账/图同步自动方法选用修正eb97c116及回执HEAD8ef35c8a；本机联调两轮与简单反例通过，三区研发/原业务待恢复后验证。[回执](../reports/2026-11-08-automatic-skill-selection-repair.md)。

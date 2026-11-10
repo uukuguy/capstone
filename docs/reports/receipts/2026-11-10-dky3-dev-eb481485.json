@@ -1,0 +1,53 @@
+{
+  "schema": "capstone-development-verification/1",
+  "stage": "dky3-dev",
+  "source_revision": "eb481485bb21ce0b36d7fdd8ba53f0218e5be9ab",
+  "thread_id": "thr_dcac776c667066f52c1f",
+  "seconds": 89.41,
+  "service_bus_attempts": 1,
+  "service_bus_observed_elapsed_ms": [
+    59.346
+  ],
+  "api_worker_image": "sha256:1582f4266b7d8c29dd691b52b3953e7d8e5d5b73807fd46e714b9a72f4ba02d1",
+  "native_image": "sha256:3f84382d948cfc62cb7bdc8310f9560251c4fb4f6b7ce657363a3632e050366f",
+  "app_image": "sha256:405f4258bfdabac4d9188dce0d190a1750eb8a5741ac8a4a90d7c5af885131ec",
+  "source_byte_checks": {
+    "backend": 458,
+    "native": 275
+  },
+  "role_health": "four roles healthy; readiness passed",
+  "refresh": "saved count and exact served App source verified in browser",
+  "products": [
+    {
+      "file_name": "demo.pdf",
+      "sha256": "0b4e97548e5da0c06cbd3f56b610baf114e07f67335d5d11d94745465bb4601e",
+      "size_bytes": 114353
+    },
+    {
+      "file_name": "demo.pptx",
+      "sha256": "ca0b2d5be932d10902e3b524478d33959b9c67c8050bd88cf3f7e7ff158d50ea",
+      "size_bytes": 2019970
+    },
+    {
+      "file_name": "demo.receipt.json",
+      "sha256": "8a425aa7bab3980785ef2a87c0a05012a5d83738452a92f269dd5206ab537ddc",
+      "size_bytes": 1727
+    },
+    {
+      "file_name": "demo.source.zip",
+      "sha256": "dd2483bc7f08ec82abc725f1c8bf0174c0d039442e51455b239d908be9296eb1",
+      "size_bytes": 796
+    }
+  ],
+  "render_receipts": [
+    {
+      "file_name": "demo.receipt.json",
+      "content_sha256": "c0ee660bca7b4f4378e1dc856e471da670263d516b8611592b4652f3369dbe03",
+      "template_id": "state-grid",
+      "template_sha256": "00167b213bd215203e100a703ac0716f14b8e93cd095d8ff39e4dc0d3951dad6",
+      "pages": 2
+    }
+  ],
+  "backup": "private/backups/deploy-eb481485/",
+  "scope": "bounded development task, not release or broad business acceptance"
+}
