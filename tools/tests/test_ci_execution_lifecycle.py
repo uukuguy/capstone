@@ -115,7 +115,8 @@ def test_deployment_allowance_rejects_changes_outside_the_exact_binding(monkeypa
 def test_reviewed_grouped_recipe_is_exact_and_does_not_admit_other_changes():
     from tools.ci_scope import execution_lifecycle_deployment_document
     old = subprocess.check_output(['git', 'show', '8da7dc76:deploy/general-pi.Dockerfile'], cwd=ROOT, text=True)
-    new = (ROOT / 'deploy/general-pi.Dockerfile').read_text()
+    # The reviewed recipe is a historical byte contract, not the future HEAD.
+    new = subprocess.check_output(['git', 'show', 'a1978ffb:deploy/general-pi.Dockerfile'], cwd=ROOT, text=True)
     assert execution_lifecycle_deployment_document('deploy/general-pi.Dockerfile', old, new)
     for changed in (
         new.replace('session_skill_preferences.py', 'unreviewed.py'),
@@ -151,13 +152,28 @@ def test_joint_scope_manifest_has_executable_consumers_and_rejects_unknown_sourc
     assert classify(paths, release=True) == 'release'
 
 
-def test_cli_checks_proposed_branch_changes_instead_of_target_only_commits():
-    base = next((ref for ref in ('dev', 'origin/dev') if subprocess.run(
-        ['git', 'rev-parse', '--verify', ref], cwd=ROOT, capture_output=True).returncode == 0), None)
-    if base is None:
-        pytest.skip('Development base is unavailable in this checkout')
+def test_cli_checks_proposed_branch_changes_instead_of_target_only_commits(tmp_path):
+    def git(*args):
+        return subprocess.check_output(['git', '-c', 'user.name=Scope Test',
+            '-c', 'user.email=scope@example.invalid', *args], cwd=tmp_path, text=True).strip()
+    git('init', '-q')
+    source = tmp_path / ANCHOR
+    source.parent.mkdir(parents=True)
+    source.write_text('original\n')
+    git('add', ANCHOR)
+    git('commit', '-qm', 'base')
+    common = git('rev-parse', 'HEAD')
+    unknown = tmp_path / 'unknown.file'
+    unknown.write_text('target-only change\n')
+    git('add', 'unknown.file')
+    git('commit', '-qm', 'target change')
+    base = git('rev-parse', 'HEAD')
+    git('checkout', '-q', '--detach', common)
+    source.write_text('proposed lifecycle change\n')
+    git('add', ANCHOR)
+    git('commit', '-qm', 'feature change')
     result = subprocess.check_output(
-        ['python3', 'tools/ci_scope.py', '--base', base, '--head', 'HEAD'], cwd=ROOT, text=True)
+        ['python3', str(ROOT / 'tools/ci_scope.py'), '--base', base, '--head', 'HEAD'], cwd=tmp_path, text=True)
     assert result.strip() == 'execution-lifecycle'
 
 

@@ -18,7 +18,31 @@ GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
                     "configs/development/issue-automation.json",
                     "tools/tests/test_ci_scope.py", "tools/tests/test_ci_workbench_scope.py",
                     "tools/tests/test_verification_targets.py", "tools/tests/test_ci_gateway_controls.py",
-                    "tools/tests/test_ci_gateway_bindings.py", "tools/tests/test_ci_execution_lifecycle.py"}
+                    "tools/tests/test_ci_gateway_bindings.py", "tools/tests/test_ci_execution_lifecycle.py",
+                    "tools/tests/test_ci_presentation_library.py"}
+
+PRESENTATION_LIBRARY_ANCHOR = 'packages/capstone-agent/src/capstone_agent/presentation_templates.py'
+PRESENTATION_LIBRARY_FILES = {
+    'compose.yaml', 'deploy/general-pi.Dockerfile', 'configs/runtime/native-analysis.json',
+    'tools/native_analysis_smoke.py', 'tools/native_presentation_library.py',
+    'tools/tests/test_presentation_library_render.py',
+} | {'packages/capstone-agent/src/capstone_agent/' + name + '.py' for name in (
+    'presentation_templates', 'presentation_template_contract', 'presentation_template_http',
+    'native_presentation_tasks', 'host_api', 'thread_service', 'general_pi_server',
+    'native_task_context', 'failure_delivery',
+)} | {'packages/capstone-agent/src/capstone_agent/resources/' + name for name in (
+    'general-sdk.mjs', 'presentation-templates.mjs',
+)} | {'packages/capstone-agent/tests/' + name for name in (
+    'test_presentation_templates.py', 'test_presentation_template_http.py',
+    'test_native_presentation_tasks.py', 'test_presentation_task_relay.py',
+    'test_native_skill_recovery.py', 'fixtures/presentation-templates.test.mjs',
+)}
+
+
+def presentation_library_paths(paths: list[str]) -> bool:
+    return PRESENTATION_LIBRARY_ANCHOR in paths and all(
+        path in PRESENTATION_LIBRARY_FILES or path in GOVERNANCE_FILES or path in DOC_FILES
+        or _control_path(path) for path in paths)
 
 # Assembly and native-runtime contracts have bounded cross-package gates.
 # Authority protocols, solvers and unknown dependencies still require product.
@@ -745,6 +769,8 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    if presentation_library_paths(paths):
+        return 'presentation-library'
     if execution_lifecycle_paths(paths, deployment=execution_lifecycle_deployment):
         return 'execution-lifecycle'
     if gateway_capabilities_paths(paths):
