@@ -23,7 +23,7 @@ function refreshReason(options){
     throw Error('/options: retrieval plan needs purpose, output and issued basis_refs');
   return options.refresh_reason;
 }
-export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,validateCalls,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{},reuseEligible=(schema)=>schema?.annotations?.readOnlyHint===true&&schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true}){
+export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,validateCalls,resolveContracts,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{},reuseEligible=(schema)=>schema?.annotations?.readOnlyHint===true&&schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true}){
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
@@ -35,7 +35,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
   const rejectedRequests=new Map();
   const identities=createToolIdentityResolver(catalog.tools,admittedNames);
   const scheduler=createToolCallScheduler(policy.concurrency);
-  return {name:'agent_tools_execute',label:'执行多步数据处理',description:
+  return {name:'agent_tools_execute',executionRole:'orchestrator',label:'执行多步数据处理',description:
     'For known independent requests, submit calls:[{id,tool,arguments},...] directly, without program or tools. This is the normal retrieval form when all arguments are known. The host preflights the entire list and schedules it within shared session capacity; read-only operations may overlap, unknown or mutating operations execute exclusively. Results retain input IDs/order and issued refs; individual failures do not roll back successful calls or trigger retries. For independent multi-step or paginated chains use program with tools.map(items,async(item,index)=>value,{concurrency?}); await each dependent page inside its mapper while different chains overlap. tools.map returns input-ordered mapped values, stops starting items on error and drains active mappers before throwing; completed call refs remain recoverable. Do not serialize independent chains in an outer await loop. Use program/tools for processing saved observations and genuinely dependent operations. Discover only when needed, then submit the independent set supported by actual observations. Prefer contract-supported range/aggregate operations over unnecessary fragmented calls. '+
     'Process source observations through tools.plan (preflight without execution), tools.batch/call (obtain/reuse results), tools.inspect/read (exact bounded fields), and tools.table (validate/export CSV). Program mode runs async JavaScript in the isolated task workspace. Select admitted gateway tools explicitly. In a program use tools.batch([{tool,arguments},...]) for independent calls and tools.call(name,args) for dependent calls. Batch preflight checks the whole list against remaining capacity, selected identities and frozen schemas before invocation. Any invalid input rejects the entire batch. Batch execution is not transactional. tools.call returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns the exact contract. tools.follow(ref,pointer) copies an action from a successful observation unchanged and honors returned waits; select its target tool first. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) and loadContext(path) preserve observed fields, issued refs, declared values and explicit unknowns. Return compact summaries and retain source data in packages. No automatic retries. Failed programs retain completed_calls; large manifests have an issued full_result readable with tools.read(full_result,"/completed_calls",{offset,limit}). Reuse completed observations instead of repeating retrieval. Inspect failed_call_count and failed_calls: program completion is not business success. Source observations are not Authority evidence. tools.inspect(ref,pointer="") returns a structure index without data values. tools.read(ref,pointer) returns the selected field directly, not a wrapper; array pages {offset,limit} return {items,total_items,next_offset,offset}. For blocked repeats inspect previous_call rather than recreating an unchanged rejected request. '+
     `Limits: max_calls=${policy.max_calls}, shared_session_concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. `+gatewayToolUseGuidance,
@@ -47,9 +47,11 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const completedCalls=[];
+      let completedLeafCalls=0;
       const batches=new Map();
       const batchPlans=[];
       const retainProgram=async(result)=>{
+        result={...result,details:{...result.details,kind:policy.schema,completed_leaf_calls:completedLeafCalls}};
         const bounded=await boundToolResult(result,{cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes,retain:true});
         const saved=savedToolObservation(bounded);
         if(saved){
@@ -81,6 +83,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           }
         }else if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
         const selected=[...new Set(identities.resolveMany(direct?input.calls.map(c=>c.tool):input.tools))];
+        if(resolveContracts)await resolveContracts(selected,{signal});
         const limit=input.max_calls??policy.max_calls,concurrency=input.concurrency??policy.concurrency;
         if(!Number.isInteger(limit)||limit<1||limit>policy.max_calls||!Number.isInteger(concurrency)||concurrency<1||concurrency>policy.concurrency)throw Error('Invalid composition limits');
         const timeout=Math.min(input.timeout_ms??policy.max_program_ms,policy.max_program_ms,deadlineAt-Date.now());
@@ -183,9 +186,12 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   const effects=schemas[message.name]?.annotations;
                   releaseShared=await scheduler.acquire({signal:abort.signal,exclusive:effects?.readOnlyHint!==true||effects?.destructiveHint===true});
                   abort.signal.throwIfAborted();startedAt=Date.now();
-                  const nestedId=`${callId}:${run}:${message.id}`,native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal,...(reason?{refresh_reason:reason}:{})}));
+                  const nestedId=`${callId}:${run}:${message.id}`;
+                  let native;
+                  try{native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal,...(reason?{refresh_reason:reason}:{})}));}
+                  finally{completedLeafCalls++;}
                   const upstreamReuse=typeof native.details?.reused_from==='string';
-                  if(upstreamReuse){calls--;reused++;}
+                  if(upstreamReuse){calls--;reused++;completedLeafCalls--;}
                   let raw;try{raw=JSON.parse(native.content.find(c=>c.type==='text')?.text??'null');}catch{raw={text:native.content};}
                   const observed=raw?.structuredContent??raw;
                   const ref=`program-call:${run}:${message.id}`;

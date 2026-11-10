@@ -12,8 +12,10 @@ import os
 import re
 from pathlib import Path
 from threading import Lock
+from capability_agent.runtime.execution_queue import ExecutionReceiptError
 
-from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
+from pandapower_domain.execution import (GridctlExecutor, SimulatorCapabilityError,
+    source_execution_queue, execution_receipt_writer)
 from pandapower_domain.profile import build_pandapower_profile
 from pandapower_domain.provisioning import PandapowerRuntimeProvisioner
 
@@ -31,10 +33,13 @@ class PandapowerDomainToolService:
     def __init__(self, *, workspace_root: Path | None = None) -> None:
         configured = os.environ.get('CAPSTONE_DOMAIN_TOOL_WORKSPACE')
         self._root = Path(workspace_root or configured or (Path(os.environ.get('CAPSTONE_RUNS_ROOT', '/tmp')) / 'domain-tools'))
+        self._receipt_root = Path(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT') or self._root)
         self._lock = Lock()
         self._profile = None
         self._capabilities: dict[str, str] = {}
         self._executors: dict[str, GridctlExecutor] = {}
+        self._read_only: dict[str, bool] = {}
+        self._queue = source_execution_queue()
 
     def _installed(self):
         if self._profile is None:
@@ -46,7 +51,7 @@ class PandapowerDomainToolService:
         manifest = profile.manifest
         if profile_id != manifest.domain_id or profile_version != manifest.version:
             raise KeyError('domain pack is not published by this worker')
-        tools, hashes, capabilities = {}, {}, {}
+        tools, hashes, capabilities, read_only = {}, {}, {}, {}
         for document in profile.contract_source.load():
             if document.get('availability') != 'published':
                 continue
@@ -63,10 +68,12 @@ class PandapowerDomainToolService:
             tools[name] = {'description': description, 'inputSchema': schema}
             hashes[name] = hashlib.sha256(_canonical(body).encode()).hexdigest()
             capabilities[name] = capability
+            read_only[name] = document.get('state_effect') == 'none'
         if not tools:
             raise KeyError('domain pack is not published by this worker')
         with self._lock:
             self._capabilities = capabilities
+            self._read_only = read_only
         return {
             'schema': 'capstone-domain-tool-catalog/1',
             'profile_id': manifest.domain_id,
@@ -89,15 +96,31 @@ class PandapowerDomainToolService:
         capability = self._capabilities.get(name)
         if capability is None:
             raise KeyError('domain tool is not published')
-        try:
-            result = self._executor(task_id).invoke(capability, arguments)
-        except SimulatorCapabilityError as error:
-            return {'ok': False, 'error': error.error if isinstance(error.error, dict) else {'message': 'domain tool call failed'}}
-        except Exception:
-            return {'ok': False, 'error': {'message': 'domain tool call failed'}}
-        if not isinstance(result, dict):
-            return {'ok': False, 'error': {'message': 'domain tool call failed'}}
-        return {'ok': True, 'result': result}
+        call_id = document.get('call_id')
+        if not isinstance(call_id, str) or not call_id or len(call_id) > 256:
+            raise ValueError('domain tool call identity is invalid')
+        receipt = self._queue.receipt(task_id=task_id, call_id=call_id,
+            observer=self._receipt_writer(task_id))
+        resource = str((self._root / task_id).resolve())
+        with self._queue.acquire(receipt, resource=resource, read_only=self._read_only.get(name, False)) as lease:
+            try:
+                result = self._executor(task_id).invoke(capability, arguments,
+                    execution_lease=lease,
+                    execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
+                response = ({'ok': True, 'result': result} if isinstance(result, dict)
+                    else {'ok': False, 'error': {'message': 'domain tool call failed'}})
+            except ExecutionReceiptError:
+                raise
+            except SimulatorCapabilityError as error:
+                response = {'ok': False, 'error': error.error if isinstance(error.error, dict) else {'message': 'domain tool call failed'}}
+            except Exception:
+                response = {'ok': False, 'error': {'message': 'domain tool call failed'}}
+        return {**response, 'execution_receipt': receipt}
+
+    def _receipt_writer(self, task_id):
+        # Each invocation gets a private control record, independent of HTTP
+        # delivery. This is host telemetry, never an Authority result/evidence.
+        return execution_receipt_writer(self._receipt_root, task_id)
 
     def _executor(self, task_id: str) -> GridctlExecutor:
         with self._lock:

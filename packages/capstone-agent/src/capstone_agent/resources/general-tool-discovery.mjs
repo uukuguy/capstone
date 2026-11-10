@@ -1,16 +1,17 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {boundToolResult} from './tool-result-context.mjs';
-import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance} from './gateway-tool-use.mjs';
+import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance,gatewaySelectionSummary} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 
 export const discoveryToolNames=['agent_tool_search','agent_tool_load'];
 const reply=value=>({content:[{type:'text',text:JSON.stringify(value)}]});
+const selectionReminder='Use the current task guidance and provider-declared selection conditions. Omitted fields require tools.describe(name). Candidates do not grant tools or impose a workflow; composition does not require direct-menu activation.';
 const defaults=JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits;
 
 // This is a task-local index of an already admitted publication. Search and
 // activation cannot refresh a catalog or extend the host's grant.
-export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,useLedger,initialNames=[],
+export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,useLedger,initialNames=[],resolveContracts,
   maxActiveTools=defaults.tool_active_count,maxActiveSchemaChars=defaults.tool_schema_chars,
   pageSize=defaults.tool_search_page_items,maxSummaryChars=defaults.tool_summary_chars}={}) {
   for(const limit of [maxActiveTools,maxActiveSchemaChars,pageSize,maxSummaryChars])
@@ -49,14 +50,31 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   }
   let active=new Set(initial),pending,closed=false;
   const learned=new Set(initial);
-  let publishActivation,installedSession,restoreStream;
+  let publishActivation,installedSession,restoreStream,extensionApi,wrapLoaded=tool=>tool;
+  const dynamicRegistered=new Set();
+  async function resolveSelected(names,signal){
+    const missing=names.filter(name=>entries.get(name).publication.progressive&&!Object.hasOwn(entries.get(name).publication,'inputSchema'));
+    if(!missing.length)return;
+    if(!resolveContracts)throw Error('Exact selected contracts are unavailable');
+    const resolved=await resolveContracts(missing,{signal});check(signal);
+    for(const name of missing){
+      const entry=entries.get(name),publication=resolved[name];
+      if(!publication||!Object.hasOwn(publication,'inputSchema')||publication.name!==entry.publication.name||
+          publication.progressive?.tool_contract_revision!==entry.publication.progressive?.tool_contract_revision)
+        throw Error('Selected exact contract identity changed');
+      entry.publication=publication;entry.tool.parameters=publication.inputSchema;
+      if(extensionApi&&!dynamicRegistered.has(name)){
+        extensionApi.registerTool(wrapLoaded(guarded(name,entry.tool)));dynamicRegistered.add(name);
+      }
+    }
+  }
   const searched=new Set();
   function check(signal){signal?.throwIfAborted();if(closed)throw new Error('Tool discovery task is closed');}
   function initialToolNames(existingNames){
     return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames,...initial])];
   }
   const search={name:'agent_tool_search',label:'Search admitted tools',
-    description:'Search the task-granted published tool index only when the required tool is not already known. Results report activation and published toolset membership; optionally filter by a returned toolset ID. Exact published names take priority. If no tool matches all keywords, return the bounded best partial matches, marked partial_terms; these are candidates, not a semantic selection. Already active tools need no load. For composition, select known granted names and inspect tools.describe(name) without loading them into the direct-call menu. Follow current service selection and provider rules.',
+    description:'Search the task-granted published tool index only when the required tool is not already known. Results report activation and published toolset membership; optionally filter by a returned toolset ID. Exact registered or published names, including complete query terms, take priority over description references. Otherwise, if no tool matches all keywords, return the bounded best partial matches, marked partial_terms; these are candidates, not a semantic selection. Already active tools need no load. For composition, select known granted names and inspect tools.describe(name) without loading them into the direct-call menu. Follow current service selection and provider rules.',
     parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0}},required:['query'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
@@ -70,8 +88,10 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
         return [name,terms.filter(term=>text.includes(term))];
       }));
       const exact=query?candidates.filter(name=>[name,entries.get(name).publication.name].some(value=>typeof value==='string'&&value.toLowerCase()===query)):[];
-      let mode=exact.length?'exact_name':'all_terms';
-      let matches=exact.length?exact:candidates.filter(name=>matched.get(name).length===terms.length);
+      const identityMatches=terms.length?candidates.filter(name=>[name,entries.get(name).publication.name]
+        .some(value=>typeof value==='string'&&terms.includes(value.toLowerCase()))):[];
+      let mode=exact.length?'exact_name':identityMatches.length?'identity_terms':'all_terms';
+      let matches=exact.length?exact:identityMatches.length?identityMatches:candidates.filter(name=>matched.get(name).length===terms.length);
       if(!matches.length&&terms.length){
         const best=Math.max(0,...candidates.map(name=>matched.get(name).length));
         if(best){mode='partial_terms';matches=candidates.filter(name=>matched.get(name).length===best);}
@@ -80,9 +100,11 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       const searchKey=JSON.stringify([terms,offset,args.toolset??null]),repeated=searched.has(searchKey);
       if(searched.size>=64&&!repeated)searched.delete(searched.values().next().value);
       searched.add(searchKey);
-      return reply({capacity,match_mode:mode,active_entry_tools:initial,toolsets:[...groups.values()],selection_guidance:gatewayToolUseGuidance,
+      return reply({capacity,match_mode:mode,active_entry_tools:initial,toolsets:[...groups.values()],selection_guidance:selectionReminder,
         tools:selected.map(name=>({name,active:active.has(name),matched_terms:matched.get(name),toolset:gatewayToolGroup(entries.get(name).publication),access:gatewayToolAccess(entries.get(name).publication),description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
-        ...(entries.get(name).metadata!=='{}'?{
+        ...(gatewaySelectionSummary(entries.get(name).publication,maxSummaryChars)?{
+          published_selection:gatewaySelectionSummary(entries.get(name).publication,maxSummaryChars)
+        }:entries.get(name).metadata!=='{}'?{
           published_metadata_preview:entries.get(name).metadata.slice(0,maxSummaryChars),
           published_metadata_truncated:entries.get(name).metadata.length>maxSummaryChars}:{}),
         contract_sha256:entries.get(name).hash})),total:matches.length,
@@ -99,11 +121,14 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       try{resolved=identities.resolveMany(args.names);}
       catch(error){throw new Error(error.message+'. No tools were activated.');}
       const selected=[...new Set([...initial,...resolved])];
+      if(selected.length>maxActiveTools)checkedContracts(selected);
+      await resolveSelected(selected,signal);
       const contracts=checkedContracts(selected);
       pending=selected;
       // Input schemas enter the next model menu; full output contracts are
       // available here without injecting the rest of the catalog.
-      return boundToolResult({...reply({activation:'next_turn',name_resolutions:args.names.map((requested_name,i)=>({requested_name,name:resolved[i]})),selection_guidance:gatewayToolUseGuidance,tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
+      return boundToolResult({...reply({activation:'next_turn',name_resolutions:args.names.map((requested_name,i)=>({requested_name,name:resolved[i]})),selection_guidance:selectionReminder,tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
+        ...('usage' in publication?{usage:publication.usage}:{}),
         ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))})},
         {cwd,toolName:'agent_tool_load',callId:_id});
     }};
@@ -116,8 +141,10 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     // Keep SDK dispatch definitions for granted tools without sending their
     // schemas to the model. Every definition still has the activation guard.
     session.setActiveToolsByName([...new Set([...visible,...entries.keys()])]);
-    const dispatch=session.agent.state.tools.slice();
     publishActivation=()=>{
+      session.setActiveToolsByName([...new Set([...initialToolNames(session.getActiveToolNames()),
+        ...[...entries].filter(([,entry])=>Object.hasOwn(entry.publication,'inputSchema')).map(([name])=>name)])]);
+      const dispatch=session.agent.state.tools.slice();
       session.setActiveToolsByName([...new Set([...initialToolNames(session.getActiveToolNames()),...active])]);
       session.agent.state.tools=dispatch;
     };
@@ -129,9 +156,20 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     publishActivation();
   }
   function close(){closed=true;active.clear();learned.clear();searched.clear();pending=undefined;restoreStream?.();}
+  function guarded(name,tool){return {...tool,async execute(...args){
+    check(args[2]);
+    if(!active.has(name)){
+      if(!learned.has(name))throw Error(JSON.stringify({code:'tool_not_active',tool:name,executed:false,
+        recovery:{tool:'agent_tool_load',arguments:{names:[name]},activation:'next_turn'}}));
+      const restored=[...new Set([...active,name])];checkedContracts(restored);
+      active=new Set(restored);publishActivation?.();
+    }
+    return tool.execute(...args);
+  }};}
   return {tools:[search,load],initialToolNames,installSession,close,
+    setLoadedWrapper:fn=>{wrapLoaded=fn;},
     admittedTools:[...entries.values()].map(({tool})=>tool),
-    guardedTools:[...entries].map(([name,{tool}])=>({...tool,async execute(...args){
+    guardedTools:[...entries].filter(([,entry])=>!entry.publication.progressive||Object.hasOwn(entry.publication,'inputSchema')).map(([name,{tool}])=>({...tool,async execute(...args){
       check(args[2]);
       if(!active.has(name)){
         if(!learned.has(name))throw new Error(JSON.stringify({code:'tool_not_active',tool:name,
@@ -149,6 +187,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       return tool.execute(...args);
     }})),
     configure(pi){
+      extensionApi=pi;
       publishActivation=()=>pi.setActiveTools([...new Set([...initialToolNames(pi.getActiveTools()),...active])]);
       pi.on('context',event=>{
         let changed=false;

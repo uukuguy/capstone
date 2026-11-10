@@ -1,3 +1,4 @@
+import { receipt } from './toolExecutionReceipt.fixture'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages,restoreVisibleConversation } from './CapstoneAssistantThread'
@@ -5,8 +6,66 @@ import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import {parseProductRef} from './threadProducts'
 import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
+import {composerSubmission,buildInputSubmission,emptyInputDraft} from './threadInput'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('sends instruction exclusions in direct mode without another explicit selection',async()=>{
+ const onSend=vi.fn().mockResolvedValue(undefined)
+ sessionStorage.setItem('direct-exclusion.input',JSON.stringify({mode:'pi_reference',context:{include_refs:[],exclude_refs:[]},excluded_session_skills:['method']}))
+ render(<CapstoneAssistantThread storageKey="direct-exclusion" runtimeMode="pi_reference" events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async()=>{}} inputCatalog={{schema:'capstone-thread-input-catalog/1',revision:'r',objects:[],materials:[],operations:[],resource_profiles:{},session_skills:{revision:1,skills:[{id:'method',version:'v1',role:'direct_pi'}]}} as never}/> )
+ fireEvent.change(screen.getByLabelText('Thread 指令'),{target:{value:'continue'}})
+ fireEvent.click(screen.getByRole('button',{name:'发送指令'}))
+ await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','continue',expect.objectContaining({excluded_session_skills:['method']})))
+})
+it('clears a recovered accepted exclusion draft once and keeps subsequent edits',async()=>{
+ const draft={...emptyInputDraft('pi_reference'),excluded_session_skills:['method']}
+ sessionStorage.setItem('recovered-exclusion.input',JSON.stringify(draft))
+ const props={storageKey:'recovered-exclusion',runtimeMode:'pi_reference' as const,events:[],disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+ const view=render(<CapstoneAssistantThread {...props}/>)
+ const input=screen.getByLabelText('Thread 指令') as HTMLTextAreaElement
+ fireEvent.change(input,{target:{value:'已接纳'}})
+ const submission=composerSubmission({...buildInputSubmission('已接纳',draft),text:'已接纳'})
+ const accepted={text:'已接纳',commandId:'accepted-exclusion',submission}
+ view.rerender(<CapstoneAssistantThread {...props} acceptedDraft={accepted}/> )
+ await waitFor(()=>expect(input.value).toBe(''))
+ fireEvent.change(input,{target:{value:'新草稿'}})
+ view.rerender(<CapstoneAssistantThread {...props} acceptedDraft={{...accepted}}/> )
+ expect(input.value).toBe('新草稿')
+})
+it('uses launcher elapsed time without adding batch receipts to the tool count',()=>{
+ const attempt='launcher',batch={schema:'capstone-tool-batch/1',task_id:'task',batch_id:'batch',mode:'parallel',capacity:8,call_ids:['a','b'],elapsed_ms:1200}
+ const events=[event('attempt_started',1,{},attempt),event('turn_route_selected',2,{source:'native_conversation'},attempt),event('runtime_action',3,{phase:'started'},attempt),event('runtime_action',4,{phase:'response_completed',response_kind:'tools'},attempt)]
+ for(const [i,id] of ['a','b'].entries())events.push(event('runtime_event',5+i*2,{task_id:'task',native_type:'tool_execution_start',tool_name:'read',tool_call_id:id},attempt),event('runtime_event',6+i*2,{task_id:'task',native_type:'tool_execution_end',tool_name:'read',tool_call_id:id},attempt))
+ events.push(event('runtime_event',9,{task_id:'task',native_type:'tool_batch',tool_batch:batch},attempt),event('attempt_completed',10,{answer:'完成'},attempt))
+ const activities=projectAssistantActivity(events)
+ expect(activities.filter(item=>item.toolName)).toHaveLength(2)
+ expect(activities.filter(item=>item.toolName).every(item=>item.toolBatch?.elapsed_ms===1200)).toBe(true)
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ expect(document.querySelector('.capstone-parallel-heading')?.textContent).toBe('并行工具调用 · 2 项 · 1.2s')
+})
+it.each([false,true])('connects all sixteen tools from native SDK turn projection (owner receipts: %s)',hasReceipts=>{
+ const attempt='native-batch'
+ const events=[event('attempt_started',1,{},attempt),
+  event('turn_route_selected',2,{source:'native_conversation'},attempt),
+  event('runtime_action',3,{phase:'started'},attempt),
+  event('runtime_action',4,{phase:'response_completed',response_kind:'tools'},attempt)]
+ for(let index=0;index<16;index++){
+  const id=`native-call-${index}`, observed=receipt(id,index<8?0:1000)
+  events.push(event('runtime_event',5+index*2,{task_id:'task',native_type:'tool_execution_start',tool_name:`read-${index}`,tool_call_id:id},attempt),
+   event('runtime_event',6+index*2,{task_id:'task',native_type:'tool_execution_end',tool_name:`read-${index}`,tool_call_id:id,activity:hasReceipts?{execution_receipt:observed}:{}},attempt))
+ }
+ events.push(event('attempt_completed',40,{answer:'完成'},attempt))
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+ const dialog=screen.getByRole('dialog',{name:'执行过程'})
+ const batch=within(dialog).getByRole('group',{name:'并行工具调用 · 16 项'})
+ expect(batch.querySelectorAll('.capstone-call-tool-entry')).toHaveLength(16)
+ if(hasReceipts)expect(batch.querySelector('.capstone-parallel-heading')?.textContent).toContain('执行容量 8 · 观测峰值 8')
+ else expect(within(batch).queryByText(/观测峰值/)).toBeNull()
+ expect(within(dialog).queryByRole('group',{name:'同一响应工具批次 · 16 项'})).toBeNull()
+})
 it('shows public compaction records inside the process window and preserves LLM count on replay',()=>{
  const events=[event('attempt_started',1,{},'compact'),
   event('runtime_action',2,{phase:'started'},'compact','2026-11-01T00:00:01Z'),
@@ -252,7 +311,7 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
     fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
     const tools=within(screen.getByRole('dialog',{name:'执行过程'})).getByRole('region',{name:'工具调用过程'})
-    expect(within(tools).getAllByText('并行调用')).toHaveLength(2)
+    expect(within(tools).queryByText('并行调用')).toBeNull()
     expect(within(tools).getByText('失败')).toBeTruthy()
     expect(within(tools).getByText('Source unavailable',{selector:'.capstone-tool-failure-reason'})).toBeTruthy()
   })
@@ -738,6 +797,26 @@ describe('CapstoneAssistantThread', () => {
       fireEvent.scroll(document.querySelector('.capstone-chat-viewport')!)
       expect(body.style.maxHeight).toBe(height)
     } finally { rect.mockRestore() }
+  })
+  it('allows a running process at the conversation tail to grow beyond its initial bottom space',()=>{
+    const rect=vi.spyOn(HTMLElement.prototype,'getBoundingClientRect').mockImplementation(function(this:HTMLElement){
+      const viewport=this.classList.contains('capstone-chat-viewport')
+      const top=viewport?100:550,height=viewport?500:40
+      return {top,bottom:top+height,left:0,right:800,width:800,height,x:0,y:top,toJSON:()=>({})}
+    })
+    try{
+      const events=[event('attempt_started',1,{},'tail-fit'),event('tool_started',2,{tool_name:'grid_context_get'},'tail-fit')]
+      render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
+      const viewport=document.querySelector('.capstone-chat-viewport') as HTMLElement
+      const preview=screen.getByLabelText('执行过程预览')
+      Object.defineProperties(viewport,{clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:1000}})
+      viewport.scrollTop=500
+      fireEvent.scroll(viewport)
+      expect(Number.parseFloat(preview.style.maxHeight)).toBe(Math.min(500*.72,window.innerHeight*.65))
+      viewport.scrollTop=100
+      fireEvent.scroll(viewport)
+      expect(preview.style.maxHeight).toBe('80px')
+    }finally{rect.mockRestore()}
   })
   it('keeps all actions and a separate committed work explanation in the height-limited running window', () => {
     const snapshot = { research_id: 'research-1', revision: 1, goal: '核验故障影响', condition_refs: [], claims: [],
@@ -2044,4 +2123,11 @@ describe('CapstoneAssistantThread', () => {
 
     await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
   })
+})
+
+it('retains only owner-matched execution receipts during replay',()=>{
+ const observed=receipt('call')
+ const row=event('runtime_event',1,{task_id:'task',native_type:'tool_execution_end',tool_name:'read',tool_call_id:'call',activity:{execution_receipt:observed}},'attempt')
+ expect(projectAssistantActivity([row])[0].executionReceipt).toEqual(observed)
+ expect(projectAssistantActivity([{...row,payload:{...row.payload,task_id:'other'}}])[0].executionReceipt).toBeUndefined()
 })

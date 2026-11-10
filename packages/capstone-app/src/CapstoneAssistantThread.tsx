@@ -1,3 +1,4 @@
+import { receiptDuration, parseToolBatch, parseToolDispatchReceipt, parseToolExecutionReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
 import {serverNow} from './serverClock'
 import WelcomeConnections from './WelcomeConnections'
 import {instructionProductScopes,instructionProductLabel,type InstructionProductScope} from './instructionProducts'
@@ -12,7 +13,7 @@ import {productRefKey,parseContextProductRefs,type ContextProductRef} from './th
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadCommandMenu from './ThreadCommandMenu'
 import InstructionAttachments,{bindInstructionAttachments,type InstructionFile} from './InstructionAttachments'
-import { buildInputSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
+import { buildInputSubmission, composerSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
 import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
@@ -87,6 +88,10 @@ const EMPTY_PROMPTS = [
 ] as const
 
 export type ChatActivity = {
+  toolBatch?: import('./toolExecutionReceipt').ToolBatch
+  dispatchReceipt?: import('./toolExecutionReceipt').ToolDispatchReceipt
+  skillName?: string
+  executionReceipt?: ToolExecutionReceipt
   id: string
   label: string
   source: string
@@ -106,6 +111,7 @@ export type ChatActivity = {
 }
 
 const TOOL_LABELS: Record<string, string> = {
+  agent_skill: '技能',
   agent_resource_open: '读取引用资料',
   agent_research_read: '读取已保存的研究记录',
   agent_research_update: '保存研究进展与待解决问题',
@@ -176,22 +182,40 @@ function nativeToolActivity(event:EventEnvelope) {
   const outputExcerpt=rawOutput&&/(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(rawOutput)?'输出包含受保护配置或凭据信息，已隐藏。':rawOutput?.slice(0,601)
   const rawWarning=typeof activity?.warning==='string'?activity.warning:undefined
   const warning=rawWarning&&/(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(rawWarning)?'警告包含受保护信息，已隐藏。':rawWarning?.slice(0,241)
-  return {id:`native:${JSON.stringify([event.threadId,event.attemptId,task,call])}`,name,phase,failed,operation,outputExcerpt,warning}
+  const receipt = parseToolExecutionReceipt(activity?.execution_receipt,call)
+  const skill=object(payload.skill_activity)
+  const declaredSkill=typeof skill?.name==='string'?skill.name:operation?.match(/^([a-z0-9][a-z0-9_-]{0,127}) · (?:已加载|模型报告)$/)?.[1]
+  const skillName=name==='agent_skill'&&declaredSkill&&/^[a-z0-9][a-z0-9_-]{0,127}$/.test(declaredSkill)?declaredSkill:undefined
+  return {skillName,executionReceipt:receipt?.task_id===task?receipt:undefined,id:`native:${JSON.stringify([event.threadId,event.attemptId,task,call])}`,name,phase,failed,operation,outputExcerpt,warning}
 }
 
 export function projectAssistantActivity(events: readonly EventEnvelope[]): ChatActivity[] {
   const grouped = new Map<string, ChatActivity>()
+  const dispatches=new Map<string,import('./toolExecutionReceipt').ToolDispatchReceipt>()
+  const batches=new Map<string,import('./toolExecutionReceipt').ToolBatch>()
+  for(const event of events){
+    if(event.visibility==='public'&&event.eventType==='runtime_event'&&event.payload.native_type==='tool_batch'&&event.attemptId&&typeof event.payload.task_id==='string'){
+      const batch=parseToolBatch(event.payload.tool_batch,event.payload.task_id)
+      if(batch)for(const call of batch.call_ids)batches.set(`native:${JSON.stringify([event.threadId,event.attemptId,batch.task_id,call])}`,batch)
+    }
+    if(event.visibility!=='public'||event.eventType!=='runtime_event'||event.payload.native_type!=='tool_dispatch'||!event.attemptId)continue
+    const payload=event.payload
+    if(typeof payload.tool_call_id!=='string'||typeof payload.task_id!=='string')continue
+    const receipt=parseToolDispatchReceipt(payload.dispatch_receipt,payload.tool_call_id)
+    if(receipt?.task_id===payload.task_id)dispatches.set(`native:${JSON.stringify([event.threadId,event.attemptId,payload.task_id,payload.tool_call_id])}`,receipt)
+  }
   for (const event of events) {
     const native=nativeToolActivity(event)
     if(native){
       const previous=grouped.get(native.id)
       const startedAt=previous?.startedAt||(native.phase==='running'?event.occurredAt:undefined)
       const finishedAt=previous?.finishedAt||(native.phase==='completed'?event.occurredAt:undefined)
-      grouped.set(native.id,{id:native.id,toolName:native.name,label:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
+      const skillName=native.skillName??previous?.skillName
+      grouped.set(native.id,{id:native.id,toolName:native.name,skillName,label:skillName?skillName:(native.name==='agent_tools_execute'&&(native.operation||previous?.operation))||TOOL_LABELS[native.name] || native.name,source:`pi · ${native.name}`,
         taskStepId:typeof event.payload.task_step_id==='string'?event.payload.task_step_id:previous?.taskStepId,
         taskStepNumber:typeof event.payload.task_step_number==='number'?event.payload.task_step_number:previous?.taskStepNumber,
         stepToolNumber:typeof event.payload.step_tool_number==='number'?event.payload.step_tool_number:previous?.stepToolNumber,
-        operation:native.operation||previous?.operation,outputExcerpt:native.outputExcerpt||previous?.outputExcerpt,warning:native.warning||previous?.warning,
+        toolBatch:batches.get(native.id),dispatchReceipt:dispatches.get(native.id),executionReceipt:native.executionReceipt??previous?.executionReceipt,operation:native.operation||previous?.operation,outputExcerpt:native.outputExcerpt||previous?.outputExcerpt,warning:native.warning||previous?.warning,
         ...(native.failed&&native.outputExcerpt?{failure:{summary:native.outputExcerpt}}:previous?.failure?{failure:previous.failure}:{}),
         status:native.failed||previous?.status==='failed'?'failed':finishedAt?'completed':native.phase,
         ...(startedAt?{startedAt}:{}),...(finishedAt?{finishedAt}:{}),
@@ -696,27 +720,21 @@ function ToolDiagnostic({ diagnostic }: { diagnostic: string }) {
 }
 
 function ActivityItems({ activities }: { activities: ChatActivity[] }) {
-  const interval = (item: ChatActivity) => [Date.parse(item.startedAt ?? ''), item.finishedAt ? Date.parse(item.finishedAt) : item.status === 'running' ? Infinity : NaN]
   return <div className="capstone-chat-activity-list">{activities.map((item) => {
     const [owner, ...detail] = item.source.split(' · ')
+    const executionMs = receiptDuration(item.executionReceipt,'execution_started','execution_ended')
     const reason = toolFailureReason(item.failure)
     const diagnostic = [reason, item.failure?.code ? `诊断：${item.failure.code}` : '',
       item.failure?.message ? `原文：${item.failure.message}` : ''].filter(Boolean).join('\n')
-    const [start, end] = interval(item)
-    const parallel = activities.some(other => {
-      if (other.id === item.id) return false
-      const [otherStart, otherEnd] = interval(other)
-      return start < end && otherStart < otherEnd && start < otherEnd && otherStart < end
-    })
-    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}>
+    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}${item.toolName==='agent_skill'?' is-skill':''}`}>
       <span className="capstone-chat-activity-icon" aria-hidden="true" />
       <div className="capstone-tool-call-content">
         <div className="capstone-tool-call-heading">
-          <strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>
+          {item.toolName==='agent_skill'&&<span className="capstone-skill-badge">技能</span>}<strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>
           <small>{item.status === 'running' ? '执行中' : item.status === 'failed' ? '失败' : item.status === 'cancelled' ? '已停止' : '完成'}</small>
-          {parallel && <small title="调用记录的时间区间重叠。">并行调用</small>}
+
         </div>
-        <small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small>
+        <small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')} · {executionMs===undefined?'实际执行未知':`工具执行 ${formatDuration(executionMs)}`}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small>
         {item.operation && <div className="capstone-tool-operation">{item.operation}</div>}
         {item.outputExcerpt && <details className="capstone-tool-output"><summary>查看返回摘要</summary><p>{item.outputExcerpt}</p><small>此处为有限长度摘要，可能截断。</small></details>}
         {owner==='pi'&&!item.operation&&!item.outputExcerpt&&<small>此调用回执未提供操作与返回摘要。</small>}
@@ -800,7 +818,10 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
       const bottom = Math.min(bounds.bottom, window.innerHeight)
       const available = Math.max(0, bottom - node.getBoundingClientRect().top - 12)
       const maximum = Math.max(80, Math.min(bounds.height * .72, window.innerHeight * .65))
-      node.style.maxHeight = `${Math.min(maximum, Math.max(80, available))}px`
+      // At the live tail, content growth can move the outer viewport down.
+      // Do not pin the process to the small space below its initial position.
+      const atTail = viewport.clientHeight > 0 && viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 20
+      node.style.maxHeight = `${running && atTail ? maximum : Math.min(maximum, Math.max(80, available))}px`
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
@@ -876,7 +897,7 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
       </section>
       <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
     </>
-    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.toolName==='agent_tools_execute'?activity.toolName:activity.toolName?(TOOL_LABELS[activity.toolName]||activity.toolName):activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
+    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),kind:activity.toolName==='agent_skill'?'skill' as const:undefined,name:activity.toolName==='agent_skill'?activity.label:activity.toolName==='agent_tools_execute'?activity.toolName:activity.toolName?(TOOL_LABELS[activity.toolName]||activity.toolName):activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,toolBatch:activity.toolBatch,dispatchReceipt:activity.dispatchReceipt,executionReceipt:activity.executionReceipt,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}
@@ -1171,7 +1192,7 @@ function ComposerSurface({ initialRestoreError, productReferenceReader, disabled
           const current = buildInputSubmission(acceptedDraft.text.trim(), inputDraft)
           const {deep_research:currentDeep=false,...currentInput}=current
           const {deep_research:acceptedDeep=false,...acceptedInput}=acceptedDraft.submission??{}
-          if (!acceptedDraft.submission || currentDeep===acceptedDeep&&JSON.stringify(currentInput)===JSON.stringify(acceptedInput)) {
+          if (!acceptedDraft.submission || currentDeep===acceptedDeep&&JSON.stringify(composerSubmission(currentInput))===JSON.stringify(composerSubmission(acceptedInput))) {
             aui.composer.setText('')
             onInputChange({...emptyInputDraft(inputDraft.mode),llm_profile_id:inputDraft.llm_profile_id,...(inputDraft.material_refs===undefined?{}:{material_refs:inputDraft.material_refs})})
           }
@@ -1667,7 +1688,7 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
         }
         const sent = inputDraft
         const metadata = buildInputSubmission(text.trim(), activeInput)
-        if(runtimeMode==='capstone'||metadata.llm_profile_id!==undefined||inputDraft.skill||inputDraft.literal||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
+        if(runtimeMode==='capstone'||metadata.llm_profile_id!==undefined||inputDraft.skill||inputDraft.literal||inputDraft.excluded_session_skills?.length||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
         else await onSend('automatic',text.trim())
         setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),llm_profile_id:metadata.llm_profile_id,...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
         returnToLatest()

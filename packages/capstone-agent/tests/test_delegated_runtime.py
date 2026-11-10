@@ -234,6 +234,29 @@ def run(service, current, selected):
                                SimpleNamespace(check=lambda: None), 30, None)
 
 
+@pytest.mark.parametrize('valid', [True, False])
+def test_owner_execution_receipt_survives_saved_public_event(valid):
+    from test_tool_execution_receipt import receipt
+    class TimedExecutor(Executor):
+        def execute(self, request, control, on_event):
+            self.requests.append(request)
+            value = receipt()
+            value.update(task_id=request.task_id if valid else 'another-task', call_id='observed-call')
+            on_event({'type': 'tool_execution_end', 'tool_name': 'published-action',
+                      'tool_call_id': 'observed-call', 'result': {'details': {'execution_receipt': value}}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity, 'completed', 'Done', (), (), {})
+    service, current = claim()
+    executor = TimedExecutor()
+    result = run(service, current, factory(executor, Recognizer([goal('lookup', 'external_lookup', refs=['general-pi'])])))
+    assert result.status == 'completed'
+    saved = service.read_events(current.thread_id, 0).events
+    records = [e.payload.get('activity', {}).get('execution_receipt') for e in saved]
+    records = [value for value in records if value is not None]
+    assert len(records) == int(valid)
+    if records:
+        assert records[0]['task_id'] == executor.requests[0].task_id
+
+
 def test_worker_external_lookup_uses_actual_general_executor():
     service, current = claim()
     executor = Executor()
@@ -776,6 +799,23 @@ def test_general_receipts_preserve_sources_and_artifacts_without_authority_refs(
     assert result.result_refs == result.evidence_refs == ()
 
 
+def test_host_checkpoint_crosses_runtime_without_becoming_result_evidence():
+    service, current = claim()
+    checkpoint = {'schema':'capstone-investigation-checkpoint/1', 'checkpoint_id':1,
+                  'completed_leaf_calls':13, 'state':'context_prepared'}
+    class WithCheckpoint(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'event_id':'event-1', 'investigation_checkpoint':checkpoint})
+            on_event({'event_id':'event-2', 'investigation_checkpoint':{**checkpoint, 'completed_leaf_calls':True}})
+            return super().execute(request,control,on_event)
+    result = run(service,current,factory(WithCheckpoint(),Recognizer([goal('one')])))
+    events = [e for e in service.read_events(current.thread_id,0).events if 'investigation_checkpoint' in e.payload]
+    assert len(events) == 1
+    assert events[0].payload['native_type'] == 'investigation_checkpoint'
+    assert events[0].payload['investigation_checkpoint'] == checkpoint
+    assert result.result_refs == result.evidence_refs == ()
+
+
 def test_host_checked_llm_pool_record_crosses_runtime_as_public_non_research_progress():
     service, current = claim()
     pool = {'type':'llm_pool_call','schema':'capstone-llm-call-pool/1',
@@ -1141,6 +1181,26 @@ def test_native_live_tool_projection_preserves_host_receipt_identity_without_pri
     assert all(event.visibility == 'public' for event in projected)
     assert all(event.visibility == 'diagnostic' for event in service.read_events(current.thread_id, 0).events
                if event.event_type == 'runtime_event' and not event.payload.get('native_type'))
+
+
+def test_skill_use_is_persisted_as_public_progress_without_authority_promotion():
+    service, current = claim()
+    activity = {'schema': 'capstone-skill-activity/1', 'name': 'data-investigation',
+                'version': 'sha256:' + 'a' * 64, 'state': 'loaded', 'source': 'host'}
+    class SkillExecutor(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'type': 'tool_execution_end', 'tool_name': 'agent_skill',
+                      'tool_call_id': 'skill-1', 'skill_activity': activity})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', 'General answer', (), (), {})
+    run(service, current, factory(SkillExecutor(), Recognizer([goal('one')])))
+    events = service.read_events(current.thread_id, 0).events
+    record = next(e for e in events if e.payload.get('skill_activity'))
+    assert record.visibility == 'public'
+    assert record.payload['skill_activity'] == activity
+    assert not record.payload.get('evidence_refs') and not record.payload.get('result_refs')
+    restored = service.read_events(current.thread_id, 0).events
+    assert next(e for e in restored if e.event_id == record.event_id).payload == record.payload
 
 
 @pytest.mark.parametrize('fails', [False, True])

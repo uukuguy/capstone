@@ -59,15 +59,23 @@ function preview(value,depth,items,chars){
 
 // Structural facts only: no inferred units, semantics or source quality verdicts.
 export function structureIndex(value){
-  const keys=object=>Object.keys(object).filter(key=>key.length<=64).slice(0,8);
+  const keyInfo=object=>{
+    const all=Object.keys(object),keys=all.filter(key=>key.length<=64).slice(0,8);
+    return {keys,...(keys.length<all.length?{keys_truncated:true}:{})};
+  };
+  const rank=object=>Array.isArray(object)?object.length?0:2:object&&typeof object==='object'&&Object.keys(object).length?1:2;
   const summary={type:Array.isArray(value)?'array':value===null?'null':typeof value,
-    ...(value&&typeof value==='object'&&!Array.isArray(value)?{keys:keys(value)}:{}),containers:[],partial:false};
+    ...(value&&typeof value==='object'&&!Array.isArray(value)?keyInfo(value):{}),containers:[],partial:false};
+  if(summary.keys_truncated)summary.partial=true;
   const queue=[{value,pointer:'',depth:0}];let visited=0;
   while(queue.length&&visited++<128){
+    queue.sort((a,b)=>rank(a.value)-rank(b.value));
     const item=queue.shift(),object=item.value;
     if(!object||typeof object!=='object')continue;
+    const first=Array.isArray(object)&&object[0]&&typeof object[0]==='object'&&!Array.isArray(object[0])?keyInfo(object[0]):undefined;
     const record={pointer:item.pointer,type:Array.isArray(object)?'array':'object',
-      ...(Array.isArray(object)?{length:object.length,...(object[0]&&typeof object[0]==='object'&&!Array.isArray(object[0])?{item_keys:keys(object[0])}:{})}:{keys:keys(object)})};
+      ...(Array.isArray(object)?{length:object.length,...(first?{item_keys:first.keys,...(first.keys_truncated?{item_keys_truncated:true}:{})}:{})}:keyInfo(object))};
+    if(record.keys_truncated||record.item_keys_truncated)summary.partial=true;
     if(item.pointer||Array.isArray(object)){
       if(JSON.stringify({...summary,containers:[...summary.containers,record]}).length>900){summary.partial=true;continue}
       summary.containers.push(record);

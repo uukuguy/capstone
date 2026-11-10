@@ -438,6 +438,11 @@ export class HttpThreadTransport implements ThreadTransport {
     return transport.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/commands`,{method:'POST',headers:{'Idempotency-Key':idempotencyKey},body:JSON.stringify({schema:'capstone-command/2',thread_id:threadId,run_id:runId,command_id:commandId,idempotency_key:idempotencyKey,kind:'rename_session',target:{kind:'session_title',id:threadId,expected_revision:revision},payload:{text}})})
   }
 
+  setSessionSkills(threadId:string,runId:string,revision:number,skills:import('./sessionSkills').SessionSkill[],commandId:string,idempotencyKey:string):Promise<unknown> {
+    const transport=new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName)
+    return transport.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/commands`,{method:'POST',headers:{'Idempotency-Key':idempotencyKey},body:JSON.stringify({schema:'capstone-command/2',thread_id:threadId,run_id:runId,command_id:commandId,idempotency_key:idempotencyKey,kind:'set_session_skills',target:{kind:'session_skills',id:threadId,expected_revision:revision},payload:{skills}})})
+  }
+
   createWorkThread(signal?: AbortSignal): Promise<unknown> {
     if (this.protocolVersion !== '2') throw new Error('工作会话需要新版协议')
     return this.request(this.resourcePath, { method: 'POST', signal, body: JSON.stringify({}) })

@@ -1,0 +1,124 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event, Lock
+import pytest
+from capability_agent.runtime.execution_queue import ExecutionQueue
+
+
+def test_sixteen_calls_fill_eight_and_refill_without_wave_barrier():
+    queue = ExecutionQueue(capacity=8)
+    gates = [Event() for _ in range(16)]
+    entered, lock = [], Lock()
+    filled, refilled = Event(), Event()
+    def run(i):
+        receipt = queue.receipt(task_id='task', call_id=str(i))
+        with queue.acquire(receipt, resource='shared', read_only=True):
+            with lock:
+                entered.append(i)
+                if len(entered) == 8: filled.set()
+                if len(entered) == 9: refilled.set()
+            assert gates[i].wait(5)
+        return receipt
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        futures = [pool.submit(run, i) for i in range(16)]
+        try:
+            assert filled.wait(3)
+            assert len(entered) == 8
+            gates[entered[0]].set()
+            assert refilled.wait(3)
+        finally:
+            for gate in gates: gate.set()
+        receipts = [f.result() for f in futures]
+    assert all([e['phase'] for e in r['events']] == ['submitted','queued','acquired','released'] for r in receipts)
+
+
+def test_error_releases_lease_and_unknown_effect_is_exclusive():
+    queue = ExecutionQueue(capacity=8)
+    receipt = queue.receipt(task_id='task', call_id='one')
+    with pytest.raises(RuntimeError):
+        with queue.acquire(receipt, resource='shared', read_only=False):
+            raise RuntimeError('failure')
+    with queue.acquire(queue.receipt(task_id='task', call_id='two'), resource='shared', read_only=False):
+        pass
+    assert receipt['events'][-1]['phase'] == 'released'
+
+
+def test_queued_cancellation_does_not_acquire_or_release_capacity():
+    queue = ExecutionQueue(capacity=1)
+    cancel = Event()
+    cancel.set()
+    receipt = queue.receipt(task_id='task', call_id='cancelled')
+    from concurrent.futures import CancelledError
+    with pytest.raises(CancelledError):
+        with queue.acquire(receipt, resource='shared', cancel=cancel):
+            pytest.fail('cancelled work started')
+    assert [e['phase'] for e in receipt['events']] == ['submitted','queued','cancellation_requested']
+
+
+def test_conflicting_write_waits_for_read_and_blocks_later_read():
+    queue = ExecutionQueue(capacity=8)
+    writer, reader = Event(), Event()
+    def call(flag, read_only):
+        with queue.acquire(queue.receipt(task_id='task', call_id=str(read_only)), resource='shared', read_only=read_only):
+            flag.set()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        with queue.acquire(queue.receipt(task_id='task', call_id='held'), resource='shared', read_only=True):
+            write = pool.submit(call, writer, False)
+            # Wait for admission to the pending queue without a timing assumption.
+            from time import monotonic, sleep
+            limit = monotonic() + 2
+            while not queue._pending and monotonic() < limit: sleep(.001)
+            read = pool.submit(call, reader, True)
+            assert not writer.wait(.03)
+            assert not reader.is_set()
+        write.result()
+        read.result()
+    assert writer.is_set() and reader.is_set()
+
+
+def test_async_queue_cancellation_removes_pending_without_threads():
+    import asyncio
+    queue = ExecutionQueue(capacity=1)
+    async def run():
+        held = queue.receipt(task_id='one', call_id='held')
+        cancelled = queue.receipt(task_id='two', call_id='queued')
+        async with queue.acquire_async(held, resource='shared', read_only=True):
+            async def pending():
+                async with queue.acquire_async(cancelled, resource='shared', read_only=True):
+                    pytest.fail('pending dispatch started')
+            task = asyncio.create_task(pending())
+            await asyncio.sleep(.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError): await task
+            assert len(queue._active) == 1
+            assert not queue._pending
+        assert not queue._active
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('phase', ['submitted', 'queued', 'acquired', 'released'])
+def test_required_receipt_failure_is_fatal_without_leaking_lease(phase):
+    queue = ExecutionQueue(capacity=1)
+    def observer(receipt):
+        if receipt['events'][-1]['phase'] == phase:
+            raise OSError('storage unavailable')
+    with pytest.raises(RuntimeError, match='execution receipt persistence failed'):
+        receipt = queue.receipt(task_id='task', call_id='one', observer=observer)
+        with queue.acquire(receipt, resource='shared'):
+            pass
+    assert not queue._active
+    assert not queue._pending
+
+
+def test_borrowed_lease_is_resource_bound_single_use_and_cannot_outlive_owner():
+    queue = ExecutionQueue(capacity=1)
+    receipt = queue.receipt(task_id='task', call_id='call')
+    with queue.acquire(receipt, resource='one') as lease:
+        with pytest.raises(ValueError):
+            with queue.borrow(lease, resource='other'): pass
+        with queue.borrow(lease, resource='one') as borrowed:
+            assert borrowed is receipt
+            with pytest.raises(ValueError):
+                with queue.borrow(lease, resource='one'): pass
+    with pytest.raises(ValueError):
+        with queue.borrow(lease, resource='one'): pass
+    assert [e['phase'] for e in receipt['events']] == ['submitted', 'queued', 'acquired', 'released']

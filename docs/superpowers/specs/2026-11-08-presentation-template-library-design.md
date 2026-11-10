@@ -41,8 +41,76 @@ an exact re-render.
 The renderer maps cover, contents, content and closing roles to the selected
 template. Preserve master/theme, logos, colors and footer styling. Do not retain
 sample business claims, sample figures or placeholder text from template slides.
-Keep content editable where supported. Paginate content within layout bounds;
-report unsupported layout objects or overflow rather than silently dropping text.
+Keep content editable where supported. Page expression is part of template style.
+For a management briefing, plan one main point per slide, usually one focused
+figure or compact table with concise reasoning that supports its claim on the same
+page. Keep full derivations and secondary detail in speaker notes or supporting
+files. Keep limitations that affect the conclusion visible on the slide.
+Do not mechanically split blocks into extra slides or reduce text size to make
+long prose fit. Report overflow so the author can revise the content or explicit
+page plan. Preserve the existing untemplated generator as a separate baseline.
+The first delivery adds opt-in template generation; it does not change that
+baseline or establish persistent library selection and runtime PDF support.
+
+### Accepted report argument refinement
+
+A complete briefing has a cover, agenda, connected chapters, synthesized
+conclusions and a closing page. The agenda expresses the report argument rather
+than listing unrelated slide titles. Each chapter answers a report-level question.
+Visible chapter context connects its pages. Each opinion page presents a supported
+claim, the evidence for it, an explanation of that evidence and a relevant
+implication where warranted. These can be concise sentences or other appropriate
+compositions; a fixed number of tiny bullets is not the writing standard.
+Page count follows the argument and readability, not the source deck's 14 pages.
+
+For the current briefing, the runtime report generator derives the main topics
+from admitted findings and organizes an opening overview, themed analysis and
+closing synthesis (total/detail/total). The agenda lists only the main chapter
+titles, without questions, slogans or method prose. Each opinion page responds
+to one agenda topic: the exact numbered chapter title appears on the right of
+the title bar in22pt bold using the title font, with a separate27pt page claim on the left. Reserve both
+rectangles; an overlong claim requires rewriting, not overlap or smaller fonts.
+Developers provide generic mechanisms and review criteria, not topic names or a
+fixed chapter count. Verify independent organization in a fresh Work context
+without a prior developer outline. The argument plan and final agenda/section
+mapping are saved products for review.
+
+Compile the current main report using existing data and products first. Record
+report-led acquisition planning as a separate later implementation: audience and
+decision questions lead to candidate claims and evidence needs, which guide
+targeted data acquisition and analysis. Save gaps and revise unsupported claims.
+Do not claim this upstream behavior is implemented by a post-analysis rewrite.
+Autonomous quality must be assessed on the visible page, excluding speaker notes.
+Each opinion page needs sufficient evidence and explanation to support its title
+and advance its chapter; a context or boundary page may explain what can and
+cannot be concluded. Do not force operational recommendations, a bullet count or
+a word count. The runtime reads back final slide text, records actual semantic
+defects, makes bounded targeted revisions and reviews again after layout edits.
+The reusable mechanism must contain no case-specific chapters, metrics, thresholds
+or preferred conclusions. V6 is a reviewed quality reference, not a runtime input
+or a source of prescribed wording. V7's numeric-fragment pages fail this criterion.
+Self-assessment records are evidence of a check, not independent acceptance.
+
+When the application grants an isolated text reader, the report workflow uses it
+after a draft exists. Supply bounded visible text and relevant source facts,
+excluding author notes, the argument plan and previous self-review verdicts.
+The reader returns material issues and evidence locations. The author checks
+actual findings against sources, records dispositions, revises and renders again.
+Required pending reviews stay pending through collection timeouts. A critic is
+another model observation, not Authority truth. The existing local text-pool
+experiment provides this capability without new child tools or data access;
+availability and production-default acceptance remain separate.
+
+For new evidence briefings, the executable `capstone-presentation/2` contract
+requires a template and `argument: {explanation: <literal text>}` on each ordinary
+content record. The renderer writes that authored explanation into the visible
+body and applies the same overflow budget. It records page/explanation digests;
+it does not certify the inference. Agenda/closing records omit argument.
+Version1 remains compatible for the baseline and historical rerendering. This
+prevents the saved report argument from being silently relegated to notes during
+composition; it neither generates business conclusions nor imposes a prose count.
+
+See the [compilation plan](../plans/2026-11-08-briefing-report-compilation.md).
 
 A render record binds content version/digest, template version/digest, dependent
 source references, renderer version, output hashes and conversion status. Changing

@@ -1,6 +1,14 @@
 # docs/status INDEX
 
-2026-11-07：[分段契约复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)记录PR98、获批CI及实际dev9689c434；完整读取归零、两项判断纠正，续轮复用与性能仍有缺口。
+2026-11-08：[独立评审与复核](../reviews/2026-11-08-session-skill-scope-independent-review.md)结论REQUEST CHANGES；原始意见与采纳/排除理由分开保存，IG1需修排除、内容身份和恢复路径，无运行代码变更或CI。
+
+2026-11-08：[会话技能作用域](../reports/2026-11-08-session-skill-scope.md)记录406c7d7b及local-dev连接三区研发的两轮真实执行；配置冻结、排除、PG恢复与产品哈希通过，界面/独立审查未接受，无CI。
+
+2026-11-08：[通用执行记录与8路队列](../reports/2026-11-08-tool-execution-lifecycle.md)记录最终本机源码b473fe0d及2b45bc49真实16项同批/源进程峰值8、产物哈希与刷新恢复。dev8da7dc76，待批准定向CI及PR集成；其他部署不变。
+
+2026-11-07：[渐进发现v1实施与验证](../reports/2026-11-07-capstone-progressive-gateway-v1.md)：本机候选248865b1，首次执行零tools/list、断连后元数据与过程恢复通过；启动1.268/0.942秒，整轮110.45/133.55秒，性能未接受。独立审查及dev集成待完成，无新CI。
+
+2026-11-07：[分段契约复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)记录PR98及获批CI；控制PR99已合实际dev8da7dc76，图按当前HEAD刷新；完整读取归零、两项判断纠正，续轮复用与性能仍有缺口。
 
 2026-11-07：[动态能力与网关建议](../reports/2026-11-07-gateway-capability-discovery.md)记录9773fca6本机候选、真实两轮方案及未通过的分析质量项；设计和计划见回执关联。未合dev、无CI。
 

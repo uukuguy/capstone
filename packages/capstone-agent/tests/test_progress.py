@@ -3,6 +3,19 @@ from __future__ import annotations
 import pytest
 
 
+def test_transport_state_is_public_before_truncation_without_exposing_endpoint():
+    from capstone_agent.progress import project_native_tool_activity
+    body = {'status': 'error', 'gaps': [{'message': 'Source unavailable'}], 'provenance': {
+        'execution_diagnostics': {'transport_phase': 'send', 'request_sent': None,
+            'remote_execution_possible': True, 'result_state': 'unknown',
+            'source_endpoint': 'http://private-source.invalid/internal'}}}
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': body}})['output_excerpt']
+    assert '发送阶段失败' in output
+    assert '发送状态未知' in output
+    assert '不可自动重放' in output
+    assert 'private-source' not in output
+
+
 def test_opening_intent_allows_blank_prefix_without_using_reasoning_or_later_comments():
     from capstone_agent.progress import public_response_intent
     assert public_response_intent('\n\n// 汇总指标\n正文') == '汇总指标'

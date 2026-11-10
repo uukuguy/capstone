@@ -40,6 +40,7 @@ def input_catalog_document(snapshot, profiles: dict, historical: list[dict], *, 
         'implementation_family': None if context is None else context.implementation_family,
         'selection_revision': None if context is None else context.selection_revision, 'resource_profiles': profiles,
         'objects': objects, 'materials': [], 'operations': operations,
+        'session_skills': dict(snapshot.session_skills or {'revision': 0, 'skills': []}),
         'coverage': {'full_model_tables': False, 'history': 'bounded', 'material_status': 'unavailable'}}
     return {**public, 'revision': content_hash(public)}
 

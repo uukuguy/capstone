@@ -28,6 +28,7 @@ import AnswerDetailSheet from './AnswerDetailSheet'
 import AttemptRecordPanel from './AttemptRecordPanel'
 import SessionNewPopover from './SessionNewPopover'
 import type {InputCatalog,InputSubmission,GatewayConnectionStatus} from './threadInput'
+import {composerSubmission} from './threadInput'
 import {sessionTypeNames} from './SessionEntry'
 import ProcessProductWorkspace from './ProcessProductWorkspace'
 import type {ProcessProduct} from './processProducts'
@@ -226,7 +227,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       try{const resources=await transport.readStoredResources(currentId);if(live)setInputCatalog({...value,stored_resources:resources})}catch(cause){rethrowDebugCapacity(cause) /* Keep the existing input catalog available. */}
     }).catch(cause=>{rethrowDebugCapacity(cause);if(live)setInputCatalog(undefined)}).finally(()=>{if(live)setCatalogLoading(false)})
     return()=>{live=false}
-  },[client,currentId,nativeChat,catalogReload,materialRevision])
+  },[client,currentId,nativeChat,catalogReload,materialRevision,snapshot?.sessionSkills?.revision])
   useEffect(() => {
     const refresh=()=>setListReload(value=>value+1)
     window.addEventListener('capstone-session-renamed',refresh)
@@ -360,7 +361,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const payload=command.payload as {text:string}&Partial<InputSubmission>
         setAttachments(files=>files.filter(file=>!payload.attachment_refs?.includes(file.resource_id)))
         setCatalogReload(value=>value+1)
-        const submission=payload.input&&payload.context_selection?{input:payload.input,context_selection:payload.context_selection,...(payload.llm_profile_id===undefined?{}:{llm_profile_id:payload.llm_profile_id}),...(payload.deep_research===undefined?{}:{deep_research:payload.deep_research}),...(payload.resource_profile?{resource_profile:payload.resource_profile}:{}),...(payload.material_refs!==undefined?{material_refs:payload.material_refs}:{}),...(payload.context_product_refs!==undefined?{context_product_refs:payload.context_product_refs}:{})}:undefined
+        const submission=composerSubmission(payload)
         setAcceptedDraft({text:payload.text,commandId:command.command_id,submission})
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message') { drafts.current[selected] = ''; persist(selected) }

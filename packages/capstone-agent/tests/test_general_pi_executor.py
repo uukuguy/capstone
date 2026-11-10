@@ -137,9 +137,11 @@ def test_process_inventory_matches_the_explicit_organization_role(tmp_path, extr
         process.stop()
 
 
-def test_process_forwards_compaction_boundaries(tmp_path, single_child_cleanup):
+@pytest.mark.parametrize('extra', [[], [{'type': 'tool_dispatch', 'dispatch_receipt': {'call_id': 'a'}},
+                                     {'type': 'tool_batch', 'tool_batch': {'call_ids': ['a', 'b'], 'elapsed_ms': 110}}]])
+def test_process_forwards_compaction_boundaries(tmp_path, single_child_cleanup, extra):
     from capstone_agent.general_pi_executor import GeneralPiProcess
-    frames = [{'type': 'compaction_start', 'reason': 'threshold'},
+    frames = [*extra, {'type': 'compaction_start', 'reason': 'threshold'},
               {'type': 'compaction_end', 'reason': 'threshold', 'status': 'completed', 'willRetry': False},
               {'type': 'agent_end', 'messages': [{'role': 'assistant', 'stopReason': 'stop',
                 'content': [{'type': 'text', 'text': 'Done'}]}]}]
@@ -150,7 +152,7 @@ def test_process_forwards_compaction_boundaries(tmp_path, single_child_cleanup):
     observed = []
     try:
         process.run('task', timeout=5, cancelled=lambda: False, on_event=observed.append)
-        assert observed == frames[:2]
+        assert observed == frames[:-1]
     finally:
         process.stop()
 

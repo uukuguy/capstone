@@ -120,9 +120,14 @@ export function createAsyncCallPool({concurrency,maxJobs,signal,run,onState=()=>
     closed=true;for(const record of records.values())requestCancel(record,'parent_cancelled');
     detach();for(const wake of [...waiters])wake();
   }
-  function waitForCompletion({signal:waitSignal,waitMs=1000}={}){
+  function waitForCompletion({signal:waitSignal,waitMs=1000,ids}={}){
     if(!positive(waitMs)||waitMs>60000)throw new TypeError('Invalid async call wait budget');
-    const reason=()=>waitSignal?.aborted?'aborted':ready.length?'completion':active===0&&![...records.values()].some(r=>!terminal.has(r.status))?(closed?'closed':'idle'):undefined;
+    if(ids!==undefined&&(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!records.has(id))))
+      throw new TypeError('Invalid async call wait selection');
+    const selected=ids?.map(id=>records.get(id));
+    const reason=()=>waitSignal?.aborted?'aborted':selected
+      ? selected.some(record=>terminal.has(record.status))?'completion':undefined
+      :ready.length?'completion':active===0&&![...records.values()].some(r=>!terminal.has(r.status))?(closed?'closed':'idle'):undefined;
     const immediate=reason();if(immediate)return Promise.resolve({reason:immediate,snapshot:snapshot()});
     return new Promise(resolve=>{
       let timer,settled=false;

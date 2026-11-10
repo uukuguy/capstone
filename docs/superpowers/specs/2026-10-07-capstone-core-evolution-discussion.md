@@ -544,3 +544,16 @@ A reproduced controller conflict forced initialization after a direct answer wit
 
 
 2026-10-24 user baseline update: current three-branch parallel338s/59tools, two-branch parallel412.4s/56tools, sequential544.6s/67tools.146s is archived old-version evidence, not a current performance gate. Keep raw measurements separate from these accepted comparison labels.
+
+
+## 2026-11-08 execution-control implementation feedback
+
+Accepted implementation separates an admitted batch from actual concurrency. A
+neutral rolling queue and source-owned process receipts now cover hosted/formal
+source calls; the application and relay retain their own budgets. A real sixteen-call
+model batch initially reached four processes because the intermediate relay still
+limited connections to four. After aligning that budget, the new model continuation
+reached eight, with zero errors and retained products. This is local verification,
+not distributed source-capacity or general performance acceptance. See the
+[execution receipt](../../reports/2026-11-08-tool-execution-lifecycle.md). Secondary
+research questions remain outside this delivery task.

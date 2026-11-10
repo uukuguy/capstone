@@ -241,6 +241,7 @@ class GatewayConnectionRegistry:
         config = deepcopy(config)
         address = urlsplit(config['url'])
         if self._transport_host and address.hostname in {'localhost', '127.0.0.1', '::1'}:
+            config['origin_authority'] = address.netloc
             config['url'] = urlunsplit((address.scheme, self._transport_host + (f':{address.port}' if address.port else ''), address.path, '', ''))
         descriptor, name = tempfile.mkstemp(prefix='.connection-', suffix='.json', dir=self.root)
         path = Path(name)

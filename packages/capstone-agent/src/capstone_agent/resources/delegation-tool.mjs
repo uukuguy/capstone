@@ -105,6 +105,7 @@ export function createDelegationTool({runChild, concurrency, maxTasks, emit,admi
   if (prepareReview !== undefined && typeof prepareReview !== 'function') throw new TypeError('prepareReview must be a function');
   return {
     name: 'agent_delegate',
+    executionRole: 'orchestrator',
     label: 'Delegate independent tasks',
     description: 'Run explicit independent tasks in host-managed native child sessions. Each child returns its actual answer, status and observed usage. Children cannot select their own model, tools or permissions. These are general observations, not Authority evidence; the parent must assess and integrate them.',
     parameters: {

@@ -1,6 +1,30 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-07 20:20. **Session remains active — not a final handoff.**
+> Updated: 2026-11-08 11:51 CST. **Session remains active — not a final handoff.**
+
+## Current parallel dispatch correction
+
+- Explicit parallel SDK mode for parent and managed child sessions. Shared FIFO admission has eight active slots; independent chains overlap and dependent calls await their inputs.
+- Launcher owns `capstone-tool-batch/1` elapsed time from the first launch boundary through turn settlement. Per-tool native invocation records use `capstone-tool-dispatch/1`; neither record is Authority execution evidence. Frontend uses the launcher duration when present and does not add batch records to tool counts.
+- User removed the full group frame. Keep one thin group line, compact title and numeric duration. Skill badge remains; omit `使用任务技能`. Thinking rows remain uniform and only LLM main headings receive the light-blue fill.
+- Focused checks pass:32 Node,204 Python plus32 skipped,184 App and typecheck. Final rebuild session7102 writes `/tmp/capstone-investigation-parallel-final-rebuild.log`. Previous intermediate rebuild passed with image67e4663d; it does not contain the final batch timer. Verify final readiness and actual batch records before claiming runtime acceptance.
+- All remote CI, push and integration remain pending explicit CI approval. Preserve parent dependency7ea164de and unrelated root work. Refresh root control state at the final verification boundary.
+
+## Active investigation skills candidate
+
+- Latest candidate 05a39dd2; UI naming/style326055ab. Local backend last verified9e52c45a; next canonical rebuild admits graph-summary and method corrections. Vite now runs from this skills worktree on5173.
+- Real browser thread thr_e0f23ce778db7b96bd65 / attempt_e701f132ba9b24f9 completed70s, seven tools with one recovered shell141 failure. Six products downloaded and hashes verified under root .capstone-agent/investigation-skills-20261108.
+- Calculation arrays are correct, but first report incorrectly calls A flat and infers a transition at00:00 across disconnected dates. This is a failed interpretation check, not business acceptance. New method guidance strengthens these checks; next action is rebuild then same-thread correction/history comparison and refresh.
+- Native packaging omission,128-layer rejection and interrupted Compose temporary containers were repaired. Canonical rebuild exited0; all roles healthy and327 historical task phases preserved. No volumes removed. Scoped cache maintenance passed.
+- Independent review tool could not start because its configured model is unavailable. Do not claim independent review.
+
+- Branch uukuguy/investigation-skills-20261108 at 49da4559 depends on unmerged 7ea164de.
+- Six adapted native methods and agent_skill load/report records are implemented.
+- Focused checks: 74 resource/projection, 198 execution checks (32 skipped), 33 App checks and types pass; real pinned SDK load passes.
+- Local rebuild runs from this worktree using root deploy/local.env and verified root PyPSA asset cache. No credentials were copied. CAPSTONE_START_APP=0 preserves the existing Vite process until backend validation.
+- Next: finish rebuild, inspect runtime publication, switch the existing local-dev Vite entry and verify real model/tool/product and refresh paths.
+- No CI authorization, push, PR or merge. Keep root uncommitted work and both earlier candidate/research branches.
+- Source/deployment notes below describe earlier snapshots, not this candidate's verified deployment.
 
 ## Source and deployment
 

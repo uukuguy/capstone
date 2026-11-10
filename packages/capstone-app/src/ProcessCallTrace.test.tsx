@@ -1,7 +1,55 @@
+import { receipt } from './toolExecutionReceipt.fixture'
 import { afterEach, expect, it } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
+
+it('shows named skills with a distinct semantic badge and style',()=>{
+ const view=render(<ProcessCallTrace models={[]} tools={[{id:'skill',name:'使用任务技能 · data-investigation',kind:'skill',operation:'data-investigation · 已加载',status:'completed'}]} active={false}/>)
+ expect(screen.getByText('data-investigation')).toBeTruthy()
+ expect(screen.getByText('技能')).toBeTruthy()
+ expect(view.container.querySelector('.capstone-call-tool-entry.is-skill')).toBeTruthy()
+})
+it('styles graph skill calls using their observed operation identity',()=>{
+ const view=render(<ProcessCallTrace models={[]} tools={[{id:'graph-skill',name:'agent_skill',operation:'systematic-debugging · 模型报告',status:'completed'}]} active={false}/>)
+ expect(screen.getByText('systematic-debugging')).toBeTruthy()
+ expect(view.container.querySelector('.capstone-call-tool-entry.is-skill')).toBeTruthy()
+})
+it('keeps a tiny same-turn batch distinct from observed execution overlap',()=>{
+ const view=render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:5,toolAssociation:'turn',toolCallIds:['a','b']}]} tools={[
+  {id:'a',name:'read',status:'completed',durationMs:2},
+  {id:'b',name:'read',status:'completed',durationMs:3},
+ ]} active={false}/>)
+ expect(view.container.querySelector('.capstone-parallel-title')?.textContent).toBe('并行工具调用 · 2 项')
+ expect(screen.queryByText(/观测峰值/)).toBeNull()
+ expect(screen.queryByText('重叠未核实')).toBeNull()
+ expect(screen.getByRole('group',{name:'并行工具调用 · 2 项'})).not.toHaveAttribute('title')
+})
+it('shows overall caller time for a batch without claiming source overlap',()=>{
+ render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:5,toolAssociation:'turn',toolCallIds:['a','b']}]} tools={[
+  {id:'a',name:'read',status:'completed',startedAt:'1970-01-01T00:00:00.000Z',finishedAt:'1970-01-01T00:00:00.100Z'},
+  {id:'b',name:'read',status:'completed',startedAt:'1970-01-01T00:00:00.200Z',finishedAt:'1970-01-01T00:00:00.300Z'},
+ ]} active={false}/>)
+ expect(screen.getByLabelText('本批次总耗时')).toHaveTextContent('300ms')
+ expect(screen.queryByText('调用区间')).toBeNull()
+ expect(screen.queryByText(/批次耗时/)).toBeNull()
+ expect(screen.queryByText(/观测峰值/)).toBeNull()
+})
+it('keeps one uniform Thinking row and tokens outside each highlighted model heading',()=>{
+ const view=render(<ProcessCallTrace compact models={[
+  {id:'no-thinking',number:1,ms:20,usage:{input:10,output:5,cacheRead:0,cacheWrite:0}},
+  {id:'thinking',number:2,ms:30,thinking:'公开思考片段',usage:{input:11,output:6,cacheRead:0,cacheWrite:0}},
+ ]} tools={[]} active={false}/>)
+ expect(screen.getAllByText('Thinking')).toHaveLength(2)
+ expect(screen.queryByText(/Thinking 未记录/)).toBeNull()
+ const heads=view.container.querySelectorAll('.capstone-llm-call-heading')
+ expect(heads).toHaveLength(2)
+ for(const head of heads){
+  expect(head.querySelector('.capstone-call-tokens')).toBeNull()
+  expect(head.querySelector('.capstone-thinking-heading')).toBeNull()
+ }
+ expect(view.container.querySelectorAll('.capstone-thinking-heading')).toHaveLength(2)
+})
 
 it('shows compaction between model calls without an extra model round and stops incomplete timers',()=>{
  const phases=[{id:'compact',reason:'threshold' as const,state:'started' as const,startedAt:'2026-11-01T00:00:02Z'}]
@@ -30,7 +78,8 @@ it('keeps Thinking visible while a model runs before any reasoning text arrives'
  expect(within(thinking).getByText('Thinking…')).toBeVisible()
  expect(thinking.querySelector('.capstone-thinking-copy')).toBeNull()
  view.rerender(<ProcessCallTrace active models={[{...model,settled:true}]} tools={[]}/> )
- expect(screen.queryByRole('region',{name:'LLM 思考'})).not.toBeInTheDocument()
+ expect(screen.getByRole('region',{name:'LLM 思考'})).toBeInTheDocument()
+ expect(screen.getByRole('region',{name:'LLM 思考'}).querySelector('.capstone-thinking-copy')).toBeNull()
 })
 
 it('shows supplied thinking batches after the waiting indicator and retains them when settled',()=>{
@@ -90,6 +139,18 @@ it('shows recorded tool purpose in the collapsed title and child response intent
  expect(screen.getByText('12.0s')).toHaveAttribute('data-latency','noticeable')
 });
 
+it('expands errors during their batch and collapses them after all sibling calls settle',()=>{
+ const models=[{id:'m',number:1,ms:100,toolCallIds:['a','b']}]
+ const failure='命令退出代码 141：完整错误详情\n第二行诊断'
+ const failed={id:'a',name:'bash',status:'failed' as const,failure}
+ const view=render(<ProcessCallTrace models={models} tools={[failed,{id:'b',name:'read',status:'running'}]} active/>)
+ const notice=screen.getByTitle(/命令退出代码 141/)
+ expect(notice).toHaveAttribute('aria-expanded','true')
+ view.rerender(<ProcessCallTrace models={models} tools={[failed,{id:'b',name:'read',status:'completed'}]} active/>)
+ expect(notice).toHaveAttribute('aria-expanded','false')
+ expect(notice).toHaveAttribute('title',failure)
+ fireEvent.click(notice);expect(notice).toHaveAttribute('aria-expanded','true')
+})
 it('keeps important tool errors and warnings visible outside collapsed details after later success',()=>{
  const models=[{id:'m1',number:1,ms:1000,settled:true,toolCallIds:['failed']},
   {id:'m2',number:2,ms:500,settled:true,toolCallIds:['fallback']}];
@@ -151,7 +212,7 @@ it('opens current lightweight tool details and collapses them when the next LLM 
   expect(screen.getByText('LLM 01')).toBeVisible()
   expect(screen.getByText('LLM 02')).toBeVisible()
 })
-it('uses compact glyphs and outlines actual parallel tools without repeated status text',()=>{
+it('uses compact glyphs and connects same-response tools without repeated status text',()=>{
   render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:1200,toolCallIds:['a','b']}]} tools={[
     {id:'a',name:'Read A',status:'completed',startedAt:'2026-10-29T00:00:00Z',durationMs:500},
     {id:'b',name:'Read B',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
@@ -161,25 +222,25 @@ it('uses compact glyphs and outlines actual parallel tools without repeated stat
   expect(screen.getByText('LLM 01')).toBeTruthy()
   expect(screen.queryByText('已返回')).toBeNull()
   expect(screen.queryByText('并行调用')).toBeNull()
-  expect(screen.getByRole('group',{name:'并行工具调用 · 2 项 · 500ms'})).toBeVisible()
-  expect(screen.getByText('500ms',{selector:'.capstone-parallel-heading .capstone-call-duration'})).toHaveAttribute('data-latency','normal')
+  expect(screen.getByRole('group',{name:'同一响应工具批次 · 2 项'})).toBeVisible()
+  expect(screen.queryByText('重叠未核实')).toBeNull()
 })
-it('splits a long overlap chain into groups that are actually concurrent',()=>{
+it('keeps a long overlap chain in one admitted response batch',()=>{
   const tools=Array.from({length:8},(_,index)=>({id:`t${index}`,name:`query ${index}`,status:'completed' as const,startedAt:new Date(Date.parse('2026-11-04T17:17:09.000Z')+index*1000).toISOString(),durationMs:4000}))
   render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:1000,toolCallIds:tools.map(tool=>tool.id)}]} tools={tools}/>)
-  expect(screen.queryByRole('group',{name:/并行工具调用 · 8 项/})).toBeNull()
-  expect(screen.getAllByRole('group',{name:/并行工具调用 · 4 项/})).toHaveLength(2)
+  expect(screen.getByRole('group',{name:'同一响应工具批次 · 8 项'})).toBeVisible()
+  expect(screen.queryByText('重叠未核实')).toBeNull()
 })
-it('groups a composition with the gateway calls whose recorded intervals overlap it',()=>{
+it('groups all response calls including late starts',()=>{
   render(<ProcessCallTrace compact models={[{id:'m',number:47,ms:6500,toolCallIds:['parent','a','b','late']}]} tools={[
     {id:'parent',name:'采集负荷日统计并落地CSV',status:'failed',failure:'gateway_timeout; do not retry',startedAt:'2026-11-04T17:17:09.606Z',durationMs:62600},
     {id:'a',name:'data_gateway_query_object_series',status:'completed',startedAt:'2026-11-04T17:17:09.778Z',durationMs:22100},
     {id:'b',name:'data_gateway_query_object_series',status:'completed',startedAt:'2026-11-04T17:17:09.803Z',durationMs:19600},
     {id:'late',name:'data_gateway_query_object_series',status:'failed',failure:'Composition stopped',startedAt:'2026-11-04T17:17:29.797Z',durationMs:41400},
   ]}/>)
-  expect(screen.getByRole('group',{name:'并行工具调用 · 3 项 · 62.6s'})).toBeVisible()
+  expect(screen.getByRole('group',{name:'同一响应工具批次 · 4 项'})).toBeVisible()
   expect(screen.queryByRole('group',{name:/并行工具调用 · 4 项/})).toBeNull()
-  expect(screen.getByText('62.6s',{selector:'.capstone-parallel-heading .capstone-call-duration'})).toHaveAttribute('data-latency','very-slow')
+  expect(screen.queryByText('重叠未核实')).toBeNull()
   expect(screen.getByText('同一组合已停止，这次调用被取消。')).toBeVisible()
   expect(screen.queryByText('Composition stopped')).toBeNull()
 })
@@ -201,13 +262,13 @@ it('keeps tool cancellation distinct from a tool failure',()=>{
   expect(screen.queryByText('失败')).toBeNull()
 })
 
-it('marks overlapping tools only inside the same response and keeps each tool collapsed',()=>{
+it('groups tools only inside the same response and keeps each tool collapsed',()=>{
   render(<ProcessCallTrace models={[{id:'m1',number:1,ms:100,toolCallIds:['a','b']},{id:'m2',number:2,ms:100,toolCallIds:['c']}]} tools={[
     {id:'a',name:'read A',status:'completed',startedAt:'2026-10-29T00:00:00Z',durationMs:500},
     {id:'b',name:'read B',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
     {id:'c',name:'read C',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
   ]}/>)
-  expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).getAllByText('并行调用')).toHaveLength(2)
+  expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).queryByText('重叠未核实')).toBeNull()
   expect(within(screen.getByRole('group',{name:'LLM 调用 2'})).queryByText('并行调用')).toBeNull()
   expect(screen.getByText('read A').closest('details')).not.toHaveAttribute('open')
   expect(within(screen.getByText('read A').closest('summary')!).getByText('500ms')).toBeVisible()
@@ -315,3 +376,12 @@ it('does not flag announced or running tools after the model response finishes',
  expect(callTraceIssues([model,next],[],true)).toMatchObject([{missingToolIds:['tool']}]);
  expect(callTraceIssues([model],[running],false)).toMatchObject([{missingToolIds:['tool']}]);
 });
+
+it('connects sixteen queued calls and distinguishes batch count, capacity and observed peak',()=>{
+ const tools=Array.from({length:16},(_,index)=>({id:String(index),name:`tool ${index}`,status:'completed' as const,executionReceipt:receipt(String(index),index<8?0:1000)}))
+ render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:10,toolCallIds:tools.map(tool=>tool.id)}]} tools={tools}/>)
+ const batch=screen.getByRole('group',{name:'同一响应工具批次 · 16 项'})
+ expect(batch.querySelector('.capstone-parallel-heading')).toHaveTextContent('执行容量 8 · 观测峰值 8 · 3.0s')
+ expect(within(batch).queryByText('重叠未核实')).toBeNull()
+ expect(within(batch).getAllByText(/执行端排队 1.0s · 工具执行 1.0s/)).toHaveLength(16)
+})

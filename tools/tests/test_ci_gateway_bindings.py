@@ -51,6 +51,22 @@ def test_dynamic_bindings_select_their_direct_consumers():
     assert classify(CHANGES, release=True) == 'release'
 
 
+def test_progressive_contracts_keep_a_focused_gateway_gate():
+    paths = [SOURCE + path for path in (
+        'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py',
+        'native_tool_diagnostics.py', 'general_pi_server.py',
+        'resources/general-data-gateway.mjs', 'resources/general-sdk.mjs',
+        'resources/general-tool-discovery.mjs', 'resources/gateway-tool-use.mjs',
+        'resources/tool-composition.mjs')]
+    paths += ['packages/capstone-agent/tests/test_gateway_progressive.py',
+              'packages/capstone-agent/tests/test_native_tool_diagnostics.py',
+              'packages/capstone-agent/tests/test_progress.py',
+              '.github/workflows/verify.yml', 'tools/ci_scope.py']
+    assert classify(paths) == 'gateway-bindings'
+    assert classify(paths, target='main') == 'release'
+    assert classify([*paths, SOURCE + 'thread_worker.py']) != 'gateway-bindings'
+
+
 def test_gateway_scope_includes_only_exact_electrical_view_consumers():
     ui = ['packages/capstone-app/src/electricalModelView.ts',
           'packages/capstone-app/src/electricalModelView.test.ts']
