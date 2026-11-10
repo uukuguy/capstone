@@ -128,6 +128,7 @@ class PresentationTaskPort:
             reference = document['resource']
             fields = ('resource_id', 'version', 'sha256')
             if (not isinstance(reference, dict) or set(reference) != set(fields)
+                    or type(reference.get('version')) is not int or reference['version'] < 1
                     or not any(all(reference[k] == r[k] for k in fields) for r in self.admitted_resources)):
                 raise ValueError('presentation_source_not_admitted')
         elif operation == 'select':

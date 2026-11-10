@@ -184,6 +184,8 @@ class PresentationTemplates:
         self._scope(thread, workspace)
         if not isinstance(name, str) or not name.strip() or len(name) > 160 or not isinstance(resource, dict):
             raise ValueError('template_request_invalid')
+        if type(resource.get('version')) is not int or resource['version'] < 1:
+            raise ValueError('template_source_changed')
         fingerprint = sha256(_canonical({'operation': 'add', 'resource': resource, 'name': name}).encode()).hexdigest()
         duplicate = self._duplicate(thread, request_id, fingerprint)
         if duplicate is not None:

@@ -91,6 +91,9 @@ def test_rejects_foreign_scope_changed_source_and_invalid_package(chat_store):
         library.add(thread, 'foreign-workspace', source, name='Mine', request_id='add-one')
     with pytest.raises(ValueError, match='source_changed'):
         library.add(thread, 'enterprise', {**source, 'sha256': '0'*64}, name='Mine', request_id='add-two')
+    for version in (True, 1.0):
+        with pytest.raises(ValueError, match='source_changed'):
+            library.add(thread, 'enterprise', {**source, 'version': version}, name='Mine', request_id='invalid-type')
     bad = upload(uploads, thread, b'not-a-pptx', 'bad-upload')
     with pytest.raises(ValueError, match='invalid_template'):
         library.add(thread, 'enterprise', bad, name='Bad', request_id='bad-add')

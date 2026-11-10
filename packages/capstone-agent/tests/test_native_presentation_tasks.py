@@ -53,6 +53,9 @@ def test_uploaded_source_must_be_in_current_task_grant(chat_store, tmp_path):
     with pytest.raises(ValueError, match='not_admitted'):
         port.invoke('add', {'resource': reference, 'name': 'Uploaded'}, call_id='add')
     port.admitted_resources = (resource,)
+    for version in (True, 1.0):
+        with pytest.raises(ValueError, match='not_admitted'):
+            port.invoke('add', {'resource': {**reference, 'version': version}, 'name': 'Uploaded'}, call_id='invalid-type')
     added = port.invoke('add', {'resource': reference, 'name': 'Uploaded'}, call_id='add')
     assert added['scope'] == 'session'
     assert port.invoke('add', {'resource': reference, 'name': 'Uploaded'}, call_id='add') == added
