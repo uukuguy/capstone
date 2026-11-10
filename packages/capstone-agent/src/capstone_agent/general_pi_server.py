@@ -18,6 +18,7 @@ import subprocess
 import threading
 import time
 from urllib.parse import urlsplit, parse_qs
+from typing import cast
 import httpx
 
 from .general_pi_executor import GeneralPiProcess, native_pi_launch, task_workspace, collect_artifacts
@@ -856,7 +857,7 @@ class GeneralPiHost:
             if (payload is not None and (kind == 'tool_execution_end'
                     or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end')
                     and isinstance(payload.get('tool_name'), str)
-                    and payload['tool_name'].startswith('data_gateway_')
+                    and cast(str, payload['tool_name']).startswith('data_gateway_')
                     and payload.get('is_error') is not True):
                 # Verification is mandatory even when the observation capture
                 # budget is full. Only the optional display projection can fail
@@ -873,10 +874,10 @@ class GeneralPiHost:
             if payload is not None:
                 if payload.get('type') == 'assistant_delta':
                     thinking_buffer.flush()
-                    text_buffer.push(payload['text'])
+                    text_buffer.push(cast(str, payload['text']))
                 elif payload.get('type') == 'assistant_thinking_delta':
                     text_buffer.flush()
-                    thinking_buffer.push(payload['text'])
+                    thinking_buffer.push(cast(str, payload['text']))
                 else:
                     text_buffer.flush()
                     thinking_buffer.flush()

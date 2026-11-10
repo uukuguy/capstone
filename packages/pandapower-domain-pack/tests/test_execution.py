@@ -24,17 +24,23 @@ def test_actual_process_lifecycle_is_observed_even_on_protocol_failure(tmp_path)
     assert events == ['execution_started', 'execution_ended']
 
 
-def test_timeout_observes_exit_only_after_child_is_reaped(tmp_path):
+def test_timeout_observes_exit_only_after_child_is_reaped(tmp_path, monkeypatch):
     import os
+    import subprocess
     events = []
-    pid_path = tmp_path / 'pid'
-    executable = _write_executable(tmp_path / 'slow',
-        f"import os,time\nopen({str(pid_path)!r},'w').write(str(os.getpid()))\ntime.sleep(30)\n")
+    processes = []
+    original = subprocess.Popen
+    def start(*args, **kwargs):
+        process = original(*args, **kwargs)
+        processes.append(process)
+        return process
+    monkeypatch.setattr(subprocess, 'Popen', start)
+    executable = _write_executable(tmp_path / 'slow', 'import time\ntime.sleep(30)\n')
     def observe(phase):
         events.append(phase)
         if phase == 'execution_ended':
             with pytest.raises(ProcessLookupError):
-                os.kill(int(pid_path.read_text()), 0)
+                os.kill(processes[0].pid, 0)
     executor = GridctlExecutor(executable=executable, workspace=tmp_path, timeout_seconds=.2)
     with pytest.raises(GridctlClientError):
         executor.invoke('test', {}, execution_observer=observe)

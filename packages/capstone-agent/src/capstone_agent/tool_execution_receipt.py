@@ -57,8 +57,10 @@ def checked_dispatch_receipt(value, *, task_id, call_id):
         if not isinstance(event, Mapping) or set(event) != {'phase', 'at', 'elapsed_ms', 'provenance'}:
             return None
         phase, current = event.get('phase'), event.get('elapsed_ms')
+        if type(current) not in {int, float} or not isinstance(current, (int, float)):
+            return None
         try:
-            finite = type(current) in {int, float} and math.isfinite(current)
+            finite = math.isfinite(current)
         except OverflowError:
             return None
         if (phase not in phases or phases.index(phase) <= previous
