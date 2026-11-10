@@ -96,6 +96,10 @@ def frozen_inputs(workspace, *, spec=None, bundle=None):
         return document, sources
     raw = workspace.read(bundle, maximum=BUDGET)
     with ZipFile(BytesIO(raw)) as archive:
+        if not {'content.json', 'manifest.json'} <= set(archive.namelist()):
+            raise ReportError('The original presentation content bundle is unavailable', diagnostic={
+                'code': 'presentation_content_unavailable', 'output_written': False,
+                'recovery': 'Obtain the saved source bundle, or offer content recovery. An older PPTX alone cannot prove an exact rerender.'})
         items = archive.infolist()
         if (len(items) > 4096 or len({i.filename for i in items}) != len(items)
                 or sum(i.file_size for i in items) > BUDGET

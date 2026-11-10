@@ -6,6 +6,8 @@ import subprocess
 import sys
 from zipfile import ZipFile
 
+import pytest
+
 SCRIPT = Path(__file__).parents[1] / 'native_presentation_library.py'
 TEMPLATE = Path(__file__).parents[1] / 'presentation-templates/state-grid.pptx'
 
@@ -73,6 +75,39 @@ def test_builtin_identity_keeps_the_original_body_and_agenda_layouts(tmp_path):
     deck, original = Presentation(tmp_path / 'branded.pptx'), Presentation(TEMPLATE)
     assert str(deck.slides[1].slide_layout.part.partname) == str(original.slides[2].slide_layout.part.partname)
     assert json.loads(result.stdout)['renderer']['template']['agenda_slide'] == 2
+
+
+def test_historical_pptx_without_source_bundle_cannot_claim_exact_rerender(tmp_path):
+    (tmp_path / 'old.pptx').write_bytes(TEMPLATE.read_bytes())
+    result = run(tmp_path, '--bundle', 'old.pptx', '--output', 'new.pptx',
+        '--template', str(TEMPLATE), '--template-sha256', hashlib.sha256(TEMPLATE.read_bytes()).hexdigest())
+    assert result.returncode == 2
+    failure = json.loads(result.stderr)
+    assert failure['diagnostic']['code'] == 'presentation_content_unavailable'
+    assert 'recover' in failure['diagnostic']['recovery'].lower()
+    assert not (tmp_path / 'new.pptx').exists()
+
+
+@pytest.mark.parametrize('available', [False, True])
+def test_pdf_failure_retains_verified_pptx_and_never_claims_pdf(tmp_path, monkeypatch, available):
+    monkeypatch.syspath_prepend(str(SCRIPT.parent))
+    import native_presentation_library as library
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'content.json').write_text(json.dumps({'schema': 'capstone-presentation/1', 'title': 'Saved',
+        'slides': [{'title': 'Point', 'blocks': [{'type': 'paragraph', 'text': 'Saved content'}]}]}))
+    monkeypatch.setattr(library.shutil, 'which', lambda _: '/usr/bin/libreoffice' if available else None)
+    conversion_inputs = []
+    def rejected_conversion(arguments, **kwargs):
+        conversion_inputs.append(hashlib.sha256(Path(arguments[-1]).read_bytes()).hexdigest())
+        return subprocess.CompletedProcess(arguments, 1, stdout=b'', stderr=b'private converter diagnostics')
+    monkeypatch.setattr(library.subprocess, 'run', rejected_conversion)
+    result = library.render_library(spec='content.json', output='kept.pptx', template=str(TEMPLATE),
+        template_sha256=hashlib.sha256(TEMPLATE.read_bytes()).hexdigest(), pdf=True)
+    assert result['pdf']['status'] == ('failed' if available else 'unavailable')
+    assert 'private' not in json.dumps(result)
+    assert (tmp_path / 'kept.pptx').exists() and not (tmp_path / 'kept.pdf').exists()
+    assert (tmp_path / 'kept.source.zip').exists() and (tmp_path / 'kept.receipt.json').exists()
+    assert conversion_inputs == ([result['output_sha256']] if available else [])
 
 
 def test_digest_change_and_output_collision_preserve_existing_products(tmp_path):
