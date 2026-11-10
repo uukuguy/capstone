@@ -221,6 +221,14 @@ def main():
     parser.add_argument('--pdf', action='store_true')
     try:
         print(json.dumps(render_library(**vars(parser.parse_args())), ensure_ascii=False))
+    except ReportError as error:
+        failure = {'schema': 'capstone-presentation-render-error/1',
+            'code': 'presentation_render_rejected', 'message': str(error)[:600],
+            'diagnostic': error.diagnostic, 'delivery_confirmed': False}
+        if len(encoded(failure)) > 16384:
+            failure['diagnostic'] = {'code': 'diagnostic_exceeds_display_budget'}
+        print(json.dumps(failure, ensure_ascii=False), file=sys.stderr)
+        raise SystemExit(2)
     except (OSError, ValueError, KeyError, TypeError, AttributeError, BadZipFile):
         print('Presentation rendering failed; no new delivery is confirmed.', file=sys.stderr)
         raise SystemExit(2)

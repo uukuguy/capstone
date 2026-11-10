@@ -50,6 +50,19 @@ def test_corrupt_bundle_cannot_replace_or_create_outputs(tmp_path):
     assert not (tmp_path / 'bad.pptx').exists()
 
 
+def test_layout_failure_returns_actionable_structured_diagnostic(tmp_path):
+    (tmp_path / 'content.json').write_text(json.dumps({'schema': 'capstone-presentation/2', 'title': 'Saved',
+        'slides': [{'title': 'Missing argument', 'blocks': []}]}))
+    result = run(tmp_path, '--spec', 'content.json', '--output', 'rejected.pptx',
+        '--template', str(TEMPLATE), '--template-sha256', hashlib.sha256(TEMPLATE.read_bytes()).hexdigest())
+    assert result.returncode == 2
+    failure = json.loads(result.stderr)
+    assert failure['schema'] == 'capstone-presentation-render-error/1'
+    assert 'explanation' in failure['message']
+    assert failure['diagnostic']['location'] == 'slides[0].argument'
+    assert not (tmp_path / 'rejected.pptx').exists()
+
+
 def test_digest_change_and_output_collision_preserve_existing_products(tmp_path):
     (tmp_path / 'content.json').write_text(json.dumps({'schema': 'capstone-presentation/1', 'title': 'Saved', 'slides': []}))
     (tmp_path / 'kept.pptx').write_bytes(b'old')

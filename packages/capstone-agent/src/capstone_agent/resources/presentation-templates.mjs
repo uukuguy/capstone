@@ -21,7 +21,7 @@ export function createPresentationTools(config,{fetchImpl=globalThis.fetch,runRe
     const d=args.document;
     if(Object.keys(d).some(k=>!['spec','bundle','output','reference','pdf'].includes(k))||
        (typeof d.spec==='string')===(typeof d.bundle==='string')||typeof d.output!=='string'||
-       d.pdf!==undefined&&typeof d.pdf!=='boolean')throw Error('Presentation render request is invalid');
+       d.pdf!==undefined&&typeof d.pdf!=='boolean')throw Error('render document requires exactly one spec or bundle path, output (.pptx), optional reference {template_id,version,sha256}, and optional pdf boolean. No template path or renderer command is accepted.');
     const frozen=await tool.execute(callId+'/template',{operation:'materialize',document:
       d.reference===undefined?{}:{reference:d.reference}},signal);
     if(frozen.isError)return frozen;
@@ -36,8 +36,18 @@ export function createPresentationTools(config,{fetchImpl=globalThis.fetch,runRe
      receipt=JSON.parse(rendered.stdout);
      if(receipt.schema!=='capstone-presentation-library-render/1'||receipt.output!==d.output||
         receipt.template_sha256!==selected.template.sha256)throw Error('Receipt mismatch');
-    }catch{
+    }catch(error){
      signal?.throwIfAborted();
+     let diagnostic;
+     try{
+      if(typeof error?.stderr==='string'&&Buffer.byteLength(error.stderr)<=16384){
+       const parsed=JSON.parse(error.stderr);
+       if(parsed.schema==='capstone-presentation-render-error/1'&&parsed.code==='presentation_render_rejected'&&
+          typeof parsed.message==='string'&&parsed.message.length<=600&&parsed.delivery_confirmed===false)diagnostic=parsed;
+      }
+     }catch{}
+     if(diagnostic)return {isError:true,content:[{type:'text',text:JSON.stringify(diagnostic)}],
+       details:{capability:'agent_presentations',ok:false,code:diagnostic.code,diagnostic,evidence_refs:[]}};
      return {isError:true,content:[{type:'text',text:'Presentation render failed. Inspect saved products before claiming delivery. Use a new output path for each version.'}],
        details:{capability:'agent_presentations',ok:false,code:'presentation_render_failed',evidence_refs:[]}};
     }

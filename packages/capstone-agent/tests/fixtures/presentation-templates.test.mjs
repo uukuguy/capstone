@@ -24,6 +24,24 @@ test('render freezes the selected template and invokes only the fixed renderer w
  assert.deepEqual(result.details.evidence_refs,[]);
 });
 
+test('render forwards bounded renderer diagnostics while hiding arbitrary process errors',async()=>{
+ const sha='b'.repeat(64),template={template_id:'state-grid',version:'sha256:'+sha,sha256:sha};
+ const failure={schema:'capstone-presentation-render-error/1',code:'presentation_render_rejected',
+  message:'Missing explanation',diagnostic:{location:'slides[0].argument'},delivery_confirmed:false};
+ for(const trusted of [true,false]){
+  const [tool]=createPresentationTools(config(),{
+   fetchImpl:async()=>new Response(JSON.stringify({ok:true,result:{template,
+    path:'/inputs/task/presentation-templates/state-grid/'+sha+'.pptx'}})),
+   runRenderer:async()=>{throw Object.assign(Error('private transport details'),{
+    stderr:trusted?JSON.stringify(failure):'private process environment'});}});
+  const result=await tool.execute('render',{operation:'render',document:{spec:'content.json',output:'new.pptx'}});
+  assert.equal(result.isError,true);
+  assert.equal(JSON.stringify(result).includes('private'),false);
+  if(trusted)assert.equal(result.details.diagnostic.diagnostic.location,'slides[0].argument');
+  else assert.equal(result.details.code,'presentation_render_failed');
+ }
+});
+
 test('presentation tools require an admitted host binding and application tool grant',()=>{
   assert.deepEqual(createPresentationTools({}),[]);
   const c=config();c.applicationPolicy.allowed_tools=[];
