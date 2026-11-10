@@ -1162,6 +1162,43 @@ def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp
         assert 'nodes' not in hints[0]
 
 
+@pytest.mark.parametrize('forged',[False,True])
+@pytest.mark.parametrize('failed',[False,True])
+def test_service_bus_public_event_uses_host_issued_receipt(tmp_path,forged,failed):
+    import asyncio
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from test_data_gateway_relay import access,request as gateway_request
+    gateway=access()
+    async def call(*args,**kwargs):
+        return {'isError':failed,'structuredContent':{'status':'error' if failed else 'success',
+            'provenance':{'service_bus_calls':{'scope':'current_tool_call','attempt_count':17,
+                'response_count':16,'details_truncated':True,'details':[]}},
+            'data':{'service_bus_calls':{'scope':'job_business_fetch','attempt_count':999}}}}
+    gateway.client.call=call
+    class Runner:
+        def __call__(self,task,cancelled,emit):
+            gateway.bind(task.task_id,task.parent_attempt_id,set(gateway.catalog['tools']))
+            response=asyncio.run(gateway.call(task.task_id,gateway_request()))
+            details=response['observation']
+            if forged:details={**details,'service_bus_calls':{**details['service_bus_calls'],'attempt_count':999}}
+            emit({'type':'tool_execution_end','toolName':gateway_request()['name'],
+                'toolCallId':gateway_request()['call_id'],'isError':failed,'result':{
+                    'content':[{'type':'text','text':response['result_json']}],'details':details}})
+            return 'Answer',{}
+    runner=Runner();runner.gateway=gateway
+    host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=runner)
+    task=PiTaskRequest('service-bus-task','service-bus-attempt','direct','Read source',(),(),host.identity,2)
+    host.submit(task)
+    deadline=time.monotonic()+2
+    while host.read(task.task_id)['status']=='running' and time.monotonic()<deadline:time.sleep(.005)
+    saved=host.read(task.task_id)
+    assert saved['result']['status']==('failed' if forged else 'completed')
+    calls=[event['activity']['service_bus_calls'] for event in saved['events']
+        if isinstance(event.get('activity'),dict) and 'service_bus_calls' in event['activity']]
+    assert len(calls)==(0 if forged else 1)
+    if calls:assert calls[0]['attempt_count']==17 and calls[0]['reused'] is False
+
+
 @pytest.fixture
 def small_answer_envelope():
     from capstone_agent.application_capacity import initialize_capacity

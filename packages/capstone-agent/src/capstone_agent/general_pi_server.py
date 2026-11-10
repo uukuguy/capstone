@@ -703,6 +703,12 @@ class GeneralPiHost:
                 if kind == 'enterprise_graph_tool_failure':
                     return  # Private per-call failure status; the native end is public.
                 if kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end':
+                    details = event.get('result', {}).get('details', {})
+                    if isinstance(details, dict) and details.get('kind') == 'external_gateway_observation':
+                        self.verify_gateway_observation(request, event['tool_call_id'], event['tool_name'], event['result'])
+                        if isinstance(details.get('service_bus_calls'), dict):
+                            payload['service_bus_calls'] = {**details['service_bus_calls'],
+                                'reused': bool(details.get('reused_from'))}
                     capture_graph_observation(event['tool_call_id'], event['tool_name'], event.get('result', {}),
                         is_error=event.get('is_error') is True, child=True)
             elif kind == 'enterprise_cycle_progress':
@@ -747,6 +753,11 @@ class GeneralPiHost:
                         task_id=request.task_id, call_id=payload['tool_call_id'])
                     if receipt is not None:
                         activity = {**(activity or {}), 'execution_receipt': receipt}
+                    if isinstance(details, dict) and details.get('kind') == 'external_gateway_observation':
+                        self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], event['result'])
+                        if isinstance(details.get('service_bus_calls'), dict):
+                            activity = {**(activity or {}), 'service_bus_calls': {**details['service_bus_calls'],
+                                'reused': bool(details.get('reused_from'))}}
                 if activity:
                     payload['activity'] = activity
                 if kind == 'tool_execution_end' and (type(event.get('isError')) is bool
