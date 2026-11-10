@@ -2804,6 +2804,17 @@ class ThreadCreator:
 
 
 _THREAD_SCHEMA = """
+CREATE TABLE IF NOT EXISTS capstone_presentation_templates (
+    workspace text NOT NULL,
+    template_id text NOT NULL,
+    version text NOT NULL,
+    owner_thread_id text NOT NULL,
+    published boolean NOT NULL DEFAULT false,
+    metadata jsonb NOT NULL,
+    PRIMARY KEY (workspace,template_id,version)
+);
+CREATE INDEX IF NOT EXISTS capstone_presentation_templates_scope
+    ON capstone_presentation_templates (workspace,published,owner_thread_id,template_id);
 CREATE TABLE IF NOT EXISTS capstone_threads (
     thread_id text PRIMARY KEY,
     run_id text NOT NULL UNIQUE,

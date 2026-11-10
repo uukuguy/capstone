@@ -411,6 +411,9 @@ def create_host_app(
         register_material_routes(app, service=thread_service, objects=material_objects, authorize=require_private_thread)
         from .thread_resource_http import register_resource_routes
         register_resource_routes(app, service=thread_service, objects=material_objects, authorize=require_private_thread)
+        from .presentation_template_http import register_presentation_template_routes
+        register_presentation_template_routes(app, service=thread_service, objects=material_objects,
+                                             authorize=require_private_thread)
         from .thread_products import register_product_routes
         register_product_routes(app, service=thread_service, objects=material_objects,
             executor_provider=lambda: native_artifact_executor, authorize=require_private_thread)
