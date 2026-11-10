@@ -115,9 +115,11 @@ def frozen_inputs(workspace, *, spec=None, bundle=None):
         return document, sources
 
 
-def render_library(*, spec=None, bundle=None, output, template, template_sha256, pdf=False):
+def render_library(*, spec=None, bundle=None, output, template, template_sha256, template_id=None, pdf=False):
     if not re.fullmatch('[a-f0-9]{64}', template_sha256):
         raise ReportError('presentation template digest is invalid')
+    if template_id is not None and not re.fullmatch(r'(?:state-grid|tpl_[a-f0-9]{32})', template_id):
+        raise ReportError('presentation template identity is invalid')
     workspace = Workspace()
     try:
         output = source_path(output)
@@ -161,7 +163,11 @@ def render_library(*, spec=None, bundle=None, output, template, template_sha256,
                 target.write_bytes(raw)
             (root / 'content').mkdir(exist_ok=True)
             (root / 'template.pptx').write_bytes(template_bytes)
-            rendered = {**document, 'template': {'path': 'template.pptx'}}
+            selection = {'path': 'template.pptx'}
+            if template_id == 'state-grid':
+                # Preserve the built-in layout contract while using the frozen bytes.
+                selection.update(content_slide=3, agenda_slide=2)
+            rendered = {**document, 'template': selection}
             # Preserve content-relative source names in a separate namespace.
             rendered = json.loads(encoded(rendered))
             for slide in rendered.get('slides', []):
@@ -194,6 +200,7 @@ def render_library(*, spec=None, bundle=None, output, template, template_sha256,
             receipt = {'schema': 'capstone-presentation-library-render/1', 'output': output,
                 'output_sha256': sha256(pptx).hexdigest(), 'content_sha256': content_sha,
                 'template_sha256': template_sha256, 'bundle': stem + '.source.zip',
+                'template_id': template_id,
                 'bundle_sha256': sha256(buffer.getvalue()).hexdigest(), 'pdf': pdf_result, 'renderer': renderer}
             write_new(workspace, output, pptx)
             write_new(workspace, stem + '.source.zip', buffer.getvalue())
@@ -218,6 +225,7 @@ def main():
     parser.add_argument('--output', required=True)
     parser.add_argument('--template', required=True)
     parser.add_argument('--template-sha256', required=True)
+    parser.add_argument('--template-id')
     parser.add_argument('--pdf', action='store_true')
     try:
         print(json.dumps(render_library(**vars(parser.parse_args())), ensure_ascii=False))

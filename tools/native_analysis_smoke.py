@@ -277,7 +277,7 @@ def exercise_library_presentation(directory):
         'slides': [{'title': '固定内容', 'blocks': [{'type': 'paragraph', 'text': '保存内容可以再次生成。'}]}]}))
     receipt = json.loads(command(['capstone-presentation', '--spec', 'library-content.json',
         '--output', 'library-result.pptx', '--template', str(template),
-        '--template-sha256', hashlib.sha256(template.read_bytes()).hexdigest(), '--pdf'], cwd=directory))
+        '--template-sha256', hashlib.sha256(template.read_bytes()).hexdigest(), '--template-id', 'state-grid', '--pdf'], cwd=directory))
     assert receipt['pdf']['status'] == 'ready'
     assert len(PdfReader(directory / 'library-result.pdf').pages) == receipt['renderer']['slides']
     assert hashlib.sha256((directory / 'library-result.pptx').read_bytes()).hexdigest() == receipt['output_sha256']

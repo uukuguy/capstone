@@ -63,6 +63,18 @@ def test_layout_failure_returns_actionable_structured_diagnostic(tmp_path):
     assert not (tmp_path / 'rejected.pptx').exists()
 
 
+def test_builtin_identity_keeps_the_original_body_and_agenda_layouts(tmp_path):
+    from pptx import Presentation
+    (tmp_path / 'content.json').write_text(json.dumps({'schema': 'capstone-presentation/1', 'title': 'Saved',
+        'slides': [{'title': 'Point', 'blocks': [{'type': 'paragraph', 'text': 'Saved content'}]}]}))
+    result = run(tmp_path, '--spec', 'content.json', '--output', 'branded.pptx', '--template-id', 'state-grid',
+        '--template', str(TEMPLATE), '--template-sha256', hashlib.sha256(TEMPLATE.read_bytes()).hexdigest())
+    assert result.returncode == 0, result.stderr
+    deck, original = Presentation(tmp_path / 'branded.pptx'), Presentation(TEMPLATE)
+    assert str(deck.slides[1].slide_layout.part.partname) == str(original.slides[2].slide_layout.part.partname)
+    assert json.loads(result.stdout)['renderer']['template']['agenda_slide'] == 2
+
+
 def test_digest_change_and_output_collision_preserve_existing_products(tmp_path):
     (tmp_path / 'content.json').write_text(json.dumps({'schema': 'capstone-presentation/1', 'title': 'Saved', 'slides': []}))
     (tmp_path / 'kept.pptx').write_bytes(b'old')

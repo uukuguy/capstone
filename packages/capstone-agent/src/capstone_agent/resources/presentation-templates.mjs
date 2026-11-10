@@ -35,7 +35,7 @@ export function createPresentationTools(config,{fetchImpl=globalThis.fetch,runRe
     if(frozen.isError)return frozen;
     const selected=frozen.details.result;
     const argv=[d.spec===undefined?'--bundle':'--spec',d.spec??d.bundle,'--output',d.output,
-      '--template',selected.path,'--template-sha256',selected.template.sha256];
+      '--template',selected.path,'--template-sha256',selected.template.sha256,'--template-id',selected.template.template_id];
     if(d.pdf!==false)argv.push('--pdf');
     let receipt;
     try{
