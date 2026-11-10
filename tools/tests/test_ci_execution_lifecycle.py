@@ -12,6 +12,7 @@ ANCHOR = 'packages/capability-agent-kernel/src/capability_agent/runtime/executio
 
 def test_lifecycle_anchor_selects_only_its_registered_consumers():
     paths = [ANCHOR, 'packages/grid-agent/src/grid_agent/domain_tools.py',
+             'packages/capstone-agent/tests/test_relay_backpressure.py',
              'packages/pandapower-domain-pack/src/pandapower_domain/execution.py',
              'packages/capstone-app/src/ProcessCallTrace.tsx',
              'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
