@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-11-10：普通PPT默认国网修复c051a832已更新local-dev并通过真实生成及封面检查；dky3-dev镜像就绪，按用户要求等任务结束再更新。[验证](../reports/2026-11-10-default-state-grid-template.md)。
+
 2026-11-10：PPT报告生成错误已修复并更新local-dev/dky3-dev，精确源码139c9700。真实生成/预期失败、文件摘要、PDF页数与源码身份通过；按用户本轮范围不启动CI或PR。[回执](../reports/2026-11-10-presentation-report-repair.md)。
 
 2026-11-10：本轮PPT模板库与服务总线记录候选eb481485已部署local-dev/dky3-dev。标题栏与明细按单次调用统计，累计任务值忽略；真实取源/刷新及国网PPT/PDF下载摘要通过。dky3-dev组合任务89.41秒，原数据/配置保留，验收标签dky3-dev-20261110-1729-eb481485；未合入dev，无新CI。[执行回执](../reports/2026-11-10-service-bus-execution-records.md)、[模板库回执](../reports/2026-11-10-presentation-template-library.md)。
@@ -1220,7 +1222,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| report-repair-20261110 | PPT报告错误修复；local-dev/dky3-dev当前精确部署来源 |
+| default-template-20261110 | 普通PPT缺省国网；local-dev当前来源 |
+| report-repair-20261110 | 报告交付修复；dky3-dev当前来源 |
 | template-library-20261110 | 本轮活动模板库及服务总线收口；local-dev/dky3-dev精确部署来源，尚未合入dev |
 | investigation-merge-20261110 | PR100已验证源码合入远端dev的重要合并 |
 | actual-dev-pr100-local | 实际dev本机重建的精确来源；本地审计合流，非新增远端合并 |
@@ -1243,6 +1246,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | investigation-merge-20261110 | d7358eac | main | PR100调查执行主线集成 | macOS CI42759192341通过4分29秒；远端dev已合入，远端环境未部署 | 网关/调度/技能/编报联合基线；保留IG1和业务效率未接受项。[收口清单](../reports/2026-11-10-investigation-branch-closeout.md) | shared-agent |
+| default-template-20261110 | c051a832 | feature | 普通PPT入口默认国网模板 | local-dev实测14.64秒及实际封面通过；dky3-dev待更新 | 渲染器缺省国网、无静默回退；说明和镜像冒烟覆盖普通入口。[验证](../reports/2026-11-10-default-state-grid-template.md) | shared-agent |
 | report-repair-20261110 | 139c9700 | feature | PPT报告契约与交付状态修复 | 两dev环境真实生成及预期失败验证通过；无CI或新PR | 可发现内容契约、字段/章节诊断；产物摘要核对和未交付失败状态。[修复验证](../reports/2026-11-10-presentation-report-repair.md) | shared-agent |
 | template-library-20261110 | eb481485 | feature | PPT模板库与服务总线执行记录 | local-dev/dky3-dev真实任务、下载及刷新通过；未合dev，无新CI | 持久模板目录、国网默认、选择/发布与源包重生成；当前调用可信统计、标题栏与明细。[模板库](../reports/2026-11-10-presentation-template-library.md)、[部署验证](../reports/2026-11-10-service-bus-execution-records.md) | shared-agent |
 | actual-dev-pr100-local | 3010d29c | main | 实际dev审计合流与本机重建 | 规范重建ready，API/三worker同镜像3a7abd4910ef；两轮9.33/8.29秒及CSV哈希通过 | 保留本地报告与原混合修改；本机入口验证，不代表远端部署。[收口清单](../reports/2026-11-10-investigation-branch-closeout.md) | shared-agent |
@@ -1407,7 +1411,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| report-repair-20261110 | 当前交付重点 | uukuguy/ppt-template-library-20261110 | 完整内容契约和可操作排版诊断；已请求报告按真实保存文件判定完成 | local-dev/dky3-dev已更新，生成/失败状态/文件摘要通过；本轮不做CI或PR |
+| default-template-20261110 | 当前交付重点 | uukuguy/ppt-template-library-20261110 | 普通PPT入口缺省国网；显式模板保留且无静默回退 | local-dev已实测，dky3-dev待任务结束更新 |
+| report-repair-20261110 | 已验证报告交付基线 | uukuguy/ppt-template-library-20261110 | 完整内容契约和可操作排版诊断；已请求报告按真实保存文件判定完成 | local-dev/dky3-dev已更新，生成/失败状态/文件摘要通过；本轮不做CI或PR |
 | template-library-20261110 | 已验证模板库与总线基线 | uukuguy/ppt-template-library-20261110 | 持久模板目录与国网PPT/PDF源包；服务总线当前调用统计及执行过程标题栏 | 两dev环境健康/真实任务/下载与刷新通过，尚未合入dev |
 | investigation-merge-20261110 | 远端dev主要合并 | dev | 调查执行联合基线合入；已通过macOS定向CI | PR100 merged d7358eac，远端环境不变 |
 | actual-dev-pr100-local | 实际dev本机运行来源 | dev | 本地审计合流；规范重建与真实短任务 | ready与两轮产品/恢复通过，非远端发布 |
@@ -1495,7 +1500,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | PR100调查执行基线已合入远端dev；本地审计与已部署修复分开记录 | 实际dev d5c9b1fe；两dev环境运行139c9700，本轮无CI或新PR |
+| dev-head | 当前研发位置 | dev | PR100调查执行基线已合入远端dev；本地审计与已部署修复分开记录 | 实际dev d5c9b1fe；local-dev运行c051a832，dky3-dev待更新；无CI/PR |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1760,7 +1765,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | PPT报告修复源码 `139c9700`；后续1bf44c99仅测试，当前HEAD单独记录 | API/三worker同镜像5a78674c6a19，native393b8ca6a301；规范重建ready，458/275源码摘要一致 | App http://127.0.0.1:5173/；真实修复27.65秒、缺报告预期失败10.24秒，PPTX/PDF及零网关调用通过；[回执](../reports/2026-11-10-presentation-report-repair.md) |
+| local-dev | 普通PPT默认模板源码 `c051a832` | API/三worker同镜像13fb47b1c537，native6ebf04955127；重建ready，源码字节核对通过 | App http://127.0.0.1:5173/；真实普通入口14.64秒，国网模板摘要及实际封面通过；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `139c9700` | API/worker同镜像4e6abf716ddc，native0f68d5a3c911，App0bde8f995e6d；四角色healthy，458/275源码摘要一致 | App http://192.168.72.66:5173/；真实修复51.02秒、缺报告预期失败61.50秒，文件摘要与PDF页数通过；原配置/数据保留；[回执](../reports/2026-11-10-presentation-report-repair.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

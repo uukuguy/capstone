@@ -7105,6 +7105,7 @@ These recovered notes keep their original dates and acceptance limits; they are 
 - 18:36 Exposed report content contracts and required verified saved render outputs;focused regression checks pass.[139c9700]
 - 18:36 Confirmed saved renderer bytes permit completion;positive/negative host2 checks pass.[1bf44c99]
 - 18:36 Deployed both dev stages;real repair and expected failure tests pass with no gateway calls. User ends scope at fixes/deployments.
+- 18:44 Recorded verified PPT repair deployments for recovery;both stages accepted.[543434df]
 
 ### Recovered context: 2026-11-06
 
@@ -7377,3 +7378,7 @@ check passed. No CI, integration or remote deployment performed.
 - 17:25 Deployed eb481485 to dky3-dev with backup;four roles healthy,89.41s real source/PPT task,one source call,product hashes/PDF/browser reload pass. Acceptance tag dky3-dev-20261110-1729-eb481485 created locally.
 - 17:28 Added child-event persistence and graph-dedup checks;focused Python1/App143 and route2 checks pass;runtime unchanged.[1b9e6772]
 - 17:36 Updated actual-dev control register and regenerated overview;20 graph checks pass,1800px browser shows27 edges,no card intersections and exact deployment sources. No CI.
+- Defaulted direct PPT rendering to State Grid to close the bypass;87 renderer/route checks pass.[cfbc394d]
+- Kept the default template example within one visual per page;19 environment checks pass.[c051a832]
+- Local canonical rebuild and real omitted-template14.64s pass;actual State Grid cover inspected and cache cleanup completed.
+- Remote candidate built;user requires waiting for its active task before service replacement.
