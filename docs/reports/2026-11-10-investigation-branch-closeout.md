@@ -230,3 +230,10 @@ ready200、App5173可达。规范缓存维护完成；验证结束后再次执�
 调查分支本地/远端引用已删除，Orca工作区detached于a1978ffb并保留脏状态及.observations。
 前置基础分支也已在确认祖先关系后关闭，本地工作区detached于7ea164de并保留状态文件。
 其他研究和模板分支不在清理范围。IG1仍为接受验证状态，IG2–IG4不启动。
+
+最终入口核对发现Vite仍位于已关闭候选工作区；App产品内容相同，但仓库身份停在a1978ffb。
+已使用现有App启动入口及规范detach helper切回实际dev目录，PID/log记录在忽略目录。
+公开/__capstone-build确认App产品来源d78cc528、仓库来源38e2f1f2，dirty=false；
+二者分开记录，后续纯文档提交不冒充App代码变化。
+原生镜像6b3a9b172863共37层；本轮构建99次缓存命中，稳定依赖和科学环境层复用。
+验证后项目范围缓存维护退出0，日志/tmp/capstone-pr100-post-trial-cache.log。
