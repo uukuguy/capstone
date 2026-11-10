@@ -928,7 +928,10 @@ class GeneralPiHost:
                       'General Pi task deadline exceeded': 'task_deadline_exceeded',
                       'General Pi answer is invalid': 'rpc_answer_invalid',
                       'native observation call identity changed content': 'observation_identity_conflict',
-                      'native observation source identity changed': 'observation_source_invalid'}.get(str(error))
+                      'native observation source identity changed': 'observation_source_invalid',
+                      'session_skill_content_changed': 'session_skill_content_changed',
+                      'session_skill_content_unavailable': 'session_skill_content_unavailable',
+                      'session_skill_unavailable': 'session_skill_unavailable'}.get(str(error))
             if reason is not None:
                 failure['reason_code'] = reason
             elif isinstance(error, ModuleNotFoundError):
@@ -954,6 +957,9 @@ class GeneralPiHost:
                 failure['reason_code'] = provider_failure
             public_failure = {'code': {
                 'runtime_dependency_missing': 'native_runtime_dependency_missing',
+                'session_skill_content_changed': 'native_session_skill_content_changed',
+                'session_skill_content_unavailable': 'native_session_skill_content_unavailable',
+                'session_skill_unavailable': 'native_session_skill_unavailable',
                 'research_branch_invalid': 'native_research_branch_invalid',
                 'task_deadline_exceeded': 'native_task_deadline',
                 'model_context_limit': 'native_model_context_limit',
