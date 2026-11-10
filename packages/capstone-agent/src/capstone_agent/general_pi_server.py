@@ -2273,6 +2273,12 @@ def main():
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
     revision.update(os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN', '').encode())
+    if os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN'):
+        renderer_root = Path(__file__).parent.parent / 'tools'
+        for name in ('native_presentation_library.py', 'native_report.py',
+                     'native_presentation_template.py', 'native_presentation_layout.py',
+                     'presentation-templates/state-grid.pptx'):
+            revision.update(name.encode() + sha256((renderer_root / name).read_bytes()).digest())
     from .capacity_contract import load_capacity_policy
     revision.update(json.dumps(load_capacity_policy(), sort_keys=True, separators=(',', ':')).encode())
     # Gateway publications can change independently of the executor, including
