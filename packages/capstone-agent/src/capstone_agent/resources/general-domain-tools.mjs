@@ -5,6 +5,7 @@ export function createDomainTools(config, {fetchImpl = globalThis.fetch} = {}) {
   if (!domain?.catalog?.tools) return [];
   return Object.entries(domain.catalog.tools).map(([name, schema]) => ({
     name,
+    executionIdentity: 'owner',
     label: name,
     description: schema.description ?? name,
     parameters: schema.inputSchema,
@@ -32,7 +33,8 @@ export function createDomainTools(config, {fetchImpl = globalThis.fetch} = {}) {
       }
       return {
         content: [{type: 'text', text: body.result_json}],
-        details: {tool: name, call_id: callId, ok: body.is_error !== true},
+        details: {tool: name, call_id: callId, ok: body.is_error !== true,
+          ...(body.execution_receipt ? {execution_receipt: body.execution_receipt} : {})},
         isError: body.is_error === true,
       };
     },

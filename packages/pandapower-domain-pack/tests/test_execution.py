@@ -15,6 +15,58 @@ from pandapower_domain.execution import (
 )
 
 
+def test_actual_process_lifecycle_is_observed_even_on_protocol_failure(tmp_path):
+    events = []
+    executable = _write_executable(tmp_path / 'bad', "print('invalid')\n")
+    executor = GridctlExecutor(executable=executable, workspace=tmp_path)
+    with pytest.raises(GridctlClientError):
+        executor.invoke('test', {}, execution_observer=events.append)
+    assert events == ['execution_started', 'execution_ended']
+
+
+def test_timeout_observes_exit_only_after_child_is_reaped(tmp_path, monkeypatch):
+    import os
+    import subprocess
+    events = []
+    processes = []
+    original = subprocess.Popen
+    def start(*args, **kwargs):
+        process = original(*args, **kwargs)
+        processes.append(process)
+        return process
+    monkeypatch.setattr(subprocess, 'Popen', start)
+    executable = _write_executable(tmp_path / 'slow', 'import time\ntime.sleep(30)\n')
+    def observe(phase):
+        events.append(phase)
+        if phase == 'execution_ended':
+            with pytest.raises(ProcessLookupError):
+                os.kill(processes[0].pid, 0)
+    executor = GridctlExecutor(executable=executable, workspace=tmp_path, timeout_seconds=.2)
+    with pytest.raises(GridctlClientError):
+        executor.invoke('test', {}, execution_observer=observe)
+    assert events == ['execution_started', 'execution_ended']
+
+
+@pytest.mark.parametrize('failure', ['observer', 'thread'])
+def test_setup_failure_reaps_started_child(tmp_path, monkeypatch, failure):
+    import subprocess
+    import threading
+    processes = []
+    original = subprocess.Popen
+    def start(*args, **kwargs):
+        process = original(*args, **kwargs)
+        processes.append(process)
+        return process
+    monkeypatch.setattr(subprocess, 'Popen', start)
+    def fail(*args): raise RuntimeError('setup failed')
+    if failure == 'thread': monkeypatch.setattr(threading.Thread, 'start', fail)
+    executable = _write_executable(tmp_path / 'slow', 'import time\ntime.sleep(30)\n')
+    executor = GridctlExecutor(executable=executable, workspace=tmp_path)
+    with pytest.raises(RuntimeError):
+        executor.invoke('test', {}, execution_observer=fail if failure == 'observer' else None)
+    assert processes[0].poll() is not None
+
+
 def _write_executable(path: Path, source: str) -> Path:
     path.write_text(f"#!{sys.executable}\n{source}", encoding="utf-8")
     path.chmod(0o755)

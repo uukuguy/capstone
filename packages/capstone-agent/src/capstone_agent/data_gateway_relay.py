@@ -1,5 +1,6 @@
 """Task catalog grants and host-issued gateway observation receipts."""
 from copy import deepcopy
+from collections import OrderedDict
 from hashlib import sha256
 import asyncio
 import json
@@ -7,6 +8,7 @@ from pathlib import Path
 import re
 import stat
 import time
+import os
 from uuid import uuid4
 from threading import RLock
 from concurrent.futures import Future
@@ -14,6 +16,13 @@ from datetime import datetime, timezone
 
 from .application_capacity import limits, require_capacity, CapacityExceeded
 from .data_gateway_mcp import GatewayError, TASK_STOP_ERRORS, encode, fingerprint
+from capability_agent.runtime.execution_queue import ExecutionQueue
+
+
+# One process-wide dispatch budget also covers multiple access objects and tasks.
+# It bounds host transport only. Remote execution after cancellation is unknown.
+_DISPATCH_QUEUE = ExecutionQueue(capacity=int(os.environ.get('CAPSTONE_GATEWAY_DISPATCH_CAPACITY', '8')),
+    provenance='host_transport')
 
 
 def load_container_gateway(connection_file, policy_path, *, private_root=Path('/run/capstone-private'), owner_uid=0):
@@ -57,8 +66,28 @@ def gateway_discovery_tools(native_context, publication, *, gateway_available):
     return {'agent_tool_search', 'agent_tool_load'} if gateway_available and admitted else set()
 
 
+def stage_gateway_contract_context(inputs, context):
+    """Stage host-verified metadata under the task's protected input directory."""
+    directory = Path(inputs) / 'gateway-contract-context'
+    directory.mkdir(mode=0o700)
+    sections = []
+    for entry in context['sections']:
+        body = encode(entry)
+        digest = sha256(body).hexdigest()
+        path = directory / (digest + '.json')
+        path.write_bytes(body)
+        path.chmod(0o440)
+        sections.append({key: entry[key] for key in ('tool', 'section', 'contract_revision')} |
+                        {'path': str(path), 'sha256': digest, 'size_bytes': len(body)})
+    manifest = directory / 'index.json'
+    manifest.write_bytes(encode({'catalog_revision': context['catalog_revision'],
+                                'instance_id': context['instance_id'], 'sections': sections}))
+    manifest.chmod(0o440)
+    return manifest
+
+
 class DataGatewayAccess:
-    def __init__(self, client, catalog):
+    def __init__(self, client, catalog, *, contract_context_bytes=None):
         self.client, self.catalog = client, deepcopy(catalog)
         from .data_gateway_views import GatewayViewBindings
         self.view_bindings = GatewayViewBindings()
@@ -68,6 +97,12 @@ class DataGatewayAccess:
         self.contract_error = None
         self.contract_request_id = None
         self.contract_checked_at = datetime.now(timezone.utc).isoformat()
+        self._contract_context_limit = limits.history_context_bytes if contract_context_bytes is None else contract_context_bytes
+        if type(self._contract_context_limit) is not int or self._contract_context_limit <= 0:
+            raise ValueError('Invalid contract context capacity')
+        self._contract_sections = OrderedDict()
+        self._contract_section_bytes = 0
+        self._conflicting_contract_tools = set()
 
     async def reload_contract(self):
         """Refresh future grants; existing task receipts keep their catalog."""
@@ -75,6 +110,10 @@ class DataGatewayAccess:
             refresh = getattr(self.client, 'refresh_catalog', None)
             catalog = await refresh(self.catalog) if refresh else await self.client.prepare()
             with self._lock:
+                if catalog['revision'] != self.catalog.get('revision'):
+                    self._contract_sections.clear()
+                    self._contract_section_bytes = 0
+                    self._conflicting_contract_tools.clear()
                 self.catalog = deepcopy(catalog)
                 self._catalogs[catalog['revision']] = deepcopy(catalog)
                 self.contract_error = None
@@ -127,9 +166,70 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_publication_changed')
             return deepcopy(catalog)
 
+    def contract_context(self, task_id):
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None:
+                raise GatewayError('gateway_task_not_admitted')
+            catalog = record['catalog']
+            allowed = record['allowed_tools']
+            sections = ([] if catalog['revision'] != self.catalog.get('revision') or self.contract_error else
+                        [entry for entry, _ in self._contract_sections.values()
+                         if entry['tool'] in allowed and entry['lookup_tool'] in allowed])
+            return {'catalog_revision': catalog['revision'],
+                    'instance_id': catalog.get('instance', {}).get('instance_id'), 'sections': deepcopy(sections)}
+
+    def _remember_contract_context(self, entry):
+        if entry is None or entry['catalog_revision'] != self.catalog.get('revision'):
+            return
+        tool = entry['tool']
+        if tool in self._conflicting_contract_tools:
+            return
+        if any(old['tool'] == tool and old['contract_revision'] != entry['contract_revision']
+               for old, _ in self._contract_sections.values()):
+            self._conflicting_contract_tools.add(tool)
+            for key in list(self._contract_sections):
+                old, size = self._contract_sections[key]
+                if old['tool'] == tool:
+                    del self._contract_sections[key]
+                    self._contract_section_bytes -= size
+            return
+        size = len(encode(entry))
+        if size > self._contract_context_limit:
+            return
+        key = (tool, entry['section'])
+        previous = self._contract_sections.pop(key, None)
+        if previous is not None:
+            self._contract_section_bytes -= previous[1]
+        while self._contract_section_bytes + size > self._contract_context_limit:
+            _, (_, removed) = self._contract_sections.popitem(last=False)
+            self._contract_section_bytes -= removed
+        self._contract_sections[key] = (deepcopy(entry), size)
+        self._contract_section_bytes += size
+
     def revoke(self, task_id):
         with self._lock:
             self._tasks.pop(task_id, None)
+
+    async def resolve_contracts(self, task_id, names):
+        """Read exact metadata only for this frozen task's granted selections."""
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None:
+                raise GatewayError('gateway_task_not_admitted')
+            if record.get('failure'):
+                raise GatewayError(record['failure'])
+            if (not isinstance(names, list) or not names or len(names) > limits.tool_active_count
+                    or any(not isinstance(name, str) or name not in record['allowed_tools'] for name in names)):
+                raise GatewayError('gateway_tool_not_admitted')
+            catalog = record['catalog']
+        tools = await self.client.exact_contracts(names, catalog)
+        with self._lock:
+            if self._tasks.get(task_id) is not record:
+                raise GatewayError('gateway_task_not_admitted')
+            record.setdefault('exact_tools', {}).update(deepcopy(tools))
+        return {'catalog_revision': catalog['revision'], 'tools': tools,
+                'tool_hashes': {name: catalog['tool_hashes'][name] for name in names}, 'executed': False}
 
     def validate_batch(self, task_id, calls):
         """Check the frozen task contract without connecting or consuming call IDs."""
@@ -156,7 +256,8 @@ class DataGatewayAccess:
                     errors.append({'index': index, 'code': 'gateway_tool_not_admitted'})
                     continue
                 try:
-                    validate(catalog['tools'][name]['inputSchema'], item['arguments'])
+                    exact = record.get('exact_tools', {}).get(name, catalog['tools'][name])
+                    validate(exact['inputSchema'], item['arguments'])
                 except ValidationError as error:
                     errors.append({'index': index, 'code': 'gateway_arguments_invalid',
                                    'validation_errors': argument_validation_details(error)})
@@ -239,7 +340,10 @@ class DataGatewayAccess:
             catalog = record['catalog']
             if name not in catalog['tools']:
                 raise GatewayError('gateway_request_invalid')
-            properties = catalog['tools'][name].get('inputSchema', {}).get('properties', {})
+            exact = record.get('exact_tools', {}).get(name, catalog['tools'][name])
+            if 'progressive' in catalog and 'inputSchema' not in exact:
+                raise GatewayError('gateway_contract_not_loaded')
+            properties = exact.get('inputSchema', {}).get('properties', {})
             consumes_job = 'job_ref' in properties or 'job_ref' in document['arguments']
             if name not in record['allowed_tools']:
                 raise GatewayError('gateway_tool_not_admitted')
@@ -251,6 +355,9 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_call_already_started')
             if record.get('failure'):
                 raise GatewayError(record['failure'])
+            operation_key = fingerprint({'name': name, 'arguments': document['arguments']})
+            if operation_key in record.get('blocked_requests', {}):
+                raise GatewayError('gateway_operation_retry_blocked', record['blocked_requests'][operation_key])
             if consumes_job:
                 job_ref = document['arguments'].get('job_ref')
                 if ('job_ref' not in properties or not isinstance(job_ref, str)
@@ -260,19 +367,34 @@ class DataGatewayAccess:
             record['started'].add(call_id)
             span = {**(context or {}), 'span_id': uuid4().hex, 'tool_call_id': call_id,
                     'status': 'sending', **({'retry_of': retry_of} if retry_of is not None else {})}
+            # Host-owned leaf identity, independent of model-selected call labels.
+            span['client_call_id'] = span['span_id']
+            if context is not None:
+                context = {**context, 'client_call_id': span['client_call_id']}
             record['diagnostic_calls'].append(span)
         arguments = deepcopy(document['arguments'])
         started = time.monotonic()
+        dispatch_receipt = None
         try:
             if reused is not None:
                 result = json.loads(reused['result_json'])
             else:
-                result = await self.client.call(name, deepcopy(arguments), catalog,
-                    **({'diagnostics': context} if context is not None else {}))
+                dispatch_receipt = _DISPATCH_QUEUE.receipt(task_id=task_id, call_id=call_id)
+                dispatch_receipt['schema'] = 'capstone-tool-dispatch/1'
+                span['dispatch_receipt'] = dispatch_receipt
+                hints = exact.get('annotations') or {}
+                read_only = hints.get('readOnlyHint') is True and hints.get('destructiveHint') is not True
+                async with _DISPATCH_QUEUE.acquire_async(dispatch_receipt, resource='gateway-transport', read_only=read_only):
+                    _DISPATCH_QUEUE.record(dispatch_receipt, 'dispatch_started')
+                    try:
+                        result = await self.client.call(name, deepcopy(arguments), catalog,
+                            **({'diagnostics': context} if context is not None else {}))
+                    finally:
+                        _DISPATCH_QUEUE.record(dispatch_receipt, 'dispatch_ended')
             with self._lock:
                 span.update(response_diagnostics(result))
                 body = result.get('structuredContent', {})
-                failed = result.get('isError') is True or isinstance(body, dict) and body.get('status') in {'error', 'failed'}
+                failed = result.get('isError') is True or isinstance(body, dict) and body.get('status') in {'error', 'failed', 'denied'}
                 span['status'] = 'reused' if reused else 'business_error' if failed else 'received'
                 if reused:
                     span['reused_from'] = reused['observation'].get('reused_from', reused['observation']['tool_call_id'])
@@ -310,13 +432,55 @@ class DataGatewayAccess:
             'observed_at': reused['observation']['observed_at'] if reused else datetime.now(timezone.utc).isoformat(),
             **({'reused_from': reused['observation'].get('reused_from', reused['observation']['tool_call_id'])} if reused else {}),
             **({'refresh_reason': refresh_reason} if refresh_reason else {})}
-        response = {'result_json': body, 'is_error': result.get('isError') is True, 'observation': observation}
+        response = {'result_json': body, 'is_error': failed, 'observation': observation}
+        if dispatch_receipt is not None:
+            response['dispatch_receipt'] = deepcopy(dispatch_receipt)
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
-        self.view_bindings.observe(name, arguments, result, catalog)
+        binding_catalog = catalog
+        if 'progressive' in catalog:
+            # Only declared response continuations justify loading another
+            # contract here. Never load schemas for arbitrary business rows.
+            targets = set()
+            for action in self.view_bindings.candidate_actions(result):
+                candidates = [n for n, tool in catalog['tools'].items()
+                              if action['tool'] in (n, tool['name']) and n in record['allowed_tools']]
+                if len(candidates) == 1:
+                    targets.add(candidates[0])
+            missing = sorted(targets - record.get('exact_tools', {}).keys())
+            for start in range(0, len(missing), limits.tool_active_count):
+                try:
+                    await self.resolve_contracts(task_id, missing[start:start + limits.tool_active_count])
+                except GatewayError as error:
+                    # A metadata failure must not erase an already returned
+                    # source result. Unresolved continuations remain unbound.
+                    span['continuation_contract_error'] = str(error)
+                    break
+            binding_catalog = {**catalog, 'tools': {**catalog['tools'], **record.get('exact_tools', {})}}
+        self.view_bindings.observe(name, arguments, result, binding_catalog)
+        classify_contract = getattr(self.client, 'contract_context_entry', None)
+        contract_entry = classify_contract(name, arguments, result, catalog) if classify_contract else None
         with self._lock:
             if self._tasks.get(task_id) is not record:
                 raise GatewayError('gateway_task_not_admitted')
             record['issued'][call_id] = {'response': deepcopy(response), 'arguments': arguments}
+            self._remember_contract_context(contract_entry)
+            # A partial answer can contain an uncertain failed operation.
+            # Replay policy is declared execution state, independent of the
+            # aggregate success flag. Inspect declared gaps, never business rows.
+            from .native_tool_diagnostics import tool_execution_diagnostics
+            candidates = [result]
+            gaps = content.get('gaps') if isinstance(content, dict) else None
+            if isinstance(gaps, list):
+                candidates.extend({**content, 'gaps': [gap]} for gap in gaps if isinstance(gap, dict))
+            for candidate in candidates:
+                diagnostic = tool_execution_diagnostics(candidate)
+                if diagnostic is not None and (diagnostic.get('automatic_retry') is False or
+                        diagnostic.get('result_state') == 'unknown' and (
+                            diagnostic.get('request_sent') is True or diagnostic.get('remote_execution_possible') is True)):
+                    provenance = content.get('provenance', {}) if isinstance(content, dict) else {}
+                    record.setdefault('blocked_requests', {})[operation_key] = (
+                        provenance.get('request_id') if isinstance(provenance, dict) else None)
+                    break
             if successful and isinstance(data, dict):
                 # Only explicit operation references at the result's data root
                 # grant access. Business rows and nested objects never do.

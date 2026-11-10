@@ -25,8 +25,9 @@ def test_client_injects_meta_without_changing_business_arguments(tmp_path):
         return await original(name,arguments)
     session.call_tool=call
     catalog=asyncio.run(client.prepare())
-    result=asyncio.run(client.call('data_gateway_discover_data_capabilities',{},catalog,diagnostics=CONTEXT))
-    assert captured==[{'gateway/diagnostics':CONTEXT}]
+    context={**CONTEXT,'client_call_id':'host-leaf-1'}
+    result=asyncio.run(client.call('data_gateway_discover_data_capabilities',{},catalog,diagnostics=context))
+    assert captured==[{'gateway/diagnostics':context}]
     assert session.calls[0][1]=={}
     assert result['structuredContent']['provenance']['request_id']=='source-1'
 
@@ -39,7 +40,8 @@ def test_relay_host_context_spans_business_errors_and_transport_failure():
         return {'isError':True,'structuredContent':{'status':'error','provenance':{'request_id':'gateway-1','span_id':'gateway-span'}}}
     relay.client.call=call
     result=asyncio.run(relay.call('task-1',request()))
-    assert captured==[CONTEXT]
+    assert {key:value for key,value in captured[0].items() if key!='client_call_id'}==CONTEXT
+    assert captured[0]['client_call_id']==relay.diagnostic_calls('task-1')[0]['client_call_id']
     assert result['is_error'] is True
     first=relay.diagnostic_calls('task-1')[0]
     assert first['status']=='business_error' and first['request_id']=='gateway-1'
@@ -50,9 +52,10 @@ def test_relay_host_context_spans_business_errors_and_transport_failure():
     last=relay.diagnostic_calls('task-1')[-1]
     assert last['status']=='transport_error' and 'request_id' not in last
     assert last['span_id']!=first['span_id'] and 'retry_of' not in last
+    assert last['client_call_id']!=first['client_call_id']
     assert 'never persist' not in str(last)
 
-@pytest.mark.parametrize('change',[{'task_id':'bad text'},{'run_id':'x'*129},{'secret':'hidden'},{'trace_id':None}])
+@pytest.mark.parametrize('change',[{'task_id':'bad text'},{'run_id':'x'*129},{'secret':'hidden'},{'trace_id':None},{'client_call_id':'bad text'}])
 def test_invalid_context_is_rejected_before_binding(change):
     relay=access();relay.revoke('task-1')
     with pytest.raises(ValueError):relay.bind('task-1','attempt-1',set(relay.catalog['tools']),diagnostics={**CONTEXT,**change})

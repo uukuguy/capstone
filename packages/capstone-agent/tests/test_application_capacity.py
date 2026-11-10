@@ -1,4 +1,6 @@
 import pytest
+import json
+from pathlib import Path
 
 from capstone_agent.application_capacity import (
     CapacityExceeded, current_capacity, initialize_capacity, limits, require_capacity,
@@ -10,6 +12,15 @@ def reset_capacity():
     initialize_capacity()
     yield
     initialize_capacity()
+
+
+def test_default_gateway_relay_capacity_matches_eight_slot_execution_policy():
+    root = Path(__file__).resolve().parents[3]
+    source = json.loads((root / 'configs/runtime/application-capacity.json').read_text())
+    packaged = json.loads((root / 'packages/capstone-agent/src/capstone_agent/resources/application-capacity.json').read_text())
+    assert source == packaged
+    assert limits.gateway_relay_requests == 8
+    assert limits.gateway_relay_task_requests == 8
 
 
 def test_initialization_changes_already_imported_consumers():

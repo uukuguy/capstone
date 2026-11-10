@@ -102,6 +102,38 @@ def exercise_presentation(directory, *, renderer=None):
         assert not any(b'TargetMode="External"' in archive.read(path) for path in archive.namelist() if path.endswith('.rels'))
 
 
+def exercise_template_presentation(directory, *, renderer=None):
+    from pptx import Presentation
+    from PIL import Image
+    Image.new('RGB',(320,180),'teal').save(directory/'template-figure.png')
+    spec = {'schema':'capstone-presentation/2', 'title':'模板生成检查',
+            'template':{'id':'state-grid'}, 'slides':[
+            {'role':'agenda','title':'汇报目录','blocks':[{'type':'paragraph','text':'一、已有成果'}]},
+            {'section':'一、已有成果','title':'内容检查',
+            'blocks':[{'type':'bullets','items':['已保存的内容','不新增业务结论']},
+                      {'type':'figure','path':'template-figure.png','caption':'已保存图表'}],
+            'argument':{'explanation':'图表与要点来自同一保存结果；生成成功不验证业务结论。'},
+            'speaker_notes':'详细说明保留在备注，不挤占主页面。'},
+            {'role':'closing','title':'汇报完毕','blocks':[]}]}
+    (directory/'template-spec.json').write_text(json.dumps(spec, ensure_ascii=False))
+    receipt = json.loads(command([*(renderer or ['capstone-report']), '--spec',
+        'template-spec.json', '--output', 'template-output.pptx'], cwd=directory))
+    deck = Presentation(directory/'template-output.pptx')
+    assert receipt['template']['id'] == 'state-grid'
+    assert receipt['visible_arguments'] == [{'slide':3,'explanation_sha256':hashlib.sha256(
+        spec['slides'][1]['argument']['explanation'].encode()).hexdigest()}]
+    visible = ''.join(''.join(s.text.split()) for s in deck.slides[2].shapes if s.has_text_frame)
+    assert ''.join(spec['slides'][1]['argument']['explanation'].split()) in visible
+    assert len(receipt['template']['sha256']) == 64
+    assert len(deck.slides) == 4
+    assert any(shape.shape_type == 13 for shape in deck.slides[0].shapes)
+    assert any(shape.shape_type == 13 for shape in deck.slides[2].shapes)
+    assert any(shape.shape_type == 13 for shape in deck.slides[3].shapes)
+    assert receipt['slide_roles'] == ['cover','agenda','content','closing']
+    assert receipt['template']['cover_text_rgb'] == 'FFFFFF'
+    assert receipt['layout_policy'] == 'one_content_record_per_slide'
+
+
 def exercise(directory):
     import numpy as np
     import pandas as pd
@@ -229,6 +261,9 @@ def exercise(directory):
     verified.append('standalone_reports')
     exercise_presentation(directory)
     verified.append('standalone_presentations')
+    exercise_template_presentation(directory)
+    verified.append('template_presentations')
+    verified.append('argument_presentations')
     return verified
 
 

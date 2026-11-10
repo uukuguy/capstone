@@ -17,7 +17,7 @@ import unicodedata
 from xml.etree import ElementTree
 
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 CSS = '''
 :root{color-scheme:light;font-family:system-ui,-apple-system,"Noto Sans CJK SC",sans-serif;color:#172b3b;background:#edf2f5}
 *{box-sizing:border-box}body{margin:0;line-height:1.75}main{max-width:1100px;margin:32px auto;background:white;padding:48px 56px;border:1px solid #d8e2e8;border-radius:12px}
@@ -258,23 +258,38 @@ def render_presentation(spec_path, output, *, check_only=False):
         from pptx import Presentation
         from pptx.dml.color import RGBColor
         from pptx.util import Inches, Pt
+        from pptx.enum.text import PP_ALIGN
     except ImportError:
         raise ReportError('PPTX output requires the verified python-pptx and Pillow environment') from None
 
     workspace = Workspace()
     try:
         spec = json.loads(workspace.read(spec_path, maximum=1024 * 1024))
-        fields(spec, ('schema', 'title', 'slides'), ('subtitle',))
-        if spec['schema'] != 'capstone-presentation/1':
-            raise ReportError('PPTX requires capstone-presentation/1')
+        fields(spec, ('schema', 'title', 'slides'), ('subtitle', 'template'))
+        if spec['schema'] not in ('capstone-presentation/1','capstone-presentation/2'):
+            raise ReportError('PPTX requires capstone-presentation/1 or capstone-presentation/2')
+        argument_contract = spec['schema'] == 'capstone-presentation/2'
+        if argument_contract and 'template' not in spec:
+            raise ReportError('capstone-presentation/2 requires a template')
         if not isinstance(spec['slides'], list) or not 1 <= len(spec['slides']) <= 40:
             raise ReportError('presentation slides must contain 1..40 content records')
-        deck = Presentation()
-        deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
+        template_page, template_receipt = None, None
+        if 'template' in spec:
+            from native_presentation_template import load_template
+            deck, template_page, template_receipt = load_template(workspace, spec['template'], ReportError)
+        else:
+            deck = Presentation()
+            deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
         font = 'Noto Sans CJK SC'
         ink, teal, muted = RGBColor(23,43,59), RGBColor(33,119,120), RGBColor(82,103,116)
         from pptx.enum.shapes import MSO_SHAPE
         paper, white = RGBColor(243,247,247), RGBColor(255,255,255)
+        cover_ink = RGBColor.from_string(template_receipt['cover_text_rgb']) if template_receipt else white
+        title_ink = RGBColor.from_string(template_receipt['title_text_rgb']) if template_receipt else ink
+        cover_alignment = ({'ctr':PP_ALIGN.CENTER,'r':PP_ALIGN.RIGHT,'l':PP_ALIGN.LEFT}.get(template_receipt['cover_alignment'])
+                           if template_receipt else None)
+        if template_receipt:
+            teal = title_ink
 
         def panel(slide, x, y, width, height, color):
             shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(width), Inches(height))
@@ -282,6 +297,8 @@ def render_presentation(spec_path, output, *, check_only=False):
             shape.fill.fore_color.rgb = color
             shape.line.fill.background()
         footers, image_bytes, figures, tables, table_rows = [], 0, 0, 0, 0
+        speaker_notes = ''
+        section_label = ''
 
         def literal(value, field, maximum):
             value = text(value, field)
@@ -289,7 +306,49 @@ def render_presentation(spec_path, output, *, check_only=False):
                 raise ReportError(field + ' exceeds its text budget or contains control characters')
             return value
 
+        def agenda_labels(content):
+            labels=[]
+            blocks=content.get('blocks')
+            if not isinstance(blocks,list):raise ReportError('agenda blocks must be a list')
+            for block in blocks:
+                if isinstance(block,dict) and set(block)=={'type','items'} and block['type']=='bullets' and isinstance(block['items'],list):
+                    labels.extend(literal(v,'agenda title',100) for v in block['items'])
+                elif isinstance(block,dict) and set(block)=={'type','text'} and block['type']=='paragraph':
+                    labels.extend(literal(v,'agenda title',100) for v in literal(block['text'],'agenda titles',1000).splitlines())
+                else:raise ReportError('template agenda accepts chapter titles only, as paragraphs or bullets')
+            if not labels or len(set(labels))!=len(labels):raise ReportError('agenda titles must be nonempty and unique')
+            return labels
+
+        chapters=[];chapter_ranges={}
+        if template_page:
+            agendas=[s for s in spec['slides'] if isinstance(s,dict) and s.get('role')=='agenda']
+            if len(agendas)>1:raise ReportError('presentation allows one agenda')
+            if agendas:
+                chapters=agenda_labels(agendas[0]);order=[]
+                chapter_ranges={label:[] for label in chapters}
+                for index,content in enumerate(spec['slides']):
+                    if isinstance(content,dict) and content.get('role','content')=='content':
+                        section=content.get('section')
+                        if not isinstance(section,str) or section not in chapters:
+                            raise ReportError('content section must match an agenda chapter',
+                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False})
+                        rank=chapters.index(section)
+                        if order and rank<order[-1]:
+                            raise ReportError('content chapter order differs from the agenda',
+                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False})
+                        order.append(rank);chapter_ranges[section].append(index+2)
+                if order and len(set(order))!=len(chapters):
+                    raise ReportError('agenda includes a chapter with no content',
+                        diagnostic={'code':'chapter_order','output_written':False})
+
         def wrap(value, width):
+            if template_page:
+                from native_presentation_layout import wrap_briefing
+                try:
+                    return wrap_briefing(value,width)
+                except ValueError as exc:
+                    raise ReportError(str(exc),diagnostic={'code':'slide_overflow','output_written':False,
+                        'recovery':'Keep numbers and dates whole. Shorten visible text or move detail to speaker_notes; do not shrink fonts.'}) from None
             lines = []
             for line in value.split('\n'):
                 current, units = '', 0
@@ -301,7 +360,7 @@ def render_presentation(spec_path, output, *, check_only=False):
                 lines.append(current)
             return lines
 
-        def textbox(slide, x, y, width, height, lines, size, color=ink, bold=False):
+        def textbox(slide, x, y, width, height, lines, size, color=ink, bold=False, align=None):
             shape = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(width), Inches(height))
             frame = shape.text_frame
             frame.word_wrap = True
@@ -310,6 +369,8 @@ def render_presentation(spec_path, output, *, check_only=False):
             for index, line in enumerate(lines):
                 paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
                 paragraph.text = line
+                if align is not None:
+                    paragraph.alignment = align
                 paragraph.font.name, paragraph.font.size = font, Pt(size)
                 paragraph.font.color.rgb, paragraph.font.bold = color, bold
                 paragraph.line_spacing = 1.2
@@ -319,33 +380,65 @@ def render_presentation(spec_path, output, *, check_only=False):
         def page(title, notes, *, cover=False):
             if len(deck.slides) >= 120:
                 raise ReportError('presentation exceeds the 120 rendered-slide budget; prepare a smaller content spec')
-            slide = deck.slides.add_slide(deck.slide_layouts[6])
-            slide.background.fill.solid()
-            slide.background.fill.fore_color.rgb = ink if cover else paper
-            if cover:
+            slide = template_page(cover) if template_page else deck.slides.add_slide(deck.slide_layouts[6])
+            if not template_page:
+                slide.background.fill.solid()
+                slide.background.fill.fore_color.rgb = ink if cover else paper
+            if cover and not template_page:
                 panel(slide,0,0,.18,7.5,teal)
                 panel(slide,.8,5.95,1.2,.08,RGBColor(98,194,182))
-            else:
+            elif not template_page:
                 panel(slide,0,0,13.333,.09,teal)
-            lines = wrap(literal(title, 'slide title', 160), 38 if cover else 52)
-            if len(lines) > (4 if cover else 2):
+            position = [.8, (2.45 if template_page else 1.3) if cover else .35,
+                        11.7, (1.3 if template_page else 2.3) if cover else .95]
+            alignment = None
+            if template_receipt:
+                if cover:
+                    alignment = cover_alignment
+                elif template_receipt['title_position']:
+                    position = list(template_receipt['title_position'])
+            title_units = (46 if template_page else 38) if cover else 52
+            if section_label and not cover:
+                chapter_x = position[0]+position[2]-3.3
+                position[2] -= 3.65
+                title_units = max(10,int(position[2]*144/27)-2)
+            lines = wrap(literal(title, 'slide title', 160),title_units)
+            if section_label and not cover and len(lines)>1:
+                raise ReportError('page title exceeds the width reserved beside chapter navigation',
+                    diagnostic={'code':'slide_overflow','location':f'slides[{index}].title',
+                        'output_written':False,'recovery':
+                        'Rewrite the page title to fit one line beside the chapter label; do not shrink or overlap either field.'})
+            if len(lines) > (4 if cover and not template_page else 2):
                 raise ReportError('slide title is too long for its fixed layout')
-            textbox(slide,.8,1.3 if cover else .35,11.7,2.3 if cover else .95,
-                    lines,34 if cover else 27,white if cover else ink,True)
-            if notes:
-                slide.notes_slide.notes_text_frame.text = '\n'.join(notes)
+            textbox(slide,*position,lines,34 if cover else 27,cover_ink if cover else title_ink,True,alignment)
+            if section_label and not cover:
+                textbox(slide,chapter_x,position[1]+.04,3.3,.45,[section_label],22,title_ink,True,PP_ALIGN.RIGHT)
+            if notes or speaker_notes:
+                slide.notes_slide.notes_text_frame.text = '\n'.join([*notes,*([speaker_notes] if speaker_notes else [])])
             footers.append((slide,notes))
             return slide
 
         cover = page(literal(spec['title'], 'title', 160), [], cover=True)
         if 'subtitle' in spec:
             lines = wrap(literal(spec['subtitle'], 'subtitle', 500),84)
-            if len(lines)>6:raise ReportError('subtitle is too long for the cover layout')
-            textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221))
+            if len(lines)>(3 if template_page else 6):raise ReportError('subtitle is too long for the cover layout')
+            textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221),align=cover_alignment)
 
         block_errors = []
+        visible_arguments = []
         for index, content in enumerate(spec['slides']):
-            fields(content, ('title','blocks'), ('source_notes',))
+            fields(content, ('title','blocks'), ('source_notes','speaker_notes','role','section',
+                *(('argument',) if argument_contract else ())))
+            role = content.get('role','content')
+            if role not in ('content','agenda','closing'):
+                raise ReportError('slide role must be content, agenda or closing')
+            if not template_page and ('role' in content or 'section' in content):
+                raise ReportError('slide roles and sections require a template')
+            if role == 'closing' and index != len(spec['slides'])-1:
+                raise ReportError('closing must be the last content record')
+            section_label = literal(content['section'],'section',100) if 'section' in content else ''
+            if section_label and len(wrap(section_label,20))>1:
+                raise ReportError('section label must fit one line in the right title-bar slot')
             title = literal(content['title'],'slide title',160)
             blocks = content['blocks']
             notes = content.get('source_notes',[])
@@ -356,6 +449,55 @@ def render_presentation(spec_path, output, *, check_only=False):
                 raise ReportError('source_notes exceed the two-line footer budget')
             if not isinstance(blocks,list) or len(blocks)>20:
                 raise ReportError('each content record allows at most 20 blocks')
+            explanation = None
+            if argument_contract:
+                if role == 'content':
+                    argument = content.get('argument')
+                    if not isinstance(argument,dict) or set(argument) != {'explanation'}:
+                        raise ReportError('content argument requires exactly one explanation field', diagnostic={
+                            'code':'visible_argument_invalid','location':f'slides[{index}].argument',
+                            'recovery':'Supply the supported page explanation as argument.explanation; notes do not replace visible reasoning.',
+                            'output_written':False})
+                    explanation = literal(argument['explanation'],'argument.explanation',20000)
+                    if len(blocks)>=20:
+                        raise ReportError('argument explanation and blocks exceed the 20-block budget')
+                    blocks = [*blocks,{'type':'paragraph','text':explanation}]
+                    content = {**content,'blocks':blocks}
+                elif 'argument' in content:
+                    raise ReportError('argument is supported only on ordinary content pages')
+            speaker_notes = content.get('speaker_notes','')
+            if not isinstance(speaker_notes,str):
+                raise ReportError('speaker_notes must be text')
+            if speaker_notes:
+                speaker_notes = literal(speaker_notes,'speaker_notes',20000)
+            if template_page:
+                if role=='agenda' and hasattr(template_page,'agenda'):
+                    slide=template_page.agenda(agenda_labels(content))
+                    if notes or speaker_notes:slide.notes_slide.notes_text_frame.text='\n'.join([*notes,speaker_notes])
+                    footers.append((slide,notes))
+                    continue
+                if role == 'closing':
+                    if len(blocks)>1 or any(not isinstance(b,dict) or set(b)!={'type','text'}
+                            or b['type']!='paragraph' for b in blocks):
+                        raise ReportError('closing supports at most one short paragraph')
+                    closing = page(title,notes,cover=True)
+                    if blocks:
+                        lines = wrap(literal(blocks[0]['text'],'closing text',240),84)
+                        if len(lines)>2:
+                            raise ReportError('closing text exceeds two lines')
+                        textbox(closing,.8,4,11.7,.8,lines,18,cover_ink,align=cover_alignment)
+                    continue
+                from native_presentation_layout import render_briefing_slide
+                stats = render_briefing_slide(content,workspace=workspace,page=page,textbox=textbox,
+                    wrap=wrap,literal=literal,error=ReportError,title_color=title_ink,location=f'slides[{index}]')
+                if explanation is not None:
+                    visible_arguments.append({'slide':len(deck.slides),
+                        'explanation_sha256':hashlib.sha256(explanation.encode('utf-8')).hexdigest()})
+                figures += stats['figures']; tables += stats['tables']; table_rows += stats['table_rows']
+                image_bytes += stats['image_bytes']
+                if image_bytes>64*1024*1024:
+                    raise ReportError('presentation images exceed their processing budget')
+                continue
             pending = []
             emitted = False
             def flush():
@@ -493,7 +635,12 @@ def render_presentation(spec_path, output, *, check_only=False):
                 'code': 'presentation_invalid', 'errors': block_errors, 'output_written': False})
         for number,(slide,notes) in enumerate(footers,1):
             if notes:textbox(slide,.8,6.85,10.7,.4,wrap(' · '.join(notes),140),10,muted)
-            textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,RGBColor(199,219,221) if number==1 else muted)
+            from pptx.oxml.ns import qn
+            inherited_number = template_page and any(field.get('type')=='slidenum'
+                for owner in (slide.slide_layout,slide.slide_layout.slide_master)
+                for field in owner._element.iter(qn('a:fld')))
+            if not inherited_number:
+                textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,RGBColor(199,219,221) if number==1 else muted)
         stream=io.BytesIO();deck.save(stream)
         if stream.tell()>64*1024*1024:raise ReportError('PPTX exceeds the 64 MiB output processing budget')
         if not check_only:
@@ -503,14 +650,21 @@ def render_presentation(spec_path, output, *, check_only=False):
         return {'schema':'capstone-presentation-receipt/1','output':output,'slides':len(deck.slides),
             'figures':figures,'tables':tables,'table_rows':table_rows,'source_sha256':workspace.sources,
             'output_written': not check_only,
+            **({'template': template_receipt} if template_receipt else {}),
+            **({'layout_policy':'one_content_record_per_slide',
+                'slide_roles':['cover',*[s.get('role','content') for s in spec['slides']]]} if template_receipt else {}),
+            **({'chapters':chapters,'chapter_ranges':chapter_ranges,'outline_validation':'agenda_sections_in_order'} if chapters else {}),
+            **({'visible_arguments':visible_arguments} if argument_contract else {}),
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.')
+    parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.',
+        epilog='PPTX: omit template for the original paginated baseline. Add template={"id":"state-grid"} for the built-in template, or template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Template output keeps one content record per slide, combining one visual and its reasoning. Optional role:agenda marks the agenda; section is a visible chapter label; final role:closing reuses cover branding and accepts zero blocks or one short paragraph. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; revise composition when content does not fit.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
+    parser.description += ' Template briefings also support capstone-presentation/2: each ordinary content record requires argument={"explanation":"Supported reasoning"}. This explanation is always rendered as visible prose and checked for overflow; agenda/closing records omit argument. Version 1 remains unchanged. Rendering does not certify reasoning.'
     parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
     parser.add_argument('--check-only', action='store_true', help='Validate saved sources and layout without writing output. Returns actual counts and source hashes; independent PPTX block errors are collected. Rendering rechecks sources when you later create the product.')

@@ -1,3 +1,4 @@
+import { receipt } from './toolExecutionReceipt.fixture'
 import { describe, expect, it } from 'vitest'
 import { projectExecutionGraph } from './executionGraph'
 import type { EventEnvelope } from './threadProtocol'
@@ -312,4 +313,12 @@ describe('scalar graph enums', () => {
   it.each(malformedEnums('graph_committed'))('does not convert malformed control event kinds into graph commits: %j', ({ value }) => {
     expect(projectExecutionGraph([progress(1, graph(), { events: [{ kind: value }] })], 'attempt')!.controlEvents).toEqual([])
   })
+})
+
+it('admits graph execution receipts only for the bound call and task',()=>{
+ const observed=receipt('call:A')
+ const rows=[progress(1),frame(2,'enterprise_graph_tool_binding','A',{tool_call_id:'call:A',tool_name:'bash'}),frame(3,'enterprise_graph_child_tool','A',{activity:'end',tool_call_id:'call:A',tool_name:'bash',execution_receipt:observed})]
+ expect(projectExecutionGraph(rows,'attempt')!.executions[0].tools[0].executionReceipt).toEqual(observed)
+ const wrong=frame(4,'enterprise_graph_child_tool','A',{activity:'end',tool_call_id:'call:A',tool_name:'bash',execution_receipt:{...observed,task_id:'wrong'}})
+ expect(projectExecutionGraph([rows[0],rows[1],wrong],'attempt')!.executions[0].tools[0].executionReceipt).toBeUndefined()
 })

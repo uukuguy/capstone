@@ -80,16 +80,15 @@ class GatewayViewBindings:
                 candidates.append(value)
             return deepcopy(candidates[0]) if len(candidates) == 1 else None
 
-    def observe(self, tool, arguments, response, catalog):
+    @staticmethod
+    def candidate_actions(response):
+        """Declared continuations only; arbitrary business rows grant nothing."""
         content = response.get('structuredContent', {})
         if response.get('isError') or content.get('status') not in {'ok', 'partial'}:
-            if 'job_ref' in arguments:
-                with self._lock:
-                    self._actions.pop(self._key(arguments), None)
-            return
+            return []
         data = content.get('data')
-        if not isinstance(data, dict):
-            return
+        if not isinstance(data, dict) or data.get('state') == 'failed':
+            return []
         actions = []
         action = data.get('next_action')
         if isinstance(action, dict):
@@ -101,6 +100,26 @@ class GatewayViewBindings:
         streams = data.get('streams', {})
         if data.get('state') == 'ready' and isinstance(streams, dict):
             actions.extend(entry.get('read') for entry in streams.values() if isinstance(entry, dict))
+        capabilities = data.get('electrical_views')
+        if isinstance(capabilities, dict) and isinstance(data.get('scopes'), list):
+            models = capabilities.get('source_grid_models', [])
+            if isinstance(models, list):
+                actions.extend({'tool': capabilities.get('open_tool'), 'arguments': model['open_arguments']}
+                               for model in models if isinstance(model, dict) and isinstance(model.get('open_arguments'), dict))
+        return [action for action in actions if isinstance(action, dict)
+                and isinstance(action.get('tool'), str) and isinstance(action.get('arguments'), dict)]
+
+    def observe(self, tool, arguments, response, catalog):
+        content = response.get('structuredContent', {})
+        if response.get('isError') or content.get('status') not in {'ok', 'partial'}:
+            if 'job_ref' in arguments:
+                with self._lock:
+                    self._actions.pop(self._key(arguments), None)
+            return
+        data = content.get('data')
+        if not isinstance(data, dict):
+            return
+        actions = self.candidate_actions(response)
         with self._lock:
             revision = catalog.get('revision')
             if revision != self._revision:
@@ -127,11 +146,6 @@ class GatewayViewBindings:
             capabilities = data.get('electrical_views')
             if isinstance(capabilities, dict) and isinstance(data.get('scopes'), list):
                 self._discovery = deepcopy(data)
-                models = capabilities.get('source_grid_models', [])
-                if isinstance(models, list):
-                    for model in models:
-                        if isinstance(model, dict) and isinstance(model.get('open_arguments'), dict):
-                            actions.append({'tool': capabilities.get('open_tool'), 'arguments': model['open_arguments']})
             if data.get('state') == 'failed':
                 actions = []
             for action in actions:

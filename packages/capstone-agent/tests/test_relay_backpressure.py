@@ -12,10 +12,15 @@ from capstone_agent.general_pi_relay import ProviderRelay
 
 
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
-def test_28_parallel_gateway_requests_queue_without_cancelling_task_or_using_model_slots(tmp_path, mode):
+@pytest.mark.parametrize('setup_elapsed', [0, 20])
+def test_28_parallel_gateway_requests_queue_without_cancelling_task_or_using_model_slots(tmp_path, mode, monkeypatch, setup_elapsed):
     import asyncio
     from threading import Thread
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
+
+    clock = time.monotonic
+    setup_offset = 0
+    monkeypatch.setattr(time, 'monotonic', lambda: clock() + setup_offset)
 
     original = current_capacity()
     initialize_capacity(mode=mode)
@@ -40,21 +45,25 @@ def test_28_parallel_gateway_requests_queue_without_cancelling_task_or_using_mod
                     active -= 1
 
     relay = ProviderRelay(max_requests=1, per_task=1, gateway_requests=4, gateway_per_task=4)
-    relay.register('task', 'grant', time.monotonic()+15)
     left, right = socket.socketpair()
-    model_lease = relay.acquire('task', 'grant', left)
     runner = SimpleNamespace(relay=relay, gateway=Gateway())
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('unused', {}))
     server = make_server(host, control_token='control', address=('127.0.0.1', 0), runner=runner)
+    setup_offset = setup_elapsed
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    # Host imports/setup are not part of the task grant lifetime under test.
+    relay.register('task', 'grant', time.monotonic()+15)
+    model_lease = relay.acquire('task', 'grant', left)
     try:
         with httpx.Client(timeout=10, trust_env=False) as client, ThreadPoolExecutor(max_workers=28) as pool:
             def call(index):
                 return client.post(f'http://127.0.0.1:{server.server_port}/data-gateway/task',
                                    headers={'Authorization': 'Bearer grant'}, json={'id': index})
             responses = list(pool.map(call, range(28)))
-        assert all(response.status_code == 200 for response in responses)
+        failures = [(response.status_code, response.text[:500])
+                    for response in responses if response.status_code != 200]
+        assert not failures, failures
         assert {response.json()['id'] for response in responses} == set(range(28))
         assert sorted(completed) == list(range(28))
         assert maximum <= 4

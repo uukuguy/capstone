@@ -4,6 +4,68 @@ import json
 import re
 
 
+def tool_execution_diagnostics(result: Mapping) -> Mapping | None:
+    """Read declared failure envelopes, never search arbitrary business rows."""
+    value: object = result
+    for _ in range(12):
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (ValueError, TypeError):
+                return None
+        elif isinstance(value, Mapping):
+            gaps = value.get('gaps')
+            gap = next((item for item in gaps if isinstance(item, Mapping)), {}) if isinstance(gaps, list) else {}
+            scope = gap.get('scope')
+            index = scope.get('query_index') if isinstance(scope, Mapping) else None
+            data = value.get('data')
+            if type(index) is int and isinstance(data, list) and 0 <= index < len(data):
+                child = data[index].get('result') if isinstance(data[index], Mapping) else None
+                if isinstance(child, Mapping) and child.get('status') in ('error', 'failed'):
+                    value = child
+                    continue
+            provenance = value.get('provenance')
+            diagnostic = provenance.get('execution_diagnostics') if isinstance(provenance, Mapping) else None
+            if not isinstance(diagnostic, Mapping) and isinstance(scope, Mapping):
+                diagnostic = scope.get('diagnostics')
+            if isinstance(diagnostic, Mapping):
+                return diagnostic
+            structured = value.get('structuredContent')
+            if isinstance(structured, Mapping):
+                value = structured
+                continue
+            content = value.get('content')
+            value = next((part.get('text') for part in content if isinstance(part, Mapping)
+                          and part.get('type') == 'text'), None) if isinstance(content, list) else None
+        else:
+            return None
+    return None
+
+
+def _transport_summary(value: Mapping) -> list[str]:
+    diagnostic = tool_execution_diagnostics(value)
+    if diagnostic is None or not any(key in diagnostic for key in (
+            'transport_phase', 'connection_established', 'request_sent', 'remote_execution_possible')):
+        return []
+    phase = diagnostic.get('transport_phase')
+    parts = [{'connect': '连接阶段失败', 'send': '发送阶段失败', 'receive': '等待响应阶段失败'}
+             .get(phase if isinstance(phase, str) else '', '失败阶段未知')]
+    if diagnostic.get('connection_established') is False:
+        parts.append('连接未建立')
+    sent = diagnostic.get('request_sent')
+    parts.append('请求已发送' if sent is True else '请求未发送' if sent is False else '发送状态未知')
+    state = diagnostic.get('result_state')
+    parts.append('未生成结果' if state == 'not_produced' else
+                 '网关报告结果已保存' if state == 'saved' else '源端结果未知')
+    if diagnostic.get('remote_cancellation_confirmed') is True:
+        parts.append('源端取消已确认')
+    if state == 'unknown' and (sent is not False or diagnostic.get('remote_execution_possible') is True):
+        parts.append('当前操作不可自动重放；先核对源端执行状态')
+    elif diagnostic.get('retry_policy') == 'after_connection_restored' or diagnostic.get('transport_phase') == 'connect':
+        parts.append('当前操作需先恢复连接；可评估其他独立工作')
+    return parts
+
+
 def structured_tool_diagnostic(result: Mapping) -> str | None:
     value: object = result
     request_ids: list[str] = []
@@ -40,7 +102,7 @@ def structured_tool_diagnostic(result: Mapping) -> str | None:
             if isinstance(error, str):
                 message = error
             if isinstance(message, str) or isinstance(code, str):
-                parts = [message[:240]] if isinstance(message, str) else []
+                parts = _transport_summary(value) + ([message[:240]] if isinstance(message, str) else [])
                 if isinstance(code, str):
                     parts.append('code=' + code[:80])
                 scope = detail.get('scope')

@@ -198,6 +198,11 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         'data_gateway_discover_network_models': {'name': 'discover_network_models'},
         'data_gateway_other': {'name': 'other'}}}}
     gateway_publication['catalog']['entry_tools'] = ['data_gateway_discover_network_models', 'data_gateway_other']
+    gateway_publication['catalog']['providers'] = [
+        {'id': 'visible-provider', 'self_description': {'version': 'provider-description/1', 'purpose': 'VISIBLE_PROVIDER_RULE'}},
+        {'id': 'hidden-provider', 'self_description': {'version': 'provider-description/1', 'purpose': 'HIDDEN_PROVIDER_RULE'}}]
+    for name, provider in [('data_gateway_discover_network_models', 'visible-provider'), ('data_gateway_other', 'hidden-provider')]:
+        gateway_publication['catalog']['tools'][name]['_meta'] = {'data-gateway/capability': {'provider_id': provider}}
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities(),
         'data_gateway': gateway_publication, 'tool_composition': COMPOSITION_POLICY,
@@ -253,7 +258,10 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     runner.environment_context = 'HOST VERIFIED ENVIRONMENT: offline libraries and report renderer'
     gateway_bindings = []
     runner.gateway = SimpleNamespace(publication=lambda: gateway_publication,
-        bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None)
+        bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None,
+        contract_context=lambda _: {'catalog_revision': 'catalog-revision', 'instance_id': 'instance',
+            'sections': [{'tool': 'data_gateway_discover_network_models', 'section': 'usage',
+                'contract_revision': 'contract-r', 'data': {'usage': 'EXACT_CONTRACT_DATA'}}]})
     ready = threading.Event()
     ready.set()
     runner.bind_research_reader(lambda _: SimpleNamespace(root=tmp_path / 'channel', ready=ready))
@@ -277,6 +285,10 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
+    cached_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'gateway-contract-context')
+    assert 'gateway-contract-context/index.json' in cached_context
+    assert 'EXACT_CONTRACT_DATA' not in cached_context
+    assert 'not live source availability' in cached_context
     assert 'scope.executed true means the statement was cancelled' not in gateway_context
     assert 'When no next action is returned, select the next operation from the current published contract' in gateway_context
     assert 'A successful tool call does not prove that its job succeeded' in gateway_context
@@ -290,6 +302,19 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert catalog['entry_tools'] == ['data_gateway_discover_network_models']
     guidance = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-data-gateway-guidance')
     assert 'SERVICE_GUIDANCE_SENTINEL' in guidance
+    provider_context = next(item['content'] for item in captured[0]['contextFiles']
+                            if item['path'] == 'registered-data-gateway-provider-guidance')
+    assert 'VISIBLE_PROVIDER_RULE' in provider_context
+    assert 'HIDDEN_PROVIDER_RULE' not in provider_context
+    assert len(catalog['providers']) == 1
+    if version == '1.20.0' and choice is None and not experimental_llm_pool:
+        import subprocess
+        sdk_config_path = tmp_path / 'provider-sdk-config.json'
+        sdk_config_path.write_text(json.dumps(captured[0]))
+        fixture = Path(__file__).parent / 'fixtures/provider-guidance-sdk.mjs'
+        checked = subprocess.run(['node', str(fixture), str(sdk_config_path)],
+                                 capture_output=True, text=True, timeout=30)
+        assert checked.returncode == 0, checked.stderr
     assert 'only after selecting this service as relevant' in guidance
     assert 'do not determine which service to select' in guidance
     assert 'Do not query this service merely because another capability is unavailable' in gateway_context
@@ -788,7 +813,7 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     assert isinstance(state['observed_at_ms'], int)
     capacity = json.loads((root / 'tasks' / request.task_id / '.runtime-capacity.json').read_text())
     assert capacity['execution']['timeout_seconds'] == request.timeout_seconds
-    assert capacity['dimensions']['gateway_relay_task_requests']['effective'] == 4
+    assert capacity['dimensions']['gateway_relay_task_requests']['effective'] == 8
     assert capacity['dimensions']['mcp_call_count']['effective'] == 0
 
 
@@ -1041,6 +1066,24 @@ def test_private_frame_failure_has_fixed_operator_reason(tmp_path, message, reas
     assert record['reason_code'] == reason
 
 
+def test_host_publishes_owner_receipt_in_bounded_tool_activity(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from test_tool_execution_receipt import receipt
+    value = receipt()
+    value.update(task_id='t1', call_id='call-1')
+    def run(request, cancelled, emit):
+        emit({'type': 'tool_execution_end', 'toolName': 'published', 'toolCallId': 'call-1',
+              'result': {'details': {'execution_receipt': value}}})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('t1', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert host.read('t1')['events'][0]['activity']['execution_receipt'] == value
+
+
 def test_sources_reference_actual_host_observed_tool_results(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, cancelled, emit):
@@ -1152,6 +1195,7 @@ def test_verified_electrical_descriptor_keeps_v2_open_arguments():
 
 def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path):
     import ast
+    from capability_agent.runtime import execution_queue
     from hashlib import sha256
     from pathlib import Path
     import capstone_agent.general_pi_server as server_module
@@ -1172,7 +1216,8 @@ def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path
         'resources/gateway-electrical-view-v2.schema.json').read_bytes())
     # Exercise the exact production hash expression without starting services.
     compiled = compile(ast.Expression(expression), '<executor_revision>', 'eval')
-    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py')}
+    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py'),
+                 'execution_queue': execution_queue}
     before = eval(compiled, namespace)
     schema.write_bytes(schema.read_bytes() + b'\n')
     assert eval(compiled, namespace) != before

@@ -15,7 +15,7 @@ import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
 
-const WORK_REFRESH_EVENTS = new Set(['session_title_changed', 'command.applied', 'attempt_started', 'attempt_cancel_requested', 'attempt_completed',
+const WORK_REFRESH_EVENTS = new Set(['session_skills_changed', 'session_title_changed', 'command.applied', 'attempt_started', 'attempt_cancel_requested', 'attempt_completed',
   'attempt_failed', 'attempt_cancelled', 'attempt_interrupted', 'model_workspace_changed', 'model_context_activated',
   'model_context_reopened', 'model_context_reverted', 'selection_activated', 'selection_reverted', 'runtime_mode_changed'])
 
@@ -991,6 +991,7 @@ export class ThreadProjectionStore {
       const document = workSnapshot.toDocument()
       const payload = record(event.payload)
       if (event.eventType === 'session_title_changed') document.session_title = payload.session_title
+      if (event.eventType === 'session_skills_changed') document.session_skills = payload.session_skills
       if (event.eventType === 'runtime_mode_changed') document.runtime_mode = payload.runtime_mode
       const current = record(document.current_attempt)
       if (['command_accepted', 'attempt_started'].includes(event.eventType) && event.attemptId && event.turnId) {
@@ -1026,6 +1027,8 @@ export class ThreadProjectionStore {
     const deliveredProjections = this.resultDelivery.complete(event)
     if (event.eventType === 'session_title_changed') {
       document.session_title = payload.session_title
+    } else if (event.eventType === 'session_skills_changed') {
+      document.session_skills = payload.session_skills
     } else if (event.eventType === 'runtime_mode_changed') {
       document.runtime_mode = payload.runtime_mode
     } else if (event.eventType === 'model_context_change_pending') {

@@ -10,6 +10,33 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_native_image_includes_executor_fingerprint_sources():
+    import ast
+    import shlex
+    from fnmatch import fnmatchcase
+
+    package = 'packages/capstone-agent/src/capstone_agent/'
+    tree = ast.parse((ROOT / package / 'general_pi_server.py').read_text())
+    dependencies = next(
+        [element.value for element in node.elts]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Tuple) and node.elts
+        and all(isinstance(element, ast.Constant) and isinstance(element.value, str)
+                for element in node.elts)
+        and node.elts[0].value == 'general_pi_server.py'
+    )
+    copies = [shlex.split(step)[1:] for step in instructions(
+        (ROOT / 'deploy/general-pi.Dockerfile').read_text()) if step.startswith('COPY ')]
+    sources = [token for copy in copies for token in copy[:-1]]
+    destinations = [copy[-1] for copy in copies]
+    destinations.extend(copy[-1] + Path(source).name
+                        for copy in copies if copy[-1].endswith('/')
+                        for source in copy[:-1] if not source.startswith('--'))
+    for dependency in dependencies:
+        assert ('capstone_agent/' + dependency in destinations
+                or any(fnmatchcase(package + dependency, source) for source in sources)), dependency
+
+
 def instructions(dockerfile: str) -> list[str]:
     logical: list[str] = []
     buffer = ""
@@ -46,6 +73,13 @@ def test_backend_installs_dependencies_pi_and_models_before_source():
     assert all("COPY packages/ packages/" not in step for step in earlier)
 
 
+def test_native_image_keeps_headroom_below_container_layer_limit():
+    steps = instructions((ROOT / 'deploy/general-pi.Dockerfile').read_text())
+    start = max(i for i, step in enumerate(steps) if step.startswith('FROM '))
+    layers = [step for step in steps[start + 1:] if step.startswith(('COPY ', 'ADD ', 'RUN '))]
+    assert len(layers) <= 32, 'Group runtime inputs by responsibility instead of adding per-file layers'
+
+
 def test_native_scientific_install_precedes_volatile_source_and_backend_image():
     steps = instructions((ROOT / "deploy/general-pi.Dockerfile").read_text())
     scientific = index_of(steps, "uv pip install --system --require-hashes --only-binary :all: -r configs/runtime/native-analysis.lock.txt")
@@ -53,8 +87,8 @@ def test_native_scientific_install_precedes_volatile_source_and_backend_image():
     backend_runtime = index_of(steps, "COPY --from=managed-runtime")
     report = index_of(steps, "/usr/local/bin/capstone-report")
     typescript = index_of(steps, "/opt/pi/node_modules/tsx/dist/cli.mjs /usr/local/bin/tsx")
-    executor = index_of(steps, "COPY packages/capstone-agent/src/capstone_agent/general_pi_executor.py")
-    guidance = index_of(steps, "COPY packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs")
+    executor = index_of(steps, "packages/capstone-agent/src/capstone_agent/general_pi_executor.py")
+    guidance = index_of(steps, "packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs")
     assert scientific < backend_runtime < typescript < report < smoke < executor
     assert scientific < guidance
 

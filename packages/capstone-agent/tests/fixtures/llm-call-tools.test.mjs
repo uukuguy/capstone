@@ -5,6 +5,36 @@ import {createModelRequestPool} from '../../src/capstone_agent/resources/model-r
 const policy={schema:'capstone-llm-call-pool/1',concurrency:2,max_jobs:12,max_input_chars:16000,max_output_chars:8000,call_timeout_ms:120000,max_wait_ms:30000};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const parse=result=>JSON.parse(result.content[0].text);
+test('selected collection waits for a selected result and ignores unrelated completion',async()=>{
+  const finishes=new Map();
+  const pool=createLlmCallTools({policy,run:job=>new Promise(resolve=>finishes.set(job.id,resolve))});
+  try{
+    await pool.tools[0].execute('s',{calls:[
+      {id:'selected',instruction:'Inspect selected observations',input:'first'},
+      {id:'other',instruction:'Inspect other observations',input:'second'}]});
+    await tick();let returned=false;
+    const pending=pool.tools[1].execute('c',{ids:['selected'],wait_ms:1000}).then(result=>{returned=true;return parse(result)});
+    await tick();assert.equal(returned,false,'wait_ms must not be ignored when ids are supplied');
+    finishes.get('other')({status:'completed',answer:'Other result'});
+    await tick();assert.equal(returned,false,'an unrelated result cannot satisfy selected collection');
+    finishes.get('selected')({status:'completed',answer:'Selected result'});
+    const result=await pending;
+    assert.equal(result.wait_reason,'completion');
+    assert.deepEqual(result.results.map(r=>r.id),['selected']);
+    assert.equal(result.results[0].result.answer,'Selected result');
+  }finally{for(const finish of finishes.values())finish({status:'completed',answer:'cleanup'});await pool.close()}
+});
+test('selected collection timeout retains the running job without cancellation or resubmission',async()=>{
+  let finish,calls=0;
+  const pool=createLlmCallTools({policy,run:()=>{calls++;return new Promise(resolve=>{finish=resolve})}});
+  try{
+    await pool.tools[0].execute('s',{calls:[{id:'selected',instruction:'Inspect observations',input:'facts'}]});
+    await tick();
+    const result=parse(await pool.tools[1].execute('c',{ids:['selected'],wait_ms:10}));
+    assert.equal(result.wait_reason,'timeout');assert.equal(result.results.length,0);
+    assert.equal(result.pool.jobs[0].status,'running');assert.equal(calls,1);
+  }finally{finish?.({status:'completed',answer:'cleanup'});await pool.close()}
+});
 test('assembled dependency answers are included in the context budget before any model invocation',()=>{
   const input={instruction:'Integrate observed results',input:'Facts'};
   assert.throws(()=>buildLlmCallPrompt(input,Array.from({length:11},()=>({answer:'x'.repeat(8000)})),policy),/input budget/);

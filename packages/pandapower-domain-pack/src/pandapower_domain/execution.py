@@ -9,6 +9,40 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
+from hashlib import sha256
+from capability_agent.runtime.execution_queue import ExecutionQueue
+
+
+_SOURCE_EXECUTION_QUEUE = ExecutionQueue(capacity=int(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_CAPACITY', '8')))
+
+
+def source_execution_queue():
+    """One source owner budget for every adapter entry in this process."""
+    return _SOURCE_EXECUTION_QUEUE
+
+
+def execution_receipt_writer(root, task_id):
+    directory = Path(root) / task_id / 'execution-receipts'
+    path = directory / (uuid4().hex + '.json')
+    def persist(receipt):
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = directory / ('.' + uuid4().hex + '.tmp')
+        try:
+            with temporary.open('x', encoding='utf-8') as stream:
+                temporary.chmod(0o600)
+                json.dump(receipt, stream, ensure_ascii=False, separators=(',', ':'))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+            if os.name == 'posix':
+                descriptor = os.open(directory, os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return persist
 
 
 # Keep this allowlist deliberately small.  These names are runtime inputs for
@@ -142,7 +176,25 @@ class GridctlExecutor:
         )
         self.last_diagnostics = ""
 
-    def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:
+    def invoke(self, capability: str, arguments: dict[str, object], *, execution_observer=None, execution_lease=None) -> dict[str, object]:
+        queue = source_execution_queue()
+        resource = str(self.workspace.resolve())
+        if execution_lease is not None:
+            with queue.borrow(execution_lease, resource=resource) as receipt:
+                return self._invoke_protocol(capability, arguments,
+                    execution_observer=lambda phase: queue.record(receipt, phase, provenance='authority_process'))
+        task_id = 'workspace-' + sha256(resource.encode()).hexdigest()[:32]
+        root = Path(os.environ.get('CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT') or self.workspace)
+        receipt = queue.receipt(task_id=task_id, call_id='invoke-' + uuid4().hex,
+            observer=execution_receipt_writer(root, task_id))
+        def observe(phase):
+            queue.record(receipt, phase, provenance='authority_process')
+            if execution_observer is not None:
+                execution_observer(phase)
+        with queue.acquire(receipt, resource=resource, read_only=False):
+            return self._invoke_protocol(capability, arguments, execution_observer=observe)
+
+    def _invoke_protocol(self, capability: str, arguments: dict[str, object], *, execution_observer=None) -> dict[str, object]:
         request_id = f"sim-{uuid4().hex}"
         request = {
             "protocol": "grid-capability",
@@ -154,7 +206,7 @@ class GridctlExecutor:
         request_bytes = (json.dumps(request, separators=(",", ":")) + "\n").encode("utf-8")
         self.last_diagnostics = ""
         output_limit = self.max_operator_output_bytes if capability == "operator.diagram.get" else self.max_output_bytes
-        returncode, stdout, stderr, exceeded = self._run_bounded(request_bytes, output_limit=output_limit)
+        returncode, stdout, stderr, exceeded = self._run_bounded(request_bytes, output_limit=output_limit, execution_observer=execution_observer)
         self.last_diagnostics = stderr[:4096].decode("utf-8", errors="ignore")
         if exceeded:
             raise GridctlClientError("Grid simulator process output limit exceeded")
@@ -188,7 +240,7 @@ class GridctlExecutor:
             raise GridctlClientError("Grid simulator response has no result object")
         return result
 
-    def _run_bounded(self, request_bytes: bytes, *, output_limit: int) -> tuple[int, bytes, bytes, bool]:
+    def _run_bounded(self, request_bytes: bytes, *, output_limit: int, execution_observer=None) -> tuple[int, bytes, bytes, bool]:
         try:
             process = subprocess.Popen(
                 [str(self.executable), "request", "--workspace", str(self.workspace)],
@@ -200,6 +252,25 @@ class GridctlExecutor:
             )
         except OSError as exc:
             raise GridctlClientError("Grid simulator process could not complete") from exc
+
+        try:
+            return self._collect_bounded(process, request_bytes, output_limit=output_limit,
+                execution_observer=execution_observer)
+        finally:
+            # This guard starts immediately after Popen. Observer and thread
+            # startup failures must also stop and reap the process.
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+            if execution_observer is not None:
+                execution_observer('execution_ended')
+
+    def _collect_bounded(self, process, request_bytes, *, output_limit, execution_observer):
+        if execution_observer is not None:
+            execution_observer('execution_started')
 
         stdout_chunks: list[bytes] = []
         stderr_chunks: list[bytes] = []
@@ -240,17 +311,22 @@ class GridctlExecutor:
             threading.Thread(target=read_stream, args=(process.stderr, stderr_chunks)),
             threading.Thread(target=write_request),
         ]
-        for thread in threads:
-            thread.start()
         try:
+            for thread in threads:
+                thread.start()
             returncode = process.wait(timeout=self.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
             process.kill()
             process.wait()
             raise GridctlClientError("Grid simulator process could not complete") from exc
         finally:
+            # A caller interruption must not return its lease while the child lives.
+            if process.poll() is None:
+                process.kill()
+                process.wait()
             for thread in threads:
-                thread.join()
+                if thread.ident is not None:
+                    thread.join()
             process.stdout.close()
             process.stderr.close()
         return returncode, b"".join(stdout_chunks), b"".join(stderr_chunks), exceeded.is_set()

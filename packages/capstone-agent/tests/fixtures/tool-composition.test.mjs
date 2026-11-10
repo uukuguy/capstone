@@ -1,4 +1,18 @@
 import test from 'node:test';
+
+test('composition reports completed dispatches across success, reuse and local failure',()=>fixture(async cwd=>{
+ const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};
+ const t=tool(cwd,async()=>native({status:'ok',rows:[1]}),{catalog:declared});
+ const call={tools:['read'],program:`await tools.call('read',{id:1});return 'ok';`};
+ const first=await t.execute('first',call);
+ assert.equal(first.details.completed_leaf_calls,1);
+ const reuse=await t.execute('reuse',call);
+ assert.equal(reuse.details.completed_leaf_calls,0);
+ const failed=await t.execute('failure',{tools:['read'],program:`await tools.call('read',{id:2});throw Error('processing');`});
+ assert.equal(failed.isError,true);
+ assert.equal(failed.details.kind,'capstone-tool-composition/1');
+ assert.equal(failed.details.completed_leaf_calls,1);
+}));
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -10,6 +24,65 @@ import {createGatewayUseLedger} from '../../src/capstone_agent/resources/gateway
 import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
+
+for(const local of ['return {index:tools.inspect(r.ref)};',
+ 'return {text:JSON.stringify(tools.read(r.ref,"/data"))};',
+ 'const fields=tools.read(r.ref,"/data");return Object.keys(fields);']){
+ test('unawaited observation helpers fail explicitly and retain completed source calls: '+local,()=>fixture(async cwd=>{
+  let calls=0;const t=tool(cwd,async()=>{calls++;return native({value:7});});
+  const result=await t.execute('forgot-await',{tools:['read'],program:`const r=await tools.call('read',{});${local}`});
+  assert.equal(result.isError,true);
+  const body=JSON.parse(result.content[0].text);
+  assert.match(body.message,/composition_unawaited_helper/);assert.match(body.message,/await/);
+  assert.equal(body.completed_calls.length,1);assert.equal(calls,1);
+  const restored=await t.execute('recover-await',{tools:[],program:`return await tools.read(${JSON.stringify(body.completed_calls[0].ref)},'/data/value');`});
+  assert.equal(restored.isError,false);assert.equal(JSON.parse(restored.content[0].text).result,7);
+  assert.equal(calls,1);
+ }));
+}
+
+test('discarded source handles drain before failure and remain recoverable',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>{calls++;await new Promise(resolve=>setTimeout(resolve,10));return native({value:7});});
+ const result=await t.execute('discarded',{tools:['read'],program:`tools.call('read',{});return 'finished';`});
+ assert.equal(result.isError,true);const body=JSON.parse(result.content[0].text);
+ assert.match(body.message,/composition_unawaited_helper/);assert.equal(body.completed_calls.length,1);assert.equal(calls,1);
+}));
+
+test('unawaited batches drain issued calls without claiming success or retrying',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>native({value:++calls}));
+ const result=await t.execute('batch-discarded',{tools:['read'],program:`tools.batch([{tool:'read',arguments:{i:1}},{tool:'read',arguments:{i:2}}]);return 'finished';`});
+ assert.equal(result.isError,true);const body=JSON.parse(result.content[0].text);
+ assert.match(body.message,/composition_unawaited_helper/);assert.equal(body.completed_calls.length,2);assert.equal(calls,2);
+}));
+
+test('Promise combinators and progress prints keep their supported behavior',()=>fixture(async cwd=>{
+ const progress=[];const t=tool(cwd,async()=>native({value:7}),{onProgress:text=>progress.push(text)});
+ const result=await t.execute('awaited',{tools:['read'],program:`
+ const values=await Promise.all([tools.call('read',{}).then(r=>r.data.value).finally(()=>{}),
+  tools.python('import json,sys;print(json.load(sys.stdin))',8)]);
+ print('bounded progress');return values;`});
+ assert.equal(result.isError,false);assert.deepEqual(JSON.parse(result.content[0].text).result,[7,'8\n']);
+ assert.deepEqual(progress,['bounded progress']);
+}));
+
+test('private Python helper has identical global/tools entry points and discoverable contracts',()=>fixture(async cwd=>{
+ let upstream=0;
+ const t=tool(cwd,async()=>{upstream++;return native({});});
+ const result=await t.execute('python-alias',{tools:[],program:`
+ const answer=await tools.python('import json,sys; print(json.dumps(json.load(sys.stdin)))',{items:[1,2,3]});
+ return {same:tools.python===python,answer:JSON.parse(answer),help:tools.help()};`});
+ assert.equal(result.isError,false,JSON.stringify(result));
+ const value=JSON.parse(result.content[0].text).result;
+ assert.equal(value.same,true);assert.deepEqual(value.answer,{items:[1,2,3]});
+ assert.match(value.help.python,/JSON stdin/);
+ assert.match(value.help.describe,/exact/);
+ assert.match(value.help.follow,/issued/);
+ assert.equal(upstream,0);
+}));
+
+test('application selects eight rolling composition slots',()=>{
+ assert.equal(compositionPolicy.concurrency,8);
+});
 
 test('one pipeline plans exact calls, reuses observations, validates mappings and publishes only valid tables',()=>fixture(async cwd=>{
  const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};let count=0;

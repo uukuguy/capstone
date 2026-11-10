@@ -122,7 +122,7 @@ function RegisteredModelDirectory({ models, currentModelId, target, disabled, pe
     if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
   }}>
     {!embedded && <button ref={opener} type="button" className="thread-settings-trigger thread-model-trigger" aria-label="模型目录" title="选择电网模型" aria-expanded={open} aria-controls={id}
-      onClick={() => { keyboardBrowse.current = false; if (!open) onTargetChange(currentModelId); setOpen((value) => !value) }}><Database aria-hidden="true" /><span>模型</span><ChevronDown aria-hidden="true" /></button>}
+      onClick={() => { keyboardBrowse.current = false; if (!open) onTargetChange(currentModelId); setOpen((value) => !value) }}><Database aria-hidden="true" /><span>电网模型</span><ChevronDown aria-hidden="true" /></button>}
     {(open || embedded) && <section id={id} className="thread-directory-panel" style={{ maxHeight: panelHeight }} aria-label="已注册电网模型目录">
       <div className="thread-directory-filters">
         <input ref={search} type="search" aria-label="搜索电网模型" placeholder="搜索模型名称或 ID" value={query} onChange={(event) => setQuery(event.target.value)} />

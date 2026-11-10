@@ -13,9 +13,10 @@ def diagnostic_id(value):
 def checked_diagnostics(value):
     if value is None:
         return None
-    if not isinstance(value, dict) or set(value) != set(FIELDS):
+    if (not isinstance(value, dict) or not set(FIELDS).issubset(value)
+            or set(value) - set(FIELDS) - {'client_call_id'}):
         raise ValueError('gateway_diagnostics_context_invalid')
-    return {key: diagnostic_id(value[key]) for key in FIELDS}
+    return {key: diagnostic_id(item) for key, item in value.items()}
 
 
 def research_diagnostics(binding, attempt_id):

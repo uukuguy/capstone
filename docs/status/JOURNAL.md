@@ -7074,3 +7074,23 @@ fixed-source VitePID77708 stays available for user validation.
 - 2026-11-07 20:00: User approved one focused macOS CI; unchanged-tree submission commit prepared [9b4c0a86].
 - 2026-11-07 20:04: Approved macOS CI42370539679 passed in2m43s; PR98 integration started; root recovery ref preserves29paths.
 - 2026-11-07 20:15: PR98 merged9689c434;actual dev verified. Sectioned trial:31complete reads to0;targeted judgments corrected;speedup unproven.
+
+## 2026-11-08
+- 10:14 Added six investigation methods and bounded public skill records; focused checks pass, live acceptance pending [49da4559].
+- 10:18 Fixed missing native image modules and added SDK import preflight; rebuild restores local service [7f13411b].
+- 10:25 Combined native COPY entries after Docker rejected 128 layers; import smoke passed, corrected rebuild pending [9e52c45a].
+- 10:33 Canonical rebuild passed after scoped container recovery; all persistent volumes and 327 historical attempt states preserved.
+- 10:35 Real sample task saved six hash-verified products; skill records worked, interpretation quality failed on flatness and transition timing.
+- 10:39 Named skill rows now use a distinct badge and background; 35 focused App checks and types pass [326055ab].
+- 10:40 Preserved readable skill summaries through graph projection; strengthened numerical-label and coverage checks after real feedback [05a39dd2].
+- 10:41 Aligned English and Chinese resource documentation;64 relative links and doctor pass [01817dd4].
+- 11:02 Compact batch title and expandable overlap status avoid unsupported concurrency claims;174 App checks and types pass [e01ec78f].
+- 11:08 Framed skill labels without row fill; highlighted model headers and framed LLM identities [91bb642c].
+- 11:17 Unified empty and populated Thinking rows, moved tokens outside header fill, and separated record-type color from status [404b12be].
+- 11:17 Second real task loaded and reported five requested methods;17 product hashes pass;analysis-plan limitations remain.
+- 11:22 Whole-batch duration uses owner receipts or explicit caller spans;178 App checks and types pass [c450149c].
+- 11:25 Prepared focused development CI routing; no remote CI was started [dc80707f].
+- 11:28 Reduced batch timing to a numeric duration [85ec9cc0].
+- 11:51 Explicit SDK parallel mode and shared eight-slot dispatch passed dependency, capacity, cancellation and launcher-clock checks. Batch elapsed is measured at SDK launch/turn settlement, separate from each invocation. Native records remain distinct from Authority evidence. Focused checks:32 Node,204 Python with32 skips,184 App; types pass. Final canonical rebuild and live receipt check remain in progress. User withdrew the full group frame; retain the thin group line and remove redundant skill wording.
+- 11:52 Preserved asynchronous dispatch and launcher timing so batch duration reflects actual completion boundaries [0a3245a5].
+- 11:58 Removed the batch tooltip, added the duration separator and collapsed errors after sibling calls settle. App185 and executor82 focused checks pass. Real two-tool trial completed concurrently; it exposed an RPC whitelist omission for new timing events, now covered and fixed. Final transport rebuild is ready; live receipt recheck is running.

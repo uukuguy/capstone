@@ -39,7 +39,7 @@ function fakeSdk(observe,{block=false,saveBeforeBlock=false}={}){
     async createAgentSession(options){
       observe.options=options;let aborted;
       const listeners=new Set();const emit=event=>listeners.forEach(fn=>fn(event));
-      const session={messages:[],subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);},async bindExtensions(){},setActiveToolsByName(names){observe.activeTools=names;},
+      const session={agent:{},messages:[],subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);},async bindExtensions(){},setActiveToolsByName(names){observe.activeTools=names;},
         extensionRunner:{async emit(){}},dispose(){observe.disposed=true;observe.closes=(observe.closes??0)+1;},steer(){observe.steered=true;},async abort(){observe.aborted=true;aborted?.();},async prompt(prompt){
           observe.prompt=prompt;observe.prompts=(observe.prompts??0)+1;emit({type:'turn_start'});
           await observe.beforePrompt?.(prompt);if(observe.aborted)return;
@@ -639,7 +639,7 @@ test('real SDK entry point registers graph tools without a manual delegate grant
     async reload(){for(const factory of this.options.extensionFactories)factory({registerTool:tool=>registry.set(tool.name,tool),on(){}});}
     getExtensions(){return {errors:[],extensions:[]};}getSkills(){return {skills:[],diagnostics:[]};}
   };
-  sdk.createAgentSession=async options=>({session:{subscribe(){return ()=>{};},async bindExtensions(){},setActiveToolsByName(names){observed.active=names;},getActiveToolNames(){return observed.active;},
+  sdk.createAgentSession=async options=>({session:{agent:{},subscribe(){return ()=>{};},async bindExtensions(){},setActiveToolsByName(names){observed.active=names;},getActiveToolNames(){return observed.active;},
     extensionRunner:{async emit(){observed.shutdown=true;}},dispose(){observed.disposed=true;}}});
   const config={researchTaskId:'task',researchAttemptId:'attempt',researchOwner:{thread_id:'T',work_id:'W',research_id:'research',goal_revision:1},
     model:'fake',extensions:[],allowedSkills:[],contextFiles:[],settings:{},graphContextPath:context,researchChannelPath:channel,inventoryOnly:true,

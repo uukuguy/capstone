@@ -481,8 +481,10 @@ test('parent wrapper rethrows pinned SDK missing-file and invalid-offset reads w
     await assert.rejects(tool.execute('invalid-offset',{path:'valid.txt',offset:1000}),/offset|beyond|lines/i);
     assert.equal(ended.length,2);
     assert.ok(ended.every(item=>item.result===undefined&&item.error instanceof Error&&item.token.action===action));
-    assert.deepEqual(frames.map(event=>event.type),['enterprise_graph_tool_binding','enterprise_graph_tool_failure','enterprise_graph_tool_binding','enterprise_graph_tool_failure']);
-    for(const event of frames){assert.equal(event.action_id,action.id);assert.deepEqual(event.checkpoint,checkpoint);}
+    const graphFrames=frames.filter(event=>event.type!=='tool_dispatch');
+    assert.deepEqual(graphFrames.map(event=>event.type),['enterprise_graph_tool_binding','enterprise_graph_tool_failure','enterprise_graph_tool_binding','enterprise_graph_tool_failure']);
+    assert.equal(frames.filter(event=>event.type==='tool_dispatch').length,2);
+    for(const event of graphFrames){assert.equal(event.action_id,action.id);assert.deepEqual(event.checkpoint,checkpoint);}
     assert.deepEqual(frames.filter(event=>event.status).map(event=>event.status),['failed','failed']);
   }finally{process.stdout.write=original;await rm(cwd,{recursive:true,force:true});}
 });

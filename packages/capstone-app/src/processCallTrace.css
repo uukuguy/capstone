@@ -1,7 +1,10 @@
 .capstone-call-trace { --trace-text: var(--text, #172d32); --trace-secondary: var(--muted, #576c70); --trace-accent: #286b62; list-style: none; padding: 0; margin: 2px 0; font-size: var(--capstone-trace-font-size, 11px); line-height: 1.45; color: var(--trace-text); }
 .capstone-call-trace > li + li { margin-top: 3px; }
 .capstone-call-model { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; padding: 1px 0; }
+/* Blue marks the record type. The state icon still owns execution status. */
+.capstone-llm-call-heading { padding: 2px 4px; background: #edf3fb; border-radius: 4px; }
 .capstone-call-model strong { font-weight: 600; }
+.capstone-call-model > strong.capstone-call-model-label { color: #365272; border: 1px solid #bccde2; border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .capstone-call-tokens { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 10px; color: var(--graph-muted, #647d76); font-variant-numeric: tabular-nums; }
 .capstone-call-intent, .capstone-call-response { font-size: 11px; margin: 4px 0; max-width: 85ch; overflow-wrap: anywhere; }
 .capstone-call-intent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--graph-muted, #647d76); }
@@ -41,7 +44,7 @@
 .capstone-call-trace.is-compact .capstone-call-model { gap: 7px; }
 .capstone-call-purpose { min-width: 0; max-width: min(70ch,65vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--trace-secondary); }
 .capstone-call-model-icon, .capstone-call-state svg { display: block; width: 12px; height: 12px; stroke-width: 1.6; }
-.capstone-call-model-icon { color: var(--trace-accent); align-self: center; }
+.capstone-call-model-icon { color: #667085; align-self: center; }
 .capstone-call-state { display: inline-flex; align-self: center; color: var(--trace-accent); }
 .capstone-call-state.is-failed, .capstone-call-state.is-warning { color: #a04d39; }
 .capstone-call-state.is-running svg { animation: capstone-call-spin 1.1s linear infinite; }
@@ -68,18 +71,25 @@
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled { opacity: .4; background: transparent; cursor: default; }
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled > svg { color: inherit; }
 .capstone-parallel-group { position: relative; width: auto; max-width: 100%; margin: 2px 0; padding: 0; border: 0; }
-.capstone-parallel-group::before { content: ''; position: absolute; left: -6px; top: 1px; bottom: 1px; width: 1px; background: #7ea898; }
-.capstone-parallel-heading { margin: 0 0 2px; color: #3d6b58; font-size: inherit; font-weight: 400; text-align: left; white-space: nowrap; }
+.capstone-parallel-group::before { content: ''; position: absolute; left: -6px; top: 1px; bottom: 1px; width: 1px; background: #b8bfc8; }
+.capstone-parallel-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; margin: 0 0 2px; color: #626b76; font-size: inherit; font-weight: 400; text-align: left; }
+.capstone-parallel-title, .capstone-batch-metrics > span { white-space: nowrap; }
+.capstone-batch-metrics { display: inline-flex; flex-wrap: wrap; max-width: 100%; }
 .capstone-call-trace .capstone-parallel-heading > .capstone-call-duration { display: inline; gap: 0; }
 .capstone-call-pool ul { list-style: none; margin: 4px 0; padding: 0 0 0 8px; border-left: 1px solid #c7d8cf; }
 .capstone-call-pool li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 3px 0; }
 .capstone-call-pool li > span:first-child { overflow-wrap: anywhere; }
 .capstone-call-pool li > :not(:first-child) { color: var(--trace-muted, #64748b); white-space: nowrap; }
 .capstone-call-tool-entry { min-width: 0; max-width: 100%; }
+.capstone-skill-badge { display: inline-block; flex: none; color: var(--trace-secondary, #576c70); border: 1px solid #c7d2ce; border-radius: 3px; padding: 0 4px; font-size: .9em; line-height: 1.5; white-space: nowrap; }
 .capstone-call-notice { display: flex; align-items: baseline; gap: 5px; margin: 2px 0 5px 17px; padding: 3px 7px; border-left: 2px solid; border-radius: 0 3px 3px 0; max-width: 80ch; font-size: inherit; line-height: 1.45; }
 .capstone-call-notice svg { flex: none; width: 12px; height: 12px; align-self: flex-start; margin-top: 2px; }
 .capstone-call-notice span { overflow-wrap: anywhere; }
 .capstone-call-notice.is-error { color: #873b2d; background: #fff3ef; border-color: #bf614b; }
+.capstone-tool-failure { width: calc(100% - 17px); min-width: 0; border: 0; border-left: 2px solid #bf614b; text-align: left; font-family: inherit; cursor: pointer; }
+.capstone-tool-failure:not(.is-expanded) > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.capstone-tool-failure.is-expanded > span { white-space: pre-wrap; }
+.capstone-tool-failure:focus-visible { outline: 2px solid #bf614b; outline-offset: 2px; }
 .capstone-call-notice.is-warning { color: #795514; background: #fff8e8; border-color: #bc8c35; }
 
 .capstone-call-model strong.capstone-call-purpose { font-weight: 600; }

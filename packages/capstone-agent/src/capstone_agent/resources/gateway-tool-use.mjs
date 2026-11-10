@@ -1,4 +1,6 @@
 // Gateway publications own selection policy. Hints never grant tools.
+import {readFileSync} from 'node:fs';
+const summaryChars=JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits.tool_summary_chars;
 const ledgers=new WeakMap();
 export function createGatewayUseLedger(){
   const observations=new Map();
@@ -22,15 +24,44 @@ export function gatewayToolGroup(publication){
 }
 // Compatibility projection: names do not imply an access class.
 export function gatewayToolAccess(){return 'published_operation';}
+// This versioned gateway declaration is adapted here, not in the neutral Kernel.
+// Preserve whole values: cutting a condition mid-sentence can reverse its meaning.
+export function gatewaySelectionSummary(publication,maxChars=summaryChars){
+  const capability=publication?._meta?.['data-gateway/capability']??publication?.progressive?.capability;
+  if(capability?.summary_version!=='capability-summary/1'||capability.declaration_basis!=='provider_declared')return;
+  const semantics=capability.semantics;
+  if(!semantics||typeof semantics!=='object'||Array.isArray(semantics))return;
+  const keys=['execution_choice','prerequisites','applicable_questions','exploration',
+    'input_reference_kinds','output_reference_kinds','composition_constraints','budgets','pagination']
+    .filter(key=>Object.hasOwn(semantics,key)&&semantics[key]!==null);
+  if(!keys.length)return;
+  let result={basis:'provider_declared',fields:{},omitted_fields:keys};
+  if(JSON.stringify(result).length>maxChars){
+    const omitted={partial:true};
+    return JSON.stringify(omitted).length<=maxChars?omitted:undefined;
+  }
+  for(const key of keys){
+    const candidate={...result,fields:{...result.fields,[key]:semantics[key]},
+      omitted_fields:result.omitted_fields.filter(name=>name!==key)};
+    if(JSON.stringify(candidate).length<=maxChars)result=candidate;
+  }
+  return structuredClone(result);
+}
+export function gatewayToolDescription(publication,maxChars=summaryChars){
+  const description=publication.description??publication.name;
+  const selection=gatewaySelectionSummary(publication,maxChars);
+  return selection?description+'\nProvider-declared selection conditions (omitted fields require tools.describe): '+JSON.stringify(selection):description;
+}
 export const gatewayToolUseGuidance=[
  'The following service rules apply only when this service is relevant to the current instruction.',
- 'When the current instruction requires this service, read its current discovery response and follow its provider, selection, preference and fallback rules. Reuse known exact contracts without repeating discovery. Do not infer policy from tool, provider or toolset names.',
+ 'Use the current admitted capability index and published provider, selection, preference and fallback rules. Read a discovery response only for information missing from that index or accepted context. Reuse exact contracts without repeated discovery. Do not infer policy from names.',
  'Compose ordinary synchronous operations from exact published contracts. When multiple independent requests have complete known arguments, submit agent_tools_execute with calls:[{id,tool,arguments},...] together; no program or tools fields are needed. This applies to any independent parameter set, not a particular business topic. Process returned refs and construct dependent requests in a later stage or program. In program mode use tools.batch for independent requests and tools.call for genuine dependencies. Follow returned guidance and preserve actual observation references.',
  'Before expanding a retrieval, relate each selected object, time window and resolution to a requested comparison or output. A discovered catalog is not a requirement to retrieve every entry. Use published overview or aggregate capabilities when they can establish coverage; then retrieve detail for the selected scope. Keep any needed baseline or event windows explicit. If selected objects or windows each need sequential pagination, use tools.map over the independent chains and await each chain\'s actual returned cursor inside its mapper. Do not run the entire cross-object retrieval as an outer serial await loop. Read tools.help() in the program for exact helper signatures; do not invent helper names or source fields.',
- 'Reuse saved observations for inspection, calculations and product construction. Saving or inspecting an existing result does not require repeating its source query. Read bounded fields or array pages by their issued references instead of copying whole results into model context.',
+ 'Reuse saved observations for inspection, calculations and product construction. Saving or inspecting an existing result does not require repeating its source query. Read bounded fields or array pages by their issued references instead of copying whole results into model context. A bounded display request does not automatically require full-dataset profiling, extra statistics or file export. Deliver the requested projection and its provenance; expand only when the instruction or unresolved evidence requires it. If a product is needed, derive it from issued observations rather than reconstructing arrays from answer text.',
  'Within this instruction, composition reuses an exact successful status=ok request only when the published tool declares both readOnlyHint and idempotentHint. The result carries reused=true, its original ref and observed_at; it is not a new source observation. tools.call(name,args,{refresh_reason:reason}) or tools.batch(calls,{refresh_reason:reason}) explicitly rereads when newer data is required. tools.follow always executes the returned action, including polling. Failures and partial results are not reused. Unknown tool semantics do not imply reuse eligibility.',
  'Every completed composition exposes completed_calls, including successful and reused references. When local transformation or export is wrong, repair it from these observations rather than rebuilding the retrieval. Large manifests remain readable through the issued full_result object. A composition observation contains result and completed_calls; it is not the underlying business response.',
- 'Use one source-processing path: tools.inspect(ref,pointer) establishes the actual structure; tools.read selects fields or bounded array pages; tools.table prepares typed CSV data without shell or jq. Do not guess file-envelope paths. tools.table({name,sources:[{ref,pointer}],columns:[{name,pointer,type,nullable?}],minimum_rows?}) takes pointers to source arrays and row-relative column pointers. Types are string, number, integer, boolean, date (YYYY-MM-DD), datetime (ISO timestamp with timezone). No implicit coercion, missing fields, invalid dates or silent row drops. It returns path, manifest_path, rows and source hashes only after all rows pass; failures preserve the source refs and publish no table. Use this before calculations, charts or report construction.',
+ 'Use only the source-processing helpers needed by the requested output. Use tools.call results directly when the admitted response contract provides the needed fields. When structure is unknown, tools.inspect(ref,pointer) establishes actual field pointers and tools.read selects bounded values; inspect, select and repair a local pointer in the same program when no new semantic decision is needed. These helpers do not require separate model turns. Do not guess file-envelope paths or continue to another source call after a failed result. For a requested CSV, tools.table({name,sources:[{ref,pointer}],columns:[{name,pointer,type,nullable?}],minimum_rows?}) takes pointers to source arrays and row-relative column pointers. Types are string, number, integer, boolean, date (YYYY-MM-DD), datetime (ISO timestamp with timezone). No implicit coercion, missing fields, invalid dates or silent row drops. It returns path, manifest_path, rows and source hashes only after all rows pass; failures preserve source refs and publish no table. A reader-facing answer alone does not require a table export.',
+ 'A selected returned action can be executed with tools.follow using its exact issued observation ref and pointer. The host copies its arguments unchanged and checks current grants and schema. Preserve source result references inside those arguments; they are not interchangeable with observation refs. Continue deterministic dependent actions in the same program when actual returned results supply all arguments; return to the model for unresolved selection or interpretation, not merely to copy known parameters. tools.help publishes exact helper signatures; python and tools.python are the same JSON-stdin private-workspace helper.',
  'For a new retrieval scope, tools.plan(calls,{purpose,output,basis_refs}) checks the exact call list and available successful observations without executing or reserving calls. Put the same optional plan on tools.batch. It reports distinct requests, duplicates and existing refs. Explain how the chosen scope supports the requested output; inspect availability evidence before expanding a new measurement. The host checks references and contracts, not the truth of a business selection. Do not infer that every catalog object must be retrieved.',
  'Direct calls return observation_ref. Composition read, inspect and saveContext use that task-issued call/source reference with the structured result at the root, as tools.call and full_result reads do. Original evidence files keep their bytes but the access helpers normalize the transport envelope. Reuse returned identifiers unchanged. References not issued by this task are unavailable, even if their text looks valid.',
  'For unfamiliar business semantics, validate one bounded call and its returned status before expanding retrieval; reuse an existing successful observation when it establishes the same shape and scope. Do not execute a probe merely to check input schema: composition tools.describe reads the frozen contract and batch preflight validates all arguments before invocation. Correct invalid arguments before retrying. Stop a batch on a shared contract error. If no supported correction is available, retain the gap and continue other useful work.',

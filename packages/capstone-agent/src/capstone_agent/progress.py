@@ -81,6 +81,19 @@ def _input_excerpt(arguments: Mapping, text_filter) -> str:
 
 def project_native_tool_activity(event: Mapping, *, text_filter=lambda text: text) -> dict[str, str]:
     """Bound native activity text at the executor boundary; omit raw frames."""
+    if event.get('toolName', event.get('tool_name')) == 'agent_skill':
+        from .skill_activity import checked_skill_activity
+        result = event.get('result')
+        details = result.get('details') if isinstance(result, Mapping) else None
+        skill = checked_skill_activity(details.get('skill_activity')) if isinstance(details, Mapping) else None
+        if skill is not None and event.get('isError') is not True and event.get('is_error') is not True:
+            state = '已加载' if skill['state'] == 'loaded' else '模型报告'
+            summary = ('方法已加载；尚不表示已应用或验证通过。' if skill['state'] == 'loaded'
+                       else skill['phase'] + '：' + skill['summary'])
+            links = [*skill.get('refs', []), *skill.get('tool_call_ids', [])]
+            return {'operation': _summary(skill['name'] + ' · ' + state, 240),
+                    'output_excerpt': _summary(text_filter(summary + ' 版本 ' + skill['version']
+                        + (' 关联 ' + ', '.join(links) if links else '')), 600)}
     receipt: dict[str, str] = {}
     arguments = event.get("args")
     if isinstance(arguments, Mapping):
