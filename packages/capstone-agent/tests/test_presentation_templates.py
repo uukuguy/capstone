@@ -62,8 +62,11 @@ def test_uploaded_template_is_session_only_until_explicit_publication(chat_store
     added = library.add(thread, 'enterprise', upload(uploads, thread, BUILTIN.read_bytes()), name='Mine', request_id='add-one')
     assert added['scope'] == 'session'
     assert library.catalog(thread, 'enterprise')['templates'][0]['scope'] == 'session'
+    library.select(thread, 'enterprise', ref(added), expected_revision=0, request_id='select-before-publish')
     published = library.publish(thread, 'enterprise', ref(added), request_id='publish-one')
     assert published['scope'] == 'library'
+    current = library.selection(thread, 'enterprise')
+    assert current['revision'] == 1 and current['template']['scope'] == 'library'
     assert ref(published) == ref(added)
     assert library.publish(thread, 'enterprise', ref(added), request_id='publish-one') == published
 

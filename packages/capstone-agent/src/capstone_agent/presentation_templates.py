@@ -242,7 +242,11 @@ class PresentationTemplates:
     def selection(self, thread, workspace):
         self._scope(thread, workspace)
         events = self._events(thread, latest_selection=True)
-        return events[0]['result'] if events else {'revision': 0, 'template': self.builtin()}
+        if not events:
+            return {'revision': 0, 'template': self.builtin()}
+        selected = events[0]['result']
+        reference = {k: selected['template'][k] for k in ('template_id', 'version', 'sha256')}
+        return {'revision': selected['revision'], 'template': self._row(thread, workspace, reference)}
 
     def select(self, thread, workspace, reference, *, expected_revision, request_id):
         self._scope(thread, workspace)
