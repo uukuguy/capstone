@@ -2017,8 +2017,14 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             except TemplateOutcomeUnknown as error:
                 return self.send_json(502, {'error': 'presentation_operation_outcome_unknown',
                     'request_id': error.request_id})
-            except (ValueError, KeyError):
-                return self.send_json(400, {'error': 'presentation_request_rejected'})
+            except (ValueError, KeyError) as error:
+                reason = str(error)
+                allowed = {'presentation_source_not_admitted', 'presentation_request_invalid',
+                    'presentation_operation_unknown', 'presentation_call_invalid',
+                    'template_request_conflict', 'template_revision_conflict',
+                    'template_source_changed', 'template_identity_changed', 'template_not_found',
+                    'template_processing_limit', 'invalid_template'}
+                return self.send_json(400, {'error': reason if reason in allowed else 'presentation_request_rejected'})
             finally:
                 runner.relay.release(lease)
 

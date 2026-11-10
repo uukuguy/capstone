@@ -46,6 +46,16 @@ def test_private_template_adapter_uses_only_live_host_bound_task_scope(tmp_path)
             assert response.status_code == 200
             assert response.json() == {'ok': True, 'result': {'catalog': True}}
             assert calls == [('catalog', {}, 'call-one')]
+            original = port.invoke
+            for reason, expected in [('presentation_source_not_admitted', 'presentation_source_not_admitted'),
+                                     ('private endpoint and credential text', 'presentation_request_rejected')]:
+                def rejected(*args, **kwargs):
+                    raise ValueError(reason)
+                port.invoke = rejected
+                rejected_response = client.post(base, headers=headers, json=body)
+                assert rejected_response.status_code == 400
+                assert rejected_response.json() == {'error': expected}
+            port.invoke = original
             assert client.post(base, headers=headers, json={**body, 'workspace': 'other'}).status_code == 400
             request.managed_workspace = 'other'
             assert client.post(base, headers=headers, json=body).status_code == 403

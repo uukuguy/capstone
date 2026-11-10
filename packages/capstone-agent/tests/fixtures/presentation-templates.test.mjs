@@ -48,6 +48,14 @@ test('presentation tools require an admitted host binding and application tool g
   assert.deepEqual(createPresentationTools(c),[]);
 });
 
+test('upload versions follow the admitted integer resource contract, separate from template versions',()=>{
+ const [tool]=createPresentationTools(config());
+ const document=tool.parameters.properties.document.properties;
+ assert.equal(document.resource.properties.version.type,'integer');
+ assert.equal(document.resource.properties.version.minimum,1);
+ assert.equal(document.reference.properties.version.type,'string');
+});
+
 test('the actual SDK call identity crosses the fixed private adapter without caller scope fields',async()=>{
   const calls=[];
   const [tool]=createPresentationTools(config(),{fetchImpl:async(url,options)=>{
