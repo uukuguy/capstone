@@ -8,14 +8,14 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 it('shows the build revision beside the product name', () => {
   render(<PageHeader />)
   const version = screen.getByLabelText('App 版本')
-  expect(version.textContent).toMatch(/^环境未配置 · v0\.1\.0 · (?:[a-f0-9]{7}|开发版)$/)
+  expect(version.textContent).toMatch(/^环境未配置 · v0\.1\.0 · (?:[a-f0-9]{8}|开发版)$/)
   expect(version.getAttribute('title')).toContain('源代码版本')
 })
 
 it.each<AppEnvironment | null>(['local-dev', 'local-demo', 'intranet-dev', 'cloud-dev', 'cloud-demo', null])('shows explicit environment %s beside version and revision', environment => {
   render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: true, environment }} />)
   const version = screen.getByLabelText('App 版本')
-  expect(version.textContent).toBe(`${environment ?? '环境未配置'} · v0.1.0 · aaaaaaa *`)
+  expect(version.textContent).toBe(`${environment ?? '环境未配置'} · v0.1.0 · aaaaaaaa *`)
   expect(version.title).toContain('含未提交修改')
 })
 
@@ -23,7 +23,7 @@ it('labels the frozen static local trial distinctly from the developer runtime',
   vi.stubEnv('PROD', true)
   render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: false, environment: 'local-dev' }} />)
   const version = screen.getByLabelText('App 版本')
-  expect(version.textContent).toBe('user-local · v0.1.0 · aaaaaaa')
+  expect(version.textContent).toBe('user-local · v0.1.0 · aaaaaaaa')
   expect(version.title).toContain('环境：user-local')
   expect(version.textContent).not.toContain('local-dev')
 })
@@ -31,18 +31,18 @@ it('labels the frozen static local trial distinctly from the developer runtime',
 it('keeps the developer local-dev label in development', () => {
   vi.stubEnv('PROD', false)
   render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: false, environment: 'local-dev' }} />)
-  expect(screen.getByLabelText('App 版本').textContent).toBe('local-dev · v0.1.0 · aaaaaaa')
+  expect(screen.getByLabelText('App 版本').textContent).toBe('local-dev · v0.1.0 · aaaaaaaa')
 })
 
 it('shows the repository commit when the product commit differs', () => {
   render(<AppVersion build={{ version: '0.1.0', revision: 'b'.repeat(40), repositoryRevision: 'c'.repeat(40), dirty: false, environment: 'local-dev' }} />)
-  expect(screen.getByLabelText('App 版本').textContent).toBe('local-dev · v0.1.0 · ccccccc')
+  expect(screen.getByLabelText('App 版本').textContent).toBe('local-dev · v0.1.0 · cccccccc')
 })
 
 it('keeps the intranet label on a packaged build', () => {
   vi.stubEnv('PROD', true)
   render(<AppVersion build={{ version: '0.1.0', revision: 'd'.repeat(40), dirty: false, environment: 'intranet-dev' }} />)
-  expect(screen.getByLabelText('App 版本').textContent).toBe('intranet-dev · v0.1.0 · ddddddd')
+  expect(screen.getByLabelText('App 版本').textContent).toBe('intranet-dev · v0.1.0 · dddddddd')
 })
 
 it('refreshes development environment and retains the label on focus', async () => {
@@ -53,7 +53,7 @@ it('refreshes development environment and retains the label on focus', async () 
     .mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.1.0', revision: 'c'.repeat(40), dirty: false, environment: 'cloud-prod' })))
   vi.stubGlobal('fetch', fetcher)
   render(<PageHeader />)
-  await waitFor(() => expect(screen.getByLabelText('App 版本').textContent).toBe('local-demo · v0.1.0 · bbbbbbb'))
+  await waitFor(() => expect(screen.getByLabelText('App 版本').textContent).toBe('local-demo · v0.1.0 · bbbbbbbb'))
   fireEvent.focus(window)
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
   expect(screen.getByLabelText('App 版本').textContent).toContain('local-demo')
