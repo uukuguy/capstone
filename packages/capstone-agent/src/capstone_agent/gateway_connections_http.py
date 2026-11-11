@@ -213,7 +213,12 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize, thr
         def select():
             from .thread_gateway import publication_binding
             from .thread_protocol import ThreadProtocolError
-            publication = executor_provider().thread_gateway_publication({'connection_id': document['id'], 'locked': False}, refresh=True)
+            executor = executor_provider()
+            publication = executor.thread_gateway_publication({'connection_id': document['id'], 'locked': False}, refresh=True)
+            # The sidebar switch is the registered choice a later new session
+            # reads. Persist it before this conversation is bound, so a busy
+            # registry leaves both this conversation and the default unchanged.
+            executor.control_gateway_connections('select', {'id': document['id']})
             try:
                 thread_service.select_thread_gateway(thread_id, publication_binding(publication))
             except ThreadProtocolError:
