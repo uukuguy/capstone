@@ -171,22 +171,28 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize, thr
         saved = thread_service.read_thread_gateway(thread_id)
         executor = executor_provider()
         value = _snapshot(executor.gateway_connections())
-        try:
-            publication = executor.thread_gateway_publication(saved, refresh=refresh or saved is None)
-        except PiHTTPFailure:
-            if not saved or refresh:
-                raise
-            publication = {'available': False, 'connection_id': saved.get('connection_id'),
-                           'identity': saved.get('identity', {'instance_id': saved.get('instance_id')})}
-        selected = publication.get('connection_id')
-        value.pop('selected_id', None)
-        if selected is not None:
-            value['selected_id'] = selected
-            for item in value['entries']:
-                if item['id'] == selected:
-                    item['identity'] = _identity({**publication['identity'], 'available': publication.get('available') is True})
-                    if not publication.get('available'):
-                        item.update(status='disconnected', error='gateway_bound_instance_unavailable')
+        # A plain read of a new session uses the registered selection. A live
+        # contract reload belongs to an explicit refresh, so one unreachable
+        # selected gateway cannot hide the known label and address.
+        publication = None
+        if saved is not None or refresh:
+            try:
+                publication = executor.thread_gateway_publication(saved, refresh=refresh)
+            except PiHTTPFailure:
+                if refresh or not saved:
+                    raise
+                publication = {'available': False, 'connection_id': saved.get('connection_id'),
+                               'identity': saved.get('identity', {'instance_id': saved.get('instance_id')})}
+        if publication is not None:
+            selected = publication.get('connection_id')
+            value.pop('selected_id', None)
+            if selected is not None:
+                value['selected_id'] = selected
+                for item in value['entries']:
+                    if item['id'] == selected:
+                        item['identity'] = _identity({**publication['identity'], 'available': publication.get('available') is True})
+                        if not publication.get('available'):
+                            item.update(status='disconnected', error='gateway_bound_instance_unavailable')
         value['locked'] = False
         if saved and saved.get('identity'):
             value['bound_instance'] = _identity(saved['identity'])
