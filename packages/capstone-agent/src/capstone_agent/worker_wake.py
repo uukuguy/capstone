@@ -192,9 +192,17 @@ def create_wake_app(
             raise HTTPException(404, 'domain tools are not published by this worker')
         if not hmac.compare_digest(authorization, expected):
             raise HTTPException(401, 'unauthorized')
-        if (not isinstance(body, dict) or set(body) != {'task_id', 'call_id', 'name', 'arguments'}
+        fields = set(body) if isinstance(body, dict) else set()
+        if (not isinstance(body, dict) or not fields <= {'task_id', 'call_id', 'name', 'arguments', 'management'}
+                or not {'task_id', 'call_id', 'name', 'arguments'} <= fields
                 or not isinstance(body.get('call_id'), str) or not body['call_id']):
             raise HTTPException(422, 'domain tool call is invalid')
+        if 'management' in body:
+            from .structural_context import checked_management
+            try:
+                body = {**body, 'management': checked_management(body['management'])}
+            except ValueError:
+                raise HTTPException(422, 'domain tool call is invalid') from None
         try:
             return invoke(body)
         except KeyError:

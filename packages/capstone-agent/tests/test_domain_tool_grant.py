@@ -31,3 +31,6 @@ def test_open_model_uses_only_its_enabled_profiles():
     assert grant['profiles'] == [{
         'profile_id': 'pandapower-pack', 'profile_version': '1.0.0',
         'implementation_family': 'pandapower'}]
+    class Snapshot:
+        enabled_profiles = (('pandapower-pack', '1.0.0'),)
+    assert domain_tool_grant(catalog('pandapower', 'pypsa'), Snapshot()) == grant

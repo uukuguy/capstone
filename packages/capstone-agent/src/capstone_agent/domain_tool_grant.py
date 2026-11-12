@@ -49,7 +49,15 @@ def domain_tool_grant(catalog, model_context=None) -> dict | None:
             families.add(family)
     enabled = None
     if model_context is not None:
-        enabled = {(item.profile_id, item.profile_version) for item in model_context.enabled_profiles}
+        enabled = set()
+        for item in getattr(model_context, 'enabled_profiles', ()) or ():
+            if isinstance(item, tuple) and len(item) == 2 and all(isinstance(part, str) for part in item):
+                enabled.add(item)
+                continue
+            profile_id = getattr(item, 'profile_id', None)
+            version = getattr(item, 'profile_version', None)
+            if isinstance(profile_id, str) and isinstance(version, str):
+                enabled.add((profile_id, version))
     selected = []
     seen = set()
     profiles = catalog.get('profiles')

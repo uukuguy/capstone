@@ -3,6 +3,23 @@ import json
 import pytest
 
 
+def test_open_model_management_selects_one_pack_workspace():
+    from grid_agent.domain_tools import domain_workspace_id
+    model = {
+        'model_context_id': 'ctx_ieee39', 'model_id': 'ieee39',
+        'model_revision': 'revision:sha256:' + 'a' * 64,
+        'implementation_family': 'pandapower', 'selection_revision': 'sel_ieee39',
+        'enabled_profiles': [{'profile_id': 'pandapower-static-analysis', 'profile_version': '1.0.0'}],
+    }
+    management = {'schema': 'capstone-structural-context/1', 'model': model}
+    first = domain_workspace_id({'task_id': 'pi-1', 'management': management})
+    second = domain_workspace_id({'task_id': 'pi-2', 'management': management})
+    assert first == second and first.startswith('model-')
+    assert domain_workspace_id({'task_id': 'task'}) == 'task'
+    with pytest.raises(ValueError, match='structural context'):
+        domain_workspace_id({'task_id': 'task', 'management': {**management, 'model': {**model, 'buses': []}}})
+
+
 def test_service_returns_owner_receipt_on_success_and_failure(tmp_path):
     service = PandapowerDomainToolService(workspace_root=tmp_path)
     service._capabilities = {'published': 'capability'}
