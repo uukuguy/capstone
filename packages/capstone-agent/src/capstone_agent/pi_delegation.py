@@ -190,6 +190,7 @@ class PiTaskRequest:
     managed_workspace: str | None = field(default=None, kw_only=True)
     domain_tools: Mapping | None = field(default=None, kw_only=True)
     skill_scope: Mapping | None = field(default=None, kw_only=True)
+    structural_context: Mapping | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         document = _json_document({name: getattr(self, name) for name in _TASK_V1_FIELDS})
@@ -266,6 +267,11 @@ class PiTaskRequest:
             if self.business_context is None:
                 raise ValueError('skill scope requires typed Pi input')
             object.__setattr__(self, 'skill_scope', _freeze(checked_execution_scope(_json_document(self.skill_scope))))
+        if self.structural_context is not None:
+            from .structural_context import checked_structural_context
+            if self.business_context is None:
+                raise ValueError('structural context requires typed Pi input')
+            object.__setattr__(self, 'structural_context', _freeze(checked_structural_context(self.structural_context)))
         # Include the schema and every v2 field in the total transport budget.
         self.to_document()
 
@@ -278,7 +284,7 @@ class PiTaskRequest:
             document = _json_document(document)
             _fields(document, _TASK_V1_FIELDS, schema)
         elif schema == 'capstone-pi-task/2':
-            optional = tuple(key for key in ('native_context', 'research_binding', 'managed_workspace', 'domain_tools', 'skill_scope') if key in document)
+            optional = tuple(key for key in ('native_context', 'research_binding', 'managed_workspace', 'domain_tools', 'skill_scope', 'structural_context') if key in document)
             _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS + optional, schema)
             base = _json_document({key: document[key] for key in _TASK_V1_FIELDS})
             document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS + optional}}
@@ -306,6 +312,9 @@ class PiTaskRequest:
             document['domain_tools'] = checked_domain_tool_grant(self.domain_tools)
         if self.skill_scope is not None:
             document['skill_scope'] = _json_document(self.skill_scope)
+        if self.structural_context is not None:
+            from .structural_context import checked_structural_context
+            document['structural_context'] = checked_structural_context(self.structural_context)
         byte_limit = limits.native_task_bytes if self.native_context is not None else limits.control_document_bytes
         if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > byte_limit:
             raise ValueError('Pi JSON exceeds byte bounds')

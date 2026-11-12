@@ -27,6 +27,20 @@ def _canonical(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
 
 
+def domain_workspace_id(document: dict) -> str:
+    """One pack workspace per open model. The key is management identity only."""
+
+    task_id = document.get('task_id')
+    if not isinstance(task_id, str) or not _TASK_ID.fullmatch(task_id):
+        raise ValueError('domain tool call is invalid')
+    management = document.get('management')
+    if management is None:
+        return task_id
+    from capstone_agent.structural_context import checked_management
+    model = checked_management(management)['model']
+    return 'model-' + hashlib.sha256(_canonical(model).encode()).hexdigest()[:40]
+
+
 class PandapowerDomainToolService:
     """Serve the installed pandapower profile's published tools."""
 
@@ -101,10 +115,11 @@ class PandapowerDomainToolService:
             raise ValueError('domain tool call identity is invalid')
         receipt = self._queue.receipt(task_id=task_id, call_id=call_id,
             observer=self._receipt_writer(task_id))
-        resource = str((self._root / task_id).resolve())
+        workspace_id = domain_workspace_id(document)
+        resource = str((self._root / workspace_id).resolve())
         with self._queue.acquire(receipt, resource=resource, read_only=self._read_only.get(name, False)) as lease:
             try:
-                result = self._executor(task_id).invoke(capability, arguments,
+                result = self._executor(workspace_id).invoke(capability, arguments,
                     execution_lease=lease,
                     execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
                 response = ({'ok': True, 'result': result} if isinstance(result, dict)

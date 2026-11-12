@@ -77,15 +77,38 @@ def _resolve_available_families(source: FamilyAvailability) -> frozenset[str] | 
     return families
 
 
+def _attempt_family_predicate(alias: str = '') -> str:
+    """One ownership rule for the ledger. The open model does not choose the worker."""
+
+    prefix = alias
+    return f"""(%s::text IS NULL OR CASE
+        WHEN {prefix}submission_snapshot ? '_domain_execution'
+          THEN {prefix}submission_snapshot #>> '{{_domain_execution,implementation_family}}' = %s::text
+        WHEN {prefix}submission_snapshot ? '_native_execution'
+          THEN %s::text = 'native'
+        WHEN {prefix}model_context_snapshot IS NOT NULL
+          THEN {prefix}model_context_snapshot->>'implementation_family' = %s::text
+        ELSE %s::text = 'native'
+      END)"""
+
+
 def _family_owns_attempt(implementation_family: str | None, context, submission) -> bool:
-    """A no-model attempt stays native until a domain handoff names one family."""
+    """The main chain keeps the attempt. A domain handoff names one family.
+
+    An open model is management context. It does not move the attempt to that
+    model's worker while native execution is still recorded.
+    """
     if implementation_family is None:
         return True
-    if context is not None:
-        return getattr(context, 'implementation_family', None) == implementation_family
-    domain = submission.get('_domain_execution') if isinstance(submission, Mapping) else None
+    if not isinstance(submission, Mapping):
+        submission = {}
+    domain = submission.get('_domain_execution')
     if isinstance(domain, Mapping) and isinstance(domain.get('implementation_family'), str):
         return domain['implementation_family'] == implementation_family
+    if isinstance(submission.get('_native_execution'), Mapping):
+        return implementation_family == 'native'
+    if context is not None:
+        return getattr(context, 'implementation_family', None) == implementation_family
     return implementation_family == 'native'
 
 
@@ -108,16 +131,15 @@ def _published_application_catalog(service) -> dict | None:
 
 
 def _claim_application_catalog(service, context, submission):
-    """Service catalog first. A no-model claim can fall back to the submission copy."""
+    """Service catalog first. A claim can fall back to the accepted submission copy."""
     if service._catalog_context is not None:
         return service._catalog_context
-    if context is None and isinstance(submission, Mapping):
+    if context is not None and service._model_catalog is not None:
+        return _thread_catalog_document(service._model_catalog, service._capability_catalog)
+    if isinstance(submission, Mapping):
         saved = submission.get('_application_catalog')
         if isinstance(saved, Mapping):
             return saved
-        return None
-    if context is not None and service._model_catalog is not None:
-        return _thread_catalog_document(service._model_catalog, service._capability_catalog)
     return None
 
 
@@ -1538,13 +1560,20 @@ class InMemoryThreadService(NativeExecutionOwner):
                     updated.thread_id, event_seq - 1)
                 if updated.active_model_context is None:
                     assert self._native_binding is not None
-                if updated.active_model_context is None:
                     stored_submission = {**(submission or {}), '_native_execution': binding_for_session(native_binding, updated.session_type)}
                     published = _published_application_catalog(self)
                     if published is not None:
                         stored_submission['_application_catalog'] = published
                 else:
                     stored_submission = freeze_activated_submission(submission, updated.professional_context)
+                    if native_binding is not None and updated.session_type == 'enterprise-research':
+                        # The open model stays a management object. This session's
+                        # later instructions remain on the main chain.
+                        stored_submission = {**(stored_submission or {}),
+                            '_native_execution': binding_for_session(native_binding, updated.session_type)}
+                        published = _published_application_catalog(self)
+                        if published is not None and '_application_catalog' not in stored_submission:
+                            stored_submission['_application_catalog'] = published
                 self._attempts[attempt.attempt_id] = {
                     'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
                     'lease_token': None, 'lease_deadline': None, 'model_context': updated.active_model_context,
@@ -3046,6 +3075,14 @@ class PostgresThreadService(NativeExecutionOwner):
                         submission['_application_catalog'] = published
                 else:
                     submission = freeze_activated_submission(submission, context)
+                    if native_binding is not None and snapshot.session_type == 'enterprise-research':
+                        # The open model stays a management object. This session's
+                        # later instructions remain on the main chain.
+                        submission = {**(submission or {}),
+                            '_native_execution': binding_for_session(native_binding, snapshot.session_type)}
+                        published = _published_application_catalog(self)
+                        if published is not None and '_application_catalog' not in submission:
+                            submission['_application_catalog'] = published
                 connection.execute("""INSERT INTO capstone_thread_attempts
                     (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
                      selection_revision,model_context_snapshot,conversation_context_snapshot,
@@ -4192,15 +4229,10 @@ class PostgresThreadService(NativeExecutionOwner):
             raise ValueError('implementation family is invalid')
         with self._connect() as connection:
             row = connection.execute(
-                """SELECT EXISTS(SELECT 1 FROM capstone_thread_attempts
-                   WHERE phase = 'accepted' AND lease_token IS NULL
-                     AND (%s::text IS NULL OR model_context_snapshot->>'implementation_family' = %s::text
-                          OR (model_context_snapshot IS NULL AND submission_snapshot ? '_native_execution'
-                              AND ((submission_snapshot ? '_domain_execution'
-                                    AND submission_snapshot #>> '{_domain_execution,implementation_family}' = %s::text)
-                                   OR (NOT (submission_snapshot ? '_domain_execution') AND %s::text = 'native'))))
-                   ) AS pending""",
-                (implementation_family, implementation_family, implementation_family, implementation_family),
+                "SELECT EXISTS(SELECT 1 FROM capstone_thread_attempts "
+                "WHERE phase = 'accepted' AND lease_token IS NULL AND "
+                + _attempt_family_predicate() + ") AS pending",
+                (implementation_family,) * 5,
             ).fetchone()
         assert row is not None
         return bool(row['pending'])
@@ -4240,16 +4272,12 @@ class PostgresThreadService(NativeExecutionOwner):
         token = secrets.token_hex(16)
         with self._connect() as connection:
             row = connection.execute(
-                """SELECT a.attempt_id FROM capstone_thread_attempts a
-                   JOIN capstone_threads t ON t.thread_id = a.thread_id
-                   WHERE a.phase = 'accepted' AND a.lease_token IS NULL
-                     AND (%s::text IS NULL OR a.model_context_snapshot->>'implementation_family' = %s::text
-                          OR (a.model_context_snapshot IS NULL AND a.submission_snapshot ? '_native_execution'
-                              AND ((a.submission_snapshot ? '_domain_execution'
-                                    AND a.submission_snapshot #>> '{_domain_execution,implementation_family}' = %s::text)
-                                   OR (NOT (a.submission_snapshot ? '_domain_execution') AND %s::text = 'native'))))
-                   ORDER BY a.created_at, a.attempt_id LIMIT 1 FOR UPDATE OF t SKIP LOCKED""",
-                (implementation_family, implementation_family, implementation_family, implementation_family),
+                "SELECT a.attempt_id FROM capstone_thread_attempts a "
+                "JOIN capstone_threads t ON t.thread_id = a.thread_id "
+                "WHERE a.phase = 'accepted' AND a.lease_token IS NULL AND "
+                + _attempt_family_predicate('a.')
+                + " ORDER BY a.created_at, a.attempt_id LIMIT 1 FOR UPDATE OF t SKIP LOCKED",
+                (implementation_family,) * 5,
             ).fetchone()
             if row is None:
                 return None

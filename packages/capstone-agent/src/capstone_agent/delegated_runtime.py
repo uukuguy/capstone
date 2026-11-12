@@ -241,6 +241,7 @@ class DelegatedRuntime:
         from .domain_tool_grant import domain_tool_grant
         granted_tools = domain_tool_grant(
             resources.get('application_catalog'), self._claim.model_context) if task_fields else None
+        structural = resources.get('structural_context') if task_fields else None
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
@@ -249,6 +250,7 @@ class DelegatedRuntime:
             native_context=resources.get('native_context'),
             research_binding=None if self._research_bridge is None else self._research_bridge.binding,
             domain_tools=granted_tools,
+            structural_context=structural,
             **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',

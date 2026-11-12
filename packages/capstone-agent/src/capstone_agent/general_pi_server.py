@@ -1105,6 +1105,7 @@ class NativeTaskRunner:
         self.task_resource_inputs = {}
         self.task_gateways = {}
         self.task_domain_routes = {}
+        self.task_structural_context = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
@@ -1427,6 +1428,13 @@ class NativeTaskRunner:
                                 'Do not calculate voltages, losses, rankings, topology, or contingency outcomes yourself. '
                                 'A failed or missing call is a limit. Continue the rest of the task and write the report. '
                                 'Do not invent a number the tool did not return.')})
+                structural = getattr(request, 'structural_context', None)
+                if structural:
+                    from .structural_context import management_note
+                    self.task_structural_context[request.task_id] = structural
+                    sdk_config.setdefault('contextFiles', []).append({
+                        'path': 'structural-context',
+                        'content': management_note(structural)})
                 sdk_config['selectedTaskRecords'] = native['selected_task_records']
                 sdk_config['selectedTaskMaterials'] = native.get('materials', [])
                 sdk_config['researchSources'] = sorted({
@@ -2023,7 +2031,12 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if origin is None or not token:
                     return self.send_json(404, {'error': 'domain_tool_unavailable'})
                 from .domain_tool_client import invoke_domain_tool
-                result = invoke_domain_tool(origin, token, {**document, 'task_id': task_id})
+                from .structural_context import management_for
+                body = {**document, 'task_id': task_id}
+                management = management_for(getattr(runner, 'task_structural_context', {}).get(task_id))
+                if management is not None:
+                    body['management'] = management
+                result = invoke_domain_tool(origin, token, body)
                 payload = result.get('result') if result.get('ok') is True else result.get('error')
                 if not isinstance(payload, dict):
                     payload = {'message': 'domain tool call failed'}
