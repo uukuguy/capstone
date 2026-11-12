@@ -61,6 +61,7 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/application_capacity.py \
      packages/capstone-agent/src/capstone_agent/model_context_policy.py \
      packages/capstone-agent/src/capstone_agent/pi_delegation.py \
+     packages/capstone-agent/src/capstone_agent/structural_context.py \
      packages/capstone-agent/src/capstone_agent/business_context.py \
      packages/capstone-agent/src/capstone_agent/answer_presentation.py \
      packages/capstone-agent/src/capstone_agent/native_network_policy.py \

@@ -34,6 +34,15 @@ def _store(executor, session_type):
     return store
 
 
+def test_general_pi_image_carries_the_structural_context_module():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[3]
+    image = (root / 'deploy/general-pi.Dockerfile').read_text()
+    assert 'packages/capstone-agent/src/capstone_agent/structural_context.py' in image
+    server = (root / 'packages/capstone-agent/src/capstone_agent/general_pi_server.py').read_text()
+    assert "'pi_delegation.py', 'structural_context.py'" in server
+
+
 def test_structural_context_names_refs_and_rejects_tool_payloads():
     from types import SimpleNamespace
     claim = SimpleNamespace(
