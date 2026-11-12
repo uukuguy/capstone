@@ -235,7 +235,15 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
             or any(not isinstance(ref, str) or ref not in active for ref in refs) or len(set(refs)) != len(refs)):
         return submission, 'material_unavailable'
     if snapshot.active_model_context is not None:
-        return submission, 'material_execution_unsupported' if payload.get('material_refs') or payload.get('attachment_refs') else None
+        # The enterprise main chain reads published resource manifests. The
+        # file stays in resource storage. Inline materials, and attachments on
+        # a family-worker session, stay outside that chain.
+        requested = payload.get('attachment_refs')
+        if payload.get('material_refs') or (requested and snapshot.session_type != 'enterprise-research'):
+            return submission, 'material_execution_unsupported'
+        if not requested:
+            return submission, None
+        refs = []
     frozen = []
     try:
         for ref in refs:

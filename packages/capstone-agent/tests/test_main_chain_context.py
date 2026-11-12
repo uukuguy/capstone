@@ -118,6 +118,45 @@ def test_open_model_main_chain_carries_management_context_and_both_tool_grants()
     assert 'data_gateway_discover_data_inventory' in request.native_context['policy']['allowed_tools']
 
 
+def test_enterprise_research_admits_an_attachment_while_a_model_is_open():
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.thread_resources import ResourceUploads
+    executor = governed_executor()
+    store = open_store(executor, session_type='enterprise-research')
+    store._snapshot = replace(store._snapshot, active_model_context=_model(), active_grid_page_id='page_ieee39')
+    publish_domain(store, families=('pandapower', 'pypsa'))
+    objects = MemoryObjectStore()
+    store._material_objects = objects
+    uploads = ResourceUploads(store, objects, chunk_bytes=4)
+    uid = uploads.begin('thr_unscoped', '01-安装部署手册.pdf', 4, 'manual', True)['upload_id']
+    uploads.part('thr_unscoped', uid, 0, b'abcd')
+    resource = uploads.complete('thr_unscoped', uid)
+    receipt = store.submit_command(command(
+        store, 'thr_unscoped', 'send_message', 'install-steps',
+        payload={'text': '简明安装步骤', 'attachment_refs': [resource['resource_id']]}))
+    assert receipt.status == 'accepted', receipt.rejection
+    assert uploads.resources('thr_unscoped', True) == []
+    assert store.claim_attempt('grid', 30, 'pandapower') is None
+    claim = store.claim_attempt('native', 30, 'native')
+    assert claim is not None
+    assert claim.submission['_materials'] == []
+    manifest = claim.submission['_resource_manifests'][0]
+    assert manifest['resource_id'] == resource['resource_id']
+    assert manifest['file_name'] == '01-安装部署手册.pdf'
+    assert 'YWJjZA==' not in json.dumps(claim.submission)
+
+
+def test_grid_analysis_rejects_an_attachment_while_a_model_is_open():
+    executor = governed_executor()
+    store = open_store(executor, session_type='grid-analysis')
+    store._snapshot = replace(store._snapshot, active_model_context=_model(), active_grid_page_id='page_ieee39')
+    receipt = store.submit_command(command(
+        store, 'thr_unscoped', 'send_message', 'install-steps',
+        payload={'text': '简明安装步骤', 'attachment_refs': ['resource_' + 'ab' * 16]}))
+    assert receipt.status == 'rejected'
+    assert receipt.rejection == 'material_execution_unsupported'
+
+
 def test_grid_analysis_with_an_open_model_stays_on_its_family_worker():
     executor = governed_executor()
     store = _store(executor, 'grid-analysis')
