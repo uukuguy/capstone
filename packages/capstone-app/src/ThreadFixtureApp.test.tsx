@@ -12,6 +12,20 @@ import { ThreadTransportError } from './threadHttpTransport'
 
 afterEach(cleanup)
 
+it('keeps initial snapshot failures recoverable without changing hook order', async () => {
+  const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+  let unavailable = true
+  const client = new CapstoneThreadClient({ ...transport, getSnapshot: async (id) => {
+    if (unavailable) throw new ThreadTransportError(409, '会话协议需要更新', { error: 'thread_version_mismatch' })
+    return transport.getSnapshot(id)
+  } })
+  render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+  await screen.findByRole('heading', { name: 'Thread 暂时不可用' })
+  unavailable = false
+  fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+  expect(await screen.findByRole('textbox', { name: 'Thread 指令' })).toBeTruthy()
+})
+
 it.each([false, true])('shows a protocol upgrade failure with pending receipt=%s while preserving the draft', async (pendingReceipt) => {
   const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
   let fail!: () => void

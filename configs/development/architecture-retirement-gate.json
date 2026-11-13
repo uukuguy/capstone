@@ -7,6 +7,8 @@
     "packages/pandapower-application/pyproject.toml"
   ],
   "paths": [
+    "packages/capstone-app/src/ThreadFixtureApp.tsx",
+    "packages/capstone-app/src/ThreadFixtureApp.test.tsx",
     ".github/workflows/verify.yml",
     "AGENTS.md",
     "Dockerfile",
