@@ -14,15 +14,20 @@ documents are preserved separately.
   the source of truth. Measure long-session and greater-than-1GB behavior before
   claiming scale acceptance.
   Candidate afea4e5a skips unrelated event bodies. The 20k-event cold recovery
-  probe improved from 753 ms to 35 ms; 29 resource checks pass. Rebuild pending.
+  probe improved from 753 ms to 35 ms; 29 resource checks pass. Included in the
+  ready local9db2d5a7 image. Cloud and broader scale acceptance remain open.
 - [ ] Attachment lifecycle: cancel obsolete reads, coalesce requests, bound cached
   bytes and show download errors while collapsed. Keep the accepted layout.
 - [x] Extract one shared state transition with storage conformance tests.
   Candidate 9aa3e8f1 shares terminal preparation; 138 focused checks passed with
-  memory/PostgreSQL in one process (23.67 seconds). Runtime rebuild remains due.
+  memory/PostgreSQL in one process (23.67 seconds). Included in the ready local image.
 - [ ] Record same-task model/tool/storage timing before optimizing connections.
   First real two-instruction measurement is in the verification report.
-  Roughly 40k input tokens per response warrants context-source profiling first.
+  Existing counters identified eager domain schemas. On-demand discovery reduced
+  first-request schema bytes98887 to51902 in the same test Thread. Single samples
+  do not establish stable latency gains. Child fix d5fea6d9 has84 passing checks;
+  real parent search/load/domain invocation passed. Final locald5fea6d9 rebuild
+  is ready and installed SDK bytes match. Real child delegation remains unmeasured.
 - [ ] Consolidate current architecture entry contracts and migrate registered
   pandapower runtime ownership with output and replay checks.
   Current entry matrix is documented in 8b0c383f. f5e76b96 migrates tool execution

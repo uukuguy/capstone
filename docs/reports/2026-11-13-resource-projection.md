@@ -120,12 +120,66 @@ performance promise. The synthetic Thread was removed after each run.
 The added regression first failed because unrelated events entered projection
 replay. All 29 resource tests then passed, including PostgreSQL rollback/recovery.
 Probe: `/tmp/capstone_resource_history_probe.py`. The selective-replay change
-is not yet in the running `8b0c383f` image.
+was subsequently included in the ready `9db2d5a7` image.
 
-## Open acceptance
+## Domain schema context measurement
+
+The [bounded receipt](receipts/2026-11-13-domain-discovery.json) preserves source
+identities, safe numeric counters and execution outcomes without prompt content.
+
+The existing private timing counters measured one bounded real-model request
+on source `8b0c383f`: 55 tools, 98,887 tool-schema bytes, 70,119 system-message
+bytes, 4,573 other-message bytes, and 173,723 total request bytes. The instruction
+requested only `OK`; it completed in 4.177 seconds. These are serialized byte
+counts, not token counts or a billing estimate.
+
+Candidate `9db2d5a7` extends the existing application discovery mechanism to
+admitted domain tools. Search publishes a bounded catalog; load activates the
+exact contract for the next model turn. Gateway composition remains restricted
+to gateway tools. Name collisions fail explicitly. No new timing mechanism was
+added, and no prompt content was logged.
+
+Validation: 80 discovery/composition checks, two managed-continuation SDK checks,
+and 125 host-configuration checks pass. Thirty-two historical SDK combinations
+remain skipped. The pinned SDK test verifies load followed by an actual domain
+tool call on the next turn.
+
+Source `9db2d5a7` was rebuilt with backend image
+`sha256:c066eb8da38764c0207f5c2c226306f32d7f4d503f6e8fa48ae8c7962853b1c6`.
+Readiness and same-image checks passed. Scoped cache maintenance ran in apply
+mode (receipt ends `142721-82886.log`). The same instruction in the same test
+Thread then completed in 3.326 seconds. Its first request contained 24 tools,
+51,902 schema bytes, 70,300 system bytes, 5,169 other-message bytes, and 127,515
+total bytes. Tool schemas decreased 47.5%; total bytes decreased 26.6%.
+History grew between these samples. Single-run times do not establish stable
+latency improvement. Receipt: `/tmp/capstone-domain-context-20261113.json`.
+
+Follow-up review found that child discovery grants covered gateway catalogs only.
+The real pinned-SDK domain-only child test reproduced the initialization failure.
+Commit `d5fea6d9` includes either admitted catalog when deriving child discovery
+grants. All 84 discovery/composition/managed-continuation checks pass (3.731 s).
+This child fix was not part of the measured `9db2d5a7` image.
+
+The real model also selected `agent_tool_search`, then `agent_tool_load`, then
+`grid_environment_describe`; all three completed without tool errors. The work
+completed in 11.580 seconds and reported pandapower3.4.0/grid-capability1.0.
+This was an environment query, with no solver execution or model opening; the
+terminal contract correctly has no numerical result or evidence references.
+Receipt: `/tmp/capstone-domain-execution-20261113.json`. This verifies the parent
+discovery path in `9db2d5a7`; child runtime acceptance is tracked separately.
+
+Final local rebuild uses source `d5fea6d9`. API and all three workers share
+`sha256:b58ab1989a83db6c04d13edd35572b084c49065b7caf454562163f184dcc5774`.
+Readiness passed. The installed general executor SDK file matches the source
+SHA256 `877ff1dde41b53a494cf884dfff1a87523bf05117d2a529db7a09a17bb785a7b`.
+Scoped cache maintenance ran in apply mode (receipt ends `143347-90787.log`).
+The real-model measurements above remain attributed to `9db2d5a7`; no separate
+real-model child-delegation claim is made for this rebuild.
+
+## Remaining acceptance
 
 This is local implementation evidence, not cloud acceptance or a performance
 comparison with the previous version. S3/GCS adapters,
-long-history first-rebuild latency, browser checks,
+cloud long-history first-rebuild latency, browser checks,
 dev integration remain open. The in-memory adapter
 still uses event replay. Full resource scale acceptance remains open.
