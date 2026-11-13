@@ -1,5 +1,40 @@
 # Pandapower application ownership migration
 
+## Verified independent runtime update
+
+Candidate source `bdd4b6ab` now runs locally. The registered worker, preview,
+hosted API/worker and catalog export use `pandapower_application`. Docker and
+runtime configurations select its independent environment. Its installed
+environment contains neither `grid_agent` nor the `grid-agent` console script.
+The repository still has legacy CLI source and development commands; complete
+retirement remains open.
+
+Canonical rebuild completed successfully. API and all three workers are healthy
+on `sha256:3776c9f84e1ce2f4f986f3571e28264ebecc4ddcf8716523915ff114d21f624d`,
+with62 filesystem layers. The image revision label is `development`; it is not
+a Git provenance claim. A byte comparison found no mismatches among1401 existing
+tracked package files. Complete directory digests differed and were not used as
+matching evidence.
+
+Installed-image and running-worker probes blocked legacy imports, called the
+registered Authority environment tool, rendered a1469-byte report and checked
+repeat submission stability. Submission SHA256:
+`379ae0da2bb7380cef42c09fd2661a4089f26ca6b06aa5f1cbca63e2d9a61e12`.
+These probes use a host-created environment answer; real model/session and
+browser acceptance remain open. The real scripted lineage case passed after
+restoring43 shared dependency versions to the prior tested lock.
+
+Rebuild log: `/tmp/capstone-independent-app-rebuild-20261113.log`.
+Running-worker probe: `/tmp/capstone-independent-app-running-smoke.json`.
+Scoped cache cleanup ran in apply mode; receipt:
+`.capstone-agent/cache-maintenance-20261113-154940-77937.log`.
+
+Subsequent candidate `b8a9a456` removes legacy CLI inputs and dedicated checks
+from artifact validation. Shell syntax, wheel count and application build pass;
+the full artifact suite has not run. Local running source remains `bdd4b6ab`.
+
+## Initial migration evidence
+
 Candidate implementation: `e4427e4a`. This is one step in the accepted
 [retirement plan](../superpowers/plans/2026-10-11-retire-grid-cli.md).
 The formal worker and console entry still use the old package; retirement is
