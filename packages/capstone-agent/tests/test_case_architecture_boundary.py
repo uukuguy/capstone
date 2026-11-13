@@ -76,5 +76,3 @@ def test_legacy_adapters_do_not_import_case_execution_internals() -> None:
             imports = _import_targets(path)
             present = tuple(target for target in imports if target in forbidden)
             assert not present, f"{path.relative_to(ROOT)} imports Case internals: {present}"
-
-
