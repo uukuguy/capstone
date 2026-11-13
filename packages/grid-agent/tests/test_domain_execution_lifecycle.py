@@ -49,7 +49,7 @@ def test_receipt_write_failure_is_fatal_and_releases_owner_capacity(tmp_path, mo
     service = PandapowerDomainToolService(workspace_root=tmp_path)
     service._capabilities = {'published': 'capability'}
     def fail(*args, **kwargs): raise OSError('storage failed')
-    monkeypatch.setattr('grid_agent.domain_tools.os.replace', fail)
+    monkeypatch.setattr('pandapower_domain.execution.os.replace', fail)
     with pytest.raises(RuntimeError, match='execution receipt persistence failed'):
         service.invoke({'task_id': 'task', 'call_id': 'call', 'name': 'published', 'arguments': {}})
     assert not service._queue._active

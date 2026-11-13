@@ -18,6 +18,7 @@ def test_domain_package_sources_do_not_import_grid_agent() -> None:
 def test_domain_package_has_no_concrete_cli_or_sibling_state_imports() -> None:
     source_root = Path(__file__).parents[1] / "src" / "pandapower_domain"
     forbidden_modules = (
+        "capstone_agent",
         "grid_agent.cli",
         "grid_agent.application",
         "inventory_domain",
