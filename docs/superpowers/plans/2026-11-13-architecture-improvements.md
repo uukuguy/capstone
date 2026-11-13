@@ -4,31 +4,51 @@ User approved the review proposals on 2026-11-13. This plan refines the accepted
 enterprise execution worklist. IG1 remains open. Existing uncommitted control
 documents are preserved separately.
 
+## Current acceptance boundary (2026-11-14)
+
+All six implementation items below are merged through PR101 as `0616023f`.
+The merge tree matches tested `20469225`. Focused macOS CI43443261387 passed
+in1m58s:988 Python,84 Node,93 App;public governance254 checks overlap.
+Actual dev was rebuilt through the canonical entry;API and workers share image
+8cf3d25f and are healthy. Default App5173 now serves actualdev. Existing real
+products download with matching hashes and the completed Thread restores through
+HTTP and the browser. See the [merged-dev receipt](../../reports/receipts/2026-11-14-merged-dev.json).
+
+Local resource acceptance covers greater-than-1GiB transport,205-resource paging,
+20k-event recovery,and real model/tool/product continuation. It does not accept
+cloud throughput,S3/GCS scale,large-file processing/context coverage or a general
+model latency gain. Those requirements remain governed by enterprise design
+section9 and the broader worklist;IG1 acceptance remains separate.
+
+Implementation and verification are complete for this local improvement slice.
+The final control/receipt documentation PR is pending. Earlier slice notes below
+retain their measured source identities;their open migration labels are historical.
+
 ## Scope and order
 
 - [x] Resource transactions: reserve under the existing thread transaction, write
   immutable bytes outside the lock, confirm under a short transaction. Test slow
   storage, cancellation during write, duplicate requests and write-before-ack
   recovery. Preserve cancellation cleanup of late objects.
-- [ ] Resource projections: remove repeated event scans; retain durable events as
+- [x] Resource projections: remove repeated event scans; retain durable events as
   the source of truth. Measure long-session and greater-than-1GB behavior before
   claiming scale acceptance.
   Candidate afea4e5a skips unrelated event bodies. The 20k-event cold recovery
   probe improved from 753 ms to 35 ms; 29 resource checks pass. Included in the
   ready local9db2d5a7 image. Cloud and broader scale acceptance remain open.
-- [ ] Attachment lifecycle: cancel obsolete reads, coalesce requests, bound cached
+- [x] Attachment lifecycle: cancel obsolete reads, coalesce requests, bound cached
   bytes and show download errors while collapsed. Keep the accepted layout.
 - [x] Extract one shared state transition with storage conformance tests.
   Candidate 9aa3e8f1 shares terminal preparation; 138 focused checks passed with
   memory/PostgreSQL in one process (23.67 seconds). Included in the ready local image.
-- [ ] Record same-task model/tool/storage timing before optimizing connections.
+- [x] Record same-task model/tool/storage timing before optimizing connections.
   First real two-instruction measurement is in the verification report.
   Existing counters identified eager domain schemas. On-demand discovery reduced
   first-request schema bytes98887 to51902 in the same test Thread. Single samples
   do not establish stable latency gains. Child fix d5fea6d9 has84 passing checks;
   real parent search/load/domain invocation passed. Final locald5fea6d9 rebuild
   is ready and installed SDK bytes match. Real child delegation remains unmeasured.
-- [ ] Consolidate current architecture entry contracts and migrate registered
+- [x] Consolidate current architecture entry contracts and migrate registered
   pandapower runtime ownership with output and replay checks.
   Current entry matrix is documented in 8b0c383f. f5e76b96 migrates tool execution
   to the Pack and retains application workspace binding. 72 focused checks and

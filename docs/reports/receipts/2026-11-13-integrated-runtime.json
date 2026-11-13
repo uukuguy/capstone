@@ -1,0 +1,31 @@
+{
+  "source": "79d2dc23",
+  "thread_id": "thr_08961d5772d25a431f82",
+  "stages": [
+    {
+      "name": "attachment_tool_product",
+      "seconds": 10.220889584161341,
+      "status": "completed"
+    },
+    {
+      "name": "continue",
+      "seconds": 8.149560749996454,
+      "status": "completed"
+    }
+  ],
+  "products": [
+    {
+      "file_name": "architecture-result.txt",
+      "sha256": "61268608150755ae55eb895baa42d665c6287c426a82938ba83c2a8c5cbcac25",
+      "bytes": 9
+    },
+    {
+      "file_name": "architecture-followup.txt",
+      "sha256": "75a7953ffaf44b96c20610bc4b588f890e1658dbbdcda2c3282bf570446843de",
+      "bytes": 18
+    }
+  ],
+  "http_restore": true,
+  "browser_reload_restore": true,
+  "browser_horizontal_overflow": false
+}

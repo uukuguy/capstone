@@ -179,7 +179,8 @@ real-model child-delegation claim is made for this rebuild.
 ## Remaining acceptance
 
 This is local implementation evidence, not cloud acceptance or a performance
-comparison with the previous version. S3/GCS adapters,
-cloud long-history first-rebuild latency, browser checks,
-dev integration remain open. The in-memory adapter
+comparison with the previous version. S3/GCS adapters and cloud long-history
+first-rebuild latency remain open. Browser recovery and dev integration later
+passed on0616023f;see the [merged-dev receipt](receipts/2026-11-14-merged-dev.json).
+The in-memory adapter
 still uses event replay. Full resource scale acceptance remains open.

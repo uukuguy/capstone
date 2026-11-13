@@ -1,5 +1,30 @@
 # Pandapower application ownership migration
 
+## Accepted merged development source (2026-11-14)
+
+PR101 merged as0616023f;its tree exactly matches tested20469225. Focused macOS
+CI43443261387 passed in1m58s:988 Python,84 Node,93 App and254 overlapping public
+governance checks. Earlier failed runs retain their original evidence.
+
+Actualdev canonical rebuild passed. API and both professional workers share
+image8cf3d25fed92e7deeb672bff28e493645526e396127af389adbab4a831cb2fd6
+and are healthy. Native worker readiness also passed. Pi installation was cached;
+scoped cache maintenance completed. Default App5173 now serves actualdev;its
+repositoryRevision is0616023f and product revisiond3191a5d. Product revision
+intentionally excludes later documentation and test-only commits.
+
+The existing real Thread restores completed state after backend recreation.
+Both product downloads still match registered SHA256 values. Browser recovery
+retains the result preview and composer without horizontal overflow. See
+[merged-dev receipt](receipts/2026-11-14-merged-dev.json),
+[real-model receipt](receipts/2026-11-13-integrated-runtime.json) and
+[CI receipt](receipts/2026-11-13-retirement-ci.json).
+
+All six deployment reference edges avoid cards in browser coordinate checks.
+This corrects an earlier screenshot inference of a crossing. Final control
+documentation integration remains pending. Cloud/demo and broader IG1 acceptance
+are unchanged. No full release or Linux acceptance is claimed.
+
 ## Final installed retirement candidate
 
 Real-model follow-up on the same installed source passed: a new Thread uploaded

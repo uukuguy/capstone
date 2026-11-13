@@ -1,5 +1,18 @@
 # Unified Enterprise Execution Implementation Plan
 
+## 2026-11-14 架构改进与旧包退役（实现及本地验证完成，控制文档待集成）
+
+按[实施计划](2026-11-13-architecture-improvements.md)推进资源事务、状态投影、
+附件生命周期、共享状态转换、真实任务性能量测、架构文档及pandapower运行归属迁移。
+候选b5356998包含锁外分块写入、迟到重复确认、附件读取取消和PostgreSQL增量投影。
+87项后端检查、168项App检查及类型通过；1.078GB真实HTTP往返验证通过，
+详见[资源验证](../../reports/2026-11-13-resource-projection.md)。
+上述实现及分页、预览总预算、工具按需发现和旧发行包退役已通过PR101合入dev0616023f。
+获批macOS CI43443261387通过1分58秒；实际dev规范重建、默认App5173、真实任务恢复和
+成果下载哈希通过。最终回执及控制文档待PR集成。IG1整体接受与云端资源规模仍开放，
+不转IG2–IG4。每次新增CI仍需明确批准。
+
+
 ## 自由探索与按需帮助（2026-11-08，用户授权持续推进）
 
 按[设计](../specs/2026-11-08-adaptive-investigation-guidance-design.md)复用现有会话与任务记录，不设固定向导。

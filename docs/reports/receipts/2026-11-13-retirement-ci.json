@@ -1,0 +1,18 @@
+{
+  "pr": 101,
+  "source": "2046922502d9c8070e7a93fc7516c0d706d99fe3",
+  "source_tree": "462cf806306ef41492e0eeb3af3b5427754474e5",
+  "tested_local_commit": "a89afbf6",
+  "run": 43443261387,
+  "gate": "architecture-retirement",
+  "platform": "macos-latest",
+  "conclusion": "success",
+  "started_at": "2026-11-13T14:40:02Z",
+  "completed_at": "2026-11-13T14:42:00Z",
+  "python": {"passed": 988, "skipped": 19},
+  "node": {"passed": 84, "failed": 0},
+  "app": {"passed": 93},
+  "governance": {"passed": 254, "skipped": 3, "overlaps_python": true},
+  "release_verification": false,
+  "linux_verification": false
+}

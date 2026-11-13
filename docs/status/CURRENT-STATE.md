@@ -66,6 +66,15 @@ turns; scientific calculations retain objective Domain Pack/Authority checks.
 
 ## Architecture
 
+The merged development baseline has a separately installable
+`pandapower-application` package for workers,registered entries,composition,
+reports,workspace and trajectory projections. It depends on the Kernel and
+Domain Pack without importing `grid_agent`. The old distribution and CLI are
+removed. Resource storage uses short Thread transactions and a rebuildable
+PostgreSQL projection;pagination is revision-bound and attachment reads have
+a shared byte budget. Runtime identities and stage acceptance are tracked in
+VERSION-CONTROL;cloud scale and overall IG1 acceptance remain separate.
+
 Ownership follows Application → Domain Pack → Kernel → registered Authority.
 Applications select bindings and public projections. Domain Packs own semantic
 execution and policy. The Kernel owns neutral turns, context and trajectory.
