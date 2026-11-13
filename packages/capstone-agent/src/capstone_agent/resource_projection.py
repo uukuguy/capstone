@@ -2,6 +2,9 @@
 from psycopg.types.json import Jsonb
 
 SCHEMA = """
+CREATE INDEX IF NOT EXISTS capstone_resource_events_revision_idx
+    ON capstone_thread_events (thread_id,event_seq DESC)
+    WHERE event_type IN ('resource_upload_started','resource_part_reserved','resource_part_stored','resource_upload_cancelled','resource_published','command_accepted');
 CREATE TABLE IF NOT EXISTS capstone_resource_projection_cursors (
     thread_id text PRIMARY KEY REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL DEFAULT 0
@@ -22,6 +25,8 @@ CREATE TABLE IF NOT EXISTS capstone_resource_parts (
     PRIMARY KEY (thread_id, upload_id, part_index),
     FOREIGN KEY (thread_id, upload_id) REFERENCES capstone_resource_uploads(thread_id, upload_id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS capstone_resource_uploads_page_idx
+    ON capstone_resource_uploads (thread_id,published_seq) WHERE published_seq IS NOT NULL;
 """
 
 
@@ -97,3 +102,15 @@ def states(connection, thread, *, published_only=True):
         query += ' AND published_seq IS NOT NULL'
     query += ' ORDER BY published_seq NULLS LAST,upload_id'
     return [row['metadata'] for row in connection.execute(query, (thread,))]
+
+
+def page(connection, thread, draft, after, limit):
+    synchronize(connection, thread)
+    revision = connection.execute("""SELECT COALESCE(MAX(event_seq),0) AS revision FROM capstone_thread_events
+        WHERE thread_id=%s AND event_type IN ('resource_upload_started','resource_part_reserved','resource_part_stored',
+        'resource_upload_cancelled','resource_published','command_accepted')""", (thread,)).fetchone()['revision']
+    rows = connection.execute("""SELECT metadata,published_seq FROM capstone_resource_uploads
+        WHERE thread_id=%s AND published_seq>%s AND metadata->>'state'='complete'
+        AND COALESCE((metadata->>'draft')::boolean,false)=%s
+        ORDER BY published_seq LIMIT %s""", (thread, after, draft, limit+1)).fetchall()
+    return revision, [(row['published_seq'], row['metadata']['resource']) for row in rows]

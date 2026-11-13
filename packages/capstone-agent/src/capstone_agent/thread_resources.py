@@ -4,6 +4,8 @@ from pathlib import PurePosixPath
 import re
 import secrets
 import time
+import base64
+import json
 
 from .thread_materials import _mutate, _write_event
 from .application_capacity import CapacityExceeded, current_capacity, limits
@@ -132,6 +134,49 @@ class ResourceUploads:
         self.service.snapshot(thread)
         return [state['resource'] for state in self.resource_states(thread, connection)
                 if state['state'] == 'complete' and state.get('draft', False) == draft]
+
+    def resource_page(self, thread, draft=False, limit=100, cursor=None):
+        if type(limit) is not int or not 1 <= limit <= 100 or type(draft) is not bool:
+            raise ValueError('invalid resource page limit')
+        after, expected = 0, None
+        if cursor is not None:
+            try:
+                if not isinstance(cursor, str) or len(cursor) > 1024:
+                    raise ValueError()
+                value = json.loads(base64.b64decode(cursor, altchars=b'-_', validate=True))
+                if (set(value) != {'thread', 'draft', 'after', 'revision'} or value['thread'] != thread
+                        or type(value['draft']) is not bool or value['draft'] != draft
+                        or type(value['after']) is not int or type(value['revision']) is not int
+                        or not 0 < value['after'] <= value['revision']):
+                    raise ValueError()
+                after, expected = value['after'], value['revision']
+            except (ValueError, TypeError, KeyError, UnicodeError):
+                raise ValueError('invalid resource page cursor') from None
+        self.service.snapshot(thread)
+        if hasattr(self.service, '_lock'):
+            with self.service._lock:
+                events = self._events(thread)
+                revision = max((e.event_seq for e in events), default=0)
+                rows = []
+                for event in events:
+                    if event.event_type == 'resource_published' and event.event_seq > after:
+                        state = self._state(thread, event.payload['upload_id'], events=events)
+                        if state['state'] == 'complete' and state.get('draft', False) == draft:
+                            rows.append((event.event_seq, state['resource']))
+                            if len(rows) > limit:
+                                break
+        else:
+            from .resource_projection import page
+            with self.service._connect() as connection:
+                revision, rows = page(connection, thread, draft, after, limit)
+        if expected is not None and expected != revision:
+            raise ValueError('resource directory changed; restart pagination')
+        next_cursor = None
+        if len(rows) > limit:
+            value = {'thread': thread, 'draft': draft, 'after': rows[limit-1][0], 'revision': revision}
+            next_cursor = base64.urlsafe_b64encode(json.dumps(value, separators=(',', ':')).encode()).decode()
+        return {'schema': 'capstone-resources/1', 'resources': [r for _, r in rows[:limit]],
+                'revision': revision, 'next_cursor': next_cursor}
 
     def resource_states(self, thread, connection=None):
         if not hasattr(self.service, '_lock'):

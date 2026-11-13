@@ -9,6 +9,26 @@ from test_enterprise_normal_chat import chat_store
 from test_thread_postgres import postgres_thread_service
 
 
+def test_resource_pages_cover_published_files_and_reject_changed_scope(chat_store):
+    service, thread = chat_store
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    ids=[]
+    for index in range(3):
+        uid=uploads.begin(thread, f'{index}.csv', 4, f'page{index}', True)['upload_id']
+        uploads.part(thread, uid, 0, b'abcd')
+        ids.append(uploads.complete(thread, uid)['resource_id'])
+    first=uploads.resource_page(thread, draft=True, limit=2)
+    assert [r['resource_id'] for r in first['resources']]==ids[:2]
+    second=uploads.resource_page(thread, draft=True, limit=2, cursor=first['next_cursor'])
+    assert [r['resource_id'] for r in second['resources']]==ids[2:]
+    assert second['next_cursor'] is None
+    with pytest.raises(ValueError, match='cursor'):
+        uploads.resource_page(thread, draft=False, limit=2, cursor=first['next_cursor'])
+    uploads.cancel(thread, ids[2].replace('resource_','upload_'))
+    with pytest.raises(ValueError, match='changed'):
+        uploads.resource_page(thread, draft=True, limit=2, cursor=first['next_cursor'])
+
+
 def test_retry_recovers_create_only_object_written_before_ack(chat_store):
     service, thread = chat_store
     class CreateOnlyStore(MemoryObjectStore):
