@@ -16,6 +16,7 @@ def test_template_library_route_is_focused_and_unknown_changes_do_not_inherit_it
     assert classify([*paths,
         'packages/capstone-agent/src/capstone_agent/gateway_diagnostics.py',
         'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
+        'packages/capstone-agent/tests/test_pi_delegation.py',
         'packages/capstone-agent/tests/test_gateway_diagnostics.py',
         'packages/capstone-app/src/serviceBusCalls.ts',
         'packages/capstone-app/src/CapstoneAssistantThread.tsx']) == 'presentation-library'

@@ -372,5 +372,29 @@
   "native_image": "sha256:ddedbbc35932c48be2096354b5e73e7fa32f06659c365c522e5a8910ade27008",
   "ci_approved": false,
   "dev_merged": false,
-  "cloud_deployed": false
+  "cloud_deployed": false,
+  "pr": 104,
+  "ci_runs": [
+    {
+      "id": 43494883528,
+      "head": "5cb6b6e19abc361d91ddcb9f04967e750c513fb0",
+      "platform": "macos",
+      "scope": "presentation-library",
+      "conclusion": "failure",
+      "execution_seconds": 120,
+      "queued_seconds": 318,
+      "failure": "test_slow_response_obeys_parent_deadline",
+      "backend_passed": 584,
+      "backend_skipped": 66,
+      "backend_failed": 1
+    }
+  ],
+  "local_ci_repair": {
+    "production_runtime_changed": false,
+    "parent_deadline_seconds": 0.06,
+    "cleanup_budget": "configured default",
+    "injected_dispatch_delay_seconds": 0.6,
+    "pi_tests_passed": 86,
+    "governance_tests_passed": 113
+  }
 }

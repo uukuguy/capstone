@@ -38,6 +38,7 @@ PRESENTATION_LIBRARY_FILES = {
     'test_native_skill_recovery.py', 'fixtures/presentation-templates.test.mjs',
     'test_gateway_diagnostics.py', 'test_general_pi_server.py', 'test_delegated_runtime.py',
     'test_presentation_delivery.py', 'test_native_environment.py',
+    'test_pi_delegation.py',
     'fixtures/tool-composition.test.mjs',
 )} | {'packages/capstone-app/src/' + name for name in (
     'CapstoneAssistantThread.tsx', 'CapstoneAssistantThread.test.tsx', 'ProcessCallTrace.tsx',

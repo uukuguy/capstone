@@ -101,3 +101,28 @@ reference paths sampled without crossing cards. The archived research source is
 removed from active milestones. Same-tab candidate App5174 restore displays all four completed rounds and final PPT/PDF products; the page shows ddc3df02. Screenshot: `/tmp/capstone-ppt-final-app.png`.
 See the [bounded receipt](receipts/2026-11-14-presentation-integration.json).
 No CI, remote PPT deployment or dev merge has occurred for this candidate.
+
+## First approved CI and local repair
+
+PR104: <https://github.com/uukuguy/capstone/pull/104>.
+Run43494883528 tested5cb6b6e1 on macOS. Runner execution lasted2m00s
+(19:48:51–19:50:51 UTC), after about5m18s in the queue.
+Governance:256 passed/3 skipped. Native environment:19 passed. Pyright clean.
+Backend direct-consumer group:584 passed/66 skipped/1 failed. Later renderer,
+Node and App steps were not reached; prior local acceptance remains separate.
+
+The failure is the existing `test_slow_response_obeys_parent_deadline`, not
+PPT output. That test requires cancellation confirmation after the60ms parent
+deadline but supplies only0.5s for cleanup. CI records a cancellation transport
+timeout before the fake server observes DELETE. A local600ms cleanup-dispatch
+injection reproduces the same empty cancellation list. The test now uses the
+configured cleanup budget (currently5s) while retaining its60ms parent deadline.
+Separate slow-body/header/nonstopping-task tests keep their0.5s cleanup limit.
+No production deadline or runtime code changed.
+
+The injected failure passes after the fix. All86 Pi delegation tests and113
+focused scope/governance checks pass. The amended test is already a named
+consumer in the existing PPT CI command; its path is now explicitly registered
+in the focused route. This does not add a suite or expand the approved gate.
+The first approval is consumed. No second CI, push or PR update has started;
+new explicit approval is required before publishing this repair.
