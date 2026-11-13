@@ -3,7 +3,7 @@
 import builtins
 from types import SimpleNamespace
 
-from grid_agent import worker
+from pandapower_application import worker
 
 
 def test_scripted_worker_runner_imports_current_application(monkeypatch):

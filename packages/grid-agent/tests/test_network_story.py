@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from grid_agent.network_story import build_grid_story
+from pandapower_application.network_story import build_grid_story
 
 
 class NetworkExecutor:

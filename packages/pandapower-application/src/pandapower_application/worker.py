@@ -1,4 +1,5 @@
-"""Pandapower application worker for the neutral Capstone session host."""
+"""Application-owned runtime.
+Pandapower application worker for the neutral Capstone session host."""
 
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from capstone_agent.runtime import load_runtime_environment
 from capability_agent.runtime.catalog import ProviderCatalog
 
 from pandapower_application.composition import build_generic_application
-from grid_agent.network_story import ProviderTopologyPlanner, build_grid_story
+from pandapower_application.network_story import ProviderTopologyPlanner, build_grid_story
 from pandapower_application.network_view import build_grid_network_view
 
 

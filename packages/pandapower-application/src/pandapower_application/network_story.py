@@ -1,4 +1,5 @@
-"""Pandapower-owned completion projection for cumulative topology stories."""
+"""Application-owned runtime.
+Pandapower-owned completion projection for cumulative topology stories."""
 
 from __future__ import annotations
 
