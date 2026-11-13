@@ -15,7 +15,7 @@ import pytest
 from capability_agent.runtime import rpc as kernel_rpc
 from pandapower_application.run_workspace import RunWorkspace
 from capability_agent.runtime.trace import JsonlTraceWriter
-from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 from capability_agent.runtime.rpc import PiProtocolError, PiRpcClient
 from grid_agent.runtime.environment import PiLaunch
 from pandapower_application.workspace import AnalysisWorkspace

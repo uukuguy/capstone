@@ -8,7 +8,7 @@ import pytest
 
 from pandapower_application.paths import ProjectPaths
 from grid_agent.runtime.locator import PiRuntimeLocator, PiRuntimeLocatorError
-from grid_agent.runtime.lock import PiRuntimeLock
+from capability_agent.runtime.lock import PiRuntimeLock
 
 
 @pytest.fixture

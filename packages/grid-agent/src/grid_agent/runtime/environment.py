@@ -19,7 +19,7 @@ from capability_agent.runtime.environment import (
     build_pi_launch as _build_pi_launch,
 )
 from capability_agent.runtime.models import ResolvedLLM
-from grid_agent.runtime.lock import PiCommand
+from capability_agent.runtime.lock import PiCommand
 
 
 @dataclass(frozen=True)

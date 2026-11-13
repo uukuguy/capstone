@@ -14,7 +14,7 @@ from capability_agent.runtime.locator import (
     PiRuntimeLocatorError,
 )
 from pandapower_application.paths import ProjectPaths
-from grid_agent.runtime.lock import PiRuntimeLock
+from capability_agent.runtime.lock import PiRuntimeLock
 
 
 ENV_PI_COMMAND = "GRID_AGENT_PI_COMMAND"

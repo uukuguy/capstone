@@ -10,7 +10,7 @@ from capability_agent.domain import DomainManifest
 from grid_agent.config.models import ResolvedLLM, ResolvedLLMConfig, SecretValue
 from pandapower_application.paths import ProjectPaths
 from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
-from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 from grid_agent.runtime.pi_config import PiConfigMaterializer
 
 

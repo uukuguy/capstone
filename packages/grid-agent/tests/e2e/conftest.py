@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.runtime.lock import PiRuntimeLock
+from capability_agent.runtime.lock import PiRuntimeLock
 
 
 ROOT = Path(__file__).resolve().parents[4]

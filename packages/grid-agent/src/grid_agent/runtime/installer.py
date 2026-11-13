@@ -10,7 +10,7 @@ from capability_agent.runtime.installer import (
     PiRuntimeInstaller as _PiRuntimeInstaller,
     PiRuntimeInstallerError,
 )
-from grid_agent.runtime.lock import PiRuntimeLock
+from capability_agent.runtime.lock import PiRuntimeLock
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]

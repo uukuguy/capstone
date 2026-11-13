@@ -12,7 +12,7 @@ import pytest
 from pandapower_application.paths import ProjectPaths
 from grid_agent.runtime.installer import PiRuntimeInstaller, PiRuntimeInstallerError
 from grid_agent.runtime.locator import PiRuntimeLocator, PiRuntimeLocatorError
-from grid_agent.runtime.lock import PiRuntimeLock, PiRuntimeLockError
+from capability_agent.runtime.lock import PiRuntimeLock, PiRuntimeLockError
 
 
 PATCH_RELATIVE_PATH = "patches/pi-0.84.4-before-model-request.patch"

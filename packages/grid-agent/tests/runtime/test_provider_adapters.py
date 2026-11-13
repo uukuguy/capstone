@@ -7,7 +7,7 @@ import pytest
 from pandapower_application.paths import ProjectPaths
 from grid_agent.config.models import ResolvedLLM, ResolvedLLMConfig, SecretValue
 from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
-from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 
 
 def _resolved(base_url: str = "https://api.openai.com/v1") -> ResolvedLLM:
