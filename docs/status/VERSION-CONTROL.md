@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-11-14分支归属审计：30条非归档本地工作分支收敛为2条研发/研究入口，另有具名临时审计文档分支。22条已在dev祖先中的头与6条明确归属的历史头均保留原SHA归档；17条旧远端别名和PR50已关闭。PPT是唯一待集成功能候选，引用执行为暂停的独立研究；R1设计和R0实验归研究待办/历史，不算活动实现。14个工作树与53个未提交文件校验无丢失。详见[归属审计](../reports/2026-11-14-branch-ownership-audit.md)及[恢复映射](../reports/receipts/2026-11-14-branch-ownership.json)。本次未改运行代码、部署或启动CI。
+
 2026-11-13：旧 grid-agent 发行包、源码和 CLI 已删除，测试及开发检查迁入
 pandapower-application。独立集成源码79d2dc23已规范重建到local-dev，API/三worker健康且
 同镜像f8270cec；App补修0c5be667通过80项会话测试。完整制品检查通过；集成定向
@@ -11,10 +13,12 @@ CI43443261387定向macOS通过，耗时1分58秒：988 Python、84 Node、93 App
 2026-11-14显式使用Clash7897后，PR101已合并为0616023f，实际与远端dev已同源；
 合并树与受检20469225完全一致。实际dev规范重建通过，API/worker同镜像8cf3d25f，
 Pi安装层命中缓存，范围清理完成。旧任务HTTP恢复、成果下载摘要和浏览器恢复通过；
-默认App5173已切到实际dev，旧候选工作树和数据保留。AGENTS代理规则提交979bf0c4在docs/clash-github-connection，
-未推送、未触发新CI。无远端部署。
+默认App5173已切到实际dev，旧候选工作树和数据保留。代理规则979bf0c4与最终控制39d14dc5
+已随PR102合入4b857ac9；文档macOS CI43473293838通过2分08秒。实际及远端dev均4b857ac9，
+后端运行源码保持0616023f，文档合并不重建运行镜像。两个受检分支已关闭，本地旧实现引用转恢复分支。
+无远端部署。本段及生成快照记录合并后状态，不为嵌入自身提交号循环提交或重复启动CI。
 资源GB传输、两万事件回放、真实模型两轮及工具按需加载证据见已有回执。
-实际dev入口与最终控制集成仍开放；[集成真实回执](../reports/receipts/2026-11-13-integrated-runtime.json)。
+本轮代码、本地入口与最终控制已收口；[集成真实回执](../reports/receipts/2026-11-13-integrated-runtime.json)。
 [迁移回执](../reports/2026-11-13-pandapower-application-owner.md)。
 
 2026-11-11：local-dev App版本号改为8位，源码6248a434；12项页头检查、类型检查、规范重建及实页显示通过。API/三worker同镜像3918c8d38e34，ready；本项目缓存维护完成。
@@ -1143,6 +1147,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 ## 三线研发组织
 
 两条应用分支已从dev `6c0b0ae74b523763b8d47bb1cd2f686afdeb12f0`创建并推送。
+此处显示当前实际Git入口。企业研究与电网应用的原三线目标仍见阶段计划；空规划或已合入别名不再占用活动实施分支。
 这是创建来源，不是应用独立实现或新部署。共同基座尚不足，当前实现聚焦dev；
 应用线先做准备，按具体依赖逐段启动。控制文档同步后仍无应用业务代码。
 每个功能阶段提供可运行前端入口、来源身份、样例与人工观察记录。
@@ -1150,9 +1155,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 远端与实际dev均0616023f；后端同源已重建，默认App5173已对齐；三区研发c051a832 | PR101定向macOS CI通过并合入；代理及最终控制文档待集成 |
-| feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
-| feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
+| dev | 共同基座与企业工作台集成 | 远端与实际dev均4b857ac9；后端运行0616023f，默认App5173来自实际dev；三区研发c051a832 | PR101代码与PR102控制文档均合入；两次各自获批macOS CI通过 |
+| uukuguy/ppt-template-library-20261110 | 待集成：应用演示文稿及直接调用方 | local81dd3652；remote43acac28；只有这一条待集成功能候选 | 归dev；分别核对PPT、执行观察和App维护，不复活已退役实现 |
+| uukuguy/reference-execution-research | 独立引用执行研究（暂停） | 2bd086af；用户已移出主线交付 | 归核心演进笔记；恢复后先同步dev，不自动反向合入 |
 
 ## 功能包前沿
 
@@ -1167,9 +1172,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | main | dev研发 / main快照 | 1 | 研发快照已合入 | native、Thinking、有界工具编排及历史回执收口 | main | 后续按研发迭代；不追加发布门禁 | 既有业务与交付资产 | PR95合入22cd1728；三套dev部署该源码 | PR94 macOS通过；main采用用户明确轻量例外，非双平台发布接受 |
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
-| business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
+| business-analysis | 企业研究与分析 | 1 | 规划归dev；无独立业务增量，旧空分支已归档 | 企业资源、分析成果、图表与报告视图 | dev | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
 | model-decision | 电网分析与决策 | 2 | PR69产品/PR70控制均已合入，远端分支关闭 | 动态准入、初始化指导、task菜单与成果保存 | dev | 当前HEAD f1e6e9fd，产品基线bcd1a5ad，运行ed0c5ff2，业务验收214c2e23；图形后续暂停 | dev9d691624 / PR68 | 214c非图业务验收及成果恢复保留，工作树恢复引用保留 | 产品CI40409319046通过27分16秒，文档CI40416427472通过1分35秒；潮流终端集成延后 |
-| shared-agent | 共同智能体基座 | 3 | 架构改进及旧包退役已合入dev；控制文档待集成 | 资源事务与增量投影、附件预算、共享状态、按需发现、独立pandapower应用 | docs/clash-github-connection | 集成已准备的最终控制文档；IG1整体接受与云端规模另列 | dev0616023f及PR101 | 资源与领域归属边界保持；旧发行包和CLI已退役 | 定向macOS CI及真实模型、默认App恢复、下载哈希通过。[回执](../reports/2026-11-13-pandapower-application-owner.md) |
+| shared-agent | 共同智能体基座 | 3 | 本轮架构改进、旧包退役及控制文档已收口 | 资源事务与增量投影、附件预算、共享状态、按需发现、独立pandapower应用 | dev | IG1整体接受及云端规模仍按原工作列表，不自动转IG2–IG4 | PR101代码与PR102文档 | 资源与领域归属边界保持；旧发行包和CLI已退役 | 两轮获批macOS CI及真实模型、默认App恢复、下载哈希通过。[回执](../reports/2026-11-13-pandapower-application-owner.md) |
 | enterprise-analysis | 企业数据研究分析模式 | 0 | 讨论结论已记录，尚未实现 | 问题导航、AI主动引导、局部探索、报告修订与用户明确接受版本 | cf52cb4f | 按已接受路线先实现问题状态、导航及多轮引导；不新增默认调度池 | 现有统一工作台与直接轻量循环 | 过程产物与研究结论分开；目标属于研究任务；无证据不等于问题不成立 | [讨论](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)及[路线图](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md)；模式验收待实施 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
@@ -1177,7 +1182,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | case | 独立 Case 模块产品接入 | 3 | 待范围设计 | 独立案例执行、状态查看与恢复入口 | — | 核对已有 Case 服务与当前对话入口，确定独立模块范围 | 已有独立 Case 执行基础 | 将 Case 作为完整模块接入产品；明确与普通对话的关系 | 底层已有能力，当前对话入口尚未组装完整模块；不视为从零开发 |
 | context | 长任务存储优化（历史归档） | 3 | 已归档，适用性未确认 | 9 月 5 日 OP-13 分段写入/恢复实验；保留未提交代码 | archive/context-segment-storage-20261011 | 当前不开发；真实场景证明需要后，基于最新 main 重新设计 | 历史性能实验 | 文件式 Kernel 日志仍有全量重写开销；当前 Thread 历史采用 PostgreSQL，不能直接套用旧问题 | 原计划 DEFERRED；已归档并移出活动与待推进区；未合入或部署 |
 | wake | 启动与恢复体验 | 3 | 初步诊断，待复现信息 | 减少启动等待和对话中断，改善恢复体验 | improve/issue-4-active-recovery | 核对切后台或锁屏触发，再确定优化方案 | 当前线上体验（规划对比） | 减少启动等待；改善对话中途恢复 | Issue #4 已询问触发条件；4项生命周期检查与本地热态测量通过，不代表云端根因或修复 |
-| research | 围绕研究模型的自主推演 | 3 | 起点及依赖已适配，R1待实现 | 研究模型＋可组合工作流＋自主推演；领域知识与结论验证支撑 | feat/research-model | R1契约与生命周期；R4按真实能力缺口盘点；R2/R3随后推进 | dev恢复基线6ff7094 | 2b0b0a5更新设计/计划；使用既有Thread/Attempt/模型身份与Authority接纳，不依赖撤回链路 | 精确Git祖先6ff7094；文档审查及本工作区准备/doctor通过；R1无代码；R0bf678f2原始证据保留，未部署 |
+| research | 围绕研究模型的自主推演 | 3 | 设计待办；R1未实现，旧设计分支已归档 | 研究模型＋可组合工作流＋自主推演；领域知识与结论验证支撑 | dev | R1契约与生命周期；R4按真实能力缺口盘点；R2/R3随后推进 | dev恢复基线6ff7094 | 2b0b0a5更新设计/计划；使用既有Thread/Attempt/模型身份与Authority接纳，不依赖撤回链路 | 精确Git祖先6ff7094；文档审查及本工作区准备/doctor通过；R1无代码；R0bf678f2原始证据保留，未部署 |
 
 全景文件：[PROJECT-OVERVIEW.html](PROJECT-OVERVIEW.html)。更新功能包、合并或部署台账后运行 `python3 tools/render_project_overview.py`，同步更新这一个 HTML；打开 HTML 不需要构建、联网或额外文件。生成器读取本表、环境台账、Git 来源和本地公开版本信息；不能把计划推断为已交付。
 
@@ -1241,10 +1246,12 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| resource-projection-20261113 | 架构资源改进运行来源；定向、GB级传输及真实两轮通过，界面验收开放 |
+| presentation-owner-candidate | 唯一待集成功能候选的实际本地HEAD；归dev且必须按现行模块切片 |
+| reference-owner-research | 唯一独立引用研究HEAD；明确暂停、非主线实施，保留真实Git来源 |
+| resource-projection-20261113 | 架构改进受检源码，已由PR101合入；后续本地与浏览器接受见0616023f |
 | default-template-20261110 | 普通PPT缺省国网；两dev环境当前来源 |
 | report-repair-20261110 | 报告交付修复；历史受检来源 |
-| template-library-20261110 | 本轮活动模板库及服务总线收口；local-dev/dky3-dev精确部署来源，尚未合入dev |
+| template-library-20261110 | 历史模板库与服务总线验证来源；当前待集成功能HEAD另列81dd3652 |
 | investigation-merge-20261110 | PR100已验证源码合入远端dev的重要合并 |
 | actual-dev-pr100-local | 实际dev本机重建的精确来源；本地审计合流，非新增远端合并 |
 | investigation-closeout-20261110 | PR100已合入的精确受检源码；调查分支已关闭 |
@@ -1265,6 +1272,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| presentation-owner-candidate | 81dd3652 | feature | 待集成：PPT模板库与直接调用方 | 唯一功能候选，local与remote HEAD不同；非整体接受 | 退役变化已由PR101承接；余下PPT、执行观察与App维护分别核对 | shared-agent |
+| reference-owner-research | 2bd086af | feature | 独立引用执行研究（暂停） | 用户已移出主线交付，保留可行性试验来源 | 归核心演进笔记；恢复时先同步dev，不自动反向合入 | research |
 | architecture-retirement-merge | 0616023f | main | dev · 架构改进与旧包退役集成 | PR101已合入；macOS CI43443261387通过1分58秒，合并树与受检源码一致 | 资源事务与增量投影、附件预算、共享状态和按需发现；独立pandapower应用与旧发行包退役 | shared-agent |
 | retirement-local-source-20261113 | 79d2dc23 | feature | local-dev退役集成运行来源 | 规范重建和真实模型续接通过 | API/三worker同镜像f8270cec；App补修0c5be667，成果哈希和刷新恢复通过 | shared-agent |
 | resource-projection-20261113 | 20469225 | feature | 架构改进与应用执行归属 | PR101受检来源；已合入0616023f，macOS CI通过1分58秒 | 资源事务、选择性回放、附件总预算、工具按需加载；旧发行包已删除；集成真实任务、成果哈希和刷新恢复通过。[CI回执](../reports/receipts/2026-11-13-retirement-ci.json) | shared-agent |
@@ -1392,7 +1401,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | shared-foundation-dev | d8fe6e2738639161525a66bce7a8f0a9588e2872 | main | dev · 共同基座执行接缝集成 | PR #36双平台通过，已合入 | 合并树与受检711f06a8一致；共同执行接缝及已有基线验收完成；Task 2身份/Profile及前端最小入口待实施。[基线报告](../reviews/2026-10-16-shared-execution-baseline.md) | shared-agent |
 | pi | abf2f797c98f953a402aa25597018d6d5dfea0af | feature | 企业执行 · 已合入来源 | PR #31双平台通过并合入dev | 原生资源和专业资产保留；资源摘要及超时分类已修复；local-dev同源核验通过。统一循环和新工作台仍待实现。[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md) | pi |
 | enterprise-dev | db16718445fb33ea242310076dd068b90b1996a6 | main | dev · 企业自主执行研发主线 | PR #31已合入，双平台通过 | 合并树与受检abf2f797一致；长期Pi分支已关闭，工作树与数据保留；后续按统一执行计划推进。[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md) | pi |
-| research | feat/research-model | feature | Research Model · 实施分支 | 起点与依赖已适配，R1未实现 | 开发起点6ff7094；2b0b0a5适配现有对话/模型身份与证据接纳；独立审查、源码等价与doctor通过；不依赖撤回的编译/覆盖/预热；R0bf678f2保留历史参考；R1尚无代码，未部署 | research |
+| research | 275dc00f | feature | Research Model · 历史设计来源（无R1实现） | 起点与依赖已适配，R1未实现 | 开发起点6ff7094；2b0b0a5适配现有对话/模型身份与证据接纳；独立审查、源码等价与doctor通过；不依赖撤回的编译/覆盖/预热；R0bf678f2保留历史参考；R1尚无代码，未部署 | research |
 | autonomous-trial | 24d9a32 | feature | 自主智能体 · 试用部署点 | local-dev与cloud-dev基本试用通过 | 固定部署来源24d9a32；三任务链路终态已保存；业务结论尚有缺陷；后续源码变化未部署 | autonomous |
 | topology-display | df69cda | feature | 拓扑显示修复 | local-dev前端已验证 | 小跨度坐标全图适配；放大上限与符号尺寸修正；41项检查及类型通过；真实179母线浏览器验证；后端与cloud-dev仍24d9a32 | autonomous |
 | research-reset | 780fd70 | feature | 工作上下文重置 | 隔离界面与续接验证通过 | 复用模型重开事务，恢复打开基准、隔离新研究并保留历史；运行中拒绝；41项后端、71项App、21项真实PG及类型通过；真实重置、重连、历史读取和19.941秒后续AC通过；用户部署未更新 | autonomous |
@@ -1435,8 +1444,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| presentation-owner-candidate | 当前待集成功能候选 | uukuguy/ppt-template-library-20261110 | PPT模板与交付产物；执行观察及App直接调用方另验 | 归dev，local81dd3652；先切片再PR，未整体合入 |
+| reference-owner-research | 独立研究（暂停） | uukuguy/reference-execution-research | 引用执行设计与可行性测试；不占主线交付范围 | 2bd086af；归核心演进笔记，恢复前同步dev |
 | resource-projection-20261113 | 架构改进受检来源 | feat/architecture-retirement-closeout | 资源分页、附件预算、共享状态、工具按需加载；独立pandapower应用与旧包退役 | PR101已合入0616023f；定向macOS CI通过 |
-| architecture-retirement-merge | 当前研发位置 | dev | 架构资源与执行入口改进合入；旧grid-agent发行包及CLI退役 | PR101已合入；受检树一致，实际dev规范重建与HTTP恢复通过 |
+| architecture-retirement-merge | 架构改进主要合并及运行来源 | dev | 架构资源与执行入口改进合入；旧grid-agent发行包及CLI退役 | PR101代码基线；受检树一致，实际dev规范重建与恢复通过 |
 | retirement-local-source-20261113 | local-dev精确运行来源 | feat/architecture-retirement-closeout | API与三worker统一退役集成源码；真实模型成果保存与续接 | 同镜像f8270cec；App0c5be667；成果哈希与浏览器刷新通过 |
 | app-revision-20261111 | local-dev当前来源 | uukuguy/ppt-template-library-20261110 | App提交号显示8位；继承PPT模板与当前调用统计 | 12项检查、类型、规范重建及实页显示通过 |
 | default-template-20261110 | 三区研发来源 | uukuguy/ppt-template-library-20261110 | 普通PPT入口缺省国网；显式模板保留且无静默回退 | 两dev环境已更新并实测，原运行任务未中断 |
@@ -1528,7 +1539,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | PR101架构改进与旧包退役已合入；实际部署来源另列 | 实际与远端dev0616023f；定向macOS CI通过 |
+| dev-head | 当前研发位置 | dev | PR101代码与PR102最终控制均已合入；实际部署来源另列 | 当前HEAD由Git解析；两轮独立获批macOS CI通过，本轮已收口 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1601,7 +1612,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 53 | shared-agent | feat/model-decision | dev | MERGED | f5eda4e4；macOS CI39009430704第2次完整通过，合并树与00a8cd85一致；真实Provider普通问答/IEEE39/追问三轮通过；PyPSA附加缺陷单独修正 |
 | 54 | model-decision | fix/pypsa-inspection-semantics | dev | MERGED | 4120e57b；时序负荷和调度语义修正已合入，业务验收范围仍以对应记录为准 |
 | 52 | shared-agent | docs/conversation-delivery-control | dev | MERGED | 45913f1c；macOS文档CI38947256986通过1分28秒；合并树同af05f6e4；前端验收撤回，正常对话及成熟公共能力适配为交付标准 |
-| 50 | shared-agent | feat/work-attempt-binding | dev | DRAFT | 旧CI38941770837已取消；后端资产保留，简化对话区与保存/开始验收撤回；正常对话及成熟功能复用实施中，不构成应用交付 |
+| 50 | shared-agent | feat/work-attempt-binding | dev | CLOSED | 归属审计关闭旧草稿；原简化UI已撤回，当前Work/native归dev；remote5e7fccc1和localc9e57152分别保留，不冒称旧代码已整体合入 |
 | 48 | shared-agent | feat/thread-work-context | dev | MERGED | d86cc4ef；受检ed0e2e19与合并树一致；Linux5分7秒/macOS8分4秒；运行源码e58ef9a4，Work保存恢复及原专业入口通过；分支已关闭，两应用准备分支快进同源 |
 | 41 | shared-agent | feat/work-research-identity | dev | MERGED | 85b6706f：受检08556cc2与合并树一致；双平台CI38898130414约6分钟通过；Work研究身份及开发期CI分层集成，生产Profile/v2前端仍待实施 |
 | 30 | main | release/conversation-phase1 | main | MERGED | cf72393b；用户选择f209fb1，双平台CI38861900687完整release成功；合并树一致，分支已关闭，e2包及部署不变 |
@@ -1636,22 +1647,22 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 此表给现存分支分类；展示时与实际 Git heads 核对，未知分支显示待登记。archive 是保留的实现或资料，不等于四条永久开发主线。
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
-| uukuguy/ppt-template-library-20261110 | 默认模板修复已部署，未开PR | c051a832缺省国网；实际HEAD由生成器核对 | 两dev真实生成、摘要、实际封面通过；无CI/PR | shared-agent |
+| --- | --- | --- | --- | --- |
+| uukuguy/ppt-template-library-20261110 | 唯一待集成功能候选 | local81dd3652、remote43acac28；退役部分已由PR101抽取 | 归dev；PPT模板、执行观察、App维护分别核对再切片，不整体合并旧历史 | shared-agent |
 | uukuguy/investigation-skills-20261108 | PR100合入后已关闭 | 精确受检a1978ffb，远端dev合并d7358eac；恢复工作区保留 | IG1与业务效率接受仍开放；非远端部署 | shared-agent |
-| uukuguy/presentation-templates-20261108 | 历史来源保留，待差异核对后关闭 | HEADcadc2f3a；渲染实现已随PR100合入dev | 新增模板库由20261110分支接续；不覆盖后续宿主修复，保留工作区日志 | shared-agent |
+| uukuguy/presentation-templates-20261108 | 已归档，不再作为活动研发分支 | 原源cadc2f3a；archive/branch-ownership-20261114/uukuguy/presentation-templates-20261108 | 8个运行/测试文件与dev相同；余下模板工作归20261110候选 | shared-agent |
 | feat/gateway-contract-context-reuse-20261107 | 已合入并关闭本地分支 | 7ea164de经PR100进入dev；恢复工作区保留 | 不再作为活动实现；既有性能限制保留 | shared-agent |
 | fix/capacity-lock-wake-20261103 | 已合并关闭 | PR92合7ad2529a；来源8dd51d0b，受检eca9913d | 100项本机与批准的定向CI通过；保留恢复材料，远端部署不变 | shared-agent |
 | fix/conversation-typography-20261103 | 已合并关闭 | PR93合6c55e6ee；来源2148db14，受检3e8625f5 | 已批准的macOS App CI通过；保留恢复材料，远端部署不变 | shared-agent |
 | feat/execution-capacity-20261103 | 已合并关闭 | PR91合c3a0c472；产品b7dd440c，受检f8e23ab3 | 定向CI、实际dev与页面验收通过；保留恢复材料，云端/内网未更新 | shared-agent |
-| --- | --- | --- | --- | --- |
 | fix/gateway-auto-negotiation-20261106 | 已合并关闭 | PR98合9689c434；受检9b4c0a86；本机运行9773fca6 | macOS2分43秒通过；分段复验见回执，精确能力上下文跨指令复用待优化 | shared-agent |
 | fix/gateway-entry-startup | 当前启动修正，未push | 565802f9从c282dc8f分出，首轮激活已准入网关入口，业务工具按需加载；159Python/32跳过、14JS、真实SDK及类型通过，独立复核清楚 | 同一源码与控制PR一次push，待CI和合入后规范重建及可见标签页验证；未部署 | shared-agent |
 | docs/gateway-dynamic-closeout（本地与远端已关闭） | 文档已合入，本地与远端已关闭 | PR82合并c282dc8f，文档专项2分42秒通过 | 本地与远端分支已关闭，工作树detach至origin/devc282dc8f；保留恢复引用，最终HEAD快照不形成提交循环 | shared-agent |
 | refactor/gateway-dynamic-bindings（本地与远端已关闭） | 已验证合入，本地及远端分支已关闭 | 40c4c2e4通过精简CI，PR81合入61ec56c6；local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 本地协议及真实任务通过，分支已实际关闭，工作树转docs/gateway-dynamic-closeout保留；不声明人工渲染或性能接受 | shared-agent |
-| feat/unified-agent-loop | 已合入来源 | de648f58 经 PR67 合入 32d72c28；必需 macOS CI 通过 | 保留恢复引用；不再作为活跃候选，cloud/demo 不变 | shared-agent |
-| feat/purpose-electrical-diagrams | 已合入来源 | f9010be5 经 PR68 合入 9d691624，必需 CI 通过 | 保留恢复引用，不再作为活跃候选 | model-decision |
-| feat/gateway-electrical-views | 已合入来源，关闭开发 | 受检HEAD519bf75f经PR69合入bcd1a5ad，CI40409319046通过27分16秒；运行ed0c5ff2，业务验收214c2e23 | 保留工作树与恢复引用；图形v2/省级下钻/定位暂停，北京网关对接待做，潮流终端集成延后 | model-decision |
-| fix/gateway-failure-diagnostics | 已合入来源 | PR66合入f397fbef；网关目录、范围及失败诊断修复 | 保留恢复引用；不混同PR67运行候选 | shared-agent |
+| feat/unified-agent-loop | 已归档，不再作为活动研发分支 | 原源de648f58；archive/branch-ownership-20261114/feat/unified-agent-loop | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| feat/purpose-electrical-diagrams | 已归档，不再作为活动研发分支 | 原源f9010be5；archive/branch-ownership-20261114/feat/purpose-electrical-diagrams | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
+| feat/gateway-electrical-views | 已归档，不再作为活动研发分支 | 原源f1e6e9fd；archive/branch-ownership-20261114/feat/gateway-electrical-views | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
+| fix/gateway-failure-diagnostics | 已归档，不再作为活动研发分支 | 原源f397fbef；archive/branch-ownership-20261114/fix/gateway-failure-diagnostics | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
 | feat/streamed-thinking（已关闭远程分支） | 历史已合入来源 | PR62合入364aa6e9；受检80c，macOS40220567507与独立复核通过，App内容0dc在实际根工作树验证 | 已合入；初始化工作树暂留供下一工作包使用，不代表活跃未合入功能，cloud/demo不变 | shared-agent |
 | feat/grid-scale-view（本地与远程已关闭） | 历史已合入来源 | PR64合入78f81e66；受检44e8eca2，macOS40232655933及主入口通过 | 功能归dev；初始化工作树脱离分支并保留运行数据/文档恢复副本，5175已停，不更新cloud/demo | model-decision |
 | feat/unified-conversation-diagnostics | 历史已合入来源 | PR60合入6f9ca536；受检9367fc2b及定向CI40201683198通过；运行afe，84文件对6f匹配，真实Stop和诊断恢复通过 | 当前工作归dev；原失败、恢复依据和89秒效率缺口保留，cloud/demo不变 | shared-agent |
@@ -1665,33 +1676,69 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/work-research-identity（已关闭） | 共同基座Task 2已合入来源 | 055a335f组件实现及08556cc2 CI分层通过双平台检查；PR #41合入85b6706f | dev继续生产Profile/v2前端接入 | shared-agent |
 | feat/thread-version-negotiation（已关闭） | 共同基座协议准备已合入来源 | 2d3f86c6/a2efb791通过本地与双平台CI；PR #44合入32f18d24 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
 | feat/shared-execution-baseline（已关闭） | 共同基座Task 1已合入来源 | 62f44366执行接缝与711f06a8回执通过双平台CI，PR #36合入d8fe6e27 | dev继续Task 2；来源提交保留在合并历史 | shared-agent |
-| feat/business-analysis | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | A1资源与验收准备；等待基座能力后分批PR回dev | business-analysis |
-| feat/model-decision | 定稿架构与原型对齐 | 00a8cd85已推送；PR #53已合入f5eda4e4；570项App与88项真实PG通过 | local-dev规范重建同源；历史结果、拓扑及新建会话入口通过；无模型与通用成果未完成。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
+| feat/business-analysis | 已归档，不再作为活动研发分支 | 原源45913f1c；archive/branch-ownership-20261114/feat/business-analysis | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | business-analysis |
+| feat/model-decision | 已归档，不再作为活动研发分支 | 原源00a8cd85；archive/branch-ownership-20261114/feat/model-decision | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
-| feat/work-attempt-binding | 正常对话基座研发 | 本地c9e57152；PR #50仍为旧来源草稿；native源码已保存 | RPC父链及23项真实PG通过；前端、真实Provider及部署另验；非应用交付 | 研发macOS；发布保留双平台 |
+| feat/work-attempt-binding | 已归档，不再作为活动研发分支 | 原源c9e57152；archive/branch-ownership-20261114/feat/work-attempt-binding | 旧UI撤回、PR50已关闭；当前Work/native归dev；不得整体合并旧候选 | shared-agent |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 默认开发集成主线 | 实际HEAD8da7dc76；当前本地与origin/dev记录一致 | PR98/99已集成；本机b473fe0d尚未合入，main与其他部署保持 | shared-agent |
+| dev | 当前集成所有者 | 当前已接受HEAD4b857ac9；分支归属审计已执行 | 收回旧别名，保留PPT待集成和引用研究暂停线；新实现必须有具名工作包 | shared-agent |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
-| feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
+| feat/research-model | 已归档，不再作为活动研发分支 | 原源275dc00f；archive/branch-ownership-20261114/feat/research-model | 只有设计文档，R1未实现；归dev研究待办，实施时从当前dev新建切片 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
 | recovery/dev-control-pre-faa6af9 | 旧dev控制文档恢复引用 | 9472edf及2411210两项未推送文档提交保留；改动快照与stash另存 | 不作为运行来源；保留至文档整合完成 | main |
 | docs/dev-integration-closeout | 文档入dev收尾 | PR #19对齐控制图、部署/验收及设计审计记录，保存所有剩余根工作区文档 | 门禁通过后合入并关闭；运行来源不变 | main |
 | docs/capstone-cli-dev-trial-design | CLI部署讨论记录 | 用户本地临时dev试用；Linux/macOS优先、Windows目标兼容；pip/npm及脚本入口写入统一CLI设计 | 仅文档，安装包、脚本及部署工件未实现；按文档门禁接入dev | main |
 | docs/aliyun-default-trial-registry | 默认镜像仓库决定 | 用户已确认阿里北京ACR/uukuguy公开拉取为缺省，GHCR可选备用；只记录设计，不构建/发布镜像 | 文档门禁后接入dev；镜像构成、体积和架构仍在讨论 | main |
-| fix/deployment-answer-acceptance | 已撤回的回答增强候选 | 42a647b保留，archive/answer-recovery-before-rollback-20261012固定恢复点；未提交补丁已备份 | 人工回归失败；用户取消本轮增强；不得继续作为可靠基线或验收通过版本 | answers |
+| fix/deployment-answer-acceptance | 已归档，不再作为活动研发分支 | 原源42a647bf；archive/branch-ownership-20261114/fix/deployment-answer-acceptance | 原回答增强已撤回；只保留精确历史，不作为活动研发或验收通过版本 | shared-agent |
 | fix/stable-route-recovery | 已合入并关闭 | PR14源bc08169合入dev6ff7094；本地及远端引用关闭，refs/archive/20261012/fix-stable-route-recovery保存精确源 | 代码继续在dev维护；原七轮业务失败及新普通误路由保留，不重启撤回的任务闭环实现 | answers |
-| fix/deployment-answer-acceptance | 已撤回，来源保留 | PR13关闭；42a647b保留原分支及已推送archive/answer-recovery-before-rollback-20261012 | 不继续此候选；仅保留恢复和核对依据 | answers |
-| improve/run-process-window | 已被完整候选取代 | 22acf1b为早期界面验收来源；后续2473e48及当前d7ac7d9包含更紧凑窗口 | 保留来源参考，不继续作为当前部署候选；随PR #9收口 | answers |
-| improve/issue-4-active-recovery | 诊断工作区，产品源码未变 | 来源c3b78bc；4项生命周期检查确认隐藏页面恢复路径符合既有设计；Issue#4为ai:needs-info | 核对切后台/锁屏触发和实际时序；不猜测云端冷启动原因，不修改在线睡眠策略 | wake |
+| fix/deployment-answer-acceptance | 已归档，不再作为活动研发分支 | 原源42a647bf；archive/branch-ownership-20261114/fix/deployment-answer-acceptance | 原回答增强已撤回；只保留精确历史，不作为活动研发或验收通过版本 | shared-agent |
+| improve/run-process-window | 已归档，不再作为活动研发分支 | 原源22acf1bb；archive/branch-ownership-20261114/improve/run-process-window | 补丁等价已在dev；不另开界面研发线 | shared-agent |
+| improve/issue-4-active-recovery | 已归档，不再作为活动研发分支 | 原源c3b78bc1；archive/branch-ownership-20261114/improve/issue-4-active-recovery | 无独立产品代码；问题另见Issue4，不把关闭旧诊断分支当作问题修复 | shared-agent |
 | feat/pi-skills-integration | 已合入并关闭 | PR #31合入dev db167184，双平台通过 | detached工作树与数据保留；refs/archive/20261016/feat-pi-skills-integration保存abf2f797 | pi |
 | archive/pi-before-dev-baseline-20261012 | Pi适配前恢复引用 | 精确749e0b8；本地及远端保留 | 仅恢复/对照，活动实施在dev | pi |
-| archive/research-before-dev-baseline-20261012 | Research旧起点恢复引用 | 精确50d8ebc；本地及远端保留 | 仅恢复/对照，活动实施在feat/research-model | research |
+| archive/research-before-dev-baseline-20261012 | Research旧起点恢复引用 | 精确50d8ebc；本地及远端保留 | 仅恢复/对照；研究设计归dev待办，需实施时再建立具名分支 | research |
 | archive/dev-recovery-control-staging-20261012 | 台账准备检查点 | 39ffe2b；保存收口期间的全局记录，当前根工作区detached继续整理 | 当前全局台账通过临时文档PR集成dev；不作为产品部署或活动功能分支 | main |
-| experiment/autonomous-research | R0参考实验 | 来源c3b78bc；代码bf678f2；基础实际实验与独立审查通过；未提交记录保留 | feat/research-model承接R1实施，R0保持参考；不直接合入或部署 | research |
+| experiment/autonomous-research | 已归档，不再作为活动研发分支 | 原源bf678f21；archive/branch-ownership-20261114/experiment/autonomous-research | R0历史实验归研究参考；不直接合并为正式产品 | research |
 | archive/context-segment-storage-20261011 | 历史归档，适用性未确认 | 9 月 5 日 OP-13 未提交存储实验；现用执行账本仍承担答案绑定、状态回放与交接，Thread 历史另走数据库 | 保留现用账本与实验代码；有当前场景证据后重评估，不直接续做旧设计 | context |
 | archive/answer-chain-unaccepted-20261010 | 已归档，未验收 | 3e3bbfb旧回答修复；已有结果/证据保留、诊断及展示防护，正式回答未过人工验收；用户2026-10-12要求移出当前推进图 | 仅保留历史恢复与核对依据；不再列为当前待重整或活动复用来源，不原样合入或部署 | answers |
 | archive/dev-before-baseline-20261010 | 旧 dev 快照 | 保存基线调整前的 Pi/skills/资源/旧修复全集；当前实验已提取到 Pi 分支 | 仅作对照与恢复来源，不继续在快照开发 | pi |
 | archive/multi-binding-notes-20261010 | 资料保留 | 已提交能力在 main 中；还有未提交历史记录和 lock 文件 | 保留资料，不作为新增功能开发 | main |
+| archive/branch-ownership-20261114/chore/dev-macos-ci | 历史恢复引用，非活动研发 | 原chore/dev-macos-ci，精确a14169aa | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/chore/proportional-workbench-ci | 历史恢复引用，非活动研发 | 原chore/proportional-workbench-ci，精确f339f182 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/docs/ci-consent-policy | 历史恢复引用，非活动研发 | 原docs/ci-consent-policy，精确d1653424 | 13行政策已在dev；今后只维护AGENTS | shared-agent |
+| archive/branch-ownership-20261114/docs/compact-progress-20261106 | 历史恢复引用，非活动研发 | 原docs/compact-progress-20261106，精确5b9e4a5d | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/docs/dev-trial-release-state | 历史恢复引用，非活动研发 | 原docs/dev-trial-release-state，精确78321348 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/docs/execution-chain-closeout-20261030 | 历史恢复引用，非活动研发 | 原docs/execution-chain-closeout-20261030，精确15db0a5d | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/docs/repaired-light-chain-diagnosis-20261030 | 历史恢复引用，非活动研发 | 原docs/repaired-light-chain-diagnosis-20261030，精确2d0acbd0 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/docs/shared-workspace-acceptance | 历史恢复引用，非活动研发 | 原docs/shared-workspace-acceptance，精确c09235fd | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/docs/thinking-dev-closeout | 历史恢复引用，非活动研发 | 原docs/thinking-dev-closeout，精确722f396f | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/experiment/autonomous-research | 历史恢复引用，非活动研发 | 原experiment/autonomous-research，精确bf678f21 | R0历史实验归研究参考；不直接合并为正式产品 | research |
+| archive/branch-ownership-20261114/feat/business-analysis | 历史恢复引用，非活动研发 | 原feat/business-analysis，精确45913f1c | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | business-analysis |
+| archive/branch-ownership-20261114/feat/gateway-electrical-views | 历史恢复引用，非活动研发 | 原feat/gateway-electrical-views，精确f1e6e9fd | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
+| archive/branch-ownership-20261114/feat/model-decision | 历史恢复引用，非活动研发 | 原feat/model-decision，精确00a8cd85 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
+| archive/branch-ownership-20261114/feat/provincial-electrical-view | 历史恢复引用，非活动研发 | 原feat/provincial-electrical-view，精确9995f0ca | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
+| archive/branch-ownership-20261114/feat/purpose-electrical-diagrams | 历史恢复引用，非活动研发 | 原feat/purpose-electrical-diagrams，精确f9010be5 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
+| archive/branch-ownership-20261114/feat/research-model | 历史恢复引用，非活动研发 | 原feat/research-model，精确275dc00f | 只有设计文档，R1未实现；归dev研究待办，实施时从当前dev新建切片 | research |
+| archive/branch-ownership-20261114/feat/streamed-thinking | 历史恢复引用，非活动研发 | 原feat/streamed-thinking，精确80c11e10 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/feat/unified-agent-loop | 历史恢复引用，非活动研发 | 原feat/unified-agent-loop，精确de648f58 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/feat/work-attempt-binding | 历史恢复引用，非活动研发 | 原feat/work-attempt-binding，精确c9e57152 | 旧UI撤回、PR50已关闭；当前Work/native归dev；不得整体合并旧候选 | shared-agent |
+| archive/branch-ownership-20261114/fix/deployment-answer-acceptance | 历史恢复引用，非活动研发 | 原fix/deployment-answer-acceptance，精确42a647bf | 原回答增强已撤回；只保留精确历史，不作为活动研发或验收通过版本 | shared-agent |
+| archive/branch-ownership-20261114/fix/gateway-correlation-and-artifact-lineage | 历史恢复引用，非活动研发 | 原fix/gateway-correlation-and-artifact-lineage，精确9995f0ca | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | model-decision |
+| archive/branch-ownership-20261114/fix/gateway-failure-diagnostics | 历史恢复引用，非活动研发 | 原fix/gateway-failure-diagnostics，精确f397fbef | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/fix/lightweight-tool-contract-handling | 历史恢复引用，非活动研发 | 原fix/lightweight-tool-contract-handling，精确ad72c353 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/improve/issue-4-active-recovery | 历史恢复引用，非活动研发 | 原improve/issue-4-active-recovery，精确c3b78bc1 | 无独立产品代码；问题另见Issue4，不把关闭旧诊断分支当作问题修复 | shared-agent |
+| archive/branch-ownership-20261114/improve/run-process-window | 历史恢复引用，非活动研发 | 原improve/run-process-window，精确22acf1bb | 补丁等价已在dev；不另开界面研发线 | shared-agent |
+| archive/branch-ownership-20261114/uukuguy/butterflyray | 历史恢复引用，非活动研发 | 原uukuguy/butterflyray，精确cf72393b | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | main |
+| archive/branch-ownership-20261114/uukuguy/native-execution-release-20261106 | 历史恢复引用，非活动研发 | 原uukuguy/native-execution-release-20261106，精确c9be2193 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
+| archive/branch-ownership-20261114/uukuguy/presentation-templates-20261108 | 历史恢复引用，非活动研发 | 原uukuguy/presentation-templates-20261108，精确cadc2f3a | 8个运行/测试文件与dev相同；余下模板工作归20261110候选 | shared-agent |
+| uukuguy/reference-execution-research | 独立研究，暂停 | 2bd086af；设计/可行性试验；2026-11-07已移出主线交付 | 归核心演进笔记；用户恢复时先同步dev和验证实际网关契约 | research |
+| docs/branch-ownership-audit-20261114 | 临时治理文档切片 | 当前审计与归属报告，不是新增实现线 | 定向本地检查后申请一次文档CI；经PR入dev即关闭 | shared-agent |
+| archive/answer-recovery-before-rollback-20261012 | 历史恢复引用，非活动研发 | 精确42a647bf；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
+| archive/pi-before-dev-baseline-20261015 | 历史恢复引用，非活动研发 | 精确38e19db6；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
+| recovery/architecture-retirement-local-20261114 | 历史恢复引用，非活动研发 | 精确a89afbf6；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
+| recovery/investigation-closeout-dev-20261110 | 历史恢复引用，非活动研发 | 精确d4065486；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
+| recovery/reply-phase-20261014 | 历史恢复引用，非活动研发 | 精确3f5207df；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
+| recovery/root-before-dev-20261025 | 历史恢复引用，非活动研发 | 精确6c8f531e；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 
 ## 提出但未实施
 

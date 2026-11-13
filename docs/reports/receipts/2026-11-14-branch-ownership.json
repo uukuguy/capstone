@@ -1,0 +1,253 @@
+{
+  "baseline": "4b857ac943ea49e03fabe9299f0684a3bab0fa20",
+  "local_work_heads_before": 30,
+  "local_work_heads_after": 2,
+  "archived_heads": 28,
+  "git_ancestor_heads": 22,
+  "classified_nonancestor_heads": 6,
+  "remote_heads_closed": 17,
+  "preserved_worktrees": 14,
+  "dirty_files_hash_verified": 53,
+  "remaining": [
+    "uukuguy/ppt-template-library-20261110",
+    "uukuguy/reference-execution-research"
+  ],
+  "remaining_remote": [
+    "uukuguy/ppt-template-library-20261110"
+  ],
+  "archive_mapping": [
+    {
+      "branch": "chore/dev-macos-ci",
+      "sha": "a14169aae68904f94e5965f7e96b55d585d64cf2",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/chore/dev-macos-ci",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "chore/proportional-workbench-ci",
+      "sha": "f339f1828d98de4594457a7e8d3b2bf86d59cd6f",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/chore/proportional-workbench-ci",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "docs/ci-consent-policy",
+      "sha": "d16534242d437c7a9a05105e7653f8d616a11f59",
+      "ancestor_of_dev": false,
+      "archive_branch": "archive/branch-ownership-20261114/docs/ci-consent-policy",
+      "owner": "dev / repository governance",
+      "disposition": "Policy already present:13 of13 added nonempty lines match AGENTS"
+    },
+    {
+      "branch": "docs/compact-progress-20261106",
+      "sha": "5b9e4a5d4d8a8772109293564d6da6e660da260e",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/docs/compact-progress-20261106",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "docs/dev-trial-release-state",
+      "sha": "783213489abd383bbf79225b29d9d718451dc597",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/docs/dev-trial-release-state",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "docs/execution-chain-closeout-20261030",
+      "sha": "15db0a5d1adcc3e8976a679d5bd3667edbe82066",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/docs/execution-chain-closeout-20261030",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "docs/repaired-light-chain-diagnosis-20261030",
+      "sha": "2d0acbd091dc673fddeecd9b9958629981f16cfa",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/docs/repaired-light-chain-diagnosis-20261030",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "docs/shared-workspace-acceptance",
+      "sha": "c09235fd1fb295b19c915b10280d497bff715f50",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/docs/shared-workspace-acceptance",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "docs/thinking-dev-closeout",
+      "sha": "722f396f3bc4b7bee069c4c100d047244b169baa",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/docs/thinking-dev-closeout",
+      "owner": "dev / project control and verification governance",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "experiment/autonomous-research",
+      "sha": "bf678f21bf14fe236e15b0d854892edee7279b25",
+      "ancestor_of_dev": false,
+      "archive_branch": "archive/branch-ownership-20261114/experiment/autonomous-research",
+      "owner": "Research backlog / R0 reference",
+      "disposition": "Reference experiment only; not a production or deployment acceptance"
+    },
+    {
+      "branch": "feat/business-analysis",
+      "sha": "45913f1cd71a39b6f160305d0da02081b1e2b1c0",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/feat/business-analysis",
+      "owner": "dev / enterprise application backlog (no independent implementation)",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "feat/gateway-electrical-views",
+      "sha": "f1e6e9fda332d324c4f6778a5325ee56c513f0cf",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/feat/gateway-electrical-views",
+      "owner": "dev / registered grid application and bounded view presentation",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "feat/model-decision",
+      "sha": "00a8cd85975107a55455cb981152d83d0a69e034",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/feat/model-decision",
+      "owner": "dev / registered grid application and bounded view presentation",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "feat/provincial-electrical-view",
+      "sha": "9995f0cacb19b97571debe0455d1433977c86920",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/feat/provincial-electrical-view",
+      "owner": "dev / registered grid application and bounded view presentation",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "feat/purpose-electrical-diagrams",
+      "sha": "f9010be59e8e255f139f13e3764e2a546a520b6d",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/feat/purpose-electrical-diagrams",
+      "owner": "dev / registered grid application and bounded view presentation",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "feat/research-model",
+      "sha": "275dc00f36623331e877c13ee42d72256439c4aa",
+      "ancestor_of_dev": false,
+      "archive_branch": "archive/branch-ownership-20261114/feat/research-model",
+      "owner": "Research backlog / R1–R5 design",
+      "disposition": "Only6 document paths differ; no R1 implementation"
+    },
+    {
+      "branch": "feat/streamed-thinking",
+      "sha": "80c11e10b19319280bf2914a6ac962565bfb3204",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/feat/streamed-thinking",
+      "owner": "dev / shared native conversation and execution",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "feat/unified-agent-loop",
+      "sha": "de648f58fc6b24fd75506d4d80c578ed51cfb969",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/feat/unified-agent-loop",
+      "owner": "dev / shared native conversation and execution",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "feat/work-attempt-binding",
+      "sha": "c9e571521a687f15598c626b0b239e28bf41ad7e",
+      "ancestor_of_dev": false,
+      "archive_branch": "archive/branch-ownership-20261114/feat/work-attempt-binding",
+      "owner": "dev / current Work and native conversation",
+      "disposition": "Superseded draft;PR50 closed; preserve localc9e57152 and remote5e7fccc1 separately"
+    },
+    {
+      "branch": "fix/deployment-answer-acceptance",
+      "sha": "42a647bf08688ef6bd6ac560a2f83f364fc90312",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/fix/deployment-answer-acceptance",
+      "owner": "dev / project control of withdrawn answer proposal",
+      "disposition": "Git ancestry is retained but feature acceptance was withdrawn;not an active delivery"
+    },
+    {
+      "branch": "fix/gateway-correlation-and-artifact-lineage",
+      "sha": "9995f0cacb19b97571debe0455d1433977c86920",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/fix/gateway-correlation-and-artifact-lineage",
+      "owner": "dev / shared execution and MCP gateway adapter",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "fix/gateway-failure-diagnostics",
+      "sha": "f397fbef78640d6c8a1402ee0ccdb7b2f4599cc4",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/fix/gateway-failure-diagnostics",
+      "owner": "dev / shared execution and MCP gateway adapter",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "fix/lightweight-tool-contract-handling",
+      "sha": "ad72c353c2ff1da4baa7baf5f81555ff19e9a217",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/fix/lightweight-tool-contract-handling",
+      "owner": "dev / shared execution and MCP gateway adapter",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "improve/issue-4-active-recovery",
+      "sha": "c3b78bc17aed1cc49f41c89b25069a2545ac7a3d",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/improve/issue-4-active-recovery",
+      "owner": "dev / operator maintenance and Issue4 diagnosis",
+      "disposition": "No independent product change;closing the old diagnostic head does not resolve the issue"
+    },
+    {
+      "branch": "improve/run-process-window",
+      "sha": "22acf1bb4d6ffc6783c9b5ecd2f286fbf573db86",
+      "ancestor_of_dev": false,
+      "archive_branch": "archive/branch-ownership-20261114/improve/run-process-window",
+      "owner": "dev / conversation presentation",
+      "disposition": "Patch-equivalent:git cherry reports minus for22acf1bb"
+    },
+    {
+      "branch": "uukuguy/butterflyray",
+      "sha": "cf72393bd6377d1de11d02a93728cdaa746a75d4",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/uukuguy/butterflyray",
+      "owner": "main / accepted release history",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "uukuguy/native-execution-release-20261106",
+      "sha": "c9be2193b64951545e207398faedebcd7d78ac31",
+      "ancestor_of_dev": true,
+      "archive_branch": "archive/branch-ownership-20261114/uukuguy/native-execution-release-20261106",
+      "owner": "dev / shared native conversation and execution",
+      "disposition": "Git ancestor of accepted dev; historical head retained"
+    },
+    {
+      "branch": "uukuguy/presentation-templates-20261108",
+      "sha": "cadc2f3a91ce47e78d854c34476aa25be67cb14b",
+      "ancestor_of_dev": false,
+      "archive_branch": "archive/branch-ownership-20261114/uukuguy/presentation-templates-20261108",
+      "owner": "dev renderer baseline;remaining work in PPT candidate",
+      "disposition": "8 runtime/test files byte-identical;LLM tool delta only orchestrator role metadata"
+    }
+  ],
+  "administrative_branch": {
+    "name": "docs/branch-ownership-audit-20261114",
+    "owner": "dev / project control",
+    "scope": "temporary documentation integration, not another implementation line"
+  },
+  "remote_archive_tags": {
+    "archive/20261114-branch-ownership/research-model": "275dc00f36623331e877c13ee42d72256439c4aa",
+    "archive/20261114-branch-ownership/work-attempt-binding": "5e7fccc1f8b9e32085d30f4c1a6f6e7fc6d7ab93"
+  }
+}
