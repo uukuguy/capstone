@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from capstone_agent.worker import PreparedWorker, read_verified_reference, serve_application
 from capstone_agent.prompt_hints import build_case_prompt_decorator
+from capstone_agent.runtime import load_runtime_environment
 from capability_agent.runtime.catalog import ProviderCatalog
 
 from grid_agent.application.composition import build_generic_application
@@ -232,7 +233,6 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
         raise ValueError("Provider is invalid")
     if model is not None and not isinstance(model, str):
         raise ValueError("model is invalid")
-    from grid_agent.cli.app import _generic_runtime_environment, _runtime_environment
 
     prompt_decorator = None
     if provider_case_id is not None:
@@ -290,7 +290,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
         provider_catalog=ProviderCatalog.load(ROOT / "configs/llm-providers.json"),
         workspace_root=ROOT / "runs" / "capstone-agent",
         run_id=run_id,
-        environment=_generic_runtime_environment(_runtime_environment(ROOT)),
+        environment=load_runtime_environment(ROOT),
         semantic_event_observer=observer,
         prompt_decorator=prompt_decorator,
     )
