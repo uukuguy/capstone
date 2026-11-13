@@ -16,10 +16,10 @@ from pandapower_application.analysis_turns import ActiveTurnHandle, FinalizedTur
 from pandapower_domain.context_view import materialize_context_view
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.runtime.rpc import PiProtocolError, SemanticEventCallback
-from grid_agent.observability.trace import JsonlTraceWriter
+from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.trajectory.artifacts import ArtifactIntegrityError
-from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
-from grid_agent.trajectory.context_bridge import NativeContextBridge
+from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter
+from pandapower_application.context_bridge import NativeContextBridge
 from capability_agent.trajectory.reader import RunEventReader
 from capability_agent.trajectory.recorder import RecorderIntegrityError
 

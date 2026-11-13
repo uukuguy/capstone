@@ -16,7 +16,7 @@ from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.answers import ReferenceVerifier
-from grid_agent.trajectory.context_bridge import NativeContextBridge
+from pandapower_application.context_bridge import NativeContextBridge
 from grid_agent.trajectory.reader import RunEventReader
 from grid_agent.trajectory.recorder import RunEventRecorder
 

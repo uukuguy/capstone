@@ -41,7 +41,7 @@ from grid_agent.trajectory.projection_models import (
     NodeSource,
     ProjectedRun,
 )
-from grid_agent.trajectory.request_input import (
+from capability_agent.trajectory.request_input import (
     CanonicalRequestValidationError,
     canonical_request_preview,
 )

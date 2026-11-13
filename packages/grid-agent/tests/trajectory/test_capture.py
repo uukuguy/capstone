@@ -10,7 +10,7 @@ from pandapower_domain.authority import _sha256_canonical_json
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
+from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter
 from grid_agent.trajectory.reader import RunEventReader
 from grid_agent.trajectory.recorder import RunEventRecorder
 

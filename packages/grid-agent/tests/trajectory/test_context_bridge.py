@@ -32,7 +32,7 @@ RUNTIME = {
 
 def _bridge_type() -> type[Any]:
     try:
-        from grid_agent.trajectory.context_bridge import NativeContextBridge
+        from pandapower_application.context_bridge import NativeContextBridge
     except ModuleNotFoundError:
         pytest.fail("NativeContextBridge is not implemented")
     return NativeContextBridge

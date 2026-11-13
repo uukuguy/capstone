@@ -1,4 +1,4 @@
-from grid_agent.trajectory.request_input import semantic_request_sha256
+from capability_agent.trajectory.request_input import semantic_request_sha256
 
 
 def test_semantic_digest_matches_javascript_without_rewriting_string_exponents() -> None:

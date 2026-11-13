@@ -15,7 +15,7 @@ from capability_agent.runtime.rpc import (
     SemanticEventCallback,
     TRACEABLE_RPC_TYPES,
 )
-from grid_agent.trajectory.capture import CaptureIntegrityError
+from pandapower_application.capture import CaptureIntegrityError
 
 
 class PiRpcClient(_PiRpcClient):

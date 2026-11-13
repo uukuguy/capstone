@@ -25,7 +25,7 @@ from capability_agent.trajectory.events import (
     RunScope,
 )
 from capability_agent.trajectory.recorder import RunEventRecorder
-from grid_agent.trajectory.request_input import (
+from capability_agent.trajectory.request_input import (
     CanonicalModelRequestDocument,
     CanonicalRequestValidationError,
     validate_canonical_model_request_document,

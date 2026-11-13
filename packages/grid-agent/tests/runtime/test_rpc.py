@@ -14,14 +14,14 @@ import pytest
 
 from capability_agent.runtime import rpc as kernel_rpc
 from pandapower_application.run_workspace import RunWorkspace
-from grid_agent.observability.trace import JsonlTraceWriter
+from capability_agent.runtime.trace import JsonlTraceWriter
 from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 from grid_agent.runtime.rpc import PiProtocolError, PiRpcClient
 from grid_agent.runtime.environment import PiLaunch
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
+from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter
 from grid_agent.trajectory.reader import RunEventReader
 from grid_agent.trajectory.recorder import RunEventRecorder
 

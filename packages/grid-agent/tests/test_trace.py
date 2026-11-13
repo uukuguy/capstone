@@ -2,7 +2,7 @@ import json
 from datetime import UTC, datetime
 
 from pandapower_application.run_workspace import RunWorkspace
-from grid_agent.observability.trace import JsonlTraceWriter
+from capability_agent.runtime.trace import JsonlTraceWriter
 
 
 def test_workspace_create_sets_expected_paths(tmp_path) -> None:

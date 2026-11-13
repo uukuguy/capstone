@@ -17,8 +17,8 @@ from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.runtime.rpc import PiProtocolError
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
-from grid_agent.trajectory.context_bridge import NativeContextBridge
+from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter
+from pandapower_application.context_bridge import NativeContextBridge
 from grid_agent.trajectory.events import EventDraft
 from grid_agent.trajectory.reader import RunEventReader
 from grid_agent.trajectory.recorder import RecorderIntegrityError, RunEventRecorder
@@ -627,7 +627,7 @@ def test_runner_does_not_write_context_events_after_terminal_completion(
     runner_harness: RunnerHarness,
     tmp_path: Path,
 ) -> None:
-    from grid_agent.observability.trace import JsonlTraceWriter
+    from capability_agent.runtime.trace import JsonlTraceWriter
 
     runner_harness.runner._trace = JsonlTraceWriter(runner_harness.workspace.trace_path)
     outcome = runner_harness.runner.run(AnalysisRequest(analysis_id="analysis-test", instructions=("一",)))
