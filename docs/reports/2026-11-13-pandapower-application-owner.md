@@ -2,6 +2,15 @@
 
 ## Final installed retirement candidate
 
+Real-model follow-up on the same installed source passed: a new Thread uploaded
+a CSV, used tools to compute the value sum and saved total=10;continuation read
+that product and saved previous_total=10. Both downloaded files match registered
+SHA256 values. A new HTTP snapshot read restored completed state. Stages took
+8.178s and10.224s (single samples). The [bounded receipt](receipts/2026-11-13-retirement-real-runtime.json)
+contains product digests without model reasoning or credentials. This verifies
+HTTP restore and actual model/tool/product continuation;browser recovery and
+visual acceptance remain unverified.
+
 Source `ecb5781b` removes the old distribution, source and CLI. Remaining shared
 tests live in pandapower-application and development gates select its environment.
 399 critical tests and239 gate/contract checks passed after fixing stale paths.
