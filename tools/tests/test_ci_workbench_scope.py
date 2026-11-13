@@ -42,7 +42,7 @@ def test_frontend_only_does_not_run_backend_suites(path):
     'packages/capability-agent-kernel/src/capability_agent/runtime/environment.py',
     'packages/capstone-agent/src/capstone_agent/kernel_pi_session.py',
     'packages/capstone-agent/pyproject.toml',
-    'packages/grid-agent/uv.lock', 'Makefile', 'unknown.file',
+    'packages/pandapower-application/uv.lock', 'Makefile', 'unknown.file',
     'packages/capstone-app/src/../../../unknown.py',
     '.superpowers/sdd/executable.py',
 ])

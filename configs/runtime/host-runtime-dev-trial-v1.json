@@ -28,8 +28,8 @@
     },
     "pandapower": {
       "application": "pandapower",
-      "project": "grid-agent",
-      "module": "grid_agent.hosted_worker",
+      "project": "pandapower-application",
+      "module": "pandapower_application.hosted_worker",
       "family": "pandapower",
       "environment": {}
     },

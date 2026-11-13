@@ -9,6 +9,168 @@ from test_enterprise_normal_chat import chat_store
 from test_thread_postgres import postgres_thread_service
 
 
+def test_resource_pages_cover_published_files_and_reject_changed_scope(chat_store):
+    service, thread = chat_store
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    ids=[]
+    for index in range(3):
+        uid=uploads.begin(thread, f'{index}.csv', 4, f'page{index}', True)['upload_id']
+        uploads.part(thread, uid, 0, b'abcd')
+        ids.append(uploads.complete(thread, uid)['resource_id'])
+    first=uploads.resource_page(thread, draft=True, limit=2)
+    assert [r['resource_id'] for r in first['resources']]==ids[:2]
+    second=uploads.resource_page(thread, draft=True, limit=2, cursor=first['next_cursor'])
+    assert [r['resource_id'] for r in second['resources']]==ids[2:]
+    assert second['next_cursor'] is None
+    with pytest.raises(ValueError, match='cursor'):
+        uploads.resource_page(thread, draft=False, limit=2, cursor=first['next_cursor'])
+    uploads.cancel(thread, ids[2].replace('resource_','upload_'))
+    with pytest.raises(ValueError, match='changed'):
+        uploads.resource_page(thread, draft=True, limit=2, cursor=first['next_cursor'])
+
+
+def test_retry_recovers_create_only_object_written_before_ack(chat_store):
+    service, thread = chat_store
+    class CreateOnlyStore(MemoryObjectStore):
+        def put(self, key, content, mime):
+            if key in self.contents:
+                raise FileExistsError('immutable object exists')
+            super().put(key, content, mime)
+            raise OSError('response lost after storage accepted bytes')
+    objects = CreateOnlyStore()
+    uploads = ResourceUploads(service, objects, chunk_bytes=4)
+    uid = uploads.begin(thread, 'recover.csv', 4, 'immutable')['upload_id']
+    # A retry must verify existing bytes and complete even when storage forbids overwrite.
+    with pytest.raises(OSError, match='response lost'):
+        uploads.part(thread, uid, 0, b'abcd')
+    uploads.part(thread, uid, 0, b'abcd')
+    resource = uploads.complete(thread, uid)
+    assert b''.join(uploads.read(thread, resource['resource_id'])) == b'abcd'
+
+
+def test_resource_projection_rebuilds_from_events_and_reads_one_part(postgres_thread_service):
+    from dataclasses import replace
+    from test_thread_postgres import _snapshot
+    service, thread = postgres_thread_service
+    service.create_thread(replace(_snapshot(thread), active_model_context=None, active_grid_page_id=None, minimum_protocol_version=2))
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    uid = uploads.begin(thread, 'data.csv', 8, 'projection')['upload_id']
+    uploads.part(thread, uid, 0, b'abcd')
+    uploads.part(thread, uid, 1, b'efgh')
+    expected = uploads.status(thread, uid)
+    assert set(uploads._state(thread, uid, part_index=1)['parts']) == {1}
+    with service._connect() as connection:
+        connection.execute('DELETE FROM capstone_resource_projection_cursors WHERE thread_id=%s', (thread,))
+    assert ResourceUploads(service, uploads.objects).status(thread, uid) == expected
+
+
+def test_resource_projection_skips_unrelated_payloads_but_advances_cursor(postgres_thread_service, monkeypatch):
+    from capstone_agent import resource_projection
+    from capstone_agent.thread_materials import _mutate, _write_event
+    from test_thread_postgres import _snapshot
+    service, thread = postgres_thread_service
+    service.create_thread(_snapshot(thread))
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    uid = uploads.begin(thread, 'bounded.csv', 4, 'bounded')['upload_id']
+    uploads.part(thread, uid, 0, b'abcd')
+    uploads.complete(thread, uid)
+    original_page = uploads.resource_page(thread)
+    _mutate(service, thread, lambda snapshot, connection: _write_event(
+        service, snapshot, 'runtime_event', {'text': 'x' * 4096}, connection))
+    observed = []
+    apply = resource_projection._apply
+    def track(connection, thread_id, event):
+        observed.append(event['event_type'])
+        return apply(connection, thread_id, event)
+    monkeypatch.setattr(resource_projection, '_apply', track)
+    assert uploads.resource_page(thread) == original_page
+    assert observed == []  # Unrelated payloads must not enter resource replay.
+    with service._connect() as connection:
+        cursor = connection.execute('SELECT event_seq FROM capstone_resource_projection_cursors WHERE thread_id=%s', (thread,)).fetchone()['event_seq']
+    assert cursor == service.snapshot(thread).last_event_seq
+
+
+def test_resource_projection_rolls_back_with_events(postgres_thread_service):
+    from test_thread_postgres import _snapshot
+    service, thread = postgres_thread_service
+    service.create_thread(_snapshot(thread))
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    uid = uploads.begin(thread, 'rollback.csv', 4, 'rollback')['upload_id']
+    original = uploads.status(thread, uid)
+    from capstone_agent.thread_materials import _write_event
+    with pytest.raises(RuntimeError, match='rollback'):
+        with service._connect() as connection:
+            connection.execute('SELECT thread_id FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread,))
+            _write_event(service, service.snapshot(thread), 'resource_upload_cancelled', {'upload_id': uid, 'state': 'cancelled'}, connection)
+            assert uploads._state(thread, uid, connection)['state'] == 'cancelled'
+            raise RuntimeError('rollback')
+    assert uploads.status(thread, uid) == original
+
+
+def test_late_duplicate_part_acknowledges_already_published_bytes(chat_store):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, Lock
+    service, thread = chat_store
+    entered, release = Event(), Event()
+
+    class DelayedDuplicate(MemoryObjectStore):
+        calls = 0
+        guard = Lock()
+
+        def put(self, key, content, mime):
+            with self.guard:
+                self.calls += 1
+                first = self.calls == 1
+            if first:
+                entered.set()
+                assert release.wait(5)
+            super().put(key, content, mime)
+
+    objects = DelayedDuplicate()
+    uploads = ResourceUploads(service, objects, chunk_bytes=4)
+    uid = uploads.begin(thread, 'duplicate.csv', 4, 'duplicate')['upload_id']
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        delayed = pool.submit(uploads.part, thread, uid, 0, b'abcd')
+        try:
+            assert entered.wait(2)
+            acknowledged = uploads.part(thread, uid, 0, b'abcd')
+            resource = uploads.complete(thread, uid)
+        finally:
+            release.set()
+        assert delayed.result(timeout=2) == acknowledged
+    assert b''.join(uploads.read(thread, resource['resource_id'])) == b'abcd'
+    assert len([e for e in uploads._events(thread) if e.event_type == 'resource_part_stored']) == 1
+
+
+def test_cancel_does_not_wait_for_object_write_and_removes_late_bytes(chat_store):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    service, thread = chat_store
+    entered, release = Event(), Event()
+
+    class SlowStore(MemoryObjectStore):
+        def put(self, key, content, mime):
+            entered.set()
+            assert release.wait(5)
+            super().put(key, content, mime)
+
+    objects = SlowStore()
+    uploads = ResourceUploads(service, objects, chunk_bytes=4)
+    uid = uploads.begin(thread, 'slow.csv', 4, 'slow', True)['upload_id']
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        writing = pool.submit(uploads.part, thread, uid, 0, b'abcd')
+        try:
+            assert entered.wait(2)
+            cancelling = pool.submit(uploads.cancel, thread, uid)
+            cancelling.result(timeout=1)
+        finally:
+            release.set()
+        with pytest.raises(ValueError, match='closed|expired'):
+            writing.result(timeout=2)
+    assert uploads.status(thread, uid)['state'] == 'cancelled'
+    assert not objects.contents
+
+
 def test_draft_attachment_is_only_admitted_by_accepted_send(chat_store):
     from test_enterprise_normal_chat import native_executor
     from test_thread_work_execution import command

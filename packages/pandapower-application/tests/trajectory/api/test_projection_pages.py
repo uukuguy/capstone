@@ -1,0 +1,861 @@
+from __future__ import annotations
+
+import json
+import pytest
+from hashlib import sha256
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from pandapower_application.trajectory.projection_models import (
+    ApplicationProjectionMetadata,
+    AgentStep,
+    AgentTrajectory,
+    AgentTurn,
+    ArtifactIndex,
+    ArtifactIndexRecord,
+    BindingProjectionMetadata,
+    DomainPayloadView,
+    ContextFrame,
+    ContextTimeline,
+    ModelRequest,
+    ToolCall,
+)
+
+from .test_app import create_test_app
+
+
+@pytest.mark.parametrize("changed_input", ["events", "manifest"])
+def test_real_cached_projection_cursor_tracks_source_changes(tmp_path: Path, changed_input: str) -> None:
+    from pandapower_application.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.catalog import TrajectoryRunCatalog
+    from pandapower_application.trajectory.api.cursor import CursorCodec
+    from pandapower_application.trajectory.events import EventDraft, RunScope
+    from pandapower_application.trajectory.recorder import RunEventRecorder
+    from pandapower_application.trajectory.service import ProjectionService
+
+    run = tmp_path / "runs" / "analysis-cursor"
+    run.mkdir(parents=True)
+    manifest = {
+        "schema_version": "grid-agent-analysis-manifest/1.0",
+        "analysis_id": run.name,
+        "status": "running",
+        "events_path": "events/run-events.jsonl",
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    recorder = RunEventRecorder(run / "events/run-events.jsonl", run.name)
+    try:
+        recorder.append(EventDraft(event_type="analysis.started", payload={}))
+        for ordinal in range(1, 502):
+            recorder.append(EventDraft(
+                event_type="turn.started",
+                scope=RunScope(turn_id=f"{run.name}-t{ordinal:03d}"),
+                payload={"ordinal": ordinal, "instruction_sha256": "4" * 64},
+            ))
+        cache = tmp_path / "cache"
+        service = ProjectionService(cache)
+        catalog = TrajectoryRunCatalog(run.parent, cache, service)
+        app = create_trajectory_app(
+            catalog, CursorCodec.load_or_create(tmp_path / "cursor.key"),
+            allowed_hosts=("testserver",),
+        )
+        client = TestClient(app)
+        endpoint = f"/api/runs/{run.name}/agent"
+        first = client.get(endpoint, params={"kind": "turn"})
+        assert first.status_code == 200
+        cursor = first.json()["older_cursor"]
+        assert cursor
+        cache_files = tuple(cache.rglob("projected-run.json"))
+        assert len(cache_files) == 1
+        before = cache_files[0].stat().st_mtime_ns
+        hot = client.get(endpoint, params={"kind": "turn", "cursor": cursor})
+        assert hot.status_code == 200
+        assert len(hot.json()["items"]) == 1
+        assert cache_files[0].stat().st_mtime_ns == before
+        if changed_input == "events":
+            recorder.append(EventDraft(
+                event_type="turn.started",
+                scope=RunScope(turn_id=f"{run.name}-t502"),
+                payload={"ordinal": 502, "instruction_sha256": "4" * 64},
+            ))
+        else:
+            manifest["status"] = "completed"
+            (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        stale = client.get(endpoint, params={"kind": "turn", "cursor": cursor})
+        assert stale.status_code == 409
+        assert stale.json()["code"] == "stale_cursor"
+    finally:
+        recorder.close()
+
+
+def _sha256_canonical_sorted(value: object) -> str:
+    encoded = json.dumps(
+        _sort_json(value),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return sha256(encoded).hexdigest()
+
+
+def _sort_json(value: object) -> object:
+    if isinstance(value, list):
+        return [_sort_json(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _sort_json(value[key]) for key in sorted(value)}
+    return value
+
+
+def _large_agent_turn() -> AgentTurn:
+    request = ModelRequest(
+        id="agent:analysis-test:request-large",
+        source="observed",
+        source_sequences=(3,),
+        status="completed",
+        request_id="request-large",
+        tools=tuple(
+            ToolCall(
+                id=f"agent:analysis-test:tool-{sequence}",
+                source="observed",
+                source_sequences=(sequence,),
+                status="completed",
+                tool_call_id=f"tool-{sequence}",
+                capability="gridctl",
+                start_sequence=sequence,
+                end_sequence=sequence,
+                artifact_ref="/private/provider/tool-result.json",
+                ok=True,
+            )
+            for sequence in range(4, 505)
+        ),
+    )
+    return AgentTurn(
+        id="agent:analysis-test:turn-large",
+        source="observed",
+        source_sequences=(1,),
+        status="completed",
+        turn_id="analysis-test-t-large",
+        ordinal=1,
+        steps=(
+            AgentStep(
+                id="agent:analysis-test:step-large",
+                source="observed",
+                source_sequences=(2,),
+                status="completed",
+                step_id="step-large",
+                request=request,
+            ),
+        ),
+    )
+
+
+def test_agent_page_flattens_one_large_turn_and_binds_filters(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "source_fingerprint": "source-a",
+            "agent": AgentTrajectory(
+                analysis_id="analysis-test", turns=(_large_agent_turn(),)
+            )
+        }
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/runs/analysis-test/agent",
+        params={"kind": "tool", "capability": "gridctl"},
+    )
+
+    assert response.status_code == 200
+    page = response.json()
+    assert len(page["items"]) == 500
+    assert page["has_older"] is True
+    assert page["older_cursor"]
+    assert page["encoded_bytes"] <= 2 * 1024 * 1024
+    assert [row["source_sequence"] for row in page["items"]] == sorted(
+        row["source_sequence"] for row in page["items"]
+    )
+    assert all(row["kind"] == "tool" for row in page["items"])
+    assert all(row["parent_id"] == "agent:analysis-test:request-large" for row in page["items"])
+    assert all(row["level"] == 4 for row in page["items"])
+    assert all(row["title"] == "gridctl" for row in page["items"])
+    assert "artifact_ref" not in page["items"][0]
+    assert "/private/" not in response.text
+
+    older = client.get(
+        "/api/runs/analysis-test/agent",
+        params={
+            "kind": "tool",
+            "capability": "gridctl",
+            "cursor": page["older_cursor"],
+        },
+    )
+    assert older.status_code == 200
+    assert len(older.json()["items"]) == 1
+    assert older.json()["items"][0]["source_sequence"] == 4
+
+    foreign = client.get(
+        "/api/runs/analysis-test/agent",
+        params={"kind": "request", "cursor": page["older_cursor"]},
+    )
+    assert foreign.status_code == 400
+    assert foreign.json()["code"] == "invalid_cursor"
+    assert foreign.headers["content-security-policy"]
+
+    catalog.projected = catalog.projected.model_copy(
+        update={"source_fingerprint": "sha256:changed"}
+    )
+    stale = client.get(
+        "/api/runs/analysis-test/agent",
+        params={
+            "kind": "tool",
+            "capability": "gridctl",
+            "cursor": page["older_cursor"],
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "stale_cursor"
+
+
+def test_projection_pages_carry_application_and_binding_identity(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    binding = BindingProjectionMetadata(
+        binding_id="inventory",
+        domain_id="inventory-readonly",
+        domain_version="1.0.0",
+        authority_id="inventory-api",
+        schema_id="inventory-output/1.0",
+        presentation={"business_title": "Inventory review"},
+    )
+    application = ApplicationProjectionMetadata(
+        application_id="inventory-review",
+        application_version="2.0.0",
+        bindings={"inventory": binding},
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "application": application,
+            "agent": catalog.projected.agent.model_copy(update={"binding": binding}),
+            "business": catalog.projected.business.model_copy(
+                update={"application": application, "binding": binding}
+            ),
+            "context": catalog.projected.context.model_copy(update={"binding": binding}),
+            "artifacts": catalog.projected.artifacts.model_copy(update={"binding": binding}),
+        }
+    )
+    client = TestClient(app)
+
+    business = client.get("/api/runs/analysis-test/business")
+    agent = client.get("/api/runs/analysis-test/agent")
+    context = client.get("/api/runs/analysis-test/context")
+    evidence = client.get("/api/runs/analysis-test/evidence")
+
+    for response in (business, agent, context, evidence):
+        assert response.status_code == 200
+        page = response.json()
+        assert page["application_id"] == "inventory-review"
+        assert page["application_version"] == "2.0.0"
+        assert page["binding_id"] == "inventory"
+        assert page["domain_id"] == "inventory-readonly"
+        assert page["authority_id"] == "inventory-api"
+        assert page["schema"] == "inventory-output/1.0"
+        assert page["bindings"][0]["binding_id"] == "inventory"
+
+    assert business.json()["items"][0]["authority_id"] == "inventory-api"
+    assert business.json()["items"][0]["nodes"][0]["authority_id"] == "inventory-api"
+    assert agent.json()["items"][0]["authority_id"] == "inventory-api"
+    assert context.json()["items"][0]["authority_id"] == "inventory-api"
+    assert evidence.json()["items"][0]["authority_id"] == "inventory-api"
+
+
+def test_empty_business_page_keeps_projected_application_bindings_and_identity(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    primary = BindingProjectionMetadata(
+        binding_id="grid-static",
+        domain_id="pandapower",
+        domain_version="3.4.0",
+        authority_id="grid-simulator",
+        schema_id="grid-capability/1.0",
+    )
+    secondary = BindingProjectionMetadata(
+        binding_id="asset-register",
+        domain_id="asset-registry",
+        domain_version="1.2.0",
+        authority_id="asset-api",
+        schema_id="asset-capability/1.0",
+    )
+    application = ApplicationProjectionMetadata(
+        application_id="multi-domain-review",
+        application_version="1.0.1",
+        bindings={"grid-static": primary, "asset-register": secondary},
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "application": application,
+            "business": catalog.projected.business.model_copy(
+                update={"problems": (), "application": application, "binding": primary}
+            ),
+        }
+    )
+
+    response = TestClient(app).get("/api/runs/analysis-test/business")
+
+    assert response.status_code == 200
+    page = response.json()
+    assert page["items"] == []
+    assert page["application_id"] == "multi-domain-review"
+    assert page["application_version"] == "1.0.1"
+    assert [binding["binding_id"] for binding in page["bindings"]] == [
+        "grid-static", "asset-register"
+    ]
+    assert page["binding_id"] == "grid-static"
+    assert page["domain_id"] == "pandapower"
+    assert page["authority_id"] == "grid-simulator"
+    assert page["schema"] == "grid-capability/1.0"
+
+
+def test_business_page_keeps_unknown_domain_payload_opaque(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    payload = DomainPayloadView(
+        binding_id="inventory",
+        domain_id="inventory-readonly",
+        authority_id="inventory-api",
+        schema_id="inventory-output/1.0",
+        payload={"items": [{"sku": "A-1", "available": 4}]},
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "business": catalog.projected.business.model_copy(
+                update={"problems": (), "domain_payload": payload}
+            )
+        }
+    )
+
+    response = TestClient(app).get("/api/runs/analysis-test/business")
+
+    assert response.status_code == 200
+    row = response.json()["items"][0]
+    assert row["domain_payload"]["interpretation"] == "opaque"
+    assert row["domain_payload"]["payload"] == {
+        "items": [{"sku": "A-1", "available": 4}]
+    }
+    assert row["nodes"][0]["kind"] == "domain-payload"
+    assert row["nodes"][0]["payload"] == row["domain_payload"]["payload"]
+
+
+def test_agent_page_applies_turn_status_capability_and_text_filters(
+    tmp_path: Path,
+) -> None:
+    app, _, _ = create_test_app(tmp_path)
+
+    response = TestClient(app).get(
+        "/api/runs/analysis-test/agent",
+        params={
+            "turn_id": "analysis-test-t007",
+            "kind": "tool",
+            "status": "completed",
+            "capability": "grid.analyze",
+            "q": "GRID.ANALYZE",
+        },
+    )
+
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["items"]] == [
+        "agent:analysis-test:tool-7"
+    ]
+
+
+def test_agent_tool_row_preserves_recorded_completion_relation(tmp_path: Path) -> None:
+    app, _, _ = create_test_app(tmp_path)
+
+    response = TestClient(app).get(
+        "/api/runs/analysis-test/agent",
+        params={"kind": "tool", "q": "grid.analyze"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == [
+        {
+            "id": "agent:analysis-test:tool-7",
+            "parent_id": "agent:analysis-test:request-7",
+            "turn_id": "analysis-test-t007",
+            "kind": "tool",
+            "level": 4,
+            "source_sequence": 49,
+            "start_sequence": 48,
+            "end_sequence": 49,
+            "related_refs": [],
+            "source": "observed",
+            "status": "completed",
+            "unavailable_reason": None,
+            "title": "Tool",
+            "detail": None,
+        }
+    ]
+
+
+def test_agent_page_never_echoes_internal_capabilities_or_artifact_paths(
+    tmp_path: Path,
+) -> None:
+    app, _, _ = create_test_app(tmp_path)
+
+    response = TestClient(app).get("/api/runs/analysis-test/agent")
+
+    assert response.status_code == 200
+    assert "provider_payload" not in response.text
+    assert "reasoning_content" not in response.text
+    assert "thinkingSignature" not in response.text
+    assert "GRID_AGENT_TRAJECTORY_ACKS" not in response.text
+    assert "artifact_ref" not in response.text
+    assert "/private/" not in response.text
+
+
+def test_context_page_is_summary_only_and_detail_remains_exact(tmp_path: Path) -> None:
+    app, _, _ = create_test_app(tmp_path)
+    client = TestClient(app)
+
+    response = client.get("/api/runs/analysis-test/context")
+
+    assert response.status_code == 200
+    page = response.json()
+    assert page["items"] == [
+        {
+            "id": "context:analysis-test:900",
+            "source_sequence": 900,
+            "before_revision": 1,
+            "after_revision": 2,
+            "changed": True,
+            "request_input_available": False,
+            "request_input_unavailable_reason": "No following model request",
+            "event_kind": "context-frame",
+        }
+    ]
+    assert "before_state" not in response.text
+    assert "after_state" not in response.text
+    assert "request_artifact_ref" not in response.text
+
+    detail = client.get("/api/runs/analysis-test/context", params={"at_sequence": 900})
+    assert detail.status_code == 200
+    assert detail.json()["before_state"] == {"model": "before"}
+    assert detail.json()["delta"] == {"model": "changed"}
+    assert detail.json()["after_state"] == {"model": "after"}
+    assert detail.json()["max_sequence"] == 900
+
+
+def test_context_filters_ranges_change_and_request_input(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    with_request = ContextFrame(
+        id="context:analysis-test:901",
+        source_sequences=(901,),
+        rule_id="context-state-delta/v1",
+        source_sequence=901,
+        before_revision=2,
+        after_revision=2,
+        before_state_hash="b" * 64,
+        after_state_hash="b" * 64,
+        before_state={"model": "after"},
+        delta={},
+        after_state={"model": "after"},
+        request_artifact_ref=catalog.artifact_ref,
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "context": ContextTimeline(
+                analysis_id="analysis-test",
+                frames=(*catalog.projected.context.frames, with_request),
+            )
+        }
+    )
+    client = TestClient(app)
+
+    changed = client.get(
+        "/api/runs/analysis-test/context",
+        params={
+            "from_sequence": 900,
+            "to_sequence": 900,
+            "from_revision": 1,
+            "to_revision": 2,
+            "changed": True,
+            "request_input": False,
+        },
+    )
+    unchanged = client.get(
+        "/api/runs/analysis-test/context",
+        params={"changed": False, "request_input": True},
+    )
+
+    assert changed.status_code == 200
+    assert [row["source_sequence"] for row in changed.json()["items"]] == [900]
+    assert unchanged.status_code == 200
+    assert [row["source_sequence"] for row in unchanged.json()["items"]] == [901]
+
+
+def test_context_request_input_requires_verified_artifact_registration(
+    tmp_path: Path,
+) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    request_ref = "artifact:unverified-request"
+    persisted_reason = "request input digest did not match the registered artifact"
+    frame = ContextFrame(
+        id="context:analysis-test:901",
+        source_sequences=(901,),
+        rule_id="context-state-delta/v1",
+        source_sequence=901,
+        before_revision=2,
+        after_revision=3,
+        before_state_hash="b" * 64,
+        after_state_hash="c" * 64,
+        before_state={"model": "before"},
+        delta={"model": "changed"},
+        after_state={"model": "after"},
+        request_artifact_ref=request_ref,
+    )
+    unverified = ArtifactIndexRecord(
+        id="artifact:analysis-test:unverified-request",
+        source="observed",
+        source_sequences=(901,),
+        status="unavailable",
+        unavailable_reason=persisted_reason,
+        reference=request_ref,
+        kind="model-request",
+        relative_path="unavailable",
+        sha256="unavailable",
+        verification_status="unavailable",
+        producing_sequence=901,
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "context": ContextTimeline(
+                analysis_id="analysis-test",
+                frames=(frame,),
+            ),
+            "artifacts": ArtifactIndex(
+                analysis_id="analysis-test",
+                records={request_ref: unverified},
+            ),
+        }
+    )
+    client = TestClient(app)
+
+    summary = client.get("/api/runs/analysis-test/context").json()["items"][0]
+    detail = client.get(
+        "/api/runs/analysis-test/context", params={"at_sequence": 901}
+    ).json()
+
+    assert summary["request_input_available"] is False
+    assert summary["request_input_unavailable_reason"] == persisted_reason
+    assert detail["request_input_available"] is False
+    assert detail["request_input_unavailable_reason"] == persisted_reason
+    assert detail["request_artifact_ref"] is None
+    assert detail["unavailable_reason"] == persisted_reason
+
+
+def _context_detail_for_request_document(
+    tmp_path: Path, request_document: dict[str, object]
+) -> tuple[TestClient, dict[str, object]]:
+    app, catalog, _ = create_test_app(tmp_path)
+    run_root = catalog.runs_root / "analysis-test"
+    request_path = run_root / "requests/request-canonical/input.json"
+    request_path.parent.mkdir(parents=True)
+    request_path.write_text(json.dumps(request_document), encoding="utf-8")
+    request_ref = "artifact:sha256:" + sha256(request_path.read_bytes()).hexdigest()
+    frame = ContextFrame(
+        id="context:analysis-test:901",
+        source_sequences=(901,),
+        rule_id="context-state-delta/v1",
+        source_sequence=901,
+        before_revision=2,
+        after_revision=3,
+        before_state_hash="b" * 64,
+        after_state_hash="c" * 64,
+        before_state={"model": "before"},
+        delta={"model": "changed"},
+        after_state={"model": "after"},
+        request_artifact_ref=request_ref,
+    )
+    record = ArtifactIndexRecord(
+        id="artifact:analysis-test:request-canonical",
+        source_sequences=(901,),
+        reference=request_ref,
+        kind="request-input",
+        relative_path="requests/request-canonical/input.json",
+        sha256=sha256(request_path.read_bytes()).hexdigest(),
+        verification_status="verified",
+        producing_sequence=901,
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "context": ContextTimeline(
+                analysis_id="analysis-test",
+                frames=(frame,),
+            ),
+            "artifacts": ArtifactIndex(
+                analysis_id="analysis-test",
+                records={request_ref: record},
+            ),
+        }
+    )
+    return TestClient(app), request_document
+
+
+def _canonical_request_document() -> dict[str, object]:
+    semantic_request = {
+        "model": {
+            "provider": "openai",
+            "api": "openai-responses",
+            "id": "gpt-5.5",
+        },
+        "context": {
+            "system_prompt": "final system",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "question"}],
+                }
+            ],
+            "tools": [
+                {
+                    "name": "grid_context_open",
+                    "description": "Open a context.",
+                    "parameters": {"type": "object"},
+                }
+            ],
+        },
+        "options": {"transport": "sse", "temperature": 0},
+    }
+    return {
+        "schema_version": "grid-model-request-input/2.0",
+        "request_id": "request-canonical",
+        "request_index": 1,
+        "turn_id": "analysis-test-t001",
+        "captured_at": "2026-08-17T00:00:00Z",
+        "source_event_sequences": [10, 20],
+        "context_revision": 3,
+        "context_state_hash": "a" * 64,
+        "runtime": {
+            "pi_coding_agent_version": "0.80.6",
+            "pi_ai_version": "0.80.6",
+            "pi_source_commit": "1" * 40,
+            "pi_patch_set_sha256": "2" * 64,
+        },
+        "semantic_request": semantic_request,
+        "semantic_request_sha256": _sha256_canonical_sorted(semantic_request),
+    }
+
+
+def test_context_detail_exposes_only_canonical_request_preview(tmp_path: Path) -> None:
+    client, request_document = _context_detail_for_request_document(
+        tmp_path, _canonical_request_document()
+    )
+
+    response = client.get(
+        "/api/runs/analysis-test/context", params={"at_sequence": 901}
+    )
+
+    assert response.status_code == 200
+    preview = response.json()["request_input"]
+    assert preview == {
+        "request_id": "request-canonical",
+        "request_index": 1,
+        "turn_id": "analysis-test-t001",
+        "captured_at": "2026-08-17T00:00:00Z",
+        "source_event_sequences": [10, 20],
+        "context_revision": 3,
+        "context_state_hash": "a" * 64,
+        "runtime": request_document["runtime"],
+        "semantic_request": request_document["semantic_request"],
+        "semantic_request_sha256": request_document["semantic_request_sha256"],
+    }
+    assert "provider_payload" not in response.text
+    assert "reasoning_content" not in response.text
+    assert "thinkingSignature" not in response.text
+    assert "GRID_AGENT_TRAJECTORY_ACKS" not in response.text
+
+
+def test_context_detail_hides_request_preview_when_semantic_digest_mismatches(
+    tmp_path: Path,
+) -> None:
+    request_document = _canonical_request_document()
+    request_document["semantic_request_sha256"] = "f" * 64
+    client, _ = _context_detail_for_request_document(tmp_path, request_document)
+
+    response = client.get(
+        "/api/runs/analysis-test/context", params={"at_sequence": 901}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["request_input"] is None
+
+
+def test_context_detail_hides_hash_verified_request_with_private_semantic_fields(
+    tmp_path: Path,
+) -> None:
+    request_document = _canonical_request_document()
+    semantic_request = request_document["semantic_request"]
+    assert isinstance(semantic_request, dict)
+    context = semantic_request["context"]
+    assert isinstance(context, dict)
+    messages = context["messages"]
+    assert isinstance(messages, list)
+    message = messages[0]
+    assert isinstance(message, dict)
+    content = message["content"]
+    assert isinstance(content, list)
+    block = content[0]
+    assert isinstance(block, dict)
+    block["provider_payload"] = {
+        "reasoning_content": "private trace",
+        "thinkingSignature": "secret-signature",
+        "GRID_AGENT_TRAJECTORY_ACKS": "/tmp/private/acks",
+    }
+    request_document["semantic_request_sha256"] = _sha256_canonical_sorted(
+        semantic_request
+    )
+    client, _ = _context_detail_for_request_document(tmp_path, request_document)
+
+    response = client.get(
+        "/api/runs/analysis-test/context", params={"at_sequence": 901}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["request_input"] is None
+    assert "provider_payload" not in response.text
+    assert "reasoning_content" not in response.text
+    assert "thinkingSignature" not in response.text
+    assert "GRID_AGENT_TRAJECTORY_ACKS" not in response.text
+
+
+def test_evidence_page_maps_public_metadata_without_content(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    response = TestClient(app).get("/api/runs/analysis-test/evidence")
+
+    assert response.status_code == 200
+    page = response.json()
+    assert "records" not in page
+    assert len(page["items"]) == 1
+    assert page["first_sequence"] == 900
+    assert page["last_sequence"] == 900
+    record = page["items"][0]
+    assert record["reference"] == catalog.artifact_ref
+    assert record["relative_path"] == "turns/answer.md"
+    assert record["verification_status"] == "verified"
+    assert "content" not in record
+    assert "bytes" not in record
+    assert "# Answer" not in response.text
+
+
+def test_evidence_page_downgrades_unsafe_relative_paths_before_filtering(
+    tmp_path: Path,
+) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    unsafe = ArtifactIndexRecord(
+        id="artifact:analysis-test:unsafe-path",
+        source_sequences=(901,),
+        reference="artifact:unsafe-path",
+        kind="answer",
+        relative_path="../outside.json",
+        sha256="c" * 64,
+        verification_status="verified",
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "artifacts": ArtifactIndex(
+                analysis_id="analysis-test", records={unsafe.reference: unsafe}
+            )
+        }
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/runs/analysis-test/evidence")
+
+    assert response.status_code == 200
+    assert "../outside.json" not in response.text
+    assert response.json()["items"] == [
+        unsafe.model_dump(mode="json")
+        | {
+            "status": "unavailable",
+            "unavailable_reason": "artifact path is unsafe for public display",
+            "relative_path": "unavailable",
+            "sha256": "unavailable",
+            "verification_status": "unavailable",
+        }
+    ]
+    assert client.get(
+        "/api/runs/analysis-test/evidence",
+        params={"verification_status": "verified"},
+    ).json()["items"] == []
+    unavailable = client.get(
+        "/api/runs/analysis-test/evidence",
+        params={"verification_status": "unavailable"},
+    )
+    assert [record["reference"] for record in unavailable.json()["items"]] == [
+        unsafe.reference
+    ]
+
+
+def test_evidence_filters_lineage_sequence_and_sort(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    relevant = ArtifactIndexRecord(
+        id="artifact:analysis-test:relevant",
+        source="agent-declared",
+        source_sequences=(40, 80),
+        status="unavailable",
+        unavailable_reason="artifact reference could not be verified",
+        reference="evidence:relevant",
+        kind="evidence",
+        relative_path="unavailable",
+        sha256="unavailable",
+        verification_status="unavailable",
+        producing_sequence=40,
+        consuming_sequences=(80,),
+        tool_call_id="tool-relevant",
+        evidence_id="evidence:relevant",
+    )
+    records = dict(catalog.projected.artifacts.records)
+    records[relevant.reference] = relevant
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "artifacts": ArtifactIndex(analysis_id="analysis-test", records=records)
+        }
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/runs/analysis-test/evidence",
+        params={
+            "kind": "evidence",
+            "source": "agent-declared",
+            "verification_status": "unavailable",
+            "from_sequence": 75,
+            "to_sequence": 85,
+            "relevant_ref": "tool-relevant",
+            "sort": "verification_status",
+        },
+    )
+
+    assert response.status_code == 200
+    assert [row["reference"] for row in response.json()["items"]] == [
+        "evidence:relevant"
+    ]
+
+
+def test_operational_pages_reject_unknown_invalid_and_ambiguous_queries(
+    tmp_path: Path,
+) -> None:
+    app, _, _ = create_test_app(tmp_path)
+    client = TestClient(app)
+
+    for path in (
+        "/api/runs/analysis-test/agent?kind=artifact",
+        "/api/runs/analysis-test/agent?unknown=value",
+        "/api/runs/analysis-test/context?from_sequence=10&to_sequence=1",
+        "/api/runs/analysis-test/context?at_sequence=900&changed=true",
+        "/api/runs/analysis-test/evidence?sort=path",
+    ):
+        response = client.get(path)
+        assert response.status_code == 422
+        assert response.json() == {
+            "code": "invalid_request",
+            "message": "request parameters are invalid",
+        }
+        assert response.headers["x-content-type-options"] == "nosniff"

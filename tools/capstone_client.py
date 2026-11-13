@@ -145,7 +145,7 @@ def _command(
 ) -> list[str]:
     if application_id == PANDAPOWER_APPLICATION and mode == "provider":
         command = [
-            "uv", "run", "--project", "packages/grid-agent", "grid-agent",
+            "uv", "run", "--project", "packages/pandapower-application", "grid-agent",
             "analysis-generic", "--application", application_id,
             "--instructions", str(instruction_path),
         ]
@@ -157,7 +157,7 @@ def _command(
     if application_id == PANDAPOWER_APPLICATION:
         assert case_id is not None
         return [
-            "uv", "run", "--project", "packages/grid-agent", "python",
+            "uv", "run", "--project", "packages/pandapower-application", "python",
             "tools/pandapower_scripted_demo.py", "--case", case_id,
             "--instructions", str(instruction_path),
         ]

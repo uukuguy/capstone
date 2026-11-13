@@ -1,0 +1,40 @@
+{
+  "scope": "local domain tool discovery comparison",
+  "thread_id": "thr_4ccec34faf87ce0cd4d5",
+  "baseline": {
+    "source": "8b0c383f",
+    "task_id": "pi-dd07e07d34a4a7f2b91af13f4a616f59900ccd5c94e9573d5bae6d2819216ff5",
+    "seconds": 4.17675,
+    "tools_count": 55,
+    "tools_schema_bytes": 98887,
+    "system_message_bytes": 70119,
+    "other_messages_bytes": 4573,
+    "request_bytes": 173723
+  },
+  "on_demand": {
+    "source": "9db2d5a7",
+    "task_id": "pi-20e9b52254650f84e8faa466b1b50a5fd4bab5199b9a20771524856cb15d51da",
+    "seconds": 3.3256312496960163,
+    "tools_count": 24,
+    "tools_schema_bytes": 51902,
+    "system_message_bytes": 70300,
+    "other_messages_bytes": 5169,
+    "request_bytes": 127515
+  },
+  "real_domain_execution": {
+    "source": "9db2d5a7",
+    "task_id": "pi-3f1a2e02731b7ff07c830ed720c58f9bf5d79d89773a4857b1aa18c9c158bec2",
+    "seconds": 11.580122457817197,
+    "status": "completed",
+    "successful_tools": ["agent_tool_search", "agent_tool_load", "grid_environment_describe"],
+    "result_refs": [],
+    "evidence_refs": []
+  },
+  "limits": [
+    "One sample per instruction and source; not latency percentiles.",
+    "Conversation history grew between samples.",
+    "Byte counts are from existing private first-provider-exchange counters, not token or billing estimates.",
+    "Environment query only; no solver or model-opening acceptance.",
+    "Child fix d5fea6d9 has pinned SDK checks, but is not part of these real-model measurements."
+  ]
+}

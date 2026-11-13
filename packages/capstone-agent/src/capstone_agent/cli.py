@@ -180,6 +180,9 @@ def main(
     serve.add_argument("--port", type=int, default=8766)
     commands.add_parser("serve-hosted", help="Start the portable PostgreSQL-backed API")
     commands.add_parser("work-hosted", help="Run registered sessions from the command ledger")
+    for name in ("auth-import-pi", "auth-login"):
+        auth = commands.add_parser(name, help="Configure project-local Pi authentication")
+        auth.add_argument("--root", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)
     selected_registry = registry or build_registry()
     source = input_stream or sys.stdin
@@ -197,7 +200,10 @@ def main(
                 candidate = getattr(thread_application, "case_service", None)
                 if isinstance(candidate, CaseExecutionService):
                     thread_case_service = candidate
-        if args.command == "run":
+        if args.command in {"auth-import-pi", "auth-login"}:
+            from capstone_agent.auth_commands import execute_auth
+            print(json.dumps(execute_auth(args.command, args.root)), file=output)
+        elif args.command == "run":
             _run(args.request, selected_registry, output, errors)
         elif args.command == "chat":
             _chat(args.application, args.mode, args.case, args.provider, args.model,

@@ -44,7 +44,7 @@
         "uv",
         "run",
         "--project",
-        "packages/grid-agent",
+        "packages/pandapower-application",
         "--with",
         "pillow==12.3.0",
         "--with",

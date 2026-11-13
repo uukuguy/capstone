@@ -1,8 +1,9 @@
 import type {ThreadMessageLike} from '@assistant-ui/react'
-import {useEffect,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import {FileText} from 'lucide-react'
 import type {StoredResource} from './resourceUploads'
 import {applicationCapacity} from './applicationCapacity'
+import {attachmentMemory} from './attachmentMemory'
 import {NativeFileContent,nativePreviewMedia} from './NativeArtifactsWorkspace'
 
 export type InstructionFile={resource_id:string;file_name?:string;size_bytes?:number;version?:number;sha256?:string}
@@ -33,27 +34,53 @@ function InstructionFileItem({file,readFile,saveFile,open,onOpen}:{file:Instruct
   const [text,setText]=useState<string>()
   const [textUnavailable,setTextUnavailable]=useState(false)
   const [error,setError]=useState('')
-  useEffect(()=>()=>{if(url)URL.revokeObjectURL(url)},[url])
+  const request=useRef<{controller:AbortController;promise:Promise<string>}|undefined>(undefined)
+  const cachedUrl=useRef<string|undefined>(undefined)
+  const cachedReservation=useRef<(()=>void)|undefined>(undefined)
+  const openRef=useRef(open)
+  openRef.current=open
+  function release(){
+    request.current?.controller.abort();request.current=undefined
+    if(cachedUrl.current)URL.revokeObjectURL(cachedUrl.current)
+    cachedUrl.current=undefined
+    cachedReservation.current?.();cachedReservation.current=undefined
+  }
+  useEffect(()=>()=>release(),[])
+  useEffect(()=>{
+    if(!open){release();setUrl(undefined);setText(undefined);setPhase('idle')}
+  },[open])
   async function materialize(){
     if(!readFile)throw new Error('附件暂时无法读取。')
-    if(phase==='ready'&&url)return url
+    if(cachedUrl.current)return cachedUrl.current
+    if(request.current)return request.current.promise
     setPhase('loading');setError('')
-    const bytes=await readFile(file)
+    const controller=new AbortController()
+    const promise=(async()=>{
+    const releaseBytes=attachmentMemory.reserve(file.size_bytes!)
+    let retained=false
+    try{
+    const bytes=await readFile(file,controller.signal)
+    controller.signal.throwIfAborted()
+    if(bytes.byteLength!==file.size_bytes)throw new Error('附件大小与记录不一致。')
     const next=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:media}))
-    setUrl(current=>{if(current)URL.revokeObjectURL(current);return next})
+    cachedUrl.current=next;cachedReservation.current=releaseBytes;retained=true;setUrl(next)
     if(media.startsWith('text/')||media==='application/json'){
       try{setText(new TextDecoder('utf-8',{fatal:true}).decode(bytes));setTextUnavailable(false)}
       catch{setText(undefined);setTextUnavailable(true)}
     }else{setText(undefined);setTextUnavailable(false)}
     setPhase('ready')
     return next
+    }finally{if(!retained)releaseBytes()}
+    })()
+    request.current={controller,promise}
+    try{return await promise}finally{if(request.current?.controller===controller)request.current=undefined}
   }
   async function preview(){
     if(!ready)return
     if(open){onOpen(false);return}
     onOpen(true)
     if(overPreview){setError('');return}
-    try{await materialize()}catch(cause){setPhase('error');setError(cause instanceof Error?cause.message:'附件暂时无法读取。')}
+    try{await materialize()}catch(cause){if(cause instanceof DOMException&&cause.name==='AbortError')return;setPhase('error');setError(cause instanceof Error?cause.message:'附件暂时无法读取。')}
   }
   async function download(){
     if(!ready||!readFile)return
@@ -69,7 +96,12 @@ function InstructionFileItem({file,readFile,saveFile,open,onOpen}:{file:Instruct
       link.href=href
       link.download=file.file_name||'附件'
       link.click()
-    }catch(cause){setPhase(current=>current==='loading'?'error':current);setError(cause instanceof Error?cause.message:'附件暂时无法下载。')}
+      if(!openRef.current){
+        // Leave the URL available for the browser to start the download.
+        const downloaded=href
+        setTimeout(()=>{if(cachedUrl.current===downloaded&&!openRef.current){release();setUrl(undefined);setText(undefined);setPhase('idle')}},1000)
+      }
+    }catch(cause){if(cause instanceof DOMException&&cause.name==='AbortError')return;setPhase(current=>current==='loading'?'error':current);setError(cause instanceof Error?cause.message:'附件暂时无法下载。')}
   }
   const size=file.size_bytes===undefined?undefined:file.size_bytes>=1024**3?`${(file.size_bytes/1024**3).toFixed(1)} GB`:file.size_bytes>=1024**2?`${(file.size_bytes/1024**2).toFixed(1)} MB`:`${Math.ceil(file.size_bytes/1024)} KB`
   return <li className={open?'is-open':undefined}>
@@ -79,9 +111,9 @@ function InstructionFileItem({file,readFile,saveFile,open,onOpen}:{file:Instruct
       <button type="button" aria-expanded={open} aria-label={open?`收起附件 ${name}`:`预览附件 ${name}`} onClick={()=>void preview()}>{open?'收起':'预览'}</button>
       <button type="button" aria-label={`下载附件 ${name}`} onClick={()=>void download()}>下载</button>
     </span>}
+    {error&&<p role="alert">{error}</p>}
     {open&&<div className="capstone-instruction-file-preview">
       {phase==='loading'&&<p role="status">正在读取附件…</p>}
-      {error&&<p role="alert">{error}</p>}
       {overPreview&&<NativeFileContent name={name} media={media} previewSize={file.size_bytes}/>}
       {!overPreview&&phase==='ready'&&<NativeFileContent name={name} media={media} url={url} text={text} textUnavailable={textUnavailable} previewSize={file.size_bytes}/>}
     </div>}

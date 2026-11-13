@@ -401,6 +401,17 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const focusedElementId = focusedProjection && focusedProjection.modelContextId === snapshot?.activeModelContext.id && focusedProjection.modelId === snapshot.activeModelContext.modelId && focusedProjection.modelRevision === snapshot.activeModelContext.modelRevision
     ? focusedElement.elementId : undefined
   const displayedResultProjection = focusedElementId ? focusedProjection : activeResultProjection
+  const autoProductScope=useRef<string|undefined>(undefined)
+  useEffect(()=>{
+    const attempt=snapshot?.currentAttempt
+    const key=attempt?`${threadId}:${attempt.attemptId}`:''
+    if(!workspace||!client||!attempt||!ACTIVE_PHASES.has(attempt.phase)||autoProductScope.current===key)return
+    const scope=instructionProductScopesFromEvents(events).get(attempt.attemptId)
+    if(!scope)return
+    autoProductScope.current=key
+    setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedFile(undefined)
+    setResourceView(client.supportsProductIndex?'products':'native-files');setResourcePanelOpen(true)
+  },[threadId,snapshot?.currentAttempt?.attemptId,snapshot?.currentAttempt?.phase,events.length])
   if (!loading && error && !snapshot) {
     return <div className="thread-app-shell"><PageHeader className="thread-page-header" showThreadEntry={false} /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
   }
@@ -813,17 +824,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               return true
   }
 
-  const autoProductScope=useRef<string|undefined>(undefined)
-  useEffect(()=>{
-    const attempt=snapshot?.currentAttempt
-    const key=attempt?`${threadId}:${attempt.attemptId}`:''
-    if(!workspace||!client||!attempt||!ACTIVE_PHASES.has(attempt.phase)||autoProductScope.current===key)return
-    const scope=instructionProductScopesFromEvents(events).get(attempt.attemptId)
-    if(!scope)return
-    autoProductScope.current=key
-    setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedFile(undefined)
-    setResourceView(client.supportsProductIndex?'products':'native-files');setResourcePanelOpen(true)
-  },[threadId,snapshot?.currentAttempt?.attemptId,snapshot?.currentAttempt?.phase,events.length])
   const modelPane = snapshot && <>
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           workingPages={projection.modelWorkspace ? store.modelWorkingPages : undefined} cameraStorageKey={`${storageKey || snapshot.threadId}.network-cameras`}
