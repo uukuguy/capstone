@@ -149,10 +149,10 @@ def _main_legacy(args: argparse.Namespace) -> int:
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run deterministic grid-agent validation cases.")
+    parser = argparse.ArgumentParser(description="Run Authority and registered application validation cases.")
     parser.add_argument("--cases-root", type=Path, default=Path("validation"))
     parser.add_argument(
-        "--mode", choices=("offline", "scripted-pi", "provider", "application")
+        "--mode", choices=("offline", "scripted-pi", "application")
     )
     parser.add_argument("--provider")
     parser.add_argument("--model")
@@ -176,10 +176,8 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         parser.error("command templates are not supported with --mode")
     if args.mode is not None and args.report is None:
         parser.error("--report is required with --mode")
-    if args.mode == "provider" and not args.provider:
-        parser.error("--provider is required in provider mode")
     if args.mode in {"offline", "scripted-pi", "application"} and args.provider:
-        parser.error("--provider is only valid in provider mode")
+        parser.error("Provider validation uses capstone-agent run --request")
     return args
 
 
@@ -511,8 +509,6 @@ def _run_mode_case(
         execution = _execute_offline_case(case, started_at=started, timeout_seconds=args.timeout_seconds)
     elif args.mode == "scripted-pi":
         execution = _execute_scripted_pi_case(case, started_at=started, timeout_seconds=args.timeout_seconds)
-    elif args.mode == "provider":
-        execution = _execute_provider_case(case, args, started_at=started, timeout_seconds=args.timeout_seconds)
     else:
         raise AssertionError(f"unsupported validation mode: {args.mode}")
 
@@ -623,8 +619,6 @@ def _execute_scripted_pi_case(
     started_at: float,
     timeout_seconds: float,
 ) -> CaseExecution:
-    if case.id == "topology-line-endpoints-001":
-        return _execute_scripted_pi_cli_case(case, started_at=started_at, timeout_seconds=timeout_seconds)
     return _execute_scripted_static_case(case, started_at=started_at, timeout_seconds=timeout_seconds)
 
 
@@ -676,7 +670,13 @@ def _execute_scripted_static_case(
     opened = client.invoke("context.open", {"model_id": case.model or "ieee39"})
     context_ref = str(opened["context_ref"])
 
-    if case.id == "static-line-lookup-by-alias-001":
+    if case.id == "topology-line-endpoints-001":
+        result = client.invoke("topology.branch.endpoints.get", {
+            "context_ref": context_ref, "kind": "line",
+            "namespace": "pandapower_index", "identifier": "11",
+        })
+        answer = f"Line11 endpoints: {result['from_bus']['name']}, {result['to_bus']['name']}; evidence {result['evidence_ref']}"
+    elif case.id == "static-line-lookup-by-alias-001":
         result = client.invoke(
             "model.element.get",
             {"context_ref": context_ref, "kind": "line", "namespace": "alias", "identifier": "pandapower:line:11"},
@@ -1037,128 +1037,6 @@ def _guide_for_case(case_id: str) -> str:
     if "evidence" in case_id:
         return "evidence-and-recovery"
     return "capability-map"
-
-
-def _execute_scripted_pi_cli_case(
-    case: ValidationCase,
-    *,
-    started_at: float,
-    timeout_seconds: float,
-) -> CaseExecution:
-    run_path = Path("runs") / case.id
-    shutil.rmtree(run_path, ignore_errors=True)
-    with tempfile.TemporaryDirectory(prefix="grid-validation-pi-") as temp_dir:
-        pi_path = Path(temp_dir) / "scripted-pi"
-        pi_path.write_text(_scripted_topology_pi_source(), encoding="utf-8")
-        pi_path.chmod(0o755)
-        completed = subprocess.run(
-            [
-                "grid-agent",
-                "run",
-                "--question-id",
-                case.id,
-                case.question,
-            ],
-            cwd=_repo_root(),
-            env={
-                **os.environ,
-                "GRID_AGENT_PI_COMMAND": str(pi_path),
-                "GRID_AGENT_LLM_PROVIDER": "openai",
-                "OPENAI_API_KEY": "validation-scripted-secret",
-            },
-            text=True,
-            capture_output=True,
-            timeout=timeout_seconds,
-        )
-    answer = _parse_answer(completed.stdout, []) if completed.returncode == 0 else None
-    trace_path = run_path / "events.jsonl"
-    trace = _load_trace(trace_path, []) if trace_path.exists() else None
-    return CaseExecution(
-        answer=answer,
-        trace=trace,
-        run_path=run_path,
-        returncode=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
-        duration_seconds=time.monotonic() - started_at,
-        metadata={},
-    )
-
-
-def _execute_provider_case(
-    case: ValidationCase,
-    args: argparse.Namespace,
-    *,
-    started_at: float,
-    timeout_seconds: float,
-) -> CaseExecution:
-    credential_error = _provider_credential_error(args.provider)
-    if credential_error is not None:
-        return CaseExecution(
-            answer=None,
-            trace=None,
-            run_path=None,
-            returncode=None,
-            stdout="",
-            stderr=credential_error,
-            duration_seconds=time.monotonic() - started_at,
-            metadata={"provider": args.provider, "model": args.model, "credentials": "missing"},
-        )
-
-    run_path = Path("runs") / case.id
-    shutil.rmtree(run_path, ignore_errors=True)
-    command = [
-        "grid-agent",
-        "run",
-        "--question-id",
-        case.id,
-        "--provider",
-        args.provider,
-    ]
-    if args.model:
-        command.extend(["--model", args.model])
-    command.append(case.question)
-    completed = subprocess.run(
-        command,
-        cwd=_repo_root(),
-        text=True,
-        capture_output=True,
-        timeout=timeout_seconds,
-    )
-    answer = _parse_answer(completed.stdout, []) if completed.stdout.strip() else None
-    trace_path = run_path / "events.jsonl"
-    trace = _load_trace(trace_path, []) if trace_path.exists() else None
-    return CaseExecution(
-        answer=answer,
-        trace=trace,
-        run_path=run_path if run_path.exists() else None,
-        returncode=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
-        duration_seconds=time.monotonic() - started_at,
-        metadata={
-            "provider": args.provider,
-            "model": args.model,
-            "latency_seconds": time.monotonic() - started_at,
-            "tokens": None,
-            "cost": None,
-        },
-    )
-
-
-def _provider_credential_error(provider: str) -> str | None:
-    key_by_provider = {
-        "openai": "OPENAI_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-        "deepseek": "DEEPSEEK_API_KEY",
-        "minimax": "MINIMAX_API_KEY",
-    }
-    key_name = key_by_provider.get(provider)
-    if key_name is None:
-        return None
-    if os.environ.get(key_name):
-        return None
-    return f"provider mode requires explicit credentials: {key_name}"
 
 
 def _evaluate_execution(
@@ -1542,66 +1420,6 @@ def _write_synthetic_evidence(run_path: Path, document: Mapping[str, object]) ->
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(payload + "\n", encoding="utf-8")
     return f"evidence:sha256:{digest}"
-
-
-def _scripted_topology_pi_source() -> str:
-    return """#!/usr/bin/env python3
-import json
-import os
-import subprocess
-
-json.loads(input())
-runtime = json.load(open(os.environ["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"], encoding="utf-8"))
-domain = runtime["domains"][0]
-catalog = json.load(open(domain["toolCatalogPath"], encoding="utf-8"))
-by_capability = {tool["capability"]: tool for tool in catalog["tools"]}
-
-def emit(payload):
-    print(json.dumps(payload, ensure_ascii=False), flush=True)
-
-def grid(capability, args):
-    tool = by_capability[capability]
-    key = {"binding_id": domain["bindingId"], "capability_id": capability}
-    emit({"type": "tool_execution_start", "toolCallId": capability, "toolName": tool["name"], "capability_key": key, "capability": capability, "args": args})
-    request = {
-        "protocol": "grid-capability",
-        "protocol_version": "1.0",
-        "request_id": capability,
-        "capability": capability,
-        "arguments": args,
-    }
-    completed = subprocess.run(
-        ["gridctl", "request", "--workspace", domain["workspacePath"]],
-        input=json.dumps(request, ensure_ascii=False) + "\\n",
-        text=True,
-        capture_output=True,
-        check=True,
-    )
-    response = json.loads(completed.stdout)
-    result = response.get("result") or {}
-    refs = []
-    if isinstance(result.get("evidence_ref"), str):
-        refs.append(result["evidence_ref"])
-    refs.extend(result.get("evidence_refs") or [])
-    emit({"type": "tool_result", "toolCallId": capability, "toolName": tool["name"], "capability_key": key, "capability": capability, "projector_id": tool.get("projector_id"), "ok": response.get("ok") is True, "result": result, "error": response.get("error"), "evidence_refs": refs})
-    return result
-
-def guide(resource_id):
-    index = json.load(open(domain["guideIndexPath"], encoding="utf-8"))
-    text = open(index["resources"][resource_id], encoding="utf-8").read()
-    emit({"type": "tool_execution_start", "toolCallId": "guide-1", "toolName": "grid_guide_open", "args": {"resource_id": resource_id}})
-    emit({"type": "tool_execution_end", "toolCallId": "guide-1", "toolName": "grid_guide_open", "isError": False, "result": {"resource_id": resource_id}})
-
-emit({"type": "response", "command": "prompt", "success": True})
-guide("topology-analysis")
-opened = grid("context.open", {"model_id": "ieee39"})
-result = grid("topology.branch.endpoints.get", {"context_ref": opened["context_ref"], "kind": "line", "namespace": "pandapower_index", "identifier": "11"})
-ref = result["evidence_ref"]
-answer = f"线路11连接母线{result['from_bus']['name']}与{result['to_bus']['name']}。"
-emit({"type": "text_delta", "text": answer})
-emit({"type": "message_end", "message": {"role": "assistant", "content": [{"type": "text", "text": answer}], "stopReason": "stop"}})
-emit({"type": "agent_end"})
-"""
 
 
 def _emit(record: Mapping[str, object]) -> None:

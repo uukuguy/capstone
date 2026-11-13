@@ -41,7 +41,7 @@ help:
 	@echo "  make validate-application  Run provider-free generic application instantiation validation"
 	@echo "  make validate-thread-m5    Run bounded provider-free Thread validation (origin/token from environment)"
 	@echo "  make validate-thread-m11   Verify cloud-development dual-family Threads without Provider calls"
-	@echo "  make validate-provider PROVIDER=... [MODEL=...]  Run optional billed provider validation"
+	@echo "  make validate-provider REQUEST=path  Validate a registered Provider request"
 	@echo "  make check-application-boundaries  Verify generic application ownership boundaries"
 	@echo "  Manual: docs/MANUAL-VALIDATION.md (human verification for every entry above)"
 
@@ -373,4 +373,5 @@ test-source-setup:
 VALIDATION_SUITE ?= static-analysis-full
 
 validate-provider:
-	uv run --project packages/pandapower-application python validation/run.py --mode provider --suite "$(VALIDATION_SUITE)" --provider "$(PROVIDER)" $(if $(MODEL),--model "$(MODEL)") --report runs/validation-provider.json
+	@test -n "$(REQUEST)" || (echo "Usage: make validate-provider REQUEST=path-to-provider-request.json" >&2; exit 2)
+	uv run --project packages/capstone-agent capstone-agent run --request "$(REQUEST)"

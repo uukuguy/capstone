@@ -424,7 +424,7 @@ def test_validation_runner_supports_exact_offline_mode_and_report(tmp_path: Path
     }
 
 
-def test_validation_runner_supports_scripted_pi_mode_with_wrapped_trace(tmp_path: Path) -> None:
+def test_validation_runner_supports_scripted_authority_trace(tmp_path: Path) -> None:
     report_path = tmp_path / "validation-scripted.json"
 
     completed = subprocess.run(
@@ -457,9 +457,7 @@ def test_validation_runner_supports_scripted_pi_mode_with_wrapped_trace(tmp_path
     }
     assert case["trace"]["capabilities"] == [
         "grid_guide_open",
-        "grid_context_open",
         "context.open",
-        "grid_topology_branch_endpoints",
         "topology.branch.endpoints.get",
     ]
     assert "grid_submit_answer" not in case["trace"]["capabilities"]
