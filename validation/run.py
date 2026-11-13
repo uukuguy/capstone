@@ -47,8 +47,8 @@ from capability_agent.tools.catalog import (
 from capability_agent.trajectory.answers import AnswerClaim
 from pandapower_application.composition import build_generic_application, run_generic_application
 from pandapower_application.registry import ApplicationRegistry
-from grid_agent.application.workspace import RunWorkspace
-from grid_agent.contracts import AnswerEnvelope
+from pandapower_application.run_workspace import RunWorkspace
+from pandapower_application.answer_contract import AnswerEnvelope
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
 from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
 from pandapower_application.gridctl_locator import GridctlLocator

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
 
-from grid_agent.contracts import validate_question_id
+from pandapower_application.answer_contract import validate_question_id
 
 
 class RunWorkspaceLeaseError(RuntimeError):

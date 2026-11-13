@@ -1,7 +1,7 @@
 import json
 from datetime import UTC, datetime
 
-from grid_agent.application.workspace import RunWorkspace
+from pandapower_application.run_workspace import RunWorkspace
 from grid_agent.observability.trace import JsonlTraceWriter
 
 

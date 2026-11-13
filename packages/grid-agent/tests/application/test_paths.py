@@ -5,9 +5,9 @@ from typing import Any
 
 import pytest
 
-from grid_agent.application import workspace as workspace_module
+from pandapower_application import run_workspace as workspace_module
 from pandapower_application.paths import ProjectPaths
-from grid_agent.application.workspace import (
+from pandapower_application.run_workspace import (
     RunWorkspace,
     RunWorkspaceExistsError,
     RunWorkspaceLeaseError,
@@ -65,7 +65,7 @@ def test_same_question_id_lease_is_enforced_across_processes(tmp_path: Path) -> 
     first = RunWorkspace.create(runs_root, "cross-process")
     script = """
 from pathlib import Path
-from grid_agent.application.workspace import RunWorkspace, RunWorkspaceLeaseError
+from pandapower_application.run_workspace import RunWorkspace, RunWorkspaceLeaseError
 try:
     RunWorkspace.create(Path(__import__('sys').argv[1]), 'cross-process')
 except RunWorkspaceLeaseError:

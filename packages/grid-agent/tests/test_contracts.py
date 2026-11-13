@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from grid_agent.contracts import AnswerEnvelope, AttemptStatus, RunRequest
+from pandapower_application.answer_contract import AnswerEnvelope, AttemptStatus, RunRequest
 
 
 def test_answer_envelope_has_exact_public_shape() -> None:

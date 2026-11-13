@@ -7,7 +7,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from grid_agent.contracts import AnswerEnvelope
+from pandapower_application.answer_contract import AnswerEnvelope
 
 
 ROOT = Path(__file__).resolve().parents[4]

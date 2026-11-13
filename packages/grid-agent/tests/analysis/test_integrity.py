@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pandapower_domain.authority import ContentReferenceVerifier, SimulatorIntegrityError
-from grid_agent.application.workspace import RunWorkspace
+from pandapower_application.run_workspace import RunWorkspace
 from pandapower_domain.execution import GridctlExecutor
 from pandapower_application.gridctl_locator import GridctlLocator
 

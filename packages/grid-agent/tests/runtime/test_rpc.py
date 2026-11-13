@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from capability_agent.runtime import rpc as kernel_rpc
-from grid_agent.application.workspace import RunWorkspace
+from pandapower_application.run_workspace import RunWorkspace
 from grid_agent.observability.trace import JsonlTraceWriter
 from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 from grid_agent.runtime.rpc import PiProtocolError, PiRpcClient
