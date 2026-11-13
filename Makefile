@@ -3,14 +3,9 @@
 .PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev capstone-local-rebuild report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider validate-thread-m5 test-kernel test-domain-package test-generic-tools check-types check-types-validation check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
-	@echo "Grid Static Analysis commands"
+	@echo "Capstone commands"
 	@echo "  make setup                 Install all local dependencies"
 	@echo "  make doctor                Inspect local runtime readiness"
-	@echo "  make run QUESTION='...'    Run a local deterministic smoke/offline check"
-	@echo "  make run-llm QUESTION='...'  Primary natural-language agent path via Pi/LLM"
-	@echo "  make analysis [INSTRUCTIONS=...]  Compatibility analysis report; default TASK instruction set"
-	@echo "  make analysis-generic APPLICATION=... INSTRUCTIONS=...  Generic composite application output"
-	@echo "  make application [INSTRUCTIONS=...] [PROVIDER=...] [MODEL=...]  Run the formal registered application"
 	@echo "  make capstone-client REQUEST=path  Run a registered pandapower or PyPSA client request"
 	@echo "  make capstone-agent-run REQUEST=path  Run a registered application headlessly"
 	@echo "  make capstone-agent-case CASE=id  Run one of the five catalog cases with the real Provider/LLM path"
@@ -28,9 +23,7 @@ help:
 	@echo "  make capstone-demo-local-rebuild  Rebuild a separate local demo from its clean checkout"
 	@echo "  make build-capstone-app    Build the Vercel-ready static App"
 	@echo "  make test-capstone-app     Run focused App tests"
-	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
 	@echo "  make build-workbench         Build packaged trajectory workbench assets"
-	@echo "  make trajectory [PORT=8765]  Build and serve the local trajectory workbench"
 	@echo "  make install-pi            Install the pinned Pi runtime"
 	@echo "  make auth-import-pi        Import local Pi Codex OAuth to this project"
 	@echo "  make auth-login            Log in to Pi Codex OAuth for this project"
@@ -176,48 +169,7 @@ auth-login:
 doctor:
 	uv run --project packages/pandapower-application python tools/doctor_local.py
 
-QUESTION ?= IEEE-39节点系统中线路11连接哪两个母线?
-# QUESTION ?= 母线电压正常运行范围是多少?
-# QUESTION ?= N-1静态安全校核需要检查哪些越限类型?
-# QUESTION ?= ‘潮流计算工具（pandapower runpp）需要输入哪些参数？’
-# QUESTION ?= 对IEEE-39节点系统运行交流潮流，并输出有功网损;
-# QUESTION ?= 筛选负载率最高的5条线路
-# QUESTION ?= 对线路17开展N-1校核
-# QUESTION ?= 母线低电压、线路过载等风险及证据（仿真结果）
-#
-run:
-	@test -n "$(QUESTION)" || (echo "Usage: make run QUESTION='IEEE-39节点系统中线路11连接哪两个母线?'" >&2; exit 2)
-	uv run --project packages/grid-agent grid-agent run --offline "$(QUESTION)"
-
-run-llm:
-	@test -n "$(QUESTION)" || (echo "Usage: make run-llm QUESTION='...' [PROVIDER=openai]" >&2; exit 2)
-	uv run --project packages/grid-agent grid-agent run $(if $(PROVIDER),--provider "$(PROVIDER)") "$(QUESTION)"
-
-ANALYSIS_DEFAULT_INSTRUCTIONS ?= validation/questions/task.md.txt
-
-analysis:
-	@instruction_file="$(if $(INSTRUCTIONS),$(INSTRUCTIONS),$(ANALYSIS_DEFAULT_INSTRUCTIONS))"; test -f "$$instruction_file" || (echo "Instruction file not found: $$instruction_file" >&2; exit 2); uv run --project packages/grid-agent grid-agent analysis --instructions "$$instruction_file" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
-
-analysis-generic:
-	@test -n "$(APPLICATION)" || (echo "Usage: make analysis-generic APPLICATION=... INSTRUCTIONS=... [PROVIDER=...] [MODEL=...]" >&2; exit 2)
-	@test -n "$(INSTRUCTIONS)" || (echo "Usage: make analysis-generic APPLICATION=... INSTRUCTIONS=... [PROVIDER=...] [MODEL=...]" >&2; exit 2)
-	@test -f "$(INSTRUCTIONS)" || (echo "Instruction file not found: $(INSTRUCTIONS)" >&2; exit 2)
-	@uv run --project packages/grid-agent grid-agent analysis-generic --application "$(APPLICATION)" --instructions "$(INSTRUCTIONS)" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
-
-application:
-	@$(MAKE) --no-print-directory analysis-generic \
-		APPLICATION="$(if $(APPLICATION),$(APPLICATION),pandapower-static-analysis)" \
-		INSTRUCTIONS="$(if $(INSTRUCTIONS),$(INSTRUCTIONS),$(ANALYSIS_DEFAULT_INSTRUCTIONS))" \
-		$(if $(PROVIDER),PROVIDER="$(PROVIDER)") \
-		$(if $(MODEL),MODEL="$(MODEL)")
-
-report: analysis
-
-PORT ?= 8765
 CAPSTONE_PORT ?= 8766
-
-trajectory: build-workbench
-	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
 test: test-agent test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
 
