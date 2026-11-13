@@ -14,6 +14,8 @@ class NoLegacyApplication(importlib.abc.MetaPathFinder):
             raise AssertionError("Application still depends on legacy package: " + fullname)
 sys.meta_path.insert(0, NoLegacyApplication())
 from pandapower_application.profile import build_pandapower_application_profile
+from pandapower_application.scripted_execution import execute_application_case
+assert execute_application_case.__module__ == 'pandapower_application.scripted_execution'
 from pandapower_application.composition import _runtime_host_dependencies
 assert all(not item.__module__.startswith('grid_agent') for item in _runtime_host_dependencies())
 from pandapower_application.registry import build_trusted_application_registry

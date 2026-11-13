@@ -162,7 +162,7 @@ class _ScriptedCaseApplication:
         self.transport: Any = None
 
     def run_stream(self, request, instructions):
-        from validation.run import execute_application_case
+        from pandapower_application.scripted_execution import execute_application_case
 
         self.case["run_id"] = request.run_id
 
