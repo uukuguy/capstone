@@ -9,6 +9,20 @@ import {parseEventEnvelope} from './threadProtocol'
 import {composerSubmission,buildInputSubmission,emptyInputDraft} from './threadInput'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('shows current service bus count in the process title bar and deduplicates replay',()=>{
+ const attempt='bus-count'
+ const calls={schema:'capstone-service-bus-calls/1',scope:'current_tool_call',reused:false,attempt_count:23,response_count:22,details_truncated:true,details:[{service:'query',method:'read'}]}
+ const end=event('runtime_event',4,{task_id:'task',native_type:'tool_execution_end',tool_name:'data_gateway_query',tool_call_id:'one',activity:{service_bus_calls:calls}},attempt)
+ const events=[event('attempt_started',1,{},attempt),event('runtime_event',3,{task_id:'task',native_type:'tool_execution_start',tool_name:'data_gateway_query',tool_call_id:'one'},attempt),end,end,
+ event('runtime_event',5,{task_id:'task',native_type:'tool_execution_end',tool_name:'data_gateway_query',tool_call_id:'reuse',activity:{service_bus_calls:{...calls,reused:true}}},attempt),event('attempt_completed',6,{answer:'完成'},attempt)]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+ const dialog=screen.getByRole('dialog',{name:'执行过程'})
+ expect(dialog.querySelector('.answer-detail-heading')?.textContent).toContain('服务总线 23 次')
+ expect(projectAssistantActivity(events).filter(item=>item.serviceBusCalls).length).toBe(2)
+ expect(within(dialog).getAllByLabelText('服务总线调用记录').length).toBe(2)
+})
 it('sends instruction exclusions in direct mode without another explicit selection',async()=>{
  const onSend=vi.fn().mockResolvedValue(undefined)
  sessionStorage.setItem('direct-exclusion.input',JSON.stringify({mode:'pi_reference',context:{include_refs:[],exclude_refs:[]},excluded_session_skills:['method']}))

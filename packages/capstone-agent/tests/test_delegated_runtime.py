@@ -257,6 +257,36 @@ def test_owner_execution_receipt_survives_saved_public_event(valid):
         assert records[0]['task_id'] == executor.requests[0].task_id
 
 
+def test_host_service_bus_counts_survive_saved_public_event():
+    calls={'schema':'capstone-service-bus-calls/1','scope':'current_tool_call',
+        'attempt_count':23,'response_count':22,'reused':False,'details_truncated':True,'details':[]}
+    class CountedExecutor(Executor):
+        def execute(self,request,control,on_event):
+            self.requests.append(request)
+            on_event({'type':'tool_execution_end','tool_name':'data_gateway_query',
+                'tool_call_id':'source-call','is_error':True,'activity':{'service_bus_calls':calls}})
+            return PiTaskResult(request.task_id,request.parent_attempt_id,self.identity,'completed','Done',(),(),{})
+    service,current=claim()
+    result=run(service,current,factory(CountedExecutor(),Recognizer([goal('lookup','external_lookup',refs=['general-pi'])])))
+    assert result.status=='completed'
+    saved=service.read_events(current.thread_id,0).events
+    retained=[e.payload['activity']['service_bus_calls'] for e in saved
+        if isinstance(e.payload.get('activity'),dict) and 'service_bus_calls' in e.payload['activity']]
+    assert retained==[calls]
+
+
+def test_unconfirmed_required_report_delivery_fails_attempt():
+    class IncompleteExecutor(Executor):
+        def execute(self,request,control,on_event):
+            return PiTaskResult(request.task_id,request.parent_attempt_id,self.identity,'failed','',(),(),{},
+                {'code':'native_product_delivery_incomplete','phase':'persistence'})
+    service,current=claim()
+    result=run(service,current,factory(IncompleteExecutor(),Recognizer([goal('report','external_lookup',refs=['general-pi'])])))
+    assert result.status=='failed'
+    saved=service.read_events(current.thread_id,0).events
+    assert any(e.event_type=='attempt_failed' and e.payload.get('error_code')=='native_product_delivery_incomplete' for e in saved)
+
+
 def test_worker_external_lookup_uses_actual_general_executor():
     service, current = claim()
     executor = Executor()
@@ -503,7 +533,9 @@ def test_graph_native_frames_keep_public_projection_and_restore_in_thread_histor
                     'checkpoint': {'ref': 'committed', 'revision': 1}, 'tool_call_id': 'child-call',
                     'tool_name': 'read', 'activity': 'end', 'response_number': 1, 'response_ms': 12,
                     'usage': {'totalTokens': 5}, 'status': 'completed', 'result_summary': 'Native child completed.',
-                    **({'execution_ms': 2710.25} if kind == 'enterprise_graph_child_tool' else {}),
+                    **({'execution_ms': 2710.25,'service_bus_calls':{
+                        'schema':'capstone-service-bus-calls/1','scope':'current_tool_call',
+                        'attempt_count':2,'reused':False}} if kind == 'enterprise_graph_child_tool' else {}),
                     **({'tool_call_ids': ['child-call'], 'stop_reason': 'toolUse'} if kind == 'enterprise_graph_child_response' else {}),
                     'args': {'path': '/private/child/source'}, 'result': {'raw': 'private observation'}})
             return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
@@ -523,6 +555,7 @@ def test_graph_native_frames_keep_public_projection_and_restore_in_thread_histor
     assert all('args' not in frame and 'result' not in frame for frame in frames)
     assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_response')['usage'] == {'totalTokens': 5}
     assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_tool')['execution_ms'] == 2710.25
+    assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_tool')['service_bus_calls']['attempt_count'] == 2
     assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_response')['tool_call_ids'] == ['child-call']
 
 

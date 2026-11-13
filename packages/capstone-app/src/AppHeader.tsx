@@ -18,7 +18,7 @@ export function AppVersion({ build }: { build: AppBuildIdentity }) {
   const source = build.repositoryRevision || build.revision
   return <span className="app-version" aria-label="App 版本"
     title={`环境：${environment}；源代码版本：${source || '本地开发'}${build.dirty ? '（含未提交修改）' : ''}`}>
-    {environment} · v{build.version} · {source.slice(0, 7) || '开发版'}{build.dirty ? ' *' : ''}
+    {environment} · v{build.version} · {source.slice(0, 8) || '开发版'}{build.dirty ? ' *' : ''}
   </span>
 }
 

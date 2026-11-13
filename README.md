@@ -124,7 +124,7 @@ Live news or weather still needs an accessible source. See the
 Actual model response quality requires separate acceptance; offline checks alone do
 not establish it.
 
-Use `/skills` to inspect available skills and their execution role,
+In the CLI, use `/skills` to inspect available skills and their execution role,
 `/skill:<name> <task>` to select one, and `/context` to include or exclude public background.
 The current model background includes identity, version and history; it does not
 include full model tables. Managed PowerSkills/PowerMCP resources have separate
@@ -134,6 +134,14 @@ General execution includes six on-demand investigation methods for goal explorat
 planning and tracking, debugging, completion checks, data investigation and quality.
 Skill loads and model-reported application phases appear in the existing process record;
 loading a method does not prove verification. See the [skill design](docs/superpowers/specs/2026-11-08-investigation-skills-design.md).
+The hosted App provides a read-only skill catalog. Ready skills are available by
+default; the model selects relevant methods without a required manual choice.
+
+When the presentation library is enabled, new PPT products default to the State
+Grid template. Conversation selection persists; a one-render override leaves it
+unchanged. Uploaded templates stay session-only until explicitly saved to the
+library. Saved content bundles support rerendering, and PDF derives from the same
+PPTX. See [template operation and configuration](docs/RUNBOOK.md#ppt-template-library).
 
 The conversation is the primary interface. Cases are an independent module; the
 default federated conversation does not yet assemble Case execution. Registered

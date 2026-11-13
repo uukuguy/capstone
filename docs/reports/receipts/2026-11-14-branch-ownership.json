@@ -244,10 +244,40 @@
   "administrative_branch": {
     "name": "docs/branch-ownership-audit-20261114",
     "owner": "dev / project control",
-    "scope": "temporary documentation integration, not another implementation line"
+    "scope": "temporary documentation integration, not another implementation line",
+    "state": "closed after PR103 merge",
+    "merge_commit": "b4992b944dc6679266230e64cce37f5378e558d8",
+    "tested_head": "a3aafa70940f6bd7e18a6722b193d9e7997d2021",
+    "docs_ci": 43480426385,
+    "docs_ci_conclusion": "success"
   },
   "remote_archive_tags": {
     "archive/20261114-branch-ownership/research-model": "275dc00f36623331e877c13ee42d72256439c4aa",
-    "archive/20261114-branch-ownership/work-attempt-binding": "5e7fccc1f8b9e32085d30f4c1a6f6e7fc6d7ab93"
+    "archive/20261114-branch-ownership/work-attempt-binding": "5e7fccc1f8b9e32085d30f4c1a6f6e7fc6d7ab93",
+    "archive/20261114-branch-ownership/presentation-local": "81dd36528fe008fc0d3a2f6cca9de3107ee27a61",
+    "archive/20261114-branch-ownership/reference-research-local": "2bd086af19bd7b19173a58a151d38ac78faad856",
+    "archive/20261114-branch-ownership/retirement-local": "a89afbf6da3a2db954c47f6724bff9b16b5e3bda"
+  },
+  "followup": {
+    "date": "2026-11-14",
+    "user_approved": true,
+    "research": {
+      "status": "archived",
+      "source": "2bd086af19bd7b19173a58a151d38ac78faad856",
+      "archive": "archive/branch-ownership-20261114/uukuguy/reference-execution-research",
+      "dirty_files_preserved": 3,
+      "composition_tests_passed": 50,
+      "remaining": "core-evolution design backlog"
+    },
+    "ppt": {
+      "integration_branch": "feat/presentation-closeout-20261114",
+      "source": "29c0ce72",
+      "renderer_identity_fix": "ddc3df02",
+      "dev_merged": false,
+      "ci_approved": false,
+      "local_verified": true,
+      "real_rounds": 4,
+      "download_hashes": 47
+    }
   }
 }

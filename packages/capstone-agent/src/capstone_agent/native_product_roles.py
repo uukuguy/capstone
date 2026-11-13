@@ -1,4 +1,4 @@
-"""Optional presentation declarations; never certify completion or evidence."""
+"""Application product hints and verified render delivery, never Authority evidence."""
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -7,6 +7,58 @@ from hashlib import sha256
 
 ROLES = ('primary', 'support', 'reproduction')
 _PATH_POLICY = json.loads((Path(__file__).parent / 'resources/product-path-policy.json').read_text())
+
+
+class PresentationDeliveries:
+    """Actual render requests require matching saved bytes, not model prose."""
+    def __init__(self):
+        self.calls = {}
+        self.sources = {}
+
+    def observe(self, event):
+        if event.get('toolName') != 'agent_presentations':
+            return
+        call = event.get('toolCallId')
+        if event.get('type') == 'tool_execution_start':
+            args = event.get('args', {})
+            document = args.get('document', {}) if isinstance(args, dict) else {}
+            if not isinstance(document, dict) or args.get('operation') != 'render':
+                return
+            source = next(((key, document[key]) for key in ('spec', 'bundle')
+                if isinstance(document.get(key), str)), None)
+            if source is None or not isinstance(call, str):
+                return
+            request = {'call': call, 'output': document.get('output'),
+                'pdf': document.get('pdf') is not False, 'receipt': None}
+            self.calls[call] = source
+            self.sources[source] = request
+        elif event.get('type') == 'tool_execution_end' and call in self.calls:
+            request = self.sources[self.calls[call]]
+            if request['call'] != call:
+                return
+            result = event.get('result', {})
+            details = result.get('details', {}) if isinstance(result, dict) else {}
+            if (event.get('isError') is not True and result.get('isError') is not True
+                    and isinstance(details, dict) and details.get('ok') is True):
+                request['receipt'] = details.get('result')
+
+    def confirmed(self, artifacts):
+        saved = {item.get('metadata', {}).get('path'): item.get('metadata', {}).get('sha256')
+            for item in artifacts if isinstance(item.get('metadata'), dict)}
+        for request in self.sources.values():
+            receipt = request['receipt']
+            if (not isinstance(receipt, dict) or receipt.get('schema') != 'capstone-presentation-library-render/1'
+                    or receipt.get('output') != request['output']
+                    or not isinstance(receipt.get('output_sha256'), str)
+                    or saved.get(receipt.get('output')) != receipt['output_sha256']):
+                return False
+            if request['pdf']:
+                pdf = receipt.get('pdf')
+                if (not isinstance(pdf, dict) or pdf.get('status') != 'ready'
+                        or not isinstance(pdf.get('sha256'), str)
+                        or saved.get(pdf.get('path')) != pdf['sha256']):
+                    return False
+        return True
 
 
 def publishable_product_path(path):

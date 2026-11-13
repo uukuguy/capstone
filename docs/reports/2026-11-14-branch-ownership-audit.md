@@ -1,5 +1,12 @@
 # Branch ownership audit — 2026-11-14
 
+Follow-up: the user approved PPT integration and reference-research closure.
+Reference head 2bd086af is now archived, with dirty docs preserved. Its composition
+proof runs on the current lightweight chain; remaining projection questions are
+design backlog. PPT increments are in candidate29c0ce72 plus renderer fixes,
+not yet merged. See [integration receipt](2026-11-14-presentation-integration.md).
+The original audit below records the earlier disposition.
+
 ## Result and scope
 
 Baseline dev is `4b857ac9`. This audit changes references and control records,

@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+2026-11-14：[PPT 集成与引用研究收口](../reports/2026-11-14-presentation-integration.md)：
+候选 29c0ce72 基于当前 dev；旧引用研究原 SHA 归档，剩余设计待办归核心演进笔记。
+本地检查通过，重建和真实验证进行中，尚未合入或启动 CI。
+
 2026-11-14：[分支归属审计](../reports/2026-11-14-branch-ownership-audit.md)明确PPT候选归dev，
 引用执行研究独立暂停；旧Work草稿、历史模板、CI策略、R1设计及R0实验各有承接归属。
 28个本地头原SHA归档，17个旧远端头及PR50关闭；14工作树与53个未提交文件未变。
@@ -920,3 +924,6 @@ environment state, exact App builds and the current63 integration focus.
 Default dsv4 (2026-11-05): [current receipt](../reports/2026-11-05-default-dsv4.md)
 records all three environments atbfb16344, intranet defaults18804, unchanged local
 default and explicit selections, plus two real default-model checks.
+
+2026-11-14：PPT最终运行ddc3df02，规范重建、86项渲染检查、真实四轮与47条下载摘要通过；
+[回执](../reports/receipts/2026-11-14-presentation-integration.json)。引用研究已归档；待单独获批CI和dev PR。

@@ -7515,3 +7515,12 @@ check passed. No CI, integration or remote deployment performed.
 - 01:33 Docs CI passes2m08s;PR102 merged4b857ac9,tree equals39d14dc5;actualdev synchronized,overlapping user drafts restored;stash620a09c1 retained.
 - 01:33 Close both verified remote branches;preserve original local implementation asrecovery/architecture-retirement-local-20261114;refresh actualdev post-merge snapshot without commit loop.
 - 01:54 Audit assigns all30work heads;archive28exact sources,close17remote aliases/PR50;14worktrees and53dirty-file hashes unchanged,no CI/deployment.
+- 2026-11-14 PPT closeout: extracted template catalog, task grants, frozen sources, PDF/default State Grid, service-bus receipts and App revision increment onto dev b4992b94. Preserved dev discovery, structural context and React Hook fixes. Local: 251 backend passed/46 skipped, 46 PG/resource passed/1 skipped, 85 renderer, 378 App, 12 template SDK, 50 composition, 218 governance passed/4 skipped; type checks passed. No CI or deployment.
+
+- 2026-11-14 Integrated verified PPT increments to preserve template delivery; candidate 29c0ce72 awaits runtime checks and approved CI.
+- 2026-11-14 Archived reference research 2bd086af; reused current composition, preserved three dirty files, and retained projection-policy design backlog.
+- 2026-11-14 Review fix: persist renderer version/source identity and library digest; failing regression confirmed, then 85 renderer checks passed.
+- 2026-11-14 Bound renderer receipts for provenance, a7440980; installed-entry smoke exposed symlink source lookup, now covered by regression.
+- 2026-11-14 Fixed installed renderer provenance lookup, ddc3df02; final build and real continuation passed, 47 product hashes verified.
+- 2026-11-14 Verified App5174 restored final PPT/PDF and four completed rounds; six deployment graph paths have no card crossings.
+- 2026-11-14 CI43494883528 failed existing cleanup-budget test; injected delay reproduced it; local86 Pi and113 governance checks pass after test-only fix.

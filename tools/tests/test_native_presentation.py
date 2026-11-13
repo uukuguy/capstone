@@ -19,7 +19,7 @@ def test_preflight_checks_without_replacing_existing_output(tmp_path):
 
 def test_reports_all_independent_block_errors_before_writing(tmp_path):
     (tmp_path/'data.csv').write_text('name,value\na,1\n')
-    spec={'schema':'capstone-presentation/1','title':'Check','slides':[{'title':'One','blocks':[
+    spec={'schema':'capstone-presentation/1','title':'Check','template':None,'slides':[{'title':'One','blocks':[
         {'type':'table','csv':'data.csv','columns':['missing'],'max_rows':5},
         {'type':'figure','path':'missing.png','caption':'Missing'}]}]}
     (tmp_path/'spec.json').write_text(json.dumps(spec))
@@ -34,6 +34,54 @@ from pptx import Presentation
 import pytest
 
 SCRIPT = Path(__file__).parents[2] / 'tools/native_report.py'
+
+
+def test_installed_symlink_entry_records_renderer_identity(tmp_path):
+    entry = tmp_path / 'bin' / 'capstone-report'
+    entry.parent.mkdir()
+    entry.symlink_to(SCRIPT.resolve())
+    (tmp_path / 'spec.json').write_text(json.dumps({
+        'schema': 'capstone-presentation/1', 'title': 'Installed entry',
+        'slides': [{'title': 'Check', 'blocks': [{'type': 'paragraph', 'text': 'Saved text'}]}]}))
+    result = subprocess.run([sys.executable, str(entry), '--spec', 'spec.json', '--output', 'report.pptx'],
+        cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    identity = json.loads(result.stdout)['renderer_identity']
+    assert identity['source_sha256']['native_report.py'] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
+
+
+def test_omitted_template_uses_state_grid_artwork_and_receipt(tmp_path):
+    value = spec([{'type':'paragraph','text':'Supported saved findings.'}])
+    value.pop('template', None)
+    result = run(tmp_path, value)
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(result.stdout)
+    original_path = SCRIPT.parent/'presentation-templates/state-grid.pptx'
+    assert receipt['template']['sha256'] == hashlib.sha256(original_path.read_bytes()).hexdigest()
+    original, actual = Presentation(original_path), Presentation(tmp_path/'report.pptx')
+    original_art = {hashlib.sha256(s.image.blob).hexdigest() for s in original.slides[0].shapes if s.shape_type == 13}
+    actual_art = {hashlib.sha256(s.image.blob).hexdigest() for s in actual.slides[0].shapes if s.shape_type == 13}
+    assert original_art and original_art <= actual_art
+    assert actual.slides[1].slide_layout.part.partname == original.slides[2].slide_layout.part.partname
+
+
+def test_default_template_overflow_does_not_fall_back_to_unbranded_layout(tmp_path):
+    value = spec([{'type':'paragraph','text':'Saved reasoning '*600}])
+    value.pop('template')
+    (tmp_path/'report.pptx').write_bytes(b'previous product')
+    result = run(tmp_path, value)
+    assert result.returncode == 2 and 'slide_overflow' in result.stderr
+    assert (tmp_path/'report.pptx').read_bytes() == b'previous product'
+
+
+def test_version_two_uses_default_template_without_an_explicit_selection(tmp_path):
+    value = spec([])
+    value.pop('template')
+    value['schema'] = 'capstone-presentation/2'
+    value['slides'][0]['argument'] = {'explanation':'The saved result supports this observation.'}
+    result = run(tmp_path,value)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['template']['id'] == 'state-grid'
 
 
 def test_argument_contract_renders_explanation_in_visible_text_and_binds_its_digest(tmp_path):
@@ -313,7 +361,7 @@ def test_template_rejects_external_relationships_without_replacing_output(tmp_pa
 
 
 def spec(blocks, **extra):
-    return {'schema':'capstone-presentation/1','title':'通用研究汇报',
+    return {'schema':'capstone-presentation/1','title':'通用研究汇报','template':None,
         'slides':[{'title':'已保存的观察','blocks':blocks,'source_notes':['Source dataset revision r1']}],**extra}
 
 

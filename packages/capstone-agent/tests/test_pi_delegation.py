@@ -282,10 +282,10 @@ def service():
     server.server_close()
 
 
-def executor(origin, *, exchange_timeout_seconds=None):
+def executor(origin, *, exchange_timeout_seconds=None, cancellation_timeout_seconds=0.5):
     return HttpGeneralPiExecutor(origin, identity=request_document()["executor_identity"],
                                  capability={"capability_id": "general_pi", "available": True},
-                                 poll_interval_seconds=0.001, cancellation_timeout_seconds=0.5,
+                                 poll_interval_seconds=0.001, cancellation_timeout_seconds=cancellation_timeout_seconds,
                                  exchange_timeout_seconds=exchange_timeout_seconds)
 
 
@@ -539,8 +539,11 @@ def test_cancellation_failure_keeps_original_parent_stop(service, caplog):
 def test_slow_response_obeys_parent_deadline(service):
     origin, state = service
     state["delay"] = 0.12
+    # This checks the parent's short deadline, not cleanup transport speed.
+    # Use the configured cleanup budget; separate tests retain a tight budget
+    # for slow headers/body and remote tasks that never stop.
     with pytest.raises(TimeoutError):
-        executor(origin).execute(PiTaskRequest.from_document(request_document()),
+        executor(origin, cancellation_timeout_seconds=None).execute(PiTaskRequest.from_document(request_document()),
                                  NodeControl(lambda: None, time.monotonic() + 0.06), lambda _: None)
     assert state["cancelled"] == ["/tasks/task-1"]
 

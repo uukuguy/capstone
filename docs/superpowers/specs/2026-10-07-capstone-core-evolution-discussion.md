@@ -581,3 +581,17 @@ tool execution is the first pandapower ownership migration slice; application
 management validation stays with the application. Remaining formal composition,
 output compatibility and replay ownership require separate verified slices.
 The canonical worklist owns delivery; this notebook records design feedback.
+
+### 2026-11-14 引用执行研究分支归档
+
+用户确认当前轻量链已成熟，本轮先核对差异，不将旧研究名称当作另一个 DR 执行器。
+原 `2bd086af` 仅含设计、基线和组合可行性测试；没有独立运行实现。依赖调用、有界并行、
+观察引用复用、失败保留和取消复用当前轻量链。唯一引用试验已提取到集成候选 `29c0ce72`，
+当前 50 项组合检查通过；测试使用模拟服务端，不等于真实网关业务接受或零数据出境证明。
+
+剩余设计待办：核对真实已发布网关的引用与版本契约；比较仅引用、结构化发现和允许摘要
+三种模型上下文投影；审计外发字段和侧信道；验证真实引用驱动报告、改向及恢复。
+这些能力未被旧分支实现，本轮不自动启动。后续从当前 dev 开始具体实验，不复制旧执行链。
+旧分支改为 `archive/branch-ownership-20261114/uukuguy/reference-execution-research`，
+精确来源和远端恢复标签保留，工作树及三个未提交文档未变。
+详见[PPT 集成与引用研究收口](../../reports/2026-11-14-presentation-integration.md)。
