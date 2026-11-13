@@ -85,10 +85,12 @@ test('unresolved publications load exact contracts before registration without p
  await c.tools[1].execute('load-again',{names:['selected']});assert.equal(reads,1);
 });
 
-for(const source of ['gateway','domain'])test('actual pinned SDK loads exact contracts before calling '+source+' tools',async()=>{
+for(const mode of ['parent','managed-child'])for(const source of ['gateway','domain'])test('actual pinned SDK '+mode+' loads exact contracts before calling '+source+' tools',async()=>{
  const sdk=await import('../../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js');
  const ai=await import('../../../../.grid-agent/runtime/pi/source/packages/ai/dist/index.js');
- const dir=await mkdtemp(join(tmpdir(),'progressive-sdk-'));
+ const dir=await mkdtemp(join(mode==='parent'?tmpdir():process.cwd()+'/.grid-agent/runtime','progressive-sdk-'));
+ const previousAgentDir=process.env.PI_CODING_AGENT_DIR;
+ process.env.PI_CODING_AGENT_DIR=dir;
  const menus=[],requests=[],errors=[];let session;
  const toolName=source==='gateway'?'data_gateway_selected':'pack_selected';
  const metadata={name:'selected',description:'Selected action',
@@ -106,7 +108,7 @@ for(const source of ['gateway','domain'])test('actual pinned SDK loads exact con
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const publication=source==='gateway'?metadata:{name:'selected',description:'Selected domain action',inputSchema};
- const config={toolResultCwd:dir,deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',toolName]},
+ const config={model:'fixture',settings:{compaction:{enabled:false}},extensions:[],allowedSkills:[],contextFiles:[],toolResultCwd:dir,deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',toolName]},
   [source==='gateway'?'dataGateway':'domainTools']:{onDemandTools:true,url:'http://127.0.0.1:'+server.address().port,grant:'fixture',taskId:'task',
    catalog:{revision:'pub',tools:{[toolName]:publication},entry_tools:[],tool_hashes:{[toolName]:'rev'}}}};
  const discovery=host.createApplicationToolDiscovery(config);
@@ -124,6 +126,9 @@ for(const source of ['gateway','domain'])test('actual pinned SDK loads exact con
    const stream=ai.createAssistantMessageEventStream();stream.push({type:'done',reason:message.stopReason,message});stream.end();return stream;
   }};
  try{
+  if(mode==='managed-child'){
+   ({session}=await host.createManagedChildSession(config,sdk,runtime,{cwd:dir,toolNames:[toolName]}));
+  }else{
   const settingsManager=sdk.SettingsManager.inMemory({compaction:{enabled:false}});
   const loader=new sdk.DefaultResourceLoader({cwd:dir,agentDir:dir,settingsManager,noExtensions:true,noSkills:true,
    noPromptTemplates:true,noThemes:true,noContextFiles:true,agentsFilesOverride:()=>({agentsFiles:[]}),extensionFactories:[pi=>discovery.configure(pi)]});
@@ -132,6 +137,7 @@ for(const source of ['gateway','domain'])test('actual pinned SDK loads exact con
    settingsManager,sessionManager:sdk.SessionManager.inMemory(),...host.applicationToolOptions(config,[],undefined,discovery)}));
   await session.bindExtensions({onError:error=>errors.push(error)});
   session.setActiveToolsByName(discovery.initialToolNames(config.applicationPolicy.allowed_tools));discovery.installSession(session);
+  }
   await session.prompt('Use selected action');
   assert.deepEqual(errors,[]);assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
   assert.deepEqual(menus[1].find(t=>t.name===toolName)?.parameters,inputSchema);
@@ -140,7 +146,8 @@ for(const source of ['gateway','domain'])test('actual pinned SDK loads exact con
    assert.equal(requests.length,2);assert.equal(requests[0].operation,'resolve_contracts');
   }else assert.equal(requests.length,1);
   assert.equal(requests.at(-1).name,toolName);assert.deepEqual(requests.at(-1).arguments,{value:4});
- }finally{session?.dispose();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
+ }finally{session?.dispose();if(previousAgentDir===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=previousAgentDir;
+  await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
 });
 
 test('capability search uses bounded published metadata and isolates grants and snapshots',async()=>{

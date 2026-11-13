@@ -696,7 +696,8 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     throw new Error('Child skills are not authorized by the application');
   }
   const childTools=[...new Set(toolNames)];
-  if(config.dataGateway?.onDemandTools===true&&childTools.some(name=>Object.hasOwn(config.dataGateway.catalog.tools,name))) {
+  if([config.dataGateway,config.domainTools].some(source=>source?.onDemandTools===true&&
+      childTools.some(name=>Object.hasOwn(source.catalog.tools,name)))) {
     if(discoveryToolNames.some(name=>!grants.includes(name)))throw new Error('Child tool discovery is not authorized by the application');
     childTools.push(...discoveryToolNames.filter(name=>!childTools.includes(name)));
   }
