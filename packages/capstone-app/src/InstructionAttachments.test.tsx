@@ -6,6 +6,47 @@ import {applicationCapacity} from './applicationCapacity'
 import type {EventEnvelope} from './threadProtocol'
 import type {InputCatalog} from './threadInput'
 afterEach(()=>{cleanup();sessionStorage.clear()})
+it('shows a download error while the preview is closed',async()=>{
+  render(<InstructionAttachments files={[{resource_id:'resource_error',file_name:'error.txt',size_bytes:8,sha256:'a'.repeat(64)}]} readFile={async()=>{throw new Error('读取失败')}}/>)
+  fireEvent.click(screen.getByRole('button',{name:'下载附件 error.txt'}))
+  expect((await screen.findByRole('alert')).textContent).toContain('读取失败')
+})
+it('aborts an obsolete preview and does not create a late object URL',async()=>{
+  const create=vi.fn(()=> 'blob:late')
+  vi.stubGlobal('URL',class extends URL{static createObjectURL=create;static revokeObjectURL=vi.fn()})
+  let finish!:(value:Uint8Array)=>void
+  let signal:AbortSignal|undefined
+  const read=vi.fn((_file:InstructionFile,value?:AbortSignal)=>{signal=value;return new Promise<Uint8Array>(resolve=>{finish=resolve})})
+  render(<InstructionAttachments files={[{resource_id:'resource_slow',file_name:'slow.txt',size_bytes:8,sha256:'a'.repeat(64)}]} readFile={read}/>)
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 slow.txt'}))
+  fireEvent.click(screen.getByRole('button',{name:'收起附件 slow.txt'}))
+  expect(signal?.aborted).toBe(true)
+  finish(new Uint8Array([65]))
+  await waitFor(()=>expect(create).not.toHaveBeenCalled())
+})
+it('releases loaded preview bytes when collapsed',async()=>{
+  const revoke=vi.fn()
+  vi.stubGlobal('URL',class extends URL{static createObjectURL=vi.fn(()=> 'blob:release');static revokeObjectURL=revoke})
+  render(<InstructionAttachments files={[{resource_id:'resource_release',file_name:'release.txt',size_bytes:8,sha256:'a'.repeat(64)}]} readFile={async()=>new TextEncoder().encode('正文')}/>)
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 release.txt'}))
+  await screen.findByText('正文')
+  fireEvent.click(screen.getByRole('button',{name:'收起附件 release.txt'}))
+  expect(revoke).toHaveBeenCalledWith('blob:release')
+})
+it('shares an in-flight read between preview and download',async()=>{
+  vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(()=>{})
+  vi.stubGlobal('URL',class extends URL{static createObjectURL=vi.fn(()=> 'blob:shared');static revokeObjectURL=vi.fn()})
+  let finish!:(value:Uint8Array)=>void
+  const read=vi.fn(()=>new Promise<Uint8Array>(resolve=>{finish=resolve}))
+  render(<InstructionAttachments files={[{resource_id:'resource_shared',file_name:'shared.txt',size_bytes:8,sha256:'a'.repeat(64)}]} readFile={read}/>)
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 shared.txt'}))
+  fireEvent.click(screen.getByRole('button',{name:'下载附件 shared.txt'}))
+  expect(read).toHaveBeenCalledTimes(1)
+  finish(new TextEncoder().encode('共享正文'))
+  await screen.findByText('共享正文')
+  expect(read).toHaveBeenCalledTimes(1)
+  vi.restoreAllMocks()
+})
 const one=`resource_${'a'.repeat(32)}`,two=`resource_${'b'.repeat(32)}`
 const events:EventEnvelope[]=[one,two].map((id,i)=>({eventId:`event_${i}`,eventSeq:i+1,eventType:'command_accepted',eventVersion:1,threadId:'thread',runId:'run',attemptId:`attempt_${i}`,occurredAt:'2026-10-28T00:00:00Z',visibility:'public',payload:{kind:'send_auto',attachment_refs:[id],payload:{text:`指令${i+1}`}}}))
 const catalog:InputCatalog={schema:'capstone-thread-input-catalog/1',revision:'catalog',context_id:'none',selection_revision:'selection',objects:[],materials:[],resource_profiles:{},operations:[],stored_resources:[one,two].map((id,i)=>({schema:'capstone-resource/1',resource_id:id,thread_id:'thread',version:1,file_name:`资料${i+1}.csv`,size_bytes:2048,sha256:'a'.repeat(64),processing_state:'stored'}))}
