@@ -1,5 +1,14 @@
 # docs/status INDEX
 
+2026-11-14：PR101已合入dev0616023f；[默认本地入口回执](../reports/receipts/2026-11-14-merged-dev.json)
+记录规范重建、API/worker同镜像、默认App5173、原真实任务恢复及成果下载摘要通过。
+6条部署引用线坐标检查无穿卡；最终控制文档待集成，IG1及云端规模接受保持独立。
+
+2026-11-13：[退役定向CI回执](../reports/receipts/2026-11-13-retirement-ci.json)
+记录PR101受检源码20469225，macOS通过1分58秒。合并接口持续HTTP502；
+实际dev仍2c4ac72e。图已刷新，未把通过CI误记成合入或部署。
+
+
 2026-11-08：[独立评审与复核](../reviews/2026-11-08-session-skill-scope-independent-review.md)结论REQUEST CHANGES；原始意见与采纳/排除理由分开保存，IG1需修排除、内容身份和恢复路径，无运行代码变更或CI。
 
 2026-11-08：[会话技能作用域](../reports/2026-11-08-session-skill-scope.md)记录406c7d7b及local-dev连接三区研发的两轮真实执行；配置冻结、排除、PG恢复与产品哈希通过，界面/独立审查未接受，无CI。

@@ -371,6 +371,35 @@ to restrict it to the computer. `make capstone-app-dev` remains the foreground
 alternative when interactive logs are needed. A stale browser session should
 be refreshed or reset before starting a new case.
 
+## GitHub connectivity on this Mac (Clash Verge)
+
+- This Mac uses Clash Verge. The observed system HTTP/HTTPS proxy is
+  `http://127.0.0.1:7897`. A system proxy does not prove that terminal `gh`,
+  Git, or curl requests use it. Check the current system proxy and shell
+  proxy variables first; use the observed port if it changes.
+- On 2026-11-14, GitHub merge requests repeatedly returned HTTP 502 while
+  read-only requests worked. An explicit Clash proxy made the same approved
+  PR101 merge succeed (`0616023f`). Do not conclude that GitHub is unavailable
+  from a failed request on one connection path.
+- For GitHub work on this Mac, use process-scoped proxy settings when the shell
+  has no working proxy. Do not change global Git settings, shell profiles,
+  Clash routing or TLS verification for this task:
+
+  ```sh
+  HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 gh pr view 101
+  git -c http.proxy=http://127.0.0.1:7897 -c http.version=HTTP/1.1 fetch origin dev
+  ```
+
+- Before retrying a failed write, read the actual remote PR/ref state through
+  the working connection. A timeout or 502 does not prove the write failed.
+  Retry only the still-needed approved action, with the expected source SHA.
+  Do not repeat a push, workflow dispatch or PR update that can start another CI.
+  Existing per-run CI approval requirements still apply.
+- Compare bounded read-only requests with and without the explicit proxy when
+  diagnosing a connection problem. Do not print proxy credentials, auth tokens,
+  subscription URLs or complete private proxy configuration. Record the result
+  and selected connection path in the project journal.
+
 ## Verification
 
 During early development, keep CI proportional to the changed layer and its
