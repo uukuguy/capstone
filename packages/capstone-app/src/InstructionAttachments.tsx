@@ -23,12 +23,11 @@ export function bindInstructionAttachments(messages:ThreadMessageLike[],resource
   })
 }
 
-function InstructionFileItem({file,readFile,saveFile}:{file:InstructionFile;readFile?:InstructionFileReader;saveFile?:InstructionFileSaver}){
+function InstructionFileItem({file,readFile,saveFile,open,onOpen}:{file:InstructionFile;readFile?:InstructionFileReader;saveFile?:InstructionFileSaver;open:boolean;onOpen:(next:boolean)=>void}){
   const name=file.file_name||'附件信息暂不可用'
   const ready=!!readFile&&!!file.sha256&&file.size_bytes!==undefined&&file.size_bytes>0
   const overPreview=ready&&file.size_bytes!>applicationCapacity('preview_bytes')
   const media=nativePreviewMedia(file.file_name||'','application/octet-stream')
-  const [open,setOpen]=useState(false)
   const [phase,setPhase]=useState<'idle'|'loading'|'ready'|'error'>('idle')
   const [url,setUrl]=useState<string>()
   const [text,setText]=useState<string>()
@@ -51,7 +50,8 @@ function InstructionFileItem({file,readFile,saveFile}:{file:InstructionFile;read
   }
   async function preview(){
     if(!ready)return
-    setOpen(true)
+    if(open){onOpen(false);return}
+    onOpen(true)
     if(overPreview){setError('');return}
     try{await materialize()}catch(cause){setPhase('error');setError(cause instanceof Error?cause.message:'附件暂时无法读取。')}
   }
@@ -76,7 +76,7 @@ function InstructionFileItem({file,readFile,saveFile}:{file:InstructionFile;read
     <FileText aria-hidden="true"/>
     <span><strong title={file.file_name}>{name}</strong>{size&&<small>{size}{file.version!==undefined?` · v${file.version}`:''}</small>}</span>
     {ready&&<span className="capstone-instruction-file-actions">
-      <button type="button" aria-expanded={open} aria-label={`预览附件 ${name}`} onClick={()=>void preview()}>预览</button>
+      <button type="button" aria-expanded={open} aria-label={open?`收起附件 ${name}`:`预览附件 ${name}`} onClick={()=>void preview()}>{open?'收起':'预览'}</button>
       <button type="button" aria-label={`下载附件 ${name}`} onClick={()=>void download()}>下载</button>
     </span>}
     {open&&<div className="capstone-instruction-file-preview">
@@ -89,6 +89,7 @@ function InstructionFileItem({file,readFile,saveFile}:{file:InstructionFile;read
 }
 
 export default function InstructionAttachments({files,readFile,saveFile}:{files:InstructionFile[];readFile?:InstructionFileReader;saveFile?:InstructionFileSaver}){
+  const [openId,setOpenId]=useState<string>()
   if(!files.length)return null
-  return <ul className="capstone-instruction-files" aria-label="指令附件">{files.map(file=><InstructionFileItem key={file.resource_id} file={file} readFile={readFile} saveFile={saveFile}/>)}</ul>
+  return <ul className="capstone-instruction-files" aria-label="指令附件">{files.map(file=><InstructionFileItem key={file.resource_id} file={file} readFile={readFile} saveFile={saveFile} open={openId===file.resource_id} onOpen={next=>setOpenId(next?file.resource_id:undefined)}/>)}</ul>
 }

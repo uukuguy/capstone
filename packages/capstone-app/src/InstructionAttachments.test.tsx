@@ -1,7 +1,7 @@
 import {afterEach,expect,it,vi} from 'vitest'
 import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import CapstoneAssistantThread,{projectAssistantMessages} from './CapstoneAssistantThread'
-import InstructionAttachments from './InstructionAttachments'
+import InstructionAttachments,{type InstructionFile} from './InstructionAttachments'
 import {applicationCapacity} from './applicationCapacity'
 import type {EventEnvelope} from './threadProtocol'
 import type {InputCatalog} from './threadInput'
@@ -47,6 +47,24 @@ it('previews and downloads instruction bytes only after the reader is used',asyn
   expect(read).toHaveBeenCalledTimes(1)
   fireEvent.click(screen.getByRole('button',{name:'下载附件 01-安装部署手册.md'}))
   await waitFor(()=>expect(read).toHaveBeenCalledTimes(1))
+})
+it('opens one attachment preview at a time and closes it',async()=>{
+  const read=vi.fn(async(file:InstructionFile)=>new TextEncoder().encode(file.resource_id===one?'正文甲\n':'正文乙\n'))
+  const files=[
+    {resource_id:one,file_name:'一.txt',size_bytes:8,version:1,sha256:'a'.repeat(64)},
+    {resource_id:two,file_name:'二.txt',size_bytes:8,version:1,sha256:'b'.repeat(64)},
+  ]
+  render(<InstructionAttachments files={files} readFile={read}/>)
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 一.txt'}))
+  expect(await screen.findByText('正文甲')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 二.txt'}))
+  expect(await screen.findByText('正文乙')).toBeTruthy()
+  expect(screen.queryByText('正文甲')).toBeNull()
+  expect(screen.getByRole('button',{name:'收起附件 二.txt'})).toBeTruthy()
+  expect(screen.getByRole('button',{name:'预览附件 一.txt'})).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'收起附件 二.txt'}))
+  expect(screen.queryByText('正文乙')).toBeNull()
+  expect(screen.getByRole('button',{name:'预览附件 二.txt'})).toBeTruthy()
 })
 it('shows the preview limit without reading a larger instruction file',async()=>{
   const read=vi.fn(async()=>new Uint8Array([1]))
