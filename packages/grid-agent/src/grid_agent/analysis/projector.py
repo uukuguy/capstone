@@ -10,7 +10,7 @@ from typing import Any
 from pandapower_domain.capabilities import CapabilityContextCatalog
 from pandapower_domain.authority import SimulatorIntegrityError
 from pandapower_domain.models import ContextEventDraft, ResultRecord
-from grid_agent.analysis.store import AnalysisContextStore
+from pandapower_application.analysis_store import AnalysisContextStore
 from capability_agent.domain import (
     ArtifactAuthority,
     DomainProjectorRegistry,

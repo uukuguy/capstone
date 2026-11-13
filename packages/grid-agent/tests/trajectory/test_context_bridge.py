@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from grid_agent.analysis.store import AnalysisContextStore
-from grid_agent.analysis.view import materialize_context_view
+from pandapower_application.analysis_store import AnalysisContextStore
+from pandapower_domain.context_view import materialize_context_view
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry

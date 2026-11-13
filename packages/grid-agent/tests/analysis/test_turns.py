@@ -9,7 +9,7 @@ import pytest
 
 from pandapower_domain.models import ContextEventDraft
 from pandapower_domain.authority import ReferenceDiagnostic
-from grid_agent.analysis.store import AnalysisContextStore
+from pandapower_application.analysis_store import AnalysisContextStore
 from grid_agent.analysis import turns as turns_module
 from grid_agent.analysis.turns import ActiveTurnHandle, StaleAnswerDraftError, TurnController
 from pandapower_application.workspace import AnalysisWorkspace

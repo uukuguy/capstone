@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from pandapower_domain.models import AnalysisContext, ContextEventDraft
-from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError
+from pandapower_application.analysis_store import AnalysisContextStore, ContextStoreError
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.recorder import RecorderIntegrityError
 from grid_agent.trajectory.events import RunEvent

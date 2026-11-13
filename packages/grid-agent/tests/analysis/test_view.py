@@ -21,7 +21,7 @@ from pandapower_domain.models import (
     TurnRecord,
     VerifiedFact,
 )
-from grid_agent.analysis.view import MAX_VIEW_BYTES, build_context_view, materialize_context_view
+from pandapower_domain.context_view import MAX_VIEW_BYTES, build_context_view, materialize_context_view
 
 
 CONTEXT_REF = "context:sha256:" + "1" * 64

@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from pandapower_domain.models import AnalysisContext
-from grid_agent.analysis.store import AnalysisContextStore
+from pandapower_application.analysis_store import AnalysisContextStore
 from pandapower_application.answer_contract import AnswerEnvelope
 from grid_agent.trajectory.reader import RunEventReader
 
