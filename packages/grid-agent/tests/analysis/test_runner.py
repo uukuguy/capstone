@@ -14,7 +14,7 @@ from pandapower_application.analysis_runner import AnalysisOutcome, AnalysisRequ
 from pandapower_application.analysis_store import AnalysisContextStore, ContextStoreError
 from pandapower_application.analysis_turns import ActiveTurnHandle, FinalizedTurn, TurnController
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.runtime.rpc import PiProtocolError
+from capability_agent.runtime.rpc import PiProtocolError
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter

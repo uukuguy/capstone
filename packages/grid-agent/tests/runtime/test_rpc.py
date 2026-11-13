@@ -16,7 +16,7 @@ from capability_agent.runtime import rpc as kernel_rpc
 from pandapower_application.run_workspace import RunWorkspace
 from capability_agent.runtime.trace import JsonlTraceWriter
 from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
-from grid_agent.runtime.rpc import PiProtocolError, PiRpcClient
+from capability_agent.runtime.rpc import PiProtocolError, PiRpcClient
 from grid_agent.runtime.environment import PiLaunch
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
@@ -47,7 +47,7 @@ def scripted_rpc_client(tmp_path: Path, *, events: list[dict[str, object]]) -> t
         identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    return PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path)), workspace
+    return PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError), workspace
 
 
 def successful_tool_end(tool_call_id: str, tool_name: str, capability: str, result: Mapping[str, object]) -> dict[str, object]:
@@ -178,7 +178,7 @@ def test_rpc_requires_ack_before_agent_end(tmp_path: Path) -> None:
     )
     command = PiCommand(argv=(sys.executable, str(fake)), identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"))
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
     client.start()
     try:
         with pytest.raises(PiProtocolError, match="before prompt acknowledgement"):
@@ -200,7 +200,7 @@ def test_rpc_reports_prompt_send_failure_when_provider_exits_early(tmp_path: Pat
         ),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
     client.start()
     try:
         assert client.process is not None
@@ -223,7 +223,7 @@ def test_rpc_starts_full_launch_with_its_restricted_environment(tmp_path: Path) 
     fake.write_text("import os; assert os.environ['ONLY_ALLOWED'] == 'yes'", encoding="utf-8")
     launch = PiLaunch(argv=(sys.executable, str(fake)), environment={"ONLY_ALLOWED": "yes"})
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(launch, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(launch, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
     client.start()
     client.stop()
 
@@ -253,7 +253,7 @@ def test_rpc_reports_events_and_idle_heartbeats(
         identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
     observed: list[str] = []
     heartbeats: list[None] = []
 
@@ -316,7 +316,7 @@ def test_rpc_uses_current_pi_prompt_message_protocol(tmp_path: Path) -> None:
         identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
@@ -341,7 +341,7 @@ def test_rpc_handles_two_sequential_prompts_in_one_process(tmp_path: Path) -> No
         identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
     second: dict[str, object] = {}
 
     client.start()
@@ -375,7 +375,7 @@ def test_rpc_stops_immediately_on_failed_prompt_response(tmp_path: Path) -> None
         identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
@@ -399,7 +399,7 @@ def test_rpc_collects_text_from_current_pi_message_updates(tmp_path: Path) -> No
         identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
@@ -477,7 +477,7 @@ def test_rpc_persists_canonical_tool_result_from_extension_tool_end_event(tmp_pa
         identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
@@ -523,7 +523,7 @@ def test_rpc_rejects_successful_agent_end_without_answer_text(tmp_path: Path) ->
     )
     command = PiCommand(argv=(sys.executable, str(fake)), identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"))
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
     client.start()
     try:
         with pytest.raises(PiProtocolError, match="without answer text"):
@@ -554,7 +554,7 @@ def test_rpc_surfaces_pi_capture_fatal_exit_instead_of_generic_eof(
         ),
     )
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
@@ -592,7 +592,7 @@ def test_rpc_preserves_capture_fatal_diagnostic_without_legacy_marker(
         command,
         workspace,
         JsonlTraceWriter(workspace.events_path),
-    )
+     capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
@@ -615,7 +615,7 @@ def test_rpc_surfaces_provider_error_from_agent_end(tmp_path: Path) -> None:
     )
     command = PiCommand(argv=(sys.executable, str(fake)), identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"))
     workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path), capture_error_type=CaptureIntegrityError)
     client.start()
     try:
         with pytest.raises(PiProtocolError, match="provider failure: fetch failed"):
@@ -747,7 +747,7 @@ def test_rpc_polls_model_request_commits_while_pi_is_blocked(
         ),
     )
     rpc_workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, rpc_workspace, JsonlTraceWriter(rpc_workspace.events_path))
+    client = PiRpcClient(command, rpc_workspace, JsonlTraceWriter(rpc_workspace.events_path), capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
@@ -829,7 +829,7 @@ def test_rpc_capture_failure_prevents_provider_continuation(tmp_path: Path) -> N
         ),
     )
     rpc_workspace = RunWorkspace.create(tmp_path / "runs")
-    client = PiRpcClient(command, rpc_workspace, JsonlTraceWriter(rpc_workspace.events_path))
+    client = PiRpcClient(command, rpc_workspace, JsonlTraceWriter(rpc_workspace.events_path), capture_error_type=CaptureIntegrityError)
 
     client.start()
     try:
