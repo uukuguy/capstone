@@ -24,3 +24,10 @@ def test_retirement_manifest_includes_deleted_names_of_migrated_files():
     ).splitlines()
     assert retired
     assert set(retired).issubset(manifest["paths"])
+
+
+def test_retirement_ci_prepares_pinned_sdk_before_sdk_consumers():
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/verify.yml").read_text()
+    setup = workflow.split("- name: Set up architecture retirement consumers", 1)[1].split("- name:", 1)[0]
+    assert "make install-pi" in setup
