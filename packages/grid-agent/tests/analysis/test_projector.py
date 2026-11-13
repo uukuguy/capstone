@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 
-from grid_agent.analysis.capabilities import CapabilityContextCatalog
-from grid_agent.analysis.integrity import SimulatorIntegrityError
+from pandapower_domain.capabilities import CapabilityContextCatalog
+from pandapower_domain.authority import SimulatorIntegrityError
 from grid_agent.analysis.models import ContextEventDraft, VerifiedFact
 from grid_agent.analysis.projector import AnalysisContextProjector
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError

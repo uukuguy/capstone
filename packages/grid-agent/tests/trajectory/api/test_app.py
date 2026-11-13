@@ -13,7 +13,7 @@ import pytest
 from grid_agent.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
 from grid_agent.trajectory.api.cursor import CursorCodec, CursorState
 from grid_agent.trajectory.api.models import RunSummary
-from grid_agent.analysis.integrity import _sha256_canonical_json
+from pandapower_domain.authority import _sha256_canonical_json
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.events import EventDraft, EventRefs, EventSource, RunScope

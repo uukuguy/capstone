@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from grid_agent.analysis.integrity import SimulatorIntegrityError
+from pandapower_domain.authority import SimulatorIntegrityError
 from grid_agent.analysis.models import ContextEventDraft
 from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, AnalysisRunner
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError

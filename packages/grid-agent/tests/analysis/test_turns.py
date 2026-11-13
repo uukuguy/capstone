@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from grid_agent.analysis.models import ContextEventDraft
-from grid_agent.analysis.integrity import ReferenceDiagnostic
+from pandapower_domain.authority import ReferenceDiagnostic
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis import turns as turns_module
 from grid_agent.analysis.turns import ActiveTurnHandle, StaleAnswerDraftError, TurnController

@@ -9,7 +9,7 @@ from typing import Any, Literal, Mapping
 from pydantic import BaseModel, ValidationError
 
 from pandapower_domain.models import AnalysisContext, AnalysisContextEvent, ContextEventDraft
-from grid_agent.analysis.reducer import ContextTransitionError, initial_context, reduce_context
+from pandapower_domain.state import ContextTransitionError, initial_context, reduce_context
 from pandapower_application.workspace import AnalysisWorkspace
 from capability_agent.trajectory.events import RunEvent
 

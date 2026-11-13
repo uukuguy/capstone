@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from grid_agent.analysis.integrity import _sha256_canonical_json
+from pandapower_domain.authority import _sha256_canonical_json
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry

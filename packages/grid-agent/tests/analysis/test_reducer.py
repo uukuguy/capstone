@@ -1,7 +1,7 @@
 import pytest
 
 from grid_agent.analysis.models import ContextEventDraft
-from grid_agent.analysis.reducer import (
+from pandapower_domain.state import (
     ContextTransitionError,
     canonical_state_hash,
     initial_context,

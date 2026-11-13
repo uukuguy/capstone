@@ -4,7 +4,7 @@ import copy
 
 import pytest
 
-from grid_agent.analysis.capabilities import CapabilityContextCatalog, CapabilityContextError
+from pandapower_domain.capabilities import CapabilityContextCatalog, CapabilityContextError
 
 
 def test_context_catalog_loads_contract_selected_projector(

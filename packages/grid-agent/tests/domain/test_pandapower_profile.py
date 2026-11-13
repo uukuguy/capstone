@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.analysis.capabilities import KNOWN_CONTEXT_PROJECTORS
-from grid_agent.analysis.integrity import ContentReferenceVerifier
-from grid_agent.analysis.reducer import (
+from pandapower_domain.capabilities import KNOWN_CONTEXT_PROJECTORS
+from pandapower_domain.authority import ContentReferenceVerifier
+from pandapower_domain.state import (
     canonical_state_hash as compatibility_canonical_state_hash,
     initial_context as compatibility_initial_context,
     reduce_context as compatibility_reduce_context,

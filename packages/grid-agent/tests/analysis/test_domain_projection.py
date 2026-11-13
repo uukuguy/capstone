@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from grid_agent.analysis.capabilities import CapabilityContextSpec
-from grid_agent.analysis.domain_projection import project_domain_result
+from pandapower_domain.capabilities import CapabilityContextSpec
+from pandapower_domain.projection import project_domain_result
 
 
 CONTEXT_REF = "context:sha256:" + "1" * 64

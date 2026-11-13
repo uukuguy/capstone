@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from grid_agent.analysis.models import AnalysisContext, AnalysisContextEvent, ContextEventDraft
-from grid_agent.analysis.reducer import initial_context, reduce_context
+from pandapower_domain.state import initial_context, reduce_context
 from pandapower_application.report import (
     _native_turns_by_call,
     _read_context_events,

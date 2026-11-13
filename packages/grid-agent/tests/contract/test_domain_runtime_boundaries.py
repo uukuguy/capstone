@@ -11,8 +11,8 @@ COMPOSITION = ROOT / "packages/pandapower-application/src/pandapower_application
 FORBIDDEN_PREFIXES = (
     "grid_agent.simulator",
     "grid_agent.domains",
-    "grid_agent.analysis.domain_projection",
-    "grid_agent.analysis.integrity",
+    "pandapower_domain.projection",
+    "pandapower_domain.authority",
 )
 
 
