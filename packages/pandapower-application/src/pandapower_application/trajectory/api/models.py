@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from grid_agent.trajectory.projection_models import BindingProjectionMetadata
+from pandapower_application.trajectory.projection_models import BindingProjectionMetadata
 
 
 class _StrictModel(BaseModel):

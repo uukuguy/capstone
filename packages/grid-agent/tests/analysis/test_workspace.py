@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.trajectory.events import RunEvent
+from pandapower_application.trajectory.events import RunEvent
 
 
 def test_analysis_workspace_creates_one_complete_run_tree(tmp_path: Path) -> None:

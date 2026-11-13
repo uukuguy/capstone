@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from capability_agent.trajectory.artifacts import ArtifactPointer
-from grid_agent.trajectory.projection_models import ArtifactIndex, ArtifactIndexRecord
+from pandapower_application.trajectory.projection_models import ArtifactIndex, ArtifactIndexRecord
 from capability_agent.trajectory.replay import ReplayEventLike
 
 

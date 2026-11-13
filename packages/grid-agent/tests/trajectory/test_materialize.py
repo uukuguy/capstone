@@ -7,8 +7,8 @@ import sys
 
 import pytest
 
-from grid_agent.trajectory.materialize import ProjectionMaterializer
-from grid_agent.trajectory.projection_models import AgentTrajectory, ArtifactIndex, BusinessTrajectory, ContextTimeline, ProjectedRun
+from pandapower_application.trajectory.materialize import ProjectionMaterializer
+from pandapower_application.trajectory.projection_models import AgentTrajectory, ArtifactIndex, BusinessTrajectory, ContextTimeline, ProjectedRun
 
 
 def test_materialized_cache_rebuild_is_byte_identical(tmp_path) -> None:
@@ -51,7 +51,7 @@ def test_materializer_held_directory_fd_survives_post_open_leaf_swap(tmp_path, m
     leaf = materializer._paths("analysis-1", "identity-a").cache_root
     outside = tmp_path / "run"
     outside.mkdir()
-    import grid_agent.trajectory.materialize as module
+    import pandapower_application.trajectory.materialize as module
     original = module._atomic_write_at
     swapped = False
 
@@ -106,7 +106,7 @@ def test_cache_fifo_without_writer_returns_miss_without_blocking(tmp_path):
     os.mkfifo(path)
     result = subprocess.run(
         [sys.executable, "-c",
-         "from pathlib import Path; from grid_agent.trajectory.materialize import ProjectionMaterializer; "
+         "from pathlib import Path; from pandapower_application.trajectory.materialize import ProjectionMaterializer; "
          "import sys; assert ProjectionMaterializer(Path(sys.argv[1])).load_if_current('analysis-1','source-a') is None",
          str(materializer.cache_root)],
         capture_output=True, text=True, timeout=3,

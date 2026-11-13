@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Generic, Protocol, TypeVar
 
-from grid_agent.trajectory.api.cursor import CursorState
+from pandapower_application.trajectory.api.cursor import CursorState
 from capability_agent.trajectory.canonical import canonical_json_bytes
 
 

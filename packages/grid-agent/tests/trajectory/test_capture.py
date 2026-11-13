@@ -8,11 +8,11 @@ import pytest
 
 from pandapower_domain.authority import _sha256_canonical_json
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
 from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter
-from grid_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory.recorder import RunEventRecorder
+from pandapower_application.trajectory.reader import RunEventReader
+from pandapower_application.trajectory.recorder import RunEventRecorder
 
 
 class Clock:

@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.events import EventDraft, EventRefs, EventType, RunScope
-from grid_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory.recorder import RecorderIntegrityError, RunEventRecorder
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.events import EventDraft, EventRefs, EventType, RunScope
+from pandapower_application.trajectory.reader import RunEventReader
+from pandapower_application.trajectory.recorder import RecorderIntegrityError, RunEventRecorder
 
 
 def _registry(root: Path) -> ImmutableArtifactRegistry:

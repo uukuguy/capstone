@@ -7,14 +7,14 @@ from pathlib import Path
 from typing import Any, cast
 import pytest
 
-from grid_agent.trajectory.context_projection import (
+from pandapower_application.trajectory.context_projection import (
     UNAVAILABLE_NATIVE_CONTEXT,
     project_context,
     project_context_payload,
 )
-from grid_agent.trajectory.artifacts import ArtifactPointer
-from grid_agent.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope
-from grid_agent.trajectory.replay import ReplayEventLike
+from pandapower_application.trajectory.artifacts import ArtifactPointer
+from pandapower_application.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope
+from pandapower_application.trajectory.replay import ReplayEventLike
 
 
 @dataclass(frozen=True)

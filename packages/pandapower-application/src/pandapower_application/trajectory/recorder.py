@@ -7,12 +7,12 @@ from capability_agent.trajectory.recorder import (
     RunEventRecorder as NeutralRunEventRecorder,
 )
 
-from grid_agent.trajectory.events import (
+from pandapower_application.trajectory.events import (
     LEGACY_EVENT_PRODUCER,
     LEGACY_EVENT_SCHEMA_VERSION,
     build_event,
 )
-from grid_agent.trajectory.schema_policy import require_grid_event_producer
+from pandapower_application.trajectory.schema_policy import require_grid_event_producer
 
 
 class RunEventRecorder(NeutralRunEventRecorder):

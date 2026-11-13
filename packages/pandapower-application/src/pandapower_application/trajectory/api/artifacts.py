@@ -11,7 +11,7 @@ from hashlib import sha256
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO
 
-from grid_agent.trajectory.projection_models import ArtifactIndex
+from pandapower_application.trajectory.projection_models import ArtifactIndex
 
 
 _MEDIA_TYPES = {

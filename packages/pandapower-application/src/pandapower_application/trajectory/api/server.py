@@ -9,10 +9,10 @@ from fastapi import FastAPI
 from uvicorn import Config
 
 from pandapower_application.paths import ProjectPaths
-from grid_agent.trajectory.api.app import create_trajectory_app
-from grid_agent.trajectory.api.catalog import TrajectoryRunCatalog
-from grid_agent.trajectory.api.cursor import CursorCodec
-from grid_agent.trajectory.service import ProjectionService
+from pandapower_application.trajectory.api.app import create_trajectory_app
+from pandapower_application.trajectory.api.catalog import TrajectoryRunCatalog
+from pandapower_application.trajectory.api.cursor import CursorCodec
+from pandapower_application.trajectory.service import ProjectionService
 
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})

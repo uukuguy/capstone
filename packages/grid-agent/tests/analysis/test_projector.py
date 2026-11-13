@@ -23,8 +23,8 @@ from capability_agent.domain import (
     VerifiedReferenceSet,
 )
 from pandapower_domain import build_pandapower_profile
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
 
 
 INPUT = {

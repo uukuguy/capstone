@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import grid_agent.trajectory.artifacts as artifact_module
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.artifacts import (
+import pandapower_application.trajectory.artifacts as artifact_module
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import (
     ArtifactIntegrityError,
     ImmutableArtifactRegistry,
 )

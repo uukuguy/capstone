@@ -10,14 +10,14 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from grid_agent.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
-from grid_agent.trajectory.api.cursor import CursorCodec, CursorState
-from grid_agent.trajectory.api.models import RunSummary
+from pandapower_application.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
+from pandapower_application.trajectory.api.cursor import CursorCodec, CursorState
+from pandapower_application.trajectory.api.models import RunSummary
 from pandapower_domain.authority import _sha256_canonical_json
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.events import EventDraft, EventRefs, EventSource, RunScope
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.events import EventDraft, EventRefs, EventSource, RunScope
+from pandapower_application.trajectory.projection_models import (
     AgentStep,
     AgentTrajectory,
     AgentTurn,
@@ -32,8 +32,8 @@ from grid_agent.trajectory.projection_models import (
     ProjectedRun,
     ToolCall,
 )
-from grid_agent.trajectory.recorder import RunEventRecorder
-from grid_agent.trajectory.service import ProjectionService
+from pandapower_application.trajectory.recorder import RunEventRecorder
+from pandapower_application.trajectory.service import ProjectionService
 
 
 MARKDOWN_REF = "artifact:sha256:" + "a" * 64
@@ -235,7 +235,7 @@ def write_static_fixture(tmp_path: Path) -> Path:
 def create_test_app(
     tmp_path: Path, *, static_root: Path | None = None
 ) -> tuple[FastAPI, StubCatalog, CursorCodec]:
-    from grid_agent.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.app import create_trajectory_app
 
     catalog = StubCatalog(tmp_path)
     codec = CursorCodec.load_or_create(tmp_path / "cursor.key")
@@ -283,7 +283,7 @@ def test_artifact_invalid_range_precedes_projection(
 def test_download_limit_is_explicit_and_preview_remains_available(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from grid_agent.trajectory.api import artifacts
+    from pandapower_application.trajectory.api import artifacts
 
     app, catalog, _ = create_test_app(tmp_path)
     monkeypatch.setattr(artifacts, "MAX_DOWNLOAD_BYTES", 8, raising=False)
@@ -297,8 +297,8 @@ def test_download_limit_is_explicit_and_preview_remains_available(
 
 @pytest.mark.parametrize("fail_send", [False, True])
 def test_artifact_download_closes_snapshot(tmp_path: Path, fail_send: bool) -> None:
-    from grid_agent.trajectory.api.app import _ArtifactDownloadResponse
-    from grid_agent.trajectory.api.artifacts import ArtifactGateway
+    from pandapower_application.trajectory.api.app import _ArtifactDownloadResponse
+    from pandapower_application.trajectory.api.artifacts import ArtifactGateway
 
     _, catalog, _ = create_test_app(tmp_path)
     snapshot = ArtifactGateway(catalog.run_root, catalog.projected.artifacts).snapshot(catalog.artifact_ref)
@@ -608,7 +608,7 @@ def create_native_catalog_app(
     )
     cache_root = tmp_path / ".grid-agent/trajectory-cache"
     catalog = TrajectoryRunCatalog(runs_root, cache_root, ProjectionService(cache_root))
-    from grid_agent.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.app import create_trajectory_app
 
     return create_trajectory_app(
         catalog, CursorCodec.load_or_create(cache_root / "cursor.key"),
@@ -780,7 +780,7 @@ def test_api_404_never_falls_back_to_spa(tmp_path: Path) -> None:
 
 
 def test_server_rejects_missing_production_assets(tmp_path: Path) -> None:
-    from grid_agent.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.app import create_trajectory_app
 
     catalog = StubCatalog(tmp_path)
     codec = CursorCodec.load_or_create(tmp_path / "cursor.key")
@@ -1027,7 +1027,7 @@ def test_batch_evidence_uses_real_current_run_projection(tmp_path: Path) -> None
 
 
 def test_batch_oversize_group_does_not_consume_successful_item_budget(tmp_path: Path, monkeypatch) -> None:
-    from grid_agent.trajectory.api import projection_pages
+    from pandapower_application.trajectory.api import projection_pages
     monkeypatch.setattr(projection_pages, "MAX_PAGE_RECORDS", 2)
     app, catalog, _ = create_test_app(tmp_path)
     record = next(iter(catalog.projected.artifacts.records.values()))
@@ -1098,7 +1098,7 @@ def test_native_api_reads_historical_v1_request_without_mutating_bytes(
     before = request_path.read_bytes()
     cache_root = tmp_path / ".grid-agent/trajectory-cache"
     catalog = TrajectoryRunCatalog(runs_root, cache_root, ProjectionService(cache_root))
-    from grid_agent.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.app import create_trajectory_app
 
     app = create_trajectory_app(
         catalog,
@@ -1275,7 +1275,7 @@ def test_every_response_has_browser_security_headers_without_cors(tmp_path: Path
 
 @pytest.mark.parametrize("host", ["127.0.0.1:8765", "localhost:8765", "[::1]:8765"])
 def test_local_host_headers_are_accepted(tmp_path: Path, host: str) -> None:
-    from grid_agent.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.app import create_trajectory_app
 
     _, catalog, codec = create_test_app(tmp_path)
     app = create_trajectory_app(
@@ -1288,7 +1288,7 @@ def test_local_host_headers_are_accepted(tmp_path: Path, host: str) -> None:
 
 @pytest.mark.parametrize("host", ["untrusted.example:8765", "127.0.0.1:9999", "127.0.0.1.evil:8765"])
 def test_foreign_host_header_is_rejected_with_secured_envelope(tmp_path: Path, host: str) -> None:
-    from grid_agent.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.app import create_trajectory_app
 
     _, catalog, codec = create_test_app(tmp_path)
     app = create_trajectory_app(

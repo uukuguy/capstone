@@ -7,7 +7,7 @@ from typing import Callable
 
 import pytest
 
-from grid_agent.trajectory.api.cursor import (
+from pandapower_application.trajectory.api.cursor import (
     CursorCodec,
     CursorError,
     CursorExpectation,
@@ -106,7 +106,7 @@ def test_cursor_rejects_existing_key_owned_by_another_user(
         return os.stat_result(status_fields)
 
     monkeypatch.setattr(
-        "grid_agent.trajectory.api.cursor.os.fstat", fstat_with_foreign_owner
+        "pandapower_application.trajectory.api.cursor.os.fstat", fstat_with_foreign_owner
     )
 
     with pytest.raises(ValueError, match="owned"):

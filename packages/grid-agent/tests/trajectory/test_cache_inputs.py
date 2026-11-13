@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from grid_agent.trajectory import service as service_module
-from grid_agent.trajectory.service import ProjectionService, _NativeArtifacts
-from grid_agent.trajectory.cache_identity import collect_native_dependencies
+from pandapower_application.trajectory import service as service_module
+from pandapower_application.trajectory.service import ProjectionService, _NativeArtifacts
+from pandapower_application.trajectory.cache_identity import collect_native_dependencies
 from capability_agent.trajectory.reader import RunEventReader
 from .api.test_app import write_native_run_with_simulator_artifacts
 
@@ -66,7 +66,7 @@ def test_dependency_collector_covers_actual_projector_reads(tmp_path):
     run, _ = write_native_run_with_simulator_artifacts(tmp_path / "runs")
     events = RunEventReader(run / "events/run-events.jsonl").read_prefix().events
     # Context payload references are I/O dependencies even without event.refs.
-    from grid_agent.trajectory.events import EventRefs
+    from pandapower_application.trajectory.events import EventRefs
     events = tuple(event.model_copy(update={"refs": EventRefs()})
                    if event.event_type == "context.injected" else event for event in events)
     resolver = _NativeArtifacts(run)

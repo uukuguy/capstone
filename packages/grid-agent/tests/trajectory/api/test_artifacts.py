@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.trajectory.api.artifacts import ArtifactAccessError, ArtifactGateway
-from grid_agent.trajectory.projection_models import ArtifactIndex, ArtifactIndexRecord
+from pandapower_application.trajectory.api.artifacts import ArtifactAccessError, ArtifactGateway
+from pandapower_application.trajectory.projection_models import ArtifactIndex, ArtifactIndexRecord
 
 
 def artifact_fixture(tmp_path: Path) -> tuple[Path, ArtifactIndex, str]:

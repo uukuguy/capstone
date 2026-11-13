@@ -13,12 +13,12 @@ from pandapower_application.analysis_store import AnalysisContextStore
 from pandapower_application import analysis_turns as turns_module
 from pandapower_application.analysis_turns import ActiveTurnHandle, StaleAnswerDraftError, TurnController
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.answers import ReferenceVerifier
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.answers import ReferenceVerifier
 from pandapower_application.context_bridge import NativeContextBridge
-from grid_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory.recorder import RunEventRecorder
+from pandapower_application.trajectory.reader import RunEventReader
+from pandapower_application.trajectory.recorder import RunEventRecorder
 
 
 INPUT = {

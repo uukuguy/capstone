@@ -34,7 +34,7 @@ from capability_agent.trajectory.events import (
     TurnTerminalPayload,
     build_event as _build_event,
 )
-from grid_agent.trajectory.schema_policy import (
+from pandapower_application.trajectory.schema_policy import (
     GRID_EVENT_PRODUCER,
     GRID_EVENT_SCHEMA_VERSION,
     require_grid_event_producer,

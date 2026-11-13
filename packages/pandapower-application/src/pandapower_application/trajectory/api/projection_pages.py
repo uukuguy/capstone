@@ -11,15 +11,15 @@ from typing import Any, Literal, TypedDict
 from fastapi.exceptions import RequestValidationError
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from grid_agent.trajectory.api.cursor import (
+from pandapower_application.trajectory.api.cursor import (
     CursorCodec,
     CursorExpectation,
     CursorState,
 )
-from grid_agent.trajectory.api.paging import MAX_PAGE_BYTES, MAX_PAGE_RECORDS, ProjectionPager
+from pandapower_application.trajectory.api.paging import MAX_PAGE_BYTES, MAX_PAGE_RECORDS, ProjectionPager
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import StrictFrozenModel
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.projection_models import (
     ApplicationProjectionMetadata,
     AgentEventRow,
     AgentRetry,

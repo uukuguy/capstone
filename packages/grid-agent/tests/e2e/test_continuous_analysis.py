@@ -15,7 +15,7 @@ import pytest
 from pandapower_domain.models import AnalysisContext
 from pandapower_application.analysis_store import AnalysisContextStore
 from pandapower_application.answer_contract import AnswerEnvelope
-from grid_agent.trajectory.reader import RunEventReader
+from pandapower_application.trajectory.reader import RunEventReader
 
 
 ROOT = Path(__file__).resolve().parents[4]

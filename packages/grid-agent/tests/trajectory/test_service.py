@@ -7,8 +7,8 @@ import time
 import pytest
 from pydantic import ValidationError
 
-from grid_agent.trajectory.events import EventSource, RunScope
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.events import EventSource, RunScope
+from pandapower_application.trajectory.projection_models import (
     ApplicationProjectionMetadata,
     AgentTrajectory,
     ArtifactIndex,
@@ -22,12 +22,12 @@ from grid_agent.trajectory.projection_models import (
     ProjectedRun,
     ContextTimeline,
 )
-from grid_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.service import ProjectionService, _NativeArtifacts
-from grid_agent.trajectory.cache_identity import build_identity
-from grid_agent.trajectory.materialize import PROJECTION_SCHEMA
+from pandapower_application.trajectory.replay import ImportedRunEvent, SourceCoordinate
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.service import ProjectionService, _NativeArtifacts
+from pandapower_application.trajectory.cache_identity import build_identity
+from pandapower_application.trajectory.materialize import PROJECTION_SCHEMA
 
 
 def test_imported_event_keeps_null_time_and_importer_integrity_label() -> None:
@@ -73,7 +73,7 @@ def test_projection_service_reuses_typed_cache_and_never_writes_inside_run(
     run = _fixture(tmp_path)
     service = ProjectionService(tmp_path / ".grid-agent" / "trajectory-cache")
     calls = 0
-    module = __import__("grid_agent.trajectory.service", fromlist=["project_agent"])
+    module = __import__("pandapower_application.trajectory.service", fromlist=["project_agent"])
     real_project = module.project_agent
 
     def counted_project(events):
@@ -100,7 +100,7 @@ def test_projection_service_merges_three_concurrent_cold_builds(
 
     run = _fixture(tmp_path)
     service = ProjectionService(tmp_path / "cache")
-    module = __import__("grid_agent.trajectory.service", fromlist=["project_agent"])
+    module = __import__("pandapower_application.trajectory.service", fromlist=["project_agent"])
     real_project = module.project_agent
     started = threading.Event()
     calls = 0
@@ -160,7 +160,7 @@ def test_projection_service_returns_projection_when_cache_write_fails(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from .test_legacy_v02 import _fixture
-    from grid_agent.trajectory.materialize import ProjectionMaterializer
+    from pandapower_application.trajectory.materialize import ProjectionMaterializer
 
     run = _fixture(tmp_path)
 
@@ -177,7 +177,7 @@ def test_projection_service_returns_projection_when_cache_write_fails(
 
 def test_cache_identity_separates_public_cursor_from_private_run_key(tmp_path) -> None:
     from .test_legacy_v02 import _fixture
-    from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
+    from pandapower_application.trajectory.legacy_v02 import LegacyV02Importer
 
     run = _fixture(tmp_path)
     imported = LegacyV02Importer(run).import_run()
@@ -202,7 +202,7 @@ def test_cache_identity_invalidates_metadata_and_dependency_inputs(
     tmp_path, metadata, dependencies, legacy_source
 ) -> None:
     from .test_legacy_v02 import _fixture
-    from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
+    from pandapower_application.trajectory.legacy_v02 import LegacyV02Importer
 
     run = _fixture(tmp_path)
     imported = LegacyV02Importer(run).import_run()
@@ -214,7 +214,7 @@ def test_cache_identity_invalidates_metadata_and_dependency_inputs(
 
 def test_cache_identity_invalidates_trusted_event_prefix(tmp_path) -> None:
     from .test_legacy_v02 import _fixture
-    from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
+    from pandapower_application.trajectory.legacy_v02 import LegacyV02Importer
 
     imported = LegacyV02Importer(_fixture(tmp_path)).import_run()
     full = build_identity(run_root=tmp_path, analysis_id="analysis-old", events=imported.events, failure=None, metadata_inputs=(), dependencies=(), source_kind="legacy-v0.2", projection_schema=PROJECTION_SCHEMA, legacy_source_fingerprint=imported.source_fingerprint, legacy_diagnostics=imported.diagnostics)

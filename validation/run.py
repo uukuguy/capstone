@@ -49,7 +49,7 @@ from pandapower_application.composition import build_generic_application, run_ge
 from pandapower_application.registry import ApplicationRegistry
 from pandapower_application.run_workspace import RunWorkspace
 from pandapower_application.answer_contract import AnswerEnvelope
-from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
+from validation.pandapower_offline import answer_diagnostic, answer_information, plan_diagnostic
 from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
 from pandapower_application.gridctl_locator import GridctlLocator
 from validation.pandapower_cases import ValidationCase, load_cases

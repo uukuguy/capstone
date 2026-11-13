@@ -6,7 +6,7 @@ from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.projection_models import (
     ApplicationProjectionMetadata,
     BusinessCausalRow,
     BusinessNode,

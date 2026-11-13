@@ -5,12 +5,12 @@ from typing import Any
 
 import pytest
 
-from grid_agent.trajectory.business_projection import (
+from pandapower_application.trajectory.business_projection import (
     project_domain_payload,
     ProjectionIntegrityError,
     project_business,
 )
-from grid_agent.trajectory.events import (
+from pandapower_application.trajectory.events import (
     Causation,
     ContextBoundary,
     EventRefs,

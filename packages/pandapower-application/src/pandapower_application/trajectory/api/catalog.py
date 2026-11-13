@@ -9,8 +9,8 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from grid_agent.trajectory.api.models import AnalysisManifest, LegacyV02Manifest, RunSummary
-from grid_agent.trajectory.projection_models import ProjectedRun
+from pandapower_application.trajectory.api.models import AnalysisManifest, LegacyV02Manifest, RunSummary
+from pandapower_application.trajectory.projection_models import ProjectedRun
 from capability_agent.trajectory.reader import RunEventReader
 
 

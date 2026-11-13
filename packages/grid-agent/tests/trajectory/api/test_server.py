@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from pathlib import Path
 
 from pandapower_application.paths import ProjectPaths
-from grid_agent.trajectory.api.server import LOOPBACK_HOSTS, build_server_config, serve_trajectory
+from pandapower_application.trajectory.api.server import LOOPBACK_HOSTS, build_server_config, serve_trajectory
 
 
 @pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.10", "example.com"])
@@ -29,7 +29,7 @@ def test_serve_trajectory_passes_loopback_config_to_uvicorn(
     observed: dict[str, object] = {}
 
     monkeypatch.setattr(
-        "grid_agent.trajectory.api.server.uvicorn.run",
+        "pandapower_application.trajectory.api.server.uvicorn.run",
         lambda app, **kwargs: observed.update(app=app, **kwargs),
     )
 

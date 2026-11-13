@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.trajectory.legacy_v02 import LegacyImportError, LegacyV02Importer
-from grid_agent.trajectory.replay import ImportedRunEvent
+from pandapower_application.trajectory.legacy_v02 import LegacyImportError, LegacyV02Importer
+from pandapower_application.trajectory.replay import ImportedRunEvent
 
 
 def _write(path: Path, value: object) -> None:

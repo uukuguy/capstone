@@ -13,7 +13,7 @@ from typing import Any
 
 from capability_agent.trajectory.artifacts import ArtifactPointer
 from capability_agent.trajectory.canonical import canonical_json_bytes
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.projection_models import (
     BindingProjectionMetadata,
     ContextCheckpoint,
     ContextFrame,

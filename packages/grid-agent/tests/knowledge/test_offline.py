@@ -5,7 +5,7 @@ import sys
 
 
 def test_information_answers_cover_only_reviewed_concepts() -> None:
-    offline = importlib.import_module("grid_agent.knowledge.offline")
+    offline = importlib.import_module("validation.pandapower_offline")
 
     n_minus_one = offline.answer_information("N-1静态安全校核需要检查哪些越限类型?")
     ac_inputs = offline.answer_information("某个潮流计算工具需要输入哪些参数?")
@@ -17,7 +17,7 @@ def test_information_answers_cover_only_reviewed_concepts() -> None:
 
 
 def test_offline_n_minus_one_has_no_legacy_policy_argument() -> None:
-    offline = importlib.import_module("grid_agent.knowledge.offline")
+    offline = importlib.import_module("validation.pandapower_offline")
 
     class RecordingClient:
         def __init__(self) -> None:
@@ -53,7 +53,7 @@ def test_offline_knowledge_import_does_not_load_simulator_modules() -> None:
         if name.startswith("grid_simulator") or name == "pandapower" or name.startswith("pandapower."):
             del sys.modules[name]
 
-    importlib.import_module("grid_agent.knowledge.offline")
+    importlib.import_module("validation.pandapower_offline")
 
     assert "grid_simulator" not in sys.modules
     assert "pandapower" not in sys.modules

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.projection_models import (
     AgentRetry,
     AgentStep,
     AgentTrajectory,

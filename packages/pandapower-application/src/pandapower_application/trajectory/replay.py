@@ -4,7 +4,7 @@ from capability_agent.trajectory.replay import (
     ReplayEventLike,
     SourceCoordinate,
 )
-from grid_agent.trajectory.schema_policy import (
+from pandapower_application.trajectory.schema_policy import (
     GRID_IMPORTED_EVENT_SCHEMA_VERSION,
     GridImportedRunEvent,
 )

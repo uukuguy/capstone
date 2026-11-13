@@ -3,15 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from grid_agent.trajectory.agent_projection import execution_slice, project_agent
-from grid_agent.trajectory.events import (
+from pandapower_application.trajectory.agent_projection import execution_slice, project_agent
+from pandapower_application.trajectory.events import (
     Causation,
     ContextBoundary,
     EventRefs,
     EventSource,
     RunScope,
 )
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.projection_models import (
     ArtifactIndex,
     ArtifactIndexRecord,
     BusinessNode,

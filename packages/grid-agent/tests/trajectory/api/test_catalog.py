@@ -7,9 +7,9 @@ from typing import cast
 
 import pytest
 
-from grid_agent.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
-from grid_agent.trajectory.api.models import AnalysisManifest
-from grid_agent.trajectory.projection_models import ProjectedRun
+from pandapower_application.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
+from pandapower_application.trajectory.api.models import AnalysisManifest
+from pandapower_application.trajectory.projection_models import ProjectedRun
 
 
 def write_json(path: Path, value: object) -> None:

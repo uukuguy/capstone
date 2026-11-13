@@ -15,17 +15,17 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Receive, Scope, Send
 
-from grid_agent.trajectory.api.artifacts import (
+from pandapower_application.trajectory.api.artifacts import (
     ArtifactAccessError,
     ArtifactGateway,
     ArtifactSnapshot,
     ArtifactTooLarge,
 )
-from grid_agent.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
-from grid_agent.trajectory.api.cursor import CursorCodec, CursorError, CursorExpectation, CursorState
-from grid_agent.trajectory.api.models import ApiError, RunListResponse, RunSummary
-from grid_agent.trajectory.api.paging import ProjectionPager, ProjectionRecordTooLarge
-from grid_agent.trajectory.api.projection_pages import (
+from pandapower_application.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
+from pandapower_application.trajectory.api.cursor import CursorCodec, CursorError, CursorExpectation, CursorState
+from pandapower_application.trajectory.api.models import ApiError, RunListResponse, RunSummary
+from pandapower_application.trajectory.api.paging import ProjectionPager, ProjectionRecordTooLarge
+from pandapower_application.trajectory.api.projection_pages import (
     EvidenceBatchResponse,
     evidence_batch,
     ProjectionPageResponse,
@@ -33,9 +33,9 @@ from grid_agent.trajectory.api.projection_pages import (
     projection_page,
     public_context_frame,
 )
-from grid_agent.trajectory.agent_projection import execution_slice
-from grid_agent.trajectory.business_projection import business_causal_rows
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.agent_projection import execution_slice
+from pandapower_application.trajectory.business_projection import business_causal_rows
+from pandapower_application.trajectory.projection_models import (
     ExecutionSlice,
     LifecycleStatus,
     NodeSource,

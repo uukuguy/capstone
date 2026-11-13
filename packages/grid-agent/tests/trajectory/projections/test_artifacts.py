@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from grid_agent.trajectory.artifact_projection import project_artifacts
-from grid_agent.trajectory.artifacts import ArtifactPointer
-from grid_agent.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope
+from pandapower_application.trajectory.artifact_projection import project_artifacts
+from pandapower_application.trajectory.artifacts import ArtifactPointer
+from pandapower_application.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope
 
 
 @dataclass(frozen=True)

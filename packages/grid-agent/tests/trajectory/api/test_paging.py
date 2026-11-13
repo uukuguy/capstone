@@ -3,8 +3,8 @@ from __future__ import annotations
 from pydantic import BaseModel
 import pytest
 
-from grid_agent.trajectory.api.cursor import CursorState
-from grid_agent.trajectory.api.paging import ProjectionPager, ProjectionRecordTooLarge
+from pandapower_application.trajectory.api.cursor import CursorState
+from pandapower_application.trajectory.api.paging import ProjectionPager, ProjectionRecordTooLarge
 
 
 class PageRecord(BaseModel):

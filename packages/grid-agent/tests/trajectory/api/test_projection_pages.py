@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.projection_models import (
     ApplicationProjectionMetadata,
     AgentStep,
     AgentTrajectory,
@@ -27,12 +27,12 @@ from .test_app import create_test_app
 
 @pytest.mark.parametrize("changed_input", ["events", "manifest"])
 def test_real_cached_projection_cursor_tracks_source_changes(tmp_path: Path, changed_input: str) -> None:
-    from grid_agent.trajectory.api.app import create_trajectory_app
-    from grid_agent.trajectory.api.catalog import TrajectoryRunCatalog
-    from grid_agent.trajectory.api.cursor import CursorCodec
-    from grid_agent.trajectory.events import EventDraft, RunScope
-    from grid_agent.trajectory.recorder import RunEventRecorder
-    from grid_agent.trajectory.service import ProjectionService
+    from pandapower_application.trajectory.api.app import create_trajectory_app
+    from pandapower_application.trajectory.api.catalog import TrajectoryRunCatalog
+    from pandapower_application.trajectory.api.cursor import CursorCodec
+    from pandapower_application.trajectory.events import EventDraft, RunScope
+    from pandapower_application.trajectory.recorder import RunEventRecorder
+    from pandapower_application.trajectory.service import ProjectionService
 
     run = tmp_path / "runs" / "analysis-cursor"
     run.mkdir(parents=True)

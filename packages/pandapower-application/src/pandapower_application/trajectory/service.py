@@ -12,17 +12,17 @@ from dataclasses import dataclass
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal, cast
 
-from grid_agent.trajectory.agent_projection import project_agent
-from grid_agent.trajectory.artifact_projection import project_artifacts
-from grid_agent.trajectory.business_projection import project_business
-from grid_agent.trajectory.context_projection import project_context
-from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
+from pandapower_application.trajectory.agent_projection import project_agent
+from pandapower_application.trajectory.artifact_projection import project_artifacts
+from pandapower_application.trajectory.business_projection import project_business
+from pandapower_application.trajectory.context_projection import project_context
+from pandapower_application.trajectory.legacy_v02 import LegacyV02Importer
 from pandapower_domain.authority import ContentReferenceVerifier
 from capability_agent.trajectory.artifacts import ArtifactIntegrityError, ArtifactPointer, ImmutableArtifactRegistry
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.materialize import PROJECTION_SCHEMA, ProjectionMaterializer
-from grid_agent.trajectory.cache_identity import build_identity, collect_native_dependencies
-from grid_agent.trajectory.projection_models import (
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.materialize import PROJECTION_SCHEMA, ProjectionMaterializer
+from pandapower_application.trajectory.cache_identity import build_identity, collect_native_dependencies
+from pandapower_application.trajectory.projection_models import (
     ApplicationProjectionMetadata,
     BindingProjectionMetadata,
     CoreTimelineItem,

@@ -9,7 +9,7 @@ from capability_agent.trajectory.reader import (
     RunEventReader as NeutralRunEventReader,
     recompute_event_hash,
 )
-from grid_agent.trajectory.events import RunEvent
+from pandapower_application.trajectory.events import RunEvent
 
 
 class RunEventReader(NeutralRunEventReader):

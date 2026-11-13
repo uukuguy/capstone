@@ -9,8 +9,8 @@ from capability_agent.trajectory.events import (
     RunEvent as NeutralRunEvent,
     build_event as neutral_build_event,
 )
-from grid_agent.trajectory.canonical import canonical_json_bytes, sha256_ref
-from grid_agent.trajectory.events import (
+from pandapower_application.trajectory.canonical import canonical_json_bytes, sha256_ref
+from pandapower_application.trajectory.events import (
     Causation,
     ContextBoundary,
     EventDraft,

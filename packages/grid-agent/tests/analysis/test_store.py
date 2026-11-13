@@ -8,8 +8,8 @@ import pytest
 from pandapower_domain.models import AnalysisContext, ContextEventDraft
 from pandapower_application.analysis_store import AnalysisContextStore, ContextStoreError
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.trajectory.recorder import RecorderIntegrityError
-from grid_agent.trajectory.events import RunEvent
+from pandapower_application.trajectory.recorder import RecorderIntegrityError
+from pandapower_application.trajectory.events import RunEvent
 
 
 INPUT = {

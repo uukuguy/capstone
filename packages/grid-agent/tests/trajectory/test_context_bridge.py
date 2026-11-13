@@ -9,10 +9,10 @@ import pytest
 from pandapower_application.analysis_store import AnalysisContextStore
 from pandapower_domain.context_view import materialize_context_view
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory.recorder import RunEventRecorder
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.reader import RunEventReader
+from pandapower_application.trajectory.recorder import RunEventRecorder
 
 
 INPUT = {

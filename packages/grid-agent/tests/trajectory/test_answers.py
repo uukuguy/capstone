@@ -10,8 +10,8 @@ from capability_agent.trajectory.answers import (
     AnswerSubmission as NeutralAnswerSubmission,
 )
 from pandapower_domain.answer_policy import GridAnswerReferencePolicy
-from grid_agent.trajectory.answers import AnswerClaim, validate_submission
-from grid_agent.trajectory.answers import AnswerSubmission
+from pandapower_application.trajectory.answers import AnswerClaim, validate_submission
+from pandapower_application.trajectory.answers import AnswerSubmission
 
 
 RESULT_REF = "result:sha256:" + "a" * 64

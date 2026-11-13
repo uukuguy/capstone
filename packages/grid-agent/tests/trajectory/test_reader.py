@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.trajectory.canonical import canonical_json_bytes, sha256_ref
-from grid_agent.trajectory.events import EventDraft, RunScope, build_event
-from grid_agent.trajectory.reader import RunEventReader
+from pandapower_application.trajectory.canonical import canonical_json_bytes, sha256_ref
+from pandapower_application.trajectory.events import EventDraft, RunScope, build_event
+from pandapower_application.trajectory.reader import RunEventReader
 
 
 def write_three_valid_events(tmp_path: Path) -> Path:

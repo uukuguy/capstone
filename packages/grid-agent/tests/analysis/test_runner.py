@@ -15,13 +15,13 @@ from pandapower_application.analysis_store import AnalysisContextStore, ContextS
 from pandapower_application.analysis_turns import ActiveTurnHandle, FinalizedTurn, TurnController
 from pandapower_application.workspace import AnalysisWorkspace
 from capability_agent.runtime.rpc import PiProtocolError
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
-from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
+from pandapower_application.trajectory.artifacts import ImmutableArtifactRegistry
+from pandapower_application.trajectory.artifact_policy import GridArtifactPathPolicy
 from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter
 from pandapower_application.context_bridge import NativeContextBridge
-from grid_agent.trajectory.events import EventDraft
-from grid_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory.recorder import RecorderIntegrityError, RunEventRecorder
+from pandapower_application.trajectory.events import EventDraft
+from pandapower_application.trajectory.reader import RunEventReader
+from pandapower_application.trajectory.recorder import RecorderIntegrityError, RunEventRecorder
 
 
 RESULT_REF = "result:sha256:" + "1" * 64
