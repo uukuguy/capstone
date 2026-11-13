@@ -34,6 +34,12 @@ documents are preserved separately.
   to the Pack and retains application workspace binding. 72 focused checks and
   actual Authority environment execution in the rebuilt image passed. Remaining
   formal application composition/compatibility ownership stays open.
+  e4427e4a moves profiles and reader projections into an independently installable
+  pandapower application package.82 focused/72 boundary checks and standalone
+  installation pass. See [migration receipt](../../reports/2026-11-13-pandapower-application-owner.md).
+  Local e4427e4a image is ready; installed Authority environment and report
+  projection pass with legacy imports blocked. Worker/registration/entry migration
+  and complete supported-entry replay acceptance remain open.
 
 ## First slice
 

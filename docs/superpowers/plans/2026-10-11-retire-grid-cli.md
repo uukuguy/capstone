@@ -6,6 +6,11 @@ compatibility requirement. Do not replace the old CLI with forwarding aliases.
 
 ## Current implementation
 
+2026-11-13 candidate `e4427e4a`: application profiles and reader projections moved
+to `pandapower-application`; standalone installation and focused checks pass.
+See the [migration receipt](../../reports/2026-11-13-pandapower-application-owner.md).
+The worker and registered entry migration below remain incomplete.
+
 The old package is not only a CLI. `capstone_agent.registry` starts
 `grid_agent.worker` and `grid_agent.case_preview`. The hosted application exports
 its catalog through `grid_agent.thread_catalog_export`. The worker imports runtime
