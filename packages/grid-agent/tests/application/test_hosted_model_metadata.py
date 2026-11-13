@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from grid_agent.hosted import _read_model_metadata
+from pandapower_application.hosted import _read_model_metadata
 
 
 def test_metadata_already_returned_by_open_does_not_launch_another_read():

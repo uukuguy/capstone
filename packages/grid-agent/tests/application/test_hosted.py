@@ -1,5 +1,5 @@
-from grid_agent.hosted import RegisteredPandapowerThreadCatalog
-from grid_agent import hosted
+from pandapower_application.hosted import RegisteredPandapowerThreadCatalog
+from pandapower_application import hosted
 
 
 def test_hosted_catalog_resolves_registered_ieee39_revision() -> None:

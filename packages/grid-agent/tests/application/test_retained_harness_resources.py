@@ -14,7 +14,7 @@ from capstone_agent.thread_input_catalog import PreparedResourceCatalog, catalog
 from capstone_agent.thread_protocol import ModelContextSnapshot
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.turn_router import TurnPlan
-from grid_agent import hosted
+from pandapower_application import hosted
 
 ROOT = Path(__file__).resolve().parents[4]
 

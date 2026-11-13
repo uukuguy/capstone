@@ -13,7 +13,7 @@ from capstone_agent.thread_commands import ThreadCommandFactory
 from capstone_agent.thread_protocol import ModelContextSnapshot, ThreadSnapshot
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_worker import run_pending_attempt
-from grid_agent import hosted
+from pandapower_application import hosted
 from test_thread_model_sequence import ModelSequenceSession
 
 

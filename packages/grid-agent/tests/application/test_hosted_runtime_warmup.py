@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from capability_agent.application.profile import CredentialScope
-from grid_agent import hosted
+from pandapower_application import hosted
 
 
 @pytest.mark.parametrize('failed', [False, True])

@@ -1,10 +1,10 @@
-from grid_agent.domain_tools import PandapowerDomainToolService
+from pandapower_application.domain_tools import PandapowerDomainToolService
 import json
 import pytest
 
 
 def test_open_model_management_selects_one_pack_workspace():
-    from grid_agent.domain_tools import domain_workspace_id
+    from pandapower_application.domain_tools import domain_workspace_id
     model = {
         'model_context_id': 'ctx_ieee39', 'model_id': 'ieee39',
         'model_revision': 'revision:sha256:' + 'a' * 64,

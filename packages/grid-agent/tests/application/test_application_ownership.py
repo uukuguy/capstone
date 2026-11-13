@@ -19,6 +19,10 @@ from pandapower_application.case_preview import open_case_diagram
 from pandapower_application.thread_binding import bind_thread_tool_catalog
 from pandapower_application.thread_model_metadata import model_display_name
 from pandapower_application.thread_model_diagram import model_diagram
+from pandapower_application.hosted import build_registered_pandapower_thread_application
+from pandapower_application.hosted_worker import build_worker_application
+from pandapower_application.thread_catalog_export import build_catalog_document
+from pandapower_application.domain_tools import PandapowerDomainToolService
 assert open_case_diagram.__module__ == 'pandapower_application.case_preview'
 assert _prepare.__module__ == 'pandapower_application.worker'
 from pandapower_application.scripted_execution import execute_application_case

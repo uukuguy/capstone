@@ -7,7 +7,7 @@ from dataclasses import replace
 
 from capstone_agent.hosted import run_hosted_worker
 
-from grid_agent.hosted import build_registered_pandapower_thread_application
+from pandapower_application.hosted import build_registered_pandapower_thread_application
 
 
 def build_worker_application():

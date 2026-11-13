@@ -2,7 +2,7 @@ import pytest
 
 from capstone_agent.network_diagram import normalize_network_diagram
 from pandapower_application.thread_model_diagram import model_diagram
-from grid_agent.hosted import RegisteredPandapowerThreadCatalog
+from pandapower_application.hosted import RegisteredPandapowerThreadCatalog
 
 
 def test_model_browsing_uses_registered_authority_without_provider_credentials():

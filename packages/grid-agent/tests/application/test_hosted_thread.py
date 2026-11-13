@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from grid_agent.hosted import build_registered_pandapower_thread_application
-from grid_agent import hosted_worker
+from pandapower_application.hosted import build_registered_pandapower_thread_application
+from pandapower_application import hosted_worker
 from grid_simulator.model_catalog import load_model_catalog
 
 
@@ -56,7 +56,7 @@ def test_provider_configuration_failure_keeps_prepared_context_and_safe_code(mon
     from capstone_agent.thread_service import InMemoryThreadService, ThreadCreator
     from capstone_agent.thread_worker import run_pending_attempt
     from capability_agent.runtime.models import ConfigurationError
-    import grid_agent.hosted as hosted
+    import pandapower_application.hosted as hosted
     import capstone_agent.runtime as runtime
 
     monkeypatch.delenv("CAPSTONE_THREAD_VALIDATION", raising=False)

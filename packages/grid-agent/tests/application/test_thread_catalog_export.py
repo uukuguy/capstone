@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from grid_agent.thread_catalog_export import build_catalog_document, main
+from pandapower_application.thread_catalog_export import build_catalog_document, main
 from grid_simulator.model_catalog import load_model_catalog
 from capstone_agent.model_identity import page_id_for_model
 from capstone_agent.thread_protocol import ModelContextSnapshot, RunSnapshot, ThreadSnapshot

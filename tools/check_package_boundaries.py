@@ -322,6 +322,7 @@ def check_application_host_boundaries(root: Path) -> list[str]:
     violations: list[str] = []
     package_roots = (
         root / "packages/grid-agent/src/grid_agent",
+        root / "packages/pandapower-application/src/pandapower_application",
         root / "packages/pypsa-agent/src/pypsa_agent",
     )
     for source_root in package_roots:
