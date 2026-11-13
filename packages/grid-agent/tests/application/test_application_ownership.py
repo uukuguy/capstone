@@ -15,6 +15,8 @@ class NoLegacyApplication(importlib.abc.MetaPathFinder):
 sys.meta_path.insert(0, NoLegacyApplication())
 from pandapower_application.profile import build_pandapower_application_profile
 from pandapower_application.worker import _prepare
+from pandapower_application.case_preview import open_case_diagram
+assert open_case_diagram.__module__ == 'pandapower_application.case_preview'
 assert _prepare.__module__ == 'pandapower_application.worker'
 from pandapower_application.scripted_execution import execute_application_case
 assert execute_application_case.__module__ == 'pandapower_application.scripted_execution'

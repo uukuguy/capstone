@@ -24,7 +24,7 @@ def build_registry(repo_root: Path | None = None) -> WorkerRegistry:
              "python", "-m", "pandapower_application.worker"),
             cwd=root, scripted_cases=PANDAPOWER_DEMOS, provider_cases=PANDAPOWER_DEMOS,
             preview_command=("uv", "run", "--no-sync", "--project", str(root / "packages/grid-agent"),
-                             "python", "-m", "grid_agent.case_preview"),
+                             "python", "-m", "pandapower_application.case_preview"),
         ),
         WorkerSpec(
             "pypsa-business-cases",

@@ -10,7 +10,7 @@ import pytest
 from grid_agent.analysis.integrity import ContentReferenceVerifier, SimulatorIntegrityError
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.simulator.client import GridctlClient
-from grid_agent.simulator.locator import GridctlLocator
+from pandapower_application.gridctl_locator import GridctlLocator
 
 
 ROOT = Path(__file__).resolve().parents[4]

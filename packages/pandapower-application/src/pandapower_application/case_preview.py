@@ -10,8 +10,8 @@ from pathlib import Path
 
 from capstone_agent.network_diagram import normalize_network_diagram
 from pandapower_application.network_view import build_grid_network_view
-from grid_agent.simulator.client import GridctlExecutor
-from grid_agent.simulator.locator import GridctlLocator
+from pandapower_domain.execution import GridctlExecutor
+from pandapower_application.gridctl_locator import GridctlLocator
 
 
 ROOT = Path(__file__).resolve().parents[4]

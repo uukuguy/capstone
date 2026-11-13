@@ -28,7 +28,7 @@ from grid_agent.compat.v1_0_1 import build_grid_v1_0_1_compatibility_adapter
 from grid_agent.compat.single_run import SingleRunAdapter
 from grid_agent.contracts import AnswerEnvelope, RunRequest
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
-from grid_agent.simulator.locator import GridctlLocator
+from pandapower_application.gridctl_locator import GridctlLocator
 from grid_agent.observability.trace import JsonlTraceWriter
 from grid_agent.runtime.locator import PiRuntimeLocator
 from grid_agent.runtime.extension import PiExtensionLocator
