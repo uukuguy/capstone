@@ -168,10 +168,10 @@ install-agent-resources:
 	uv run --project packages/capstone-agent python tools/install_agent_resources.py $(RESOURCE_INSTALL_ARGS)
 
 auth-import-pi:
-	uv run --project packages/grid-agent grid-agent auth-import-pi
+	uv run --project packages/capstone-agent capstone-agent auth-import-pi
 
 auth-login:
-	uv run --project packages/grid-agent grid-agent auth-login
+	uv run --project packages/capstone-agent capstone-agent auth-login
 
 doctor:
 	uv run --project packages/pandapower-application python tools/doctor_local.py
