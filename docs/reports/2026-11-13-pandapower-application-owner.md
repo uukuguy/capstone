@@ -1,5 +1,32 @@
 # Pandapower application ownership migration
 
+## Final installed retirement candidate
+
+Source `ecb5781b` removes the old distribution, source and CLI. Remaining shared
+tests live in pandapower-application and development gates select its environment.
+399 critical tests and239 gate/contract checks passed after fixing stale paths.
+Full package-artifacts validation passed, including installed Python packages,
+Authority experiments, PyPSA Packs and npm extension installation.
+
+Canonical rebuild passed. API and all three workers are healthy on
+`sha256:b21d9070f50d385b7614ab68ec15be359f7f2fc4bdfbd4bfcb95d0d328b2171b`.
+Scoped cleanup completed;receipt ends `182236-21055.log`.
+The installed environment has no grid_agent module. A running-worker Authority
+environment/report probe passed with legacy imports blocked.
+
+The installed capstone-agent CLI completed registered scripted case
+`pandapower-scripted-task`, run `run-7d5414214efc6c9c00a7b4e1`, using real
+gridctl tools over three turns. Captured stdout is capstone-client-result/1.0
+with completed status and composite core/domains. The4435-byte saved report exists.
+This is scripted execution acceptance;real-model, browser and dev integration
+acceptance remain open. No cloud stage was updated.
+
+Logs: `/tmp/capstone-retirement-artifacts.log`,
+`/tmp/capstone-retirement-final-rebuild.log`,
+`/tmp/capstone-retirement-installed-case.json`.
+Control register and graph regenerated in both checkouts;browser enumeration
+returned no sessions,so visual graph acceptance is not claimed.
+
 ## Verified independent runtime update
 
 Candidate source `bdd4b6ab` now runs locally. The registered worker, preview,
