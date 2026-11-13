@@ -130,9 +130,20 @@
     "unzip",
     "zip",
     "poppler-utils",
+    "libreoffice-impress",
     "fonts-noto-cjk"
   ],
   "commands": [
+    {
+      "name": "capstone-presentation",
+      "version_args": ["--version"],
+      "version_pattern": "capstone-presentation ([0-9.]+)"
+    },
+    {
+      "name": "libreoffice",
+      "version_args": ["--version"],
+      "version_pattern": "LibreOffice ([0-9.]+)"
+    },
     {
       "name": "capstone-report",
       "version_args": ["--version"],

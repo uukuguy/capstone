@@ -425,7 +425,9 @@ class DataGatewayAccess:
                 and (not isinstance(data, dict) or data.get('job_ref') != arguments.get('job_ref'))):
             raise GatewayError('gateway_output_invalid')
         body = encode(result).decode()
+        from .gateway_diagnostics import service_bus_calls
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
+            'service_bus_calls': service_bus_calls(result),
             'parent_attempt_id': record['attempt_id'], 'tool_call_id': call_id, 'tool': name,
             'catalog_revision': catalog['revision'], 'tool_schema_sha256': catalog['tool_hashes'][name],
             'arguments_sha256': fingerprint(arguments), 'output_sha256': sha256(body.encode()).hexdigest(),

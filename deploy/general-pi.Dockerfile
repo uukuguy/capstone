@@ -38,12 +38,15 @@ RUN ln -s /opt/pi/node_modules /opt/general/node_modules \
 
 COPY tools/native_analysis_smoke.py \
      tools/native_report.py \
+     tools/native_presentation_library.py \
      tools/native_presentation_template.py \
      tools/native_presentation_layout.py tools/
 
 COPY tools/presentation-templates/ tools/presentation-templates/
 
-RUN chmod 0755 /opt/general/tools/native_report.py && ln -s /opt/general/tools/native_report.py /usr/local/bin/capstone-report
+RUN chmod 0755 /opt/general/tools/native_report.py /opt/general/tools/native_presentation_library.py \
+    && ln -s /opt/general/tools/native_report.py /usr/local/bin/capstone-report \
+    && ln -s /opt/general/tools/native_presentation_library.py /usr/local/bin/capstone-presentation
 
 RUN python tools/native_analysis_smoke.py
 
@@ -51,6 +54,8 @@ RUN python tools/native_analysis_smoke.py
 
 COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/tool_execution_receipt.py \
+     packages/capstone-agent/src/capstone_agent/presentation_template_contract.py \
+     packages/capstone-agent/src/capstone_agent/native_presentation_tasks.py \
      packages/capstone-agent/src/capstone_agent/runtime_resources.py \
      packages/capstone-agent/src/capstone_agent/resource_installation.py \
      packages/capstone-agent/src/capstone_agent/application_capacity.py \
@@ -120,6 +125,7 @@ COPY configs/runtime/application-capacity.json \
      packages/capstone-agent/src/capstone_agent/resources/general-domain-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/presentation-templates.mjs \
      packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs \
      packages/capstone-agent/src/capstone_agent/resources/async-call-pool.mjs \

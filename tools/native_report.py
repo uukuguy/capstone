@@ -42,9 +42,15 @@ def text(value, field):
     return value
 
 
-def fields(value, required, optional=()):
+def fields(value, required, optional=(), *, location='document'):
     if not isinstance(value, dict) or not set(required) <= value.keys() or set(value) - set(required) - set(optional):
-        raise ReportError('missing or unknown report fields')
+        names=lambda values:[str(v)[:128] for v in sorted(values,key=str)][:32]
+        raise ReportError('missing or unknown report fields', diagnostic={
+            'code':'report_fields_invalid','location':location,'output_written':False,
+            'missing_fields':names(set(required)-set(value) if isinstance(value,dict) else required),
+            'unknown_fields':names(set(value)-set(required)-set(optional) if isinstance(value,dict) else []),
+            'allowed_fields':names([*required,*optional]),
+            'recovery':'Use the published content contract; supply required fields and remove unsupported fields. Do not guess a replacement schema.'})
 
 
 class Workspace:
@@ -269,14 +275,15 @@ def render_presentation(spec_path, output, *, check_only=False):
         if spec['schema'] not in ('capstone-presentation/1','capstone-presentation/2'):
             raise ReportError('PPTX requires capstone-presentation/1 or capstone-presentation/2')
         argument_contract = spec['schema'] == 'capstone-presentation/2'
-        if argument_contract and 'template' not in spec:
+        selection = spec.get('template', {'id':'state-grid'})
+        if argument_contract and selection is None:
             raise ReportError('capstone-presentation/2 requires a template')
         if not isinstance(spec['slides'], list) or not 1 <= len(spec['slides']) <= 40:
             raise ReportError('presentation slides must contain 1..40 content records')
         template_page, template_receipt = None, None
-        if 'template' in spec:
+        if selection is not None:
             from native_presentation_template import load_template
-            deck, template_page, template_receipt = load_template(workspace, spec['template'], ReportError)
+            deck, template_page, template_receipt = load_template(workspace, selection, ReportError)
         else:
             deck = Presentation()
             deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
@@ -331,7 +338,9 @@ def render_presentation(spec_path, output, *, check_only=False):
                         section=content.get('section')
                         if not isinstance(section,str) or section not in chapters:
                             raise ReportError('content section must match an agenda chapter',
-                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False})
+                                diagnostic={'code':'chapter_order','location':f'slides[{index}].section','output_written':False,
+                                    'expected_sections':chapters,'observed_section':section,
+                                    'recovery':'Match section to an exact agenda title. Missing role defaults to content; do not omit such slides when checking chapters.'})
                         rank=chapters.index(section)
                         if order and rank<order[-1]:
                             raise ReportError('content chapter order differs from the agenda',
@@ -428,7 +437,7 @@ def render_presentation(spec_path, output, *, check_only=False):
         visible_arguments = []
         for index, content in enumerate(spec['slides']):
             fields(content, ('title','blocks'), ('source_notes','speaker_notes','role','section',
-                *(('argument',) if argument_contract else ())))
+                *(('argument',) if argument_contract else ())),location=f'slides[{index}]')
             role = content.get('role','content')
             if role not in ('content','agenda','closing'):
                 raise ReportError('slide role must be content, agenda or closing')
@@ -662,10 +671,10 @@ def render_presentation(spec_path, output, *, check_only=False):
 
 def main():
     parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.',
-        epilog='PPTX: omit template for the original paginated baseline. Add template={"id":"state-grid"} for the built-in template, or template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Template output keeps one content record per slide, combining one visual and its reasoning. Optional role:agenda marks the agenda; section is a visible chapter label; final role:closing reuses cover branding and accepts zero blocks or one short paragraph. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; revise composition when content does not fit.')
+        epilog='PPTX: omitting template uses the built-in State Grid template. Select template={"path":"template.pptx","content_slide":3} for an admitted uploaded template. Only an explicit template:null selects the unbranded paginated layout. Template output keeps one content record per slide, combining one visual and its reasoning. Optional role:agenda marks the agenda; section is a visible chapter label; final role:closing reuses cover branding and accepts zero blocks or one short paragraph. Overflow returns slide_overflow instead of splitting or shrinking. Optional per-slide speaker_notes retains detailed explanation. Briefing text is 22pt and tables are 14pt; revise composition when content does not fit.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
-    parser.description += ' Template briefings also support capstone-presentation/2: each ordinary content record requires argument={"explanation":"Supported reasoning"}. This explanation is always rendered as visible prose and checked for overflow; agenda/closing records omit argument. Version 1 remains unchanged. Rendering does not certify reasoning.'
-    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
+    parser.description += ' Template briefings also support capstone-presentation/2: each ordinary content record requires argument={"explanation":"Supported reasoning"}. This explanation is always rendered as visible prose and checked for overflow; agenda/closing records omit argument. Both versions use State Grid when template is omitted. Rendering does not certify reasoning.'
+    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. The default State Grid layout keeps one content record per slide; split an overfull composition into focused records. Only explicit template:null uses automatic unbranded pagination. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
     parser.add_argument('--check-only', action='store_true', help='Validate saved sources and layout without writing output. Returns actual counts and source hashes; independent PPTX block errors are collected. Rendering rechecks sources when you later create the product.')
     args = parser.parse_args()

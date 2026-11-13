@@ -71,6 +71,8 @@ def test_presentation_usage_requires_installed_packages_and_actual_cli_smoke(tmp
     if advertised:
         assert 'capstone-presentation/1' in context and 'max_rows' in context
         assert 'instead of generating layout or assembly Python' in context
+        assert 'State Grid template by default' in context
+        assert 'wraps text and paginates' not in context
 
 
 @pytest.mark.parametrize('template_checked', [True, False])

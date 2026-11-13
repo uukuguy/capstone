@@ -5,6 +5,33 @@ from test_data_gateway_relay import access,request
 
 CONTEXT={'task_id':'study-1','run_id':'revision-2','trace_id':'trace-2','parent_span_id':'step-3'}
 
+def test_service_bus_counts_use_current_call_not_job_or_detail_length():
+    from capstone_agent.gateway_diagnostics import service_bus_calls
+    value=service_bus_calls({'structuredContent':{
+        'provenance':{'service_bus_calls':{'scope':'current_tool_call','attempt_count':23,
+            'response_count':22,'history_complete':True,'details_truncated':True,
+            'observed_elapsed_ms':None,'details':[{'service':'query','method':'read',
+                'elapsed_ms':12.5,'status':'response','sql':'private','password':'secret'}]}},
+        'data':{'service_bus_calls':{'scope':'job_business_fetch','attempt_count':999}}}})
+    assert value['attempt_count']==23 and value['response_count']==22
+    assert value['observed_elapsed_ms'] is None and value['details_truncated'] is True
+    assert value['details']==[{'service':'query','method':'read','elapsed_ms':12.5,'status':'response'}]
+    assert 'private' not in str(value) and 'secret' not in str(value)
+
+@pytest.mark.parametrize('count',[True,-1,1.5,'3',float('inf')])
+def test_invalid_service_bus_count_stays_unknown(count):
+    from capstone_agent.gateway_diagnostics import service_bus_calls
+    assert 'attempt_count' not in service_bus_calls({'structuredContent':{'provenance':{
+        'service_bus_calls':{'scope':'current_tool_call','attempt_count':count}}}})
+
+def test_service_bus_zero_is_distinct_from_missing_and_wrong_scope():
+    from capstone_agent.gateway_diagnostics import service_bus_calls
+    assert service_bus_calls({'structuredContent':{'provenance':{'service_bus_calls':{
+        'scope':'current_tool_call','attempt_count':0}}}})['attempt_count']==0
+    assert 'attempt_count' not in service_bus_calls({})
+    assert 'attempt_count' not in service_bus_calls({'structuredContent':{'provenance':{
+        'service_bus_calls':{'scope':'job_business_fetch','attempt_count':999}}}})
+
 def test_admitted_work_is_stable_across_revision_runs():
     from capstone_agent.gateway_diagnostics import research_diagnostics
     binding={'cycle_owner':{'work_id':'work-study'}}
