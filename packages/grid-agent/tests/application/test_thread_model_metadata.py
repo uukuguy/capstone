@@ -1,4 +1,4 @@
-from grid_agent.thread_model_metadata import model_display_name
+from pandapower_application.thread_model_metadata import model_display_name
 
 
 def test_short_authority_title_remains_readable():

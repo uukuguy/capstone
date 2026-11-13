@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
-from grid_agent.thread_model_metadata import model_display_name
+from pandapower_application.thread_model_metadata import model_display_name
 
 
 def build_catalog_document() -> dict[str, object]:
@@ -49,7 +49,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     if len(argv) == 3 and argv[0] == "--diagram":
-        from .thread_model_diagram import model_diagram
+        from pandapower_application.thread_model_diagram import model_diagram
         json.dump(model_diagram(argv[1], argv[2]), sys.stdout, separators=(",", ":"))
         sys.stdout.write("\n")
         return 0

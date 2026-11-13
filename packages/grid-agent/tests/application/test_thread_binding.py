@@ -1,7 +1,7 @@
 import json
 
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
-from grid_agent.thread_binding import bind_thread_tool_catalog
+from pandapower_application.thread_binding import bind_thread_tool_catalog
 
 
 def test_thread_tool_catalog_restricts_model_and_context_without_changing_discovery(tmp_path):

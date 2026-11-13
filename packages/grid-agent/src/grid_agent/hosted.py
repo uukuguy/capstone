@@ -33,8 +33,8 @@ from pandapower_application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR,
     build_pandapower_thread_application,
 )
-from grid_agent.thread_binding import bind_thread_tool_catalog
-from grid_agent.thread_model_metadata import model_display_name
+from pandapower_application.thread_binding import bind_thread_tool_catalog
+from pandapower_application.thread_model_metadata import model_display_name
 
 
 class RegisteredPandapowerThreadCatalog:
@@ -170,7 +170,7 @@ def build_registered_pandapower_thread_application():
             (PANDAPOWER_PROFILE_DESCRIPTOR.reference,),
         ),
     )
-    from .thread_model_diagram import model_diagram
+    from pandapower_application.thread_model_diagram import model_diagram
     set_diagram_provider = getattr(assembly.catalog, "set_diagram_provider", None)
     if not callable(set_diagram_provider):
         raise TypeError("Thread catalog has no diagram provider registration")

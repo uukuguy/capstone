@@ -1,7 +1,7 @@
 import pytest
 
 from capstone_agent.network_diagram import normalize_network_diagram
-from grid_agent.thread_model_diagram import model_diagram
+from pandapower_application.thread_model_diagram import model_diagram
 from grid_agent.hosted import RegisteredPandapowerThreadCatalog
 
 
