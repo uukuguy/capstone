@@ -656,6 +656,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       thinkingPreviews={store.thinkingPreviews} instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
       onOpenInstructionProducts={scope=>{markManualView();setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)}}
       onOpenNativeArtifact={nativeChat?openArtifact:undefined}
+      readInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined)return Promise.reject(new Error('附件信息暂不可用。'));return transport.readThreadResource(currentId,{resource_id:file.resource_id,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
+      saveInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined||!file.file_name)return Promise.reject(new Error('附件信息暂不可用。'));return transport.saveThreadResource(currentId,{resource_id:file.resource_id,file_name:file.file_name,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
       onOpenAnswerDetail={nativeChat?()=>setResourcePanelOpen(false):undefined}
       runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation}

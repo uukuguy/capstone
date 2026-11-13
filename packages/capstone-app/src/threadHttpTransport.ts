@@ -1,4 +1,5 @@
 import {sha256Hex} from './browserDigest'
+import {sha256 as incrementalSha256} from 'js-sha256'
 import {parseThinkingPreview,type ThinkingPreview} from './thinkingPreview'
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
@@ -99,6 +100,26 @@ async function verifiedFileBytes(response:Response,size:number,digest:string,key
   const actual=await sha256Hex(bytes)
   if(actual!==digest)throw new Error('文件校验失败')
   return bytes
+}
+
+async function writeVerifiedStream(response:Response,size:number,digest:string,write:(chunk:Uint8Array)=>Promise<void>){
+  if(!Number.isSafeInteger(size)||size<1||!/^[a-f0-9]{64}$/.test(digest))throw new Error('文件信息无效')
+  const reader=response.body?.getReader()
+  if(!reader)throw new Error('文件内容缺失')
+  const hasher=incrementalSha256.create()
+  let total=0
+  try{
+    while(true){
+      const {value,done}=await reader.read()
+      if(done)break
+      total+=value.byteLength
+      if(total>size){await reader.cancel();throw new Error('文件大小不符')}
+      hasher.update(value)
+      await write(value)
+    }
+  }finally{reader.releaseLock()}
+  if(total!==size)throw new Error('文件不完整')
+  if(hasher.hex()!==digest)throw new Error('文件校验失败')
 }
 
 /** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
@@ -357,6 +378,27 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async readStoredResources(threadId:string,signal?:AbortSignal,draft=false) {
     return parseStoredResources(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources${draft?'?draft=true':''}`,{signal}),threadId)
+  }
+  async readThreadResource(threadId:string,file:{resource_id:string;size_bytes:number;sha256:string},signal?:AbortSignal):Promise<Uint8Array> {
+    if(!/^resource_[a-f0-9]{32}$/.test(file.resource_id)||!Number.isSafeInteger(file.size_bytes)||file.size_bytes<1||!/^[a-f0-9]{64}$/.test(file.sha256))throw new Error('资源身份无效')
+    assertCapacity(file.size_bytes,'artifact_file_bytes','resource.content')
+    const response=await this.streamRequest(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources/${encodeURIComponent(file.resource_id)}/content`,signal)
+    return verifiedFileBytes(response,file.size_bytes,file.sha256,'artifact_file_bytes')
+  }
+  async saveThreadResource(threadId:string,file:{resource_id:string;file_name:string;size_bytes:number;sha256:string},signal?:AbortSignal):Promise<void> {
+    if(!/^resource_[a-f0-9]{32}$/.test(file.resource_id)||!file.file_name||!Number.isSafeInteger(file.size_bytes)||!/^[a-f0-9]{64}$/.test(file.sha256))throw new Error('资源身份无效')
+    if(file.size_bytes<=applicationCapacity('artifact_file_bytes'))throw new Error('此文件可在读取后直接保存。')
+    const picker=(globalThis as {showSaveFilePicker?:(options?:{suggestedName?:string})=>Promise<{createWritable:()=>Promise<{write:(data:Uint8Array)=>Promise<void>;close:()=>Promise<void>;abort:()=>Promise<void>}>}>}).showSaveFilePicker
+    if(!picker)throw new Error(`此文件超过浏览器内可校验读取的容量（${applicationCapacity('artifact_file_bytes')} 字节）。请使用支持直接保存的浏览器下载。`)
+    let handle:{createWritable:()=>Promise<{write:(data:Uint8Array)=>Promise<void>;close:()=>Promise<void>;abort:()=>Promise<void>}>}
+    try{handle=await picker({suggestedName:file.file_name})}
+    catch(cause){if(cause instanceof DOMException&&cause.name==='AbortError')throw new Error('已取消保存。');throw cause}
+    const writable=await handle.createWritable()
+    try{
+      const response=await this.streamRequest(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources/${encodeURIComponent(file.resource_id)}/content`,signal)
+      await writeVerifiedStream(response,file.size_bytes,file.sha256,chunk=>writable.write(chunk))
+      await writable.close()
+    }catch(cause){await writable.abort().catch(()=>undefined);throw cause}
   }
   cancelResourceUpload(threadId:string,uploadId:string,signal?:AbortSignal) {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-uploads/${encodeURIComponent(uploadId)}`,{method:'DELETE',signal})

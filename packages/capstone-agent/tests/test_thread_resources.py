@@ -139,6 +139,44 @@ def test_http_chunk_bound_and_authorization(chat_store):
     assert client.post(f'{base}/{uid}/complete').json()['sha256'] == sha256(b'abcd').hexdigest()
 
 
+def test_http_streams_complete_resource_bytes(chat_store):
+    from urllib.parse import quote
+    from fastapi import FastAPI, HTTPException
+    from fastapi.testclient import TestClient
+    from capstone_agent.thread_resource_http import register_resource_routes
+    service, thread = chat_store
+    objects = MemoryObjectStore()
+    app = FastAPI()
+
+    def authorize(request):
+        if request.headers.get('X-Test-Access') != 'allowed':
+            raise HTTPException(403)
+
+    uploads = ResourceUploads(service, objects, chunk_bytes=4, max_file_bytes=100)
+    register_resource_routes(app, service=service, objects=objects, authorize=authorize, uploads=uploads)
+    client = TestClient(app)
+    name = '01-安装部署手册.pdf'
+    data = '安装'.encode() + b'abcd'
+    base = f'/api/v1/threads/{thread}/resource-uploads'
+    client.headers['X-Test-Access'] = 'allowed'
+    uid = client.post(base, json={'file_name': name, 'size_bytes': len(data), 'request_id': 'content', 'draft': True}).json()['upload_id']
+    for index, start in enumerate(range(0, len(data), 4)):
+        assert client.put(f'{base}/{uid}/parts/{index}', content=data[start:start+4]).status_code == 200
+    resource = client.post(f'{base}/{uid}/complete').json()
+    path = f'/api/v1/threads/{thread}/resources/{resource["resource_id"]}/content'
+    denied = TestClient(app)
+    assert denied.get(path).status_code == 403
+    response = client.get(path)
+    assert response.status_code == 200
+    assert response.content == data
+    assert response.headers['content-type'].startswith('application/octet-stream')
+    assert response.headers['content-length'] == str(len(data))
+    assert response.headers['content-disposition'] == "attachment; filename*=UTF-8''" + quote(name, safe='')
+    assert client.get(f'/api/v1/threads/{thread}/resources/resource_{"ab"*16}/content').status_code == 409
+    uploads.cancel(thread, uid)
+    assert client.get(path).status_code == 409
+
+
 def test_quota_expiry_and_storage_cleanup(chat_store, monkeypatch):
     service, thread = chat_store
     objects = MemoryObjectStore()
