@@ -196,6 +196,14 @@ counts, prices, limits, versions, or deployment state here.
   `main` holds accepted release baselines; release PRs target main and run full
   verification. Hotfixes start from the actual accepted deployment tag and flow
   back to dev. Do not rewrite shared history.
+- Every working branch must have an owning package, a destination, an acceptance
+  boundary and a recorded next step in the canonical worklist/control register.
+  Keep planning-only work in the backlog until implementation starts. Independent
+  research must record its scope, delivery relationship and resume conditions.
+  At boundaries, check ancestry, patch/content equivalence, PR state and dirty
+  worktrees before closing or archiving a branch. Preserve exact source refs and
+  uncommitted files. An archive is a recovery source, not an active work stream;
+  an old Git ancestor is not proof that its withdrawn feature is still accepted.
 - Browser verification reuses an existing Capstone tab. Do not create a new tab
   for each test; preserve other open tabs and the user's browser context.
 

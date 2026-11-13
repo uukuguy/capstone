@@ -5,6 +5,11 @@
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
 - Active work package: IG1 — session skill scope and instruction snapshots.
+- Branch ownership: dev owns accepted runtime. The PPT candidate is the only
+  pending implementation line;reference-execution research is independently
+  paused. Planning-only Research Model and R0 remain design/reference work,
+  not active implementation branches. See the
+  [ownership audit](../reports/2026-11-14-branch-ownership-audit.md).
 
 Session methods are optional versioned preferences, separate from investigation goals.
 Instruction admission freezes the effective preference revision and local exclusions;
