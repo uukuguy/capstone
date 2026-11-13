@@ -10,8 +10,8 @@ from typing import Any, Sequence
 import pytest
 
 from pandapower_application.paths import ProjectPaths
-from grid_agent.runtime.installer import PiRuntimeInstaller, PiRuntimeInstallerError
-from grid_agent.runtime.locator import PiRuntimeLocator, PiRuntimeLocatorError
+from capability_agent.runtime.installer import PiRuntimeInstaller, PiRuntimeInstallerError
+from capability_agent.runtime.locator import PiRuntimeLocator, PiRuntimeLocatorError
 from capability_agent.runtime.lock import PiRuntimeLock, PiRuntimeLockError
 
 
@@ -170,7 +170,7 @@ def test_lock_rejects_missing_tampered_or_unsafe_patch_declarations(
 
 
 def test_installer_uses_detached_pinned_commit(tmp_path: Path, fake_runner: FakeRunner, runtime_lock: PiRuntimeLock) -> None:
-    command = PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=fake_runner).install()
+    command = PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=fake_runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
     assert ["git", "fetch", "--depth", "1", "origin", runtime_lock.commit] in fake_runner.calls
     assert ["git", "checkout", "--detach", runtime_lock.commit] in fake_runner.calls
     assert ["git", "reset", "--hard", runtime_lock.commit] in fake_runner.calls
@@ -212,7 +212,7 @@ def test_installer_ensure_provisions_missing_managed_runtime_once(
     runtime_lock: PiRuntimeLock,
 ) -> None:
     runtime_dir = ProjectPaths.from_root(tmp_path).pi_runtime_dir
-    installer = PiRuntimeInstaller(runtime_lock, runtime_dir, runner=fake_runner)
+    installer = PiRuntimeInstaller(runtime_lock, runtime_dir, runner=fake_runner, command_env_name="GRID_AGENT_PI_COMMAND")
 
     command = installer.ensure()
     calls_after_install = list(fake_runner.calls)
@@ -230,7 +230,7 @@ def test_installer_uses_arrays_cwd_timeouts_and_captured_stderr(
     fake_runner: FakeRunner,
     runtime_lock: PiRuntimeLock,
 ) -> None:
-    PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=fake_runner).install()
+    PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=fake_runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     source = tmp_path / ".grid-agent/runtime/pi/source"
     assert source.is_dir()
@@ -252,7 +252,7 @@ def test_installer_hydrates_pinned_pi_ai_before_building_patched_components(
         ProjectPaths.from_root(tmp_path).pi_runtime_dir,
         runner=fake_runner,
         environ={},
-    )
+     command_env_name="GRID_AGENT_PI_COMMAND")
 
     installer.install()
 
@@ -273,7 +273,7 @@ def test_installer_rejects_symlink_source_before_runner_or_marker_mutation(tmp_p
     runner = FakeRunner()
 
     with pytest.raises(PiRuntimeInstallerError, match="source"):
-        PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=runner).install()
+        PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     assert runner.calls == []
     assert active.read_text(encoding="utf-8") == "stale marker\n"
@@ -297,7 +297,7 @@ def test_installer_rejects_symlink_runtime_root_before_runner_or_marker_mutation
     runner = FakeRunner()
 
     with pytest.raises(PiRuntimeInstallerError, match="runtime root"):
-        PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=runner).install()
+        PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     assert runner.calls == []
     assert outside_marker.read_text(encoding="utf-8") == "stale marker\n"
@@ -312,7 +312,7 @@ def test_installer_normal_managed_source_proceeds_after_validation(
     paths = ProjectPaths.from_root(tmp_path)
     paths.pi_runtime_dir.joinpath("source").mkdir(parents=True)
 
-    PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=fake_runner).install()
+    PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=fake_runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     assert fake_runner.calls[0] == ["git", "init"]
 
@@ -330,7 +330,7 @@ def test_installer_preserves_dirty_previous_managed_source_before_upgrade(
     stale_marker.write_text("stale marker\n", encoding="utf-8")
     runner = FakeRunner(managed_source_status=" M packages/coding-agent/src/core/sdk.ts\n")
 
-    PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=runner).install()
+    PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     preserved_sources = list(paths.pi_runtime_dir.glob("source-preserved-*"))
     assert len(preserved_sources) == 1
@@ -368,7 +368,7 @@ def test_installer_upgrades_dirty_managed_checkout_with_real_git(tmp_path: Path)
     subprocess.run(["git", "clone", str(upstream), str(paths.pi_runtime_dir / "source")], check=True, capture_output=True, text=True)
     paths.pi_runtime_dir.joinpath("source", "tracked.txt").write_text("legacy patch\n", encoding="utf-8")
 
-    PiRuntimeInstaller(lock, paths.pi_runtime_dir, runner=GitRunner()).install()
+    PiRuntimeInstaller(lock, paths.pi_runtime_dir, runner=GitRunner(), command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     preserved = next(paths.pi_runtime_dir.glob("source-preserved-*"))
     assert preserved.joinpath("tracked.txt").read_text(encoding="utf-8") == "legacy patch\n"
@@ -389,7 +389,7 @@ def test_installer_rehashes_patch_bytes_before_running_git(tmp_path: Path, runti
     runner = FakeRunner()
 
     with pytest.raises(PiRuntimeInstallerError, match="digest"):
-        PiRuntimeInstaller(local_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=runner).install()
+        PiRuntimeInstaller(local_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     assert runner.calls == []
     assert not (tmp_path / ".grid-agent/runtime/pi/active").exists()
@@ -397,7 +397,7 @@ def test_installer_rehashes_patch_bytes_before_running_git(tmp_path: Path, runti
 
 def test_installer_rejects_version_mismatch(tmp_path: Path, runtime_lock: PiRuntimeLock) -> None:
     with pytest.raises(PiRuntimeInstallerError, match="0.84.4"):
-        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=FakeRunner(version="0.84.3")).install()
+        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=FakeRunner(version="0.84.3"), command_env_name="GRID_AGENT_PI_COMMAND").install()
 
 
 @pytest.mark.parametrize("runner", [FakeRunner(fail_patch_check=True), FakeRunner(fail_patch_apply=True)])
@@ -407,7 +407,7 @@ def test_failed_patch_application_never_becomes_active(
     runner: FakeRunner,
 ) -> None:
     with pytest.raises(PiRuntimeInstallerError, match="git apply"):
-        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=runner).install()
+        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     assert not (tmp_path / ".grid-agent/runtime/pi/active").exists()
     assert ["npm", "ci"] not in runner.calls
@@ -415,7 +415,7 @@ def test_failed_patch_application_never_becomes_active(
 
 def test_failed_build_never_becomes_active(tmp_path: Path, runtime_lock: PiRuntimeLock) -> None:
     with pytest.raises(PiRuntimeInstallerError, match="npm run build"):
-        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=FakeRunner(fail_build=True)).install()
+        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=FakeRunner(fail_build=True), command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     active = tmp_path / ".grid-agent/runtime/pi/active"
     assert not active.exists()
@@ -437,12 +437,12 @@ def test_failed_build_removes_stale_marker_and_ignored_cli_output(tmp_path: Path
     )
 
     with pytest.raises(PiRuntimeInstallerError, match="npm run build"):
-        PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=FakeRunner(fail_build=True)).install()
+        PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=FakeRunner(fail_build=True), command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     assert not (paths.pi_runtime_dir / "active").exists()
     assert not stale_cli.exists()
     with pytest.raises(PiRuntimeLocatorError):
-        PiRuntimeLocator(paths.pi_runtime_dir, {}).resolve()
+        PiRuntimeLocator(paths.pi_runtime_dir, {}, command_env_name="GRID_AGENT_PI_COMMAND").resolve()
 
 
 def test_active_marker_records_lock_and_patch_identity(
@@ -450,7 +450,7 @@ def test_active_marker_records_lock_and_patch_identity(
     runtime_lock: PiRuntimeLock,
     fake_runner: FakeRunner,
 ) -> None:
-    PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=fake_runner).install()
+    PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=fake_runner, command_env_name="GRID_AGENT_PI_COMMAND").install()
 
     active = tmp_path / ".grid-agent/runtime/pi/active"
     assert active.read_text(encoding="utf-8").splitlines() == [
