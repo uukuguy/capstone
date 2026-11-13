@@ -9,6 +9,25 @@ from test_enterprise_normal_chat import chat_store
 from test_thread_postgres import postgres_thread_service
 
 
+def test_retry_recovers_create_only_object_written_before_ack(chat_store):
+    service, thread = chat_store
+    class CreateOnlyStore(MemoryObjectStore):
+        def put(self, key, content, mime):
+            if key in self.contents:
+                raise FileExistsError('immutable object exists')
+            super().put(key, content, mime)
+            raise OSError('response lost after storage accepted bytes')
+    objects = CreateOnlyStore()
+    uploads = ResourceUploads(service, objects, chunk_bytes=4)
+    uid = uploads.begin(thread, 'recover.csv', 4, 'immutable')['upload_id']
+    # A retry must verify existing bytes and complete even when storage forbids overwrite.
+    with pytest.raises(OSError, match='response lost'):
+        uploads.part(thread, uid, 0, b'abcd')
+    uploads.part(thread, uid, 0, b'abcd')
+    resource = uploads.complete(thread, uid)
+    assert b''.join(uploads.read(thread, resource['resource_id'])) == b'abcd'
+
+
 def test_resource_projection_rebuilds_from_events_and_reads_one_part(postgres_thread_service):
     from dataclasses import replace
     from test_thread_postgres import _snapshot

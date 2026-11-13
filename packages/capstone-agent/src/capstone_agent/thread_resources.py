@@ -161,9 +161,9 @@ class ResourceUploads:
                 raise ValueError('part conflict')
             if not previous:
                 _write_event(self.service, snapshot, 'resource_part_reserved', part, connection)
-            return part, index in state['parts']
+            return part, index in state['parts'], previous is not None
         # A committed reservation makes a write-before-ack crash reclaimable.
-        part, stored = _mutate(self.service, thread, reserve)
+        part, stored, retry = _mutate(self.service, thread, reserve)
         if stored:
             return part
         key = self._key(thread, uid, part)
@@ -176,7 +176,19 @@ class ResourceUploads:
                 _write_event(self.service, snapshot, 'resource_part_stored', part, connection)
             return part
         try:
-            self.objects.put(key, data, 'application/octet-stream')
+            recovered = False
+            if retry:
+                try:
+                    self._bytes(thread, uid, part)
+                    recovered = True
+                except ValueError:
+                    raise
+                except Exception:
+                    # Missing/unavailable bytes do not establish a stored part.
+                    # A write still uses the exact reserved content identity.
+                    pass
+            if not recovered:
+                self.objects.put(key, data, 'application/octet-stream')
             return _mutate(self.service, thread, apply)
         except Exception:
             # Cancellation may delete the reservation before a slow write ends.
