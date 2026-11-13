@@ -11,11 +11,11 @@ import pytest
 
 from pandapower_domain.capabilities import CapabilityContextCatalog
 from pandapower_domain.authority import SimulatorIntegrityError
-from grid_agent.analysis.models import ContextEventDraft, VerifiedFact
+from pandapower_domain.models import ContextEventDraft, VerifiedFact
 from grid_agent.analysis.projector import AnalysisContextProjector
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.domain import (
+from capability_agent.domain import (
     ArtifactAuthority,
     DomainProjector,
     DomainProjectorRegistry,

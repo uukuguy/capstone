@@ -12,8 +12,8 @@ from pandapower_domain.state import (
     reduce_context as compatibility_reduce_context,
 )
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.domain import DomainRuntimeProfile
-from grid_agent.domain.projection import VerifiedInvocation
+from capability_agent.domain import DomainRuntimeProfile
+from capability_agent.domain.projection import VerifiedInvocation
 from grid_agent.domains import build_pandapower_profile
 from grid_agent.simulator.client import GridctlClient
 from pandapower_domain import PandapowerResourceSet

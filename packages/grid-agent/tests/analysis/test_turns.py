@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.analysis.models import ContextEventDraft
+from pandapower_domain.models import ContextEventDraft
 from pandapower_domain.authority import ReferenceDiagnostic
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis import turns as turns_module

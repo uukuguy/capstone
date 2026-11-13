@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.domain.manifest import DomainManifest, DomainManifestError
+from capability_agent.domain.manifest import DomainManifest, DomainManifestError
 
 
 def manifest(tmp_path: Path, **changes: object) -> DomainManifest:

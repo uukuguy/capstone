@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.analysis.models import (
+from pandapower_domain.models import (
     ActiveModelState,
     AnalysisContext,
     BaselineRecord,

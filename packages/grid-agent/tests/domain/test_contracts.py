@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.domain.contracts import (
+from capability_agent.domain.contracts import (
     CapabilityContractSourceError,
     FilesystemCapabilityContractSource,
 )

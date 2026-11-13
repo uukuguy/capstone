@@ -1,6 +1,6 @@
 import pytest
 
-from grid_agent.analysis.models import ContextEventDraft
+from pandapower_domain.models import ContextEventDraft
 from pandapower_domain.state import (
     ContextTransitionError,
     canonical_state_hash,

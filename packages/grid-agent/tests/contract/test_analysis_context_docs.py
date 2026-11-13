@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import get_args
 
-from grid_agent.analysis.models import AnalysisContext, AnalysisContextEvent, DomainState, EventType
+from pandapower_domain.models import AnalysisContext, AnalysisContextEvent, DomainState, EventType
 
 
 def test_checked_in_schemas_match_pydantic_models() -> None:

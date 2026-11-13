@@ -12,7 +12,7 @@ def test_legacy_imports_are_exact_compatibility_aliases() -> None:
     from pandapower_application.composition import (
         prepare_domain_runtime as legacy_prepare_domain_runtime,
     )
-    from grid_agent.domain import (
+    from capability_agent.domain import (
         DomainManifest as LegacyDomainManifest,
         DomainRuntimeProfile as LegacyDomainRuntimeProfile,
     )

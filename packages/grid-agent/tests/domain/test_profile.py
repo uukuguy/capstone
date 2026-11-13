@@ -2,12 +2,12 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
-from grid_agent.domain.authority import ArtifactAuthority, VerifiedArtifact, VerifiedReferenceSet
-from grid_agent.domain.contracts import CapabilityContractSource
-from grid_agent.domain.execution import CapabilityExecutor
-from grid_agent.domain.manifest import DomainManifest
-from grid_agent.domain.profile import DomainRuntimeProfile
-from grid_agent.domain.projection import DomainProjector, DomainProjectorRegistry
+from capability_agent.domain.authority import ArtifactAuthority, VerifiedArtifact, VerifiedReferenceSet
+from capability_agent.domain.contracts import CapabilityContractSource
+from capability_agent.domain.execution import CapabilityExecutor
+from capability_agent.domain.manifest import DomainManifest
+from capability_agent.domain.profile import DomainRuntimeProfile
+from capability_agent.domain.projection import DomainProjector, DomainProjectorRegistry
 
 
 def manifest(tmp_path: Path) -> DomainManifest:
