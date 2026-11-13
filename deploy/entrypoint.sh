@@ -9,11 +9,11 @@ application="${CAPSTONE_HOSTED_APPLICATION:-pandapower}"
 
 case "${application}:${1:-}" in
   pandapower:api)
-    exec uv run --no-sync --project /app/packages/grid-agent python -m grid_agent.hosted
+    exec uv run --no-sync --project /app/packages/pandapower-application python -m pandapower_application.hosted
     ;;
   pandapower:worker)
     export CAPSTONE_THREAD_FAMILY=pandapower
-    exec uv run --no-sync --project /app/packages/grid-agent python -m grid_agent.hosted_worker
+    exec uv run --no-sync --project /app/packages/pandapower-application python -m pandapower_application.hosted_worker
     ;;
   pypsa:api)
     exec uv run --no-sync --project /app/packages/pypsa-agent python -m pypsa_agent.hosted

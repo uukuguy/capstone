@@ -557,3 +557,27 @@ reached eight, with zero errors and retained products. This is local verificatio
 not distributed source-capacity or general performance acceptance. See the
 [execution receipt](../../reports/2026-11-08-tool-execution-lifecycle.md). Secondary
 research questions remain outside this delivery task.
+
+## 2026-11-13 architecture improvement feedback
+
+The user approved implementation of the architecture review proposals. Resource
+part bytes now write outside Thread transactions. A rebuildable PostgreSQL
+projection and revision-bound directory pages avoid repeated full event reads
+on the deployed part path. Attachment source buffers have a shared reservation
+budget. One pure terminal preparation function now serves both Thread stores;
+leases, transactions and capture persistence remain adapter-owned.
+
+Local verification includes a greater-than-1GiB hash round trip, 205-resource
+HTTP pagination and a real two-instruction model/tool/product continuation.
+These checks do not establish cloud scale, browser acceptance or general
+performance improvement. The small real task used roughly 40k input tokens
+per model response; context-source measurement is needed before optimizing
+connections or reducing policy. Preserve schema, permission and evidence checks.
+
+The current entry matrix in the framework architecture separates default native
+execution from explicit professional selection and historical replay. Historical
+standalone-classifier notes are not the current default. Pack-owned semantic
+tool execution is the first pandapower ownership migration slice; application
+management validation stays with the application. Remaining formal composition,
+output compatibility and replay ownership require separate verified slices.
+The canonical worklist owns delivery; this notebook records design feedback.

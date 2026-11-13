@@ -22,7 +22,8 @@ demo 发布遵循独立的发布验收流程。
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
 
 正式应用入口为 `capstone-agent`，不再要求保留 `grid-agent` CLI 兼容性。
-旧包仍包含正式 pandapower 运行模块，尚未删除；迁移与退出步骤见[计划](docs/superpowers/plans/2026-10-11-retire-grid-cli.md)。
+旧包仍包含正式 pandapower 运行模块，尚未删除。应用配置和面向读者的报告现由可独立安装的
+`pandapower-application` 包拥有；worker和入口继续按[计划](docs/superpowers/plans/2026-10-11-retire-grid-cli.md)迁移。
 
 **连接智能体推理、领域能力、权威计算与可核查证据。**
 
@@ -207,7 +208,7 @@ make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 make run-llm QUESTION="对 IEEE-39 执行交流潮流，并报告有功损耗。"
 ```
 
-`grid-agent` 保留为 pandapower 兼容 CLI，答案、报告和标准输出契约见 [pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)。统一的 `capstone-agent` CLI 和引导案例命令见[运行手册](docs/RUNBOOK.md#capstone-统一客户端)。确定性脚本样例用于离线验证，与普通 LLM 对话分开。
+现有 pandapower 答案、报告和标准输出契约见 [pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)。正式支持的 `capstone-agent` CLI 和引导案例命令见[运行手册](docs/RUNBOOK.md#capstone-统一客户端)。旧 `grid-agent` CLI 已删除；应用代码与测试归属 `pandapower-application`；退役计划记录最终验收。确定性脚本样例用于离线验证，与普通 LLM 对话分开。
 
 ## 开发与部署
 

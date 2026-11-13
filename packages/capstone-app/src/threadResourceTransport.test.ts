@@ -4,6 +4,15 @@ import {HttpThreadTransport} from './threadHttpTransport'
 import {initializeApplicationCapacity} from './applicationCapacity'
 
 const id=`resource_${'a'.repeat(32)}`
+it('loads every resource page and rejects cursor loops',async()=>{
+  const resource=(letter:string)=>({schema:'capstone-resource/1',resource_id:`resource_${letter.repeat(32)}`,thread_id:'thr_one',version:1,file_name:`${letter}.txt`,size_bytes:1,sha256:'a'.repeat(64),processing_state:'unprocessed'})
+  const fetcher=vi.fn<typeof fetch>(async(url)=>new Response(JSON.stringify({schema:'capstone-resources/1',resources:[resource(String(url).includes('cursor=')?'b':'a')],revision:8,next_cursor:String(url).includes('cursor=')?null:'next'})))
+  const transport=new HttpThreadTransport('','',fetcher,'/api/v1/threads','1','enterprise')
+  expect((await transport.readStoredResources('thr_one')).map(r=>r.file_name)).toEqual(['a.txt','b.txt'])
+  expect(String(fetcher.mock.calls[1][0])).toContain('cursor=next')
+  const looping=vi.fn<typeof fetch>(async()=>new Response(JSON.stringify({schema:'capstone-resources/1',resources:[resource('a')],revision:8,next_cursor:'repeat'})))
+  await expect(new HttpThreadTransport('','',looping,'/api/v1/threads','1','enterprise').readStoredResources('thr_one')).rejects.toThrow()
+})
 afterEach(()=>{initializeApplicationCapacity({});vi.unstubAllGlobals()})
 
 async function digest(bytes:Uint8Array){

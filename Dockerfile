@@ -17,7 +17,7 @@ COPY packages/capability-agent-kernel/pyproject.toml packages/capability-agent-k
 COPY packages/capstone-agent/pyproject.toml packages/capstone-agent/uv.lock packages/capstone-agent/
 COPY packages/capstone-model-capability-spi/pyproject.toml packages/capstone-model-capability-spi/uv.lock packages/capstone-model-capability-spi/
 COPY packages/enterprise-research-domain-pack/pyproject.toml packages/enterprise-research-domain-pack/
-COPY packages/grid-agent/pyproject.toml packages/grid-agent/uv.lock packages/grid-agent/
+COPY packages/pandapower-application/pyproject.toml packages/pandapower-application/uv.lock packages/pandapower-application/
 COPY packages/grid-simulator/pyproject.toml packages/grid-simulator/uv.lock packages/grid-simulator/
 COPY packages/inventory-domain-pack/pyproject.toml packages/inventory-domain-pack/uv.lock packages/inventory-domain-pack/
 COPY packages/inventory-reference-service/pyproject.toml packages/inventory-reference-service/uv.lock packages/inventory-reference-service/
@@ -29,7 +29,7 @@ COPY packages/pypsa-network-modeling-domain-pack/pyproject.toml packages/pypsa-n
 COPY packages/pypsa-power-operations-domain-pack/pyproject.toml packages/pypsa-power-operations-domain-pack/uv.lock packages/pypsa-power-operations-domain-pack/
 COPY packages/pypsa-sector-coupling-domain-pack/pyproject.toml packages/pypsa-sector-coupling-domain-pack/uv.lock packages/pypsa-sector-coupling-domain-pack/
 RUN --mount=type=cache,id=capstone-python-downloads,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project --no-install-local --project packages/grid-agent \
+    uv sync --frozen --no-dev --no-install-project --no-install-local --project packages/pandapower-application \
     && uv sync --frozen --no-dev --no-install-project --no-install-local --project packages/grid-simulator \
     && uv sync --frozen --no-dev --no-install-project --no-install-local --project packages/pypsa-agent \
     && uv sync --frozen --no-dev --no-install-project --no-install-local --project packages/capstone-agent
@@ -90,7 +90,7 @@ ENV UV_NO_SYNC=1 \
     PORT=8766
 
 RUN --mount=type=cache,id=capstone-python-downloads,target=/root/.cache/uv \
-    UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/grid-agent \
+    UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/pandapower-application \
     && UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/grid-simulator \
     && UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/pypsa-agent \
     && UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/capstone-agent \

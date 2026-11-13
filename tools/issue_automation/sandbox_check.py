@@ -39,7 +39,7 @@ def main():
         argv = ["node", str(trusted / "packages/capstone-app/node_modules/vitest/vitest.mjs"), "run", "--maxWorkers=2", "--root", str(workspace / "packages/capstone-app")]
         cwd = workspace / "packages/capstone-app"
     else:
-        argv = [str(trusted / "packages/grid-agent/.venv/bin/python"), "-m", "pytest", "packages/capstone-agent/tests", "--ignore=packages/capstone-agent/tests/test_registered_workers.py", "-q", "-p", "no:cacheprovider"]
+        argv = [str(trusted / "packages/pandapower-application/.venv/bin/python"), "-m", "pytest", "packages/capstone-agent/tests", "--ignore=packages/capstone-agent/tests/test_registered_workers.py", "-q", "-p", "no:cacheprovider"]
         cwd = workspace
     return subprocess.run(argv, cwd=cwd, env=env, timeout=3300).returncode
 

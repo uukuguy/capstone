@@ -8,10 +8,10 @@ from typing import Any, Mapping
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_SRC = ROOT / "packages/grid-agent/src"
+PACKAGE_SRC = ROOT / "packages/pandapower-domain-pack/src"
 sys.path.insert(0, str(PACKAGE_SRC))
 
-from grid_agent.analysis.models import AnalysisContext, AnalysisContextEvent  # noqa: E402
+from pandapower_domain.models import AnalysisContext, AnalysisContextEvent  # noqa: E402
 
 
 def main() -> None:

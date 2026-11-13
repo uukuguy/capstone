@@ -41,8 +41,10 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
             'ttl_seconds': uploads.ttl_seconds}
 
     @app.get('/api/v1/threads/{thread_id}/resources')
-    async def resources(thread_id: str, request: Request, draft: bool = False):
+    async def resources(thread_id: str, request: Request, draft: bool = False, limit: int | None = None, cursor: str | None = None):
         check(request)
+        if limit is not None or cursor is not None:
+            return await invoke(uploads.resource_page, thread_id, draft, 100 if limit is None else limit, cursor)
         return {'schema': 'capstone-resources/1', 'resources': await invoke(uploads.resources, thread_id, draft)}
 
     @app.get('/api/v1/threads/{thread_id}/resources/{resource_id}/content')
@@ -96,7 +98,7 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
     @app.put('/api/v1/threads/{thread_id}/resource-uploads/{upload_id}/parts/{index}')
     async def part(thread_id: str, upload_id: str, index: int, request: Request):
         check(request)
-        state = await invoke(uploads.status, thread_id, upload_id)
+        state = await invoke(uploads.part_limits, thread_id, upload_id)
         data = bytearray()
         async for chunk in request.stream():
             if len(data) + len(chunk) > state['chunk_bytes']:

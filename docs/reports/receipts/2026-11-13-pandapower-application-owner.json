@@ -1,0 +1,17 @@
+{
+  "source": "e4427e4a",
+  "application_id": "pandapower-static-analysis",
+  "profile_owner": "pandapower_application.report_shell",
+  "pandapower_version": "3.4.0",
+  "protocol_version": "1.0",
+  "report_bytes": 1469,
+  "submission_sha256": "379ae0da2bb7380cef42c09fd2661a4089f26ca6b06aa5f1cbca63e2d9a61e12",
+  "repeat_submission_unchanged": true,
+  "legacy_imports_blocked": true,
+  "scope": "installed Authority environment query and application report projection; no model or solver run",
+  "image": "sha256:5113e7b367b8311af99ff126c77b2bf76a2461cfe9f853658204051f7c3d6bda",
+  "backend_roles": 4,
+  "image_layers": 63,
+  "source_previous_image_layers": 62,
+  "answer_origin": "host projection of actual Authority environment response; no model call"
+}
