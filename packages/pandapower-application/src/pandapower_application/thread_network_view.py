@@ -1,4 +1,4 @@
-"""Operator topology for the exact prepared pandapower Thread model."""
+"""Application projection for the exact prepared pandapower Thread model."""
 
 from __future__ import annotations
 

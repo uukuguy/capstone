@@ -14,7 +14,7 @@ from capstone_model_capability_spi import ModelCapabilitySelection
 from grid_agent.application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR, build_pandapower_thread_application,
 )
-from grid_agent.thread_network_view import build_pandapower_thread_network_provider
+from pandapower_application.thread_network_view import build_pandapower_thread_network_provider
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
 from pandapower_domain.authority import SimulatorIntegrityError

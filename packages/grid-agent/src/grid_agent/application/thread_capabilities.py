@@ -31,7 +31,7 @@ from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_service import ThreadModelCatalog
 
 from pandapower_application.profile import build_pandapower_application_profile
-from ..thread_network_view import build_pandapower_thread_network_provider
+from pandapower_application.thread_network_view import build_pandapower_thread_network_provider
 
 
 PANDAPOWER_PROFILE_DESCRIPTOR = ModelCapabilityDescriptor(

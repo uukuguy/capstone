@@ -1098,6 +1098,7 @@ version = "0.1.0"
 source = { editable = "../pandapower-application" }
 dependencies = [
     { name = "capability-agent-kernel" },
+    { name = "capstone-agent" },
     { name = "pandapower-domain-pack" },
     { name = "pydantic" },
 ]
@@ -1105,6 +1106,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
+    { name = "capstone-agent", editable = "../capstone-agent" },
     { name = "pandapower-domain-pack", editable = "../pandapower-domain-pack" },
     { name = "pydantic", specifier = ">=2.12,<3" },
 ]
