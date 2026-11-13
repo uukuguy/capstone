@@ -11,7 +11,7 @@ from capstone_agent.thread_service import AttemptClaim
 from capstone_agent.thread_network import NetworkProjectionUnavailable
 from capstone_agent.thread_network import normalize_thread_network_projection
 from capstone_model_capability_spi import ModelCapabilitySelection
-from grid_agent.application.thread_capabilities import (
+from pandapower_application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR, build_pandapower_thread_application,
 )
 from pandapower_application.thread_network_view import build_pandapower_thread_network_provider

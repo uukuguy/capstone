@@ -1,4 +1,5 @@
-"""Pandapower application registration and stable compatibility imports."""
+"""Application-owned registration.
+Pandapower application registration and stable compatibility imports."""
 
 from __future__ import annotations
 

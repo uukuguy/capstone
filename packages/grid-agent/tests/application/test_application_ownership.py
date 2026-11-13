@@ -14,6 +14,10 @@ class NoLegacyApplication(importlib.abc.MetaPathFinder):
             raise AssertionError("Application still depends on legacy package: " + fullname)
 sys.meta_path.insert(0, NoLegacyApplication())
 from pandapower_application.profile import build_pandapower_application_profile
+from pandapower_application.registry import build_trusted_application_registry
+from pandapower_application.thread_capabilities import PANDAPOWER_PROFILE_DESCRIPTOR
+assert build_trusted_application_registry().resolve("pandapower-static-analysis").manifest.application_id == "pandapower-static-analysis"
+assert PANDAPOWER_PROFILE_DESCRIPTOR is not None
 profile = build_pandapower_application_profile()
 assert profile.manifest.application_id == "pandapower-static-analysis"
 assert profile.report_shell.__class__.__module__ == "pandapower_application.report_shell"

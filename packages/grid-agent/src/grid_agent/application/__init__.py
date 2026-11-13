@@ -9,13 +9,13 @@ from pandapower_application.profile import (
     ReadOnlyApplicationPolicy,
     build_pandapower_application_profile,
 )
-from grid_agent.application.registry import (
+from pandapower_application.registry import (
     ApplicationRegistry,
     build_application_registry,
     build_trusted_application_registry,
     trusted_application_registry,
 )
-from grid_agent.application.thread_capabilities import (
+from pandapower_application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR,
     PANDAPOWER_PROFILE_INFO,
     PreparedKernelPiRpcSessionBuilder,

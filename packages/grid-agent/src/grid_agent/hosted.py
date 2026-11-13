@@ -29,7 +29,7 @@ from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
 
 from pandapower_application.profile import build_pandapower_application_profile
-from grid_agent.application.thread_capabilities import (
+from pandapower_application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR,
     build_pandapower_thread_application,
 )

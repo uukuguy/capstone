@@ -20,7 +20,7 @@ from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_worker import run_pending_attempt
 from capstone_model_capability_spi import ModelCapabilityRegistry
 from capstone_model_capability_spi import ModelCapabilitySelection
-from grid_agent.application.thread_capabilities import (
+from pandapower_application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR,
     PreparedKernelPiRpcSessionBuilder,
     PreparedKernelPiSessionFactory,

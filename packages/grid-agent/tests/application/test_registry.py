@@ -4,7 +4,7 @@ import pytest
 
 from capability_agent.application.errors import ApplicationConfigurationError
 
-from grid_agent.application.registry import (
+from pandapower_application.registry import (
     ApplicationRegistry,
     build_trusted_application_registry,
 )

@@ -1,4 +1,5 @@
-"""Explicit migration registration for the existing pandapower application.
+"""Application-owned registration.
+Explicit migration registration for the existing pandapower application.
 
 This module is an application composition hook only.  The compatibility CLI
 does not call it implicitly; a future Capstone composition root may opt in.

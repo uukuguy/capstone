@@ -33,7 +33,7 @@ from capability_agent.runtime.environment import RuntimeHost
 from capability_agent.runtime.extension import ExtensionSpec
 from capability_agent.runtime.models import CliLLMOptions
 
-from grid_agent.application.registry import (
+from pandapower_application.registry import (
     ApplicationRegistry,
     build_trusted_application_registry,
 )
