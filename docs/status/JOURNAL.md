@@ -7520,3 +7520,4 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Integrated verified PPT increments to preserve template delivery; candidate 29c0ce72 awaits runtime checks and approved CI.
 - 2026-11-14 Archived reference research 2bd086af; reused current composition, preserved three dirty files, and retained projection-policy design backlog.
 - 2026-11-14 Review fix: persist renderer version/source identity and library digest; failing regression confirmed, then 85 renderer checks passed.
+- 2026-11-14 Bound renderer receipts for provenance, a7440980; installed-entry smoke exposed symlink source lookup, now covered by regression.

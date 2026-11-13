@@ -36,6 +36,20 @@ import pytest
 SCRIPT = Path(__file__).parents[2] / 'tools/native_report.py'
 
 
+def test_installed_symlink_entry_records_renderer_identity(tmp_path):
+    entry = tmp_path / 'bin' / 'capstone-report'
+    entry.parent.mkdir()
+    entry.symlink_to(SCRIPT.resolve())
+    (tmp_path / 'spec.json').write_text(json.dumps({
+        'schema': 'capstone-presentation/1', 'title': 'Installed entry',
+        'slides': [{'title': 'Check', 'blocks': [{'type': 'paragraph', 'text': 'Saved text'}]}]}))
+    result = subprocess.run([sys.executable, str(entry), '--spec', 'spec.json', '--output', 'report.pptx'],
+        cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    identity = json.loads(result.stdout)['renderer_identity']
+    assert identity['source_sha256']['native_report.py'] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
+
+
 def test_omitted_template_uses_state_grid_artwork_and_receipt(tmp_path):
     value = spec([{'type':'paragraph','text':'Supported saved findings.'}])
     value.pop('template', None)

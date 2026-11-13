@@ -658,7 +658,7 @@ def render_presentation(spec_path, output, *, check_only=False):
             workspace.check_output(output)
         return {'schema':'capstone-presentation-receipt/1','output':output,'slides':len(deck.slides),
             'renderer_identity': {'version': VERSION, 'source_sha256': {
-                name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
+                name: hashlib.sha256((Path(__file__).resolve().parent / name).read_bytes()).hexdigest()
                 for name in ('native_report.py', 'native_presentation_template.py', 'native_presentation_layout.py')}},
             'figures':figures,'tables':tables,'table_rows':table_rows,'source_sha256':workspace.sources,
             'output_written': not check_only,
