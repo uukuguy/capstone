@@ -95,7 +95,32 @@ The Pack imports neither the application host nor the old CLI package.
 hosted-consumer checks passed in 76.58 seconds. Existing pandapower deprecation
 warnings remain. This is one ownership slice; formal application composition
 and historical compatibility modules have not all migrated. Runtime rebuild
-for this slice remains pending.
+for this slice passed at documentation source `8b0c383f`: API and three workers
+share `sha256:510687af1863d7dfcb010d8f04cce2e5ce6bab26ebc64fe8fa68e30d0921156c`.
+The installed worker used the Pack implementation to publish its 31-tool catalog
+and execute `grid_environment_describe` through the actual Authority process.
+The saved execution receipt exactly matched the response and recorded process
+start, end and capacity release. The isolated temporary workspace was removed.
+Scoped cleanup receipt ends `135652-47338.log`.
+
+## Long-history measurement and selective replay
+
+An isolated PostgreSQL probe appended 20,000 unrelated runtime events, each with
+a 4,096-byte text payload, after a verified resource. It removed only the derived
+projection cursor and measured reconstruction from retained events. Original
+source `8b0c383f` took 753.435 ms cold and 21.854 ms warm.
+
+Candidate `afea4e5a` uses the same static resource-event predicate as the existing
+partial index. It reads only relevant event bodies and advances the projection
+cursor to the locked Thread head, including an irrelevant tail. The same probe
+then took 35.017 ms cold and 30.255 ms warm. Both returned the identical resource
+page. These are single local measurements, not latency percentiles or a cloud
+performance promise. The synthetic Thread was removed after each run.
+
+The added regression first failed because unrelated events entered projection
+replay. All 29 resource tests then passed, including PostgreSQL rollback/recovery.
+Probe: `/tmp/capstone_resource_history_probe.py`. The selective-replay change
+is not yet in the running `8b0c383f` image.
 
 ## Open acceptance
 

@@ -6,13 +6,15 @@ documents are preserved separately.
 
 ## Scope and order
 
-- [ ] Resource transactions: reserve under the existing thread transaction, write
+- [x] Resource transactions: reserve under the existing thread transaction, write
   immutable bytes outside the lock, confirm under a short transaction. Test slow
   storage, cancellation during write, duplicate requests and write-before-ack
   recovery. Preserve cancellation cleanup of late objects.
 - [ ] Resource projections: remove repeated event scans; retain durable events as
   the source of truth. Measure long-session and greater-than-1GB behavior before
   claiming scale acceptance.
+  Candidate afea4e5a skips unrelated event bodies. The 20k-event cold recovery
+  probe improved from 753 ms to 35 ms; 29 resource checks pass. Rebuild pending.
 - [ ] Attachment lifecycle: cancel obsolete reads, coalesce requests, bound cached
   bytes and show download errors while collapsed. Keep the accepted layout.
 - [x] Extract one shared state transition with storage conformance tests.
@@ -23,6 +25,10 @@ documents are preserved separately.
   Roughly 40k input tokens per response warrants context-source profiling first.
 - [ ] Consolidate current architecture entry contracts and migrate registered
   pandapower runtime ownership with output and replay checks.
+  Current entry matrix is documented in 8b0c383f. f5e76b96 migrates tool execution
+  to the Pack and retains application workspace binding. 72 focused checks and
+  actual Authority environment execution in the rebuilt image passed. Remaining
+  formal application composition/compatibility ownership stays open.
 
 ## First slice
 
