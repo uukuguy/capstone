@@ -73,6 +73,22 @@ other stages remain preserved.
 
 ## Remaining migration
 
+Subsequent committed source changes are not yet rebuilt:
+
+| Commit | Change | Focused evidence |
+| --- | --- | --- |
+| 3213a14a | Worker uses the shared runtime environment loader, without CLI imports |4 worker/projection checks |
+| 28d9e417 | Network diagram projection moves to application owner |114 consumer checks,90.09s; standalone import |
+| c21107e5 | Admitted Thread projection moves to application owner; host dependency declared |109 checks,88.74s; standalone import |
+| 368e757a | Registry and Thread assembly move to application owner |10 registry/ownership checks;4 prepared-session checks |
+| 6eaee885 | Composition and paths move; Kernel locator retains explicit command environment |35 functional checks;3 domain boundary checks |
+| 0ea50d76 | Validation runner and provider-free host use current owner imports | Missing-import regression reproduced;2 checks pass |
+
+These check groups overlap and must not be added into a unique test total.
+The installed evidence above remains attributed toe4427e4a. Complete scripted
+execution still reaches old workspace, contracts and validation helpers through
+validation/run.py; this must be resolved before claiming runtime independence.
+
 Move formal composition, registration, worker, previews and model projections
 to the application owner. Remove worker dependencies on CLI helpers. Then switch
 registered commands and retire the old console and dedicated compatibility
