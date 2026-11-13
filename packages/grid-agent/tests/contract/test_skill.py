@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.tools.guide import GuideIndex, GuideNotFound
+from capability_agent.tools.guide import GuideIndex, GuideNotFound
 
 
 ROOT = Path(__file__).resolve().parents[4]

@@ -17,7 +17,7 @@ def test_legacy_imports_are_exact_compatibility_aliases() -> None:
         DomainRuntimeProfile as LegacyDomainRuntimeProfile,
     )
     from grid_agent.tools.catalog import ToolCatalog as LegacyToolCatalog
-    from grid_agent.tools.guide import GuideIndex as LegacyGuideIndex
+    from capability_agent.tools.guide import GuideIndex as LegacyGuideIndex
 
     assert LegacyDomainManifest is DomainManifest
     assert LegacyDomainRuntimeProfile is DomainRuntimeProfile
@@ -58,7 +58,7 @@ prepare = prepare_domain_runtime
 
 import pandapower_application.composition
 import grid_agent.tools.catalog
-import grid_agent.tools.guide
+import capability_agent.tools.guide
 
 assert ToolCatalog.from_documents.__func__ is catalog_from_documents
 assert ToolCatalog.from_environment.__func__ is catalog_from_environment

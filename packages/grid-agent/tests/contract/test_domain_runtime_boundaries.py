@@ -5,14 +5,14 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[4]
-DOMAIN_ROOT = ROOT / "packages/grid-agent/src/grid_agent/domain"
+DOMAIN_ROOT = ROOT / "packages/capability-agent-kernel/src/capability_agent/domain"
 COMPOSITION = ROOT / "packages/pandapower-application/src/pandapower_application/composition.py"
 
 FORBIDDEN_PREFIXES = (
-    "grid_agent.simulator",
-    "grid_agent.domains",
-    "pandapower_domain.projection",
-    "pandapower_domain.authority",
+    "grid_agent",
+    "pandapower_domain",
+    "pandapower_application",
+    "grid_simulator",
 )
 
 
@@ -46,7 +46,9 @@ def test_imported_modules_expands_import_from_aliases(tmp_path: Path) -> None:
 
 def test_neutral_domain_modules_do_not_import_grid_runtime_boundaries() -> None:
     offenders: list[str] = []
-    for path in sorted(DOMAIN_ROOT.glob("*.py"), key=lambda item: item.name):
+    paths = sorted(DOMAIN_ROOT.rglob("*.py"))
+    assert paths, "Kernel domain source must exist"
+    for path in paths:
         for module in _imported_modules(path):
             if _starts_with_forbidden_prefix(module):
                 offenders.append(f"{path.relative_to(ROOT)} imports {module}")
@@ -55,6 +57,8 @@ def test_neutral_domain_modules_do_not_import_grid_runtime_boundaries() -> None:
 
 
 def test_generic_composer_does_not_select_builtin_pandapower_profile() -> None:
-    imported = _imported_modules(COMPOSITION)
+    imported = _imported_modules(
+        ROOT / "packages/capability-agent-kernel/src/capability_agent/application/composition.py"
+    )
 
     assert not any(_starts_with_forbidden_prefix(module) for module in imported)
