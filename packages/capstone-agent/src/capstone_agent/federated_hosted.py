@@ -31,7 +31,7 @@ from .application_capacity import CapacityExceeded, limits, require_capacity
 _EXPORTERS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "pandapower",
-        ("uv", "run", "--no-sync", "--project", "packages/grid-agent", "python", "-m", "pandapower_application.thread_catalog_export"),
+        ("uv", "run", "--no-sync", "--project", "packages/pandapower-application", "python", "-m", "pandapower_application.thread_catalog_export"),
     ),
     (
         "pypsa",

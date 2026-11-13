@@ -58,6 +58,7 @@ setup-agent:
 	uv sync --project packages/grid-agent
 
 setup-capstone:
+	uv sync --project packages/pandapower-application
 	uv sync --project packages/capstone-agent
 	uv sync --project packages/pypsa-agent
 

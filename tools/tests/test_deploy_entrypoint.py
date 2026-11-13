@@ -44,7 +44,7 @@ def _run_entrypoint(tmp_path: Path, role: str, application: str | None,
 
 def test_entrypoint_defaults_to_pandapower_adapter(tmp_path: Path) -> None:
     assert _run_entrypoint(tmp_path, "api", None) == [
-        "run --no-sync --project /app/packages/grid-agent python -m pandapower_application.hosted",
+        "run --no-sync --project /app/packages/pandapower-application python -m pandapower_application.hosted",
     ]
 
 
