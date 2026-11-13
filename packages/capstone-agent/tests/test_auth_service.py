@@ -5,10 +5,9 @@ import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
-from pandapower_application.paths import ProjectPaths
-from grid_agent.auth.service import AuthService
-from grid_agent.auth.store import ProjectAuthStore
-from grid_agent.runtime.lock import PiOAuthHelper, PiRuntimeIdentity
+from capstone_agent.auth_service import AuthService
+from capstone_agent.auth_store import ProjectAuthStore
+from capability_agent.runtime.lock import PiOAuthHelper, PiRuntimeIdentity
 
 
 class FakeRunner:
@@ -33,14 +32,14 @@ def test_login_uses_project_owned_auth_path_and_redacts_status(tmp_path: Path) -
             lock_sha256="lock",
         ),
     )
-    paths = ProjectPaths.from_root(tmp_path)
-    store = ProjectAuthStore.from_pi_agent_dir(paths.pi_agent_dir)
+    auth_dir = tmp_path / ".grid-agent/auth/pi"
+    store = ProjectAuthStore.from_pi_agent_dir(auth_dir)
     service = AuthService(store, helper, runner=runner)
 
     status = service.login("openai-codex")
 
     assert status.configured is True
     assert runner.calls[0][0] == ["node", "/pinned/pi-ai.js", "login", "openai-codex"]
-    assert runner.calls[0][1]["cwd"] == paths.pi_agent_dir
+    assert runner.calls[0][1]["cwd"] == auth_dir
     assert "secret" not in repr(status)
     assert json.loads(store.path.read_text(encoding="utf-8"))["openai-codex"]["access"] == "secret"

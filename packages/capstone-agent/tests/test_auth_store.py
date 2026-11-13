@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from grid_agent.auth.store import ProjectAuthStore
+from capstone_agent.auth_store import ProjectAuthStore
 
 
 def test_import_copies_only_codex_oauth_entry(tmp_path: Path) -> None:

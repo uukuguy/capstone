@@ -41,8 +41,8 @@ from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
 from grid_agent.runtime.pi_config import PiConfigMaterializer
 from grid_agent.runtime.installer import PiRuntimeInstaller
 from grid_agent.runtime.lock import PiCommand, PiRuntimeLock
-from grid_agent.auth.service import AuthService
-from grid_agent.auth.store import CODEX_PROVIDER, ProjectAuthStore
+from capstone_agent.auth_service import AuthService
+from capstone_agent.auth_store import CODEX_PROVIDER, ProjectAuthStore
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.capture import NativeCaptureAdapter
 from grid_agent.trajectory.context_bridge import NativeContextBridge

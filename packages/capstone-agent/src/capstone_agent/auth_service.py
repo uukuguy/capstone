@@ -4,8 +4,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from grid_agent.auth.store import AuthStatus, CODEX_PROVIDER, ProjectAuthStore
-from grid_agent.runtime.lock import PiOAuthHelper
+from capstone_agent.auth_store import AuthStatus, CODEX_PROVIDER, ProjectAuthStore
+from capability_agent.runtime.lock import PiOAuthHelper
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
