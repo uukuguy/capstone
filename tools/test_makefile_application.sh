@@ -2,12 +2,11 @@
 set -euo pipefail
 
 test_root=$(git rev-parse --show-toplevel)
-default_output=$(make -C "$test_root" --no-print-directory -n application)
-override_output=$(make -C "$test_root" --no-print-directory -n application APPLICATION=custom-domain INSTRUCTIONS=custom-questions.txt PROVIDER=deepseek MODEL=deepseek-v4-flash)
-
-test "$(grep -Ec '^application:' "$test_root/Makefile")" -eq 1
-grep -Fq 'grid-agent analysis-generic --application "pandapower-static-analysis" --instructions "validation/questions/task.md.txt"' <<<"$default_output"
-grep -Fq 'grid-agent analysis-generic --application "custom-domain" --instructions "custom-questions.txt" --provider "deepseek" --model "deepseek-v4-flash"' <<<"$override_output"
-! grep -Fq 'grid-agent analysis-generic' < <(make -C "$test_root" --no-print-directory -n analysis)
+for target in run run-llm analysis analysis-generic application report trajectory; do
+  if make -C "$test_root" --no-print-directory -n "$target" >/dev/null 2>&1; then
+    echo "Retired target still exists: $target" >&2
+    exit 1
+  fi
+done
 grep -Fq 'CAPSTONE_APP_ENVIRONMENT="local-dev" npm run dev' < <(make -C "$test_root" --no-print-directory -n capstone-app-dev)
 grep -Fq 'CAPSTONE_APP_ENVIRONMENT="local-demo" npm run dev' < <(make -C "$test_root" --no-print-directory -n capstone-app-dev CAPSTONE_APP_ENVIRONMENT=local-demo)
