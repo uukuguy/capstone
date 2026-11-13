@@ -21,7 +21,7 @@ from capability_agent.domain import (
     VerifiedArtifact,
     VerifiedReferenceSet,
 )
-from grid_agent.domains.pandapower import build_pandapower_profile
+from pandapower_domain import build_pandapower_profile
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -194,7 +194,7 @@ def test_synthetic_domain_materializes_through_public_seams(tmp_path: Path) -> N
 def test_pandapower_profile_composition_preserves_product_presentations(
     tmp_path: Path,
 ) -> None:
-    original_profile = build_pandapower_profile(ROOT)
+    original_profile = build_pandapower_profile()
     capability_documents = original_profile.contract_source.load()
     environment = {
         "protocol": original_profile.manifest.protocol,

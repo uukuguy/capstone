@@ -14,7 +14,7 @@ from pandapower_domain.state import (
 from pandapower_application.workspace import AnalysisWorkspace
 from capability_agent.domain import DomainRuntimeProfile
 from capability_agent.domain.projection import VerifiedInvocation
-from grid_agent.domains import build_pandapower_profile
+from pandapower_domain import build_pandapower_profile
 from grid_agent.simulator.client import GridctlClient
 from pandapower_domain import PandapowerResourceSet
 from pandapower_domain.state import (
@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_pandapower_profile_owns_all_grid_runtime_resources() -> None:
-    profile = build_pandapower_profile(ROOT)
+    profile = build_pandapower_profile()
     resources = PandapowerResourceSet.load()
 
     assert isinstance(profile, DomainRuntimeProfile)
@@ -72,7 +72,7 @@ def test_pandapower_profile_owns_all_grid_runtime_resources() -> None:
 
 
 def test_pandapower_profile_public_runtime_surface_is_preserved() -> None:
-    profile = build_pandapower_profile(ROOT)
+    profile = build_pandapower_profile()
 
     assert profile.create_executor.__name__ == "create_executor"
     assert profile.create_authority.__name__ == "create_authority"
@@ -85,7 +85,7 @@ def test_pandapower_profile_public_runtime_surface_is_preserved() -> None:
 
 
 def test_pandapower_profile_adapts_grid_runtime_dependencies(tmp_path: Path) -> None:
-    profile = build_pandapower_profile(ROOT)
+    profile = build_pandapower_profile()
 
     executor = profile.create_executor(tmp_path / "gridctl", tmp_path / "run", 17)
     authority = profile.create_authority(tmp_path / "run")
@@ -111,7 +111,7 @@ def test_grid_reducer_is_only_a_pandapower_compatibility_export() -> None:
 
 
 def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path) -> None:
-    profile = build_pandapower_profile(ROOT)
+    profile = build_pandapower_profile()
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "authority-test")
     revision_payload = _canonical_json(
         {"model_id": "ieee39", "pandapower_version": "3.4.0", "bus": [1, 2]}
@@ -202,7 +202,7 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path) -> No
 
 
 def test_pandapower_projector_delegates_verified_invocation() -> None:
-    profile = build_pandapower_profile(ROOT)
+    profile = build_pandapower_profile()
     invocation = VerifiedInvocation(
         capability="model.open",
         projector_id="model-context-v1",

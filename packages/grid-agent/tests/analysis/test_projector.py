@@ -22,7 +22,7 @@ from capability_agent.domain import (
     VerifiedArtifact,
     VerifiedReferenceSet,
 )
-from grid_agent.domains import build_pandapower_profile
+from pandapower_domain import build_pandapower_profile
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 
@@ -137,7 +137,7 @@ class OpenedContext:
 def context_harness(tmp_path: Path) -> ContextHarness:
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "analysis-test")
     store = AnalysisContextStore.initialize(workspace, input_record=INPUT, runtime_record=RUNTIME)
-    profile = build_pandapower_profile(ROOT)
+    profile = build_pandapower_profile()
     authority = SpyArtifactAuthority(profile.create_authority(workspace.root_path))
     projector_registry = SpyProjectorRegistry(profile.projector_registry)
     definition_root = ROOT / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
