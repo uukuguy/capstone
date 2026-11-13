@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from grid_agent.analysis.integrity import _sha256_canonical_json
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter

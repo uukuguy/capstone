@@ -30,6 +30,7 @@ uv build --project packages/enterprise-research-domain-pack --out-dir "$artifact
 uv build --project packages/capstone-agent --out-dir "$artifact_dir"
 uv build --project packages/grid-simulator --out-dir "$artifact_dir"
 uv build --project packages/pandapower-domain-pack --out-dir "$artifact_dir"
+uv build --project packages/pandapower-application --out-dir "$artifact_dir"
 uv build --project packages/inventory-reference-service --out-dir "$artifact_dir"
 uv build --project packages/inventory-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/pypsa-model-authority --out-dir "$artifact_dir"
@@ -65,6 +66,7 @@ python_wheels=(
   "$artifact_dir"/capstone_agent-*.whl
   "$artifact_dir"/grid_simulator-*.whl
   "$artifact_dir"/pandapower_domain_pack-*.whl
+  "$artifact_dir"/pandapower_application-*.whl
   "$artifact_dir"/inventory_reference_service-*.whl
   "$artifact_dir"/inventory_domain_pack-*.whl
   "$artifact_dir"/grid_agent-*.whl

@@ -11,7 +11,7 @@ from grid_agent.analysis.reducer import (
     initial_context as compatibility_initial_context,
     reduce_context as compatibility_reduce_context,
 )
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.domain import DomainRuntimeProfile
 from grid_agent.domain.projection import VerifiedInvocation
 from grid_agent.domains import build_pandapower_profile

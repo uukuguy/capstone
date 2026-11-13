@@ -11,6 +11,7 @@ dependencies = [
   "capstone-model-capability-spi==0.1.0",
   "capability-agent-kernel==0.1.0",
   "pandapower-domain-pack==0.1.0",
+  "pandapower-application==0.1.0",
   "fastapi>=0.139,<1",
   "filelock>=3.20,<4",
   "pydantic>=2.12,<3",
@@ -38,3 +39,4 @@ capstone-agent = { path = "../capstone-agent", editable = true }
 capstone-model-capability-spi = { path = "../capstone-model-capability-spi", editable = true }
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
 pandapower-domain-pack = { path = "../pandapower-domain-pack", editable = true }
+pandapower-application = { path = "../pandapower-application", editable = true }

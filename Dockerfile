@@ -22,6 +22,7 @@ COPY packages/grid-simulator/pyproject.toml packages/grid-simulator/uv.lock pack
 COPY packages/inventory-domain-pack/pyproject.toml packages/inventory-domain-pack/uv.lock packages/inventory-domain-pack/
 COPY packages/inventory-reference-service/pyproject.toml packages/inventory-reference-service/uv.lock packages/inventory-reference-service/
 COPY packages/pandapower-domain-pack/pyproject.toml packages/pandapower-domain-pack/uv.lock packages/pandapower-domain-pack/
+COPY packages/pandapower-application/pyproject.toml packages/pandapower-application/
 COPY packages/pypsa-agent/pyproject.toml packages/pypsa-agent/uv.lock packages/pypsa-agent/
 COPY packages/pypsa-capacity-planning-domain-pack/pyproject.toml packages/pypsa-capacity-planning-domain-pack/uv.lock packages/pypsa-capacity-planning-domain-pack/
 COPY packages/pypsa-model-authority/pyproject.toml packages/pypsa-model-authority/uv.lock packages/pypsa-model-authority/

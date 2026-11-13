@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.events import RunEvent
 
 

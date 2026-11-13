@@ -12,7 +12,7 @@ from capability_agent.application import AgentApplication, ApplicationWorkspace
 import grid_agent.application.composition as grid_composition
 from grid_agent.cli import app as cli_module
 from grid_agent.cli.app import app
-from grid_agent.application.profile import build_pandapower_application_profile
+from pandapower_application.profile import build_pandapower_application_profile
 
 
 def test_analysis_generic_requires_application_and_instructions() -> None:

@@ -79,6 +79,21 @@ def test_kernel_rejects_forbidden_grid_agent_import(tmp_path: Path) -> None:
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize("owner, imported", [
+    ("pandapower-application", "grid_agent"),
+    ("pandapower-domain-pack", "pandapower_application"),
+    ("capability-agent-kernel", "pandapower_application"),
+    ("capstone-agent", "pandapower_application"),
+])
+def test_formal_application_migration_preserves_dependency_direction(tmp_path, owner, imported):
+    source = tmp_path / 'packages' / owner / 'src'
+    source.mkdir(parents=True)
+    (source / 'bad.py').write_text(f'import {imported}\n')
+    result = run_checker(tmp_path)
+    assert result.returncode == 1
+    assert f'imports {imported}' in result.stderr
+
+
 @pytest.mark.parametrize(
     "source",
     [

@@ -16,7 +16,7 @@ from capability_agent.trajectory.answers import AnswerSubmission, ReferenceVerif
 from capability_agent.trajectory.events import Causation, EventDraft, EventRefs, EventSource, RunScope
 from capability_agent.trajectory.recorder import RunEventRecorder
 from grid_agent.analysis.store import AnalysisContextStore
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.answer_policy import GridAnswerReferencePolicy, GridReferenceVerifier
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pandapower_domain import build_pandapower_profile
 
-from grid_agent.application.profile import build_pandapower_application_profile
+from pandapower_application.profile import build_pandapower_application_profile
 
 
 def test_pandapower_application_profile_declares_one_complete_grid_binding() -> None:

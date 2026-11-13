@@ -14,7 +14,7 @@ from grid_agent.analysis.integrity import SimulatorIntegrityError
 from grid_agent.analysis.models import ContextEventDraft, VerifiedFact
 from grid_agent.analysis.projector import AnalysisContextProjector
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.domain import (
     ArtifactAuthority,
     DomainProjector,

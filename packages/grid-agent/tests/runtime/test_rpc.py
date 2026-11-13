@@ -18,7 +18,7 @@ from grid_agent.observability.trace import JsonlTraceWriter
 from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 from grid_agent.runtime.rpc import PiProtocolError, PiRpcClient
 from grid_agent.runtime.environment import PiLaunch
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter

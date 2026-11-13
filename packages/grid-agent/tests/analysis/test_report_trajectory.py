@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from grid_agent.analysis.report_trajectory import (
+from pandapower_application.report_trajectory import (
     TraceDecision,
     TraceStep,
     render_analysis_trajectory,

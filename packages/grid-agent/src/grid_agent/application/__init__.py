@@ -4,7 +4,7 @@ from grid_agent.application.composition import (
     build_generic_application,
     run_generic_application,
 )
-from grid_agent.application.profile import (
+from pandapower_application.profile import (
     PandapowerApplicationAcceptanceProfile,
     ReadOnlyApplicationPolicy,
     build_pandapower_application_profile,

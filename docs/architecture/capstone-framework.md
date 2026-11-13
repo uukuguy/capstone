@@ -15,7 +15,10 @@ grants; the Kernel does not classify business topics by keywords.
 | Historical attempts | Retain the frozen intent decision, resources and implementation identity required by replay/retry. Missing historical resources fail explicitly. | `IntentRuntimeFactory`; Thread Attempt ledger |
 
 The `grid-agent` CLI compatibility requirement is withdrawn. Its package still
-owns formal pandapower application composition and some runtime modules. The name
+owns worker entry and some formal pandapower runtime modules. The separately
+installable `pandapower-application` owns application profiles, report projection,
+report workspace and submission projection. It does not import `grid_agent`.
+The name
 alone does not make those modules unused. Move domain execution to its Pack and
 application composition to its application owner, with output, replay and
 registration checks at each migration boundary.
@@ -533,7 +536,8 @@ through that generic path. These results verify the first application's
 assembly and compatibility boundary, not a claim that every prospective domain
 has been accepted.
 
-The stable `grid-agent` compatibility commands remain a vertical adapter. They
+The existing `grid-agent` commands remain a temporary vertical adapter during
+runtime migration; their continuing compatibility requirement is withdrawn. They
 write exactly one JSON object to stdout with `question_id` and `answer_output`;
 progress, diagnostics, tool events, and warnings belong on stderr. This is a
 grid application contract, not the generic Capstone output protocol.

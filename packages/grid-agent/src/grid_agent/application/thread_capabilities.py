@@ -30,7 +30,7 @@ from capstone_agent.thread_protocol import ModelContextSnapshot
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_service import ThreadModelCatalog
 
-from .profile import build_pandapower_application_profile
+from pandapower_application.profile import build_pandapower_application_profile
 from ..thread_network_view import build_pandapower_thread_network_provider
 
 

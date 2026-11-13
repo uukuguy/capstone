@@ -12,7 +12,7 @@ from grid_agent.analysis.integrity import ReferenceDiagnostic
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis import turns as turns_module
 from grid_agent.analysis.turns import ActiveTurnHandle, StaleAnswerDraftError, TurnController
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.answers import ReferenceVerifier

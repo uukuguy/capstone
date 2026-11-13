@@ -8,14 +8,14 @@ import pytest
 
 from grid_agent.analysis.models import AnalysisContext, AnalysisContextEvent, ContextEventDraft
 from grid_agent.analysis.reducer import initial_context, reduce_context
-from grid_agent.analysis.report import (
+from pandapower_application.report import (
     _native_turns_by_call,
     _read_context_events,
     _read_trace_decisions,
     render_analysis_report,
     write_analysis_report_checkpoint,
 )
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 
 
 RESULT_REF = "result:sha256:" + "1" * 64

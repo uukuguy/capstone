@@ -7,7 +7,7 @@ import pytest
 
 from grid_agent.analysis.models import AnalysisContext, ContextEventDraft
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.recorder import RecorderIntegrityError
 from grid_agent.trajectory.events import RunEvent
 

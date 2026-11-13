@@ -20,13 +20,13 @@ from pandapower_domain.models import (
     LimitationRecord,
     TurnRecord,
 )
-from grid_agent.analysis.report_trajectory import (
+from pandapower_application.report_trajectory import (
     TraceDecision,
     TraceStep,
     build_milestones,
     render_analysis_trajectory,
 )
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 
 
 _TRACE_REDACTED = "[已遮蔽敏感值]"

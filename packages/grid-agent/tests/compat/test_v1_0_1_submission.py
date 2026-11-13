@@ -5,7 +5,7 @@ from pathlib import Path
 
 from capability_agent.application.workspace import ApplicationWorkspace
 
-from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
+from pandapower_application.submission import write_submission_checkpoint
 
 
 def test_submission_checkpoint_writes_only_v1_envelopes_in_turn_order(tmp_path: Path) -> None:

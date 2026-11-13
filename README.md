@@ -28,7 +28,9 @@ English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone
 
 The supported application entry is `capstone-agent`. The `grid-agent` CLI has
 no continuing compatibility commitment. Its package still contains formal
-pandapower runtime modules; see the [retirement plan](docs/superpowers/plans/2026-10-11-retire-grid-cli.md).
+pandapower runtime modules. Application profiles and reader-facing reports now
+belong to the separately installable `pandapower-application` package; worker and
+entry migration continues under the [retirement plan](docs/superpowers/plans/2026-10-11-retire-grid-cli.md).
 
 **Connect agent reasoning to domain capabilities, authoritative computation, and verifiable evidence.**
 
@@ -231,7 +233,7 @@ For LLM orchestration, configure the CLI Provider as described in the [runbook](
 make run-llm QUESTION="对 IEEE-39 执行交流潮流，并报告有功损耗。"
 ```
 
-`grid-agent` remains the pandapower compatibility CLI. Its answer, report, and stdout contracts are documented in the [pandapower application guide](docs/PANDAPOWER-APPLICATION.md). The unified `capstone-agent` CLI and guided-case commands are documented in the [runbook](docs/RUNBOOK.md#capstone-统一客户端). Deterministic scripted fixtures support offline validation; they are separate from ordinary LLM conversation.
+The existing pandapower answer, report, and stdout contracts are documented in the [pandapower application guide](docs/PANDAPOWER-APPLICATION.md). The supported `capstone-agent` CLI and guided-case commands are documented in the [runbook](docs/RUNBOOK.md#capstone-统一客户端). The old `grid-agent` CLI remains present during runtime migration, without a continuing compatibility commitment. Deterministic scripted fixtures support offline validation; they are separate from ordinary LLM conversation.
 
 ## Develop and deploy
 

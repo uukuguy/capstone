@@ -20,7 +20,7 @@ from grid_agent.analysis.projector import AnalysisContextProjector
 from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, AnalysisRunner
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis.turns import AuditCallback, TurnController
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.application.paths import ProjectPaths
 from grid_agent.application.composition import run_generic_application
 from grid_agent.application.workspace import RunWorkspace

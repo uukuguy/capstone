@@ -10,11 +10,11 @@ from typing import Any, Literal, Protocol
 
 from pandapower_domain.authority import SimulatorIntegrityError
 from pandapower_domain.models import ContextEventDraft
-from grid_agent.analysis.report import write_analysis_report_checkpoint
+from pandapower_application.report import write_analysis_report_checkpoint
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError
 from grid_agent.analysis.turns import ActiveTurnHandle, FinalizedTurn, TurnController
 from grid_agent.analysis.view import materialize_context_view
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.runtime.rpc import PiProtocolError, SemanticEventCallback
 from grid_agent.observability.trace import JsonlTraceWriter
 from capability_agent.trajectory.artifacts import ArtifactIntegrityError

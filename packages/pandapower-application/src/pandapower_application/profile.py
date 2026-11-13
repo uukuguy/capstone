@@ -1,4 +1,4 @@
-"""Trusted application profiles owned by the grid-agent composition root.
+"""Trusted profiles owned by the pandapower application.
 
 The Kernel owns the application contracts and runner.  This module is the
 small, explicit composition root that selects the first complete Domain Pack;
@@ -20,7 +20,7 @@ from capability_agent.application.profile import (
 from capability_agent.application.output import JsonOutputRenderer
 from pandapower_domain import build_pandapower_profile
 
-from grid_agent.compat.v1_0_1_report import PandapowerApplicationReportShell
+from pandapower_application.report_shell import PandapowerApplicationReportShell
 
 
 @dataclass(frozen=True, slots=True)

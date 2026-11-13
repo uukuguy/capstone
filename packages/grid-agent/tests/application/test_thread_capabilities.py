@@ -44,7 +44,7 @@ class _Session:
 
 
 def test_retained_model_workspace_reuses_real_results_after_resources_close(tmp_path):
-    from grid_agent.application.profile import build_pandapower_application_profile
+    from pandapower_application.profile import build_pandapower_application_profile
     revision = ModelRegistry(Pandapower340Engine()).trusted_revision_ref("ieee39")
     context = _claim(revision).model_context
     def bind(prepared, context):

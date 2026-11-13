@@ -7,7 +7,7 @@ from capstone_agent.application import EmptyCredentialBroker
 
 from capstone_agent.model_identity import validate_model_id
 from pandapower_domain.network_annotations import project_base_disconnections
-from .application.profile import build_pandapower_application_profile
+from pandapower_application.profile import build_pandapower_application_profile
 
 
 def model_diagram(model_id: str, revision: str) -> dict[str, object]:

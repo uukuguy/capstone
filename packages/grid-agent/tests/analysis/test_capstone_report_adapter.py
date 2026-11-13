@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from capability_agent.application.workspace import ApplicationWorkspace
-from grid_agent.compat.v1_0_1_report import PandapowerApplicationReportShell
+from pandapower_application.report_shell import PandapowerApplicationReportShell
 
 
 def test_capstone_report_uses_resolved_runtime_and_admitted_evidence(tmp_path: Path) -> None:

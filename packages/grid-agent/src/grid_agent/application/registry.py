@@ -7,7 +7,7 @@ from capstone_agent.application_registry import (
     ApplicationRegistry,
 )
 
-from grid_agent.application.profile import build_pandapower_application_profile
+from pandapower_application.profile import build_pandapower_application_profile
 
 
 def build_trusted_application_registry() -> ApplicationRegistry:

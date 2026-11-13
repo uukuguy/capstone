@@ -8,7 +8,7 @@ import pytest
 
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis.view import materialize_context_view
-from grid_agent.analysis.workspace import AnalysisWorkspace
+from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.reader import RunEventReader

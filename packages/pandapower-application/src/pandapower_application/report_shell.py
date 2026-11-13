@@ -9,10 +9,10 @@ import re
 
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.application.reporting import extract_tool_failures, format_tool_failure
-from grid_agent.analysis.models import AnalysisContext, DomainState, EvidenceRecord, InputRecord, LimitationRecord, RuntimeRecord, TurnRecord
-from grid_agent.analysis.report import render_analysis_report
-from grid_agent.analysis.workspace import AnalysisWorkspace
-from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
+from pandapower_domain.models import AnalysisContext, DomainState, EvidenceRecord, InputRecord, LimitationRecord, RuntimeRecord, TurnRecord
+from pandapower_application.report import render_analysis_report
+from pandapower_application.workspace import AnalysisWorkspace
+from pandapower_application.submission import write_submission_checkpoint
 
 
 class PandapowerApplicationReportShell:

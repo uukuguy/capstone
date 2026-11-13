@@ -21,7 +21,7 @@ from grid_agent.application.composition import (
     run_generic_application,
 )
 from grid_agent.application.paths import ProjectPaths
-from grid_agent.application.profile import build_pandapower_application_profile
+from pandapower_application.profile import build_pandapower_application_profile
 
 
 @dataclass
@@ -247,7 +247,7 @@ def test_generic_pandapower_renderer_failure_keeps_accepted_answers_and_submissi
         raise RuntimeError("renderer credential=secret-path")
 
     monkeypatch.setattr(
-        "grid_agent.compat.v1_0_1_report.render_analysis_report", fail_renderer
+        "pandapower_application.report_shell.render_analysis_report", fail_renderer
     )
 
     outcome = run_generic_application(
@@ -420,12 +420,12 @@ def test_generic_pandapower_application_continues_after_initial_submission_check
         calls += 1
         if calls == 1:
             raise OSError("credential=secret-path")
-        from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
+        from pandapower_application.submission import write_submission_checkpoint
 
         return write_submission_checkpoint(**kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
-        "grid_agent.compat.v1_0_1_report.write_submission_checkpoint",
+        "pandapower_application.report_shell.write_submission_checkpoint",
         fail_initial_checkpoint,
     )
 
@@ -455,7 +455,7 @@ def test_generic_pandapower_application_preserves_prior_submission_checkpoint_af
         workspace=workspace,
         catalog=object(),
     )
-    from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
+    from pandapower_application.submission import write_submission_checkpoint
 
     calls = 0
 
@@ -467,7 +467,7 @@ def test_generic_pandapower_application_preserves_prior_submission_checkpoint_af
         return write_submission_checkpoint(**kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
-        "grid_agent.compat.v1_0_1_report.write_submission_checkpoint",
+        "pandapower_application.report_shell.write_submission_checkpoint",
         fail_refresh_after_first_answer,
     )
 

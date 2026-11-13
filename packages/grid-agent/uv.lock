@@ -720,6 +720,7 @@ dependencies = [
     { name = "capstone-model-capability-spi" },
     { name = "fastapi" },
     { name = "filelock" },
+    { name = "pandapower-application" },
     { name = "pandapower-domain-pack" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -742,6 +743,7 @@ requires-dist = [
     { name = "capstone-model-capability-spi", editable = "../capstone-model-capability-spi" },
     { name = "fastapi", specifier = ">=0.139,<1" },
     { name = "filelock", specifier = ">=3.20,<4" },
+    { name = "pandapower-application", editable = "../pandapower-application" },
     { name = "pandapower-domain-pack", editable = "../pandapower-domain-pack" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "python-dotenv", specifier = ">=1.2,<2" },
@@ -1088,6 +1090,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fd/cd/e7ba8e484505b1af0595b3ce88e12ea32ceea092e483dddc273b0ecd73aa/pandapower-3.4.0.tar.gz", hash = "sha256:bad4e267603fe3ea23e01d9d318d86572ff037cf4968693a851c91b2bb45b8da", size = 5223544, upload-time = "2026-02-09T15:00:09.96Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/d0/048318e7fca4a67fdd89c57b2ac02bc8450ad6ca7a7f738968bec0844ae9/pandapower-3.4.0-py3-none-any.whl", hash = "sha256:8ee08fe37039dac0be6c3469cb01e9ea3e90d900f44ee7f65ae45e4beabd3676", size = 5531008, upload-time = "2026-02-09T15:00:08.026Z" },
+]
+
+[[package]]
+name = "pandapower-application"
+version = "0.1.0"
+source = { editable = "../pandapower-application" }
+dependencies = [
+    { name = "capability-agent-kernel" },
+    { name = "pandapower-domain-pack" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
+    { name = "pandapower-domain-pack", editable = "../pandapower-domain-pack" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
 ]
 
 [[package]]
