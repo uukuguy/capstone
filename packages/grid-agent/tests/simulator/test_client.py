@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.simulator.client import GridctlClient, SimulatorCapabilityError
+from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
 
 
 def test_client_uses_json_stdin_and_clean_stdout(tmp_path: Path) -> None:
@@ -16,7 +16,7 @@ def test_client_uses_json_stdin_and_clean_stdout(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     executable.chmod(0o755)
-    client = GridctlClient(executable=executable, workspace=tmp_path, timeout_seconds=5)
+    client = GridctlExecutor(executable=executable, workspace=tmp_path, timeout_seconds=5)
 
     result = client.invoke("environment.describe", {})
 
@@ -37,7 +37,7 @@ def test_client_invokes_named_capability(tmp_path: Path) -> None:
     )
     executable.chmod(0o755)
 
-    result = GridctlClient(executable=executable, workspace=tmp_path).invoke("model.list", {})
+    result = GridctlExecutor(executable=executable, workspace=tmp_path).invoke("model.list", {})
 
     request = json.loads(request_path.read_text(encoding="utf-8"))
     models = result["models"]
@@ -62,7 +62,7 @@ def test_client_preserves_typed_capability_error(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     executable.chmod(0o755)
-    client = GridctlClient(executable=executable, workspace=tmp_path)
+    client = GridctlExecutor(executable=executable, workspace=tmp_path)
 
     with pytest.raises(SimulatorCapabilityError) as raised:
         client.invoke("context.open", {"unexpected": True})

@@ -9,7 +9,7 @@ import pytest
 
 from pandapower_domain.authority import ContentReferenceVerifier, SimulatorIntegrityError
 from grid_agent.application.workspace import RunWorkspace
-from grid_agent.simulator.client import GridctlClient
+from pandapower_domain.execution import GridctlExecutor
 from pandapower_application.gridctl_locator import GridctlLocator
 
 
@@ -133,7 +133,7 @@ def test_verify_evidence_accepts_network_fact_and_analysis_documents(tmp_path: P
 
 def test_verify_evidence_accepts_generated_ac_and_n1_evidence(tmp_path: Path) -> None:
     workspace = RunWorkspace.create(tmp_path / "runs", run_id="q")
-    client = GridctlClient(
+    client = GridctlExecutor(
         executable=GridctlLocator(ROOT).resolve(),
         workspace=workspace.root_path,
         timeout_seconds=60,

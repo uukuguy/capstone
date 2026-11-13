@@ -50,7 +50,7 @@ from pandapower_application.registry import ApplicationRegistry
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.contracts import AnswerEnvelope
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
-from grid_agent.simulator.client import GridctlClient, SimulatorCapabilityError
+from pandapower_domain.execution import GridctlExecutor, SimulatorCapabilityError
 from pandapower_application.gridctl_locator import GridctlLocator
 from validation.pandapower_cases import ValidationCase, load_cases
 from validation.pandapower_corpus import AnswerCorpus, AnswerCorpusError, evaluate_corpus_trace, load_answer_corpus
@@ -545,7 +545,7 @@ def _select_cases(
 
 
 class _RecordingClient:
-    def __init__(self, client: GridctlClient) -> None:
+    def __init__(self, client: GridctlExecutor) -> None:
         self.client = client
         self.events: list[ToolResultEvent] = []
 
@@ -592,7 +592,7 @@ def _execute_offline_case(
             shutil.rmtree(run_path, ignore_errors=True)
             workspace = RunWorkspace.create(Path("runs"), run_id=case.id)
             client = _RecordingClient(
-                GridctlClient(
+                GridctlExecutor(
                     executable=GridctlLocator(_repo_root()).resolve(),
                     workspace=workspace.root_path,
                     timeout_seconds=timeout_seconds,
@@ -638,7 +638,7 @@ def _execute_scripted_static_case(
     shutil.rmtree(run_path, ignore_errors=True)
     workspace = RunWorkspace.create(Path("runs"), run_id=case.id)
     client = _RecordingClient(
-        GridctlClient(
+        GridctlExecutor(
             executable=GridctlLocator(_repo_root()).resolve(),
             workspace=workspace.root_path,
             timeout_seconds=timeout_seconds,

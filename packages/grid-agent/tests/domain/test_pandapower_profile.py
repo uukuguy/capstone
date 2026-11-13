@@ -15,7 +15,7 @@ from pandapower_application.workspace import AnalysisWorkspace
 from capability_agent.domain import DomainRuntimeProfile
 from capability_agent.domain.projection import VerifiedInvocation
 from pandapower_domain import build_pandapower_profile
-from grid_agent.simulator.client import GridctlClient
+from pandapower_domain.execution import GridctlExecutor
 from pandapower_domain import PandapowerResourceSet
 from pandapower_domain.state import (
     canonical_state_hash as pandapower_canonical_state_hash,
@@ -90,7 +90,7 @@ def test_pandapower_profile_adapts_grid_runtime_dependencies(tmp_path: Path) -> 
     executor = profile.create_executor(tmp_path / "gridctl", tmp_path / "run", 17)
     authority = profile.create_authority(tmp_path / "run")
 
-    assert isinstance(executor, GridctlClient)
+    assert isinstance(executor, GridctlExecutor)
     assert executor.executable == tmp_path / "gridctl"
     assert executor.workspace == tmp_path / "run"
     assert executor.timeout_seconds == 17
