@@ -9,6 +9,41 @@ from test_enterprise_normal_chat import chat_store
 from test_thread_postgres import postgres_thread_service
 
 
+def test_late_duplicate_part_acknowledges_already_published_bytes(chat_store):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, Lock
+    service, thread = chat_store
+    entered, release = Event(), Event()
+
+    class DelayedDuplicate(MemoryObjectStore):
+        calls = 0
+        guard = Lock()
+
+        def put(self, key, content, mime):
+            with self.guard:
+                self.calls += 1
+                first = self.calls == 1
+            if first:
+                entered.set()
+                assert release.wait(5)
+            super().put(key, content, mime)
+
+    objects = DelayedDuplicate()
+    uploads = ResourceUploads(service, objects, chunk_bytes=4)
+    uid = uploads.begin(thread, 'duplicate.csv', 4, 'duplicate')['upload_id']
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        delayed = pool.submit(uploads.part, thread, uid, 0, b'abcd')
+        try:
+            assert entered.wait(2)
+            acknowledged = uploads.part(thread, uid, 0, b'abcd')
+            resource = uploads.complete(thread, uid)
+        finally:
+            release.set()
+        assert delayed.result(timeout=2) == acknowledged
+    assert b''.join(uploads.read(thread, resource['resource_id'])) == b'abcd'
+    assert len([e for e in uploads._events(thread) if e.event_type == 'resource_part_stored']) == 1
+
+
 def test_cancel_does_not_wait_for_object_write_and_removes_late_bytes(chat_store):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event

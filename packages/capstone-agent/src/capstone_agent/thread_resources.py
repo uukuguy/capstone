@@ -146,6 +146,8 @@ class ResourceUploads:
         key = self._key(thread, uid, part)
         def apply(snapshot, connection):
             state = self._state(thread, uid, connection)
+            if state['state'] == 'complete' and state['parts'].get(index) == part:
+                return part
             self._editable(state)
             if index not in state['parts']:
                 _write_event(self.service, snapshot, 'resource_part_stored', part, connection)
