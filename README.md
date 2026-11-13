@@ -233,7 +233,7 @@ For LLM orchestration, configure the CLI Provider as described in the [runbook](
 make run-llm QUESTION="对 IEEE-39 执行交流潮流，并报告有功损耗。"
 ```
 
-The existing pandapower answer, report, and stdout contracts are documented in the [pandapower application guide](docs/PANDAPOWER-APPLICATION.md). The supported `capstone-agent` CLI and guided-case commands are documented in the [runbook](docs/RUNBOOK.md#capstone-统一客户端). The old `grid-agent` CLI has been removed. Remaining internal module and development-tool migration is tracked in the retirement plan. Deterministic scripted fixtures support offline validation; they are separate from ordinary LLM conversation.
+The existing pandapower answer, report, and stdout contracts are documented in the [pandapower application guide](docs/PANDAPOWER-APPLICATION.md). The supported `capstone-agent` CLI and guided-case commands are documented in the [runbook](docs/RUNBOOK.md#capstone-统一客户端). The old `grid-agent` CLI has been removed. Application code and tests now belong to `pandapower-application`; the retirement plan records final acceptance. Deterministic scripted fixtures support offline validation; they are separate from ordinary LLM conversation.
 
 ## Develop and deploy
 

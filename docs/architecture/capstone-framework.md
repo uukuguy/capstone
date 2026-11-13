@@ -9,19 +9,17 @@ grants; the Kernel does not classify business topics by keywords.
 | Entry | Current selection and execution | Owning source |
 | --- | --- | --- |
 | Default native conversation and enterprise instruction | Enter the execution model directly with admitted context and tools. Planning is on demand. An open model remains management context when the submission carries the main-chain native binding. | `capstone_agent.intent_runtime.IntentRuntimeFactory.plan_intent`; `capstone_agent.native_hosted_worker` |
-| Explicit professional execution | Use the application-selected registered model, Domain Pack and Authority. A non-native model-bound entry may use its configured recognizer or research router. Native shell access is not a professional Pack tool. | `grid_agent.hosted`; `capstone_agent.intent_runtime`; `pandapower_domain.execution` |
+| Explicit professional execution | Use the application-selected registered model, Domain Pack and Authority. A non-native model-bound entry may use its configured recognizer or research router. Native shell access is not a professional Pack tool. | `pandapower_application.hosted`; `capstone_agent.intent_runtime`; `pandapower_domain.execution` |
 | Admitted domain handoff or report | Replay the frozen handoff on its owning worker; do not reinterpret it as a new ordinary instruction. | `_replay_frozen_domain_execution`; `_plan_domain_report` |
 | Explicit Pi reference mode | Use the separately selected direct runtime with its admitted general executor. | `IntentRuntimeFactory._plan_direct` |
 | Historical attempts | Retain the frozen intent decision, resources and implementation identity required by replay/retry. Missing historical resources fail explicitly. | `IntentRuntimeFactory`; Thread Attempt ledger |
 
-The `grid-agent` CLI compatibility requirement is withdrawn. Its package still
-owns worker entry and some formal pandapower runtime modules. The separately
-installable `pandapower-application` owns application profiles, report projection,
-report workspace and submission projection. It does not import `grid_agent`.
-The name
-alone does not make those modules unused. Move domain execution to its Pack and
-application composition to its application owner, with output, replay and
-registration checks at each migration boundary.
+The retired grid-agent distribution and CLI have been removed. The separately
+installable pandapower-application owns worker and hosted entries, application
+assembly, reports, workspace state and trajectory projections. Domain execution
+and semantic state belong to pandapower-domain-pack. Kernel runtime and contract
+helpers are imported directly. Historical event producer identifiers and ignored
+runtime storage paths remain readable; they do not provide an executable CLI.
 
 ## Gateway selection and automatic negotiation
 
@@ -536,11 +534,10 @@ through that generic path. These results verify the first application's
 assembly and compatibility boundary, not a claim that every prospective domain
 has been accepted.
 
-The existing `grid-agent` commands remain a temporary vertical adapter during
-runtime migration; their continuing compatibility requirement is withdrawn. They
-write exactly one JSON object to stdout with `question_id` and `answer_output`;
-progress, diagnostics, tool events, and warnings belong on stderr. This is a
-grid application contract, not the generic Capstone output protocol.
+The public capstone-agent CLI returns its registered client-result contract.
+The application persists bounded answer projections and current-run references;
+progress and diagnostics use stderr. The retired grid CLI contract is not a
+supported executable entry.
 
 ## Conformance proof and deferred scope
 
@@ -604,8 +601,8 @@ adapters: headless JSON request, interactive terminal, and loopback HTTP/SSE.
 It selects only source-registered application workers through a bounded,
 sequenced JSONL protocol. CLI and HTTP use the same `WorkerSession` API;
 application workers own Profile assembly, Domain Pack selection, and the
-current-run authority. The `grid-agent` compatibility entry remains the
-pandapower adapter; `pypsa-agent` owns the PyPSA two-binding application.
+current-run authority. The independently installed `pandapower-application` owns the
+pandapower worker; `pypsa-agent` owns the PyPSA two-binding application.
 Scripted demos and Provider routes share the Kernel's incremental turn runner.
 Only the selected worker can read its admitted result/evidence references.
 The legacy `tools/capstone_client.py` request command remains available. No

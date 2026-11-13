@@ -214,7 +214,7 @@ make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 make run-llm QUESTION="对 IEEE-39 执行交流潮流，并报告有功损耗。"
 ```
 
-现有 pandapower 答案、报告和标准输出契约见 [pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)。正式支持的 `capstone-agent` CLI 和引导案例命令见[运行手册](docs/RUNBOOK.md#capstone-统一客户端)。旧 `grid-agent` CLI 已删除；剩余内部模块和开发工具迁移由退役计划跟踪。确定性脚本样例用于离线验证，与普通 LLM 对话分开。
+现有 pandapower 答案、报告和标准输出契约见 [pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)。正式支持的 `capstone-agent` CLI 和引导案例命令见[运行手册](docs/RUNBOOK.md#capstone-统一客户端)。旧 `grid-agent` CLI 已删除；应用代码与测试归属 `pandapower-application`；退役计划记录最终验收。确定性脚本样例用于离线验证，与普通 LLM 对话分开。
 
 ## 开发与部署
 

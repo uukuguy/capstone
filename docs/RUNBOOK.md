@@ -27,7 +27,7 @@ make setup
 make doctor
 ```
 
-`make setup` 分别同步 grid 产品的 `grid-agent`、`grid-simulator`、PyPSA 行业耦合、容量规划与运行计算 Pack 及其建模 Pack 与 authority 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。inventory 参考域由 `make test-inventory` 按需同步和验证。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。grid／参考包和 PyPSA 包因 pandas 主版本约束分别安装在不同 Python 环境。
+`make setup` 分别同步 grid 产品的 `pandapower-application`、`grid-simulator`、PyPSA 行业耦合、容量规划与运行计算 Pack 及其建模 Pack 与 authority 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。inventory 参考域由 `make test-inventory` 按需同步和验证。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。grid／参考包和 PyPSA 包因 pandas 主版本约束分别安装在不同 Python 环境。
 
 ## 包模式与安装验证
 
@@ -39,7 +39,7 @@ make doctor
 | `capstone-agent` | 中性持久会话、无头与交互式 CLI、本地 HTTP/SSE 服务 |
 | `grid-simulator` | `gridctl`、已登记 pandapower 网络、确定性计算、结果数据集和证据 |
 | `pandapower-domain-pack` | pandapower 静态分析 Profile、能力契约、系统策略、指南、资源定位和兼容适配器 |
-| `grid-agent` | CLI、Provider/Pi 运行时、认证、连续分析、报告、工作台服务和 stdout 答案封装 |
+| `pandapower-application` | pandapower 应用装配、执行、报告与轨迹投影；统一 CLI 和认证由 capstone-agent 提供 |
 | `pypsa-agent` | PyPSA 双绑定应用 Profile 与独立工作进程 |
 | `inventory-reference-service` | `inventoryctl`、已登记只读 catalog、`inventory-capability/1.0` 与内容寻址业务工件 |
 | `inventory-domain-pack` | 只依赖公共 Kernel SPI 与 reference service 的 inventory Profile、策略、指南、执行器、投影和 authority |
@@ -61,7 +61,7 @@ make test-packages
 
 ## Inventory 参考域验证
 
-Workstream C 提供一个只读、非 grid 的第二领域，用于验证框架实例化能力，不是当前 `grid-agent` CLI 的可切换产品模式。执行完整参考域门禁：
+Workstream C 提供一个只读、非 grid 的第二领域，用于验证框架实例化能力，由应用显式选择绑定。执行完整参考域门禁：
 
 ```sh
 make test-inventory
@@ -547,116 +547,50 @@ make run-pypsa-case CASE=ac-dc-interconnection DEMO=1
 
 ## 主路径：执行自然语言分析问题
 
-评测和人工验证智能体的自然语言理解、实体识别与多次工具编排时，使用 `make run-llm`。这是产品主路径：Pi/LLM 负责理解请求并组合发布的 pandapower domain tools，`gridctl` 负责所有确定性计算与证据。
+通过统一客户端提交 Provider 请求，或在 App 中发送指令。专业分析由应用选择 Domain Pack 和 Authority；数值与证据来自注册 Authority。
 
 ```sh
-make run-llm QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
-make run-llm QUESTION="对IEEE-39节点系统运行交流潮流，并输出有功网损;"
-make run-llm QUESTION="筛选负载率最高的5条线路;"
+make capstone-agent-run REQUEST=validation/client/pandapower-analysis-task.json
 ```
 
-该路径需要按下一节配置 provider/Pi。stdout 始终是一个 JSON 对象，仅含 `question_id` 与 `answer_output`；进度与工具轨迹写入 stderr。每个创建 workspace 的单题运行都通过 `AgentApplication` 和 turn controller 提交，公开文本只从已提交且 admission-bound 的答案读取，而不是 Pi 文本或渲染结果。
+请求中的 provider/model 按当前配置解析。密钥仅留在受保护环境或项目认证状态中。
 
 ## 离线冒烟与回归路径
 
-`make run` 是本地、非计费的确定性路径，只覆盖明确支持的离线知识与诊断请求。它用于安装后冒烟、离线回归和验证器，不承担开放自然语言理解或多步智能体编排。
-
-```sh
-make run QUESTION="母线电压正常运行范围是多少?"
-make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
-```
-
-标准输出始终是一个 JSON 对象，仅含 `question_id` 与 `answer_output`。数值计算和模型事实通过独立的 `gridctl` JSONL 进程完成，仿真边界固定为 pandapower 3.4.0；运行证据写入当前目录的 `runs/<question_id>/`。纯信息回答不会创建运行目录，也不会声称仿真证据。
-
-对 TASK 中的潮流、排序、N-1 与风险分析请求，人工验收应使用上面的 `make run-llm` 主路径，以验证模型实际完成理解与多次工具编排。
-
-`runs/` 是操作者可检查的运行记录，已被 Git 忽略。`.grid-agent/` 只存放项目内部 Pi OAuth、托管 Pi runtime、会话状态等内部状态，同样被 Git 忽略。版本化运行配置位于 `configs/runtime/`，例如 `configs/runtime/pi-runtime.lock.json`。
-
-当前锁定 Pi 0.84.4。2026-09-05 对托管源码和两个扩展的三份 frozen lock 执行 npm audit，六项严重度/总计均为零，漏洞列表为空；真实构建 SDK 的通用/grid 捕获成功与拒绝路径也已验证。精确版本、源码、补丁、三份锁与依赖图、审计摘要和捕获结果记录在 [`configs/runtime/pi-security-remediation-v1.json`](../configs/runtime/pi-security-remediation-v1.json)。这是一份特定时间、特定依赖状态的验证记录，不保证未来没有新增 advisory，也不代替完整发布验收。
-
-旧 Pi 0.80.6 的 2 个 High 和 2 个 Moderate 风险仍按原文保存在 [历史例外](../configs/runtime/pi-security-risk-exception-v1.json)，其 2026-09-30 到期日不变；不得将新版本审计结果写成旧版本漏洞已经消失。`make check-runtime-risk` 默认只做本地验证：新版本须匹配 remediation 绑定及实际安装图，旧版本继续受原例外与到期门约束，未知版本拒绝。审计不会在默认门禁中自动联网执行；release 操作者仍须复核可信 registry/audit 信息。
-
-`make install-pi` 遇到含旧补丁或其他本地修改的托管源码时，会将整个目录保留为 `.grid-agent/runtime/pi/source-preserved-<id>` 后重新安装，不删除旧源码或认证状态。新安装未完成时不启用 active marker。`make test-pi-capture-runtime` 使用真实已构建 SDK 与两套扩展、仅替换模型传输端，离线验证先持久化再调用及捕获失败阻断；它已纳入 `check-integration` / `check-release`。
-
-实际进入应用或连续分析运行时，CLI 在 stderr 输出 `model request capture: <status>`，不改变 stdout 答案封装。`enabled` 表示本次运行已配置完整捕获通道，`disabled` 表示没有配置通道，`unavailable` 表示使用注入的模型 transport 或在运行准备失败时无法声明捕获状态。Python/JS descriptor 均会预先拒绝不完整的通道组合。`enabled` 只说明配置，须检查当前 run 的 request 工件才能确认某次模型请求已被持久化。当前默认入口矩阵如下：
-
-| 入口 | 默认状态 | 原因 |
-| --- | --- | --- |
-| `analysis` / `report` | `enabled` | 原生轨迹捕获及提交确认通道由连续分析装配。 |
-| `analysis-generic` | `disabled` | 默认通用 Application 尚未配置 canonical request capture。 |
-| `run` 的模型路径 | `disabled` | 单题兼容入口复用通用 Application。 |
-| 注入脚本模型的测试装配 | `unavailable` | 没有可观察的真实 Pi 请求捕获配置。 |
-
-`ApplicationOutcome.model_request_capture_status` 和 `AnalysisOutcome.model_request_capture_status` 向程序调用方提供同一诊断。真实捕获失败继续由现有 Pi/轨迹完整性路径阻断；诊断字段本身不作为证据，也不改变答案成功条件。
-
-## 连续分析报告
-
-需要按顺序执行 TASK 指令集并生成可复核报告时，使用 `make analysis`：
-
-```sh
-make analysis
-make analysis INSTRUCTIONS=validation/questions/task.md.txt
-```
-
-`grid-agent analysis --instructions PATH` 会在一个 Pi/LLM 进程中执行整个指令文件；后续指令可以复用同一分析目录中已验证的上下文、结果和证据。stdout 只输出一个最终 `AnswerEnvelope`，其中 `question_id` 是 `analysis-<UTC timestamp>`，`answer_output` 是项目相对报告路径，例如 `runs/analysis-20260814T120000Z/report.md`。进度、工具事件、检查点和诊断全部写入 stderr。
-
-每次分析的输入副本、逐回合答案、上下文账本、上下文快照、证据、trace 和最终报告都保存在同一个 `runs/<analysis_id>/` 目录中；逐回合答案写入 `output/answers.jsonl`，不会流式写到 stdout。该迁移不支持独立 `--output`/`--report-path`、resume、命名 session 或 session 切换。
-
-`make report` 和 `grid-agent report --questions PATH` 是兼容别名，委托同一个连续分析路径；它们不再启动每题一个 `grid-agent run` 子进程。
-
-## 通用应用实例化路径
-
-正式内建 pandapower 应用的入口是：
-
-```sh
-make application
-```
-
-它沿着 `ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack`
-组装运行时。Kernel 负责组合结果的 `core`（运行身份、生命周期、回合、审计和引用），Domain Pack 负责 `domains.<binding_id>` 的领域载荷；通用 stdout 结果遵循 `capability-agent-output/1.0`，不会把领域字段误当成所有应用共同的答案字段：
-
-```json
-{"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
-```
-
-通用运行的答案完成与报告发布分开判定。报告/进度派生故障不会撤销已接受答案；
-最终报告不可用时 `core.report_ref` 与领域 `report_artifact_ref` 为 null。
-领域 schema 显式升级为 `pandapower-static-analysis-output/1.1`，core schema 不变；
-非空报告引用仍须通过当前运行接纳。查看 `core.diagnostic_refs` 及
-`runs/<run_id>/core/diagnostics/<code>/diagnostic.json`，若诊断工件也无法保存则检查
-stderr 固定诊断。不要把没有接纳引用的报告检查点当作可信最终报告；必要答案、
-证据和上下文完成事务失败仍会使运行失败。
-
-运行后应在 `runs/<run_id>/` 检查当前运行结果/证据 lineage、上下文快照与 replay、答案审计、工具轨迹和已接纳的报告工件。`make application` 是需要 Provider 的正式产品入口；Provider 凭据只保存在环境变量或项目拥有的 ignored 认证状态中，不写入命令参数、提交文件、日志或工件。完整参数、输出契约、兼容边界和当前运行证据检查见 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。
-
-Task 10 的无 Provider 验收用确定性的 scripted model transport 调用同一份已准备 pandapower endpoint，再由真实语义 `gridctl` 执行工具调用。它覆盖 `validation/application/` 中的两个脚本案例，并检查当前运行引用、上下文复用、答案审计、报告摘要/接纳、replay equality 和 `core` + `domains.grid` 输出：
+离线验证直接使用注册 Authority 或显式脚本替身，不调用旧 CLI。
 
 ```sh
 make validate-application
+make capstone-agent-run REQUEST=validation/client/pandapower-scripted-task.json
 ```
 
-该门禁是应用 wiring 与安全边界的可复现验收，不等同于 Provider-backed 业务运行。C.1 已完成：`validation/questions/task.md.txt` 与 `validation/questions/test.md.txt` 均已通过获得授权的 Provider 在 `analysis-generic` 路径完成，并通过当前运行证据、答案、报告和 replay 审计；显式 v1.0.1 compatibility 路径也已通过。`inventory-domain-pack` 仍只用于 fixture/conformance 参考，不是生产 CLI 的第二领域模式。
+脚本回答用于验证执行契约，不等同于真实模型验收。
 
-第一领域完整应用的 Provider-backed 复现、当前运行证据审计，以及无 Provider 门禁的组合方式统一记录在 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。
+## 连续分析报告
 
-`run`、`analysis` 和 `report` 是显式的 v1.0.1 兼容路径，仍由兼容适配器输出 stdout 中精确的 `question_id` 与 `answer_output` 两个字段；通用入口的组合 `core` 与 `domains` 结果不会被误称为这两个字段。
+统一客户端的请求文件包含有序 instructions，同一应用会话逐条执行并生成报告。
+
+```sh
+make capstone-agent-run REQUEST=validation/client/pandapower-analysis-task.json
+make capstone-agent-run REQUEST=validation/client/pandapower-analysis-test.json
+```
+
+结果和报告路径由统一客户端返回。已提交答案、当前运行证据与报告按各自契约持久化。旧 analysis/report 命令已删除。
+
+## 通用应用实例化路径
+
+应用按 ApplicationProfile、DomainBinding 和所选 Domain Pack 装配。Kernel 负责中立执行与 core，Domain Pack 负责 domains.<binding_id>。
+
+```sh
+make validate-application
+make capstone-agent-run REQUEST=validation/client/pandapower-task.json
+```
+
+公共 CLI 返回 capstone-client-result/1.0，内含应用组合结果。应用代码位于 packages/pandapower-application；不再安装 grid-agent 发行包。
 
 ## 本地轨迹工作台
 
-面向日常操作的界面说明、排障和 API 示例见 [轨迹工作台操作手册](TRAJECTORY-WORKBENCH-OPERATOR-GUIDE.md)。
-
-已存在的原生或兼容 v0.2 分析目录可通过只绑定回环接口的服务检查：
-
-```sh
-make trajectory PORT=8765
-# 等价：grid-agent trajectory serve --host 127.0.0.1 --port 8765 --runs-root runs
-```
-
-`make trajectory` 每次都会先构建并打包 workbench 静态资源，再在 `http://127.0.0.1:8765` 提供同源 UI 与只读 API。只需要更新静态资源时使用 `make build-workbench`；首次安装或重装依赖使用 `make setup-workbench`。生产资源随 `grid-agent` wheel 一起发布，服务启动时会验证 `index.html`、`assets/app.js` 和 `assets/app.css` 都存在；缺失时会清晰失败并提示运行 `make build-workbench`。浏览器的非 `/api/` 客户端路由返回 SPA 入口，`/api/*` 永远保持 JSON API 响应（包括 404）。
-
-首版只接受 `127.0.0.1`、`::1` 或 `localhost`；例如 `0.0.0.0` 和局域网地址会在启动前被拒绝。该操作是服务命令，不产生答案 JSON；启动和故障诊断只写 stderr，使用 Ctrl-C 停止。
-
-服务仅提供 GET：`/api/runs`、`/api/runs/{analysis_id}`、`/api/runs/{analysis_id}/business`、`/api/runs/{analysis_id}/agent`、`/api/runs/{analysis_id}/context?at_sequence=N` 与 `/api/runs/{analysis_id}/artifacts/{artifact_ref}`。工件必须已在投影索引登记并在读取时重新校验摘要；任意路径、Pi 原始 sidecar、符号链接逃逸和未知引用都会被拒绝。响应固定为不可执行数据类型，并包含 CSP、`nosniff`、拒绝 frame、`no-referrer` 和 `no-store`；服务没有 CORS、写入路由或实时流。
+轨迹投影、历史回放与只读 API 由 pandapower_application.trajectory 管理。正式任务报告与证据通过 App 和统一 /api/v1 接口读取；旧 make trajectory 服务命令已删除。历史事件的生产者标识保留以支持已有数据，不代表旧 CLI 仍可执行。
 
 ## LLM 配置与 Pi RPC 路径
 
@@ -684,47 +618,11 @@ cp .env.example .env
 # 编辑 .env：例如保留 GRID_AGENT_LLM_PROVIDER=openai，填写 OPENAI_API_KEY=...
 ```
 
-可选的非密钥参数也写在 `.env`：`GRID_AGENT_LLM_MODEL`、`GRID_AGENT_LLM_BASE_URL`、`GRID_AGENT_LLM_TIMEOUT_SECONDS` 与 `GRID_AGENT_LLM_MAX_RETRIES`。后两项分别是单次 provider 请求的秒数和重试次数（`0` 禁用重试）；每次 `make run-llm` 都会写入项目私有的 Pi `settings.json`，同时作用于 Pi 的 HTTP 空闲时限、SDK 请求时限和自动重试。命令行参数优先于 `.env`，进程环境变量优先于 `.env`。支持的 provider 与默认密钥变量为：`openai`/`OPENAI_API_KEY`、`openrouter`/`OPENROUTER_API_KEY`、`deepseek`/`DEEPSEEK_API_KEY`、`minimax`/`MINIMAX_API_KEY`。`openai-codex` 使用 Pi OAuth，而不是 API key。
+可选的非密钥参数也写在 `.env`：`GRID_AGENT_LLM_MODEL`、`GRID_AGENT_LLM_BASE_URL`、`GRID_AGENT_LLM_TIMEOUT_SECONDS` 与 `GRID_AGENT_LLM_MAX_RETRIES`。后两项分别是单次 provider 请求的秒数和重试次数（`0` 禁用重试）；每次专业 Provider 执行 都会写入项目私有的 Pi `settings.json`，同时作用于 Pi 的 HTTP 空闲时限、SDK 请求时限和自动重试。命令行参数优先于 `.env`，进程环境变量优先于 `.env`。支持的 provider 与默认密钥变量为：`openai`/`OPENAI_API_KEY`、`openrouter`/`OPENROUTER_API_KEY`、`deepseek`/`DEEPSEEK_API_KEY`、`minimax`/`MINIMAX_API_KEY`。`openai-codex` 使用 Pi OAuth，而不是 API key。
 
 DeepSeek 模型名以其[官方模型列表](https://api-docs.deepseek.com/api/list-models/)为准；项目只校验非空模型名，不维护 DeepSeek 模型白名单。当前项目统一使用 `deepseek-flash`。Pi 对尚未收录的显式模型名使用自定义模型 ID，最终是否可用由 DeepSeek API 验证。
 
-Pi 运行时按以下顺序发现：`GRID_AGENT_PI_COMMAND`、项目托管版本、`PATH` 中的 `pi`。因此 Pi 已在 `PATH` 时无需配置 `GRID_AGENT_PI_COMMAND`；否则可在 `.env` 设置该绝对路径，或在仓库根目录执行 `make install-pi` 安装本项目锁定版本到 `.grid-agent/runtime/pi`。模型密钥会仅在启动 Pi 子进程时通过环境变量传递，不写入 `.grid-agent/auth/pi` 的配置文件或命令行。
-
-当 `GRID_AGENT_LLM_PROVIDER=openai-codex` 时，不填写 API key。先从已经登录的本地 Pi 导入 OAuth 凭证，或登录到项目自己的 Pi OAuth 配置：
-
-```sh
-make auth-import-pi
-# 若尚未有本地 Pi 登录态：先 make install-pi，再 make auth-login
-```
-
-```sh
-# 默认读取 .env 中的 GRID_AGENT_LLM_PROVIDER
-make run-llm QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
-
-# 临时覆盖 .env 中的 provider
-make run-llm PROVIDER=deepseek QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
-```
-
-`make run` 始终是本地、非计费的离线 gridctl 路径；`make run-llm` 才会调用配置的 LLM，并把受控的 `gridctl` 放入 Pi 的受限 PATH。Pi 只暴露项目生成的 `grid_*` domain tools 和 `grid_guide_open`；不会启用通用 shell/read/write/edit 内置工具。模型完成必要工具使用后返回普通面向读者的最终文本；每个创建 workspace 的单题运行与连续 `analysis` 都由 `grid-agent` 控制器确定性绑定当前回合的结果/证据引用并完成答案提交。
-
-`make run-llm` 的 stdout 仍只输出最终 JSON；实时进度写到 stderr，包括运行耗时、provider/model、生效的超时与重试参数、输入与输出前 200 字摘要、Pi 工具事件、重试事件，以及超过 10 秒无事件时的等待提示。密钥字段会被隐藏。单题在线 `run` 的 stdout 只投影已提交、admission-bound 的 reader text；其 canonical workspace 保留 `core/events.jsonl`、domain 工具结果与 evidence，并在 `turns/<turn_id>/` 写入 `answer-draft.json`、`answer.json` 和 admission sidecar。
-
-若日志出现 `401 ... authentication_error`，表示当前 provider 的 API key 无效、过期或与所选 provider 不匹配；更新 `.env` 中对应的密钥后重新运行。该错误不会重试。若出现 `Request timed out`，先确认日志首行的超时和重试参数，再检查 provider 服务状态或提高 `GRID_AGENT_LLM_TIMEOUT_SECONDS`。单题运行原始事件应从 `runs/<question_id>/core/events.jsonl` 检查；根目录 `events.jsonl` 仅在兼容快照成功发布后可用。创建 workspace 或事件日志前发生的故障可能没有日志文件，此时使用 stderr 诊断。
-
-### 启动阶段领域运行时故障
-
-`grid-agent run` 和连续 `analysis` 在模型执行前会物化内建 pandapower Profile。以下故障沿用当前 stderr 诊断和 stdout 错误 envelope 行为；其中发生在 Profile、合同、指南、策略或 `environment.describe` 阶段的错误不会启动模型执行：
-
-| 故障类型 | 常见含义 |
-| --- | --- |
-| invalid Profile/manifest | `DomainManifest` 字段非法，或 manifest 声明的资源、协议、工具前缀与运行环境不兼容 |
-| protocol mismatch from `environment.describe` | `gridctl` 返回的 `protocol` 或 `protocol_version` 与 Profile 声明不一致 |
-| missing capability contract root | Profile 指向的 capability contract 目录不存在、为空或包含无法解析的合同 |
-| missing guide or system policy resource | `guide_root` 或 `system_policy_path` 缺失，导致 Pi 工具指南或系统策略无法物化 |
-| existing gridctl transport errors | `gridctl` 无法启动、超时、stdout 不是单条匹配请求的 JSON 协议响应，或返回 typed simulator error |
-| evidence-integrity errors | 当前运行结果、证据、authority 或 lineage 未通过现有内容引用校验，不能被跨回合复用或绑定到答案 |
-
-当前没有领域选择命令；CLI 固定选择内建 pandapower 静态分析 Profile。需要切换领域时必须先经过后续 Workstream 的设计和命令契约变更。
+本地 Pi 安装使用 `make install-pi`：已安装的受管版本通过身份和版本校验时直接复用。Docker 使用独立的固定安装层；普通源码变化复用该层。认证使用 `make auth-import-pi` 或 `make auth-login`，由 capstone-agent 处理。
 
 ## Skill 与工具边界
 
@@ -768,7 +666,7 @@ make test-inventory
 make test-packages
 ```
 
-`make test` 是完整离线单元入口：分别运行十三个 Python 包、两个 Pi 包、workbench 与 verification-target 自检；其中 grid-agent 单元命令显式排除 E2E，`make test-e2e` 保持为离线命令行和脚本化 Pi → gridctl 的集成层。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport，避免在 domain 子目标重复 transport 测试。`make test-pypsa` 聚焦 PyPSA authority、建模、运行计算、容量规划和行业耦合 Pack。`make test-packages` 构建并安装干净发行工件，验证十三个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。`make setup` 同步 agent/simulator/Capstone/PyPSA/tools/workbench；inventory 测试通过各自 `uv run` 按需创建环境。
+`make test` 是完整离线单元入口：分别运行十三个 Python 包、两个 Pi 包、workbench 与 verification-target 自检；其中 pandapower 应用单元命令显式排除 E2E，`make test-e2e` 验证统一客户端和注册应用执行链。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport，避免在 domain 子目标重复 transport 测试。`make test-pypsa` 聚焦 PyPSA authority、建模、运行计算、容量规划和行业耦合 Pack。`make test-packages` 构建并安装干净发行工件，验证十三个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。`make setup` 同步 agent/simulator/Capstone/PyPSA/tools/workbench；inventory 测试通过各自 `uv run` 按需创建环境。
 
 `make check-types` 使用锁定的 pyright 1.1.408，standard 模式、Python 3.12 最低版本，覆盖全部生产 `src` 树，并运行 workbench check。Kernel `output.py` 保留 3 个局部 Pydantic schema-attribute override，以维持现有公开 wire 属性；这不是整包忽略。`make check-fast` 为边界、类型和单元层，`make check-integration` 为 E2E 与两项 provider-free validation，`make check-release` 再加入 package 与 source-setup 检查。所有这些 gate 不调用 provider 或使用付费凭据。
 
@@ -779,7 +677,7 @@ make test-packages
 
 `make check-protected-paths` 和 `make validate` 使用当前 C.1 repository gate：`configs/runtime/application-instantiation-protected-paths.json`。该运行时策略固定保护不可变的 acceptance 输入和 simulator truth boundary：`configs/capabilities/pandapower-3.4.0-static-analysis.json`、`packages/grid-simulator`、`packages/inventory-domain-pack`、`packages/inventory-reference-service`、`validation/questions/task.md.txt` 与 `validation/questions/test.md.txt`。每项 digest 均来自该路径的已提交 `HEAD:<path>` Git 对象；gate 同时拒绝这些路径的 working-tree 变更。
 
-该 C.1 策略刻意不保护将在已批准后续任务中变更的 `packages/capability-agent-kernel`、`packages/pi-capability-tools`、`packages/trajectory-workbench`、`packages/grid-agent` 和 `packages/pandapower-domain-pack`。这不会改写 Workstream C 的历史证据：`docs/status/climb/config.yaml` 继续以其记录的 source revision 与 protected-path baseline 证明当时的 closure。
+该 C.1 策略刻意不保护将在已批准后续任务中变更的 `packages/capability-agent-kernel`、`packages/pi-capability-tools`、`packages/trajectory-workbench`、`packages/pandapower-application` 和 `packages/pandapower-domain-pack`。这不会改写 Workstream C 的历史证据：`docs/status/climb/config.yaml` 继续以其记录的 source revision 与 protected-path baseline 证明当时的 closure。
 
 Workstream C 的最终本地 release closure 必须从已提交且干净的 release-source revision 运行：
 
@@ -791,15 +689,13 @@ tools/climb/cycle.sh C-H005
 
 `tools/climb/gate-receipt.py <gate-key>` 仍可为同一 revision 生成内容寻址的机械记录。其 mode-0600 HMAC 只用于发现意外损坏；密钥和验证器对同一 OS 用户可见，因此它不是独立信任根，也不能证明同一用户无法重签。release closure 会现场重跑全部门，不以这些 HMAC receipt 代替执行。该本地链只证明本次本机命令的可复核执行，不宣称具有 CI/外部签名者的跨主体不可伪造性。
 
-可选 provider validation 会产生真实模型调用，必须显式给出 provider 且环境中已有对应凭证：
+可选 Provider 验证使用统一请求文件，凭据由后端配置提供：
 
 ```sh
-make validate-provider PROVIDER=openai MODEL=gpt-5.5
-# 可覆盖验证集；默认 static-analysis-full
-make validate-provider PROVIDER=openai MODEL=gpt-5.5 VALIDATION_SUITE=task-required
+make validate-provider REQUEST=validation/client/pandapower-task.json
 ```
 
-报告写入 `runs/validation-provider.json`，分别记录编排完成度、语义正确性、证据和工具调用效率；效率预算是诊断分，不会覆盖正确的主结果或阻断分析入口。报告记录 provider/model、trace、延迟以及可用的 token/cost 元数据，不写入密钥。
+请求可显式选择 provider/model。结果与报告由统一客户端返回，密钥不得进入参数或产物。
 
 ## GitHub Issues 与小石身份
 
