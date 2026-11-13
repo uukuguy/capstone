@@ -18,4 +18,4 @@ checks=(
 uv run --project packages/pandapower-application pytest "${checks[@]}" -q
 python tools/check_package_boundaries.py
 node --test packages/capstone-agent/tests/fixtures/general-sdk-graph.test.mjs packages/capstone-agent/tests/fixtures/general-sdk-graph-errors.test.mjs packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs
-npm --prefix packages/capstone-app test -- src/InstructionAttachments.test.tsx src/attachmentMemory.test.ts
+npm --prefix packages/capstone-app test -- src/InstructionAttachments.test.tsx src/attachmentMemory.test.ts src/ThreadFixtureApp.test.tsx
