@@ -161,7 +161,7 @@ check-workbench:
 	npm run check --prefix packages/trajectory-workbench
 
 install-pi:
-	uv run --project packages/grid-agent grid-agent install-pi
+	uv run --project packages/capstone-agent python deploy/install_pinned_pi.py --root .
 
 .PHONY: install-agent-resources
 install-agent-resources:
