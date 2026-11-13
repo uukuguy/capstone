@@ -7516,3 +7516,7 @@ check passed. No CI, integration or remote deployment performed.
 - 01:33 Close both verified remote branches;preserve original local implementation asrecovery/architecture-retirement-local-20261114;refresh actualdev post-merge snapshot without commit loop.
 - 01:54 Audit assigns all30work heads;archive28exact sources,close17remote aliases/PR50;14worktrees and53dirty-file hashes unchanged,no CI/deployment.
 - 2026-11-14 PPT closeout: extracted template catalog, task grants, frozen sources, PDF/default State Grid, service-bus receipts and App revision increment onto dev b4992b94. Preserved dev discovery, structural context and React Hook fixes. Local: 251 backend passed/46 skipped, 46 PG/resource passed/1 skipped, 85 renderer, 378 App, 12 template SDK, 50 composition, 218 governance passed/4 skipped; type checks passed. No CI or deployment.
+
+- 2026-11-14 Integrated verified PPT increments to preserve template delivery; candidate 29c0ce72 awaits runtime checks and approved CI.
+- 2026-11-14 Archived reference research 2bd086af; reused current composition, preserved three dirty files, and retained projection-policy design backlog.
+- 2026-11-14 Review fix: persist renderer version/source identity and library digest; failing regression confirmed, then 85 renderer checks passed.

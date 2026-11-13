@@ -226,6 +226,7 @@ def render_library(*, spec=None, bundle=None, output, template, template_sha256,
                         pdf_result = {'status': 'failed', 'code': 'pdf_conversion_failed'}
             pptx = (root / 'result.pptx').read_bytes()
             receipt = {'schema': 'capstone-presentation-library-render/1', 'output': output,
+                'library_source_sha256': sha256(Path(__file__).read_bytes()).hexdigest(),
                 'output_sha256': sha256(pptx).hexdigest(), 'content_sha256': content_sha,
                 'template_sha256': template_sha256, 'bundle': stem + '.source.zip',
                 'template_id': template_id,

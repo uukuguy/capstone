@@ -48,6 +48,12 @@ def test_render_and_rerender_keep_frozen_content_and_exact_dependencies(tmp_path
     first = run(tmp_path, '--spec', 'content.json', '--output', 'first.pptx', *args)
     assert first.returncode == 0, first.stderr
     receipt = json.loads(first.stdout)
+    identity = receipt['renderer']['renderer_identity']
+    assert identity['version']
+    assert identity['source_sha256'] == {
+        name: hashlib.sha256((SCRIPT.parent / name).read_bytes()).hexdigest()
+        for name in ('native_report.py', 'native_presentation_template.py', 'native_presentation_layout.py')}
+    assert receipt['library_source_sha256'] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
     assert receipt['pdf']['status'] == 'not_requested'
     bundle = tmp_path / receipt['bundle']
     with ZipFile(bundle) as archive:
@@ -58,6 +64,8 @@ def test_render_and_rerender_keep_frozen_content_and_exact_dependencies(tmp_path
     again = run(tmp_path, '--bundle', receipt['bundle'], '--output', 'second.pptx', *args)
     assert again.returncode == 0, again.stderr
     assert json.loads(again.stdout)['content_sha256'] == receipt['content_sha256']
+    assert json.loads(again.stdout)['renderer']['renderer_identity'] == identity
+    assert json.loads((tmp_path / 'second.receipt.json').read_text())['renderer']['renderer_identity'] == identity
     assert (tmp_path / 'first.pptx').exists() and (tmp_path / 'second.pptx').exists()
     roles = json.loads((tmp_path / '.capstone-products.json').read_text())['products']
     assert {p['path'] for p in roles} >= {'first.pptx', 'second.pptx', 'first.source.zip', 'second.source.zip'}
