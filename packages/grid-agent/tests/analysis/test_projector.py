@@ -12,7 +12,7 @@ import pytest
 from pandapower_domain.capabilities import CapabilityContextCatalog
 from pandapower_domain.authority import SimulatorIntegrityError
 from pandapower_domain.models import ContextEventDraft, VerifiedFact
-from grid_agent.analysis.projector import AnalysisContextProjector
+from pandapower_application.analysis_projector import AnalysisContextProjector
 from pandapower_application.analysis_store import AnalysisContextStore, ContextStoreError
 from pandapower_application.workspace import AnalysisWorkspace
 from capability_agent.domain import (

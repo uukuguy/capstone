@@ -12,7 +12,7 @@ from pandapower_domain.authority import SimulatorIntegrityError
 from pandapower_domain.models import ContextEventDraft
 from pandapower_application.report import write_analysis_report_checkpoint
 from pandapower_application.analysis_store import AnalysisContextStore, ContextStoreError
-from grid_agent.analysis.turns import ActiveTurnHandle, FinalizedTurn, TurnController
+from pandapower_application.analysis_turns import ActiveTurnHandle, FinalizedTurn, TurnController
 from pandapower_domain.context_view import materialize_context_view
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.runtime.rpc import PiProtocolError, SemanticEventCallback

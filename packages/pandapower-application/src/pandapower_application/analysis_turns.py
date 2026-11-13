@@ -17,7 +17,7 @@ from capability_agent.trajectory.events import Causation, EventDraft, EventRefs,
 from capability_agent.trajectory.recorder import RunEventRecorder
 from pandapower_application.analysis_store import AnalysisContextStore
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.trajectory.answer_policy import GridAnswerReferencePolicy, GridReferenceVerifier
+from pandapower_domain.answer_policy import GridAnswerReferencePolicy, PandapowerReferenceVerifier
 
 
 AuditCallback = Callable[[tuple[str, ...], tuple[str, ...]], tuple[ReferenceDiagnostic, ...]]
@@ -68,7 +68,7 @@ class TurnController:
         store: AnalysisContextStore,
         *,
         audit_callback: AuditCallback,
-        verifier: GridReferenceVerifier | None = None,
+        verifier: PandapowerReferenceVerifier | None = None,
         allowed_refs: Set[str] | None = None,
         recorder: RunEventRecorder | None = None,
     ) -> None:

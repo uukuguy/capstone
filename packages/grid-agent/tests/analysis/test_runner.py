@@ -12,7 +12,7 @@ from pandapower_domain.authority import SimulatorIntegrityError
 from pandapower_domain.models import ContextEventDraft
 from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, AnalysisRunner
 from pandapower_application.analysis_store import AnalysisContextStore, ContextStoreError
-from grid_agent.analysis.turns import ActiveTurnHandle, FinalizedTurn, TurnController
+from pandapower_application.analysis_turns import ActiveTurnHandle, FinalizedTurn, TurnController
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.runtime.rpc import PiProtocolError
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry

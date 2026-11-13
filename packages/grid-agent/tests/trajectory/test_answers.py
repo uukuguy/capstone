@@ -9,7 +9,7 @@ from capability_agent.trajectory.answers import (
     AnswerClaim as NeutralAnswerClaim,
     AnswerSubmission as NeutralAnswerSubmission,
 )
-from grid_agent.trajectory.answer_policy import GridAnswerReferencePolicy
+from pandapower_domain.answer_policy import GridAnswerReferencePolicy
 from grid_agent.trajectory.answers import AnswerClaim, validate_submission
 from grid_agent.trajectory.answers import AnswerSubmission
 

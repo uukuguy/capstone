@@ -12,7 +12,7 @@ from capability_agent.trajectory.answers import (
     ReferenceVerifier as _NeutralReferenceVerifier,
     validate_submission as _validate_submission,
 )
-from grid_agent.trajectory.answer_policy import GridAnswerReferencePolicy
+from pandapower_domain.answer_policy import GridAnswerReferencePolicy
 
 
 class ReferenceVerifier(Protocol):

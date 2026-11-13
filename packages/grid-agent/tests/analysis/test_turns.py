@@ -10,8 +10,8 @@ import pytest
 from pandapower_domain.models import ContextEventDraft
 from pandapower_domain.authority import ReferenceDiagnostic
 from pandapower_application.analysis_store import AnalysisContextStore
-from grid_agent.analysis import turns as turns_module
-from grid_agent.analysis.turns import ActiveTurnHandle, StaleAnswerDraftError, TurnController
+from pandapower_application import analysis_turns as turns_module
+from pandapower_application.analysis_turns import ActiveTurnHandle, StaleAnswerDraftError, TurnController
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
