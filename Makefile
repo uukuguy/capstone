@@ -161,7 +161,7 @@ check-workbench:
 	npm run check --prefix packages/trajectory-workbench
 
 install-pi:
-	uv run --project packages/capstone-agent python deploy/install_pinned_pi.py --root .
+	uv run --project packages/capstone-agent python tools/install_local_pi.py
 
 .PHONY: install-agent-resources
 install-agent-resources:

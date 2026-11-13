@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sys
 import types
-import argparse
 from pathlib import Path
 
 
@@ -38,10 +37,7 @@ def install_pinned_pi(source_root: Path) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path("/app"))
-    args = parser.parse_args()
-    print(install_pinned_pi(args.root.resolve()))
+    print(install_pinned_pi(Path("/app")))
 
 
 if __name__ == "__main__":
