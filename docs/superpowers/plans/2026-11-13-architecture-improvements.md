@@ -22,6 +22,12 @@ documents are preserved separately.
 
 ## First slice
 
+Progress: resource write/duplicate fixes are committed as 787aad8b/640b0baa;
+attachment cancellation and release as f092e9b4. PostgreSQL projection and the
+greater-than-1GB transport check are recorded in
+[verification](../../reports/2026-11-13-resource-projection.md). These partial
+results do not close runtime, browser, pagination or integration acceptance.
+
 Files: `thread_resources.py`, `tests/test_thread_resources.py` in capstone-agent.
 First add a blocking-store regression that requires another thread to cancel
 while put is in progress. Run it and observe failure, implement lock-free I/O,

@@ -34,7 +34,13 @@ class ResourceUploads:
         with self.service._connect() as opened:
             return self._events(thread, opened)
 
-    def _state(self, thread, uid, connection=None, *, events=None):
+    def _state(self, thread, uid, connection=None, *, events=None, part_index=None, include_parts=True):
+        if not hasattr(self.service, '_lock') and events is None:
+            from .resource_projection import state
+            if connection is not None:
+                return state(connection, thread, uid, part_index=part_index, include_parts=include_parts)
+            with self.service._connect() as opened:
+                return state(opened, thread, uid, part_index=part_index, include_parts=include_parts)
         state = None
         for event in self._events(thread, connection) if events is None else events:
             p = event.payload
@@ -84,7 +90,16 @@ class ResourceUploads:
             raise ValueError('invalid upload metadata or configured capacity exceeded')
         def apply(snapshot, connection):
             reservations = {}
-            for event in self._events(thread, connection):
+            if connection is not None:
+                from .resource_projection import states
+                for item in states(connection, thread, published_only=False):
+                    if item['request_id'] == request_id:
+                        if item['file_name'] != name or item['size_bytes'] != size or item.get('initial_draft', False) != draft:
+                            raise ValueError('upload request conflict')
+                        return self._public(self._state(thread, item['upload_id'], connection))
+                    if item['state'] not in ('cancelled', 'expired'):
+                        reservations[item['upload_id']] = item['size_bytes']
+            for event in self._events(thread, connection) if connection is None else ():
                 p = event.payload
                 if event.event_type == 'resource_upload_started':
                     reservations[p['upload_id']] = p['size_bytes']
@@ -119,13 +134,21 @@ class ResourceUploads:
                 if state['state'] == 'complete' and state.get('draft', False) == draft]
 
     def resource_states(self, thread, connection=None):
+        if not hasattr(self.service, '_lock'):
+            from .resource_projection import states
+            if connection is not None:
+                return states(connection, thread)
+            with self.service._connect() as opened:
+                return states(opened, thread)
         events = self._events(thread, connection)
         return [self._state(thread, e.payload['upload_id'], connection, events=events)
                 for e in events if e.event_type == 'resource_published']
 
     def part(self, thread, uid, index, data):
+        if type(index) is not int or index < 0:
+            raise ValueError('invalid part index')
         def reserve(snapshot, connection):
-            state = self._state(thread, uid, connection)
+            state = self._state(thread, uid, connection, part_index=index)
             self._editable(state)
             if type(index) is not int or index < 0 or index * state['chunk_bytes'] >= state['size_bytes']:
                 raise ValueError('invalid part index')
@@ -145,7 +168,7 @@ class ResourceUploads:
             return part
         key = self._key(thread, uid, part)
         def apply(snapshot, connection):
-            state = self._state(thread, uid, connection)
+            state = self._state(thread, uid, connection, part_index=index)
             if state['state'] == 'complete' and state['parts'].get(index) == part:
                 return part
             self._editable(state)
@@ -159,7 +182,7 @@ class ResourceUploads:
             # Cancellation may delete the reservation before a slow write ends.
             # Only a durable terminal cancellation permits deletion here; an
             # unknown acknowledgement must retain its reclaimable reservation.
-            state = self._state(thread, uid)
+            state = self._state(thread, uid, include_parts=False)
             if state['state'] in ('cancelled', 'expired'):
                 self.objects.delete(key)
             raise
@@ -215,10 +238,16 @@ class ResourceUploads:
         self.service.snapshot(thread)
         if not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id):
             raise ValueError('invalid resource identity')
-        state = self._state(thread, 'upload_' + resource_id.removeprefix('resource_'))
+        state = self._state(thread, 'upload_' + resource_id.removeprefix('resource_'), include_parts=False)
         if state['state'] != 'complete' or 'resource' not in state:
             raise ValueError('resource is not published')
         return state['resource']
+
+    def part_limits(self, thread, uid):
+        self.service.snapshot(thread)
+        state = self._state(thread, uid, include_parts=False)
+        self._editable(state)
+        return {'chunk_bytes': state['chunk_bytes']}
 
     def read(self, thread, resource_id, *, start=0, length=None):
         self.service.snapshot(thread)

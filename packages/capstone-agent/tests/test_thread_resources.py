@@ -9,6 +9,39 @@ from test_enterprise_normal_chat import chat_store
 from test_thread_postgres import postgres_thread_service
 
 
+def test_resource_projection_rebuilds_from_events_and_reads_one_part(postgres_thread_service):
+    from dataclasses import replace
+    from test_thread_postgres import _snapshot
+    service, thread = postgres_thread_service
+    service.create_thread(replace(_snapshot(thread), active_model_context=None, active_grid_page_id=None, minimum_protocol_version=2))
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    uid = uploads.begin(thread, 'data.csv', 8, 'projection')['upload_id']
+    uploads.part(thread, uid, 0, b'abcd')
+    uploads.part(thread, uid, 1, b'efgh')
+    expected = uploads.status(thread, uid)
+    assert set(uploads._state(thread, uid, part_index=1)['parts']) == {1}
+    with service._connect() as connection:
+        connection.execute('DELETE FROM capstone_resource_projection_cursors WHERE thread_id=%s', (thread,))
+    assert ResourceUploads(service, uploads.objects).status(thread, uid) == expected
+
+
+def test_resource_projection_rolls_back_with_events(postgres_thread_service):
+    from test_thread_postgres import _snapshot
+    service, thread = postgres_thread_service
+    service.create_thread(_snapshot(thread))
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    uid = uploads.begin(thread, 'rollback.csv', 4, 'rollback')['upload_id']
+    original = uploads.status(thread, uid)
+    from capstone_agent.thread_materials import _write_event
+    with pytest.raises(RuntimeError, match='rollback'):
+        with service._connect() as connection:
+            connection.execute('SELECT thread_id FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread,))
+            _write_event(service, service.snapshot(thread), 'resource_upload_cancelled', {'upload_id': uid, 'state': 'cancelled'}, connection)
+            assert uploads._state(thread, uid, connection)['state'] == 'cancelled'
+            raise RuntimeError('rollback')
+    assert uploads.status(thread, uid) == original
+
+
 def test_late_duplicate_part_acknowledges_already_published_bytes(chat_store):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event, Lock

@@ -96,7 +96,7 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
     @app.put('/api/v1/threads/{thread_id}/resource-uploads/{upload_id}/parts/{index}')
     async def part(thread_id: str, upload_id: str, index: int, request: Request):
         check(request)
-        state = await invoke(uploads.status, thread_id, upload_id)
+        state = await invoke(uploads.part_limits, thread_id, upload_id)
         data = bytearray()
         async for chunk in request.stream():
             if len(data) + len(chunk) > state['chunk_bytes']:
