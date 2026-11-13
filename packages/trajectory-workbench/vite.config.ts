@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: '../grid-agent/src/grid_agent/trajectory/static',
+    outDir: '../pandapower-application/src/pandapower_application/trajectory/static',
     emptyOutDir: true,
     sourcemap: false,
     rollupOptions: {
