@@ -38,7 +38,6 @@ uv build --project packages/pypsa-network-modeling-domain-pack --out-dir "$artif
 uv build --project packages/pypsa-power-operations-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/pypsa-capacity-planning-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/pypsa-sector-coupling-domain-pack --out-dir "$artifact_dir"
-uv build --project packages/grid-agent --out-dir "$artifact_dir"
 uv build --project packages/pypsa-agent --out-dir "$artifact_dir"
 npm pack --prefix packages/pi-capability-tools ./packages/pi-capability-tools --pack-destination "$artifact_dir" >/dev/null
 cp packages/pi-grid-tools/package.json "$grid_pack_dir/package.json"
@@ -69,7 +68,6 @@ python_wheels=(
   "$artifact_dir"/pandapower_application-*.whl
   "$artifact_dir"/inventory_reference_service-*.whl
   "$artifact_dir"/inventory_domain_pack-*.whl
-  "$artifact_dir"/grid_agent-*.whl
 )
 pypsa_wheels=(
   "$artifact_dir"/enterprise_research_domain_pack-*.whl
@@ -99,7 +97,7 @@ uv venv "$venv_dir" >/dev/null
 uv pip install --python "$venv_dir/bin/python" "${python_wheels[@]}"
 uv venv "$pypsa_venv_dir" >/dev/null
 uv pip install --python "$pypsa_venv_dir/bin/python" "${pypsa_wheels[@]}"
-"$venv_dir/bin/python" -c 'import capstone_agent.application, pandapower_application.composition'
+"$venv_dir/bin/python" -c 'import importlib.util, sys; from pathlib import Path; import capstone_agent.application, pandapower_application.composition; assert importlib.util.find_spec("grid_agent") is None; assert not Path(sys.executable).with_name("grid-agent").exists()'
 "$venv_dir/bin/python" - <<'PY'
 from pathlib import Path
 from capstone_agent.pi_intent import default_config_root
@@ -389,28 +387,6 @@ EOF
 
 (
   cd "$run_dir"
-  PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/grid-agent" doctor --json > doctor.json
-  "$venv_dir/bin/python" - <<'PY'
-import json
-from pathlib import Path
-
-payload = json.loads(Path("doctor.json").read_text(encoding="utf-8"))
-extension = Path(payload["pi_extension"])
-expected_root = Path.cwd() / "node_modules/@grid-static-analysis/pi-grid-tools"
-assert extension.is_relative_to(expected_root), payload
-assert extension.name == "domain-tools.mjs"
-PY
-  PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/grid-agent" run \
-    --offline --question-id installed-offline-envelope \
-    "母线电压正常运行范围是多少?" > offline-envelope.json
-  "$venv_dir/bin/python" - <<'PY'
-import json
-from pathlib import Path
-
-payload = json.loads(Path("offline-envelope.json").read_text(encoding="utf-8"))
-assert set(payload) == {"question_id", "answer_output"}, payload
-assert payload["question_id"] == "installed-offline-envelope", payload
-PY
   node --input-type=module <<'EOF'
 import { mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -469,7 +445,7 @@ if (JSON.stringify(names) !== JSON.stringify(["grid_environment_describe", "grid
   throw new Error(`installed extension registration mismatch: ${JSON.stringify(names)}`);
 }
 EOF
-  echo "installed-grid-agent-smoke: ok"
+  echo "installed-domain-extension-smoke: ok"
 )
 
 echo "package-artifacts: ok"
