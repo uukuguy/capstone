@@ -27,11 +27,11 @@ from capability_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import EventDraft, EventRefs, ZERO_PREDECESSOR_HASH, build_event
 from capability_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory import service as projection_service
-from grid_agent.trajectory.api.app import _canonical_request_preview
-from grid_agent.trajectory.api.catalog import TrajectoryRunCatalog
-from grid_agent.trajectory.materialize import ProjectionMaterializer
-from grid_agent.trajectory.request_input import semantic_request_sha256
+from pandapower_application.trajectory import service as projection_service
+from pandapower_application.trajectory.api.app import _canonical_request_preview
+from pandapower_application.trajectory.api.catalog import TrajectoryRunCatalog
+from pandapower_application.trajectory.materialize import ProjectionMaterializer
+from capability_agent.trajectory.request_input import semantic_request_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE_TEXT_BYTES = 256

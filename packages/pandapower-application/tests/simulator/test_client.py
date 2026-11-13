@@ -80,5 +80,7 @@ def test_client_preserves_typed_capability_error(tmp_path: Path) -> None:
 
 
 def test_agent_source_never_imports_pandapower() -> None:
-    for path in Path("packages/grid-agent/src").rglob("*.py"):
+    paths = tuple(Path("packages/pandapower-application/src").rglob("*.py"))
+    assert paths
+    for path in paths:
         assert "import pandapower" not in path.read_text(encoding="utf-8")
