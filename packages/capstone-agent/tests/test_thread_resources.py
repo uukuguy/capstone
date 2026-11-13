@@ -64,6 +64,32 @@ def test_resource_projection_rebuilds_from_events_and_reads_one_part(postgres_th
     assert ResourceUploads(service, uploads.objects).status(thread, uid) == expected
 
 
+def test_resource_projection_skips_unrelated_payloads_but_advances_cursor(postgres_thread_service, monkeypatch):
+    from capstone_agent import resource_projection
+    from capstone_agent.thread_materials import _mutate, _write_event
+    from test_thread_postgres import _snapshot
+    service, thread = postgres_thread_service
+    service.create_thread(_snapshot(thread))
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    uid = uploads.begin(thread, 'bounded.csv', 4, 'bounded')['upload_id']
+    uploads.part(thread, uid, 0, b'abcd')
+    uploads.complete(thread, uid)
+    original_page = uploads.resource_page(thread)
+    _mutate(service, thread, lambda snapshot, connection: _write_event(
+        service, snapshot, 'runtime_event', {'text': 'x' * 4096}, connection))
+    observed = []
+    apply = resource_projection._apply
+    def track(connection, thread_id, event):
+        observed.append(event['event_type'])
+        return apply(connection, thread_id, event)
+    monkeypatch.setattr(resource_projection, '_apply', track)
+    assert uploads.resource_page(thread) == original_page
+    assert observed == []  # Unrelated payloads must not enter resource replay.
+    with service._connect() as connection:
+        cursor = connection.execute('SELECT event_seq FROM capstone_resource_projection_cursors WHERE thread_id=%s', (thread,)).fetchone()['event_seq']
+    assert cursor == service.snapshot(thread).last_event_seq
+
+
 def test_resource_projection_rolls_back_with_events(postgres_thread_service):
     from test_thread_postgres import _snapshot
     service, thread = postgres_thread_service

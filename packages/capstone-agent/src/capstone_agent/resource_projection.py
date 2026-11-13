@@ -1,10 +1,13 @@
 """Rebuildable resource read model. Durable Thread events remain authoritative."""
 from psycopg.types.json import Jsonb
 
-SCHEMA = """
+# Static SQL literals share the same predicate across the partial index and reads.
+_EVENT_TYPES_SQL = "'resource_upload_started','resource_part_reserved','resource_part_stored','resource_upload_cancelled','resource_published','command_accepted'"
+
+SCHEMA = f"""
 CREATE INDEX IF NOT EXISTS capstone_resource_events_revision_idx
     ON capstone_thread_events (thread_id,event_seq DESC)
-    WHERE event_type IN ('resource_upload_started','resource_part_reserved','resource_part_stored','resource_upload_cancelled','resource_published','command_accepted');
+    WHERE event_type IN ({_EVENT_TYPES_SQL});
 CREATE TABLE IF NOT EXISTS capstone_resource_projection_cursors (
     thread_id text PRIMARY KEY REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL DEFAULT 0
@@ -37,19 +40,26 @@ def synchronize(connection, thread):
     use the same lock order, including foreign-key checks on first creation.
     Cursor and rows commit together, including recovery from old event-only data.
     """
-    row = connection.execute('SELECT thread_id FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread,)).fetchone()
+    row = connection.execute('SELECT last_event_seq FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread,)).fetchone()
     if row is None:
         raise ValueError('upload not found in this session')
     connection.execute('INSERT INTO capstone_resource_projection_cursors (thread_id) VALUES (%s) ON CONFLICT DO NOTHING', (thread,))
     cursor = connection.execute('SELECT event_seq FROM capstone_resource_projection_cursors WHERE thread_id=%s FOR UPDATE', (thread,)).fetchone()['event_seq']
-    while True:
-        events = connection.execute('SELECT event_seq,event_type,payload FROM capstone_thread_events WHERE thread_id=%s AND event_seq>%s ORDER BY event_seq LIMIT 256', (thread, cursor)).fetchall()
+    target = row['last_event_seq']
+    while cursor < target:
+        events = connection.execute(f'''SELECT event_seq,event_type,payload FROM capstone_thread_events
+            WHERE thread_id=%s AND event_seq>%s AND event_seq<=%s
+            AND event_type IN ({_EVENT_TYPES_SQL}) ORDER BY event_seq LIMIT 256''', (thread, cursor, target)).fetchall()
         if not events:
-            return
+            break
         for event in events:
             _apply(connection, thread, event)
         cursor = events[-1]['event_seq']
         connection.execute('UPDATE capstone_resource_projection_cursors SET event_seq=%s WHERE thread_id=%s', (cursor, thread))
+    if cursor < target:
+        # The locked Thread head includes irrelevant events. Mark that tail as
+        # consumed without fetching its bodies on every subsequent resource read.
+        connection.execute('UPDATE capstone_resource_projection_cursors SET event_seq=%s WHERE thread_id=%s', (target, thread))
 
 
 def _apply(connection, thread, event):
@@ -106,9 +116,8 @@ def states(connection, thread, *, published_only=True):
 
 def page(connection, thread, draft, after, limit):
     synchronize(connection, thread)
-    revision = connection.execute("""SELECT COALESCE(MAX(event_seq),0) AS revision FROM capstone_thread_events
-        WHERE thread_id=%s AND event_type IN ('resource_upload_started','resource_part_reserved','resource_part_stored',
-        'resource_upload_cancelled','resource_published','command_accepted')""", (thread,)).fetchone()['revision']
+    revision = connection.execute(f"""SELECT COALESCE(MAX(event_seq),0) AS revision FROM capstone_thread_events
+        WHERE thread_id=%s AND event_type IN ({_EVENT_TYPES_SQL})""", (thread,)).fetchone()['revision']
     rows = connection.execute("""SELECT metadata,published_seq FROM capstone_resource_uploads
         WHERE thread_id=%s AND published_seq>%s AND metadata->>'state'='complete'
         AND COALESCE((metadata->>'draft')::boolean,false)=%s
