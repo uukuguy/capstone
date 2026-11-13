@@ -1415,16 +1415,21 @@ class NativeTaskRunner:
                     if domain_catalog.get('tools'):
                         self.task_domain_routes[request.task_id] = domain_routes
                         sdk_config['applicationPolicy'] = {**sdk_config['applicationPolicy'], 'allowed_tools': sorted({
-                            *sdk_config['applicationPolicy']['allowed_tools'], *domain_catalog['tools']})}
+                            *sdk_config['applicationPolicy']['allowed_tools'], *domain_catalog['tools'],
+                            'agent_tool_search', 'agent_tool_load'})}
                         sdk_config['domainTools'] = {
                             'url': self.relay_origin + '/domain-tools/' + request.task_id,
-                            'grant': grant, 'taskId': request.task_id, 'catalog': domain_catalog}
+                            'grant': grant, 'taskId': request.task_id, 'catalog': domain_catalog,
+                            'onDemandTools': True}
                         sdk_config.setdefault('contextFiles', []).append({
                             'path': 'published-domain-tools',
                             'content': (
                                 'These tools are the published tools of the Domain Packs this application currently has available: '
                                 + ', '.join(mounted_packs) + '. '
-                                'Call one when the instruction needs that pack\'s result. Quote the returned fields. '
+                                'Select this pack only when its published purpose fits the instruction. '
+                                'Find an unknown tool with agent_tool_search; load an inactive exact contract with '
+                                'agent_tool_load and call it on the next turn. Availability does not require a call. '
+                                'Quote the returned fields. '
                                 'Do not calculate voltages, losses, rankings, topology, or contingency outcomes yourself. '
                                 'A failed or missing call is a limit. Continue the rest of the task and write the report. '
                                 'Do not invent a number the tool did not return.')})

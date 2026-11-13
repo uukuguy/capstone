@@ -3,6 +3,19 @@
   "description": "Declared application design bounds, not measured resource ceilings. Review flags require workload evidence before claiming adequacy. Enforcement describes intended recovery policy; consumers own enforcement.",
   "groups": [
     {
+      "id": "attachment_memory",
+      "members": ["attachment_buffer_bytes"],
+      "category": "resource",
+      "scope": "all instruction attachment reads and retained previews in one browser document",
+      "protected_resource": "aggregate attachment source-byte buffers",
+      "anomaly": "Concurrent reads and retained previews can accumulate across instructions.",
+      "recovery": "Close another preview or wait for an active read to settle, then retry. File storage quotas are independent.",
+      "enforcement": "reject_input",
+      "model_visible": false,
+      "basis": "default_design_bound",
+      "review_needed": true
+    },
+    {
       "id": "transport_payload",
       "members": [
         "control_document_bytes",
@@ -467,6 +480,7 @@
     "artifact_page_items": "items",
     "artifact_initial_pages": "items",
     "preview_bytes": "bytes",
+    "attachment_buffer_bytes": "bytes",
     "delivery_file_bytes": "bytes",
     "product_bytes": "bytes",
     "product_page_items": "items",

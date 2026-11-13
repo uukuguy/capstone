@@ -32,7 +32,7 @@ def test_adaptive_agent_gate_keeps_full_owned_suites_without_professional_solver
             if target.startswith('packages/'):
                 assert list(ROOT.glob(target)), f'Adaptive gate test path does not exist: {target}'
     for forbidden in ('make check-pr', 'make check-release', 'test-domain-package', 'test-local-rebuild',
-                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'packages/pandapower-application/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
                       'packages/pandapower-domain-pack/tests', 'test_user_local_installer.py'):
         assert forbidden not in block
 
@@ -55,7 +55,7 @@ def test_source_topology_gate_covers_direct_consumers_without_solver_or_release_
         assert expected in block
     for forbidden in ('test-capstone-agent', 'test-kernel', 'test-registered-workers', 'test-domain-package',
                       'test-local-rebuild', 'test-inventory-pi', 'test-pi-capture-runtime',
-                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'packages/pandapower-application/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
                       'make check-pr', 'make check-release', 'test_user_local_installer.py'):
         assert forbidden not in block
     foundation = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
@@ -73,7 +73,7 @@ def test_offline_aggregate_covers_all_packages_without_grid_e2e() -> None:
     output = _dry_run("test")
     for expected in (
         "packages/capability-agent-kernel/tests",
-        "packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e",
+        "packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e",
         "packages/grid-simulator/tests",
         "packages/pandapower-domain-pack/tests",
         "packages/inventory-domain-pack/tests --ignore=packages/inventory-domain-pack/tests/test_generic_pi_transport.py",
@@ -89,14 +89,14 @@ def test_offline_aggregate_covers_all_packages_without_grid_e2e() -> None:
         "tools/tests/test_native_report.py",
     ):
         assert expected in output
-    assert "pytest packages/grid-agent/tests/e2e -q" not in output
+    assert "pytest packages/pandapower-application/tests/e2e -q" not in output
 
 
 def test_release_graph_has_all_named_layers_without_recursion() -> None:
     output = _dry_run("check-release")
     for expected in (
         "pyright",
-        "packages/grid-agent/tests/e2e -q",
+        "packages/pandapower-application/tests/e2e -q",
         "validation-application-instantiation",
         "test_package_artifacts.sh",
         "test_source_setup.sh",
@@ -208,9 +208,9 @@ def test_pr_checks_formal_worker_without_legacy_cli_or_packaging() -> None:
     for expected in ("pyright", "packages/capstone-agent/tests", "test_registered_workers.py",
                      "packages/grid-simulator/tests", "packages/pandapower-domain-pack/tests"):
         assert expected in output
-    assert "--ignore=packages/grid-agent/tests/cli" in output
-    assert "--ignore=packages/grid-agent/tests/compat" in output
-    for retired_or_release_only in ("pytest packages/grid-agent/tests/e2e -q", "test_package_artifacts.sh",
+    assert "--ignore=packages/pandapower-application/tests/cli" in output
+    assert "--ignore=packages/pandapower-application/tests/compat" in output
+    for retired_or_release_only in ("pytest packages/pandapower-application/tests/e2e -q", "test_package_artifacts.sh",
                                     "test_source_setup.sh", "validation/run.py"):
         assert retired_or_release_only not in output
 
@@ -269,7 +269,7 @@ def test_conversation_runtime_ci_excludes_unchanged_professional_suites():
         assert expected in block
     for forbidden in ('test-capstone-agent', 'test-kernel', 'test-domain-package', 'test-registered-workers', 'test-local-rebuild',
                       'test-inventory-pi', 'test-pi-capture-runtime', 'make check-pr', 'make check-release',
-                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'packages/pandapower-application/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
                       'packages/pandapower-domain-pack/tests', 'packages/inventory-domain-pack/tests',
                       'test_package_artifacts.sh', 'test_source_setup.sh', 'test_user_local_installer.py'):
         assert forbidden not in block
@@ -319,11 +319,11 @@ def test_type_checking_config_covers_exactly_all_production_source_roots() -> No
 
 def test_pyright_is_pinned_in_the_project_and_frozen_lock() -> None:
     project = tomllib.loads(
-        (ROOT / "packages/grid-agent/pyproject.toml").read_text(encoding="utf-8")
+        (ROOT / "packages/pandapower-application/pyproject.toml").read_text(encoding="utf-8")
     )
     assert "pyright==1.1.408" in project["dependency-groups"]["dev"]
 
-    lock = tomllib.loads((ROOT / "packages/grid-agent/uv.lock").read_text(encoding="utf-8"))
+    lock = tomllib.loads((ROOT / "packages/pandapower-application/uv.lock").read_text(encoding="utf-8"))
     pyright_packages = [
         package
         for package in lock["package"]

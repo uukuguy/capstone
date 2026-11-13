@@ -377,25 +377,34 @@ export function configureAdaptiveToolHandoff(pi,config,discovery){
   });
 }
 
-export function createGatewayToolDiscovery(config) {
-  if(config.dataGateway?.onDemandTools!==true)return;
+export function createApplicationToolDiscovery(config) {
+  const gateway=config.dataGateway?.onDemandTools===true?config.dataGateway:undefined;
+  const domain=config.domainTools?.onDemandTools===true?config.domainTools:undefined;
+  if(!gateway&&!domain)return;
+  const publications={...gateway?.catalog.tools,...domain?.catalog.tools};
+  if(gateway&&domain&&Object.keys(domain.catalog.tools).some(name=>Object.hasOwn(gateway.catalog.tools,name)))
+    throw new Error('Tool publications contain conflicting registered identities');
   const admittedNames=config.applicationPolicy?.allowed_tools;
-  if(Array.isArray(admittedNames)&&!admittedNames.some(name=>Object.hasOwn(config.dataGateway.catalog.tools,name)))return;
+  if(Array.isArray(admittedNames)&&!admittedNames.some(name=>Object.hasOwn(publications,name)))return;
   if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
     throw new Error('Application did not authorize task tool discovery');
-  return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
-    resolveContracts:(names,options)=>resolveGatewayContracts(config,names,options),
+  return createToolDiscovery({tools:[...(gateway?createDataGatewayTools(config):[]),...(domain?createDomainTools(config):[])],publications,
+    ...(gateway?{resolveContracts:(names,options)=>resolveGatewayContracts(config,names,options)}:{}),
     maxActiveTools:config.runtimeLimits?.tool_active_count,maxActiveSchemaChars:config.runtimeLimits?.tool_schema_chars,
     pageSize:config.runtimeLimits?.tool_search_page_items,maxSummaryChars:config.runtimeLimits?.tool_summary_chars,
-    initialNames:config.dataGateway.catalog.entry_tools??[],
-    contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
+    initialNames:gateway?.catalog.entry_tools??[],
+    contractHashes:{...gateway?.catalog.tool_hashes,...domain?.catalog.tool_hashes},admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
 }
 
-export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createGatewayToolDiscovery(config), graphBinding) {
+export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createApplicationToolDiscovery(config), graphBinding) {
   if (!config.applicationPolicy) return {};
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
-  const gatewayTools=discovery?[...discovery.guardedTools,...discovery.tools]:createDataGatewayTools(config);
+  const indexed=new Set(discovery?[
+    ...(config.dataGateway?.onDemandTools?Object.keys(config.dataGateway.catalog.tools):[]),
+    ...(config.domainTools?.onDemandTools?Object.keys(config.domainTools.catalog.tools):[])]:[]);
+  const externalTools=[...createDataGatewayTools(config),...createDomainTools(config)].filter(tool=>!indexed.has(tool.name));
+  if(discovery)externalTools.push(...discovery.guardedTools,...discovery.tools);
   const dispatcher=applicationToolDispatcher(config,compositionPolicy.concurrency,{observe:(receipt,name)=>{
     const callId=graphBinding?graphChildCallId(graphBinding.action.id,receipt.call_id):receipt.call_id;
     hostEmit({type:'tool_dispatch',tool_name:name,tool_call_id:callId,
@@ -432,13 +441,17 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   discovery?.setLoadedWrapper(wrap);
   const skillTools=config.applicationPolicy.allowed_tools.includes('agent_skill')&&config.taskSkills?.length
     ?[createSkillRecordTool(config.taskSkills)]:[];
-  const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...skillTools].map(wrap);
+  const customTools=[...nativeTools,...externalTools,...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...skillTools].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
     // Explicit program selection uses the admitted catalog, independent of the
     // model's small active menu. The same host relay validates each invocation.
-    let nested=(discovery?.admittedTools??createDataGatewayTools(config)).map(wrap);
+    // Composition keeps its existing gateway grant; domain discovery does not
+    // expand the gateway adapter's invocation or source-evidence boundary.
+    const gatewayNames=new Set(Object.keys(config.dataGateway.catalog.tools));
+    const admittedGateway=discovery?.admittedTools.filter(tool=>gatewayNames.has(tool.name));
+    let nested=(config.dataGateway.onDemandTools&&admittedGateway?admittedGateway:createDataGatewayTools(config)).map(wrap);
     if(graphBinding)nested=graphChildTools(config,nested,graphBinding);
     const selected=new Map(nested.map(tool=>[tool.name,tool]));
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
@@ -682,7 +695,8 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     throw new Error('Child skills are not authorized by the application');
   }
   const childTools=[...new Set(toolNames)];
-  if(config.dataGateway?.onDemandTools===true&&childTools.some(name=>Object.hasOwn(config.dataGateway.catalog.tools,name))) {
+  if([config.dataGateway,config.domainTools].some(source=>source?.onDemandTools===true&&
+      childTools.some(name=>Object.hasOwn(source.catalog.tools,name)))) {
     if(discoveryToolNames.some(name=>!grants.includes(name)))throw new Error('Child tool discovery is not authorized by the application');
     childTools.push(...discoveryToolNames.filter(name=>!childTools.includes(name)));
   }
@@ -693,7 +707,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     applicationPolicy: {...config.applicationPolicy, allowed_tools: childTools}};
   // Children keep their own task-local active set and cannot inherit a parent's
   // loaded menu or add tools outside the selected child grant.
-  const discovery=createGatewayToolDiscovery(childConfig);
+  const discovery=createApplicationToolDiscovery(childConfig);
   const settingsManager = sdk.SettingsManager.inMemory(config.settings);
   const childSources=graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[];
   const runtimeContext=[...(typeof config.runtimeEnvironment==='string'&&config.runtimeEnvironment
@@ -1243,7 +1257,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
 
 export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   config={...config,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
-  const discovery=createGatewayToolDiscovery(config);
+  const discovery=createApplicationToolDiscovery(config);
   let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard,committedDelivery;
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
   if(config.researchRuntime?.deepResearch===false)

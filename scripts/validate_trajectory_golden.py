@@ -9,14 +9,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "packages/grid-agent/src"))
+sys.path.insert(0, str(ROOT / "packages/pandapower-application/src"))
 
-from grid_agent.trajectory.canonical import canonical_json_bytes  # noqa: E402
-from grid_agent.trajectory.legacy_v02 import LegacyV02Importer  # noqa: E402
-from grid_agent.trajectory.service import ProjectionService  # noqa: E402
+from pandapower_application.trajectory.canonical import canonical_json_bytes  # noqa: E402
+from pandapower_application.trajectory.legacy_v02 import LegacyV02Importer  # noqa: E402
+from pandapower_application.trajectory.service import ProjectionService  # noqa: E402
 
 
-CONTRACT = ROOT / "packages/grid-agent/tests/fixtures/trajectory/v02-golden-contract.json"
+CONTRACT = ROOT / "packages/pandapower-application/tests/fixtures/trajectory/v02-golden-contract.json"
 
 
 def tree_digests(root: Path) -> dict[str, str]:

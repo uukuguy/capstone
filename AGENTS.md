@@ -10,8 +10,8 @@ For displaying logs and content output, please use the ASD-STE100 specification,
 
 Capstone Agent Framework builds evidence-backed applications over registered
 business-domain systems. The first formal application is pandapower grid static
-analysis. The user has withdrawn the `grid-agent` CLI compatibility requirement;
-its old package still contains formal pandapower runtime modules pending migration.
+analysis. The retired `grid-agent` distribution and CLI have been removed.
+Formal pandapower application modules belong to `pandapower-application`.
 The repository also
 contains registered PyPSA applications, capability-named Domain Packs, and an
 independent operator App.
@@ -394,7 +394,7 @@ make validate
 Use the full gates for integration or release claims; a focused App or
 documentation change does not itself justify repeating every suite.
 Documentation-only changes require link and symlink checks,
-`git diff --check`, and `make doctor`. `make validate-provider PROVIDER=<id> [MODEL=<id>]`
+`git diff --check`, and `make doctor`. `make validate-provider REQUEST=<request.json>`
 is optional and may be billed. The user has authorized model/Provider access for
 development, integration, debugging and verification without repeated permission
 requests (2026-10-17). Run the real model checks needed for the task. Keep the

@@ -15,8 +15,8 @@ from unittest.mock import patch
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import EventDraft, ZERO_PREDECESSOR_HASH, build_event
 from capability_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory import service as projection_service
-from grid_agent.trajectory.materialize import ProjectionMaterializer
+from pandapower_application.trajectory import service as projection_service
+from pandapower_application.trajectory.materialize import ProjectionMaterializer
 
 
 def bounded_size(value: str) -> int:

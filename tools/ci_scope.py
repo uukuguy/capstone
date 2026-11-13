@@ -28,9 +28,9 @@ FOUNDATION_FILES = {
                  'application/registry.py', 'application/native.py', 'application/runner.py',
                  'domain/__init__.py', 'domain/manifest.py', 'domain/profile.py', 'tools/catalog.py')
 } | {
-    'packages/grid-agent/src/grid_agent/application/composition.py',
-    'packages/grid-agent/src/grid_agent/hosted.py',
-    'packages/grid-agent/src/grid_agent/thread_model_diagram.py',
+    'packages/pandapower-application/src/pandapower_application/application/composition.py',
+    'packages/pandapower-application/src/pandapower_application/hosted.py',
+    'packages/pandapower-application/src/pandapower_application/thread_model_diagram.py',
     'packages/pypsa-agent/src/pypsa_agent/thread_model_diagram.py',
     'packages/pypsa-agent/src/pypsa_agent/worker.py',
 }
@@ -109,7 +109,7 @@ RUNTIME_FILES = {
     'packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py',
 }
 RUNTIME_DEPENDENCIES = {'packages/capstone-agent/pyproject.toml'} | {
-    f'packages/{package}/uv.lock' for package in ('capstone-agent', 'grid-agent', 'pypsa-agent')
+    f'packages/{package}/uv.lock' for package in ('capstone-agent', 'pandapower-application', 'pypsa-agent')
 }
 # MCP's additional transport/auth packages. Any other dependency change expands
 # the gate, including a solver version changed only through a downstream lock.
@@ -478,8 +478,8 @@ EXECUTION_LIFECYCLE_FILES = {EXECUTION_LIFECYCLE_ANCHOR,
     'packages/capstone-agent/tests/test_application_capacity.py',
     'packages/capstone-agent/tests/test_relay_backpressure.py',
     'packages/capability-agent-kernel/tests/runtime/test_execution_queue.py',
-    'packages/grid-agent/src/grid_agent/domain_tools.py',
-    'packages/grid-agent/tests/test_domain_execution_lifecycle.py',
+    'packages/pandapower-application/src/pandapower_application/domain_tools.py',
+    'packages/pandapower-application/tests/test_domain_execution_lifecycle.py',
     'packages/pandapower-domain-pack/src/pandapower_domain/execution.py',
     'packages/pandapower-domain-pack/tests/test_execution.py',
     'packages/capstone-agent/tests/application-tool-dispatch.test.mjs',
@@ -745,6 +745,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    import json
+    manifest = Path(__file__).resolve().parents[1] / 'configs/development/architecture-retirement-gate.json'
+    if manifest.is_file():
+        retirement = json.loads(manifest.read_text())
+        if set(retirement['anchors']).issubset(paths) and set(paths).issubset(retirement['paths']):
+            return 'architecture-retirement'
     if execution_lifecycle_paths(paths, deployment=execution_lifecycle_deployment):
         return 'execution-lifecycle'
     if gateway_capabilities_paths(paths):

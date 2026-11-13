@@ -171,7 +171,7 @@ def test_gateway_setup_is_scoped_and_other_gates_keep_standard_setup():
     workflow = (ROOT / '.github/workflows/verify.yml').read_text()
     block = workflow.split('- name: Set up gateway binding dependencies', 1)[1].split('- name:', 1)[0]
     assert "if: steps.scope.outputs.gate == 'gateway-bindings'" in block
-    for command in ('uv sync --project packages/grid-agent',
+    for command in ('uv sync --project packages/pandapower-application',
                     'uv sync --project packages/capstone-agent',
                     'npm ci --prefix packages/capstone-app'):
         assert command in block

@@ -79,6 +79,21 @@ def test_kernel_rejects_forbidden_grid_agent_import(tmp_path: Path) -> None:
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize("owner, imported", [
+    ("pandapower-application", "grid_agent"),
+    ("pandapower-domain-pack", "pandapower_application"),
+    ("capability-agent-kernel", "pandapower_application"),
+    ("capstone-agent", "pandapower_application"),
+])
+def test_formal_application_migration_preserves_dependency_direction(tmp_path, owner, imported):
+    source = tmp_path / 'packages' / owner / 'src'
+    source.mkdir(parents=True)
+    (source / 'bad.py').write_text(f'import {imported}\n')
+    result = run_checker(tmp_path)
+    assert result.returncode == 1
+    assert f'imports {imported}' in result.stderr
+
+
 @pytest.mark.parametrize(
     "source",
     [
@@ -206,22 +221,22 @@ def test_cli_rejects_compatibility_application_assembly_imports(
     tmp_path: Path,
     source: str,
 ) -> None:
-    cli_src = tmp_path / "packages/grid-agent/src/grid_agent/cli"
+    cli_src = tmp_path / "packages/pandapower-application/src/pandapower_application/cli"
     cli_src.mkdir(parents=True)
     (cli_src / "app.py").write_text(source, encoding="utf-8")
 
     result = run_checker(tmp_path)
 
     assert result.returncode == 1
-    assert result.stderr.startswith("packages/grid-agent/src/grid_agent/cli/app.py imports ")
+    assert result.stderr.startswith("packages/pandapower-application/src/pandapower_application/cli/app.py imports ")
     assert result.stdout == ""
 
 
 def test_cli_may_import_generic_application_composition(tmp_path: Path) -> None:
-    cli_src = tmp_path / "packages/grid-agent/src/grid_agent/cli"
+    cli_src = tmp_path / "packages/pandapower-application/src/pandapower_application/cli"
     cli_src.mkdir(parents=True)
     (cli_src / "app.py").write_text(
-        "from grid_agent.application.composition import run_generic_application\n",
+        "from pandapower_application.composition import run_generic_application\n",
         encoding="utf-8",
     )
 
@@ -244,7 +259,7 @@ def test_non_cli_production_modules_reject_compatibility_shim_imports(
     tmp_path: Path,
     source: str,
 ) -> None:
-    production_src = tmp_path / "packages/grid-agent/src/grid_agent/analysis"
+    production_src = tmp_path / "packages/pandapower-application/src/pandapower_application/analysis"
     production_src.mkdir(parents=True)
     (production_src / "projector.py").write_text(source, encoding="utf-8")
 
@@ -252,13 +267,13 @@ def test_non_cli_production_modules_reject_compatibility_shim_imports(
 
     assert result.returncode == 1
     assert result.stderr.startswith(
-        "packages/grid-agent/src/grid_agent/analysis/projector.py imports "
+        "packages/pandapower-application/src/pandapower_application/analysis/projector.py imports "
     )
     assert result.stdout == ""
 
 
 def test_compatibility_shim_modules_are_precisely_exempt(tmp_path: Path) -> None:
-    shim = tmp_path / "packages/grid-agent/src/grid_agent/domain/authority.py"
+    shim = tmp_path / "packages/pandapower-application/src/pandapower_application/domain/authority.py"
     shim.parent.mkdir(parents=True)
     shim.write_text(
         "from capability_agent.domain.authority import ArtifactAuthority\n",
@@ -299,7 +314,7 @@ def test_reports_sorted_ast_metadata_and_source_path_violations(
         "\n".join(
             [
                 "from grid_agent.tools import catalog",
-                'SOURCE = "packages/grid-agent/src"',
+                'SOURCE = "packages/pandapower-application/src"',
             ]
         )
         + "\n",
@@ -330,7 +345,7 @@ def test_reports_sorted_ast_metadata_and_source_path_violations(
         "packages/capability-agent-kernel/src/capability_agent/bad_import.py imports grid_agent.cli",
         "packages/capability-agent-kernel/src/capability_agent/bad_import.py imports grid_simulator.client",
         "packages/capability-agent-kernel/src/capability_agent/bad_import.py imports pandapower",
-        "packages/pandapower-domain-pack/src/pandapower_domain/bad_domain.py contains source path packages/grid-agent/src",
+        "packages/pandapower-domain-pack/src/pandapower_domain/bad_domain.py contains source path packages/pandapower-application/src",
         "packages/pandapower-domain-pack/src/pandapower_domain/bad_domain.py imports grid_agent.tools.catalog",
     ]
     assert result.stdout == ""
@@ -550,7 +565,7 @@ def test_absent_future_roots_pass(tmp_path: Path) -> None:
 
 
 def test_hosted_domain_adapter_must_delegate_to_capstone_host(tmp_path: Path) -> None:
-    source = tmp_path / "packages/grid-agent/src/grid_agent"
+    source = tmp_path / "packages/pandapower-application/src/pandapower_application"
     source.mkdir(parents=True)
     (source / "hosted.py").write_text(
         "from capstone_agent.cli import main\n",
@@ -575,14 +590,14 @@ def test_hosted_domain_adapter_must_delegate_to_capstone_host(tmp_path: Path) ->
 def test_hosted_domain_adapter_must_call_the_expected_runner(
     tmp_path: Path, source: str,
 ) -> None:
-    package = tmp_path / "packages/grid-agent/src/grid_agent"
+    package = tmp_path / "packages/pandapower-application/src/pandapower_application"
     package.mkdir(parents=True)
     (package / "hosted.py").write_text(source, encoding="utf-8")
 
     result = run_checker(tmp_path)
 
     assert result.returncode == 1
-    assert "grid_agent/hosted.py must call run_hosted_api from main" in result.stderr
+    assert "pandapower_application/hosted.py must call run_hosted_api from main" in result.stderr
 
 
 def test_domain_worker_must_delegate_to_capstone_worker(tmp_path: Path) -> None:
@@ -596,7 +611,7 @@ def test_domain_worker_must_delegate_to_capstone_worker(tmp_path: Path) -> None:
     assert "pypsa_agent/worker.py must delegate execution to capstone_agent.worker" in result.stderr
 
 
-@pytest.mark.parametrize("package,module", [("grid-agent", "grid_agent"), ("pypsa-agent", "pypsa_agent")])
+@pytest.mark.parametrize("package,module", [("pandapower-application", "pandapower_application"), ("pypsa-agent", "pypsa_agent")])
 def test_hosted_domain_adapter_uses_shared_provider_configuration(
     tmp_path: Path, package: str, module: str,
 ) -> None:

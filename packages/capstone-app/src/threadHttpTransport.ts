@@ -377,7 +377,31 @@ export class HttpThreadTransport implements ThreadTransport {
     return transferResource((path,init)=>this.request(path,init),`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-uploads`,file,options)
   }
   async readStoredResources(threadId:string,signal?:AbortSignal,draft=false) {
-    return parseStoredResources(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources${draft?'?draft=true':''}`,{signal}),threadId)
+    const resources:ReturnType<typeof parseStoredResources>=[]
+    const cursors=new Set<string>(),identities=new Set<string>()
+    let cursor:string|undefined,revision:number|undefined,bytes=0
+    do{
+      signal?.throwIfAborted()
+      const params=new URLSearchParams({limit:'100',...(draft?{draft:'true'}:{}),...(cursor?{cursor}:{})})
+      const raw=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources?${params}`,{signal})
+      const page=parseStoredResources(raw,threadId)
+      const metadata=raw as {revision?:number;next_cursor?:unknown}
+      if(metadata.revision!==undefined){
+        if(!Number.isSafeInteger(metadata.revision)||metadata.revision<0||(revision!==undefined&&metadata.revision!==revision))throw new Error('资源目录已变化，请重新读取。')
+        revision=metadata.revision
+      }else if(cursor)throw new Error('资源分页版本无效。')
+      bytes+=new TextEncoder().encode(JSON.stringify(raw)).byteLength
+      assertCapacity(bytes,'control_document_bytes','resource.directory')
+      for(const item of page){
+        if(identities.has(item.resource_id))throw new Error('资源分页返回重复文件。')
+        identities.add(item.resource_id);resources.push(item)
+      }
+      const next=metadata.next_cursor
+      if(next===undefined||next===null)return resources // Older hosts return one complete page.
+      if(typeof next!=='string'||!next||next.length>1024||cursors.has(next)||!page.length||revision===undefined)throw new Error('资源分页游标无效。')
+      cursors.add(next);cursor=next
+    }while(cursor)
+    return resources
   }
   async readThreadResource(threadId:string,file:{resource_id:string;size_bytes:number;sha256:string},signal?:AbortSignal):Promise<Uint8Array> {
     if(!/^resource_[a-f0-9]{32}$/.test(file.resource_id)||!Number.isSafeInteger(file.size_bytes)||file.size_bytes<1||!/^[a-f0-9]{64}$/.test(file.sha256))throw new Error('资源身份无效')

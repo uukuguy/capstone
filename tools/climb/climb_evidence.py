@@ -48,7 +48,7 @@ CANONICAL_GATE_COMMANDS: dict[str, tuple[str, ...]] = {
         "uv",
         "run",
         "--project",
-        "packages/grid-agent",
+        "packages/pandapower-application",
         "pytest",
         "packages/capability-agent-kernel/tests",
         "-q",

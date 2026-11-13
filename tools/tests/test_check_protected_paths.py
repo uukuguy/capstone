@@ -23,7 +23,7 @@ MUTABLE_C1_PATHS = {
     "packages/capability-agent-kernel",
     "packages/pi-capability-tools",
     "packages/trajectory-workbench",
-    "packages/grid-agent",
+    "packages/pandapower-application",
     "packages/pandapower-domain-pack",
 }
 

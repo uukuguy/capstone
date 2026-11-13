@@ -1,16 +1,11 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev capstone-local-rebuild report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider validate-thread-m5 test-kernel test-domain-package test-generic-tools check-types check-types-validation check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
+.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev capstone-local-rebuild test test-agent test-capstone-agent test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider validate-thread-m5 test-kernel test-domain-package test-generic-tools check-types check-types-validation check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
-	@echo "Grid Static Analysis commands"
+	@echo "Capstone commands"
 	@echo "  make setup                 Install all local dependencies"
 	@echo "  make doctor                Inspect local runtime readiness"
-	@echo "  make run QUESTION='...'    Run a local deterministic smoke/offline check"
-	@echo "  make run-llm QUESTION='...'  Primary natural-language agent path via Pi/LLM"
-	@echo "  make analysis [INSTRUCTIONS=...]  Compatibility analysis report; default TASK instruction set"
-	@echo "  make analysis-generic APPLICATION=... INSTRUCTIONS=...  Generic composite application output"
-	@echo "  make application [INSTRUCTIONS=...] [PROVIDER=...] [MODEL=...]  Run the formal registered application"
 	@echo "  make capstone-client REQUEST=path  Run a registered pandapower or PyPSA client request"
 	@echo "  make capstone-agent-run REQUEST=path  Run a registered application headlessly"
 	@echo "  make capstone-agent-case CASE=id  Run one of the five catalog cases with the real Provider/LLM path"
@@ -28,9 +23,7 @@ help:
 	@echo "  make capstone-demo-local-rebuild  Rebuild a separate local demo from its clean checkout"
 	@echo "  make build-capstone-app    Build the Vercel-ready static App"
 	@echo "  make test-capstone-app     Run focused App tests"
-	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
 	@echo "  make build-workbench         Build packaged trajectory workbench assets"
-	@echo "  make trajectory [PORT=8765]  Build and serve the local trajectory workbench"
 	@echo "  make install-pi            Install the pinned Pi runtime"
 	@echo "  make auth-import-pi        Import local Pi Codex OAuth to this project"
 	@echo "  make auth-login            Log in to Pi Codex OAuth for this project"
@@ -48,16 +41,17 @@ help:
 	@echo "  make validate-application  Run provider-free generic application instantiation validation"
 	@echo "  make validate-thread-m5    Run bounded provider-free Thread validation (origin/token from environment)"
 	@echo "  make validate-thread-m11   Verify cloud-development dual-family Threads without Provider calls"
-	@echo "  make validate-provider PROVIDER=... [MODEL=...]  Run optional billed provider validation"
+	@echo "  make validate-provider REQUEST=path  Validate a registered Provider request"
 	@echo "  make check-application-boundaries  Verify generic application ownership boundaries"
 	@echo "  Manual: docs/MANUAL-VALIDATION.md (human verification for every entry above)"
 
 setup: setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench
 
 setup-agent:
-	uv sync --project packages/grid-agent
+	uv sync --project packages/pandapower-application
 
 setup-capstone:
+	uv sync --project packages/pandapower-application
 	uv sync --project packages/capstone-agent
 	uv sync --project packages/pypsa-agent
 
@@ -160,63 +154,22 @@ check-workbench:
 	npm run check --prefix packages/trajectory-workbench
 
 install-pi:
-	uv run --project packages/grid-agent grid-agent install-pi
+	uv run --project packages/capstone-agent python tools/install_local_pi.py
 
 .PHONY: install-agent-resources
 install-agent-resources:
 	uv run --project packages/capstone-agent python tools/install_agent_resources.py $(RESOURCE_INSTALL_ARGS)
 
 auth-import-pi:
-	uv run --project packages/grid-agent grid-agent auth-import-pi
+	uv run --project packages/capstone-agent capstone-agent auth-import-pi
 
 auth-login:
-	uv run --project packages/grid-agent grid-agent auth-login
+	uv run --project packages/capstone-agent capstone-agent auth-login
 
 doctor:
-	uv run --project packages/grid-agent grid-agent doctor --json
+	uv run --project packages/pandapower-application python tools/doctor_local.py
 
-QUESTION ?= IEEE-39节点系统中线路11连接哪两个母线?
-# QUESTION ?= 母线电压正常运行范围是多少?
-# QUESTION ?= N-1静态安全校核需要检查哪些越限类型?
-# QUESTION ?= ‘潮流计算工具（pandapower runpp）需要输入哪些参数？’
-# QUESTION ?= 对IEEE-39节点系统运行交流潮流，并输出有功网损;
-# QUESTION ?= 筛选负载率最高的5条线路
-# QUESTION ?= 对线路17开展N-1校核
-# QUESTION ?= 母线低电压、线路过载等风险及证据（仿真结果）
-#
-run:
-	@test -n "$(QUESTION)" || (echo "Usage: make run QUESTION='IEEE-39节点系统中线路11连接哪两个母线?'" >&2; exit 2)
-	uv run --project packages/grid-agent grid-agent run --offline "$(QUESTION)"
-
-run-llm:
-	@test -n "$(QUESTION)" || (echo "Usage: make run-llm QUESTION='...' [PROVIDER=openai]" >&2; exit 2)
-	uv run --project packages/grid-agent grid-agent run $(if $(PROVIDER),--provider "$(PROVIDER)") "$(QUESTION)"
-
-ANALYSIS_DEFAULT_INSTRUCTIONS ?= validation/questions/task.md.txt
-
-analysis:
-	@instruction_file="$(if $(INSTRUCTIONS),$(INSTRUCTIONS),$(ANALYSIS_DEFAULT_INSTRUCTIONS))"; test -f "$$instruction_file" || (echo "Instruction file not found: $$instruction_file" >&2; exit 2); uv run --project packages/grid-agent grid-agent analysis --instructions "$$instruction_file" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
-
-analysis-generic:
-	@test -n "$(APPLICATION)" || (echo "Usage: make analysis-generic APPLICATION=... INSTRUCTIONS=... [PROVIDER=...] [MODEL=...]" >&2; exit 2)
-	@test -n "$(INSTRUCTIONS)" || (echo "Usage: make analysis-generic APPLICATION=... INSTRUCTIONS=... [PROVIDER=...] [MODEL=...]" >&2; exit 2)
-	@test -f "$(INSTRUCTIONS)" || (echo "Instruction file not found: $(INSTRUCTIONS)" >&2; exit 2)
-	@uv run --project packages/grid-agent grid-agent analysis-generic --application "$(APPLICATION)" --instructions "$(INSTRUCTIONS)" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
-
-application:
-	@$(MAKE) --no-print-directory analysis-generic \
-		APPLICATION="$(if $(APPLICATION),$(APPLICATION),pandapower-static-analysis)" \
-		INSTRUCTIONS="$(if $(INSTRUCTIONS),$(INSTRUCTIONS),$(ANALYSIS_DEFAULT_INSTRUCTIONS))" \
-		$(if $(PROVIDER),PROVIDER="$(PROVIDER)") \
-		$(if $(MODEL),MODEL="$(MODEL)")
-
-report: analysis
-
-PORT ?= 8765
 CAPSTONE_PORT ?= 8766
-
-trajectory: build-workbench
-	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
 test: test-agent test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
 
@@ -228,7 +181,7 @@ test-capstone-agent:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q
 
 test-capstone-client:
-	uv run --project packages/grid-agent pytest tools/tests/test_capstone_client.py -q
+	uv run --project packages/pandapower-application pytest tools/tests/test_capstone_client.py -q
 
 test-makefile-application:
 	bash tools/test_makefile_application.sh
@@ -237,17 +190,17 @@ test-local-rebuild:
 	bash tools/test_local_rebuild.sh
 	bash tools/test_demo_local_rebuild.sh
 	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py tools/tests/test_prepare_app_source.py tools/tests/test_local_build_cache_cleanup.py tools/tests/test_image_layer_order.py tools/tests/test_native_report.py -q
-	uv run --project packages/grid-agent pytest tools/tests/test_dev_trial_deployment.py tools/tests/test_build_dev_trial.py tools/tests/test_user_data_compatibility.py tools/tests/test_capstone_manager.py tools/tests/test_install_user_local_version.py tools/tests/test_user_local_installer.py tools/tests/test_user_local_graph.py tools/tests/test_offline_provider_config.py tools/tests/test_openai_compatible_protocol.py tools/tests/test_user_local_offline.py -q
+	uv run --project packages/pandapower-application pytest tools/tests/test_dev_trial_deployment.py tools/tests/test_build_dev_trial.py tools/tests/test_user_data_compatibility.py tools/tests/test_capstone_manager.py tools/tests/test_install_user_local_version.py tools/tests/test_user_local_installer.py tools/tests/test_user_local_graph.py tools/tests/test_offline_provider_config.py tools/tests/test_openai_compatible_protocol.py tools/tests/test_user_local_offline.py -q
 
 test-verification-targets:
-	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q
+	uv run --project packages/pandapower-application pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q
 
 .PHONY: benchmark-optimization
 benchmark-optimization:
-	uv run --project packages/grid-agent python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/benchmarks/report.json
+	uv run --project packages/pandapower-application python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/benchmarks/report.json
 
 test-agent:
-	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e -q
 
 test-inventory-service:
 	uv run --project packages/inventory-reference-service pytest packages/inventory-reference-service/tests -q
@@ -272,10 +225,10 @@ test-domain-pack-conformance: check-package-boundaries
 	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_application_conformance.py packages/inventory-domain-pack/tests/test_http_authority_experiment.py packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q
 
 test-domain-package: check-package-boundaries
-	uv run --project packages/grid-agent pytest packages/pandapower-domain-pack/tests -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-domain-pack/tests -q
 
 test-kernel:
-	uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests -q
+	uv run --project packages/pandapower-application pytest packages/capability-agent-kernel/tests -q
 
 test-generic-tools:
 	npm run check --prefix packages/pi-capability-tools
@@ -289,10 +242,10 @@ test-tools: check-runtime-risk test-issue-automation
 	npm test --prefix packages/pi-grid-tools
 
 check-types: check-workbench
-	uv run --project packages/grid-agent pyright
+	uv run --project packages/pandapower-application pyright
 
 check-types-validation:
-	uv run --project packages/grid-agent pyright -p pyrightconfig.validation.json
+	uv run --project packages/pandapower-application pyright -p pyrightconfig.validation.json
 
 check-fast: check-package-boundaries check-types test
 
@@ -307,7 +260,7 @@ check-iteration:
 check-pr: check-package-boundaries check-types test-pandapower-application test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench test-registered-workers
 
 test-pandapower-application:
-	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e --ignore=packages/grid-agent/tests/cli --ignore=packages/grid-agent/tests/compat --ignore=packages/grid-agent/tests/test_console_target.py --ignore=packages/grid-agent/tests/contract/test_application_instantiation_baseline.py -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e --ignore=packages/pandapower-application/tests/cli --ignore=packages/pandapower-application/tests/compat --ignore=packages/pandapower-application/tests/test_console_target.py --ignore=packages/pandapower-application/tests/contract/test_application_instantiation_baseline.py -q
 
 test-registered-workers:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
@@ -372,23 +325,23 @@ issues-release-status:
 	@python3 -m tools.issue_automation.cli release-status
 
 test-issue-automation:
-	@uv run --project packages/grid-agent python -m pytest tools/tests/test_issue_automation*.py -q
+	@uv run --project packages/pandapower-application python -m pytest tools/tests/test_issue_automation*.py -q
 
 check-runtime-risk:
 	python3 tools/check_runtime_risk_exception.py
 
 test-e2e:
-	uv run --project packages/grid-agent pytest packages/grid-agent/tests/e2e -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests/e2e -q
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
 
 validate: check-runtime-risk check-protected-paths
-	uv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json
-	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json
-	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json
+	uv run --project packages/pandapower-application python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json
+	uv run --project packages/pandapower-application python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json
+	uv run --project packages/pandapower-application python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json
 	python3 tools/capability_matrix.py --check
 
 validate-application:
-	uv run --project packages/grid-agent python validation/run.py --mode application --suite application-instantiation --report runs/validation-application-instantiation.json
+	uv run --project packages/pandapower-application python validation/run.py --mode application --suite application-instantiation --report runs/validation-application-instantiation.json
 
 validate-thread-m5:
 	PYTHONPATH=. uv run --project packages/capstone-agent python validation/run_m5.py
@@ -399,7 +352,7 @@ validate-thread-m11:
 
 validate-thread-m5-provider-free:
 	mkdir -p runs/capstone-m5/provider-free
-	PYTHONPATH=. uv run --project packages/grid-agent python validation/run_m5_provider_free.py --application pandapower-static-analysis --root runs/capstone-m5/provider-free/pandapower
+	PYTHONPATH=. uv run --project packages/pandapower-application python validation/run_m5_provider_free.py --application pandapower-static-analysis --root runs/capstone-m5/provider-free/pandapower
 	PYTHONPATH=. uv run --project packages/pypsa-agent python validation/run_m5_provider_free.py --application pypsa-business-cases --root runs/capstone-m5/provider-free/pypsa
 
 check-package-boundaries:
@@ -420,4 +373,5 @@ test-source-setup:
 VALIDATION_SUITE ?= static-analysis-full
 
 validate-provider:
-	uv run --project packages/grid-agent python validation/run.py --mode provider --suite "$(VALIDATION_SUITE)" --provider "$(PROVIDER)" $(if $(MODEL),--model "$(MODEL)") --report runs/validation-provider.json
+	@test -n "$(REQUEST)" || (echo "Usage: make validate-provider REQUEST=path-to-provider-request.json" >&2; exit 2)
+	uv run --project packages/capstone-agent capstone-agent run --request "$(REQUEST)"

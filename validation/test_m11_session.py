@@ -55,7 +55,7 @@ def test_m11_uses_real_hosted_authority_without_provider(monkeypatch, tmp_path: 
         return original_admit(self, claim, answer, result_refs, evidence_refs, tool_events)
 
     monkeypatch.setattr(M11Session, "admit_attempt", check_foreign_reference)
-    hosted = importlib.import_module("grid_agent.hosted" if family == "pandapower" else "pypsa_agent.hosted")
+    hosted = importlib.import_module("pandapower_application.hosted" if family == "pandapower" else "pypsa_agent.hosted")
     monkeypatch.setenv("CAPSTONE_THREAD_VALIDATION", "m11")
     monkeypatch.setenv("CAPSTONE_DEPLOYMENT_STAGE", "cloud-development")
     monkeypatch.setenv("CAPSTONE_RUNS_ROOT", str(tmp_path.resolve()))

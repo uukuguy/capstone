@@ -1,0 +1,270 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
+
+import pytest
+
+from pandapower_application.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
+from pandapower_application.trajectory.api.models import AnalysisManifest
+from pandapower_application.trajectory.projection_models import ProjectedRun
+
+
+def write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+
+def write_native_run(root: Path) -> Path:
+    write_json(
+        root / "manifest.json",
+        {
+            "schema_version": "grid-agent-analysis-manifest/1.0",
+            "analysis_id": root.name,
+            "question_id": f"{root.name}-t001",
+            "status": "completed",
+            "started_at": "2026-08-14T08:18:22Z",
+            "completed_turns": 1,
+            "total_turns": 1,
+            "report_path": "report.md",
+            "context_path": "context/current.json",
+            "context_events_path": "context/context-events.jsonl",
+            "context_available": True,
+            "events_path": "events/run-events.jsonl",
+            "trajectory_schema_version": "grid-run-event/1.0",
+        },
+    )
+    (root / "events").mkdir(parents=True, exist_ok=True)
+    (root / "events/run-events.jsonl").write_text("{}\n", encoding="utf-8")
+    return root
+
+
+def write_v02_run(root: Path) -> Path:
+    write_json(root / "manifest.json", {"analysis_id": root.name, "total_turns": 2})
+    write_json(
+        root / "context/context-events.jsonl",
+        {
+            "analysis_id": root.name,
+            "sequence": 1,
+            "event_type": "analysis.completed",
+            "payload": {},
+        },
+    )
+    write_json(
+        root / "trace/events.jsonl",
+        {"sequence": 1, "event": "tool_result", "payload": {}},
+    )
+    return root
+
+
+def write_historical_v02_run(root: Path) -> Path:
+    write_json(
+        root / "manifest.json",
+        {
+            "analysis_id": root.name,
+            "completed_turns": 9,
+            "context_available": True,
+            "context_events_path": "context/context-events.jsonl",
+            "context_path": "context/analysis-context.json",
+            "report_path": "report.md",
+            "schema_version": "grid-agent-analysis-manifest/1.0",
+            "status": "completed",
+            "total_turns": 9,
+        },
+    )
+    write_json(
+        root / "context/context-events.jsonl",
+        {
+            "analysis_id": root.name,
+            "sequence": 1,
+            "event_type": "analysis.completed",
+            "payload": {},
+        },
+    )
+    write_json(
+        root / "trace/events.jsonl",
+        {"sequence": 1, "event": "tool_result", "payload": {}},
+    )
+    return root
+
+
+class FakeProjectionService:
+    def __init__(self, metadata: object | None = None) -> None:
+        self.opened: list[Path] = []
+        self.metadata = metadata
+
+    def open_run(self, run_root: Path) -> ProjectedRun:
+        self.opened.append(run_root)
+        return cast(
+            ProjectedRun, SimpleNamespace(agent=SimpleNamespace(turns=(object(), object())))
+        )
+
+    def read_application_metadata(self, run_root: Path) -> object | None:
+        return self.metadata
+
+
+def fake_projection_service() -> FakeProjectionService:
+    return FakeProjectionService()
+
+
+def test_catalog_discovers_native_and_v02_runs_by_manifest(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    write_native_run(runs / "analysis-native")
+    write_v02_run(runs / "analysis-legacy")
+    (runs / "not-a-run").mkdir(parents=True)
+    service = fake_projection_service()
+    catalog = TrajectoryRunCatalog(
+        runs, tmp_path / ".grid-agent/trajectory-cache", service
+    )
+
+    summaries = catalog.list_runs()
+
+    assert [(item.analysis_id, item.source_kind) for item in summaries] == [
+        ("analysis-native", "native"),
+        ("analysis-legacy", "legacy-v0.2"),
+    ]
+    assert summaries[0].turn_count == 1
+    assert service.opened == []
+
+
+def test_catalog_accepts_current_native_manifest_fields(tmp_path: Path) -> None:
+    root = write_native_run(tmp_path / "runs/analysis-native")
+
+    manifest, source_kind = TrajectoryRunCatalog._load_manifest(root, root.name)
+
+    assert source_kind == "native"
+    assert isinstance(manifest, AnalysisManifest)
+    assert manifest.question_id == "analysis-native-t001"
+    assert manifest.context_available is True
+    assert manifest.trajectory_schema_version == "grid-run-event/1.0"
+
+
+def test_catalog_accepts_historical_v02_manifest_shape(tmp_path: Path) -> None:
+    root = write_historical_v02_run(tmp_path / "runs/analysis-20260814T081822Z")
+
+    manifest, source_kind = TrajectoryRunCatalog._load_manifest(root, root.name)
+
+    assert source_kind == "legacy-v0.2"
+    assert manifest.completed_turns == 9
+    assert manifest.context_available is True
+
+
+def test_catalog_ignores_manifest_only_legacy_lookalike(tmp_path: Path) -> None:
+    root = tmp_path / "runs/analysis-legacy"
+    write_json(root / "manifest.json", {"analysis_id": root.name, "total_turns": 2})
+
+    catalog = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service())
+
+    assert catalog.list_runs() == ()
+    with pytest.raises(RunNotFoundError):
+        catalog.open(root.name)
+
+
+def test_catalog_rejects_legacy_manifest_with_unknown_metadata(tmp_path: Path) -> None:
+    root = write_historical_v02_run(tmp_path / "runs/analysis-legacy")
+    write_json(
+        root / "manifest.json",
+        {
+            **json.loads((root / "manifest.json").read_text(encoding="utf-8")),
+            "untrusted_metadata": "must not be accepted",
+        },
+    )
+
+    catalog = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service())
+
+    assert catalog.list_runs() == ()
+    with pytest.raises(RunNotFoundError):
+        catalog.open(root.name)
+
+
+def test_catalog_rejects_manifest_id_directory_mismatch(tmp_path: Path) -> None:
+    root = write_native_run(tmp_path / "runs/analysis-safe")
+    write_json(root / "manifest.json", {"analysis_id": "../escape", "status": "completed"})
+    catalog = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service())
+
+    assert catalog.list_runs() == ()
+    with pytest.raises(RunNotFoundError):
+        catalog.open("../escape")
+
+
+def test_catalog_ignores_symlinked_run_directory(tmp_path: Path) -> None:
+    outside = write_native_run(tmp_path / "outside/analysis-outside")
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "analysis-link").symlink_to(outside, target_is_directory=True)
+
+    assert (
+        TrajectoryRunCatalog(runs, tmp_path / "cache", fake_projection_service()).list_runs()
+        == ()
+    )
+
+
+def test_catalog_rejects_symlinked_manifest_or_event_stream(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    outside = write_native_run(tmp_path / "outside/analysis-safe")
+    run = runs / "analysis-safe"
+    run.mkdir(parents=True)
+    (run / "manifest.json").symlink_to(outside / "manifest.json")
+
+    assert TrajectoryRunCatalog(runs, tmp_path / "cache", fake_projection_service()).list_runs() == ()
+
+
+def test_catalog_reports_corrupt_only_after_manifest_identity_is_safe(tmp_path: Path) -> None:
+    root = write_native_run(tmp_path / "runs/analysis-safe")
+    (root / "events/run-events.jsonl").write_text("not-json\n", encoding="utf-8")
+
+    summary = TrajectoryRunCatalog(
+        tmp_path / "runs", tmp_path / "cache", fake_projection_service()
+    ).list_runs()[0]
+
+    assert summary.status == "corrupt"
+    assert summary.diagnostic is not None
+    assert str(tmp_path) not in summary.diagnostic
+
+
+def test_catalog_uses_fixed_application_metadata_without_opening_projection(tmp_path: Path) -> None:
+    write_native_run(tmp_path / "runs/analysis-native")
+    service = FakeProjectionService(
+        SimpleNamespace(
+            application_id="pandapower-static-analysis",
+            application_version="1.0",
+            bindings={},
+        )
+    )
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", service).list_runs()[0]
+
+    assert (summary.application_id, summary.application_version, summary.bindings) == (
+        "pandapower-static-analysis", "1.0", ()
+    )
+    assert service.opened == []
+
+
+def test_catalog_legacy_has_no_native_trust_extent(tmp_path: Path) -> None:
+    write_v02_run(tmp_path / "runs/analysis-legacy")
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service()).list_runs()[0]
+
+    assert summary.replay_trusted_through is None
+    assert summary.last_sequence is None
+
+
+def test_catalog_reports_missing_legacy_status_as_unknown(tmp_path: Path) -> None:
+    write_v02_run(tmp_path / "runs/analysis-legacy")
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service()).list_runs()[0]
+
+    assert summary.status == "unknown"
+
+
+def test_catalog_preserves_explicit_zero_completed_turns(tmp_path: Path) -> None:
+    root = write_native_run(tmp_path / "runs/analysis-native")
+    manifest = json.loads(root.joinpath("manifest.json").read_text(encoding="utf-8"))
+    manifest.update({"completed_turns": 0, "total_turns": 5})
+    write_json(root / "manifest.json", manifest)
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service()).list_runs()[0]
+
+    assert summary.turn_count == 0
