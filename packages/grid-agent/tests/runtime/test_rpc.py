@@ -17,7 +17,7 @@ from pandapower_application.run_workspace import RunWorkspace
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 from capability_agent.runtime.rpc import PiProtocolError, PiRpcClient
-from grid_agent.runtime.environment import PiLaunch
+from capability_agent.runtime.environment import PiLaunch
 from pandapower_application.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry

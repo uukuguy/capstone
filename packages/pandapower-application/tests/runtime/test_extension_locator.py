@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.runtime.extension import PiExtensionLocator, PiExtensionLocatorError
+from capability_agent.runtime.extension import PiExtensionLocator, PiExtensionLocatorError
 
 
 def test_locator_resolves_verified_source_checkout_extension(tmp_path: Path) -> None:
     extension = _write_package(tmp_path / "packages/pi-grid-tools")
 
-    assert PiExtensionLocator(tmp_path).resolve() == extension
+    assert PiExtensionLocator(tmp_path, package_name="@grid-static-analysis/pi-grid-tools", package_version="1.0.1", candidates=(Path("packages/pi-grid-tools"), Path("node_modules/@grid-static-analysis/pi-grid-tools"))).resolve() == extension
 
 
 def test_locator_resolves_verified_project_local_installed_extension(
@@ -21,7 +21,7 @@ def test_locator_resolves_verified_project_local_installed_extension(
         tmp_path / "node_modules/@grid-static-analysis/pi-grid-tools"
     )
 
-    assert PiExtensionLocator(tmp_path).resolve() == extension
+    assert PiExtensionLocator(tmp_path, package_name="@grid-static-analysis/pi-grid-tools", package_version="1.0.1", candidates=(Path("packages/pi-grid-tools"), Path("node_modules/@grid-static-analysis/pi-grid-tools"))).resolve() == extension
 
 
 def test_locator_rejects_unverified_fallback_and_environment_paths(
@@ -33,7 +33,7 @@ def test_locator_rejects_unverified_fallback_and_environment_paths(
         PiExtensionLocator(
             tmp_path,
             environ={"GRID_AGENT_PI_EXTENSION": str(outside)},
-        ).resolve()
+         package_name="@grid-static-analysis/pi-grid-tools", package_version="1.0.1", candidates=(Path("packages/pi-grid-tools"), Path("node_modules/@grid-static-analysis/pi-grid-tools"))).resolve()
 
 
 def test_locator_rejects_symlinked_package_components(tmp_path: Path) -> None:
@@ -44,7 +44,7 @@ def test_locator_rejects_symlinked_package_components(tmp_path: Path) -> None:
     (package_parent / "pi-grid-tools").symlink_to(outside, target_is_directory=True)
 
     with pytest.raises(PiExtensionLocatorError, match="project-local"):
-        PiExtensionLocator(tmp_path).resolve()
+        PiExtensionLocator(tmp_path, package_name="@grid-static-analysis/pi-grid-tools", package_version="1.0.1", candidates=(Path("packages/pi-grid-tools"), Path("node_modules/@grid-static-analysis/pi-grid-tools"))).resolve()
 
 
 def _write_package(package_root: Path) -> Path:
