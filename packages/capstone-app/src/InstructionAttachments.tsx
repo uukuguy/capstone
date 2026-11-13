@@ -3,6 +3,7 @@ import {useEffect,useRef,useState} from 'react'
 import {FileText} from 'lucide-react'
 import type {StoredResource} from './resourceUploads'
 import {applicationCapacity} from './applicationCapacity'
+import {attachmentMemory} from './attachmentMemory'
 import {NativeFileContent,nativePreviewMedia} from './NativeArtifactsWorkspace'
 
 export type InstructionFile={resource_id:string;file_name?:string;size_bytes?:number;version?:number;sha256?:string}
@@ -35,12 +36,14 @@ function InstructionFileItem({file,readFile,saveFile,open,onOpen}:{file:Instruct
   const [error,setError]=useState('')
   const request=useRef<{controller:AbortController;promise:Promise<string>}|undefined>(undefined)
   const cachedUrl=useRef<string|undefined>(undefined)
+  const cachedReservation=useRef<(()=>void)|undefined>(undefined)
   const openRef=useRef(open)
   openRef.current=open
   function release(){
     request.current?.controller.abort();request.current=undefined
     if(cachedUrl.current)URL.revokeObjectURL(cachedUrl.current)
     cachedUrl.current=undefined
+    cachedReservation.current?.();cachedReservation.current=undefined
   }
   useEffect(()=>()=>release(),[])
   useEffect(()=>{
@@ -53,16 +56,21 @@ function InstructionFileItem({file,readFile,saveFile,open,onOpen}:{file:Instruct
     setPhase('loading');setError('')
     const controller=new AbortController()
     const promise=(async()=>{
+    const releaseBytes=attachmentMemory.reserve(file.size_bytes!)
+    let retained=false
+    try{
     const bytes=await readFile(file,controller.signal)
     controller.signal.throwIfAborted()
+    if(bytes.byteLength!==file.size_bytes)throw new Error('附件大小与记录不一致。')
     const next=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:media}))
-    cachedUrl.current=next;setUrl(next)
+    cachedUrl.current=next;cachedReservation.current=releaseBytes;retained=true;setUrl(next)
     if(media.startsWith('text/')||media==='application/json'){
       try{setText(new TextDecoder('utf-8',{fatal:true}).decode(bytes));setTextUnavailable(false)}
       catch{setText(undefined);setTextUnavailable(true)}
     }else{setText(undefined);setTextUnavailable(false)}
     setPhase('ready')
     return next
+    }finally{if(!retained)releaseBytes()}
     })()
     request.current={controller,promise}
     try{return await promise}finally{if(request.current?.controller===controller)request.current=undefined}

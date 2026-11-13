@@ -43,6 +43,7 @@
     "artifact_page_items": 512,
     "artifact_initial_pages": 32,
     "preview_bytes": 16777216,
+    "attachment_buffer_bytes": 134217728,
     "delivery_file_bytes": 67108864,
     "product_bytes": 67108864,
     "product_page_items": 256,

@@ -2,10 +2,29 @@ import {afterEach,expect,it,vi} from 'vitest'
 import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import CapstoneAssistantThread,{projectAssistantMessages} from './CapstoneAssistantThread'
 import InstructionAttachments,{type InstructionFile} from './InstructionAttachments'
-import {applicationCapacity} from './applicationCapacity'
+import {applicationCapacity,initializeApplicationCapacity} from './applicationCapacity'
 import type {EventEnvelope} from './threadProtocol'
 import type {InputCatalog} from './threadInput'
-afterEach(()=>{cleanup();sessionStorage.clear()})
+afterEach(()=>{cleanup();sessionStorage.clear();initializeApplicationCapacity()})
+it('shares the byte budget across instructions and releases failed reads',async()=>{
+  initializeApplicationCapacity({attachment_buffer_bytes:6})
+  vi.stubGlobal('URL',class extends URL{static createObjectURL=vi.fn(()=> 'blob:budget');static revokeObjectURL=vi.fn()})
+  let reject!:(error:Error)=>void
+  const first=vi.fn(()=>new Promise<Uint8Array>((_resolve,fail)=>{reject=fail}))
+  const second=vi.fn(async()=>new TextEncoder().encode('正文'))
+  const file={size_bytes:6,sha256:'a'.repeat(64)}
+  render(<><InstructionAttachments files={[{...file,resource_id:'first',file_name:'first.txt'}]} readFile={first}/><InstructionAttachments files={[{...file,resource_id:'second',file_name:'second.txt'}]} readFile={second}/></>)
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 first.txt'}))
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 second.txt'}))
+  expect(await screen.findByText(/请收起其他附件预览/)).toBeTruthy()
+  expect(second).not.toHaveBeenCalled()
+  reject(new Error('读取失败'))
+  await screen.findByText('读取失败')
+  fireEvent.click(screen.getByRole('button',{name:'收起附件 second.txt'}))
+  fireEvent.click(screen.getByRole('button',{name:'预览附件 second.txt'}))
+  expect(await screen.findByText('正文')).toBeTruthy()
+  expect(second).toHaveBeenCalledTimes(1)
+})
 it('shows a download error while the preview is closed',async()=>{
   render(<InstructionAttachments files={[{resource_id:'resource_error',file_name:'error.txt',size_bytes:8,sha256:'a'.repeat(64)}]} readFile={async()=>{throw new Error('读取失败')}}/>)
   fireEvent.click(screen.getByRole('button',{name:'下载附件 error.txt'}))
@@ -27,7 +46,7 @@ it('aborts an obsolete preview and does not create a late object URL',async()=>{
 it('releases loaded preview bytes when collapsed',async()=>{
   const revoke=vi.fn()
   vi.stubGlobal('URL',class extends URL{static createObjectURL=vi.fn(()=> 'blob:release');static revokeObjectURL=revoke})
-  render(<InstructionAttachments files={[{resource_id:'resource_release',file_name:'release.txt',size_bytes:8,sha256:'a'.repeat(64)}]} readFile={async()=>new TextEncoder().encode('正文')}/>)
+  render(<InstructionAttachments files={[{resource_id:'resource_release',file_name:'release.txt',size_bytes:6,sha256:'a'.repeat(64)}]} readFile={async()=>new TextEncoder().encode('正文')}/>)
   fireEvent.click(screen.getByRole('button',{name:'预览附件 release.txt'}))
   await screen.findByText('正文')
   fireEvent.click(screen.getByRole('button',{name:'收起附件 release.txt'}))
@@ -38,7 +57,7 @@ it('shares an in-flight read between preview and download',async()=>{
   vi.stubGlobal('URL',class extends URL{static createObjectURL=vi.fn(()=> 'blob:shared');static revokeObjectURL=vi.fn()})
   let finish!:(value:Uint8Array)=>void
   const read=vi.fn(()=>new Promise<Uint8Array>(resolve=>{finish=resolve}))
-  render(<InstructionAttachments files={[{resource_id:'resource_shared',file_name:'shared.txt',size_bytes:8,sha256:'a'.repeat(64)}]} readFile={read}/>)
+  render(<InstructionAttachments files={[{resource_id:'resource_shared',file_name:'shared.txt',size_bytes:12,sha256:'a'.repeat(64)}]} readFile={read}/>)
   fireEvent.click(screen.getByRole('button',{name:'预览附件 shared.txt'}))
   fireEvent.click(screen.getByRole('button',{name:'下载附件 shared.txt'}))
   expect(read).toHaveBeenCalledTimes(1)
@@ -92,8 +111,8 @@ it('previews and downloads instruction bytes only after the reader is used',asyn
 it('opens one attachment preview at a time and closes it',async()=>{
   const read=vi.fn(async(file:InstructionFile)=>new TextEncoder().encode(file.resource_id===one?'正文甲\n':'正文乙\n'))
   const files=[
-    {resource_id:one,file_name:'一.txt',size_bytes:8,version:1,sha256:'a'.repeat(64)},
-    {resource_id:two,file_name:'二.txt',size_bytes:8,version:1,sha256:'b'.repeat(64)},
+    {resource_id:one,file_name:'一.txt',size_bytes:10,version:1,sha256:'a'.repeat(64)},
+    {resource_id:two,file_name:'二.txt',size_bytes:10,version:1,sha256:'b'.repeat(64)},
   ]
   render(<InstructionAttachments files={files} readFile={read}/>)
   fireEvent.click(screen.getByRole('button',{name:'预览附件 一.txt'}))
