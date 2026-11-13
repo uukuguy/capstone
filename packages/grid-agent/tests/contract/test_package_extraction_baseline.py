@@ -10,7 +10,7 @@ def test_legacy_public_imports_are_preserved() -> None:
     from pandapower_application.composition import prepare_domain_runtime
     from capability_agent.domain import DomainManifest
     from pandapower_domain import build_pandapower_profile
-    from grid_agent.tools.catalog import ToolCatalog
+    from capability_agent.tools.catalog import ToolCatalog
 
     assert prepare_domain_runtime.__name__ == "prepare_domain_runtime"
     assert DomainManifest.__name__ == "DomainManifest"

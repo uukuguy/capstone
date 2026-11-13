@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.tools.catalog import ToolCatalog, ToolCatalogError, ToolDocument
+from capability_agent.tools.catalog import ToolCatalog, ToolCatalogError, ToolDocument
 
 
 def valid_document(

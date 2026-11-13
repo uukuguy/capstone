@@ -8,7 +8,7 @@ from capability_agent.application import prepare_domain_runtime
 from capability_agent.tools import GuideIndex, ToolCatalog
 
 
-def test_legacy_imports_are_exact_compatibility_aliases() -> None:
+def test_application_uses_kernel_contracts() -> None:
     from pandapower_application.composition import (
         prepare_domain_runtime as legacy_prepare_domain_runtime,
     )
@@ -16,7 +16,7 @@ def test_legacy_imports_are_exact_compatibility_aliases() -> None:
         DomainManifest as LegacyDomainManifest,
         DomainRuntimeProfile as LegacyDomainRuntimeProfile,
     )
-    from grid_agent.tools.catalog import ToolCatalog as LegacyToolCatalog
+    from capability_agent.tools.catalog import ToolCatalog as LegacyToolCatalog
     from capability_agent.tools.guide import GuideIndex as LegacyGuideIndex
 
     assert LegacyDomainManifest is DomainManifest
@@ -26,14 +26,15 @@ def test_legacy_imports_are_exact_compatibility_aliases() -> None:
     assert LegacyGuideIndex is GuideIndex
 
 
-def test_legacy_catalog_loader_uses_installed_domain_resources(
+def test_catalog_uses_installed_domain_resources(
     tmp_path, capability_documents: tuple[dict[str, object], ...]
 ) -> None:
-    from grid_agent.tools.catalog import load_packaged_capability_documents
+    from pandapower_domain.capabilities import FilesystemCapabilityContractSource
+    from pandapower_domain.resources import PandapowerResourceSet
 
     fake_root = tmp_path / "not-a-repository"
     fake_root.mkdir()
-    documents = load_packaged_capability_documents(fake_root)
+    documents = FilesystemCapabilityContractSource(PandapowerResourceSet.load()).load()
 
     assert {document["id"] for document in documents} == {
         document["id"] for document in capability_documents
@@ -45,7 +46,7 @@ def test_legacy_catalog_loader_uses_installed_domain_resources(
     }
 
 
-def test_legacy_modules_do_not_mutate_kernel_class_methods() -> None:
+def test_application_imports_do_not_mutate_kernel_class_methods() -> None:
     script = """
 from capability_agent.application.composition import prepare_domain_runtime
 from capability_agent.tools.catalog import ToolCatalog
@@ -57,7 +58,7 @@ guide_load = GuideIndex.load.__func__
 prepare = prepare_domain_runtime
 
 import pandapower_application.composition
-import grid_agent.tools.catalog
+import capability_agent.tools.catalog
 import capability_agent.tools.guide
 
 assert ToolCatalog.from_documents.__func__ is catalog_from_documents
