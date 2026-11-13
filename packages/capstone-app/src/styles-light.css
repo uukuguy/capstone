@@ -936,7 +936,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-instruction-file-actions button:hover { background:#edf2eb; }
 .capstone-instruction-file-actions button:focus-visible { outline:2px solid #245b47; outline-offset:2px; }
 .capstone-instruction-file-preview { flex:1 0 100%; min-width:0; margin-top:8px; }
-.capstone-instruction-file-preview .native-artifact-preview { border:1px solid #d0ded6; border-radius:8px; background:#fff; }
+.capstone-instruction-file-preview .native-artifact-preview { max-height:min(240px,32dvh); overflow:auto; border:1px solid #d0ded6; border-radius:8px; background:#fff; }
+.capstone-instruction-file-preview .native-artifact-preview iframe { height:min(240px,32dvh); }
 @media (pointer:coarse) { .capstone-instruction-file-actions button { min-height:44px; min-width:44px; } }
 .thread-runtime-panel { width: 144px; gap: 2px; }
 .thread-runtime-option { width: 100%; border-radius: 5px; }
