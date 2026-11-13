@@ -4,9 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from pandapower_application.paths import ProjectPaths
-from grid_agent.config.models import ResolvedLLM, ResolvedLLMConfig, SecretValue
-from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
+from capability_agent.runtime.models import ResolvedLLM, ResolvedLLMConfig, SecretValue
+from capability_agent.runtime.environment import RuntimePaths, build_pi_launch
 from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 
 
@@ -22,13 +21,12 @@ def _resolved(base_url: str = "https://api.openai.com/v1") -> ResolvedLLM:
 
 
 def _runtime_paths(tmp_path: Path) -> RuntimePaths:
-    project_paths = ProjectPaths.from_root(tmp_path)
     return RuntimePaths(
         command=PiCommand(argv=("pi",), identity=PiRuntimeIdentity(path=Path("pi"), source="explicit_override", package_version="0.80.6", lock_sha256="lock")),
-        project_pi_dir=project_paths.pi_agent_dir,
+        project_pi_dir=tmp_path / "auth/pi",
         session_dir=tmp_path / "run/pi",
         workspace=tmp_path / "run",
-        gridctl_dir=tmp_path / "run/bin",
+        domain_search_path=tmp_path / "run/bin",
         extension_path=tmp_path / "domain-tools.mjs",
         tool_catalog_path=tmp_path / "run/tool-catalog.json",
         guide_index_path=tmp_path / "run/guide-index.json",
@@ -45,7 +43,7 @@ def test_provider_launch_keeps_secret_out_of_argv(tmp_path: Path) -> None:
 
     assert "super-secret" not in launch.argv
     assert launch.environment["OPENAI_API_KEY"] == "super-secret"
-    assert launch.environment["GRID_AGENT_SECRET_ENV_NAMES"] == "OPENAI_API_KEY"
+    assert launch.environment["CAPABILITY_AGENT_SECRET_ENV_NAMES"] == "OPENAI_API_KEY"
 
 
 @pytest.mark.parametrize(
