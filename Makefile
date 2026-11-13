@@ -174,7 +174,7 @@ auth-login:
 	uv run --project packages/grid-agent grid-agent auth-login
 
 doctor:
-	uv run --project packages/grid-agent grid-agent doctor --json
+	uv run --project packages/pandapower-application python tools/doctor_local.py
 
 QUESTION ?= IEEE-39节点系统中线路11连接哪两个母线?
 # QUESTION ?= 母线电压正常运行范围是多少?
