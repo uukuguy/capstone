@@ -138,17 +138,29 @@ class ResourceUploads:
                 raise ValueError('part conflict')
             if not previous:
                 _write_event(self.service, snapshot, 'resource_part_reserved', part, connection)
-            return part
+            return part, index in state['parts']
         # A committed reservation makes a write-before-ack crash reclaimable.
-        part = _mutate(self.service, thread, reserve)
+        part, stored = _mutate(self.service, thread, reserve)
+        if stored:
+            return part
+        key = self._key(thread, uid, part)
         def apply(snapshot, connection):
             state = self._state(thread, uid, connection)
             self._editable(state)
             if index not in state['parts']:
-                self.objects.put(self._key(thread, uid, part), data, 'application/octet-stream')
                 _write_event(self.service, snapshot, 'resource_part_stored', part, connection)
             return part
-        return _mutate(self.service, thread, apply)
+        try:
+            self.objects.put(key, data, 'application/octet-stream')
+            return _mutate(self.service, thread, apply)
+        except Exception:
+            # Cancellation may delete the reservation before a slow write ends.
+            # Only a durable terminal cancellation permits deletion here; an
+            # unknown acknowledgement must retain its reclaimable reservation.
+            state = self._state(thread, uid)
+            if state['state'] in ('cancelled', 'expired'):
+                self.objects.delete(key)
+            raise
 
     def _bytes(self, thread, uid, part):
         data = self.objects.get(self._key(thread, uid, part), part['size_bytes'])

@@ -9,6 +9,35 @@ from test_enterprise_normal_chat import chat_store
 from test_thread_postgres import postgres_thread_service
 
 
+def test_cancel_does_not_wait_for_object_write_and_removes_late_bytes(chat_store):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    service, thread = chat_store
+    entered, release = Event(), Event()
+
+    class SlowStore(MemoryObjectStore):
+        def put(self, key, content, mime):
+            entered.set()
+            assert release.wait(5)
+            super().put(key, content, mime)
+
+    objects = SlowStore()
+    uploads = ResourceUploads(service, objects, chunk_bytes=4)
+    uid = uploads.begin(thread, 'slow.csv', 4, 'slow', True)['upload_id']
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        writing = pool.submit(uploads.part, thread, uid, 0, b'abcd')
+        try:
+            assert entered.wait(2)
+            cancelling = pool.submit(uploads.cancel, thread, uid)
+            cancelling.result(timeout=1)
+        finally:
+            release.set()
+        with pytest.raises(ValueError, match='closed|expired'):
+            writing.result(timeout=2)
+    assert uploads.status(thread, uid)['state'] == 'cancelled'
+    assert not objects.contents
+
+
 def test_draft_attachment_is_only_admitted_by_accepted_send(chat_store):
     from test_enterprise_normal_chat import native_executor
     from test_thread_work_execution import command
