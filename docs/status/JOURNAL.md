@@ -7521,3 +7521,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Archived reference research 2bd086af; reused current composition, preserved three dirty files, and retained projection-policy design backlog.
 - 2026-11-14 Review fix: persist renderer version/source identity and library digest; failing regression confirmed, then 85 renderer checks passed.
 - 2026-11-14 Bound renderer receipts for provenance, a7440980; installed-entry smoke exposed symlink source lookup, now covered by regression.
+- 2026-11-14 Fixed installed renderer provenance lookup, ddc3df02; final build and real continuation passed, 47 product hashes verified.
+- 2026-11-14 Verified App5174 restored final PPT/PDF and four completed rounds; six deployment graph paths have no card crossings.
