@@ -45,8 +45,8 @@ from capability_agent.tools.catalog import (
     CoreToolCatalog,
 )
 from capability_agent.trajectory.answers import AnswerClaim
-from grid_agent.application.composition import build_generic_application, run_generic_application
-from grid_agent.application.registry import ApplicationRegistry
+from pandapower_application.composition import build_generic_application, run_generic_application
+from pandapower_application.registry import ApplicationRegistry
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.contracts import AnswerEnvelope
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
@@ -580,7 +580,7 @@ def execute_application_case(
     run_id = str(document["run_id"])
     _remove_generated_application_run(runs_root, run_id)
 
-    from grid_agent.application.profile import build_pandapower_application_profile
+    from pandapower_application.profile import build_pandapower_application_profile
 
     profile = _with_pandapower_timeout(
         build_pandapower_application_profile(),

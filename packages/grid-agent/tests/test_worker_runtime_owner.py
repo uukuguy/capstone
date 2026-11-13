@@ -6,6 +6,12 @@ from types import SimpleNamespace
 from grid_agent import worker
 
 
+def test_scripted_worker_runner_imports_current_application(monkeypatch):
+    monkeypatch.syspath_prepend(str(worker.ROOT))
+    from validation.run import build_generic_application
+    assert build_generic_application.__module__ == 'pandapower_application.composition'
+
+
 def test_provider_worker_prepares_without_cli_import(monkeypatch, tmp_path):
     original_import = builtins.__import__
     def guarded(name, *args, **kwargs):

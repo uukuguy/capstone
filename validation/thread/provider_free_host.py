@@ -110,8 +110,8 @@ class ProviderFreeThreadHost:
         if self.application_id == "pandapower-static-analysis":
             from grid_simulator.engine import Pandapower340Engine
             from grid_simulator.models import ModelRegistry
-            from grid_agent.application.thread_capabilities import build_pandapower_thread_application
-            from grid_agent.application.thread_capabilities import PANDAPOWER_PROFILE_DESCRIPTOR
+            from pandapower_application.thread_capabilities import build_pandapower_thread_application
+            from pandapower_application.thread_capabilities import PANDAPOWER_PROFILE_DESCRIPTOR
 
             models = ModelRegistry(Pandapower340Engine())
             def resolver(model_id: str) -> Mapping[str, object]:
