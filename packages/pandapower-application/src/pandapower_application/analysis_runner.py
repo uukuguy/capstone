@@ -15,7 +15,7 @@ from pandapower_application.analysis_store import AnalysisContextStore, ContextS
 from pandapower_application.analysis_turns import ActiveTurnHandle, FinalizedTurn, TurnController
 from pandapower_domain.context_view import materialize_context_view
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.runtime.rpc import PiProtocolError, SemanticEventCallback
+from capability_agent.runtime.rpc import PiProtocolError, SemanticEventCallback
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.trajectory.artifacts import ArtifactIntegrityError
 from pandapower_application.capture import CaptureIntegrityError, NativeCaptureAdapter

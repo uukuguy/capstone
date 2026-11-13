@@ -10,7 +10,7 @@ import pytest
 
 from pandapower_domain.authority import SimulatorIntegrityError
 from pandapower_domain.models import ContextEventDraft
-from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, AnalysisRunner
+from pandapower_application.analysis_runner import AnalysisOutcome, AnalysisRequest, AnalysisRunner
 from pandapower_application.analysis_store import AnalysisContextStore, ContextStoreError
 from pandapower_application.analysis_turns import ActiveTurnHandle, FinalizedTurn, TurnController
 from pandapower_application.workspace import AnalysisWorkspace
@@ -688,7 +688,7 @@ def test_runner_verifies_running_snapshot_before_completion_and_final_report(
         calls.append(f"report:{kwargs['context'].status}")
 
     monkeypatch.setattr(AnalysisContextStore, "verify_materialized_snapshot", record_verify)
-    monkeypatch.setattr("grid_agent.analysis.runner.write_analysis_report_checkpoint", record_checkpoint)
+    monkeypatch.setattr("pandapower_application.analysis_runner.write_analysis_report_checkpoint", record_checkpoint)
 
     outcome = runner_harness.runner.run(
         AnalysisRequest(analysis_id="analysis-test", instructions=("一",))
