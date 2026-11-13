@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from uvicorn import Config
 
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 from grid_agent.trajectory.api.app import create_trajectory_app
 from grid_agent.trajectory.api.catalog import TrajectoryRunCatalog
 from grid_agent.trajectory.api.cursor import CursorCodec

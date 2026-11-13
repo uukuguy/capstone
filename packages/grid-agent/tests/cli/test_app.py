@@ -213,7 +213,7 @@ def test_cli_assembles_runtime_from_extracted_package_owners() -> None:
 
     assert ("capability_agent.application", ("prepare_domain_runtime",)) in imports
     assert ("pandapower_domain", ("build_pandapower_profile",)) in imports
-    assert ("grid_agent.application.composition", ("prepare_domain_runtime",)) not in imports
+    assert ("pandapower_application.composition", ("prepare_domain_runtime",)) not in imports
     assert ("grid_agent.domains", ("build_pandapower_profile",)) not in imports
 
 

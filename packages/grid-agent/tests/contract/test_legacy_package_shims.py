@@ -9,7 +9,7 @@ from capability_agent.tools import GuideIndex, ToolCatalog
 
 
 def test_legacy_imports_are_exact_compatibility_aliases() -> None:
-    from grid_agent.application.composition import (
+    from pandapower_application.composition import (
         prepare_domain_runtime as legacy_prepare_domain_runtime,
     )
     from grid_agent.domain import (
@@ -56,7 +56,7 @@ catalog_from_environment = ToolCatalog.from_environment.__func__
 guide_load = GuideIndex.load.__func__
 prepare = prepare_domain_runtime
 
-import grid_agent.application.composition
+import pandapower_application.composition
 import grid_agent.tools.catalog
 import grid_agent.tools.guide
 

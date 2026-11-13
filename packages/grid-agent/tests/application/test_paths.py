@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from grid_agent.application import workspace as workspace_module
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 from grid_agent.application.workspace import (
     RunWorkspace,
     RunWorkspaceExistsError,

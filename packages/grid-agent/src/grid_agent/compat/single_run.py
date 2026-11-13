@@ -19,8 +19,8 @@ from capability_agent.application import ApplicationContextStore, ApplicationReq
 from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.runtime.models import CliLLMOptions
 
-from grid_agent.application.composition import build_generic_application
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.composition import build_generic_application
+from pandapower_application.paths import ProjectPaths
 from grid_agent.contracts import RunRequest
 from grid_agent.knowledge.offline import answer_diagnostic
 from grid_agent.compat.single_run_snapshot import publish_compatibility_snapshot

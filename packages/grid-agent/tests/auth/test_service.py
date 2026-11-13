@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 from grid_agent.auth.service import AuthService
 from grid_agent.auth.store import ProjectAuthStore
 from grid_agent.runtime.lock import PiOAuthHelper, PiRuntimeIdentity

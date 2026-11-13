@@ -37,7 +37,7 @@ from pandapower_application.registry import (
     ApplicationRegistry,
     build_trusted_application_registry,
 )
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 
 
 def build_generic_application(
@@ -156,6 +156,7 @@ def _build_runtime_host(
         project_paths.pi_runtime_dir,
         runtime_environment,
         runtime_lock=runtime_lock,
+        command_env_name="GRID_AGENT_PI_COMMAND",
     ).resolve()
     extension_path = PiExtensionLocator(
         project_paths.root,
@@ -179,8 +180,8 @@ def _runtime_host_dependencies() -> tuple[type, type, type]:
     """Load generic extension and product runtime adapters lazily."""
 
     from capability_agent.runtime.extension import PiExtensionLocator
-    from grid_agent.runtime.lock import PiRuntimeLock
-    from grid_agent.runtime.locator import PiRuntimeLocator
+    from capability_agent.runtime.lock import PiRuntimeLock
+    from capability_agent.runtime.locator import PiRuntimeLocator
 
     return PiExtensionLocator, PiRuntimeLock, PiRuntimeLocator
 

@@ -7,7 +7,7 @@ def test_extracted_package_owner_imports_are_available() -> None:
 
 
 def test_legacy_public_imports_are_preserved() -> None:
-    from grid_agent.application.composition import prepare_domain_runtime
+    from pandapower_application.composition import prepare_domain_runtime
     from grid_agent.domain import DomainManifest
     from grid_agent.domains import build_pandapower_profile
     from grid_agent.tools.catalog import ToolCatalog

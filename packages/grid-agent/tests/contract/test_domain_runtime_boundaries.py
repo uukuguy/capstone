@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 DOMAIN_ROOT = ROOT / "packages/grid-agent/src/grid_agent/domain"
-COMPOSITION = ROOT / "packages/grid-agent/src/grid_agent/application/composition.py"
+COMPOSITION = ROOT / "packages/pandapower-application/src/pandapower_application/composition.py"
 
 FORBIDDEN_PREFIXES = (
     "grid_agent.simulator",

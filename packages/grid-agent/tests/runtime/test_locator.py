@@ -6,7 +6,7 @@ from typing import Any, Sequence
 
 import pytest
 
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 from grid_agent.runtime.locator import PiRuntimeLocator, PiRuntimeLocatorError
 from grid_agent.runtime.lock import PiRuntimeLock
 

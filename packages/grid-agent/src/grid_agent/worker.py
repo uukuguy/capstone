@@ -13,7 +13,7 @@ from capstone_agent.prompt_hints import build_case_prompt_decorator
 from capstone_agent.runtime import load_runtime_environment
 from capability_agent.runtime.catalog import ProviderCatalog
 
-from grid_agent.application.composition import build_generic_application
+from pandapower_application.composition import build_generic_application
 from grid_agent.network_story import ProviderTopologyPlanner, build_grid_story
 from pandapower_application.network_view import build_grid_network_view
 

@@ -19,7 +19,7 @@ from capability_agent.runtime.lock import (
     PiRuntimeLockError,
     PiRuntimePatch,
 )
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 
 
 class PiRuntimeLock(_PiRuntimeLock):

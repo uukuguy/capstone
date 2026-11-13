@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI
 from pathlib import Path
 
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 from grid_agent.trajectory.api.server import LOOPBACK_HOSTS, build_server_config, serve_trajectory
 
 

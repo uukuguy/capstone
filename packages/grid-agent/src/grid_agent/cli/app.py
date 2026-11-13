@@ -21,8 +21,8 @@ from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, Analysi
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis.turns import AuditCallback, TurnController
 from pandapower_application.workspace import AnalysisWorkspace
-from grid_agent.application.paths import ProjectPaths
-from grid_agent.application.composition import run_generic_application
+from pandapower_application.paths import ProjectPaths
+from pandapower_application.composition import run_generic_application
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.compat.v1_0_1 import build_grid_v1_0_1_compatibility_adapter
 from grid_agent.compat.single_run import SingleRunAdapter

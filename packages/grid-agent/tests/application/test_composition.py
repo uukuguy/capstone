@@ -9,7 +9,7 @@ from typing import cast
 
 import pytest
 
-from grid_agent.application.composition import prepare_domain_runtime
+from pandapower_application.composition import prepare_domain_runtime
 from grid_agent.domain import (
     ArtifactAuthority,
     CapabilityContractSource,

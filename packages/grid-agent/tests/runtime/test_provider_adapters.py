@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 from grid_agent.config.models import ResolvedLLM, ResolvedLLMConfig, SecretValue
 from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
 from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity

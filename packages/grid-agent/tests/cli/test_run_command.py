@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from capability_agent.application import AgentApplication, ApplicationWorkspace
 
-import grid_agent.application.composition as grid_composition
+import pandapower_application.composition as grid_composition
 from grid_agent.cli import app as cli_module
 from grid_agent.cli.app import app
 from pandapower_application.profile import build_pandapower_application_profile

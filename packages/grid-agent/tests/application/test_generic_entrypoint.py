@@ -15,12 +15,12 @@ from capability_agent.application.output import (
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 
-import grid_agent.application.composition as composition_module
-from grid_agent.application.composition import (
+import pandapower_application.composition as composition_module
+from pandapower_application.composition import (
     build_generic_application,
     run_generic_application,
 )
-from grid_agent.application.paths import ProjectPaths
+from pandapower_application.paths import ProjectPaths
 from pandapower_application.profile import build_pandapower_application_profile
 
 
@@ -541,12 +541,14 @@ def test_generic_composition_injects_product_owned_runtime_host(
             environ: object,
             *,
             runtime_lock: object,
+            command_env_name: str,
         ) -> None:
             locator_calls.update(
                 runtime_dir=runtime_dir,
                 environ=environ,
                 runtime_lock=runtime_lock,
             )
+            assert command_env_name == 'GRID_AGENT_PI_COMMAND'
 
         def resolve(self) -> PiCommand:
             return command

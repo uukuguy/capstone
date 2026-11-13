@@ -1,6 +1,6 @@
 """Grid-agent application composition exports."""
 
-from grid_agent.application.composition import (
+from pandapower_application.composition import (
     build_generic_application,
     run_generic_application,
 )

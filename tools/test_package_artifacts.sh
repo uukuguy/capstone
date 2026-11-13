@@ -99,7 +99,7 @@ uv venv "$venv_dir" >/dev/null
 uv pip install --python "$venv_dir/bin/python" "${python_wheels[@]}"
 uv venv "$pypsa_venv_dir" >/dev/null
 uv pip install --python "$pypsa_venv_dir/bin/python" "${pypsa_wheels[@]}"
-"$venv_dir/bin/python" -c 'import capstone_agent.application, grid_agent.application.composition'
+"$venv_dir/bin/python" -c 'import capstone_agent.application, pandapower_application.composition'
 "$venv_dir/bin/python" - <<'PY'
 from pathlib import Path
 from capstone_agent.pi_intent import default_config_root

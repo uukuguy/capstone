@@ -1,3 +1,5 @@
+"""Application-owned runtime and artifact locations."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
