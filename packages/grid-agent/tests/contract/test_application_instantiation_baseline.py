@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from grid_agent.reporting import load_questions
+from validation.question_files import load_questions
 
 
 def test_canonical_business_task_files_are_distinct_and_nonempty(
