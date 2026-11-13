@@ -52,9 +52,9 @@ from grid_agent.contracts import AnswerEnvelope
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
 from grid_agent.simulator.client import GridctlClient, SimulatorCapabilityError
 from pandapower_application.gridctl_locator import GridctlLocator
-from grid_agent.validation.cases import ValidationCase, load_cases
-from grid_agent.validation.corpus import AnswerCorpus, AnswerCorpusError, evaluate_corpus_trace, load_answer_corpus
-from grid_agent.validation.oracles import ORACLES, ToolResultEvent
+from validation.pandapower_cases import ValidationCase, load_cases
+from validation.pandapower_corpus import AnswerCorpus, AnswerCorpusError, evaluate_corpus_trace, load_answer_corpus
+from validation.pandapower_oracles import ORACLES, ToolResultEvent
 from pandapower_domain.provisioning import PandapowerRuntimeProvisioner
 
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from grid_agent.validation.oracles import ToolResultEvent
+from validation.pandapower_oracles import ToolResultEvent
 
 
 class AnswerCorpusError(ValueError):

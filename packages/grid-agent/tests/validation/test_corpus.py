@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from grid_agent.validation.corpus import evaluate_corpus_trace, load_answer_corpus
-from grid_agent.validation.oracles import ToolResultEvent
+from validation.pandapower_corpus import evaluate_corpus_trace, load_answer_corpus
+from validation.pandapower_oracles import ToolResultEvent
 
 
 def _write_corpus(path: Path) -> Path:

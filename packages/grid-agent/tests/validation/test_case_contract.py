@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.validation.cases import ValidationCase, load_cases
+from validation.pandapower_cases import ValidationCase, load_cases
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -80,7 +80,7 @@ def test_topology_case_forbids_unnecessary_powerflow() -> None:
 
 
 def test_ac_loss_case_loads_explicit_mw_tolerance_without_relaxing_other_fields() -> None:
-    from grid_agent.validation.oracles import ORACLES, ToolResultEvent
+    from validation.pandapower_oracles import ORACLES, ToolResultEvent
     case = next(item for item in load_cases(ROOT / "validation") if item.id == "analysis-ac-loss-001")
     assert case.oracle.evaluator == "result_matches_with_tolerance"
     assert case.oracle.arguments["numeric_tolerances"] == {

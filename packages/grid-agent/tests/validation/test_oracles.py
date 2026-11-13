@@ -1,6 +1,6 @@
 import pytest
 
-from grid_agent.validation.oracles import (
+from validation.pandapower_oracles import (
     ORACLES,
     ToolResultEvent,
     contains_all,
