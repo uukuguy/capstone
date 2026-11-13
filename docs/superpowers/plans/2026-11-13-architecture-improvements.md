@@ -15,8 +15,12 @@ documents are preserved separately.
   claiming scale acceptance.
 - [ ] Attachment lifecycle: cancel obsolete reads, coalesce requests, bound cached
   bytes and show download errors while collapsed. Keep the accepted layout.
-- [ ] Extract one shared state transition with storage conformance tests.
+- [x] Extract one shared state transition with storage conformance tests.
+  Candidate 9aa3e8f1 shares terminal preparation; 138 focused checks passed with
+  memory/PostgreSQL in one process (23.67 seconds). Runtime rebuild remains due.
 - [ ] Record same-task model/tool/storage timing before optimizing connections.
+  First real two-instruction measurement is in the verification report.
+  Roughly 40k input tokens per response warrants context-source profiling first.
 - [ ] Consolidate current architecture entry contracts and migrate registered
   pandapower runtime ownership with output and replay checks.
 
