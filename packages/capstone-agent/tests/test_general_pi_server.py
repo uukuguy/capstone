@@ -177,10 +177,15 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
         assert observation['metadata']['source_ref'] in cache.records
 
 
+def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_path, monkeypatch):
+    test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
+        tmp_path, monkeypatch, '1.20.0', False, False, domain_available=True)
+
+
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 @pytest.mark.parametrize('choice', [None, False, True])
 @pytest.mark.parametrize('experimental_llm_pool', [False, True])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool):
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False):
     if choice is not None and version != '1.20.0':
         pytest.skip('Explicit UI control is verified against the current publication')
     import json
@@ -241,7 +246,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         raise Captured()
     monkeypatch.setattr(module, 'native_pi_launch', launch)
     from capstone_agent import domain_tool_client
-    monkeypatch.setattr(domain_tool_client, 'load_domain_tool_catalogs', lambda _: ({}, {}, []))
+    domain_catalog = {'tools': {'pack_inspect': {'description': 'Inspect registered data', 'inputSchema': {'type': 'object'}}}}
+    monkeypatch.setattr(domain_tool_client, 'load_domain_tool_catalogs',
+        lambda _: (domain_catalog, {}, ['fixture-pack@1']) if domain_available else ({}, {}, []))
     monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
@@ -276,12 +283,17 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert task not in runner.task_llm_profiles
     assert runner.relay.timings == {}
     actual = captured[0]['researchRuntime']
-    domain_status = next(item['content'] for item in captured[0]['contextFiles']
-                         if item['path'] == 'unavailable-domain-tools')
-    assert 'fixture-pack@1' in domain_status
-    assert 'unavailable' in domain_status
-    assert 'not evidence that source data is absent' in domain_status
-    assert 'domainTools' not in captured[0]
+    if domain_available:
+        assert captured[0]['domainTools']['onDemandTools'] is True
+        assert captured[0]['domainTools']['catalog'] == domain_catalog
+        assert {'pack_inspect', 'agent_tool_search', 'agent_tool_load'} <= set(captured[0]['applicationPolicy']['allowed_tools'])
+    else:
+        domain_status = next(item['content'] for item in captured[0]['contextFiles']
+                             if item['path'] == 'unavailable-domain-tools')
+        assert 'fixture-pack@1' in domain_status
+        assert 'unavailable' in domain_status
+        assert 'not evidence that source data is absent' in domain_status
+        assert 'domainTools' not in captured[0]
     assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')

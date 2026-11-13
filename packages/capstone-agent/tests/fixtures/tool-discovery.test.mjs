@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createServer} from 'node:http';
 import * as host from '../../src/capstone_agent/resources/general-sdk.mjs';
+import {compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
 
 function fixture(options={}) {
   let calls=0;
@@ -17,6 +18,45 @@ function fixture(options={}) {
     parameters:p.inputSchema,execute:async()=>{calls++;return {content:[{type:'text',text:'observed'}]};}}));
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
+
+test('domain publications use bounded discovery without gateway grants or eager schemas',async()=>{
+ const schema={type:'object',properties:{model:{type:'string'}},required:['model'],additionalProperties:false};
+ const config={applicationPolicy:{allowed_tools:['bash','agent_tool_search','agent_tool_load','pack_inspect']},
+  domainTools:{onDemandTools:true,catalog:{tools:{pack_inspect:{description:'Inspect the registered model',inputSchema:schema},
+    pack_private:{description:'Unadmitted action',inputSchema:schema}},tool_hashes:{pack_inspect:'exact-revision'}}}};
+ const discovery=host.createApplicationToolDiscovery(config);
+ assert.ok(discovery);
+ assert.deepEqual(discovery.initialToolNames(config.applicationPolicy.allowed_tools),['bash','agent_tool_search','agent_tool_load']);
+ const search=JSON.parse((await discovery.tools[0].execute('search',{query:'registered model'})).content[0].text);
+ assert.deepEqual(search.tools.map(t=>t.name),['pack_inspect']);
+ const options=host.applicationToolOptions(config,[],undefined,discovery);
+ assert.equal(options.customTools.filter(t=>t.name==='pack_inspect').length,1);
+ assert.equal(options.customTools.some(t=>t.name==='pack_private'),false);
+ await assert.rejects(options.customTools.find(t=>t.name==='pack_inspect').execute('early',{model:'m'}),/tool_not_active/);
+ const loaded=await discovery.tools[1].execute('load',{names:['pack_inspect']});
+ assert.ok(JSON.stringify(loaded).includes('exact-revision'));
+ assert.deepEqual(options.customTools.find(t=>t.name==='pack_inspect').parameters,schema);
+ assert.deepEqual(discovery.admittedTools.map(t=>t.name),['pack_inspect']);
+ discovery.close();
+});
+
+test('mixed discovery preserves gateway composition scope and rejects identity collisions',async t=>{
+ const cwd=await mkdtemp(join(tmpdir(),'mixed-discovery-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
+ const publication={description:'Read admitted data',inputSchema:{type:'object'}};
+ const config={toolResultCwd:cwd,deadlineAt:Date.now()+10000,toolComposition:compositionPolicy,
+  applicationPolicy:{allowed_tools:['bash','write','agent_tool_search','agent_tool_load','agent_tools_execute','source_read','pack_inspect']},
+  dataGateway:{onDemandTools:true,catalog:{revision:'fixture',tools:{source_read:publication},entry_tools:['source_read']}},
+  domainTools:{onDemandTools:true,catalog:{tools:{pack_inspect:publication}}}};
+ const discovery=host.createApplicationToolDiscovery(config);
+ assert.deepEqual(discovery.initialToolNames(['source_read','pack_inspect']),['agent_tool_search','agent_tool_load','source_read']);
+ const options=host.applicationToolOptions(config,[],undefined,discovery);
+ const tool=options.customTools.find(t=>t.name==='agent_tools_execute');assert.ok(tool);
+ const result=await tool.execute('blocked',{calls:[{id:'domain',tool:'pack_inspect',arguments:{}}]});
+ assert.equal(result.isError,true);assert.match(JSON.stringify(result),/not admitted|not published|not granted/i);
+ discovery.close();
+ config.domainTools.catalog.tools.source_read=publication;
+ assert.throws(()=>host.createApplicationToolDiscovery(config),/conflicting registered identities/);
+});
 
 test('an explicit identity inside a search is not replaced by description references',async()=>{
  const publications={a_related:{name:'related',description:'Use requested_action contract fields'},
@@ -45,11 +85,12 @@ test('unresolved publications load exact contracts before registration without p
  await c.tools[1].execute('load-again',{names:['selected']});assert.equal(reads,1);
 });
 
-test('actual pinned SDK registers a progressive tool only after exact contract load',async()=>{
+for(const source of ['gateway','domain'])test('actual pinned SDK loads exact contracts before calling '+source+' tools',async()=>{
  const sdk=await import('../../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js');
  const ai=await import('../../../../.grid-agent/runtime/pi/source/packages/ai/dist/index.js');
  const dir=await mkdtemp(join(tmpdir(),'progressive-sdk-'));
  const menus=[],requests=[],errors=[];let session;
+ const toolName=source==='gateway'?'data_gateway_selected':'pack_selected';
  const metadata={name:'selected',description:'Selected action',
   _meta:{'data-gateway/capability':{summary_version:'capability-summary/1',declaration_basis:'provider_declared',
    semantics:{prerequisites:['Use a current issued reference.'],execution_choice:'Use only for the selected scope.'}}},
@@ -60,22 +101,23 @@ test('actual pinned SDK registers a progressive tool only after exact contract l
   const body=JSON.parse(raw);requests.push(body);res.setHeader('Content-Type','application/json');
   res.end(JSON.stringify(body.operation==='resolve_contracts'?{catalog_revision:'pub',executed:false,
    tools:{data_gateway_selected:{...metadata,inputSchema,usage:{rules:'EXACT_USAGE_SENTINEL'}}},tool_hashes:{data_gateway_selected:'rev'}}:
-   {result_json:JSON.stringify({structuredContent:{status:'ok',data:{value:4}}}),observation:{kind:'external_gateway_observation',
+   {tool:body.name,call_id:body.call_id,result_json:JSON.stringify({structuredContent:{status:'ok',data:{value:4}}}),observation:{kind:'external_gateway_observation',
     task_id:'task',tool_call_id:body.call_id,tool:body.name,catalog_revision:'pub',tool_schema_sha256:'rev'}}));
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
- const config={toolResultCwd:dir,deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load','data_gateway_selected']},
-  dataGateway:{onDemandTools:true,url:'http://127.0.0.1:'+server.address().port,grant:'fixture',taskId:'task',
-   catalog:{revision:'pub',tools:{data_gateway_selected:metadata},entry_tools:[],tool_hashes:{data_gateway_selected:'rev'}}}};
- const discovery=host.createGatewayToolDiscovery(config);
+ const publication=source==='gateway'?metadata:{name:'selected',description:'Selected domain action',inputSchema};
+ const config={toolResultCwd:dir,deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',toolName]},
+  [source==='gateway'?'dataGateway':'domainTools']:{onDemandTools:true,url:'http://127.0.0.1:'+server.address().port,grant:'fixture',taskId:'task',
+   catalog:{revision:'pub',tools:{[toolName]:publication},entry_tools:[],tool_hashes:{[toolName]:'rev'}}}};
+ const discovery=host.createApplicationToolDiscovery(config);
  const model={id:'fixture',name:'Fixture',provider:'capstone-general',api:'openai-completions',baseUrl:'http://127.0.0.1:1',
   reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}};
  let turn=0;
  const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,getAuth:async()=>({auth:{apiKey:'offline'}}),isUsingOAuth:()=>false,
   streamSimple(_model,context){
    menus.push(context.tools.map(t=>({name:t.name,parameters:t.parameters,description:t.description})));
-   if(turn===1)assert.ok(JSON.stringify(context.messages).includes('EXACT_USAGE_SENTINEL'));
-   const call=[{name:'agent_tool_load',arguments:{names:['selected']}},{name:'data_gateway_selected',arguments:{value:4}}][turn++];
+   if(turn===1&&source==='gateway')assert.ok(JSON.stringify(context.messages).includes('EXACT_USAGE_SENTINEL'));
+   const call=[{name:'agent_tool_load',arguments:{names:['selected']}},{name:toolName,arguments:{value:4}}][turn++];
    const message={role:'assistant',content:call?[{type:'toolCall',id:'call-'+turn,...call}]:[{type:'text',text:'Done'}],
     api:model.api,provider:model.provider,model:model.id,timestamp:Date.now(),stopReason:call?'toolUse':'stop',
     usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{total:0}}};
@@ -92,9 +134,12 @@ test('actual pinned SDK registers a progressive tool only after exact contract l
   session.setActiveToolsByName(discovery.initialToolNames(config.applicationPolicy.allowed_tools));discovery.installSession(session);
   await session.prompt('Use selected action');
   assert.deepEqual(errors,[]);assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
-  assert.deepEqual(menus[1].find(t=>t.name==='data_gateway_selected')?.parameters,inputSchema);
-  assert.ok(menus[1].find(t=>t.name==='data_gateway_selected')?.description.includes('Use a current issued reference.'));
-  assert.equal(requests.length,2);assert.equal(requests[0].operation,'resolve_contracts');assert.equal(requests[1].name,'data_gateway_selected');
+  assert.deepEqual(menus[1].find(t=>t.name===toolName)?.parameters,inputSchema);
+  if(source==='gateway'){
+   assert.ok(menus[1].find(t=>t.name===toolName)?.description.includes('Use a current issued reference.'));
+   assert.equal(requests.length,2);assert.equal(requests[0].operation,'resolve_contracts');
+  }else assert.equal(requests.length,1);
+  assert.equal(requests.at(-1).name,toolName);assert.deepEqual(requests.at(-1).arguments,{value:4});
  }finally{session?.dispose();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
 });
 
@@ -182,7 +227,7 @@ test('SDK discovery uses the application capacity snapshot instead of module def
   const config={dataGateway:{onDemandTools:true,catalog:{tools,entry_tools:['registered_0']}},
     applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',...Object.keys(tools)]},
     runtimeLimits:{tool_active_count:1024,tool_schema_chars:1000000,tool_search_page_items:10,tool_summary_chars:500}};
-  assert.equal(host.createGatewayToolDiscovery(config).tools[1].parameters.properties.names.maxItems,1024);
+  assert.equal(host.createApplicationToolDiscovery(config).tools[1].parameters.properties.names.maxItems,1024);
 });
 
 test('rejected selection names are explicit and do not activate any tool',async()=>{
@@ -379,9 +424,9 @@ test('large output contracts remain available by file without expanding the mode
 test('sessions without any gateway grant do not acquire discovery tools',()=>{
   const config={dataGateway:{onDemandTools:true,catalog:{tools:{ungranted:{description:'No grant',inputSchema:{type:'object'}}}}},
     applicationPolicy:{allowed_tools:['read']}};
-  assert.equal(host.createGatewayToolDiscovery(config),undefined);
+  assert.equal(host.createApplicationToolDiscovery(config),undefined);
   config.applicationPolicy.allowed_tools.push('ungranted');
-  assert.throws(()=>host.createGatewayToolDiscovery(config),/authorize/);
+  assert.throws(()=>host.createApplicationToolDiscovery(config),/authorize/);
 });
 
 test('accepted research handoff closes pending direct activation before the boundary',async()=>{
@@ -397,7 +442,7 @@ test('accepted research handoff closes pending direct activation before the boun
 });
 
 for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' invokes an admitted entry on its first turn and loads other exact contracts on demand',async()=>{
-  assert.equal(typeof host.createGatewayToolDiscovery,'function');
+  assert.equal(typeof host.createApplicationToolDiscovery,'function');
   const sdk=await import('../../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js');
   const ai=await import('../../../../.grid-agent/runtime/pi/source/packages/ai/dist/index.js');
   const dir=await mkdtemp(join(mode==='parent'?tmpdir():new URL('../../../../.grid-agent/runtime/',import.meta.url).pathname,'tool-discovery-sdk-'));
@@ -423,7 +468,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' in
     ...Object.keys(publications).slice(0,29)]},dataGateway:{onDemandTools:true,
     url:'http://127.0.0.1:'+server.address().port,grant:'task-only-fixture',taskId:'task-sdk',
     catalog:{revision:'revision',tools:publications,entry_tools:['data_gateway_source_28','data_gateway_source_29'],tool_hashes:Object.fromEntries(Object.keys(publications).map((name,i)=>[name,'hash-'+i]))}}};
-  const discovery=host.createGatewayToolDiscovery(config);
+  const discovery=host.createApplicationToolDiscovery(config);
   const model={id:'fixture',name:'Fixture',provider:'capstone-general',api:'openai-completions',baseUrl:'http://127.0.0.1:1',
     reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}};
   let index=0;
