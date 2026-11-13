@@ -1,5 +1,25 @@
 # Capstone Agent Framework
 
+## Current execution entries
+
+This matrix describes the implemented entry selection. Historical design notes
+below do not override it. Application ownership selects the entry and freezes its
+grants; the Kernel does not classify business topics by keywords.
+
+| Entry | Current selection and execution | Owning source |
+| --- | --- | --- |
+| Default native conversation and enterprise instruction | Enter the execution model directly with admitted context and tools. Planning is on demand. An open model remains management context when the submission carries the main-chain native binding. | `capstone_agent.intent_runtime.IntentRuntimeFactory.plan_intent`; `capstone_agent.native_hosted_worker` |
+| Explicit professional execution | Use the application-selected registered model, Domain Pack and Authority. A non-native model-bound entry may use its configured recognizer or research router. Native shell access is not a professional Pack tool. | `grid_agent.hosted`; `capstone_agent.intent_runtime`; `pandapower_domain.execution` |
+| Admitted domain handoff or report | Replay the frozen handoff on its owning worker; do not reinterpret it as a new ordinary instruction. | `_replay_frozen_domain_execution`; `_plan_domain_report` |
+| Explicit Pi reference mode | Use the separately selected direct runtime with its admitted general executor. | `IntentRuntimeFactory._plan_direct` |
+| Historical attempts | Retain the frozen intent decision, resources and implementation identity required by replay/retry. Missing historical resources fail explicitly. | `IntentRuntimeFactory`; Thread Attempt ledger |
+
+The `grid-agent` CLI compatibility requirement is withdrawn. Its package still
+owns formal pandapower application composition and some runtime modules. The name
+alone does not make those modules unused. Move domain execution to its Pack and
+application composition to its application owner, with output, replay and
+registration checks at each migration boundary.
+
 ## Gateway selection and automatic negotiation
 
 The application manages available gateway instances and a current selection.
@@ -89,9 +109,13 @@ cross-profile cooperation and frontend contract. These are target contracts, not
 implemented guarantees. The runtime descriptions below retain their current scope,
 including model-bound profile selection and isolated general Pi execution.
 
-## Standalone intent routing after rollback
+## Historical standalone intent routing after rollback
 
-The current local recovery candidate restores pre-closure business execution.
+This section records the earlier rollback candidate. The default native entry
+was superseded by the 2026-11-05 direct-execution correction and the matrix above.
+It does not require a separate classifier for every current instruction.
+
+That local recovery candidate restored pre-closure business execution.
 An application-owned, tool-free LLM selects ordinary or professional before the
 existing execution chain. It does not compile business requirements, rewrite the
 request, certify goal coverage or replace the final answer. Recognition can use

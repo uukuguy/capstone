@@ -72,7 +72,32 @@ infer billing cost or attribute all remaining wall time to model inference.
 No further model repetition is needed before identifying the context sources.
 Local receipt: `/tmp/capstone-runtime-improvements-20261113.json`.
 
-## Remaining acceptance
+## Follow-on architecture slices
+
+Candidate `9aa3e8f1` extracts shared terminal preparation for the memory and
+PostgreSQL stores. Four terminal phases, immutable preparation, durable Work
+state, result delivery and rejection of repeated completion are covered.
+138 focused tests passed in one process in 23.67 seconds. Initial parallel
+runs against the same fixture database caused DDL deadlock and duplicate fixed
+run IDs; those runs failed and are not acceptance. Sequential verification passed.
+
+The following documentation commit `d24f2920` was rebuilt locally. API and all
+three workers use `sha256:7d2af407ec90b0e75de5cd9cb933fb0bd6cc2809771cbd84da2ebc5b5c8d1a6c`.
+Readiness passed. Scoped cleanup receipt:
+`.capstone-agent/cache-maintenance-20261113-134935-24072.log`.
+The earlier real model result remains evidence for source `4e694995`.
+
+Candidate `f5e76b96` moves published pandapower tool catalog/execution, executor
+cache and receipt ownership into `pandapower_domain.tool_service`. The application
+retains management-context validation and selects a bounded workspace identity.
+The Pack imports neither the application host nor the old CLI package.
+21 boundary/lifecycle checks passed in 0.53 seconds; 51 execution/output/profile/
+hosted-consumer checks passed in 76.58 seconds. Existing pandapower deprecation
+warnings remain. This is one ownership slice; formal application composition
+and historical compatibility modules have not all migrated. Runtime rebuild
+for this slice remains pending.
+
+## Open acceptance
 
 This is local implementation evidence, not cloud acceptance or a performance
 comparison with the previous version. S3/GCS adapters,
