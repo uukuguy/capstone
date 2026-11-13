@@ -301,6 +301,28 @@ def _terminal_result_projections(
     return tuple(projections)
 
 
+def _prepare_terminal_transition(
+    snapshot: ThreadSnapshot, claim: AttemptClaim, phase: str, payload: Mapping[str, Any],
+) -> tuple[ThreadSnapshot, dict[str, Any], tuple[dict[str, Any], ...]]:
+    """Compute the shared terminal outcome without changing storage or inputs.
+
+    Each adapter validates its active lease under its own lock before calling
+    this function, then commits capture seals, result parts and the terminal
+    event with the returned snapshot in the same storage boundary.
+    """
+    result_projections = _terminal_result_projections(payload, claim=claim, phase=phase)
+    existing_result_ids = {item.result_id for item in snapshot.result_projections}
+    if any(item.result_id in existing_result_ids for item in result_projections):
+        raise ThreadProtocolError("result projection already exists")
+    event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
+    from .thread_work import work_event_payload
+    updated, work_payload = work_event_payload(
+        replace(snapshot, current_attempt=None), claim.task_context,
+        claim.attempt.attempt_id, phase)
+    updated = _result_projection_window(updated, result_projections)
+    return updated, {**event_payload, **work_payload}, projection_parts
+
+
 def _terminal_result_delivery(
     payload: Mapping[str, Any], projections: tuple[ResultProjection, ...],
 ) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
@@ -2356,19 +2378,8 @@ class InMemoryThreadService(NativeExecutionOwner):
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
-            result_projections = _terminal_result_projections(
-                payload, claim=claim, phase=phase,
-            )
-            existing_result_ids = {item.result_id for item in self._snapshot.result_projections}
-            if any(item.result_id in existing_result_ids for item in result_projections):
-                raise ThreadProtocolError("result projection already exists")
-            event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
-            from .thread_work import work_event_payload
-            work_snapshot, work_payload = work_event_payload(
-                replace(self._snapshot, current_attempt=None), claim.task_context,
-                claim.attempt.attempt_id, phase)
-            work_snapshot = _result_projection_window(work_snapshot, result_projections)
-            event_payload = {**event_payload, **work_payload}
+            work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
+                self._snapshot, claim, phase, payload)
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
@@ -4773,23 +4784,8 @@ class PostgresThreadService(NativeExecutionOwner):
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             terminal = AttemptSnapshot.from_document({**current, "phase": phase})
-            result_projections = _terminal_result_projections(
-                payload, claim=claim, phase=phase,
-            )
-            existing_projections = tuple(
-                ResultProjection.from_document(item)
-                for item in (thread.get("result_projections") or [])
-            )
-            existing_result_ids = {item.result_id for item in existing_projections}
-            if any(item.result_id in existing_result_ids for item in result_projections):
-                raise ThreadProtocolError("result projection already exists")
-            event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
-            from .thread_work import work_event_payload
-            work_snapshot, work_payload = work_event_payload(
-                replace(self._snapshot_from_row(thread), current_attempt=None),
-                claim.task_context, claim.attempt.attempt_id, phase)
-            work_snapshot = _result_projection_window(work_snapshot, result_projections)
-            event_payload = {**event_payload, **work_payload}
+            work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
+                self._snapshot_from_row(thread), claim, phase, payload)
             event_seq = thread["last_event_seq"]
             event_seq = self._seal_open_captures_postgres(
                 connection, thread, terminal, claim, event_seq, context=claim.model_context)
