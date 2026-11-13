@@ -76,6 +76,32 @@ it('keeps a receipt after interruption and resumes after remount with the same l
   expect(transfer.mock.calls[1][1].requestId).toBe(transfer.mock.calls[0][1].requestId)
 })
 
+it('uploads a promised archive file when the dropped file list has no bytes',async()=>{
+  const stored=vi.fn(),resourceUpload=vi.fn().mockResolvedValue({})
+  const promised=file('01-安装部署手册.pdf',new TextEncoder().encode('pdf-bytes'))
+  const empty=new File([],'01-安装部署手册.pdf')
+  const item={kind:'file',getAsFileSystemHandle:async()=>({kind:'file',getFile:async()=>promised}),getAsFile:()=>empty}
+  render(<main className="workspace-shell"><ThreadMaterialUpload threadId="thr_one" upload={vi.fn()} onUploaded={vi.fn()} resourceUpload={resourceUpload} onResourceUploaded={stored}/></main>)
+  fireEvent.drop(screen.getByRole('main'),{dataTransfer:{types:['Files'],files:[empty],items:[item]}})
+  await waitFor(()=>expect(stored).toHaveBeenCalledOnce())
+  expect(resourceUpload.mock.calls[0][0]).toBe(promised)
+  expect(resourceUpload.mock.calls[0][0].size).toBe(promised.size)
+})
+it('reports an unreadable archive file instead of uploading zero bytes',async()=>{
+  const resourceUpload=vi.fn()
+  const empty=new File([],'01-安装部署手册.pdf')
+  render(<main className="workspace-shell"><ThreadMaterialUpload threadId="thr_one" upload={vi.fn()} onUploaded={vi.fn()} resourceUpload={resourceUpload}/></main>)
+  fireEvent.drop(screen.getByRole('main'),{dataTransfer:{types:['Files'],files:[],items:[{kind:'file',getAsFile:()=>empty}]}})
+  expect((await screen.findByRole('alert')).textContent).toContain('压缩包')
+  expect(resourceUpload).not.toHaveBeenCalled()
+})
+it('keeps files dropped from a folder when the item is only a directory',async()=>{
+  const selected=vi.fn(),upload=vi.fn(async(value:File)=>({...material,file_name:value.name,display_name:value.name}))
+  render(<main className="workspace-shell"><ThreadMaterialUpload threadId="thr_one" upload={upload} onUploaded={selected}/></main>)
+  fireEvent.drop(screen.getByRole('main'),{dataTransfer:{types:['Files'],files:[file('one.md')],items:[{kind:'file',getAsFileSystemHandle:async()=>({kind:'directory'})}]}})
+  await waitFor(()=>expect(selected).toHaveBeenCalledTimes(1))
+  expect(upload.mock.calls[0][0].name).toBe('one.md')
+})
 it('keeps completed attachments visible with individual remove controls',async()=>{
   const remove=vi.fn().mockResolvedValue(undefined)
   const files=['one.csv','two.csv'].map((name,i)=>({schema:'capstone-resource/1' as const,resource_id:`resource_${String(i).repeat(32)}`,thread_id:'thr_one',version:1,file_name:name,size_bytes:100,sha256:'a'.repeat(64),processing_state:'unprocessed'}))

@@ -197,6 +197,15 @@ class ResourceUploads:
         for part in (state['reserved'] | state['parts']).values():
             self.objects.delete(self._key(thread, uid, part))
 
+    def published(self, thread, resource_id):
+        self.service.snapshot(thread)
+        if not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id):
+            raise ValueError('invalid resource identity')
+        state = self._state(thread, 'upload_' + resource_id.removeprefix('resource_'))
+        if state['state'] != 'complete' or 'resource' not in state:
+            raise ValueError('resource is not published')
+        return state['resource']
+
     def read(self, thread, resource_id, *, start=0, length=None):
         self.service.snapshot(thread)
         if not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id):

@@ -14,7 +14,7 @@ import ProductReferenceChips,{type ProductReferenceReader} from './ProductRefere
 import {productRefKey,parseContextProductRefs,type ContextProductRef} from './threadProducts'
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadCommandMenu from './ThreadCommandMenu'
-import InstructionAttachments,{bindInstructionAttachments,type InstructionFile} from './InstructionAttachments'
+import InstructionAttachments,{bindInstructionAttachments,type InstructionFile,type InstructionFileReader,type InstructionFileSaver} from './InstructionAttachments'
 import { buildInputSubmission, composerSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
@@ -1021,7 +1021,7 @@ function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolea
   </div>
 }
 
-function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, modelSummary, showActivity = true, resultProjections, onFocusElement, onOpenTaskResults, nativeArtifacts = [], onOpenNativeArtifact }: { nativeArtifacts?:readonly NativeArtifact[]; onOpenNativeArtifact?:(artifact:NativeArtifact)=>void; onOpenTaskResults?: (product: TaskResultCollection) => void; onOpenResultProduct?: (result: ResultProjection) => void; selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onFollowup?: (attemptId: string) => void; canRerunCompleted: boolean; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void }) {
+function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, modelSummary, showActivity = true, resultProjections, onFocusElement, onOpenTaskResults, nativeArtifacts = [], onOpenNativeArtifact, readInstructionFile, saveInstructionFile }: { nativeArtifacts?:readonly NativeArtifact[]; onOpenNativeArtifact?:(artifact:NativeArtifact)=>void; readInstructionFile?:InstructionFileReader; saveInstructionFile?:InstructionFileSaver; onOpenTaskResults?: (product: TaskResultCollection) => void; onOpenResultProduct?: (result: ResultProjection) => void; selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onFollowup?: (attemptId: string) => void; canRerunCompleted: boolean; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
   const readRecords = useContext(AttemptRecordsContext)
   const role = useAuiState((state) => state.message.role)
@@ -1111,7 +1111,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const completedAnswer = !terminalNotice && hasText && role === 'assistant' && status?.type === 'complete'
   return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
-      {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]}/>}
+      {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]} readFile={readInstructionFile} saveFile={saveInstructionFile}/>}
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
       {role === 'assistant' && typeof custom?.retainedResearchGoal === 'string' && <details className="capstone-task-research">
         <summary>研究记录中的目标</summary>
@@ -1299,6 +1299,8 @@ export type CapstoneAssistantThreadProps = {
   instructionProductScopes?:Map<string,InstructionProductScope>
   onOpenInstructionProducts?: (scope:InstructionProductScope)=>void
   onOpenNativeArtifact?: (artifact:NativeArtifact)=>void
+  readInstructionFile?: InstructionFileReader
+  saveInstructionFile?: InstructionFileSaver
   nativeArtifactProjections?:readonly NativeArtifact[]
   onOpenAnswerDetail?: () => void
   onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void
@@ -1319,7 +1321,7 @@ export function restoreVisibleConversation(viewport:HTMLElement){
 }
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, readInstructionFile, saveInstructionFile, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
   const [answerDetail, setAnswerDetail] = useState<AnswerDetailSelection>()
   const nativeArtifacts=useMemo(()=>[...new Map([...projectNativeArtifacts(events),...(nativeArtifactProjections||[])].map(file=>[`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`,file])).values()],[events,nativeArtifactProjections])
   const [restoredInput]=useState(()=>{try{return {draft:readInputDraft(storageKey)||emptyInputDraft(runtimeMode),error:''}}catch(error){return {draft:emptyInputDraft(runtimeMode),error:error instanceof Error?error.message:'输入草稿无法恢复。'}}})
@@ -1728,7 +1730,7 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
     <AttemptRecordsContext.Provider value={onReadAttemptRecords}>
     <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor, preserveControl,finishedAttempt }}>
     <InstructionProductsContext.Provider value={{scopes:providedInstructionScopes??instructionProductScopes(allMessages),open:onOpenInstructionProducts}}>
-    <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, onFollowup: isRunning ? undefined : onFollowup, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement, onOpenResultProduct, onOpenTaskResults, nativeArtifacts, onOpenNativeArtifact }}>
+    <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, onFollowup: isRunning ? undefined : onFollowup, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement, onOpenResultProduct, onOpenTaskResults, nativeArtifacts, onOpenNativeArtifact, readInstructionFile, saveInstructionFile }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat" onClickCapture={event => {
       const summary = event.target instanceof Element ? event.target.closest('summary') : null
       const message = summary?.closest<HTMLElement>('[data-message-id]')

@@ -7,6 +7,43 @@ import './threadMaterialUpload.css'
 import type {ResourceTransferOptions, StoredResource} from './resourceUploads'
 import {readUploadResume,saveUploadResume,type UploadResume} from './resourceUploadResume'
 
+type PromisedFileHandle={kind?:string;getFile?:()=>Promise<File>}
+type LegacyFileEntry={isFile?:boolean;isDirectory?:boolean;file?:(success:(file:File)=>void,failure?:(error:DOMException)=>void)=>void}
+
+/** Archive apps often expose a file promise while `files` is empty or zero bytes. */
+export async function filesFromDrop(transfer:DataTransfer|null):Promise<{files:File[];unreadable:boolean}>{
+  const items=Array.from(transfer?.items||[]).filter(item=>item.kind==='file')
+  const promised:File[]=[]
+  let unreadable=false
+  for(const item of items){
+    const file=await fileFromDropItem(item)
+    if(!file)continue
+    if(file.size>0)promised.push(file)
+    else unreadable=true
+  }
+  if(promised.length)return{files:promised,unreadable:false}
+  const listed=Array.from(transfer?.files||[]).filter(file=>file.size>0)
+  if(listed.length)return{files:listed,unreadable:false}
+  return{files:[],unreadable}
+}
+
+async function fileFromDropItem(item:DataTransferItem):Promise<File|null>{
+  const handleItem=item as DataTransferItem&{getAsFileSystemHandle?:()=>Promise<PromisedFileHandle|null>}
+  try{
+    if(handleItem.getAsFileSystemHandle){
+      const handle=await handleItem.getAsFileSystemHandle()
+      if(handle?.kind==='directory')return null
+      if(handle?.kind==='file'&&handle.getFile)return await handle.getFile()
+    }
+  }catch{/* An archive promise can fail closed. Try the older file views. */}
+  try{
+    const entry=(item as {webkitGetAsEntry?:()=>LegacyFileEntry|null}).webkitGetAsEntry?.()??null
+    if(entry?.isDirectory)return null
+    if(entry?.isFile&&entry.file)return await new Promise<File>((resolve,reject)=>entry.file!(resolve,reject))
+  }catch{/* Fall through to the immediate file, which may still be empty. */}
+  return item.getAsFile()
+}
+
 /** A composer extension for real session materials. It never submits an instruction. */
 export default function ThreadMaterialUpload({threadId,upload,onUploaded,disabled=false,onBusyChange,remainingBytes=applicationCapacity('inline_material_bytes'),remainingFiles=applicationCapacity('inline_material_count'),disabledReason,resourceUpload,cancelResource,attachments=[],onResourceUploaded,onRemoveAttachment}: {
   threadId:string;upload:(file:File,signal:AbortSignal)=>Promise<unknown>;onUploaded:(material:ThreadMaterial)=>void
@@ -74,9 +111,13 @@ export default function ThreadMaterialUpload({threadId,upload,onUploaded,disable
       const drag=event as DragEvent;if(!isFile(drag))return
       drag.preventDefault();drag.stopPropagation();dragDepth.current=0;setDragging(false)
       if(disabled||busy){setError('当前操作尚未完成，请稍后再上传。');return}
-      const files=Array.from(drag.dataTransfer?.files||[])
-      if(!files.length){setError('请拖入文件，暂不支持文件夹。');return}
-      void uploadFiles(files)
+      void filesFromDrop(drag.dataTransfer||null).then(found=>{
+        if(!found.files.length){
+          setError(found.unreadable?'文件还没有可读内容。若它来自打开的压缩包，请先解压后再上传。':'请拖入文件，暂不支持文件夹。')
+          return
+        }
+        void uploadFiles(found.files)
+      }).catch(()=>setError('无法读取拖放的文件，请先解压或重新选择后再上传。'))
     }
     const reset=()=>{dragDepth.current=0;setDragging(false)}
     zone.addEventListener('dragenter',enter);zone.addEventListener('dragover',over);zone.addEventListener('dragleave',leave);zone.addEventListener('drop',drop)
