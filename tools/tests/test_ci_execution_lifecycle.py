@@ -11,7 +11,7 @@ ANCHOR = 'packages/capability-agent-kernel/src/capability_agent/runtime/executio
 
 
 def test_lifecycle_anchor_selects_only_its_registered_consumers():
-    paths = [ANCHOR, 'packages/grid-agent/src/grid_agent/domain_tools.py',
+    paths = [ANCHOR, 'packages/pandapower-application/src/pandapower_application/domain_tools.py',
              'packages/capstone-agent/tests/test_relay_backpressure.py',
              'packages/pandapower-domain-pack/src/pandapower_domain/execution.py',
              'packages/capstone-app/src/ProcessCallTrace.tsx',
@@ -70,7 +70,7 @@ def test_lifecycle_closeout_admits_only_its_named_owning_control_documents():
 
 @pytest.mark.parametrize('extra', [
     'packages/grid-simulator/src/grid_simulator/solver.py',
-    'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+    'packages/capstone-agent/pyproject.toml', 'packages/pandapower-application/uv.lock',
     'packages/capstone-app/src/App.tsx', 'packages/capstone-app/src/new.ts',
     'packages/capstone-agent/src/capstone_agent/thread_worker.py',
     'packages/capstone-agent/tests/test_unregistered.py', 'docs/unregistered.md',

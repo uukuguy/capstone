@@ -48,7 +48,7 @@ help:
 setup: setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench
 
 setup-agent:
-	uv sync --project packages/grid-agent
+	uv sync --project packages/pandapower-application
 
 setup-capstone:
 	uv sync --project packages/pandapower-application
@@ -181,7 +181,7 @@ test-capstone-agent:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q
 
 test-capstone-client:
-	uv run --project packages/grid-agent pytest tools/tests/test_capstone_client.py -q
+	uv run --project packages/pandapower-application pytest tools/tests/test_capstone_client.py -q
 
 test-makefile-application:
 	bash tools/test_makefile_application.sh
@@ -190,17 +190,17 @@ test-local-rebuild:
 	bash tools/test_local_rebuild.sh
 	bash tools/test_demo_local_rebuild.sh
 	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py tools/tests/test_prepare_app_source.py tools/tests/test_local_build_cache_cleanup.py tools/tests/test_image_layer_order.py tools/tests/test_native_report.py -q
-	uv run --project packages/grid-agent pytest tools/tests/test_dev_trial_deployment.py tools/tests/test_build_dev_trial.py tools/tests/test_user_data_compatibility.py tools/tests/test_capstone_manager.py tools/tests/test_install_user_local_version.py tools/tests/test_user_local_installer.py tools/tests/test_user_local_graph.py tools/tests/test_offline_provider_config.py tools/tests/test_openai_compatible_protocol.py tools/tests/test_user_local_offline.py -q
+	uv run --project packages/pandapower-application pytest tools/tests/test_dev_trial_deployment.py tools/tests/test_build_dev_trial.py tools/tests/test_user_data_compatibility.py tools/tests/test_capstone_manager.py tools/tests/test_install_user_local_version.py tools/tests/test_user_local_installer.py tools/tests/test_user_local_graph.py tools/tests/test_offline_provider_config.py tools/tests/test_openai_compatible_protocol.py tools/tests/test_user_local_offline.py -q
 
 test-verification-targets:
-	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q
+	uv run --project packages/pandapower-application pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q
 
 .PHONY: benchmark-optimization
 benchmark-optimization:
-	uv run --project packages/grid-agent python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/benchmarks/report.json
+	uv run --project packages/pandapower-application python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/benchmarks/report.json
 
 test-agent:
-	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e -q
 
 test-inventory-service:
 	uv run --project packages/inventory-reference-service pytest packages/inventory-reference-service/tests -q
@@ -225,10 +225,10 @@ test-domain-pack-conformance: check-package-boundaries
 	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_application_conformance.py packages/inventory-domain-pack/tests/test_http_authority_experiment.py packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q
 
 test-domain-package: check-package-boundaries
-	uv run --project packages/grid-agent pytest packages/pandapower-domain-pack/tests -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-domain-pack/tests -q
 
 test-kernel:
-	uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests -q
+	uv run --project packages/pandapower-application pytest packages/capability-agent-kernel/tests -q
 
 test-generic-tools:
 	npm run check --prefix packages/pi-capability-tools
@@ -242,10 +242,10 @@ test-tools: check-runtime-risk test-issue-automation
 	npm test --prefix packages/pi-grid-tools
 
 check-types: check-workbench
-	uv run --project packages/grid-agent pyright
+	uv run --project packages/pandapower-application pyright
 
 check-types-validation:
-	uv run --project packages/grid-agent pyright -p pyrightconfig.validation.json
+	uv run --project packages/pandapower-application pyright -p pyrightconfig.validation.json
 
 check-fast: check-package-boundaries check-types test
 
@@ -260,7 +260,7 @@ check-iteration:
 check-pr: check-package-boundaries check-types test-pandapower-application test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench test-registered-workers
 
 test-pandapower-application:
-	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e --ignore=packages/grid-agent/tests/cli --ignore=packages/grid-agent/tests/compat --ignore=packages/grid-agent/tests/test_console_target.py --ignore=packages/grid-agent/tests/contract/test_application_instantiation_baseline.py -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e --ignore=packages/pandapower-application/tests/cli --ignore=packages/pandapower-application/tests/compat --ignore=packages/pandapower-application/tests/test_console_target.py --ignore=packages/pandapower-application/tests/contract/test_application_instantiation_baseline.py -q
 
 test-registered-workers:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
@@ -325,23 +325,23 @@ issues-release-status:
 	@python3 -m tools.issue_automation.cli release-status
 
 test-issue-automation:
-	@uv run --project packages/grid-agent python -m pytest tools/tests/test_issue_automation*.py -q
+	@uv run --project packages/pandapower-application python -m pytest tools/tests/test_issue_automation*.py -q
 
 check-runtime-risk:
 	python3 tools/check_runtime_risk_exception.py
 
 test-e2e:
-	uv run --project packages/grid-agent pytest packages/grid-agent/tests/e2e -q
+	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests/e2e -q
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
 
 validate: check-runtime-risk check-protected-paths
-	uv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json
-	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json
-	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json
+	uv run --project packages/pandapower-application python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json
+	uv run --project packages/pandapower-application python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json
+	uv run --project packages/pandapower-application python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json
 	python3 tools/capability_matrix.py --check
 
 validate-application:
-	uv run --project packages/grid-agent python validation/run.py --mode application --suite application-instantiation --report runs/validation-application-instantiation.json
+	uv run --project packages/pandapower-application python validation/run.py --mode application --suite application-instantiation --report runs/validation-application-instantiation.json
 
 validate-thread-m5:
 	PYTHONPATH=. uv run --project packages/capstone-agent python validation/run_m5.py
@@ -352,7 +352,7 @@ validate-thread-m11:
 
 validate-thread-m5-provider-free:
 	mkdir -p runs/capstone-m5/provider-free
-	PYTHONPATH=. uv run --project packages/grid-agent python validation/run_m5_provider_free.py --application pandapower-static-analysis --root runs/capstone-m5/provider-free/pandapower
+	PYTHONPATH=. uv run --project packages/pandapower-application python validation/run_m5_provider_free.py --application pandapower-static-analysis --root runs/capstone-m5/provider-free/pandapower
 	PYTHONPATH=. uv run --project packages/pypsa-agent python validation/run_m5_provider_free.py --application pypsa-business-cases --root runs/capstone-m5/provider-free/pypsa
 
 check-package-boundaries:
@@ -373,4 +373,4 @@ test-source-setup:
 VALIDATION_SUITE ?= static-analysis-full
 
 validate-provider:
-	uv run --project packages/grid-agent python validation/run.py --mode provider --suite "$(VALIDATION_SUITE)" --provider "$(PROVIDER)" $(if $(MODEL),--model "$(MODEL)") --report runs/validation-provider.json
+	uv run --project packages/pandapower-application python validation/run.py --mode provider --suite "$(VALIDATION_SUITE)" --provider "$(PROVIDER)" $(if $(MODEL),--model "$(MODEL)") --report runs/validation-provider.json

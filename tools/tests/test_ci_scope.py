@@ -41,9 +41,9 @@ def test_adaptive_agent_selects_complete_owned_consumers_and_keeps_release_gate(
     'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
     'packages/capstone-agent/src/capstone_agent/resources/unknown.md',
     'packages/grid-simulator/src/grid_simulator/solver.py',
-    'packages/grid-agent/src/grid_agent/authority.py',
+    'packages/pandapower-application/src/pandapower_application/authority.py',
     'packages/pypsa-agent/src/pypsa_agent/solver.py',
-    'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+    'packages/capstone-agent/pyproject.toml', 'packages/pandapower-application/uv.lock',
     'packages/capstone-app/package-lock.json', 'compose.yaml',
     'configs/runtime/data-gateway.json', 'deploy/general-pi.Dockerfile',
     'Makefile', 'unknown.file', '../docs/escape.md',
@@ -81,8 +81,8 @@ def test_source_topology_requires_verified_content_and_exact_covered_paths():
                   'packages/capstone-agent/tests/test_new_provider.py',
                   'packages/capability-agent-kernel/src/capability_agent/application/composition.py',
                   'packages/grid-simulator/src/grid_simulator/solver.py',
-                  'packages/grid-agent/src/grid_agent/authority.py',
-                  'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+                  'packages/pandapower-application/src/pandapower_application/authority.py',
+                  'packages/capstone-agent/pyproject.toml', 'packages/pandapower-application/uv.lock',
                   'packages/capstone-app/package-lock.json', 'compose.yaml', 'unknown.file'):
         assert classify(SOURCE_PATHS + [extra], source_topology=True) == 'product'
 
@@ -122,7 +122,7 @@ def test_gateway_readonly_inventory_and_transport_have_named_consumers():
              'packages/capstone-agent/tests/test_data_gateway_relay.py',
              'configs/runtime/data-gateway.json']
     assert classify(paths, source_topology=True) == 'source-topology'
-    assert classify(paths + ['packages/grid-agent/src/grid_agent/authority.py'], source_topology=True) == 'product'
+    assert classify(paths + ['packages/pandapower-application/src/pandapower_application/authority.py'], source_topology=True) == 'product'
     from tools.ci_scope import source_gateway_document
     old = {'allowed_tools': ['discover_data_capabilities']}
     assert source_gateway_document(old, {'allowed_tools': [*old['allowed_tools'], 'discover_network_models']})
@@ -262,7 +262,7 @@ def test_native_runtime_has_bounded_consumer_regression():
     assert classify(paths, release=True) == 'release'
     for extra in ['packages/grid-simulator/src/grid_simulator/solver.py',
                   'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
-                  'packages/grid-agent/uv.lock', 'deploy/Dockerfile', 'Makefile']:
+                  'packages/pandapower-application/uv.lock', 'deploy/Dockerfile', 'Makefile']:
         assert classify(paths + [extra]) == 'product'
 
 
@@ -309,13 +309,13 @@ def test_conversation_mixed_foundation_or_native_infrastructure_widens(extra):
 
 
 @pytest.mark.parametrize('extra', [
-    'packages/grid-agent/src/grid_agent/authority.py',
+    'packages/pandapower-application/src/pandapower_application/authority.py',
     'packages/grid-simulator/src/grid_simulator/solver.py',
     'packages/pypsa-agent/src/pypsa_agent/solver.py',
     'packages/pypsa-domain-pack/src/solver.py',
     'packages/capstone-agent/src/capstone_agent/kernel_pi_session.py',
     'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
-    'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+    'packages/capstone-agent/pyproject.toml', 'packages/pandapower-application/uv.lock',
     'packages/capstone-app/package-lock.json', 'packages/capstone-app/src/unknown.json',
     'packages/pi-capability-tools/src/new-professional-tools.mjs',
     'packages/pi-capability-tools/package.json', 'deploy/Dockerfile', 'Makefile', 'unknown.file',
@@ -340,20 +340,20 @@ def test_runtime_dependency_scope_checks_content_not_only_path():
     assert runtime_dependency_document(path, old, new)
     new['project']['dependencies'].append('pandapower==3.5')
     assert not runtime_dependency_document(path, old, new)
-    assert not runtime_dependency_document('packages/grid-agent/pyproject.toml', old, new)
+    assert not runtime_dependency_document('packages/pandapower-application/pyproject.toml', old, new)
     old = {'version': 1, 'package': [
         {'name': 'capstone-agent', 'dependencies': [{'name': 'httpx'}]},
         {'name': 'pandapower', 'version': '3.4.0'}]}
     new = deepcopy(old)
     new['package'][0]['dependencies'].append({'name': 'mcp'})
     new['package'].append({'name': 'mcp', 'version': '1.30.0'})
-    assert runtime_dependency_document('packages/grid-agent/uv.lock', old, new)
+    assert runtime_dependency_document('packages/pandapower-application/uv.lock', old, new)
     new['package'][1]['version'] = '3.5.0'
-    assert not runtime_dependency_document('packages/grid-agent/uv.lock', old, new)
+    assert not runtime_dependency_document('packages/pandapower-application/uv.lock', old, new)
 
 
 def test_verified_runtime_dependency_diff_still_cannot_hide_unknown_source():
-    paths = ['packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock']
+    paths = ['packages/capstone-agent/pyproject.toml', 'packages/pandapower-application/uv.lock']
     assert classify(paths, runtime_dependencies=True) == 'native-runtime'
     assert classify(paths + ['packages/grid-simulator/src/grid_simulator/solver.py'],
                     runtime_dependencies=True) == 'product'
@@ -369,7 +369,7 @@ def test_foundation_assembly_has_an_explicit_dependency_gate():
     assert classify(paths, target='main') == 'release'
     for extra in ['packages/capability-agent-kernel/src/capability_agent/runtime/environment.py',
                   'packages/capability-agent-kernel/src/capability_agent/domain/authority.py',
-                  'packages/grid-agent/src/grid_agent/new_executor.py',
+                  'packages/pandapower-application/src/pandapower_application/new_executor.py',
                   'packages/pypsa-domain-pack/src/solver.py', 'Makefile']:
         assert classify(paths + [extra]) == 'product'
 

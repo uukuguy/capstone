@@ -79,11 +79,11 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "inventory_domain", "pandapower", "pypsa_network_modeling",
         "pypsa_power_operations", "pypsa_capacity_planning",
     ),
-    "packages/grid-agent/src/grid_agent/cli": (
+    "packages/pandapower-application/src/pandapower_application/cli": (
         "grid_agent.domain",
         "grid_agent.domains",
     ),
-    "packages/grid-agent/src/grid_agent": (
+    "packages/pandapower-application/src/pandapower_application": (
         "grid_agent.analysis.capabilities",
         "grid_agent.analysis.domain_projection",
         "grid_agent.analysis.integrity",
@@ -130,7 +130,7 @@ GRID_AGENT_COMPATIBILITY_SHIMS = frozenset(
     }
 )
 EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
-    "packages/grid-agent/src/grid_agent/cli": (
+    "packages/pandapower-application/src/pandapower_application/cli": (
         "grid_agent.application",
         "grid_agent.application.prepare_domain_runtime",
     ),
@@ -255,7 +255,7 @@ def check_boundaries(root: Path) -> list[str]:
                     forbidden_modules,
                     excluded_paths=(
                         GRID_AGENT_COMPATIBILITY_SHIMS
-                        if source_root == "packages/grid-agent/src/grid_agent"
+                        if source_root == "packages/pandapower-application/src/pandapower_application"
                         else frozenset()
                     ),
                 )
@@ -321,7 +321,6 @@ def check_application_host_boundaries(root: Path) -> list[str]:
 
     violations: list[str] = []
     package_roots = (
-        root / "packages/grid-agent/src/grid_agent",
         root / "packages/pandapower-application/src/pandapower_application",
         root / "packages/pypsa-agent/src/pypsa_agent",
     )

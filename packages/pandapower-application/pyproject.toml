@@ -19,5 +19,8 @@ capstone-agent = { path = "../capstone-agent", editable = true }
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
 pandapower-domain-pack = { path = "../pandapower-domain-pack", editable = true }
 
+[dependency-groups]
+dev = ["pytest>=9,<10", "pytest-cov>=7,<8", "pyright==1.1.408"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/pandapower_application"]

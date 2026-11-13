@@ -85,7 +85,7 @@ def iter_first_party_files() -> list[Path]:
 
 
 def test_agent_has_no_scientific_simulator_dependencies() -> None:
-    data = tomllib.loads((ROOT / "packages/grid-agent/pyproject.toml").read_text())
+    data = tomllib.loads((ROOT / "packages/pandapower-application/pyproject.toml").read_text())
     dependencies = data["project"]["dependencies"]
     names = {_dependency_distribution_name(item) for item in dependencies}
     assert "pandapower-domain-pack" in names
@@ -161,7 +161,7 @@ def test_tracked_operational_files_do_not_construct_legacy_active_state_paths() 
         ROOT / line
         for line in completed.stdout.splitlines()
         if line
-        and Path(line) != Path("packages/grid-agent/tests/contract/test_repository_boundaries.py")
+        and Path(line) != Path("packages/pandapower-application/tests/contract/test_repository_boundaries.py")
         and (ROOT / line).exists()
         and (ROOT / line).suffix in TEXT_SUFFIXES
     ]
@@ -230,7 +230,7 @@ def test_legacy_runtime_paths_are_absent() -> None:
 
 def test_current_sources_do_not_use_obsolete_provider_capture_path() -> None:
     checked_paths = (
-        "packages/grid-agent/src/",
+        "packages/pandapower-application/src/",
         "packages/pi-grid-tools/src/",
         "schemas/",
         "docs/architecture/",
@@ -245,9 +245,9 @@ def test_current_sources_do_not_use_obsolete_provider_capture_path() -> None:
     tracked_paths = [line for line in completed.stdout.splitlines() if line]
     checked_relative_paths = set(tracked_paths)
     assert {
-        "packages/grid-agent/src/grid_agent/trajectory/static/assets/app.css",
-        "packages/grid-agent/src/grid_agent/trajectory/static/assets/app.js",
-        "packages/grid-agent/src/grid_agent/trajectory/static/index.html",
+        "packages/pandapower-application/src/pandapower_application/trajectory/static/assets/app.css",
+        "packages/pandapower-application/src/pandapower_application/trajectory/static/assets/app.js",
+        "packages/pandapower-application/src/pandapower_application/trajectory/static/index.html",
     }.issubset(checked_relative_paths)
     forbidden_terms = (
         "before_provider_request",

@@ -112,7 +112,7 @@ PY
 "$pypsa_venv_dir/bin/python" -c 'from pypsa_agent.registry import build_trusted_application_registry; assert build_trusted_application_registry().resolve("pypsa-business-cases")'
 
 smoke_file="$run_dir/installed_smoke.py"
-cp packages/grid-agent/tests/contract/installed_smoke.py "$smoke_file"
+cp packages/pandapower-application/tests/contract/installed_smoke.py "$smoke_file"
 (
   cd "$run_dir"
   TMPDIR="$run_dir" PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/python" "$smoke_file"

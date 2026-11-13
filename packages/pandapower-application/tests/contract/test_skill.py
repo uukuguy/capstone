@@ -24,7 +24,7 @@ def test_skill_has_guidance_for_every_advertised_capability(
 def test_agent_tests_read_capabilities_as_documents() -> None:
     tests_text = "\n".join(
         path.read_text(encoding="utf-8")
-        for path in sorted((ROOT / "packages/grid-agent/tests").rglob("*.py"))
+        for path in sorted((ROOT / "packages/pandapower-application/tests").rglob("*.py"))
     )
 
     forbidden_import = "grid_simulator" + ".capabilities"
