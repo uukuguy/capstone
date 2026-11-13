@@ -14,6 +14,9 @@ checks=(
   packages/capstone-agent/tests/test_auth_service.py
   tools/tests/test_ci_scope.py tools/tests/test_check_package_boundaries.py
   tools/tests/test_verification_targets.py tools/tests/test_ci_retirement_scope.py
+  tools/tests/test_ci_workbench_scope.py tools/tests/test_ci_gateway_controls.py
+  tools/tests/test_ci_gateway_bindings.py tools/tests/test_ci_execution_lifecycle.py
+  tools/tests/test_issue_automation*.py
 )
 uv run --project packages/pandapower-application pytest "${checks[@]}" -q
 python tools/check_package_boundaries.py

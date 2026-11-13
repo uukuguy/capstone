@@ -115,7 +115,7 @@ def test_deployment_allowance_rejects_changes_outside_the_exact_binding(monkeypa
 def test_reviewed_grouped_recipe_is_exact_and_does_not_admit_other_changes():
     from tools.ci_scope import execution_lifecycle_deployment_document
     old = subprocess.check_output(['git', 'show', '8da7dc76:deploy/general-pi.Dockerfile'], cwd=ROOT, text=True)
-    new = (ROOT / 'deploy/general-pi.Dockerfile').read_text()
+    new = subprocess.check_output(['git', 'show', 'a1978ffb:deploy/general-pi.Dockerfile'], cwd=ROOT, text=True)
     assert execution_lifecycle_deployment_document('deploy/general-pi.Dockerfile', old, new)
     for changed in (
         new.replace('session_skill_preferences.py', 'unreviewed.py'),
@@ -151,13 +151,35 @@ def test_joint_scope_manifest_has_executable_consumers_and_rejects_unknown_sourc
     assert classify(paths, release=True) == 'release'
 
 
-def test_cli_checks_proposed_branch_changes_instead_of_target_only_commits():
-    base = next((ref for ref in ('dev', 'origin/dev') if subprocess.run(
-        ['git', 'rev-parse', '--verify', ref], cwd=ROOT, capture_output=True).returncode == 0), None)
-    if base is None:
-        pytest.skip('Development base is unavailable in this checkout')
+def test_cli_checks_proposed_branch_changes_instead_of_target_only_commits(tmp_path):
+    def git(*args):
+        return subprocess.check_output(['git', *args], cwd=tmp_path, text=True).strip()
+
+    git('init', '-q')
+    git('config', 'user.name', 'Scope test')
+    git('config', 'user.email', 'scope@example.invalid')
+    script = tmp_path / 'tools/ci_scope.py'
+    script.parent.mkdir()
+    script.write_text((ROOT / 'tools/ci_scope.py').read_text())
+    anchor = tmp_path / ANCHOR
+    anchor.parent.mkdir(parents=True)
+    anchor.write_text('# initial\n')
+    git('add', '.')
+    git('commit', '-qm', 'base')
+    base = git('rev-parse', 'HEAD')
+    git('checkout', '-qb', 'proposed')
+    anchor.write_text('# changed lifecycle primitive\n')
+    git('add', ANCHOR)
+    git('commit', '-qm', 'proposed lifecycle change')
+    head = git('rev-parse', 'HEAD')
+    git('checkout', '-qb', 'target', base)
+    unrelated = tmp_path / 'packages/grid-simulator/src/grid_simulator/solver.py'
+    unrelated.parent.mkdir(parents=True)
+    unrelated.write_text('# independent target change\n')
+    git('add', '.')
+    git('commit', '-qm', 'target-only solver change')
     result = subprocess.check_output(
-        ['python3', 'tools/ci_scope.py', '--base', base, '--head', 'HEAD'], cwd=ROOT, text=True)
+        ['python3', str(script), '--base', 'target', '--head', head], cwd=tmp_path, text=True)
     assert result.strip() == 'execution-lifecycle'
 
 
