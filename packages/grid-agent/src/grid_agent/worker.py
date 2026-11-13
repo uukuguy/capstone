@@ -15,7 +15,7 @@ from capability_agent.runtime.catalog import ProviderCatalog
 
 from grid_agent.application.composition import build_generic_application
 from grid_agent.network_story import ProviderTopologyPlanner, build_grid_story
-from grid_agent.network_view import build_grid_network_view
+from pandapower_application.network_view import build_grid_network_view
 
 
 ROOT = Path(__file__).resolve().parents[4]

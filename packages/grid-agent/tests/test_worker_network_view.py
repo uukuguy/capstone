@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from grid_agent.network_view import build_grid_network_view
+from pandapower_application.network_view import build_grid_network_view
 
 
 class NetworkExecutor:

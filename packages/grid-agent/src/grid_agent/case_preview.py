@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from capstone_agent.network_diagram import normalize_network_diagram
-from grid_agent.network_view import build_grid_network_view
+from pandapower_application.network_view import build_grid_network_view
 from grid_agent.simulator.client import GridctlExecutor
 from grid_agent.simulator.locator import GridctlLocator
 

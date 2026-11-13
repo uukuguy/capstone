@@ -1,4 +1,4 @@
-"""Pandapower authority-backed operator diagram and admitted step layer."""
+"""Application-owned Authority diagram and admitted step projection."""
 
 from __future__ import annotations
 

@@ -15,7 +15,7 @@ from pandapower_domain.authority import SimulatorIntegrityError, VerifiedArtifac
 from pandapower_domain.network_annotations import project_scene_annotations, select_contingency_scene, project_base_disconnections
 from capstone_agent.thread_service import AttemptClaim
 
-from .network_view import NetworkExecutor
+from pandapower_application.network_view import NetworkExecutor
 
 
 _BRANCH_ASSET = re.compile(r"^asset:(line|trafo|trafo3w):sha256:[0-9a-f]{64}$")

@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from capstone_agent.network_story import PLAN_SCHEMA, TopologyPlanner, build_cumulative_story
 
-from grid_agent.network_view import NetworkExecutor, build_grid_network_view
+from pandapower_application.network_view import NetworkExecutor, build_grid_network_view
 
 
 class _Planner(Protocol):
