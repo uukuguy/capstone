@@ -11,7 +11,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import {useSessionViewState,useHasSavedSessionPosition} from './workspaceSessionCache'
 import { createPortal } from 'react-dom'
 import ProductReferenceChips,{type ProductReferenceReader} from './ProductReferenceChips'
-import {productRefKey,parseContextProductRefs,type ContextProductRef} from './threadProducts'
+import {productSelectionKey,parseContextProductRefs,type ContextProductRef} from './threadProducts'
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadCommandMenu from './ThreadCommandMenu'
 import InstructionAttachments,{bindInstructionAttachments,type InstructionFile,type InstructionFileReader,type InstructionFileSaver} from './InstructionAttachments'
@@ -1215,7 +1215,7 @@ function ComposerSurface({ initialRestoreError, productReferenceReader, disabled
   const surface = (inputTools?: ReactNode) => <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}
     onClickCapture={event => { if (event.target instanceof Element && event.target.closest('.capstone-chat-send') && !reserveSend()) { event.preventDefault(); event.stopPropagation() } }}
     onKeyDownCapture={event => { if (event.target instanceof HTMLTextAreaElement && event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229 && !reserveSend()) { event.preventDefault(); event.stopPropagation() } }}>
-    <ProductReferenceChips selections={inputDraft.context_product_refs||[]} read={productReferenceReader} disabled={lockDraft} onRemove={key=>onInputChange({...inputDraft,context_product_refs:(inputDraft.context_product_refs||[]).filter(item=>productRefKey(item.ref)!==key)})}/>
+    <ProductReferenceChips selections={inputDraft.context_product_refs||[]} read={productReferenceReader} disabled={lockDraft} onRemove={key=>onInputChange({...inputDraft,context_product_refs:(inputDraft.context_product_refs||[]).filter(item=>productSelectionKey(item)!==key)})}/>
     {storageError&&<p role="alert">{storageError}</p>}
     <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label={label} placeholder={textOnly ? '描述目标、已有资料与期望交付…' : isRunning ? '可先写下一条任务，完成后发送…' : disabled ? '可继续编辑草稿，当前操作完成后发送…' : placeholder ?? '描述你的任务，或输入 / 查看操作…'} disabled={lockDraft} submitMode="enter" />
     <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏">{inputTools}{controls}</div><div className="capstone-composer-actions">
@@ -1336,10 +1336,10 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
     try{
       const selection=parseContextProductRefs([requestedProductReference.selection])[0]
       const items=inputDraft.context_product_refs||[]
-      const exists=items.some(item=>productRefKey(item.ref)===productRefKey(selection.ref))
+      const exists=items.some(item=>productSelectionKey(item)===productSelectionKey(selection))
       if(items.length>=applicationCapacity('product_reference_count')&&!exists){setProductReferenceError(`本轮最多引用 ${applicationCapacity('product_reference_count')} 项成果，请先移除一项。`);return}
       setProductReferenceError('')
-      setInputDraft(current=>({...current,context_product_refs:exists?items.map(item=>productRefKey(item.ref)===productRefKey(selection.ref)?selection:item):[...items,selection]}))
+      setInputDraft(current=>({...current,context_product_refs:exists?items.map(item=>productSelectionKey(item)===productSelectionKey(selection)?selection:item):[...items,selection]}))
     }catch{setProductReferenceError('成果引用无效，请重新选择。')}
   },[requestedProductReference?.nonce])
   const activeInput = { ...inputDraft, llm_profile_id:inputDraft.llm_profile_id??inputCatalog?.llm_profiles?.default_profile_id, mode: runtimeMode,deep_research:runtimeMode==='capstone'?false:undefined }
