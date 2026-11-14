@@ -147,3 +147,32 @@ def test_same_parent_distinct_row_materials_keep_independent_identity():
     assert reason is None
     assert len({m['material_id'] for m in frozen['_materials']})==2
     assert [m['source_product']['row_selection'] for m in frozen['_materials']]==[s['row_selection'] for s in selected]
+
+
+def test_row_request_stream_limit_and_duplicate_fields():
+    from fastapi.testclient import TestClient
+    from test_thread_deliveries import delivery_app
+    from test_thread_http_api import _service,_auth
+    with TestClient(delivery_app(_service(),MemoryObjectStore(),None),base_url='http://localhost') as client:
+        url='/api/v1/threads/thr_demo_39/product-index/row-selection'
+        assert client.post(url,content=b'x'*17000).status_code==401
+        response=client.post(url,content=b'x'*17000,headers=_auth())
+        assert response.status_code==413
+        response=client.post(url,content=b'{"ref":{},"ref":{},"table_id":"res_line"}',headers=_auth())
+        assert response.status_code==422
+        assert response.json()['detail']['code']=='invalid_result_row_request'
+
+
+def test_row_source_failure_returns_recoverable_error(monkeypatch):
+    from fastapi.testclient import TestClient
+    from test_thread_deliveries import delivery_app
+    from test_thread_http_api import _service,_auth
+    import capstone_agent.thread_products as products
+    def unavailable(*args,**kwargs):
+        raise FileNotFoundError('private object path must not reach client')
+    monkeypatch.setattr(products,'resolve_row_request',unavailable)
+    with TestClient(delivery_app(_service(),MemoryObjectStore(),None),base_url='http://localhost') as client:
+        result=client.post('/api/v1/threads/thr_demo_39/product-index/row-selection',json={},headers=_auth())
+        assert result.status_code==410
+        assert result.json()['detail']['code']=='result_row_source_unavailable'
+        assert 'private object path' not in result.text

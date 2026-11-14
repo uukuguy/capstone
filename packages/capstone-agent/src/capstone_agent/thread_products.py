@@ -460,21 +460,48 @@ def render_product_context(contexts):
 
 
 def register_product_routes(app, *, service, objects, executor_provider, authorize):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate result request field')
+            result[key] = value
+        return result
+
     async def row_request(thread_id, request, *, page):
         authorize(request)
         try:
-            body = await request.body()
+            body = bytearray()
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > min(16*1024, limits.control_document_bytes):
+                    raise HTTPException(413, {'code':'result_row_request_too_large',
+                        'message':'Select fewer rows or columns and try again.'})
+                body.extend(chunk)
             require_capacity('control_document_bytes',len(body),phase='product.rows.request')
             from starlette.concurrency import run_in_threadpool
-            return await run_in_threadpool(resolve_row_request,service,objects,thread_id,json.loads(body),page=page)
+            return await run_in_threadpool(resolve_row_request,service,objects,thread_id,
+                json.loads(body, object_pairs_hook=unique_object),page=page)
         except ThreadNotFound:
             raise HTTPException(404,'thread not found') from None
         except CapacityExceeded:
             raise
-        except (ValueError,TypeError,KeyError,StopIteration,ThreadProtocolError):
-            raise HTTPException(422,'result row identity or selection is unavailable') from None
+        except (ValueError,TypeError,KeyError,StopIteration,ThreadProtocolError) as error:
+            reason = str(error)
+            code, message = ('invalid_result_row_request', 'Check the result reference and selection fields.')
+            if 'budget' in reason:
+                code, message = ('result_row_budget_exceeded', 'Select fewer rows, columns or pages and try again.')
+            elif 'version changed' in reason:
+                code, message = ('result_table_version_changed', 'Reload the source table and select its rows again.')
+            elif 'row' in reason and ('unknown' in reason or 'unavailable' in reason):
+                code, message = ('result_rows_unavailable', 'Reload the source table and select available rows.')
+            elif 'column' in reason:
+                code, message = ('result_columns_unavailable', 'Reload the source table and select available columns.')
+            elif 'page size' in reason or 'offset' in reason:
+                code, message = ('result_page_unavailable', 'Use the published page size and cursor.')
+            raise HTTPException(422, {'code':code, 'message':message}) from None
         except OSError:
-            raise HTTPException(410,'result row content is unavailable') from None
+            raise HTTPException(410, {'code':'result_row_source_unavailable',
+                'message':'The saved source is unavailable. Keep your draft and select another result.'}) from None
 
     @app.post('/api/v1/threads/{thread_id}/product-index/table-page')
     async def table_page(thread_id: str, request: Request):
