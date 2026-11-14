@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Application bindings and reader projections for pandapower static analysis"
 requires-python = ">=3.12"
 dependencies = [
-  "capstone-agent==0.1.0",
+  "capstone-agent==1.1.0",
   "capability-agent-kernel==0.1.0",
   "pandapower-domain-pack==0.1.0",
   "pydantic>=2.12,<3",

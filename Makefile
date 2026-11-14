@@ -200,7 +200,7 @@ benchmark-optimization:
 	uv run --project packages/pandapower-application python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/benchmarks/report.json
 
 test-agent:
-	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e -q
+	uv run --project packages/pandapower-application python -m pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e -q
 
 test-inventory-service:
 	uv run --project packages/inventory-reference-service pytest packages/inventory-reference-service/tests -q
@@ -260,7 +260,7 @@ check-iteration:
 check-pr: check-package-boundaries check-types test-pandapower-application test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench test-registered-workers
 
 test-pandapower-application:
-	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e --ignore=packages/pandapower-application/tests/cli --ignore=packages/pandapower-application/tests/compat --ignore=packages/pandapower-application/tests/test_console_target.py --ignore=packages/pandapower-application/tests/contract/test_application_instantiation_baseline.py -q
+	uv run --project packages/pandapower-application python -m pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e --ignore=packages/pandapower-application/tests/cli --ignore=packages/pandapower-application/tests/compat --ignore=packages/pandapower-application/tests/test_console_target.py --ignore=packages/pandapower-application/tests/contract/test_application_instantiation_baseline.py -q
 
 test-registered-workers:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
@@ -331,7 +331,7 @@ check-runtime-risk:
 	python3 tools/check_runtime_risk_exception.py
 
 test-e2e:
-	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests/e2e -q
+	uv run --project packages/pandapower-application python -m pytest packages/pandapower-application/tests/e2e -q
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
 
 validate: check-runtime-risk check-protected-paths

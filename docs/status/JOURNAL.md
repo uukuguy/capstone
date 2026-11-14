@@ -7527,3 +7527,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Retained main ancestry with no source delta [828d1ef1]; user selected v1.1.0, versions/locks aligned, full local gate stopped on16 type errors.
 - 2026-11-14 Prepared v1.1.0 metadata/notes3690e8ff; product/backend/App versions and four locks agree; doctor/App types/links pass.
 - 2026-11-14 Repaired16 release type blockers; globalPyright clean,17Thread/26pandapower/2real scripted-consumer tests pass; full gate resumes.
+- 2026-11-14 Repaired release execution contracts59f1411b; global types and targeted consumers pass; full local release gate resumed, no CI.
+- 2026-11-14 Release review catches lock overreplacement and old backend pin; repaired, npm ci/metadata invariance pass;38 migrated validation checks pass with module entry.
