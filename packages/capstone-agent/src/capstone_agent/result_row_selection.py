@@ -92,26 +92,15 @@ def read_table_page(projection, ref, table_id, store, *, offset=0, limit=32):
     if table.pagination:
         if limit != table.pagination.page_size:
             raise ValueError('use the published result table page size')
-        page = store.read(projection,table_id,table.pagination.manifest_ref,offset=offset)
+        page = store.read(projection,table_id,table.pagination.manifest_ref,offset=offset,max_bytes=256*1024)
         document = page['table']
         total, following = page['total_rows'],page['next_offset']
     else:
-        # This projection is the saved Authority-admitted source, not client data.
-        # The manifest is saved last and pages use the exact source grant.
-        from dataclasses import replace
         total = len(table.rows)
-        if offset > total:
+        if offset > total or (offset == total and total != 0) or offset % limit:
             raise ValueError('result table offset is unavailable')
-        offsets = list(range(0,total,limit)) or [0]
-        if offset not in offsets:
-            raise ValueError('result table offset is unavailable')
-        context_ref = 'context:sha256:' + identity({'projection':projection.to_document()})
-        pages = ({'result_ref':projection.result_ref,'revision_ref':projection.model_revision,
-            'context_ref':context_ref,'offset':start,'total_rows':total,
-            'next_offset':start+limit if start+limit < total else None,
-            'table':replace(table,rows=table.rows[start:start+limit]).to_document()} for start in offsets)
-        manifest = store.publish(projection,table_id,pages)
-        page = store.read(projection,table_id,manifest,offset=offset)
+        page = store.inline_page(projection,table,offset=offset,limit=limit,
+            version=table_version(projection,table))
         document, following = page['table'],page['next_offset']
     return {'schema':'capstone-result-row-page/1','parent_ref':ref,
         'table_version':table_version(projection,table),'table':document,

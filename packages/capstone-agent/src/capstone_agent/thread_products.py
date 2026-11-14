@@ -378,7 +378,7 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
                 result = resolve_product(service, service._material_objects, snapshot.thread_id, selection['ref'],
                     executor=getattr(service, '_native_executor', None), snapshot=snapshot, connection=connection)
                 entry = result['entry']
-                if not entry['capabilities']['select'] and not (selection.get('excerpt') and entry['capabilities']['select_excerpt']):
+                if rows is None and not entry['capabilities']['select'] and not (selection.get('excerpt') and entry['capabilities']['select_excerpt']):
                     return submission, 'product_context_unavailable'
                 data = (_json(result['projection']) if result['projection'] is not None else
                         _json(result['record']) if result['record'] is not None else base64.b64decode(result['content_base64'], validate=True))

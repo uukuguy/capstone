@@ -71,7 +71,7 @@ def test_postgres_rows_freeze_retry_scope_and_atomic_rejection(postgres_thread_s
     page=resolve_row_request(store,store._material_objects,thread_id,
         {'ref':ref,'table_id':'res_line','offset':2,'limit':2},page=True)
     assert page['table']['rows'][0]['row_id']=='row_130'
-    assert any(b'capstone-result-table-manifest/1' in v for v in store._material_objects.contents.values())
+    assert any(b'capstone-result-table-inline-page/1' in v for v in store._material_objects.contents.values())
     before=store.snapshot(thread_id)
     for name,bad in [('digest',{**selection,'digest':'f'*64}),('thread',{**selection,'parent_ref':{**ref,'thread_id':'thr_forged'}}),
                      ('row',{**selection,'row_ids':['row_forged']}),('column',{**selection,'column_ids':['forged']})]:
@@ -176,3 +176,37 @@ def test_row_source_failure_returns_recoverable_error(monkeypatch):
         assert result.status_code==410
         assert result.json()['detail']['code']=='result_row_source_unavailable'
         assert 'private object path' not in result.text
+
+
+def test_inline_page_publishes_only_requested_rows():
+    from capstone_agent.result_projection import ResultRow
+    from capstone_agent.result_row_selection import read_table_page
+    p=projection()
+    p=replace(p,tables=(replace(p.tables[0],rows=tuple(ResultRow('row_'+str(i),{'value':i}) for i in range(10000))),))
+    objects=MemoryObjectStore()
+    page=read_table_page(p,{'origin':'domain_result'},'res_line',ResultTableStore(objects),limit=1)
+    assert len(objects.contents)==1
+    assert len(page['table']['rows'])==1
+
+
+def test_tiny_row_selection_admitted_when_parent_exceeds_full_context_budget():
+    from test_thread_result_projection import _service,_claim_and_projection,RESULT_ONE,EVIDENCE_ONE
+    from capstone_agent.thread_products import product_index,resolve_row_request,freeze_product_selection
+    store=_service()
+    store._material_objects=MemoryObjectStore()
+    claim,document=_claim_and_projection(store,1,RESULT_ONE,EVIDENCE_ONE)
+    table=list(pages())[1]['table']
+    table={**table,'rows':[{'row_id':'row_'+str(i),'cells':{'value':None if i==0 else 'x'*2048}} for i in range(100)]}
+    document={**document,'tables':[table]}
+    store.finish_attempt(claim,phase='completed',payload={'answer':'saved','result_projections':[document],
+        'result_refs':[RESULT_ONE],'evidence_refs':[EVIDENCE_ONE],
+        'admission':{'mode':'authority_backed','assurance':'lineage_verified'}})
+    entry=next(e for e in product_index(store,claim.thread_id)['products'] if e['ref']['origin']=='domain_result')
+    assert entry['byte_size']>128*1024 and entry['capabilities']['select'] is False
+    ref=entry['ref']
+    selection=resolve_row_request(store,store._material_objects,claim.thread_id,
+        {'ref':ref,'table_id':'res_line','row_ids':['row_0'],'column_ids':['value']})
+    frozen,reason=freeze_product_selection(store,store.snapshot(claim.thread_id),
+        {'context_product_refs':[{'ref':ref,'purpose':'historical-context','row_selection':selection}]},{})
+    assert reason is None
+    assert len(frozen['_product_context'][0]['content'])<2048

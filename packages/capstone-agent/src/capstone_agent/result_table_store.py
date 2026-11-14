@@ -16,6 +16,23 @@ class ResultTableStore:
     def __init__(self, objects: ObjectStore) -> None:
         self._objects = objects
 
+    def inline_page(self, projection, table, *, offset, limit, version):
+        """Publish only the requested slice of an already admitted inline source."""
+        from dataclasses import replace
+        grant = self._grant(projection, table.table_id)
+        total = len(table.rows)
+        page = {'schema':'capstone-result-table-inline-page/1','grant':grant,
+            'table_version':version,'offset':offset,'total_rows':total,
+            'next_offset':offset+limit if offset+limit < total else None,
+            'table':replace(table,rows=table.rows[offset:offset+limit]).to_document()}
+        if len(json.dumps(page,ensure_ascii=False,allow_nan=False).encode()) > 256*1024:
+            raise ValueError('result page exceeds byte budget')
+        reference = self._save('table-page',page)
+        loaded = self._load('table-page',reference,max_bytes=256*1024)
+        if loaded != page:
+            raise ValueError('result inline page identity mismatch')
+        return loaded
+
     @staticmethod
     def _grant(projection: ResultProjection, table_id: str) -> dict[str, str]:
         if projection.result_ref is None or not any(t.table_id == table_id for t in projection.tables):
