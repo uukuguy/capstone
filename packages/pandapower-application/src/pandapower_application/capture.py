@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from pandapower_domain.authority import ContentReferenceVerifier
+from pandapower_application.model_request_contract import MODEL_REQUEST_SCHEMA_VERSION
 from capability_agent.trajectory.artifacts import ArtifactPointer, ImmutableArtifactRegistry
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import (
@@ -640,6 +641,7 @@ class NativeCaptureAdapter:
             return validate_canonical_model_request_document(
                 document,
                 require_digest_match=False,
+                schema_version=MODEL_REQUEST_SCHEMA_VERSION,
             )
         except CanonicalRequestValidationError as exc:
             raise CaptureIntegrityError(

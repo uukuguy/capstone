@@ -64,8 +64,10 @@ def validate_canonical_model_request_document(
     document: Mapping[str, Any],
     *,
     require_digest_match: bool = True,
+    schema_version: str = "capstone-model-request-input/2.0",
 ) -> CanonicalModelRequestDocument:
-    if document.get("schema_version") != "grid-model-request-input/2.0":
+    """Validate canonical content under the application-selected schema identity."""
+    if document.get("schema_version") != schema_version:
         raise CanonicalRequestValidationError("model request schema_version is invalid")
     expected_keys = {
         "schema_version",
@@ -127,8 +129,12 @@ def validate_canonical_model_request_document(
     )
 
 
-def canonical_request_preview(document: Mapping[str, Any]) -> dict[str, Any]:
-    validate_canonical_model_request_document(document)
+def canonical_request_preview(
+    document: Mapping[str, Any],
+    *,
+    schema_version: str = "capstone-model-request-input/2.0",
+) -> dict[str, Any]:
+    validate_canonical_model_request_document(document, schema_version=schema_version)
     preview_keys = (
         "request_id",
         "request_index",

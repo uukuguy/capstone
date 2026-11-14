@@ -7542,3 +7542,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 24d1d14c：图探针验证现行私有调度帧，恢复完整SDK链路回归。
 
 - 2026-11-14 SDK旧fixture按4d57c083既定容量修复策略更新，真实SDK655项通过；fatal debug runtime草案已完全撤回，生产SDK文件与HEAD一致。
+
+- 2026-11-14 1e008f5e：SDK夹具验证容量修复及授权隔离，撤回不合合同的中断草案。
+- 2026-11-14 Kernel请求schema中性化，pandapower应用显式选择既有协议；117项直接消费者及focused类型通过，父级10项边界/校验回归通过，未改历史工件。
