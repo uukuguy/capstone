@@ -4,9 +4,15 @@ import psycopg
 from capstone_agent.artifacts import MemoryObjectStore
 from capstone_agent.product_block_store import ProductBlockStore
 from capstone_agent.product_blocks import build_index
-from capstone_agent.product_index_worker import run_index_once
+from capstone_agent.product_index_worker import run_index_once as _run_index_once
 from test_product_index_jobs import jobs
 from test_thread_postgres import postgres_thread_service
+
+
+def run_index_once(*args, **kwargs):
+    return _run_index_once(*args, **kwargs, parser_limits={
+        'wall_seconds': 10, 'cpu_seconds': 5,
+        'max_rss_bytes': 512*1024*1024, 'max_output_bytes': 8192})
 
 
 def prepare(jobs):
@@ -61,6 +67,7 @@ def test_reader_cannot_exceed_budget(jobs):
 def test_publish_failure_cannot_mark_ready_or_leak_exception(jobs):
     queue, parent, content, key, store = prepare(jobs)
     class BrokenStore:
+        max_index_bytes = 8192
         def publish(self, _):
             raise OSError('private source detail must not be persisted')
     assert run_index_once(queue, BrokenStore(), lambda *_: content, worker_id='test',
@@ -72,6 +79,7 @@ def test_publish_failure_cannot_mark_ready_or_leak_exception(jobs):
 def test_lease_loss_after_object_write_does_not_publish_ready(jobs):
     queue, parent, content, key, store = prepare(jobs)
     class ExpiringStore:
+        max_index_bytes = 8192
         def publish(self, value):
             receipt = store.publish(value)
             with psycopg.connect(queue.dsn) as c:

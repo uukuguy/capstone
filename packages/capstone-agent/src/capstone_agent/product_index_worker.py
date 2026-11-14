@@ -1,17 +1,30 @@
 """Single application index job, with lease checks at each publication boundary.
 
-The host supplies an authorized bounded reader. Production wiring must also
-provide process-level memory/time limits; this function is not a daemon or a
-hard-timeout sandbox. A slow stage can lose its lease but cannot publish later.
+The host supplies an authorized bounded reader and explicit parser budgets.
+Parsing runs in a disposable child. Production memory cgroups and reader I/O
+deadlines remain host responsibilities; a slow stage cannot publish after expiry.
 """
-from .product_blocks import build_index
+import math
+
+from .product_index_process import parse_isolated
 
 
 def run_index_once(jobs, objects, read_source, *, worker_id, lease_seconds,
-                   max_input_bytes, max_blocks):
+                   max_input_bytes, max_blocks, parser_limits):
     for limit in (lease_seconds, max_input_bytes, max_blocks):
         if type(limit) is not int or limit < 1:
             raise ValueError('invalid index worker budget')
+    fields = {'wall_seconds', 'cpu_seconds', 'max_rss_bytes', 'max_output_bytes'}
+    if not isinstance(parser_limits, dict) or set(parser_limits) != fields:
+        raise ValueError('explicit parser budgets required')
+    for field in fields - {'wall_seconds'}:
+        if type(parser_limits[field]) is not int or parser_limits[field] < 1:
+            raise ValueError('invalid parser budget')
+    wall = parser_limits['wall_seconds']
+    if type(wall) not in (int, float) or not math.isfinite(wall) or not 0 < wall < lease_seconds:
+        raise ValueError('parser deadline must fit inside the lease')
+    if parser_limits['max_output_bytes'] > objects.max_index_bytes:
+        raise ValueError('parser output exceeds index store budget')
     claim = jobs.claim(worker_id, lease_seconds=lease_seconds)
     if claim is None:
         return 'idle'
@@ -26,8 +39,8 @@ def run_index_once(jobs, objects, read_source, *, worker_id, lease_seconds,
         if not current():
             return 'lease_lost'
         phase = 'source_parse'
-        index = build_index(claim['parent_ref'], content,
-                            max_input_bytes=max_input_bytes, max_blocks=max_blocks)
+        index = parse_isolated(claim['parent_ref'], content,
+            max_input_bytes=max_input_bytes, max_blocks=max_blocks, **parser_limits)
         if index['parser_id'] != claim['parser_id']:
             raise ValueError('index parser version changed')
         if not current():
