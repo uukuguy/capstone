@@ -11,7 +11,8 @@ import { parseAttemptRecords } from './attemptRecords'
 import { parseProcessProducts } from './processProducts'
 import type { WorkCommand } from './threadWorkProtocol'
 import {parseNativeArtifact,parseNativeArtifacts,type NativeArtifact} from './nativeArtifacts'
-import {parseProductIndex,parseProductRef,parseProductResolution,type ProductQuery,type ProductRef} from './threadProducts'
+import {parseProductIndex,parseProductRef,parseProductResolution,parseContextProductRefs,type ProductQuery,type ProductRef} from './threadProducts'
+import {object,parseSeries,parseComparison,type SeriesCommand} from './productSeries'
 import {parseBlockJob,parseBlockPage} from './productBlocks'
 import {transferResource,parseStoredResources} from './resourceUploads'
 import {parseCapacityFailure} from './capacityFailure'
@@ -358,6 +359,32 @@ export class HttpThreadTransport implements ThreadTransport {
     if(query.cursor)params.set('cursor',query.cursor)
     if(query.workId!==undefined)params.set('work_id',query.workId===null?'legacy':query.workId)
     return parseProductIndex(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/product-index?${params}`,{signal}),threadId)
+  }
+  async discoverProductSeries(ref:ProductRef,signal?:AbortSignal){
+    ref=parseProductRef(ref)
+    const body=object(await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-series/discover`,{method:'POST',body:JSON.stringify({product:ref}),signal}),['series'])
+    return body.series===null?null:parseSeries(body.series,ref.thread_id)
+  }
+  async commandProductSeries(thread:string,command:SeriesCommand){
+    const state=parseSeries(await this.request(`${this.resourcePath}/${encodeURIComponent(thread)}/product-series/commands`,{method:'POST',body:JSON.stringify(command),headers:{'Idempotency-Key':command.idempotency_key}}),thread)
+    if(state.series_id!==command.series_id)throw new Error('系列身份不匹配。')
+    return state
+  }
+  async productSources(ref:ProductRef,signal?:AbortSignal){
+    ref=parseProductRef(ref)
+    const body=object(await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-series/sources`,{method:'POST',body:JSON.stringify({product:ref}),signal}),['sources'])
+    return parseContextProductRefs(body.sources,ref.thread_id)
+  }
+  async compareProducts(original:ProductRef,revised:ProductRef,signal?:AbortSignal){
+    original=parseProductRef(original);revised=parseProductRef(revised,original.thread_id)
+    return parseComparison(await this.request(`${this.resourcePath}/${encodeURIComponent(original.thread_id)}/product-comparisons`,{method:'POST',body:JSON.stringify({original_ref:original,revised_ref:revised}),signal}),original,revised)
+  }
+  async seriesMembers(thread:string,series:string,after?:string,signal?:AbortSignal){
+    const query=new URLSearchParams({limit:String(Math.min(20,applicationCapacity('product_page_items')))})
+    if(after)query.set('after',after)
+    const body=object(await this.request(`${this.resourcePath}/${encodeURIComponent(thread)}/product-series/${encodeURIComponent(series)}/members?${query}`,{signal}),['members','next_cursor'])
+    if(!Array.isArray(body.members)||body.members.length>20||body.next_cursor!==null&&typeof body.next_cursor!=='string'||body.next_cursor===after)throw new Error('系列分页响应无效。')
+    return {members:body.members.map(ref=>parseProductRef(ref,thread)),next_cursor:body.next_cursor as string|null}
   }
   async readProductBlocks(ref:ProductRef,jobId?:string,offset=0,signal?:AbortSignal) {
     ref=parseProductRef(ref)

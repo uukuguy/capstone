@@ -13,8 +13,10 @@ import {ResourceFullscreenContext} from './resourceFullscreen'
 import ProductParagraphPicker from './ProductParagraphPicker'
 import type {BlockReader} from './productBlocks'
 import type {LocalProductSelection} from './threadProducts'
+import ProductComparison from './ProductComparison'
+import type {SeriesClient} from './productSeries'
 
-type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader}
+type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean}&Partial<SeriesClient>
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
 function newestFirst(a:ProductEntry,b:ProductEntry){
   return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
@@ -216,6 +218,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
         {view.bytes&&url&&<a aria-label="下载文件" title="下载文件" href={url} download={typeof view.entry.source.file_name==='string'?view.entry.source.file_name:view.entry.title}><ArrowDownToLine aria-hidden="true"/><span>下载文件</span></a>}
       </div>
       {view.projection&&<ResultProjectionCard projection={view.projection} onFocusElement={onFocusElement}/>}
+      {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={viewKey} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={ref=>{userSelected.current=true;setSelection(ref)}}/>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
       {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&
         <ProductParagraphPicker key={viewKey} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}

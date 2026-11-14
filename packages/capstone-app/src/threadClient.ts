@@ -29,8 +29,9 @@ export type ThreadTransportState = 'live' | 'reconnecting' | 'resync_required' |
 
 import type {ProductIndex,ProductQuery,ProductRef,ProductResolution} from './threadProducts'
 import type {BlockReader} from './productBlocks'
+import type {SeriesClient} from './productSeries'
 
-export interface ThreadTransport {
+export interface ThreadTransport extends Partial<SeriesClient> {
   readProductIndex?(threadId:string,query?:ProductQuery,signal?:AbortSignal):Promise<ProductIndex>
   readProductBlocks?:BlockReader
   resolveProduct?(ref:ProductRef,signal?:AbortSignal):Promise<ProductResolution>
@@ -92,6 +93,12 @@ export class CapstoneThreadClient {
   constructor(private readonly transport: ThreadTransport) {}
   get supportsProductIndex():boolean{return Boolean(this.transport.readProductIndex&&this.transport.resolveProduct)}
   get supportsProductBlocks():boolean{return Boolean(this.transport.readProductBlocks)}
+  get supportsProductSeries():boolean{return Boolean(this.transport.discoverProductSeries&&this.transport.commandProductSeries&&this.transport.compareProducts&&this.transport.productSources&&this.transport.seriesMembers)}
+  discoverProductSeries:SeriesClient['discoverProductSeries']=(...args)=>{if(!this.transport.discoverProductSeries)throw new Error('当前服务不支持成果系列');return this.transport.discoverProductSeries(...args)}
+  commandProductSeries:SeriesClient['commandProductSeries']=(...args)=>{if(!this.transport.commandProductSeries)throw new Error('当前服务不支持成果采用');return this.transport.commandProductSeries(...args)}
+  compareProducts:SeriesClient['compareProducts']=(...args)=>{if(!this.transport.compareProducts)throw new Error('当前服务不支持成果对照');return this.transport.compareProducts(...args)}
+  productSources:SeriesClient['productSources']=(...args)=>{if(!this.transport.productSources)throw new Error('当前服务不支持成果来源');return this.transport.productSources(...args)}
+  seriesMembers:SeriesClient['seriesMembers']=(...args)=>{if(!this.transport.seriesMembers)throw new Error('当前服务不支持系列版本');return this.transport.seriesMembers(...args)}
   readProductBlocks:BlockReader=(ref,job,offset,signal)=>{
     if(!this.transport.readProductBlocks)throw new Error('当前服务不支持段落引用')
     return this.transport.readProductBlocks(ref,job,offset,signal)

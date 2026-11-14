@@ -116,3 +116,14 @@
 .is-resource-expanded .workspace-product-paper .pptx-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .is-resource-expanded .workspace-product-paper .pptx-preview > nav { flex: none; }
 .is-resource-expanded .workspace-product-paper .pptx-preview > img { flex: 1; min-height: 0; width: 100%; height: calc(100% - 42px); max-height: none; object-fit: contain; }
+.product-comparison{border-block:1px solid var(--border-color,#d7dce3);padding:12px 0;margin:12px 0;display:grid;gap:8px}
+.product-comparison h4,.product-comparison p{margin:0}
+.product-comparison label{display:grid;gap:6px}
+.product-comparison select{min-height:44px;max-width:100%;font:inherit;color:inherit;background:inherit;border:1px solid var(--border-color,#d7dce3);border-radius:6px}
+.product-comparison button{min-height:44px}
+.product-comparison small{display:block}
+.product-comparison-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.product-comparison-columns pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;max-height:50vh;overflow:auto;padding:8px;border:1px solid var(--border-color,#d7dce3)}
+.product-comparison mark{background:#ffedaa;color:#302400;text-decoration:underline;text-decoration-style:dotted}
+.product-comparison :focus-visible{outline:2px solid currentColor;outline-offset:3px}
+@media(max-width:640px){.product-comparison-columns{grid-template-columns:1fr}}
