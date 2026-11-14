@@ -7538,3 +7538,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 ee20063c：AppHeader断言读取产品版本，发布升级不再依赖旧版本常量。
 
 - 2026-11-14 原生图执行夹具按现行私有JSONL验证调度回执后读取RPC/结果；50项通过，保留全部证据、归属、版本与拒绝断言，无runtime改动。
+
+- 2026-11-14 24d1d14c：图探针验证现行私有调度帧，恢复完整SDK链路回归。
+
+- 2026-11-14 SDK旧fixture按4d57c083既定容量修复策略更新，真实SDK655项通过；fatal debug runtime草案已完全撤回，生产SDK文件与HEAD一致。
