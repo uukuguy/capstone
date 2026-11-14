@@ -125,3 +125,25 @@ def test_row_endpoint_requires_auth_and_rejects_forged_source():
             assert client.post(url,json={}).status_code==401
             assert client.post(url,json={},headers=_auth()).status_code==422
             assert client.post(url,json={'ref':{},'table_id':'res_line','manifest_ref':'forged'},headers=_auth()).status_code==422
+
+
+def test_same_parent_distinct_row_materials_keep_independent_identity():
+    from test_thread_result_projection import _service,_claim_and_projection,RESULT_ONE,EVIDENCE_ONE
+    from capstone_agent.thread_products import product_index,resolve_row_request,freeze_product_selection
+    store=_service()
+    store._material_objects=MemoryObjectStore()
+    claim,document=_claim_and_projection(store,1,RESULT_ONE,EVIDENCE_ONE)
+    document={**document,'tables':[list(pages())[1]['table']]}
+    store.finish_attempt(claim,phase='completed',payload={'answer':'saved','result_projections':[document],
+        'result_refs':[RESULT_ONE],'evidence_refs':[EVIDENCE_ONE],
+        'admission':{'mode':'authority_backed','assurance':'lineage_verified'}})
+    ref=next(e['ref'] for e in product_index(store,claim.thread_id)['products'] if e['ref']['origin']=='domain_result')
+    selected=[{'ref':ref,'purpose':'historical-context','row_selection':resolve_row_request(store,
+        store._material_objects,claim.thread_id,{'ref':ref,'table_id':'res_line','row_ids':[row],'column_ids':['value']})}
+        for row in ['row_128','row_132']]
+    snapshot=replace(store.snapshot(claim.thread_id),active_model_context=None,
+        minimum_protocol_version=2,active_grid_page_id=None,current_attempt=None)
+    frozen,reason=freeze_product_selection(store,snapshot,{'context_product_refs':selected},{})
+    assert reason is None
+    assert len({m['material_id'] for m in frozen['_materials']})==2
+    assert [m['source_product']['row_selection'] for m in frozen['_materials']]==[s['row_selection'] for s in selected]
