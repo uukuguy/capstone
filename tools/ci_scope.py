@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    reference_manifest = Path(__file__).resolve().parents[1] / 'configs/development/product-references-gate.json'
+    if reference_manifest.is_file():
+        references = json.loads(reference_manifest.read_text())
+        if set(references['anchors']).issubset(paths) and all(
+                path in references['paths'] or _control_path(path) for path in paths):
+            return 'product-references'
     manifest = Path(__file__).resolve().parents[1] / 'configs/development/architecture-retirement-gate.json'
     if manifest.is_file():
         retirement = json.loads(manifest.read_text())

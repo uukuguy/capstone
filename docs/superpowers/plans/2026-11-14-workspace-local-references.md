@@ -1,12 +1,23 @@
 # Version-bound local references implementation plan
 
-Status: research delivery draft. No runtime implementation or deployment acceptance.
+Status: implemented in the independent branch; local candidate a65b35b6 rebuilt and checked. Not merged into dev; no cloud/demo promotion or CI approval.
+
+## Verified delivery boundary
+
+- Application-owned Markdown paragraph indexes, immutable private objects, PostgreSQL leases and isolated parsing are implemented. Only top-level Markdown paragraphs are supported.
+- Exact local selection identity flows through existing admission, composer and preview. Two paragraphs from one parent produce distinct historical materials, with no whole-artifact claim.
+- Real model validation in Thread `thr_82eab8cb58cc8741909b` created the original Markdown, continued using two paragraphs, and preserved original bytes. Exact HTTP retry returned the same receipt. PostgreSQL retained two distinct materials and two local provenance records.
+- Vivaldi verified preparation, two selections, independent removal, re-add, third-turn submission and refresh restoration. A later capacity correction passed 23 focused tests and was rebuilt; saved indexes and the browser paragraph entry remained available.
+- Evidence: research worktree `runs/paragraph-validation-20261114/`. Standard rebuild and project cache cleanup passed. Current App is port 5175; backend source a65b35b6 uses image 0b11a6ff7757. Demo and cloud did not change.
+- Pending: independent review (reviewer startup failed), dev PR/control integration, keyboard-only and unsent-draft restoration coverage, source-disappearance retry coverage specific to local selections, GB-scale chunk processing, hard parser memory isolation, source I/O deadlines and orphan-index cleanup. These are not claimed complete by the small-file slice.
+
+The task checklists below remain the original detailed acceptance checklist. The verified boundary above records measured delivery; unchecked items must not be interpreted as all unimplemented or automatically accepted.
 
 **Goal:** Select a paragraph from an existing text product, continue in the same conversation, and retain exact source identity and historical products.
 
 **Architecture:** The application owns parsing, reference admission and presentation. Existing command, execution and product paths remain the integration points. The Kernel receives admitted context; Authority evidence rules stay in their existing owners.
 
-**Stack:** Existing Python application and React/TypeScript App. The experiment used unified/remark already installed in the App; backend packaging remains a decision in Task 1.
+**Stack:** Python application-owned markdown-it-py 4.2.0 and the existing React/TypeScript App. The browser consumes opaque host-issued block identities and verifies byte digests; it does not derive parser identities.
 
 Source: [research and experiment](../../capstone-app/2026-11-14-code-mapping.md). Owner: enterprise application research; destination: dev after review and focused acceptance. This plan is backlog until implementation starts.
 
