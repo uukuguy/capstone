@@ -22,6 +22,8 @@ class ObjectStore(Protocol):
 
     def get(self, key: str, limit: int) -> bytes: ...
 
+    def iter_bytes(self, key: str, *, chunk_size: int): ...
+
 
 class MemoryObjectStore:
     """Small deterministic test adapter; production uses S3 or GCS."""
@@ -37,6 +39,13 @@ class MemoryObjectStore:
 
     def delete(self, key: str) -> None:
         self.contents.pop(key, None)
+
+    def iter_bytes(self, key: str, *, chunk_size: int):
+        if type(chunk_size) is not int or chunk_size < 1:
+            raise ValueError('invalid object chunk size')
+        content = self.contents[key]
+        for offset in range(0, len(content), chunk_size):
+            yield content[offset:offset + chunk_size]
 
 
 class S3ObjectStore:
@@ -66,6 +75,22 @@ class S3ObjectStore:
         finally:
             body.close()
 
+    def iter_bytes(self, key: str, *, chunk_size: int):
+        if type(chunk_size) is not int or chunk_size < 1:
+            raise ValueError('invalid object chunk size')
+        from botocore.exceptions import ClientError
+        try:
+            body = self.client.get_object(Bucket=self.bucket, Key=key)['Body']
+        except ClientError as error:
+            if error.response.get('Error', {}).get('Code') in {'NoSuchKey', '404', 'NotFound'}:
+                raise FileNotFoundError('retained object unavailable') from None
+            raise OSError('retained object storage unavailable') from None
+        try:
+            while chunk := body.read(chunk_size):
+                yield chunk
+        finally:
+            body.close()
+
 
 class GCSObjectStore:
     """Private Google Cloud Storage adapter for Cloud Run."""
@@ -84,6 +109,22 @@ class GCSObjectStore:
 
     def get(self, key: str, limit: int) -> bytes:
         return self.bucket.blob(key).download_as_bytes(start=0, end=limit)
+
+    def iter_bytes(self, key: str, *, chunk_size: int):
+        if type(chunk_size) is not int or chunk_size < 1:
+            raise ValueError('invalid object chunk size')
+        from google.api_core.exceptions import NotFound, GoogleAPIError
+        blob = self.bucket.blob(key)
+        try:
+            blob.reload()
+            # Pin a generation across all ranged reads to prevent mixed revisions.
+            with blob.open('rb', chunk_size=chunk_size) as stream:
+                while chunk := stream.read(chunk_size):
+                    yield chunk
+        except NotFound:
+            raise FileNotFoundError('retained object unavailable') from None
+        except GoogleAPIError:
+            raise OSError('retained object storage unavailable') from None
 
     def delete(self, key: str) -> None:
         from google.api_core.exceptions import NotFound

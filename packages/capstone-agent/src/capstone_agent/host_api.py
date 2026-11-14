@@ -189,6 +189,7 @@ def create_host_app(
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
                 request.state.public_demo = demo_authorized
+                request.state.product_actor = 'operator:authenticated' if authorized else 'workspace:open'
                 scope_error = None
                 try:
                     request.state.workspace_name = workspace_header(request.headers.get(WORKSPACE_HEADER))
@@ -418,6 +419,11 @@ def create_host_app(
         from .thread_products import register_product_routes
         register_product_routes(app, service=thread_service, objects=material_objects,
             executor_provider=lambda: native_artifact_executor, authorize=require_private_thread)
+        from .product_series_service import ProductSeriesService
+        from .product_series_http import register_product_series_routes
+        register_product_series_routes(app, service=ProductSeriesService(thread_service, material_objects),
+            authorize=require_private_thread,
+            actor_provider=lambda request: request.state.product_actor + ':' + request.state.workspace_name)
         if product_index_service is not None:
             if product_index_service.threads is not thread_service:
                 raise ValueError('product indexes must use the configured thread service')

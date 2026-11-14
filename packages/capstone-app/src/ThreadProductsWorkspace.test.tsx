@@ -6,6 +6,39 @@ import {ResourceFullscreenContext} from './resourceFullscreen'
 import {parseProductRef,type ProductEntry} from './threadProducts'
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
+it('keeps one comparison and paragraph picker when switching real Markdown previews',async()=>{
+ vi.stubGlobal('URL',class extends URL{static createObjectURL(){return 'blob:preview'}static revokeObjectURL(){}})
+ const error=vi.spyOn(console,'error').mockImplementation(()=>{})
+ try{
+ const first:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'first'},title:'first.md',media_type:'text/markdown',source_status:'completed',source:{file_name:'first.md'},capabilities:{read:true,select:true}}
+ const second:ProductEntry={...first,ref:{...first.ref,product_id:'second',digest:'b'.repeat(64)},title:'second.md',source:{file_name:'second.md'}}
+ const client={supportsProductSeries:true,supportsProductBlocks:true,readProductBlocks:vi.fn(),productIndex:vi.fn().mockResolvedValue({products:[first,second],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async ref=>({entry:ref.product_id==='first'?first:second,bytes:new TextEncoder().encode(`# ${ref.product_id}\n\n正文。`),projection:null,record:null})),discoverProductSeries:vi.fn().mockResolvedValue(null),productSources:vi.fn().mockResolvedValue([]),commandProductSeries:vi.fn(),compareProducts:vi.fn(),seriesMembers:vi.fn()}
+ const props={client,threadId:'thr_one',revision:1,onReference:vi.fn()}
+ const view=render(<ThreadProductsWorkspace {...props} requested={{ref:first.ref,nonce:1}}/>)
+ await screen.findByRole('heading',{name:'first'})
+ for(let i=2;i<6;i++){
+  const current=i%2?first:second
+  view.rerender(<ThreadProductsWorkspace {...props} requested={{ref:current.ref,nonce:i}}/>)
+  await screen.findByRole('heading',{name:current.ref.product_id})
+  expect(screen.getAllByRole('region',{name:'成果对照与采用'})).toHaveLength(1)
+  expect(screen.getAllByText('选择段落引用')).toHaveLength(1)
+ }
+ expect(error.mock.calls.filter(call=>String(call[0]).includes('same key'))).toHaveLength(0)
+ }finally{error.mockRestore()}
+})
+it('opens comparison in the existing preview and keeps explicit references available',async()=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file'},title:'draft.md',media_type:'text/markdown',source_status:'completed',source:{file_name:'draft.md'},capabilities:{read:true,select:true}}
+ const reference=vi.fn(),client={supportsProductSeries:true,productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null}),discoverProductSeries:vi.fn().mockResolvedValue(null),productSources:vi.fn().mockResolvedValue([]),commandProductSeries:vi.fn(),compareProducts:vi.fn(),seriesMembers:vi.fn()}
+ const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1} onReference={reference}/>)
+ expect(await screen.findByRole('region',{name:'成果对照与采用'})).toBeTruthy()
+ view.rerender(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={2} onReference={reference}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
+ expect(screen.getAllByRole('region',{name:'成果对照与采用'})).toHaveLength(1)
+ expect(screen.getByRole('button',{name:'以当前稿建立系列'}).parentElement?.className).toBe('product-comparison-actions')
+ fireEvent.click(screen.getByRole('button',{name:'引用到下一轮'}))
+ expect(reference).toHaveBeenCalledWith(file)
+ expect(client.commandProductSeries).not.toHaveBeenCalled()
+})
 it('closes the product list when the display is fullscreen',async()=>{
  const client={productIndex:vi.fn().mockResolvedValue({products:[],hasMore:false,nextCursor:null}),resolveProduct:vi.fn()}
  render(<ResourceFullscreenContext.Provider value={true}><ThreadProductsWorkspace client={client} threadId="thr_one" revision={1}/></ResourceFullscreenContext.Provider>)
