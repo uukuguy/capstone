@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-当前实施：[成果对照与采用](../superpowers/plans/2026-11-14-product-comparison-adoption.md)，系列归属与来源分离、显式采用及恢复；分支feat/product-comparison-adoption-20261114，目标dev，本地真实续作/采用/恢复通过，dev集成与获批CI待完成。见[验证记录](../reviews/2026-11-14-product-adoption-local.md)。
+当前实施：[成果对照与采用](../superpowers/plans/2026-11-14-product-comparison-adoption.md)，系列归属与来源分离、显式采用及恢复；分支feat/product-comparison-adoption-20261114，目标dev，本地真实续作/采用/恢复通过，PR111已合入dev c6167e5e，macOS CI43613326116通过139秒，实际dev重建及采用恢复通过。见[验证记录](../reviews/2026-11-14-product-adoption-local.md)。
 
 局部成果引用：[实现计划](../superpowers/plans/2026-11-14-workspace-local-references.md)，local-dev临时候选来源a65b35b6；研究分支7ef73be1另含定向门禁和恢复测试。真实三轮、两段独立材料、旧文件摘要保持、Vivaldi提交及刷新通过；本地160项后端、61项前端及类型检查通过，补充26项删除来源/重试检查通过。[台账](VERSION-CONTROL.md)和[控制图](PROJECT-OVERVIEW.html)为待集成草稿，尚未合入dev或运行CI。
 
