@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: approved PPT integration onto dev; IG1 acceptance remains open.
+- Active work package: v1.1.0 main release baseline; local full gate in progress.
 - Branch ownership: dev owns accepted runtime. The PPT candidate is the only
   pending implementation line;reference-execution research is archived, with
   remaining projection questions in the core-evolution design backlog. Planning-only Research Model and R0 remain design/reference work,

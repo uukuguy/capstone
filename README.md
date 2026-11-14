@@ -29,7 +29,7 @@ English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone
 The supported application entry is `capstone-agent`. The retired `grid-agent`
 distribution and CLI have been removed. The separately installable
 `pandapower-application` owns formal pandapower entry points, workers and reports.
-The v1.1.0 release candidate freezes the unified framework, native execution,
+The v1.1.0 baseline defines the unified framework, native execution,
 resource handling and State Grid presentation library. See the
 [release notes](docs/releases/v1.1.0.md) for scope, verification and compatibility.
 

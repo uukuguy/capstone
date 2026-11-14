@@ -7529,3 +7529,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Repaired16 release type blockers; globalPyright clean,17Thread/26pandapower/2real scripted-consumer tests pass; full gate resumes.
 - 2026-11-14 Repaired release execution contracts59f1411b; global types and targeted consumers pass; full local release gate resumed, no CI.
 - 2026-11-14 Release review catches lock overreplacement and old backend pin; repaired, npm ci/metadata invariance pass;38 migrated validation checks pass with module entry.
+- 2026-11-14 Corrected release locks/import entry f12789a1; fresh npm install,38validation/21gate tests pass; full local release gate running.
+- 2026-11-14 Full professional suite878pass/14fail/3skip; repaired direct validation bootstrap and documented retained private state paths; all34 affected checks pass.

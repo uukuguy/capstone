@@ -1,5 +1,13 @@
 # Unified Enterprise Execution Implementation Plan
 
+## 2026-11-14 v1.1.0发布基线（用户指定）
+
+用户要求重要tag并合入main，版本明确为v1.1.0。候选release/v1.1.0基于已收口dev8d97596c，
+版本与锁3690e8ff已准备，59f1411b修复完整门禁16项类型问题；全局类型与直接调用方检查通过。
+完整本地check-release运行中；main PR、macOS/Linux发布CI和tag均待验收及逐次CI明确批准。
+发布说明见[范围与兼容](../../releases/v1.1.0.md)。不部署cloud/demo，不改local-demo；
+发布通过后版本与修复通过受保护PR回流dev，保持控制台账归dev。
+
 ## 2026-11-14 已批准的 PPT 集成与引用研究归档
 
 用户批准将已验证的 PPT 模板库、默认国网入口、同源 PDF、执行统计和直接调用方

@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-14：[v1.1.0发布记录](../reports/2026-11-14-v1.1.0-release.md)记录类型、依赖锁及测试入口修复；完整本地门禁运行中，发布CI未批准。
+
 2026-11-14：[v1.1.0发布候选](../releases/v1.1.0.md)按用户选定版本冻结；本地完整门禁修复中，main合入和tag待接受。
 
 2026-11-14：[PPT 集成与引用研究收口](../reports/2026-11-14-presentation-integration.md)：
