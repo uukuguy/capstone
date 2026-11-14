@@ -37,6 +37,13 @@ Keep the deployment receipt's host/stage separate from the App's development-lan
 label. Verify image identities, readiness, the default model and gateway, one real
 short task and downloaded product hashes before claiming deployment acceptance.
 
+The third-area development installation uses the explicit App label `dky3-dev`,
+same-origin API, Compose project `capstone-dky3-dev`, and root
+`/data/capstone-dky3-dev` on `192.168.72.66`. Prepare its App receipt with
+`--environment dky3-dev`. Its database, object store, control credentials and
+runtime volumes are separate from other installations. Configure its gateway
+through the page; do not copy another installation's connection credentials.
+
 Start or update with the saved project name and private environment file. Never
 use `down -v`. Retain the previous image/source receipt for rollback. Scope any
 build-cache cleanup to Capstone-owned images; preserve images referenced by any

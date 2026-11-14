@@ -21,7 +21,10 @@ model latency gain. Those requirements remain governed by enterprise design
 section9 and the broader worklist;IG1 acceptance remains separate.
 
 Implementation and verification are complete for this local improvement slice.
-The final control/receipt documentation PR is pending. Earlier slice notes below
+The final control/receipt documentation merged through PR102 as4b857ac9;
+approved macOS docs CI43473293838 passed2m08s. This post-merge receipt is kept
+with the generated current snapshot without a self-referential commit cycle.
+Earlier slice notes below
 retain their measured source identities;their open migration labels are historical.
 
 ## Scope and order

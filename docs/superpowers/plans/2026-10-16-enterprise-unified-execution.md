@@ -21,8 +21,10 @@ it does not add a product execution path or infer deployment from a branch.
 - [x] Frozen7b4081e6 accepted through PR106 at20b6cbc0; approved macOS
   governance CI43570026586 passed118seconds. Actual dev canonical rebuild,
   default App1.1.0 and8new/47historical product hash checks passed.
-- [ ] Integrate final acceptance receipts and updated actual-dev graph through
-  a documentation PR; obtain a new scoped CI approval before publication.
+- [x] Final release acceptance records integrated through PR107 at0d682556;
+  separately approved macOS docs CI43571511523 passed.
+- [ ] Integrate preserved historical documentation and application design sources
+  through docs/preserved-design-records after its own scoped CI approval.
 
 ## v1.1.0 首轮发布CI补修
 
