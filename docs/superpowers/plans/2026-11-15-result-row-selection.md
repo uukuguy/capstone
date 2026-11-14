@@ -2,7 +2,7 @@
 
 Goal: exact structured result rows flow through existing task submission, local analysis, source inspection and product adoption.
 
-Owner: capstone-agent/capstone-app. Destination: dev. Planning backlog until written design review; no CI approval. Design: [row selection](../specs/2026-11-15-result-row-selection-design.md).
+Owner: capstone-agent/capstone-app. Destination: dev. Written design approved; implementation active on feat/result-row-selection-20261115 in .worktrees/result-row-selection; no CI approval. Next: bounded real-result publication, selection admission and existing table UI. Design: [row selection](../specs/2026-11-15-result-row-selection-design.md).
 
 ## 1. Versioned row identity and bounded resolver
 
