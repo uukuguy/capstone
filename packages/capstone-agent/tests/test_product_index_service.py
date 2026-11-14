@@ -37,3 +37,24 @@ def test_service_runs_retained_product_through_real_database_and_child(postgres_
         restored.blocks('other-thread', created['job_id'], offset=0, limit=1)
     with pytest.raises(ValueError):
         restored.blocks(thread, created['job_id'], offset=3, limit=1)
+
+    from fastapi.testclient import TestClient
+    from capstone_agent.host_api import create_host_app
+    from capstone_agent.ledger import Ledger
+    from capstone_agent.session import WorkerRegistry
+    from capstone_agent.artifacts import ArtifactService
+    from capstone_agent.workspace_scope import WORKSPACE_HEADER
+    from pathlib import Path
+    ledger = Ledger(threads.dsn); ledger.initialize()
+    app = create_host_app(ledger, WorkerRegistry(()), operator_token='test-private-token',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost'},
+        artifacts=ArtifactService(ledger, objects, Path('/tmp/capstone-index-test-unused')),
+        thread_service=threads, product_index_service=restored)
+    with TestClient(app, base_url='http://localhost') as client:
+        path = f'/api/v1/threads/{thread}/product-block-indexes'
+        headers = {'Authorization': 'Bearer test-private-token', 'Capstone-Thread-Version': '2'}
+        assert client.get(path+'/'+created['job_id']).status_code == 401
+        assert client.get(path+'/'+created['job_id'], headers={**headers, WORKSPACE_HEADER: 'other'}).status_code == 404
+        assert client.post(path, headers=headers, json={'ref': ref}).status_code == 202
+        assert client.get(path+'/'+created['job_id'], headers=headers).json()['state'] == 'ready'
+        assert client.get(path+'/'+created['job_id']+'/blocks', headers=headers).status_code == 200

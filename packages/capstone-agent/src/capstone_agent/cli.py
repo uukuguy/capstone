@@ -256,6 +256,8 @@ def main(
             thread_service = PostgresThreadService(settings.database_url)
             thread_service.initialize()
             thread_service.set_material_store(artifacts.store)
+            from .product_index_host import configured_product_indexes, serve_product_indexes
+            product_indexes = configured_product_indexes(os.environ, thread_service, artifacts.store)
             native_executor = None
             if args.command == 'serve-hosted' and os.environ.get('CAPSTONE_GENERAL_EXECUTOR_ORIGIN'):
                 from .general_executor_composition import configured_general_executor
@@ -297,6 +299,7 @@ def main(
                     validation_status=build_validation_status(os.environ),
                     thread_service=thread_service,
                     native_artifact_executor=native_executor,
+                    product_index_service=product_indexes,
                     thread_creator=(
                         thread_application.thread_creator(thread_service)
                         if thread_application is not None
@@ -312,6 +315,14 @@ def main(
                 thread_stop = None
                 thread_wake = None
                 thread_scheduler = None
+                import threading
+                index_stop = threading.Event()
+                index_scheduler = None
+                if product_indexes is not None:
+                    index_scheduler = threading.Thread(target=serve_product_indexes,
+                        args=(product_indexes,), kwargs={'stop_event': index_stop},
+                        name='capstone-product-index-worker', daemon=True)
+                    index_scheduler.start()
                 if thread_runtime_factory is not None:
                     import threading
 
@@ -378,12 +389,16 @@ def main(
                                 resource_status=(thread_application.capability_context_owner.resource_counts
                                     if thread_application is not None and thread_application.capability_context_owner is not None else None),
                                 health_check=lambda: scheduler.is_alive()
+                                and (index_scheduler is None or index_scheduler.is_alive())
                                 and (thread_scheduler is None or thread_scheduler.is_alive()),
                             ),
                             host=settings.bind_host, port=settings.port,
                             log_config=None, access_log=False,
                         )
                     finally:
+                        index_stop.set()
+                        if index_scheduler is not None:
+                            index_scheduler.join(timeout=3)
                         stop_event.set()
                         wake_event.set()
                         scheduler.join(timeout=3)
@@ -399,6 +414,9 @@ def main(
                                       idle_seconds=settings.session_idle_seconds,
                                       max_sessions=settings.worker_max_sessions)
                     finally:
+                        index_stop.set()
+                        if index_scheduler is not None:
+                            index_scheduler.join(timeout=3)
                         if thread_stop is not None:
                             thread_stop.set()
                             if thread_scheduler is not None:

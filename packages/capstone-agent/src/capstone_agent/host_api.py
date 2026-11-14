@@ -72,6 +72,7 @@ def create_host_app(
     case_service: CaseExecutionService | None = None,
     validation_status: Callable[[], Mapping[str, object]] | None = None,
     native_artifact_executor=None,
+    product_index_service=None,
     capacity_profile=None,
 ) -> FastAPI:
     from .application_capacity import initialize_capacity, current_capacity, limits, CapacityExceeded
@@ -417,6 +418,12 @@ def create_host_app(
         from .thread_products import register_product_routes
         register_product_routes(app, service=thread_service, objects=material_objects,
             executor_provider=lambda: native_artifact_executor, authorize=require_private_thread)
+        if product_index_service is not None:
+            if product_index_service.threads is not thread_service:
+                raise ValueError('product indexes must use the configured thread service')
+            from .product_index_http import register_product_index_routes
+            register_product_index_routes(app, service=product_index_service,
+                                          authorize=require_private_thread)
 
         @app.get("/api/v1/threads")
         def list_threads(request: Request,
