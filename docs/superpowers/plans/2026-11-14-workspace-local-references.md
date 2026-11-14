@@ -9,7 +9,8 @@ Status: implemented in the independent branch; local candidate a65b35b6 rebuilt 
 - Real model validation in Thread `thr_82eab8cb58cc8741909b` created the original Markdown, continued using two paragraphs, and preserved original bytes. Exact HTTP retry returned the same receipt. PostgreSQL retained two distinct materials and two local provenance records.
 - Vivaldi verified preparation, two selections, independent removal, re-add, third-turn submission and refresh restoration. A later capacity correction passed 23 focused tests and was rebuilt; saved indexes and the browser paragraph entry remained available.
 - Evidence: research worktree `runs/paragraph-validation-20261114/`. Standard rebuild and project cache cleanup passed. Current App is port 5175; backend source a65b35b6 uses image 0b11a6ff7757. Demo and cloud did not change.
-- Pending: independent review (reviewer startup failed), dev PR/control integration, keyboard-only and unsent-draft restoration coverage, source-disappearance retry coverage specific to local selections, GB-scale chunk processing, hard parser memory isolation, source I/O deadlines and orphan-index cleanup. These are not claimed complete by the small-file slice.
+- PostgreSQL admission/retry check at 7ef73be1 passed: deleted source rejects fresh resolution, while exact retry returns its receipt and execution keeps frozen paragraph bytes. The 26 related checks passed.
+- Pending: independent review (reviewer startup failed), dev PR/control integration, keyboard-only and unsent-draft restoration coverage, GB-scale chunk processing, hard parser memory isolation, source I/O deadlines and orphan-index cleanup. These are not claimed complete by the small-file slice.
 
 The task checklists below remain the original detailed acceptance checklist. The verified boundary above records measured delivery; unchecked items must not be interpreted as all unimplemented or automatically accepted.
 
@@ -19,7 +20,7 @@ The task checklists below remain the original detailed acceptance checklist. The
 
 **Stack:** Python application-owned markdown-it-py 4.2.0 and the existing React/TypeScript App. The browser consumes opaque host-issued block identities and verifies byte digests; it does not derive parser identities.
 
-Source: [research and experiment](../../capstone-app/2026-11-14-code-mapping.md). Owner: enterprise application research; destination: dev after review and focused acceptance. This plan is backlog until implementation starts.
+Source: [research and experiment](../../capstone-app/2026-11-14-code-mapping.md). Owner: enterprise application research; destination: dev after review and focused acceptance. Implementation is active; dev integration remains pending.
 
 ## Constraints
 

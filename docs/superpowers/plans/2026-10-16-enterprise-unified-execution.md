@@ -1,5 +1,13 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Independent workspace research — 2026-11-14
+
+Owner: enterprise application interaction research. Branch: `research/capstone-app-workspace-20261114`, based on dev `9c855eb2`; first research commit `128f778b`.
+Scope and evidence: [code mapping](../../capstone-app/2026-11-14-code-mapping.md).
+Destination: reviewed design conclusions to dev. Acceptance: entity mapping, exact object references, instruction scope and a real validation slice.
+Current implementation: runtime source `a65b35b6` provides fixed paragraph indexes, persistent jobs, bounded parsing, local-selection admission and existing preview/composer integration. The temporary local-dev candidate passed three real-model turns, independent material identities, exact retry, original-file digest preservation and Vivaldi refresh restoration. `7ef73be1` also verifies retry and execution after source deletion. Evidence is in the research worktree `runs/paragraph-validation-20261114`.
+Next: scoped dev PR and control-draft integration. This package is not merged; no CI approval or cloud/demo release exists. Independent review remains unavailable; keyboard-only and unsent-draft coverage, GB-scale chunk processing, hard parser memory isolation and source I/O deadlines remain open requirements.
+
 ## Accepted release return to dev
 
 Goal: return the accepted source release and its control record through dev's PR.
@@ -23,8 +31,11 @@ it does not add a product execution path or infer deployment from a branch.
   default App1.1.0 and8new/47historical product hash checks passed.
 - [x] Final release acceptance records integrated through PR107 at0d682556;
   separately approved macOS docs CI43571511523 passed.
-- [ ] Integrate preserved historical documentation and application design sources
-  through docs/preserved-design-records after its own scoped CI approval.
+- [x] Preserved historical documentation and9design originals integrated through
+  PR108 at9c855eb2; separately approved macOS governance CI43573233405 passed
+  in118seconds. Actual dev synchronized,22document paths match the candidate,
+  and the temporary branch is closed. Final post-merge control snapshot is local
+  metadata, retained without another self-referential CI/commit cycle.
 
 ## v1.1.0 首轮发布CI补修
 
