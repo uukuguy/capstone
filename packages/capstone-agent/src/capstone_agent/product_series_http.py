@@ -5,6 +5,7 @@ from fastapi import HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
 from .thread_service import ThreadNotFound
+from .product_series_source import ProductSourceError
 
 
 def register_product_series_routes(app, *, service, authorize, actor_provider):
@@ -34,6 +35,8 @@ def register_product_series_routes(app, *, service, authorize, actor_provider):
             return await run_in_threadpool(method, *args, **kwargs)
         except (ThreadNotFound, KeyError):
             raise HTTPException(404, 'product_series_not_found') from None
+        except ProductSourceError as error:
+            raise HTTPException(422, error.code) from None
         except ValueError as error:
             if str(error) in {'series revision conflict', 'idempotency conflict', 'command identity conflict'}:
                 raise HTTPException(409, 'product_series_conflict') from None

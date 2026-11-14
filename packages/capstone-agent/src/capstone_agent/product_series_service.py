@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 from .product_series import transition
 from .product_series_store import ProductSeriesStore
-from .product_index_reader import read_index_source, index_source_metadata
+from .product_series_source import source_metadata, verify_source
 from .thread_products import checked_ref, _snapshot
 from .product_comparison import compare_products
 
@@ -26,7 +26,11 @@ class ProductSeriesService:
             self.store = ProductSeriesStore(threads)
             self.store.initialize()
         elif not hasattr(threads, '_product_series'):
-            threads._product_series = ({}, {}, {}, [], {})
+            threads._product_series = {}
+
+    def _memory(self, thread_id):
+        """Call only under the Thread lock after checking its access scope."""
+        return self.threads._product_series.setdefault(thread_id, ({}, {}, {}, [], {}))
 
     def command(self, thread_id, request, *, actor):
         fields = {'schema','series_id','expected_revision','operation','product','command_id','idempotency_key'}
@@ -35,7 +39,7 @@ class ProductSeriesService:
         command = {key:value for key,value in request.items() if key != 'schema'}
         def validate(connection, ref):
             reader = self._reader_for(thread_id, connection)
-            read_index_source(reader, self.objects, thread_id, ref, max_bytes=4*1024*1024)
+            verify_source(reader, self.objects, thread_id, ref)
         if self.store:
             return self.store.apply(thread_id, command, validate=validate, actor=actor)
         if not isinstance(actor, str) or not actor or len(actor)>255:
@@ -46,7 +50,7 @@ class ProductSeriesService:
         digest = sha256(json.dumps({'request':command,'actor':actor},sort_keys=True,allow_nan=False,separators=(',', ':')).encode()).hexdigest()
         with self.threads._lock:
             _snapshot(self.threads, thread_id)
-            states, receipts, commands, events, index = self.threads._product_series
+            states, receipts, commands, events, index = self._memory(thread_id)
             old = receipts.get(command['idempotency_key'])
             if old:
                 if old[0] != digest: raise ValueError('idempotency conflict')
@@ -81,7 +85,7 @@ class ProductSeriesService:
         if self.store: return self.store.read(thread_id, series_id)
         with self.threads._lock:
             _snapshot(self.threads,thread_id)
-            state=deepcopy(self.threads._product_series[0][series_id])
+            state=deepcopy(self._memory(thread_id)[0][series_id])
             state['members']=sorted(state['members'],key=product_key)[:20]
             return state
 
@@ -90,7 +94,7 @@ class ProductSeriesService:
         if self.store: return self.store.list(thread_id,limit=limit,before=before)
         with self.threads._lock:
             _snapshot(self.threads,thread_id)
-            keys = sorted(k for k in self.threads._product_series[0] if before is None or k>before)[:limit+1]
+            keys = sorted(k for k in self._memory(thread_id)[0] if before is None or k>before)[:limit+1]
             return {'series':[self.read(thread_id,k) for k in keys[:limit]],'next_cursor':keys[limit-1] if len(keys)>limit else None}
 
     def discover(self, thread_id, product):
@@ -99,7 +103,7 @@ class ProductSeriesService:
         if self.store: return self.store.discover(thread_id,product_key(product))
         with self.threads._lock:
             _snapshot(self.threads,thread_id)
-            series=self.threads._product_series[4].get(product_key(product))
+            series=self._memory(thread_id)[4].get(product_key(product))
             return {'series':self.read(thread_id,series) if series else None}
 
     def members(self, thread_id, series_id, *, limit=20, after=None):
@@ -107,7 +111,7 @@ class ProductSeriesService:
         if self.store: return self.store.members(thread_id,series_id,limit=limit,after=after)
         with self.threads._lock:
             _snapshot(self.threads,thread_id)
-            refs=sorted(self.threads._product_series[0][series_id]['members'],key=product_key)
+            refs=sorted(self._memory(thread_id)[0][series_id]['members'],key=product_key)
             refs=[deepcopy(r) for r in refs if after is None or product_key(r)>after][:limit+1]
             return {'members':refs[:limit],'next_cursor':product_key(refs[limit-1]) if len(refs)>limit else None}
 
@@ -115,11 +119,13 @@ class ProductSeriesService:
         self.read(thread_id,series_id)
         if type(limit) is not int or not 1<=limit<=100: raise ValueError('invalid page')
         if self.store: return self.store.history(thread_id,series_id,limit=limit,before=before)
-        events=[deepcopy(e) for e in reversed(self.threads._product_series[3]) if e['series_id']==series_id and (before is None or e['revision']<=before)][:limit+1]
-        return {'events':events[:limit],'next_revision':events[limit-1]['revision']-1 if len(events)>limit else None}
+        with self.threads._lock:
+            _snapshot(self.threads, thread_id)
+            events=[deepcopy(e) for e in reversed(self._memory(thread_id)[3]) if e['series_id']==series_id and (before is None or e['revision']<=before)][:limit+1]
+            return {'events':events[:limit],'next_revision':events[limit-1]['revision']-1 if len(events)>limit else None}
 
     def sources(self, thread_id, product):
-        metadata=index_source_metadata(self.threads,thread_id,product,max_bytes=2**63-1)
+        metadata=source_metadata(self.threads,thread_id,product)
         attempt=metadata['ref']['producer_attempt_id'] or metadata['ref']['attempt_id']
         if self.store:
             with self.threads._connect() as c:

@@ -30,3 +30,17 @@ def test_authorization_bounded_bodies_and_trusted_actor():
         response = client.post('/api/v1/threads/thr_one/product-comparisons', headers=headers,
             json={'original_ref': {}, 'revised_ref': {}})
         assert response.status_code == 422
+
+
+def test_safe_comparison_failure_is_specific():
+    from capstone_agent.product_series_source import ProductSourceError
+    class Service:
+        def compare(self,*args): raise ProductSourceError('invalid_utf8')
+    app=FastAPI()
+    register_product_series_routes(app,service=Service(),authorize=lambda request:None,
+        actor_provider=lambda request:'operator:test')
+    with TestClient(app) as client:
+        response=client.post('/api/v1/threads/thread/product-comparisons',
+            json={'original_ref':{},'revised_ref':{}})
+        assert response.status_code==422
+        assert response.json()=={'detail':'invalid_utf8'}
