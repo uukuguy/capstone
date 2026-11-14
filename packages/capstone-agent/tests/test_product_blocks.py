@@ -1,7 +1,7 @@
 from hashlib import sha256
 import pytest
 
-from capstone_agent.product_blocks import build_index, resolve_block
+from capstone_agent.product_blocks import build_index, resolve_block, resolve_dependencies
 from test_product_block_identity import selection
 
 
@@ -27,10 +27,19 @@ def test_nested_code_table_and_html_are_not_plain_paragraphs():
     assert resolve_block(result, data, **{k:result['blocks'][0][k] for k in ('block_id','content_digest')}) == b'plain\n'
 
 
-def test_reference_links_are_explicitly_unavailable_until_dependency_binding():
-    result = index(b'Use [source][a].\n\n[a]: https://example.invalid\n')
-    assert result['blocks'] == []
-    assert result['limitations'] == ['reference_definition_binding_required']
+def test_reference_links_bind_only_used_first_definition():
+    data = b'Use [source][a] and [a][].\n\n[a]: https://example.invalid/first\n[a]: https://example.invalid/second\n[unused]: https://example.invalid/unused\n'
+    result = index(data)
+    block = result['blocks'][0]
+    assert resolve_block(result, data, block['block_id'], block['content_digest']) == b'Use [source][a] and [a][].\n'
+    assert resolve_dependencies(result, data, block['block_id'], block['content_digest']) == [b'[a]: https://example.invalid/first\n']
+
+
+def test_image_shortcut_missing_and_inline_links_do_not_invent_dependencies():
+    data = b'![chart][img] [missing] [inline](https://example.invalid).\n\n[img]: https://example.invalid/chart\n'
+    result = index(data); block = result['blocks'][0]
+    assert [item['label'] for item in block['dependencies']] == ['IMG']
+    assert len(resolve_dependencies(result, data, block['block_id'], block['content_digest'])) == 1
 
 
 def test_changed_source_and_tampered_span_are_rejected():
