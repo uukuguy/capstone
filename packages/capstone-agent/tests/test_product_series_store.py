@@ -42,3 +42,21 @@ def test_durable_receipts_and_conflicts(postgres_thread_service):
     assert event['product'] == product
     with pytest.raises(ValueError, match='idempotency'):
         store.apply(thread, {**adopt, 'operation': 'clear', 'product': None}, validate=validate, actor='operator:test')
+
+
+def test_member_pages_do_not_expand_persistent_state(postgres_thread_service):
+    threads, thread=postgres_thread_service
+    threads.create_thread(_snapshot(thread))
+    store=ProductSeriesStore(threads)
+    store.initialize()
+    for revision in range(25):
+        product={**ref(str(revision)), 'thread_id':thread}
+        store.apply(thread,dict(series_id='series_many',expected_revision=revision,operation='register',
+            product=product,command_id=f'cmd_{revision}',idempotency_key=f'idem_{revision}'),
+            validate=lambda connection,value:None,actor='operator:test')
+    assert len(store.read(thread,'series_many')['members'])==20
+    first=store.members(thread,'series_many',limit=20)
+    second=store.members(thread,'series_many',limit=20,after=first['next_cursor'])
+    assert len(second['members'])==5 and second['next_cursor'] is None
+    with threads._connect() as c:
+        assert c.execute('SELECT state FROM capstone_product_series WHERE thread_id=%s',(thread,)).fetchone()['state']['members']==[]

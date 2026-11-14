@@ -52,6 +52,30 @@ def register_product_series_routes(app, *, service, authorize, actor_provider):
         authorize(request)
         return await invoke(service.read, thread_id, series_id)
 
+    @app.get('/api/v1/threads/{thread_id}/product-series')
+    async def listing(thread_id: str, request: Request, limit: int = Query(20, ge=1, le=100), before: str | None = None):
+        authorize(request)
+        return await invoke(service.list, thread_id, limit=limit, before=before)
+
+    @app.post('/api/v1/threads/{thread_id}/product-series/discover')
+    async def discover(thread_id: str, request: Request):
+        authorize(request)
+        value = await body(request)
+        if set(value) != {'product'}: raise HTTPException(422, 'product_series_request_invalid')
+        return await invoke(service.discover, thread_id, value['product'])
+
+    @app.post('/api/v1/threads/{thread_id}/product-series/sources')
+    async def sources(thread_id: str, request: Request):
+        authorize(request)
+        value = await body(request)
+        if set(value) != {'product'}: raise HTTPException(422, 'product_series_request_invalid')
+        return await invoke(service.sources, thread_id, value['product'])
+
+    @app.get('/api/v1/threads/{thread_id}/product-series/{series_id}/members')
+    async def members(thread_id: str, series_id: str, request: Request, limit: int = Query(20, ge=1, le=100), after: str | None = None):
+        authorize(request)
+        return await invoke(service.members, thread_id, series_id, limit=limit, after=after)
+
     @app.get('/api/v1/threads/{thread_id}/product-series/{series_id}/history')
     async def history(thread_id: str, series_id: str, request: Request,
                       limit: int = Query(20, ge=1, le=100), before: int | None = Query(None, ge=1)):
