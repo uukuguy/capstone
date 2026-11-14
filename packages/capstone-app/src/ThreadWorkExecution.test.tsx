@@ -617,3 +617,23 @@ it('waits for generated products before opening the instruction scope and preser
   fireEvent.click(actions[0])
   await screen.findByText('指令 01')
 })
+
+it('saves exact restored row references in a professional work command and starts the same work',async()=>{
+ const server=authority({existingWork:true})
+ const ref={schema:'capstone-product-ref/1',thread_id:'thr_work',product_id:'result_one',origin:'domain_result',scope:'instruction',event_seq:1,revision:null,digest:'a'.repeat(64),work_id:'work_one',attempt_id:'old_attempt',producer_attempt_id:null}
+ const selection={ref,purpose:'historical-context',row_selection:{schema:'capstone-result-row-selection/1',parent_ref:ref,table_id:'lines',table_version:'b'.repeat(64),row_ids:['line_1'],column_ids:['mw'],digest:'c'.repeat(64)}}
+ sessionStorage.setItem('professional-rows.thr_work.work-draft.work_one.input',JSON.stringify({mode:'capstone',context:{include_refs:[],exclude_refs:[]},context_product_refs:[selection]}))
+ vi.stubGlobal('fetch',server.fetcher)
+ render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="professional-rows"/>)
+ fireEvent.click(await screen.findByRole('button',{name:'01 · 测试目标'}))
+ const draft=await screen.findByRole('textbox',{name:'补充任务资料'})
+ fireEvent.change(draft,{target:{value:'分析所选行'}})
+ await waitFor(()=>expect((screen.getByRole('button',{name:'保存任务'}) as HTMLButtonElement).disabled).toBe(false))
+ fireEvent.click(screen.getByRole('button',{name:'保存任务'}))
+ await waitFor(()=>expect(server.commands[0]?.payload).toEqual({text:'分析所选行',context_product_refs:[selection]}))
+ expect(server.commands[0].kind).toBe('work_message')
+ expect(server.commands[0].target.id).toBe('work_one')
+ fireEvent.click(await screen.findByRole('button',{name:'开始任务'}))
+ await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('start_work'))
+ expect(server.commands.at(-1)?.target.id).toBe('work_one')
+})

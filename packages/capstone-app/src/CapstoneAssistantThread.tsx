@@ -1692,7 +1692,9 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
         setSubmittingThinking({id:submissionId,text:text.trim(),afterSeq:Math.max(0,...events.map(event=>event.eventSeq)),at:new Date().toISOString()})
         try {
         if (composerMode === 'text') {
-          await onSend('automatic', text.trim())
+          const sent=inputDraft
+          if(activeInput.context_product_refs?.length){await onSend('automatic',text.trim(),buildInputSubmission(text.trim(),{...emptyInputDraft(runtimeMode),context_product_refs:activeInput.context_product_refs}));setInputDraft(current=>current===sent?{...current,context_product_refs:[]}:current)}
+          else await onSend('automatic', text.trim())
           returnToLatest()
           return
         }

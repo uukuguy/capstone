@@ -87,3 +87,10 @@ describe('Work protocol', () => {
     expect(() => buildWorkCommand('thr_work', 'run_work', 'cmd_save', 'key_save', 'new', 0, '中'.repeat(22000))).toThrow()
   })
 })
+it.each(['work_message','revise_goal'] as const)('preserves row refs in recoverable professional %s commands',kind=>{
+ const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_work',product_id:'result_one',origin:'domain_result',scope:'instruction',event_seq:12,revision:null,digest:'a'.repeat(64),work_id:'work_one',attempt_id:'prior_attempt',producer_attempt_id:null})
+ const selection={ref,purpose:'historical-context' as const,row_selection:{schema:'capstone-result-row-selection/1' as const,parent_ref:ref,table_id:'lines',table_version:'b'.repeat(64),row_ids:['r1'],column_ids:['mw'],digest:'c'.repeat(64)}}
+ const command=buildWorkCommand('thr_work','run_work','cmd_row','idem_row','work_one',1,'分析所选行',kind,[selection])
+ expect(parseStoredWorkCommand(JSON.parse(JSON.stringify(command)),'thr_work')).toEqual(command)
+ expect(command.payload).toEqual({text:'分析所选行',context_product_refs:[selection]})
+})

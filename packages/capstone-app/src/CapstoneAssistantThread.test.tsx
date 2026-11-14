@@ -575,6 +575,19 @@ describe('CapstoneAssistantThread', () => {
     expect(draft.value).toBe('分析这些行')
     view.unmount();sessionStorage.removeItem('row-reference-composer.input');sessionStorage.removeItem('row-reference-composer.draft')
   })
+  it('submits newly selected row references from the professional text composer',async()=>{
+    const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_demo',product_id:'result_rows',origin:'domain_result',scope:'instruction',event_seq:12,revision:null,digest:'a'.repeat(64),work_id:'old_work',attempt_id:'old_attempt',producer_attempt_id:null})
+    const selection={ref,purpose:'historical-context' as const,row_selection:{schema:'capstone-result-row-selection/1' as const,parent_ref:ref,table_id:'lines',table_version:'b'.repeat(64),row_ids:['r1'],column_ids:['mw'],digest:'c'.repeat(64)}}
+    const send=vi.fn().mockResolvedValue(undefined)
+    const base={events:[],disabled:false,isRunning:false,activity:[],onSend:send,onCancel:async()=>{},composerMode:'text' as const,composerLabel:'补充任务资料',sendLabel:'保存任务'}
+    const view=render(<CapstoneAssistantThread {...base}/>)
+    fireEvent.change(screen.getByRole('textbox',{name:'补充任务资料'}),{target:{value:'分析所选行'}})
+    view.rerender(<CapstoneAssistantThread {...base} requestedProductReference={{selection,nonce:1}}/>)
+    await screen.findByText(/lines · 1 行/)
+    fireEvent.click(screen.getByRole('button',{name:'保存任务'}))
+    await waitFor(()=>expect(send).toHaveBeenCalledWith('automatic','分析所选行',{input:{kind:'text',text:'分析所选行'},context_selection:{include_refs:[],exclude_refs:[]},context_product_refs:[selection]}))
+    await waitFor(()=>expect(screen.queryByRole('button',{name:/移除成果引用/})).toBeNull())
+  })
   it('restores genuine native observations without counting missing identities or inventing task steps',()=>{
     // Saved production receipts carry task_id inside reference, not in the outer payload.
     const observation=(seq:number,call:string)=>event('runtime_event',seq,{external_reference_kind:'sources',reference:{kind:'native_tool_observation',task_id:'pi_saved',parent_attempt_id:'native_attempt',metadata:{tool_name:'bash',tool_call_id:call,output_sha256:'a'.repeat(64)}}},'native_attempt')
