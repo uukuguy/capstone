@@ -69,7 +69,12 @@ def test_postgres_creation_binds_workspace_in_the_insert_not_a_later_update(mode
     inserts = [call.args for call in connection.execute.call_args_list if 'INSERT INTO capstone_threads' in call.args[0]]
     assert len(inserts) == 1
     sql, parameters = inserts[0]
-    assert 'workspace_name' in sql and parameters[-1] == '研究'
+    columns = sql.split('(', 1)[1].split(')', 1)[0].split(',')
+    values = sql.split('VALUES (', 1)[1].split(')', 1)[0].split(',')
+    parameter_columns = [column.strip() for column, value in zip(columns, values, strict=True)
+                         if value.strip() == '%s']
+    bindings = dict(zip(parameter_columns, parameters, strict=True))
+    assert bindings['workspace_name'] == '研究'
     assert not any('UPDATE capstone_threads SET workspace_name' in call.args[0] for call in connection.execute.call_args_list)
 
 

@@ -7545,3 +7545,6 @@ check passed. No CI, integration or remote deployment performed.
 
 - 2026-11-14 1e008f5e：SDK夹具验证容量修复及授权隔离，撤回不合合同的中断草案。
 - 2026-11-14 Kernel请求schema中性化，pandapower应用显式选择既有协议；117项直接消费者及focused类型通过，父级10项边界/校验回归通过，未改历史工件。
+
+- 2026-11-14 16b9b152：请求协议身份归应用，Kernel保持中性并保留旧工件兼容。
+- 2026-11-14 107项夹具/manifest检查通过，1项真实PG未配置跳过；正式导出模块、分组COPY及SQL具名绑定断言修正。owning lock工具离线解析仅更新manifest摘要，全部依赖版本和hash未变。

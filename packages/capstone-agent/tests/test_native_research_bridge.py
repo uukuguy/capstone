@@ -489,13 +489,20 @@ def test_research_mirror_uses_existing_writable_task_mount_on_read_only_root(tmp
 
 def test_research_image_uses_canonical_tools_and_binds_bridge_to_executor_identity():
     from pathlib import Path
+    import shlex
     root = Path(__file__).resolve().parents[3]
     resources = root / 'packages/capstone-agent/src/capstone_agent/resources'
     for name in ('research-tools.mjs', 'model-request-capture.mjs', 'research-context-window.mjs'):
         assert (resources / name).read_bytes() == (root / 'packages/pi-capability-tools/src' / name).read_bytes()
     image = (root / 'deploy/general-pi.Dockerfile').read_text()
-    assert 'COPY packages/pi-capability-tools/src/research-tools.mjs' in image
-    assert 'COPY packages/capstone-agent/src/capstone_agent/native_document_types.py capstone_agent/native_document_types.py' in image
+    copies = [shlex.split(line)[1:] for line in image.replace('\\\n', ' ').splitlines()
+              if line.startswith('COPY ')]
+    destinations = {(source, copy[-1] + Path(source).name if copy[-1].endswith('/') else copy[-1])
+                    for copy in copies for source in copy[:-1] if not source.startswith('--')}
+    assert ('packages/pi-capability-tools/src/research-tools.mjs',
+            'capstone_agent/resources/research-tools.mjs') in destinations
+    assert ('packages/capstone-agent/src/capstone_agent/native_document_types.py',
+            'capstone_agent/native_document_types.py') in destinations
     source = (resources.parent / 'general_pi_server.py').read_text()
     assert "'native_research_bridge.py'" in source
     assert "'resources/general-research.mjs'" in source
