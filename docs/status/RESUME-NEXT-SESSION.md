@@ -4,9 +4,9 @@
 
 ## Current delivery
 
-- Owner: capstone-agent and capstone-app. Branch: research/capstone-app-workspace-20261114, destination dev. Latest branch commit: 79fd05dd; control consolidation: de151c9c; source-removal test: 7ef73be1. Runtime source: a65b35b6. Later changes cover CI, tests and control records.
+- Owner: capstone-agent and capstone-app. Branch: research/capstone-app-workspace-20261114, destination dev. Latest pushed branch commit: 46baa17e; control consolidation: de151c9c; source-removal test: 7ef73be1. Runtime source: a65b35b6. Later changes cover CI, tests and control records.
 - Plan: docs/superpowers/plans/2026-11-14-workspace-local-references.md. Scope: top-level Markdown paragraphs, fixed source/index/block identities, durable jobs, bounded isolated parsing, admission and existing preview/composer.
-- Root dev remains 9c855eb2. Canonical control drafts are prepared in the actual dev checkout; they are not integrated until the scoped PR merges.
+- Root dev is ae0761d1 after PR109 merge. Canonical control drafts are prepared in the actual dev checkout; they are not integrated until the scoped PR merges.
 
 ## Verified
 
@@ -26,10 +26,10 @@
 
 ## Remaining work
 
-1. PR body prepared at root runs/paragraph-reference-dev-pr-20261114.md. Control consolidation committed; links, doctor, 22 control checks and Vivaldi candidate area passed. Latest gate manifest correction passed 124 checks; actual branch delta selects product-references. One scoped CI run is approved; create the PR once and record its run.
-2. Request explicit approval for one focused macOS product-references CI run before push/PR actions that start CI. User approved one PR-triggered macOS product-references CI run on 2026-11-14; no rerun approval.
+1. PR body prepared at root runs/paragraph-reference-dev-pr-20261114.md. Control consolidation committed; links, doctor, 22 control checks and Vivaldi candidate area passed. Latest gate manifest correction passed 124 checks; actual branch delta selects product-references. PR109 targets dev at 46baa17e; approved run43601082796 passed on macOS in 140 seconds at exact head46baa17e. Approval is consumed; do not push another CI-triggering update or rerun without new approval. Independent read-only review with user-selected gpt-6.1-sol completed for 9c855eb2..46baa17e: no blocking findings. PR109 merged as ae0761d1; actual dev synchronized.
+2. Request explicit approval for one focused macOS product-references CI run before push/PR actions that start CI. The approved macOS run43601082796 passed; no further run is approved.
 3. After approved CI and review, integrate through dev PR, synchronize root without losing drafts, refresh the actual dev control graph and verify its entry point.
-- Independent review did not run: two reviewer starts failed with unavailable configured model. Do not claim review acceptance.
+- Independent review completed using user-selected gpt-6.1-sol after default model startup failures. No blocking findings in 9c855eb2..46baa17e. Reviewer checked scope, identities, admission/retry, leases, process/HTTP bounds and composer integration; no tests were rerun.
 - Keyboard-only and unsent-draft restoration coverage remains open. GB-scale chunk processing, hard parser memory isolation, source I/O deadlines and orphan-index cleanup remain separate requirements.
 
 ## Recovery and preserved files
@@ -38,3 +38,7 @@
 - Root pre-consolidation control drafts are preserved under runs/paragraph-control-before-consolidation-20261114/. Preserve unrelated root changes and all user data.
 - Preserve root var/, ignored credentials, other browser tabs and recovery stashes fd43f748, 51d0c117, 34e4e74d.
 - Accepted v1.1.0 release remains unchanged. Evidence: runs/release-v1.1.0-20261114/.
+
+## Closeout boundary
+
+PR109 merged at ae0761d1. Original root drafts preserved in the latest stash named preserve paragraph control drafts before PR109 dev sync; do not drop it. Research worktree retained because it has uncommitted control receipts. Final control drafts require governance PR integration; no additional CI is approved.
