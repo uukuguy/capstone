@@ -366,7 +366,8 @@ export class HttpThreadTransport implements ThreadTransport {
     const job=parseBlockJob(await this.request(jobId?`${path}/${encodeURIComponent(jobId)}`:path,
       jobId?{signal}:{method:'POST',body:JSON.stringify({ref}),signal}),ref,jobId)
     if(job.state!=='ready')return {job}
-    const page=parseBlockPage(await this.request(`${path}/${encodeURIComponent(job.job_id)}/blocks?offset=${offset}&limit=20`,{signal}),ref,job.job_id,offset)
+    const limit=Math.min(20,applicationCapacity('product_page_items'))
+    const page=parseBlockPage(await this.request(`${path}/${encodeURIComponent(job.job_id)}/blocks?offset=${offset}&limit=${limit}`,{signal}),ref,job.job_id,offset)
     return {job,page}
   }
   async resolveProduct(reference:ProductRef,signal?:AbortSignal) {

@@ -6,6 +6,18 @@ import {parseProductRef} from './threadProducts'
 import type {BlockReader} from './productBlocks'
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
+it('does not offer a paragraph whose bytes fail the published digest',async()=>{
+  vi.stubGlobal('crypto',webcrypto)
+  const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'file_one',origin:'native_file',scope:'instruction',event_seq:1,revision:null,digest:'a'.repeat(64),work_id:null,attempt_id:null,producer_attempt_id:null})
+  const read=vi.fn<BlockReader>().mockResolvedValue({job:{job_id:'job_one',state:'ready',parent_ref:ref},page:{index_ref:'b'.repeat(64),blocks:[{block_id:'opaque',byte_start:0,byte_end:5,content_digest:'c'.repeat(64)}],next_offset:null}})
+  const select=vi.fn()
+  render(<ProductParagraphPicker source={ref} bytes={new TextEncoder().encode('hello')} read={read} onSelect={select}/>)
+  fireEvent.click(screen.getByText('选择段落引用'))
+  fireEvent.click(screen.getByRole('button',{name:'准备段落'}))
+  expect((await screen.findByRole('alert')).textContent).toContain('段落内容校验失败')
+  expect(screen.queryByRole('button',{name:'引用段落 1'})).toBeNull()
+  expect(select).not.toHaveBeenCalled()
+})
 it('prepares a job and emits only the verified paragraph identity',async()=>{
   vi.stubGlobal('crypto',webcrypto)
   const digest='2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'

@@ -2,8 +2,20 @@ import {afterEach,expect,it,vi} from 'vitest'
 import {webcrypto} from 'node:crypto'
 import {HttpThreadTransport} from './threadHttpTransport'
 import {parseProductRef} from './threadProducts'
+import {initializeApplicationCapacity} from './applicationCapacity'
 
-afterEach(()=>vi.unstubAllGlobals())
+afterEach(()=>{vi.unstubAllGlobals();initializeApplicationCapacity({})})
+it('respects the configured paragraph page budget',async()=>{
+  initializeApplicationCapacity({product_page_items:2})
+  const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'file_one',origin:'native_file',scope:'instruction',event_seq:1,revision:null,digest:'a'.repeat(64),work_id:null,attempt_id:null,producer_attempt_id:null})
+  const fetcher=vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({schema:'capstone-product-index-job/1',job_id:'job_one',state:'ready',parent_ref:ref}))
+    .mockResolvedValueOnce(Response.json({schema:'capstone-product-block-page/1',job_id:'job_one',parent_ref:ref,index_ref:'b'.repeat(64),blocks:[],next_offset:null}))
+  const transport=new HttpThreadTransport('https://host.example','private-token',fetcher)
+  await transport.readProductBlocks(ref)
+  expect(new URL(String(fetcher.mock.calls[1][0])).searchParams.get('limit')).toBe('2')
+  expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toEqual({ref})
+})
 it('reads a scoped index and resolves an exact ref through authenticated transport with verified bytes',async()=>{
   vi.stubGlobal('crypto',webcrypto)
   const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'file_one',origin:'native_file',scope:'instruction',event_seq:12,revision:null,digest:'2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824',work_id:null,attempt_id:'attempt_one',producer_attempt_id:'child_one'})
