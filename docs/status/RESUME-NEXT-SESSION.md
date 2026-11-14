@@ -1,23 +1,11 @@
 # Live Session Checkpoint
 
-2026-11-14 active goal: product comparison and adoption. User approved design and plan.
+2026-11-15. Product comparison/adoption goal: implemented, independently reviewed and integrated through PR111.
 
-## Implementation
+Actual dev c6167e5e matches origin/dev. Accepted source7e57641f, one approved macOS CI43613326116 passed139seconds:122backend,9storage/scope,58App,271governance pass/3skip, type/build pass. No additional CI approved.
 
-Owner capstone-agent/capstone-app; worktree .worktrees/product-adoption, branch feat/product-comparison-adoption-20261114, target dev. Runtime feature HEAD928c7aee; later control/source-doc changes pending commit. Actual dev remains5f33f21c, with matching control drafts only. No new CI approval.
+Actual dev canonical rebuild completed ready; API/three workers image da743e04de1591544acd8ac2e504ad56e8a6609dad4f1623b7965648fff60073. Default App5173 source c6167e5e. Existing Vivaldi tab verified series_runtime_20261114 revision7 and adopted-continuation.md after source realignment. Same product code as tested7e57641f. Cache maintenance passed. Cloud/demo unchanged.
 
-Backend series, indexed exclusive members, audit, Thread-scoped memory parity, PostgreSQL atomic receipts, exact-source streaming verification, bounded comparison and authenticated HTTP are mounted. Frontend uses existing preview/composer, explicit association/adopt/clear, sources, diff and paged versions. Review defects repaired in825634e6/397d43b6/928c7aee. Final independent review: no blockers; minor earliest-original default may need explicit selection for series over20members.
+Final control receipts are task-owned dirty docs pending governance closeout PR; prepare and request docs-only CI approval before push. Do not reopen feature implementation. Preserve root stash named preserve adoption control drafts before PR111 dev synchronization, earlier stashes and feature/research worktrees with uncommitted journals. No user data or auth copied/deleted.
 
-## Evidence
-
-Canonical rebuild API/all workers same8bcee8cd3516 image; ready/cache maintenance passed. Candidate5176, API8767. Vite restarted without VITE_API_ORIGIN to preserve same-origin proxy. Backend latest source825634e6; later frontend928c7aee and source docstring correction are recorded. Do not claim every control commit is deployed.
-
-Local gate122backend/58frontend, typecheck/build pass. Additional9ObjectStore/gate tests pass. Real Thread thr_82eab8cb58cc8741909b returned two local sources, exact retries, original-byte digest unchanged, model saved adopted-continuation.md from explicit adopted ref. Browser compare, clear/readopt, explicit new-file series association, adopt, refresh and conversation switch restore passed. Series revision7 with7audit events. Evidence runs/product-adoption-validation-20261114 in feature worktree.
-
-## Next
-
-Finish control graph inspection and commit task-owned docs/gate/source-doc correction; check actual delta selects product-adoption. Prepare exact dev PR body, request one focused macOS CI before any push/PR action. Then merge/sync dev and verify actual entry; no cloud/demo promotion. Do not repeat tests without changes or risk.
-
-## Preserved state
-
-Root stash named preserve root control receipts before adoption graph alignment preserves pre-alignment drafts. Earlier PR109 stash and research worktree receipts also retained. No auth state copied, no user data removed. Parent owns disposable postgres capstone-adoption-tests-20261114 on25472, remove after validation. Parent Vite session23868 serves5176. Runtime rebuild session75093 completed. Feature dirty docs/gate/source-doc paths are task-owned and awaiting final preparation commit.
+Real model/browser evidence remains .worktrees/product-adoption/runs/product-adoption-validation-20261114/. Root final screenshot /tmp/pr111-dev-restored.json points to actual dev restore screenshot. CI log /tmp/capstone-pr111-ci.log; rebuild log /tmp/capstone-adoption-dev-rebuild.log.

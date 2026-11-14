@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-11-15 成果对照与采用PR111已正常合入dev c6167e5e，实际dev同步。精确来源7e57641f，macOS定向CI43613326116通过139秒，独立复审无阻塞。真实模型与浏览器闭环通过；规范dev重建ready通过，API/三worker同镜像da743e04de15；默认App5173，云端/demo未变。
+
 2026-11-14 当前工作：成果对照与显式采用，活动分支feat/product-comparison-adoption-20261114，capstone-agent/capstone-app所有，目标dev。后端真实挂载、前端接入已有预览，审查修复825634e6已完成；规范重建及真实模型/浏览器闭环通过，独立复审无阻塞，待dev PR；无CI批准。先前局部引用已由PR109/110集成。
 
 2026-11-14 PR109已正常合入dev ae0761d1，实际dev同步；来源46baa17e已获独立审查及macOS CI43601082796验收。local-dev运行来源仍a65b35b6，云端/demo未变。研究实施已合并，控制收口草稿待治理集成。
@@ -1719,7 +1721,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/product-comparison-adoption-20261114 | 活动应用实现；目标dev | capstone-agent/capstone-app拥有；基于dev5f33f21c及已批设计；系列/采用/审计/有界对照和HTTP适配已实现，未整体验收 | 接通真实来源服务、原预览UI，完成真实续作/采用/恢复；无CI批准 | shared-agent |
+| feat/product-comparison-adoption-20261114 | PR111已合入；目标dev已接受 | 受检7e57641f，合并c6167e5e；CI43613326116通过139秒；独立复审无阻塞 | 保留工作树未提交回执；不再作为活动实现 | shared-agent |
 | research/capstone-app-workspace-20261114 | 已合并的恢复来源 | PR109已合入ae0761d1，PR110收口已合入5f33f21c；运行来源a65b35b6 | 保留未提交回执及恢复资料，不作活动交付 | shared-agent |
 | archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | 已承接的历史实现 | 81dd3652；PPT及直接调用方已由PR104合入 | 原SHA/远端恢复标签与8个未提交文档保留，非活动研发 | shared-agent |
 | uukuguy/investigation-skills-20261108 | PR100合入后已关闭 | 精确受检a1978ffb，远端dev合并d7358eac；恢复工作区保留 | IG1与业务效率接受仍开放；非远端部署 | shared-agent |
@@ -1916,7 +1918,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端 `825634e6`；App `928c7aee`，候选5176 | API/三worker同镜像8bcee8cd3516；ready/缓存维护通过；前端后续修复独立记录 | http://127.0.0.1:5176/；真实来源对照、采用、模型续作及刷新/会话切换恢复通过。云端/demo未变。 |
+| local-dev | `c6167e5e`，PR111合入后的实际dev | API/三worker同镜像da743e04de15；ready与缓存维护通过 | http://127.0.0.1:5173/；与受检7e57641f的应用源码一致；历史成果及采用审计保留。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

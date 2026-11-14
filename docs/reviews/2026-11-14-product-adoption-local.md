@@ -35,3 +35,7 @@ Ignored receipts and screenshots: runs/product-adoption-validation-20261114/ in 
 ## Remaining acceptance
 
 Final original-byte readback matched the saved original digest. Seven series decisions restored at revision7. Nine additional ObjectStore/direct gate checks passed. Independent final review found no blocking defects; its21 backend checks included one skipped database check and do not replace the actual PostgreSQL gate. Control graph inspection and dev PR integration remain required. Each CI run still requires explicit approval. Deployment remains local-dev only; demo and cloud are unchanged. A decision timeline and automatic scrolling to a source paragraph are deferred presentation improvements, not replacements for saved audit and exact source references.
+
+## Dev integration — 2026-11-15
+
+PR111 merged source7e57641f into dev c6167e5e. Approved CI43613326116 passed139seconds,122backend+9storage/scope+58App+271governance/3skip, typecheck/build passed. Actual dev synchronized with origin, canonical rebuild image da743e04de15 ready across API/three workers, default App5173 restored exact adopted file and series revision7 in existing Vivaldi. Project cache maintenance and doctor passed. Cloud/demo unchanged. Final control receipt integration is a documentation closeout, not additional feature acceptance.
