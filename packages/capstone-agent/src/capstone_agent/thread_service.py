@@ -1172,6 +1172,12 @@ class _StoredCommand:
 
 
 def _work_send_input(snapshot, parsed, provider, capability_catalog):
+    if parsed['kind'] == 'start_work':
+        from .thread_work import work_instruction
+        work = next((item for item in snapshot.works if item['work_id'] == parsed['target']['id']), None)
+        if work is not None and work.get('context_product_refs'):
+            parsed = {**parsed, 'kind':'send_message', 'payload':{
+                'text':work_instruction(work), 'context_product_refs':work['context_product_refs']}}
     if parsed['kind'] != 'send_message':
         return snapshot, None, None
     message = {**parsed, 'kind': 'send_auto', 'payload': {**parsed['payload'],
@@ -1530,6 +1536,12 @@ class InMemoryThreadService(NativeExecutionOwner):
             if input_rejection is None:
                 from .thread_products import freeze_product_selection
                 submission, input_rejection = freeze_product_selection(self, prepared, parsed['payload'], submission)
+        if input_rejection is None and parsed['kind'] == 'start_work':
+            saved_work = next((item for item in prepared.works if item['work_id'] == parsed['target']['id']), None)
+            if saved_work is not None and saved_work.get('context_product_refs'):
+                from .thread_products import freeze_product_selection
+                submission, input_rejection = freeze_product_selection(self, prepared,
+                    {'context_product_refs': saved_work['context_product_refs']}, submission)
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
@@ -3034,6 +3046,12 @@ class PostgresThreadService(NativeExecutionOwner):
             if input_rejection is None:
                 from .thread_products import freeze_product_selection
                 submission, input_rejection = freeze_product_selection(self, prepared, parsed['payload'], submission, connection=connection)
+        if input_rejection is None and parsed['kind'] == 'start_work':
+            saved_work = next((item for item in prepared.works if item['work_id'] == parsed['target']['id']), None)
+            if saved_work is not None and saved_work.get('context_product_refs'):
+                from .thread_products import freeze_product_selection
+                submission, input_rejection = freeze_product_selection(self, prepared,
+                    {'context_product_refs': saved_work['context_product_refs']}, submission, connection=connection)
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None

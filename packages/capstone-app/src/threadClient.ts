@@ -1,3 +1,4 @@
+import type {RowClient} from './resultRowSelection'
 import {assertCapacity} from './applicationCapacity'
 import type {ThinkingPreview} from './thinkingPreview'
 import {
@@ -31,7 +32,7 @@ import type {ProductIndex,ProductQuery,ProductRef,ProductResolution} from './thr
 import type {BlockReader} from './productBlocks'
 import type {SeriesClient} from './productSeries'
 
-export interface ThreadTransport extends Partial<SeriesClient> {
+export interface ThreadTransport extends Partial<SeriesClient>, Partial<RowClient> {
   readProductIndex?(threadId:string,query?:ProductQuery,signal?:AbortSignal):Promise<ProductIndex>
   readProductBlocks?:BlockReader
   resolveProduct?(ref:ProductRef,signal?:AbortSignal):Promise<ProductResolution>
@@ -91,6 +92,9 @@ export function buildThreadCommand(input: {
 
 export class CapstoneThreadClient {
   constructor(private readonly transport: ThreadTransport) {}
+  get supportsResultRows(){return Boolean(this.transport.readResultRows&&this.transport.prepareResultRows)}
+  readResultRows:RowClient['readResultRows']=(...args)=>{if(!this.transport.readResultRows)throw new Error('当前服务不支持行引用');return this.transport.readResultRows(...args)}
+  prepareResultRows:RowClient['prepareResultRows']=(...args)=>{if(!this.transport.prepareResultRows)throw new Error('当前服务不支持行引用');return this.transport.prepareResultRows(...args)}
   get supportsProductIndex():boolean{return Boolean(this.transport.readProductIndex&&this.transport.resolveProduct)}
   get supportsProductBlocks():boolean{return Boolean(this.transport.readProductBlocks)}
   get supportsProductSeries():boolean{return Boolean(this.transport.discoverProductSeries&&this.transport.commandProductSeries&&this.transport.compareProducts&&this.transport.productSources&&this.transport.seriesMembers)}

@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    rows_manifest = Path(__file__).resolve().parents[1] / 'configs/development/result-rows-gate.json'
+    if rows_manifest.is_file():
+        rows = json.loads(rows_manifest.read_text())
+        if set(rows['anchors']).issubset(paths) and all(
+                path in rows['paths'] or _control_path(path) for path in paths):
+            return 'result-rows'
     adoption_manifest = Path(__file__).resolve().parents[1] / 'configs/development/product-adoption-gate.json'
     if adoption_manifest.is_file():
         adoption = json.loads(adoption_manifest.read_text())

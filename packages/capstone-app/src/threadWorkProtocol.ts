@@ -12,6 +12,7 @@ export type WorkRecord = {
   blockedReason: string | null; messages: string[]
   latestAttemptId: string | null; startAvailable: boolean; startUnavailableReason: string | null
   cancelRequested?: boolean
+  contextProductRefs?:InputSubmission['context_product_refs']
   conversationMode?: boolean
 }
 export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPhase;
@@ -100,7 +101,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
     if ((work.start_available !== undefined && typeof work.start_available !== 'boolean')
         || (work.cancel_requested !== undefined && typeof work.cancel_requested !== 'boolean')
         || (work.start_unavailable_reason != null && (typeof work.start_unavailable_reason !== 'string' || work.start_unavailable_reason.length > 200))) throw new ThreadProtocolError('工作操作状态无效')
-    return { workId, goal: work.goal, goalRevision: revision(work.goal_revision, 1),
+    return { ...(work.context_product_refs===undefined?{}:{contextProductRefs:parseContextProductRefs(work.context_product_refs,threadId)}),workId, goal: work.goal, goalRevision: revision(work.goal_revision, 1),
       revision: revision(work.revision, 1), status: work.status as string,
       latestAttemptId: work.latest_attempt_id == null ? null : id(work.latest_attempt_id),
       startAvailable: typeof work.start_available === 'boolean' ? work.start_available : false,
@@ -150,12 +151,13 @@ export function buildSendMessageCommand(threadId: string, runId: string, command
 
 export function buildWorkCommand(threadId: string, runId: string, commandId: string, idempotencyKey: string,
                                  workId: string, expectedRevision: number, text: string,
-                                 kind: 'work_message' | 'revise_goal' = 'work_message'): WorkCommand {
+                                 kind: 'work_message' | 'revise_goal' = 'work_message', contextProductRefs?:InputSubmission['context_product_refs']): WorkCommand {
   if (!text.trim() || exceedsCapacity(text.length,'input_text_chars')) throw new ThreadProtocolError('请输入有效任务内容')
   if (kind !== 'work_message' && kind !== 'revise_goal') throw new ThreadProtocolError('工作操作无效')
   const command: WorkCommand = { schema: 'capstone-command/2', thread_id: id(threadId), run_id: id(runId),
     command_id: id(commandId), idempotency_key: id(idempotencyKey), kind,
     target: { kind: 'work', id: id(workId), expected_revision: revision(expectedRevision) }, payload: { text } }
+  if(contextProductRefs!==undefined)command.payload={...command.payload,text,context_product_refs:parseContextProductRefs(contextProductRefs,threadId)}
   assertCapacity(new TextEncoder().encode(JSON.stringify(command)).byteLength,'command_bytes')
   return command
 }
@@ -190,7 +192,7 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
   }
   if (command.kind === 'start_work' && Object.keys(payload).length === 0) return buildStartWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision))
   if (command.kind === 'cancel_work' && Object.keys(payload).length === 0) return buildCancelWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision))
-  if ((command.kind === 'work_message' || command.kind === 'revise_goal') && typeof payload.text === 'string' && Object.keys(payload).length === 1) return buildWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision), payload.text, command.kind)
+  if ((command.kind === 'work_message' || command.kind === 'revise_goal') && typeof payload.text === 'string' && Object.keys(payload).every(key=>['text','context_product_refs'].includes(key))) return buildWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision), payload.text, command.kind, payload.context_product_refs===undefined?undefined:parseContextProductRefs(payload.context_product_refs,threadId))
   throw new ThreadProtocolError('工作命令无效')
 }
 

@@ -5,7 +5,8 @@ import {parseResultProjection,type ResultProjection} from './threadProtocol'
 export type ProductOrigin='native_file'|'task_delivery'|'domain_result'|'process_record'
 export type ProductRef={schema:'capstone-product-ref/1';thread_id:string;product_id:string;origin:ProductOrigin;scope:'instruction'|'task';event_seq:number;revision:number|null;digest:string;work_id:string|null;attempt_id:string|null;producer_attempt_id:string|null}
 export type LocalProductSelection={schema:'capstone-local-product-selection/1';parent_ref:ProductRef;index_ref:string;block_id:string;content_digest:string;purpose:'historical-context'}
-export type ContextProductRef={ref:ProductRef;purpose:'historical-context';excerpt?:{max_bytes:number};local_selection?:LocalProductSelection}
+export type ResultRowSelection={schema:'capstone-result-row-selection/1';parent_ref:ProductRef;table_id:string;table_version:string;row_ids:string[];column_ids:string[];digest:string}
+export type ContextProductRef={ref:ProductRef;purpose:'historical-context';excerpt?:{max_bytes:number};local_selection?:LocalProductSelection;row_selection?:ResultRowSelection}
 export type ProductEntry={ref:ProductRef;title:string;media_type:string|null;byte_size:number|null;source_status:string;created_at:string;download_url:string|null;source:Record<string,unknown>;dependencies:ProductRef[];presentation:Record<string,unknown>&{kind:ProductOrigin};capabilities:{read:true;select:boolean;select_excerpt?:boolean};selection_unavailable_reason:string|null;historical_only:true}
 export type ProductIndex={products:ProductEntry[];hasMore:boolean;nextCursor:string|null}
 export type ProductResolution={entry:ProductEntry;bytes:Uint8Array|null;projection:ResultProjection|null;record:Record<string,unknown>|null}
@@ -42,7 +43,7 @@ export function productRefKey(ref:ProductRef):string {
 }
 export function parseContextProductRefs(value:unknown,threadId?:string):ContextProductRef[] {
   if(!Array.isArray(value)||exceedsCapacity(value.length,'product_reference_count'))throw new Error('成果引用无效')
-  const refs=value.map(item=>{const selection=object(item);if(!['purpose,ref','excerpt,purpose,ref','local_selection,purpose,ref'].includes(Object.keys(selection).sort().join(','))||selection.purpose!=='historical-context')throw new Error('成果引用用途无效')
+  const refs=value.map(item=>{const selection=object(item);if(!['purpose,ref','excerpt,purpose,ref','local_selection,purpose,ref','purpose,ref,row_selection'].includes(Object.keys(selection).sort().join(','))||selection.purpose!=='historical-context')throw new Error('成果引用用途无效')
     const ref=parseProductRef(selection.ref,threadId)
     let local:LocalProductSelection|undefined
     if(selection.local_selection!==undefined){
@@ -57,11 +58,12 @@ export function parseContextProductRefs(value:unknown,threadId?:string):ContextP
       local={...item,parent_ref:parent} as LocalProductSelection
     }
     if(selection.excerpt!==undefined){const excerpt=object(selection.excerpt);if(Object.keys(excerpt).join(',')!=='max_bytes'||!Number.isSafeInteger(excerpt.max_bytes)||(excerpt.max_bytes as number)<1||exceedsCapacity(excerpt.max_bytes as number,'product_excerpt_bytes'))throw new Error('成果摘录范围无效')}
-    return {ref,purpose:'historical-context' as const,...(local?{local_selection:local}:{}),...(selection.excerpt===undefined?{}:{excerpt:{max_bytes:(selection.excerpt as {max_bytes:number}).max_bytes}})}})
+    return {ref,purpose:'historical-context' as const,...(local?{local_selection:local}:{}),...(selection.row_selection===undefined?{}:{row_selection:parseRowSelection(selection.row_selection,ref)}),...(selection.excerpt===undefined?{}:{excerpt:{max_bytes:(selection.excerpt as {max_bytes:number}).max_bytes}})}})
   if(new Set(refs.map(productSelectionKey)).size!==refs.length)throw new Error('成果引用重复')
   return refs
 }
 export function productSelectionKey(selection:ContextProductRef):string {
+  if(selection.row_selection){const row=selection.row_selection;return JSON.stringify([productRefKey(selection.ref),row.table_id,row.table_version,row.row_ids,row.column_ids,row.digest])}
   const local=selection.local_selection
   return local?JSON.stringify([productRefKey(selection.ref),local.index_ref,local.block_id,local.content_digest,local.purpose]):productRefKey(selection.ref)
 }
@@ -109,4 +111,21 @@ export async function parseProductResolution(value:unknown,ref:ProductRef):Promi
   const record=ref.origin==='process_record'?object(body.record):null
   if(record&&(record.thread_id!==ref.thread_id||record.attempt_id!==ref.attempt_id))throw new Error('执行记录归属不符')
   return {entry,bytes,projection,record}
+}
+
+export function parseRowSelection(value:unknown,ref:ProductRef):ResultRowSelection {
+ const row=object(value)
+ const ids=(v:unknown,max:number):v is string[]=>Array.isArray(v)&&v.length>0&&v.length<=max&&v.every(x=>typeof x==='string'&&x.length>0&&x.length<=128)&&new Set(v).size===v.length
+ if(Object.keys(row).sort().join(',')!=='column_ids,digest,parent_ref,row_ids,schema,table_id,table_version'||row.schema!=='capstone-result-row-selection/1'||ref.origin!=='domain_result'||productRefKey(parseProductRef(row.parent_ref,ref.thread_id))!==productRefKey(ref)||!(typeof row.table_id==='string'&&/^[a-z][a-z0-9_.:-]{0,127}$/.test(row.table_id))||typeof row.table_version!=='string'||!hash.test(row.table_version)||typeof row.digest!=='string'||!hash.test(row.digest)||!ids(row.row_ids,128)||!ids(row.column_ids,64)||row.row_ids.join('\0')!==[...row.row_ids].sort(compareRowIds).join('\0'))throw new Error('表格行引用无效')
+ return {...row,parent_ref:ref} as ResultRowSelection
+}
+
+/** Match the host Unicode code point order, including supplementary characters. */
+export function compareRowIds(left:string,right:string):number {
+ const a=Array.from(left),b=Array.from(right)
+ for(let index=0;index<Math.min(a.length,b.length);index++){
+  const difference=a[index].codePointAt(0)!-b[index].codePointAt(0)!
+  if(difference)return difference
+ }
+ return a.length-b.length
 }

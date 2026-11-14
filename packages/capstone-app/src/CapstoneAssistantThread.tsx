@@ -1,3 +1,4 @@
+import ResultRowTable,{type RowSelectionControls} from './ResultRowTable'
 import { receiptDuration, parseToolBatch, parseToolDispatchReceipt, parseToolExecutionReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
 import {parseServiceBusCalls,serviceBusSummary,type ServiceBusCalls} from './serviceBusCalls'
 import ServiceBusCallDetails from './ServiceBusCallDetails'
@@ -965,13 +966,13 @@ function resultCell(value: string | number | boolean | null): string {
   return String(value)
 }
 
-export function ResultProjectionCard({ projection, tableId, onFocusElement }: { projection: ResultProjection; tableId?: string; onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void }) {
+export function ResultProjectionCard({ projection, tableId, onFocusElement, rowSelection }: { rowSelection?:RowSelectionControls; projection: ResultProjection; tableId?: string; onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void }) {
   const statusLabel = projection.status === 'completed' ? '已完成' : projection.status === 'partial' ? '部分结果' : '暂不可用'
   return <section className={`capstone-result-card is-${projection.status}`} aria-label="结构化计算结果" data-result-id={projection.resultId} tabIndex={-1}>
     <div className="capstone-result-heading"><div><Activity aria-hidden="true" /><strong>计算结果</strong><span>{statusLabel}</span></div><small>{projection.source.capabilityId}</small></div>
     {projection.unavailableReason && <p className="capstone-result-reason">{projection.unavailableReason}</p>}
     {projection.summary.length > 0 && <div className="capstone-result-metrics">{projection.summary.map((metric) => <div key={metric.metricId}><span>{metric.label}</span><strong>{resultCell(metric.value)}{metric.unit ? ` ${metric.unit}` : ''}</strong></div>)}</div>}
-    {projection.tables.filter(table => !tableId || table.tableId === tableId).map((table) => <div className="capstone-result-table-wrap" key={table.tableId}><div className="capstone-result-table-title">{table.title}</div><div className="capstone-result-table-scroll"><table><thead><tr>{table.columns.map((column) => <th key={column.columnId}>{column.label}{column.unit ? ` (${column.unit})` : ''}</th>)}</tr></thead><tbody>{table.rows.map((row) => <tr key={row.rowId}>{table.columns.map((column) => <td key={column.columnId}>{row.elementRef && onFocusElement && column === table.columns[0] ? <button type="button" className="capstone-result-element" onClick={() => onFocusElement?.(projection, row.elementRef!.elementId)} title="在拓扑图中定位">{resultCell(row.cells[column.columnId] ?? row.rowId)}</button> : resultCell(row.cells[column.columnId] ?? null)}</td>)}</tr>)}</tbody></table></div></div>)}
+    {projection.tables.filter(table => !tableId || table.tableId === tableId).map(table=><ResultRowTable key={table.tableId} table={table} projection={projection} selection={rowSelection} onFocusElement={onFocusElement}/>)}
   </section>
 }
 
@@ -1691,7 +1692,9 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
         setSubmittingThinking({id:submissionId,text:text.trim(),afterSeq:Math.max(0,...events.map(event=>event.eventSeq)),at:new Date().toISOString()})
         try {
         if (composerMode === 'text') {
-          await onSend('automatic', text.trim())
+          const sent=inputDraft
+          if(activeInput.context_product_refs?.length){await onSend('automatic',text.trim(),buildInputSubmission(text.trim(),{...emptyInputDraft(runtimeMode),context_product_refs:activeInput.context_product_refs}));setInputDraft(current=>current===sent?{...current,context_product_refs:[]}:current)}
+          else await onSend('automatic', text.trim())
           returnToLatest()
           return
         }

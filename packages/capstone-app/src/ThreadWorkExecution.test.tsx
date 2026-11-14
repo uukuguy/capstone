@@ -6,18 +6,19 @@ import { HttpThreadTransport } from './threadHttpTransport'
 import { writePendingCommands } from './threadSessionState'
 import { buildStartWorkCommand } from './threadWorkProtocol'
 import {webcrypto} from 'node:crypto'
+import type {ContextProductRef} from './threadProducts'
 import type { WorkCommand } from './threadWorkProtocol'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false,professionalTyped=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
   const work = { work_id: 'work_one', goal: '测试目标', goal_revision: 1, revision: 1, status: modelFree ? 'blocked' : 'ready',
     blocked_reason: modelFree ? 'execution_unavailable' : null, latest_attempt_id: null as string | null,
-    cancel_requested: false, messages: native&&!legacySaved?[]:['测试目标'], task_context: context, ...(native?{conversation_mode:!legacySaved}:{}) }
+    context_product_refs:[] as ContextProductRef[],cancel_requested: false, messages: native&&!legacySaved?[]:['测试目标'], task_context: context, ...(native?{conversation_mode:!legacySaved}:{}) }
   let upgraded = modelFree || existingWork || native
   let saved = modelFree || existingWork
   let attempt: Record<string, unknown> | null = null
@@ -41,7 +42,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       last_event_seq: events.length, base_event_seq: 0, result_projections: projections }
     return upgraded ? { ...base, schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
       selected_model_context_id: modelFree||(native&&!openedModel) ? null : model.id, works: saved ? [projection()] : [], task_context: saved ? context : null,
-      ...(native?{session_type:'general-chat',native_execution:{available:nativeAvailable&&!openedModel,unavailable_reason:nativeAvailable&&!openedModel?null:'native_executor_unavailable'}}:{}) } : base
+      ...(professionalTyped?{session_type:'grid-analysis'}:{}),...(native?{session_type:'general-chat',native_execution:{available:nativeAvailable&&!openedModel,unavailable_reason:nativeAvailable&&!openedModel?null:'native_executor_unavailable'}}:{}) } : base
   }
   function append(type: string, payload: Record<string, unknown>, withAttempt = false) {
     const event = { event_id: `evt_${events.length + 1}`, event_seq: events.length + 1, event_type: type, event_version: 2,
@@ -131,7 +132,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
         return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',status:'accepted',accepted_event_seq:accepted,target:{kind:'model_workspace',id:'thr_work',expected_revision:accepted}})
       }
       if (command.kind === 'send_message' && rejectMessage) return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',run_id:'run_work',status:'rejected',rejection:rejectionCode})
-      if (command.kind === 'work_message') { upgraded = true; saved = true }
+      if (command.kind === 'work_message') { upgraded = true; saved = true;if(command.payload.context_product_refs)work.context_product_refs=command.payload.context_product_refs as ContextProductRef[] }
       if (command.kind === 'send_message') {saved=true;work.messages.push(String(command.payload.text));work.goal=String(command.payload.text)}
       if (command.kind === 'start_work'||command.kind === 'send_message') {
         attemptsCreated += 1; work.status = 'queued'; work.revision += 1; work.latest_attempt_id = 'attempt_one'
@@ -616,4 +617,59 @@ it('waits for generated products before opening the instruction scope and preser
   expect(actions).toHaveLength(2)
   fireEvent.click(actions[0])
   await screen.findByText('指令 01')
+})
+
+it('saves exact restored row references in a professional work command and starts the same work',async()=>{
+ const server=authority({existingWork:true})
+ const ref={schema:'capstone-product-ref/1',thread_id:'thr_work',product_id:'result_one',origin:'domain_result',scope:'instruction',event_seq:1,revision:null,digest:'a'.repeat(64),work_id:'work_one',attempt_id:'old_attempt',producer_attempt_id:null}
+ const selection={ref,purpose:'historical-context',row_selection:{schema:'capstone-result-row-selection/1',parent_ref:ref,table_id:'lines',table_version:'b'.repeat(64),row_ids:['line_1'],column_ids:['mw'],digest:'c'.repeat(64)}}
+ sessionStorage.setItem('professional-rows.thr_work.work-draft.work_one.input',JSON.stringify({mode:'capstone',context:{include_refs:[],exclude_refs:[]},context_product_refs:[selection]}))
+ vi.stubGlobal('fetch',server.fetcher)
+ render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="professional-rows"/>)
+ fireEvent.click(await screen.findByRole('button',{name:'01 · 测试目标'}))
+ const draft=await screen.findByRole('textbox',{name:'补充任务资料'})
+ fireEvent.change(draft,{target:{value:'分析所选行'}})
+ await waitFor(()=>expect((screen.getByRole('button',{name:'保存任务'}) as HTMLButtonElement).disabled).toBe(false))
+ fireEvent.click(screen.getByRole('button',{name:'保存任务'}))
+ await waitFor(()=>expect(server.commands[0]?.payload).toEqual({text:'分析所选行',context_product_refs:[selection]}))
+ expect(server.commands[0].kind).toBe('work_message')
+ expect(server.commands[0].target.id).toBe('work_one')
+ await screen.findByRole('region',{name:'已保存的任务输入范围'})
+ fireEvent.change(screen.getByRole('textbox',{name:'补充任务资料'}),{target:{value:'新的草稿'}})
+ fireEvent.click(screen.getByRole('button',{name:'刷新任务'}))
+ await waitFor(()=>expect(server.snapshots).toBeGreaterThan(1))
+ const scope=screen.getByRole('region',{name:'已保存的任务输入范围'})
+ expect(scope.textContent).toContain('lines · 1 行 · mw · 版本 bbbbbbbb')
+ expect(scope.querySelector('button')?.textContent).toBe('查看来源')
+ expect((screen.getByRole('textbox',{name:'补充任务资料'}) as HTMLTextAreaElement).value).toBe('新的草稿')
+ fireEvent.click(await screen.findByRole('button',{name:'开始任务'}))
+ await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('start_work'))
+ expect(server.commands.at(-1)?.target.id).toBe('work_one')
+})
+
+it('requires an explicit action to resume a typed professional work through the real workspace route',async()=>{
+ const server=authority({existingWork:true,professionalTyped:true})
+ vi.stubGlobal('fetch',server.fetcher)
+ render(<ThreadLiveEntry threadId="thr_work" presentation="workspace"/>)
+ const resume=await screen.findByRole('button',{name:'继续编辑此专业任务'})
+ expect(screen.queryByRole('button',{name:'开始任务'})).toBeNull()
+ expect(server.commands).toHaveLength(0)
+ fireEvent.click(resume)
+ await screen.findByRole('textbox',{name:'补充任务资料'})
+ expect(screen.getByRole('button',{name:'开始任务'})).toBeTruthy()
+ expect(server.commands).toHaveLength(0)
+ fireEvent.change(screen.getByRole('textbox',{name:'补充任务资料'}),{target:{value:'继续分析'}})
+ fireEvent.click(screen.getByRole('button',{name:'保存任务'}))
+ await waitFor(()=>expect(server.commands[0]?.kind).toBe('work_message'))
+ expect(server.commands[0].thread_id).toBe('thr_work')
+ expect(server.commands[0].target.id).toBe('work_one')
+})
+it('keeps untyped old work sessions in recovery in the real workspace route',async()=>{
+ const server=authority({existingWork:true})
+ vi.stubGlobal('fetch',server.fetcher)
+ render(<ThreadLiveEntry threadId="thr_work" presentation="workspace"/>)
+ await screen.findByText(/此会话使用旧版任务协议/)
+ expect(screen.queryByRole('button',{name:'继续编辑此专业任务'})).toBeNull()
+ expect(screen.queryByRole('button',{name:'开始任务'})).toBeNull()
+ expect(server.commands).toHaveLength(0)
 })

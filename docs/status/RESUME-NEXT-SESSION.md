@@ -1,11 +1,11 @@
 # Live Session Checkpoint
 
-2026-11-15. Product comparison/adoption goal: implemented, independently reviewed and integrated through PR111.
+Updated: 2026-11-15. Active goal: structured result row references and local analysis. Owner capstone-agent/capstone-app; destination dev. Written design approved. Product source 419b07b8 on feat/result-row-selection-20261115, worktree .worktrees/result-row-selection. No CI approval exists for this goal.
 
-Actual dev c6167e5e matches origin/dev. Accepted source7e57641f, one approved macOS CI43613326116 passed139seconds:122backend,9storage/scope,58App,271governance pass/3skip, type/build pass. No additional CI approved.
+Local verification passed: 185 backend/database, 255 frontend, 123 governance checks, type/build, doctor and changed documentation links/symlink. Independent review found no blocker. Real IEEE39 35-row result, cross-page two-row input, professional Work save/start, source-backed model correction, saved report v4, comparison/adoption and refresh/session restore passed. Final historical source opener and keyboard Space verified. Evidence: root runs/result-row-validation-20261115/.
 
-Actual dev canonical rebuild completed ready; API/three workers image da743e04de1591544acd8ac2e504ad56e8a6609dad4f1623b7965648fff60073. Default App5173 source c6167e5e. Existing Vivaldi tab verified series_runtime_20261114 revision7 and adopted-continuation.md after source realignment. Same product code as tested7e57641f. Cache maintenance passed. Cloud/demo unchanged.
+Final canonical candidate rebuild at 419b07b8 completed ready. API/three workers image dcc22264cdf4dcde773d4d8cbb270006422bf6736b133a993b7abb1e845f2f7e. Candidate App5177. Refresh retains original table version and unsent draft. Scoped cache maintenance completed. Disposable PostgreSQL test container removed. Cloud/demo unchanged.
 
-Final control receipts are task-owned dirty docs pending governance closeout PR; prepare and request docs-only CI approval before push. Do not reopen feature implementation. Preserve root stash named preserve adoption control drafts before PR111 dev synchronization, earlier stashes and feature/research worktrees with uncommitted journals. No user data or auth copied/deleted.
+Actual dev is 41ebc822. Root task-owned control drafts are preserved, with pre-alignment copies in runs/row-control-before-alignment-20261115/. Prior adoption stash and all other worktrees remain. Default App5173 still old dev App; candidate runtime is not accepted dev deployment. Do not copy authentication state or alter user data.
 
-Real model/browser evidence remains .worktrees/product-adoption/runs/product-adoption-validation-20261114/. Root final screenshot /tmp/pr111-dev-restored.json points to actual dev restore screenshot. CI log /tmp/capstone-pr111-ci.log; rebuild log /tmp/capstone-adoption-dev-rebuild.log.
+Next: finish control graph browser check and commit task-owned acceptance/gate records. Prepare exact PR body, then request one focused macOS result-rows CI approval with scope and expected duration before any push/PR update. After approved CI passes, integrate via PR into dev, verify actual dev entry and update canonical control records. No release gate or cloud deployment. Large locator sharding and GB-scale table processing remain deferred with bounded rejection.

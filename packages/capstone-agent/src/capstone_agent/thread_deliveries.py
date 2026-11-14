@@ -82,7 +82,7 @@ def _key(thread_id, delivery):
     return 'thread-deliveries/' + sha256(thread_id.encode()).hexdigest() + '/' + delivery['artifact_id'] + '/' + str(delivery['revision']) + '/' + delivery['content_digest'] + suffix
 
 
-def _prepare(objects, snapshot, events, request, native_reader=None):
+def _prepare(objects, snapshot, events, request, native_reader=None, source_inputs=None):
     previous = [event.payload['delivery'] for event in events if event.event_type == 'delivery_published'
                 and event.payload['delivery']['request']['request_id'] == request['request_id']]
     revision = max((item['revision'] for item in previous), default=0)
@@ -150,7 +150,7 @@ def _prepare(objects, snapshot, events, request, native_reader=None):
             source_status=status, generation_status=generation, source_artifact=dict(descriptor),
             producer_attempt_id=descriptor['producer_attempt_id'], generator='explicit-native-file-adoption/1')
     else:
-        content = _render(snapshot, events, sources, document).encode('utf-8')
+        content = _render(snapshot, events, sources, document, source_inputs=source_inputs).encode('utf-8')
         document['file_name'] = artifact_id + '.md'
     if len(content) > maximum:
         raise ValueError('requested report exceeds artifact capacity')
@@ -169,11 +169,11 @@ def _prepare(objects, snapshot, events, request, native_reader=None):
     return document, None
 
 
-def _render(snapshot, events, sources, delivery):
+def _render(snapshot, events, sources, delivery, *, source_inputs=None):
     requested = delivery['request']
     lines = ['# ' + requested['title'], '', '## 交付要求', '', requested['scope'], '',
              '## 来源与检查范围', '',
-             '本文件是用户明确请求的过程资料汇编，只整理已保存的执行过程与计算结果。它不执行新的业务分析，也不声明满足任意报告要求。历史结果不因此取得当前运行证据资格。',
+             '本文件汇编已保存的模型分析、执行过程与计算结果，不执行新的业务分析。模型分析不是 Authority 计算事实；历史输入不因此取得当前运行证据资格。',
              '文件完整性已核对；交付要求的业务满足情况尚未独立核验。失败和缺口保留如下。', '']
     accepted = {event.attempt_id: event for event in events if event.event_type == 'command_accepted'
                 and event.payload.get('kind') in {'send_auto', 'send_professional', 'send_ordinary', 'send_message'}}
@@ -189,6 +189,23 @@ def _render(snapshot, events, sources, delivery):
             if isinstance(text, str):
                 lines.extend(['### 原指令', '', text, ''])
         projections = _source_projections(snapshot, events, event)
+        answer = event.payload.get('answer')
+        if event.event_type == 'attempt_completed' and isinstance(answer, str) and answer.strip():
+            if len(answer.encode('utf-8')) > limits.delivery_file_bytes:
+                raise ValueError('saved model analysis exceeds artifact capacity')
+            lines.extend(['### 已保存模型分析', '',
+                '以下是该执行已保存的模型解释，不是 Authority 计算事实，也未独立核验。', '',
+                '> BEGIN SAVED MODEL ANALYSIS', ''])
+            # Quote every line so model headings cannot acquire report ownership.
+            lines.extend('> ' + line for line in answer.splitlines())
+            lines.extend(['', '> END SAVED MODEL ANALYSIS', ''])
+        else:
+            lines.extend(['### 模型分析状态', '', '未保存已完成的模型分析；不将失败或未完成的文本提升为分析结论。', ''])
+        references = (source_inputs or {}).get(event.attempt_id, [])
+        if references:
+            lines.extend(['### 本次分析的已冻结历史输入', '',
+                '以下精确版本、表、行和列来自该 Attempt 已接纳的输入，只证明输入范围，不证明模型逐句使用。', '',
+                '```json', json.dumps(references, ensure_ascii=False, sort_keys=True, indent=2), '```', ''])
         if not projections:
             lines.extend(['当前结果目录无可嵌入的结构化计算投影；请沿过程引用查看原始记录。未补造计算数值。', ''])
         for projection in projections:
@@ -296,7 +313,8 @@ def publish_delivery(service, objects, thread_id, value, *, native_artifact_exec
                 return _receipt(snapshot, request, rejection='command_id_conflict')
             delivery, rejection = None, _admission_rejection(snapshot, service._archived)
             if rejection is None:
-                delivery, rejection = _prepare(objects, snapshot, _events(service, thread_id, source_attempt_ids=source_attempt_ids), request, native_reader)
+                delivery, rejection = _prepare(objects, snapshot, _events(service, thread_id, source_attempt_ids=source_attempt_ids), request, native_reader,
+                    _saved_input_refs(service, thread_id, source_attempt_ids))
             seq = None
             if delivery is not None:
                 event = service._append_control_event(event_type='delivery_published', payload={'delivery': delivery})
@@ -325,7 +343,8 @@ def publish_delivery(service, objects, thread_id, value, *, native_artifact_exec
             return _receipt(snapshot, request, rejection='command_id_conflict')
         delivery, rejection = None, _admission_rejection(snapshot, thread['archived'])
         if rejection is None:
-            delivery, rejection = _prepare(objects, snapshot, _events(service, thread_id, connection, source_attempt_ids=source_attempt_ids), request, native_reader)
+            delivery, rejection = _prepare(objects, snapshot, _events(service, thread_id, connection, source_attempt_ids=source_attempt_ids), request, native_reader,
+                _saved_input_refs(service, thread_id, source_attempt_ids, connection))
         seq = None
         if delivery is not None:
             seq = snapshot.last_event_seq + 1
@@ -398,3 +417,14 @@ def read_delivery_content(service, objects, thread_id, artifact_id, revision):
             or sha256(content).hexdigest() != delivery['content_digest']):
         raise ValueError('delivery content integrity check failed')
     return content
+
+
+def _saved_input_refs(service, thread_id, attempts, connection=None):
+    """Read only public provenance from private accepted submissions, never bytes."""
+    from .thread_products import checked_selections
+    if connection is None:
+        values = [(attempt, (service._attempts.get(attempt) or {}).get('submission') or {}) for attempt in attempts]
+        return {attempt:checked_selections(submission.get('context_product_refs',[])) for attempt,submission in values}
+    rows=connection.execute("""SELECT attempt_id, submission_snapshot->'context_product_refs' AS refs
+        FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=ANY(%s)""",(thread_id,attempts)).fetchall()
+    return {row['attempt_id']:checked_selections(row['refs'] or []) for row in rows}

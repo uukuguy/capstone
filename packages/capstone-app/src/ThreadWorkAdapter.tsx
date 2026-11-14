@@ -1,3 +1,4 @@
+import ProductReferenceChips from './ProductReferenceChips'
 import ManagedResourcesPanel from './ManagedResourcesPanel'
 import {instructionProductScopesFromEvents,type InstructionProductScope} from './instructionProducts'
 import {isWorkspaceActive} from './workspaceName'
@@ -140,7 +141,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     }).catch(cause=>{rethrowDebugCapacity(cause);if(live)setModelWorkspace(null)})
     return()=>{live=false}
   },[client,currentId,nativeChat,snapshot?.lastEventSeq,snapshot?.modelContext?.id])
-  const recovery=recoveryOnly&&!nativeChat
+  const [professionalEdit,setProfessionalEdit]=useState(false)
+  const canResumeProfessional=snapshot?.sessionType==='grid-analysis'&&!!snapshot.modelContext&&snapshot.works.some(work=>!work.conversationMode)
+  const recovery=recoveryOnly&&!nativeChat&&!professionalEdit
   const materialRevision=Math.max(0,...store.publicEvents.filter(event=>['material_uploaded','material_removed'].includes(event.eventType)).map(event=>event.eventSeq))
   const [inputCatalog,setInputCatalog]=useState<InputCatalog>()
   const [welcomeGateway,setWelcomeGateway]=useState<GatewayConnectionStatus>()
@@ -397,7 +400,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     const runId = snapshot?.runId ?? professional?.run.runId
     if (!runId) throw new MessageNotSentError('请先连接会话。')
     try {
-      await dispatch(pendingMessage || (nativeChat?buildSendMessageCommand(currentId,runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,selected,selectedWork?.revision||0,text,submission,processReference?.threadId===currentId?processReference.attemptId:undefined):buildWorkCommand(currentId, runId, `cmd_${commandKey()}`, `idem_${commandKey()}`, selected, selectedWork?.revision || 0, text)))
+      await dispatch(pendingMessage || (nativeChat?buildSendMessageCommand(currentId,runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,selected,selectedWork?.revision||0,text,submission,processReference?.threadId===currentId?processReference.attemptId:undefined):buildWorkCommand(currentId, runId, `cmd_${commandKey()}`, `idem_${commandKey()}`, selected, selectedWork?.revision || 0, text,'work_message',submission?.context_product_refs)))
     } catch (cause) { throw new MessageNotSentError(cause instanceof Error ? cause.message : '保存结果待确认。') }
   }
   async function start() {
@@ -552,7 +555,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       if(requestedProduct&&(requestedProduct.ref?.attempt_id??requestedProduct.attemptId)===attempt)setRequestedProduct(undefined)
       setResourceView('products');setProductsOpen(true)
     }}
-    onReference={(entry,excerpt,local)=>setRequestedReference({selection:{ref:entry.ref,purpose:'historical-context',...(excerpt?{excerpt}:{}),...(local?{local_selection:local}:{})},nonce:Date.now()})}
+    onReference={(entry,excerpt,local,row)=>setRequestedReference({selection:{ref:entry.ref,purpose:'historical-context',...(excerpt?{excerpt}:{}),...(local?{local_selection:local}:{}),...(row?{row_selection:row}:{})},nonce:Date.now()})}
     onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}} onLocate={attemptId=>void locateInstruction(attemptId)} onBrowse={entry=>{if(entry.ref.attempt_id!==latestInstructionAttempt)markManualView();else setRequestedProduct(undefined)}} onInspect={setInspectedProductAttempt}
     fallback={<><details open={requestedProduct?.origin==='native_file'}><summary>指令文件</summary>{filesPanel}</details><details><summary>任务交付</summary><TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision}/></details><details><summary>过程记录</summary>{processPanel}</details></>}/>
   const materials=inputCatalog?.materials||[]
@@ -604,8 +607,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError||projection.synchronizationError} recovering={connectionRecovering} pending={!!pending}/>}
     navigationFooter={<WorkspaceGatewayStatus transport={transport} threadId={currentId} onConnection={setWelcomeGateway} locked={Boolean(snapshot?.works.some(work=>work.messages.length>0))}/>}
-    resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
-    resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'Artifacts',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
+    resourcePanel={client.supportsProductIndex?productsPanel:nativeChat&&client.supportsProcessProducts?processPanel:undefined}
+    resourceViews={client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'Artifacts',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:nativeChat?[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedArtifact(undefined)}} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
       {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:undefined}
     selectedResourceView={resourceView} onResourceViewChange={selectResourceView}
@@ -640,12 +643,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       </div>
     </div>
       {inspectedProductAttempt&&<AnswerDetailSheet title="执行详情" answerLabel="所选成果的来源指令" onClose={()=>setInspectedProductAttempt(undefined)}><AttemptRecordPanel attemptId={inspectedProductAttempt} read={(id,after)=>client.attemptRecords(currentId,id,after)}/></AnswerDetailSheet>}
-      {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。</p>}
+      {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。{canResumeProfessional&&<button type="button" disabled={busy||!!pending} onClick={()=>{const target=snapshot!.works.filter(work=>!work.conversationMode).find(work=>work.contextProductRefs?.length)??snapshot!.works.filter(work=>!work.conversationMode).at(-1);if(target){selectWork(target.workId);setProfessionalEdit(true)}}}>继续编辑此专业任务</button>}</p>}
       {viewingLegacy&&<p role="status">正在查看历史保存记录，可保留草稿、确认原请求及停止已有执行。返回当前对话后可继续发送。</p>}
       {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
+      {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
       {notice && <p role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
       {conversation.hasUnattributedHistory && <p role="status">部分历史执行记录尚未确认任务归属。可加载更早的记录后查看。</p>}
     </>}

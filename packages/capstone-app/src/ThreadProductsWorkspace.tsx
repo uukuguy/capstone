@@ -1,3 +1,5 @@
+import type {RowClient} from './resultRowSelection'
+import type {ResultRowSelection} from './threadProducts'
 import {applicationCapacity,observeCapacity,rethrowDebugCapacity,CapacityError} from './applicationCapacity'
 import {useContext,useEffect,useLayoutEffect,useRef,useState,type ReactNode} from 'react'
 import {ArrowDownToLine,ArrowUpRight,LocateFixed,ListTree} from 'lucide-react'
@@ -16,7 +18,7 @@ import type {LocalProductSelection} from './threadProducts'
 import ProductComparison from './ProductComparison'
 import type {SeriesClient} from './productSeries'
 
-type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean}&Partial<SeriesClient>
+type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean;supportsResultRows?:boolean}&Partial<SeriesClient>&Partial<RowClient>
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
 function newestFirst(a:ProductEntry,b:ProductEntry){
   return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
@@ -66,7 +68,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   instructionScope?:InstructionProductScope;onClearInstructionScope?:()=>void
   primaryAttemptId?:string;runningAttemptId?:string;followAvailable?:boolean;onPrimaryReady?:(entry:ProductEntry)=>void
   onIndexLoaded?:(entries:readonly ProductEntry[])=>void
-  onReference?:(entry:ProductEntry,excerpt?:{max_bytes:number},local?:LocalProductSelection)=>void;onAdopt?:(artifact:NativeArtifact)=>void;onLocate?:(attemptId:string)=>void;onInspect?:(attemptId:string)=>void
+  onReference?:(entry:ProductEntry,excerpt?:{max_bytes:number},local?:LocalProductSelection,row?:ResultRowSelection)=>void;onAdopt?:(artifact:NativeArtifact)=>void;onLocate?:(attemptId:string)=>void;onInspect?:(attemptId:string)=>void
   fallback?:ReactNode
   onBrowse?:(entry:ProductEntry)=>void
   onFocusElement?:(projection:ResultProjection,elementId:string)=>boolean|void
@@ -103,12 +105,24 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   const scopeKey=instructionScope?.attemptId
   const previousScope=useRef<string|undefined>(undefined)
   const scopeDefaultPending=useRef(false)
+  const pendingSource=useRef<ProductRef|undefined>(undefined)
   useEffect(()=>{
     if(previousScope.current===scopeKey)return
     previousScope.current=scopeKey
+    const source=pendingSource.current
+    if(source&&source.thread_id===threadId&&(!scopeKey||source.attempt_id===scopeKey)){pendingSource.current=undefined;scopeDefaultPending.current=false;userSelected.current=true;setSelection(source);return}
     scopeDefaultPending.current=true
     setSelection(undefined);setResolved(undefined);setDirectoryOpen(!resourceFullscreen);userSelected.current=false
   },[scopeKey,resourceFullscreen])
+  function openSource(ref:ProductRef){
+    if(ref.thread_id!==threadId)return
+    userSelected.current=true;scopeDefaultPending.current=false
+    if(instructionScope&&ref.attempt_id!==instructionScope.attemptId){
+      if(!onClearInstructionScope){setDetailError('请先打开全部制品，再查看此前指令的来源。');return}
+      pendingSource.current=ref;onClearInstructionScope()
+    }
+    setSelection(ref)
+  }
   const requestPending=!!requested&&consumedRequest.current!==requestedKey
   const current=directory.threadId===threadId?directory:undefined
   const view=(!instructionScope||resolved?.entry.ref.attempt_id===instructionScope.attemptId&&resolved.entry.ref.origin!=='process_record')&&!requestPending&&resolved?.entry.ref.thread_id===threadId&&selection&&productRefKey(resolved.entry.ref)===productRefKey(selection)?resolved:undefined
@@ -169,7 +183,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
     finally{if(!controller.signal.aborted&&token===generation.current)setLoading(false)}
   }
   useEffect(()=>{void load();return()=>{generation.current++;request.current?.abort()}},[client,threadId,workId,revision,retry,requestedKey,primaryAttemptId,runningAttemptId,followAvailable,scopeKey])
-  useEffect(()=>{if(requested?.ref?.thread_id===threadId){consumedRequest.current=requestedKey;userSelected.current=!isCurrentRef(requested.ref);setSelection(requested.ref)}},[requestedKey,threadId,workId,runningAttemptId,primaryAttemptId])
+  useEffect(()=>{if(requested?.ref?.thread_id===threadId){consumedRequest.current=requestedKey;if(instructionScope&&requested.ref.attempt_id!==instructionScope.attemptId)openSource(requested.ref);else{userSelected.current=!isCurrentRef(requested.ref);setSelection(requested.ref)}}},[requestedKey,threadId,workId,runningAttemptId,primaryAttemptId])
   const selectedKey=selection?.thread_id===threadId?productRefKey(selection):''
   useEffect(()=>{
     if(!selection||selection.thread_id!==threadId)return
@@ -217,13 +231,13 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
         {view.entry.ref.attempt_id&&onLocate&&<button type="button" aria-label="定位指令" title="定位指令" onClick={()=>onLocate(view.entry.ref.attempt_id!)}><LocateFixed aria-hidden="true"/><span>定位指令</span></button>}
         {view.bytes&&url&&<a aria-label="下载文件" title="下载文件" href={url} download={typeof view.entry.source.file_name==='string'?view.entry.source.file_name:view.entry.title}><ArrowDownToLine aria-hidden="true"/><span>下载文件</span></a>}
       </div>
-      {view.projection&&<ResultProjectionCard projection={view.projection} onFocusElement={onFocusElement}/>}
-      {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={`comparison:${viewKey}`} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={ref=>{userSelected.current=true;setSelection(ref)}}/>}
+      {view.projection&&<ResultProjectionCard key={`result:${viewKey}`} projection={view.projection} onFocusElement={onFocusElement} rowSelection={onReference&&client.supportsResultRows&&client.readResultRows&&client.prepareResultRows?{client:client as RowClient,ref:view.entry.ref,onSelect:row=>onReference(view.entry,undefined,undefined,row)}:undefined}/>}
+      {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={`comparison:${viewKey}`} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={openSource}/>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
       {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&
         <ProductParagraphPicker key={`paragraphs:${viewKey}`} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}
       {view.record&&<div><p>此项是执行记录，没有文件内容。</p>{typeof view.record.instruction==='string'&&<p>{view.record.instruction}</p>}{typeof view.record.failure_code==='string'&&<p>记录尚未提供可读的原因说明，可查看原指令和执行详情。</p>}</div>}
-      {view.entry.dependencies.length>0&&<details><summary>支撑成果 · {view.entry.dependencies.length}</summary>{view.entry.dependencies.map(ref=><button type="button" key={productRefKey(ref)} onClick={()=>setSelection(ref)}>查看支撑{ref.scope==='task'?'交付':'产物'}{ref.revision?` v${ref.revision}`:''}</button>)}</details>}
+      {view.entry.dependencies.length>0&&<details><summary>支撑成果 · {view.entry.dependencies.length}</summary>{view.entry.dependencies.map(ref=><button type="button" key={productRefKey(ref)} onClick={()=>openSource(ref)}>查看支撑{ref.scope==='task'?'交付':'产物'}{ref.revision?` v${ref.revision}`:''}</button>)}</details>}
       <p className="thread-product-history-note">来自已保存历史；引用不会自动成为当前运行的 Authority 证据。</p>
     </article>}
   </section>
