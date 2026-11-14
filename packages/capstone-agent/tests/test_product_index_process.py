@@ -35,3 +35,8 @@ def test_invalid_budgets_reject_before_spawn():
 def test_rss_supervision_stops_child_over_budget():
     with pytest.raises(ValueError, match='memory budget'):
         run(max_rss_bytes=1)
+def test_linux_rss_does_not_require_ps(monkeypatch):
+    from capstone_agent import product_index_process as module
+    monkeypatch.setattr(module.sys, 'platform', 'linux')
+    monkeypatch.setattr(module.Path, 'read_text', lambda self: 'Name:\tpython\nVmRSS:\t123 kB\n')
+    assert module._rss_bytes(123, 0) == 123*1024

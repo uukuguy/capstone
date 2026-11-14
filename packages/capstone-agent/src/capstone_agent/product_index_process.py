@@ -12,6 +12,23 @@ import tempfile
 import time
 
 
+def _rss_bytes(pid, deadline):
+    if sys.platform.startswith('linux'):
+        try:
+            status = Path(f'/proc/{pid}/status').read_text()
+        except FileNotFoundError:
+            return None
+        for line in status.splitlines():
+            if line.startswith('VmRSS:'):
+                fields = line.split()
+                if len(fields) == 3 and fields[2] == 'kB':
+                    return int(fields[1])*1024
+        return None
+    sample = subprocess.run(['/bin/ps', '-o', 'rss=', '-p', str(pid)],
+        capture_output=True, text=True, timeout=min(1, max(0.001, deadline-time.monotonic())))
+    return int(sample.stdout.strip())*1024 if sample.stdout.strip() else None
+
+
 def parse_isolated(parent_ref, content, *, max_input_bytes, max_blocks,
                    max_output_bytes, wall_seconds, cpu_seconds, max_rss_bytes):
     for budget in (max_input_bytes, max_blocks, max_output_bytes, cpu_seconds, max_rss_bytes):
@@ -36,12 +53,10 @@ def parse_isolated(parent_ref, content, *, max_input_bytes, max_blocks,
             while process.poll() is None:
                 if time.monotonic() >= deadline:
                     raise ValueError('parser deadline exceeded')
-                sample = subprocess.run(['/bin/ps', '-o', 'rss=', '-p', str(process.pid)],
-                    capture_output=True, text=True, timeout=min(1, max(0.001, deadline-time.monotonic())))
-                rss = sample.stdout.strip()
-                if rss and int(rss)*1024 > max_rss_bytes:
+                rss = _rss_bytes(process.pid, deadline)
+                if rss is not None and rss > max_rss_bytes:
                     raise ValueError('parser memory budget exceeded')
-                if not rss and process.poll() is None:
+                if rss is None and process.poll() is None:
                     raise ValueError('parser memory observation unavailable')
                 time.sleep(min(0.02, max(0, deadline-time.monotonic())))
             if time.monotonic() >= deadline:

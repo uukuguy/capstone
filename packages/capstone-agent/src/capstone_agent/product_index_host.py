@@ -11,7 +11,7 @@ from .product_index_service import ProductIndexService
 
 def configured_product_indexes(environ, threads, objects):
     raw = environ.get('CAPSTONE_PRODUCT_INDEX_BUDGETS_JSON')
-    if raw is None:
+    if raw is None or raw == '':
         return None
     def unique(pairs):
         result = {}

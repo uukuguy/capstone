@@ -7,6 +7,7 @@ from capstone_agent.product_index_host import configured_product_indexes, serve_
 
 def test_disabled_index_host_needs_no_database():
     assert configured_product_indexes({}, None, None) is None
+    assert configured_product_indexes({'CAPSTONE_PRODUCT_INDEX_BUDGETS_JSON': ''}, None, None) is None
 
 
 def test_invalid_configuration_fails_before_database_access():
