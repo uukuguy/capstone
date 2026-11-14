@@ -1,5 +1,9 @@
 # 多线版本控制
 
+2026-11-15 当前活动交付：结构化表格行引用与局部分析，feat/result-row-selection-20261115，所有者capstone-agent/capstone-app，目标dev。产品来源419b07b8，185后端/255前端及真实模型/浏览器闭环通过，独立复审无阻塞；待定向PR与CI批准。原成果对照采用已由PR111/112接受。
+
+2026-11-15 最终收口PR112已合入dev 41ebc822；文档CI43617777424通过148秒。实际dev同步；产品与受检7e57641f/已重建c6167e5e一致，运行来源c6167e5e保留。研究/实施工作树仅为回执恢复源。
+
 2026-11-15 成果对照与采用PR111已正常合入dev c6167e5e，实际dev同步。精确来源7e57641f，macOS定向CI43613326116通过139秒，独立复审无阻塞。真实模型与浏览器闭环通过；规范dev重建ready通过，API/三worker同镜像da743e04de15；默认App5173，云端/demo未变。
 
 2026-11-14 当前工作：成果对照与显式采用，活动分支feat/product-comparison-adoption-20261114，capstone-agent/capstone-app所有，目标dev。后端真实挂载、前端接入已有预览，审查修复825634e6已完成；规范重建及真实模型/浏览器闭环通过，独立复审无阻塞，待dev PR；无CI批准。先前局部引用已由PR109/110集成。
@@ -1296,8 +1300,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| product-adoption-20261114 | 当前活动应用交付：成果对照与显式采用 |
-| workspace-research-20261114 | 已合并局部引用的精确本地部署来源 |
+| result-rows-20261115 | 当前活动结构化结果行引用交付 |
+| product-adoption-merge-20261115 | 已接受成果对照采用的重要dev合并 |
+
 | release-v1-1-0 | 用户指定的重要发布v1.1.0；main精确接受源与annotatedtag |
 | release-v1-1-0-listener-fix | Linux连接突发修复的产品来源；已通过双平台发布CI |
 | presentation-merge-20261114 | PR104正式合入dev的PPT与直接调用方基线 |
@@ -1323,7 +1328,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| result-rows-20261115 | 419b07b8 | feature | 结构化行引用与局部分析 | 本地闭环通过；待dev集成 | 精确行列/版本/摘要，专业Work准入，报告解释与Authority事实分离；185后端/255前端通过，模型及浏览器恢复通过。[本地验证](../reviews/2026-11-15-result-row-local.md) | shared-agent |
 | product-adoption-runtime-20261114 | 825634e6 | feature | 本地采用服务运行来源 | 规范重建通过；App另含928c7aee修复 | API及三worker同镜像8bcee8cd3516；ready/缓存维护通过；采用稿模型续作及审计恢复通过。[本地验证](../reviews/2026-11-14-product-adoption-local.md) | shared-agent |
+| product-adoption-merge-20261115 | c6167e5e | main | 成果对照与采用合入 | PR111与实际dev重建接受 | 122后端/58App及定向CI通过；API/三worker同镜像da743e04de15，默认App恢复采用稿。[本地验证](../reviews/2026-11-14-product-adoption-local.md) | shared-agent |
 | product-adoption-20261114 | 928c7aee | feature | 成果对照与显式采用 | PR111已合入dev；本地接受通过 | 系列独立采用、精确来源与流式校验；122项后端/58项App通过，真实模型采用稿续作及浏览器恢复通过，独立复审无阻塞。[实施计划](../superpowers/plans/2026-11-14-product-comparison-adoption.md) | shared-agent |
 | workspace-research-20261114 | a65b35b6 | feature | 应用局部引用候选 | 容量修正已重建复核；未合入dev | 23项定向测试、类型与doctor通过；旧索引恢复与Vivaldi段落入口复查通过。[研究记录](../capstone-app/2026-11-14-code-mapping.md) | shared-agent |
 | release-v1-1-0 | b6b144c7 | main | main · Capstone v1.1.0 | PR105正常合入；双平台CI43564049919通过；annotatedtag已推送 | 统一框架/退役/资源发现/国网PPT及边界补修；受检3429e6a0与main树一致。[接受回执](../reports/receipts/2026-11-14-v1.1.0-release-acceptance.json) | shared-agent |
@@ -1504,7 +1511,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| result-rows-20261115 | 活动专业结果局部分析 | feat/result-row-selection-20261115 | 版本固定行列引用与私有冻结；真实分析报告与来源恢复 | 产品419b07b8镜像dcc22264cdf4；本地闭环及独立复审通过，待PR |
 | product-adoption-runtime-20261114 | 当前后端运行来源 | feat/product-comparison-adoption-20261114 | 会话隔离与流式来源校验；持久采用及有界对照 | 后端825634e6镜像8bcee8cd3516；App928c7aee；本地闭环通过，非云端发布 |
+| product-adoption-merge-20261115 | 已接受实现与本地部署来源 | dev | 成果对照与显式采用；来源追溯与恢复验证 | PR111合入c6167e5e；定向CI通过139秒，实际dev重建接受 |
 | product-adoption-20261114 | 已合入的成果续作闭环 | feat/product-comparison-adoption-20261114 | 显式系列关联与采用审计；原文对照及历史版本保留 | 后端/前端已接入；真实采用稿模型续作通过；浏览器对照/采用/刷新及切换恢复通过；PR111与定向CI已接受 |
 | workspace-research-20261114 | 当前应用实现候选 | research/capstone-app-workspace-20261114 | 版本固定段落与持久索引；多选身份及容量感知分页 | 分支HEAD 46baa17e；PR109已合入dev ae0761d1；运行来源a65b35b6；三轮与刷新通过；PR109已合入dev |
 | release-v1-1-0 | 已接受发布基线 | main · v1.1.0 | 产品/backend/App1.1.0，独立组件版本保留；正式应用边界、Pi执行与国网PPT | b6b144c7；CI43564049919双平台通过，tag远端验证；dev回流/云部署另列 |
@@ -1721,6 +1730,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| feat/result-row-selection-20261115 | 活动应用实现；目标dev | 所有者capstone-agent/capstone-app；从41ebc822起，实际HEAD由Git解析，产品419b07b8 | 真实局部分析/报告采用恢复通过；下一步定向PR与获批macOS CI | shared-agent |
 | feat/product-comparison-adoption-20261114 | PR111已合入；目标dev已接受 | 受检7e57641f，合并c6167e5e；CI43613326116通过139秒；独立复审无阻塞 | 保留工作树未提交回执；不再作为活动实现 | shared-agent |
 | research/capstone-app-workspace-20261114 | 已合并的恢复来源 | PR109已合入ae0761d1，PR110收口已合入5f33f21c；运行来源a65b35b6 | 保留未提交回执及恢复资料，不作活动交付 | shared-agent |
 | archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | 已承接的历史实现 | 81dd3652；PPT及直接调用方已由PR104合入 | 原SHA/远端恢复标签与8个未提交文档保留，非活动研发 | shared-agent |
@@ -1918,7 +1928,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | `c6167e5e`，PR111合入后的实际dev | API/三worker同镜像da743e04de15；ready与缓存维护通过 | http://127.0.0.1:5173/；与受检7e57641f的应用源码一致；历史成果及采用审计保留。 |
+| local-dev | 临时候选 `419b07b8`，App5177 | API/三worker同镜像dcc22264cdf4，ready/缓存维护通过 | http://127.0.0.1:5177/；真实35行结果跨页选行、分析修订、报告对照/采用、刷新与会话切换恢复通过；云端/demo未变。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

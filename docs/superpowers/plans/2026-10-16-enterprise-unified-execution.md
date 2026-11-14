@@ -1,5 +1,9 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Structured result row references — 2026-11-15
+
+Owner capstone-agent/capstone-app; branch feat/result-row-selection-20261115, base dev41ebc822, destination dev. Accepted [design](../specs/2026-11-15-result-row-selection-design.md) and [implementation plan](2026-11-15-result-row-selection.md). Exact rows and columns flow through existing professional Work admission, frozen historical input and report sources. Real IEEE39 selection, local model analysis, corrected report comparison/adoption and refresh/session recovery passed. [Measured local evidence](../../reviews/2026-11-15-result-row-local.md). Next: scoped dev PR and separately approved macOS CI; no cloud/demo promotion. GB locator sharding remains unimplemented and oversized indexes reject explicitly.
+
 ## Independent workspace research — 2026-11-14
 
 Owner: enterprise application interaction research. Branch: `research/capstone-app-workspace-20261114`, based on dev `9c855eb2`; first research commit `128f778b`.
