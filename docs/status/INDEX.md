@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-14：[v1.1.0发布候选](../releases/v1.1.0.md)按用户选定版本冻结；本地完整门禁修复中，main合入和tag待接受。
+
 2026-11-14：[PPT 集成与引用研究收口](../reports/2026-11-14-presentation-integration.md)：
 候选 29c0ce72 基于当前 dev；旧引用研究原 SHA 归档，剩余设计待办归核心演进笔记。
 本地检查通过，重建和真实验证进行中，尚未合入或启动 CI。

@@ -1,38 +1,29 @@
 # Live Session Checkpoint
 
-User approved PPT integration and reference research closure. Isolated checkout:
-.worktrees/architecture-retirement-closeout, branch feat/presentation-closeout-20261114.
-Implementation29c0ce72 + renderer fixesa7440980/ddc3df02 are committed on devb4992b94.
-Root user files and runtime data are preserved. The original PPT81dd3652 remains
-until accepted dev integration; do not merge its old history wholesale.
+User requested an important version tag and main integration. User explicitly
+chose v1.1.0 (overrides the initial v2 suggestion). Work in the existing isolated
+checkout .worktrees/architecture-retirement-closeout, branch release/v1.1.0.
+Main22cd1728 was not a Git ancestor of dev8d97596c only because of its old merge;
+828d1ef1 retains that ancestry, with a tree byte-identical to dev. No history rewrite.
+Version metadata/root/App/backend and local locks are set to1.1.0 but uncommitted.
+Release notes:docs/releases/v1.1.0.md. No release CI approved or started; no tag.
 
-Final local runtime source ddc3df02, API/all three workers imagebd4bb567, native
-ddedbbc3; canonical rebuild/readiness and scoped cache maintenance passed.
-Default App5173 remains actual dev; candidate App5174 is this branch, using the
-same-origin Vite proxy (VITE_API_ORIGIN must be empty). No cloud/demo changes.
+Full local NO_PROXY=127.0.0.1,localhost make check-release stopped at16Pyright
+errors. Log/tmp/capstone-v1.1.0-local-release.log, exec37027 completed failure.
+Parallel workers own uncommitted fixes: release_pandapower_types owns domain_tools,
+scripted_execution and provisioning (+direct tests); release_thread_types owns
+thread_service.py (+direct tests). Parent owns versions/locks/readmes/release docs.
+No shared staging/committing until workers return. Run focused checks, commit
+coherent verified units, then resume full local release gate. Do not mark an
+unfinished full aggregate passed or weaken types. No deployment in this scope.
 
-Checks:251backend/46PG-resource/86renderer/378App/12templateSDK/50composition/
-218governance/213direct runtime pass; conditional skips recorded separately.
-Type checks, doctor, links/symlink and diff checks passed. Independent review P2
-renderer provenance fixed; installed symlink regression reproduced then fixed.
-Real Threadthr_04e92aa2a510c0434678: four completed rounds16.333/42.674/32.520/40.664s,
-47download hashes; frozen content, StateGrid default, PDF and final renderer hashes
-verified. Raw private probe data /tmp/capstone-ppt-closeout-real.json; bounded public
-receipt docs/reports/receipts/2026-11-14-presentation-integration.json.
-First library run selected existing blue template; do not count it as default
-selection acceptance. Final round explicitly selected StateGrid and passed.
-
-Reference2bd086af archived at archive/branch-ownership-20261114/uukuguy/reference-execution-research;
-remote recovery tag exists, worktree and3dirty docs unchanged. Its only code delta
-is the composition fixture now passing on the current chain. Remaining model
-projection/actual gateway research is design backlog, not a second DR executor.
-
-Same-tab App5174 restore and six graph reference paths passed; screenshot
-/tmp/capstone-ppt-final-app.png and /tmp/capstone-ppt-final-overview.png.
-Next: commit task-owned docs, then request ONE focused macOS presentation-library CI for a dev PR. NO CI
-is currently approved. Do not push/create PR/merge before explicit new approval.
-After approved gate passes, merge via PR, synchronize actual dev while preserving
-mixed dirty user/control files, close original PPT and temporary integration refs,
-rebuild actual dev entry and refresh canonical graph. Do not start IG2–IG4 or a
-research experiment. No force pushes or deleting worktrees/data. Clash proxy for
-Git/GitHub http://127.0.0.1:7897; Docker build proxy uses host.docker.internal.
+Next: integrate type repairs, complete local full gate, prepare main PR body and
+reviewable candidate, then ask explicit approval for macOS/Linux release CI
+(estimated after measuring local gate). Only then push/create main PR. Merge via
+required PR, tag exact accepted main source v1.1.0 with an annotation; return
+version/fixes to dev via its required PR/approval, not a direct push. Do not deploy
+cloud/demo or overwrite local-demo. Existing user dirty files and var/auth remain.
+Root dev stays8d97596c with post-merge/user documentation dirty. It runs accepted
+PPT baseline imageb4826b36/native ddedbbc3. Prior branch closeout/47hash/browser
+acceptance remains valid but is not full v1.1 release acceptance. GitHub proxy
+127.0.0.1:7897; Docker proxyhost.docker.internal:7897. Reuse same browser tab.

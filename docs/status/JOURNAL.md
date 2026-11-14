@@ -7524,3 +7524,4 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Fixed installed renderer provenance lookup, ddc3df02; final build and real continuation passed, 47 product hashes verified.
 - 2026-11-14 Verified App5174 restored final PPT/PDF and four completed rounds; six deployment graph paths have no card crossings.
 - 2026-11-14 CI43494883528 failed existing cleanup-budget test; injected delay reproduced it; local86 Pi and113 governance checks pass after test-only fix.
+- 2026-11-14 Retained main ancestry with no source delta [828d1ef1]; user selected v1.1.0, versions/locks aligned, full local gate stopped on16 type errors.
