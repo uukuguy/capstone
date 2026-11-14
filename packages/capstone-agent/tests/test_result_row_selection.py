@@ -295,7 +295,7 @@ def test_v2_work_http_invalid_refs_do_not_mutate(postgres_thread_service,storage
         refs=[{**item,'ref':{**ref,'product_id':'result_'+str(i)}} for i in range(limits.product_reference_count)]
         accepted=client.post('/api/v1/threads/'+thread_id+'/commands',headers={**_auth(),'Capstone-Thread-Version':'2'},
             json=command(store,thread_id,'work_message','save_limit',payload={'text':'Save selection','context_product_refs':refs}))
-        assert accepted.status_code==200 and accepted.json()['status']=='accepted'
+        assert accepted.status_code==202 and accepted.json()['status']=='accepted'
         before=store.snapshot(thread_id)
         work=before.works[0]
         overflow=client.post('/api/v1/threads/'+thread_id+'/commands',headers={**_auth(),'Capstone-Thread-Version':'2'},
