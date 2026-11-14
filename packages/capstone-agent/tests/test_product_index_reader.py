@@ -49,3 +49,19 @@ def test_metadata_path_does_not_run_presentation_enrichment(monkeypatch):
         raise AssertionError('presentation must not run during source admission')
     monkeypatch.setattr('capstone_agent.native_product_roles.presentation_for_artifact', forbidden)
     assert read_index_source(service, store, 'thr_demo_39', ref, max_bytes=100) == data
+
+
+def test_retained_delivery_revision_stays_readable_after_replacement():
+    from test_thread_deliveries import completed, request, THREAD
+    from capstone_agent.thread_deliveries import publish_delivery, read_delivery_content
+    service, store = _service(), MemoryObjectStore()
+    attempt = completed(service)
+    first = publish_delivery(service, store, THREAD, request(attempt)).target['delivery']
+    ref = next(x['ref'] for x in product_index(service, THREAD)['products']
+               if x['ref']['origin'] == 'task_delivery')
+    expected = read_delivery_content(service, store, THREAD, first['artifact_id'], 1)
+    publish_delivery(service, store, THREAD, request(attempt, command_id='cmd_second',
+        idempotency_key='idem_second', expected_revision=1, title='Replacement report'))
+    assert read_index_source(service, store, THREAD, ref, max_bytes=len(expected)) == expected
+    with pytest.raises(ValueError):
+        read_index_source(service, store, THREAD, ref, max_bytes=len(expected)-1)

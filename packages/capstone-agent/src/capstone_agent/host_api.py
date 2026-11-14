@@ -423,7 +423,8 @@ def create_host_app(
                 raise ValueError('product indexes must use the configured thread service')
             from .product_index_http import register_product_index_routes
             register_product_index_routes(app, service=product_index_service,
-                                          authorize=require_private_thread)
+                                          authorize=require_private_thread,
+                                          wake_worker=request_worker)
 
         @app.get("/api/v1/threads")
         def list_threads(request: Request,

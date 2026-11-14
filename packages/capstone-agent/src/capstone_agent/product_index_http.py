@@ -1,7 +1,8 @@
 """Authenticated, bounded routes for application paragraph indexes."""
 import json
+import logging
 
-from fastapi import HTTPException, Query, Request
+from fastapi import BackgroundTasks, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
 from .application_capacity import limits
@@ -9,7 +10,18 @@ from .thread_service import ThreadNotFound
 from .thread_protocol import ThreadProtocolError
 
 
-def register_product_index_routes(app, *, service, authorize):
+def register_product_index_routes(app, *, service, authorize, wake_worker=None):
+    def wake(thread_id):
+        try:
+            wake_worker(thread_id)
+        except Exception:
+            logging.getLogger(__name__).warning('Product index worker wake failed')
+
+    def schedule(result, thread_id, background):
+        if wake_worker is not None and result['state'] in {'queued', 'running'}:
+            background.add_task(wake, thread_id)
+        return result
+
     async def invoke(method, *args, **kwargs):
         try:
             return await run_in_threadpool(method, *args, **kwargs)
@@ -21,7 +33,7 @@ def register_product_index_routes(app, *, service, authorize):
             raise HTTPException(503, 'product_index_storage_unavailable') from None
 
     @app.post('/api/v1/threads/{thread_id}/product-block-indexes', status_code=202)
-    async def create(thread_id: str, request: Request):
+    async def create(thread_id: str, request: Request, background_tasks: BackgroundTasks):
         authorize(request)
         data = bytearray()
         async for chunk in request.stream():
@@ -43,12 +55,14 @@ def register_product_index_routes(app, *, service, authorize):
                 raise ValueError('invalid request')
         except (ValueError, UnicodeError, RecursionError):
             raise HTTPException(422, 'product_index_request_invalid') from None
-        return await invoke(service.request, thread_id, body['ref'])
+        result = await invoke(service.request, thread_id, body['ref'])
+        return schedule(result, thread_id, background_tasks)
 
     @app.get('/api/v1/threads/{thread_id}/product-block-indexes/{job_id}')
-    async def status(thread_id: str, job_id: str, request: Request):
+    async def status(thread_id: str, job_id: str, request: Request, background_tasks: BackgroundTasks):
         authorize(request)
-        return await invoke(service.status, thread_id, job_id)
+        result = await invoke(service.status, thread_id, job_id)
+        return schedule(result, thread_id, background_tasks)
 
     @app.get('/api/v1/threads/{thread_id}/product-block-indexes/{job_id}/blocks')
     async def blocks(thread_id: str, job_id: str, request: Request,
