@@ -8,6 +8,56 @@ from test_thread_postgres import postgres_thread_service, _snapshot
 from test_thread_deliveries import native_file
 
 
+def test_admitted_paragraph_retry_survives_deleted_source(postgres_thread_service):
+    import base64
+    from dataclasses import replace
+    from test_thread_products import generated_native_file
+    from test_thread_work_execution import command
+
+    threads, thread = postgres_thread_service
+    threads.create_thread(replace(_snapshot(thread), active_model_context=None,
+        active_grid_page_id=None, minimum_protocol_version=2))
+    data, executor = generated_native_file(threads, thread, b'Keep this paragraph.\n\nExclude this paragraph.\n')
+    entry = next(e for e in product_index(threads, thread)['products'] if e['ref']['origin'] == 'native_file')
+    objects = MemoryObjectStore()
+    key = artifact_object_key(entry['source'])
+    objects.put(key, data, 'text/markdown')
+    jobs = ProductIndexJobs(threads.dsn)
+    jobs.initialize()
+    service = ProductIndexService(threads, objects, jobs, budgets=dict(
+        max_input_bytes=1024, max_blocks=10, max_output_bytes=8192,
+        wall_seconds=10, cpu_seconds=5, max_rss_bytes=512*1024*1024,
+        lease_seconds=60, max_attempts=2))
+    threads.set_product_index_service(service)
+    job = service.request(thread, entry['ref'])
+    assert service.run_once('retry-test') == 'ready'
+    page = service.blocks(thread, job['job_id'], offset=0, limit=1)
+    block = page['blocks'][0]
+    selection = {'schema': 'capstone-local-product-selection/1',
+        'parent_ref': entry['ref'], 'index_ref': page['index_ref'],
+        'block_id': block['block_id'], 'content_digest': block['content_digest'],
+        'purpose': 'historical-context'}
+    work = threads.snapshot(thread).works[0]
+    send = command(threads, thread, 'send_message', 'paragraph_retry',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'text': 'Use the selected paragraph', 'context_product_refs': [{
+                'ref': entry['ref'], 'purpose': 'historical-context', 'local_selection': selection}]})
+    receipt = threads.submit_command(send)
+    assert receipt.status == 'accepted'
+    objects.delete(key)
+    def unavailable(*args, **kwargs):
+        raise OSError('Source disappeared after admission')
+    executor.read_artifact = unavailable
+    with pytest.raises((KeyError, ValueError)):
+        service.resolve_selection(thread, selection)
+    assert threads.submit_command(send) == receipt
+    claim = threads.claim_attempt('retry-test', 30, 'native')
+    material, = claim.submission['_materials']
+    assert base64.b64decode(material['content_base64']) == b'Keep this paragraph.\n'
+    assert material['source_product']['local_selection'] == selection
+    assert 'source_artifact' not in material
+
+
 def test_service_runs_retained_product_through_real_database_and_child(postgres_thread_service):
     threads, thread = postgres_thread_service
     threads.create_thread(_snapshot(thread))
