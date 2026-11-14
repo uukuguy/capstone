@@ -32,6 +32,9 @@ from capability_agent.application import (
     prepare_application,
 )
 from capability_agent.application.composition import CredentialBroker
+from capability_agent.application.native import PreparedNativeBinding
+from capability_agent.application.runtime_protocols import SemanticEventObserver
+from capability_agent.domain.profile import NativeDomainRuntimeProfile
 from capability_agent.application.context_models import PORTABLE_ID_PATTERN
 from capability_agent.application.errors import AnswerCommitError
 from capability_agent.domain.provisioning import CredentialLease
@@ -46,7 +49,7 @@ from pandapower_application.composition import build_generic_application, run_ge
 from pandapower_application.registry import ApplicationRegistry
 from pandapower_domain.provisioning import PandapowerRuntimeProvisioner
 
-SemanticEventCallback = Callable[[Mapping[str, object], int | None], None]
+SemanticEventCallback = SemanticEventObserver
 
 def _render_scripted_answer(calls: Sequence[Mapping[str, object]]) -> str:
     """Render reader-facing text from the current turn's authority results.
@@ -158,7 +161,14 @@ class ScriptedApplicationTransport:
         self.case = case
         self.run_id = str(case["run_id"])
         self.on_progress = on_progress
-        self._binding: PreparedBinding = prepared.bindings["grid"]
+        binding = prepared.bindings["grid"]
+        if isinstance(binding, PreparedNativeBinding):
+            raise ValueError("scripted application requires a professional binding")
+        self._binding: PreparedBinding = binding
+        questions = case["questions"]
+        if not isinstance(questions, list):
+            raise ValueError("scripted application questions must be a list")
+        self._question_count = len(questions)
         self._tool_by_capability: dict[str, BoundToolDocument] = {
             tool.key.capability_id: tool for tool in catalog.domain_tools
         }
@@ -293,9 +303,9 @@ class ScriptedApplicationTransport:
         call_id = f"{self.run_id}-call-{len(self.calls) + 1:03d}"
         if self.on_progress is not None:
             self._notify_progress({"event": "capability_started", "ordinal": self._question_index + 1,
-                              "total": len(self.case["questions"]), "capability": capability,
+                              "total": self._question_count, "capability": capability,
                               "run_id": self.run_id,
-                              "message": f"第 {self._question_index + 1}/{len(self.case['questions'])} 轮：开始 {capability}"})
+                              "message": f"第 {self._question_index + 1}/{self._question_count} 轮：开始 {capability}"})
         key = {
             "binding_id": tool.key.binding_id,
             "capability_id": tool.key.capability_id,
@@ -374,9 +384,9 @@ class ScriptedApplicationTransport:
         )
         if self.on_progress is not None:
             self._notify_progress({"event": "capability_completed", "ordinal": self._question_index + 1,
-                              "total": len(self.case["questions"]), "capability": capability,
+                              "total": self._question_count, "capability": capability,
                               "run_id": self.run_id,
-                              "message": f"第 {self._question_index + 1}/{len(self.case['questions'])} 轮：完成 {capability}"})
+                              "message": f"第 {self._question_index + 1}/{self._question_count} 轮：完成 {capability}"})
         context_ref = normalized.get("context_ref")
         if isinstance(context_ref, str):
             self._context_ref = context_ref
@@ -422,10 +432,10 @@ class AuditingTurnController(TurnController):
         evidence_refs = self.transport.current_evidence_refs
         references = (*result_refs, *evidence_refs)
         selected_bindings: tuple[str, ...] = ()
-        claims: tuple[dict[str, object], ...] = ()
+        audited_claims: tuple[dict[str, object], ...] = ()
         if references:
             category = "evidence" if evidence_refs else "numerical_result"
-            claims = (
+            audited_claims = (
                 {
                     "statement": answer_output,
                     "category": category,
@@ -441,7 +451,7 @@ class AuditingTurnController(TurnController):
             referenced_bindings=selected_bindings,
             result_refs=result_refs,
             evidence_refs=evidence_refs,
-            claims=claims,
+            claims=audited_claims,
             duration_seconds=duration_seconds,
         )
         self.finalized_turns.append(finalized)
@@ -526,6 +536,8 @@ def _with_pandapower_timeout(
         raise ValueError("timeout_seconds must be positive")
     bindings = []
     for binding in profile.domains:
+        if isinstance(binding.profile, NativeDomainRuntimeProfile):
+            raise ValueError("pandapower application requires a professional profile")
         provisioner = binding.profile.provisioner
         if not isinstance(provisioner, PandapowerRuntimeProvisioner):
             raise ValueError("pandapower application provisioner is unavailable")
@@ -600,6 +612,10 @@ def execute_application_case(
     if on_prepared is not None:
         on_prepared(prepared)
     binding = prepared.bindings["grid"]
+    if isinstance(binding, PreparedNativeBinding):
+        raise ValueError("pandapower application requires a professional binding")
+    if isinstance(binding.binding.profile, NativeDomainRuntimeProfile):
+        raise ValueError("pandapower application requires a professional profile")
     adapter = binding.binding.profile.state_adapter
     schema_id = getattr(adapter, "schema_id", None)
     if not isinstance(schema_id, str) or not schema_id:
@@ -805,10 +821,10 @@ def _resolve_scripted_value(
     return value
 
 
-def _emit_scripted_event(callback: object | None, event: Mapping[str, object], sequence: int) -> None:
+def _emit_scripted_event(callback: SemanticEventCallback | None, event: Mapping[str, object], sequence: int) -> None:
     if not callable(callback):
         return
-    callback(event, sequence)
+    callback(event)
 
 
 def _digest_refs(value: object, prefix: str) -> tuple[str, ...]:

@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from .execution_stages import preparation_step
 from .thread_startup_timing import record_thread_startup
 from threading import RLock
-from typing import TYPE_CHECKING, Any, Mapping, Protocol, cast
+from typing import TYPE_CHECKING, Any, LiteralString, Mapping, Protocol, cast
 
 if TYPE_CHECKING:
     from .turn_router import TurnPlan
@@ -77,7 +77,7 @@ def _resolve_available_families(source: FamilyAvailability) -> frozenset[str] | 
     return families
 
 
-def _attempt_family_predicate(alias: str = '') -> str:
+def _attempt_family_predicate(alias: LiteralString = '') -> LiteralString:
     """One ownership rule for the ledger. The open model does not choose the worker."""
 
     prefix = alias
@@ -3233,7 +3233,7 @@ class PostgresThreadService(NativeExecutionOwner):
                     (thread_id, run_id, run_state, minimum_protocol_version, works, session_title, session_type, workspace_name, session_skills)
                     VALUES (%s, %s, %s, 2, %s, %s, %s, %s, %s)''',
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state, Jsonb(list(snapshot.works)),
-                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type, name, Jsonb(dict(snapshot.session_skills))))
+                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type, name, Jsonb(dict(snapshot.session_skills or {}))))
             return snapshot
         started = time.perf_counter()
         initial_diagram = None

@@ -7525,3 +7525,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Verified App5174 restored final PPT/PDF and four completed rounds; six deployment graph paths have no card crossings.
 - 2026-11-14 CI43494883528 failed existing cleanup-budget test; injected delay reproduced it; local86 Pi and113 governance checks pass after test-only fix.
 - 2026-11-14 Retained main ancestry with no source delta [828d1ef1]; user selected v1.1.0, versions/locks aligned, full local gate stopped on16 type errors.
+- 2026-11-14 Prepared v1.1.0 metadata/notes3690e8ff; product/backend/App versions and four locks agree; doctor/App types/links pass.
+- 2026-11-14 Repaired16 release type blockers; globalPyright clean,17Thread/26pandapower/2real scripted-consumer tests pass; full gate resumes.

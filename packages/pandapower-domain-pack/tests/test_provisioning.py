@@ -82,6 +82,28 @@ def test_verified_runtime_reuses_only_environment_description(tmp_path: Path, mo
     assert [name for name, _ in calls] == ['environment.describe', 'context.open', 'context.open']
 
 
+def test_runtime_catalog_forwards_execution_contract(tmp_path: Path, monkeypatch) -> None:
+    from pandapower_domain.provisioning import _RuntimeCatalogExecutor
+
+    executable = tmp_path / 'gridctl'
+    executable.write_text('source')
+    calls = []
+    lease = object()
+    observer = lambda phase: None
+
+    def invoke(self, capability, arguments, *, execution_observer, execution_lease):
+        calls.append((capability, execution_observer, execution_lease))
+        return {'ok': True}
+
+    monkeypatch.setattr(GridctlExecutor, 'invoke', invoke)
+    executor = _RuntimeCatalogExecutor(runtime_identity='a' * 64,
+        source_executable=executable, executable=executable, workspace=tmp_path)
+    for capability in ('environment.describe', 'context.open'):
+        assert executor.invoke(capability, {}, execution_observer=observer,
+            execution_lease=lease) == {'ok': True}
+    assert calls == [(name, observer, lease) for name in ('environment.describe', 'context.open')]
+
+
 @pytest.mark.parametrize('identity', ['', 'unverified'])
 def test_unverified_runtime_does_not_reuse_environment(tmp_path: Path, monkeypatch, identity) -> None:
     executable = tmp_path / 'gridctl-source'
