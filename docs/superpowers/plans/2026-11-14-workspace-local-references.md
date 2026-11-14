@@ -21,6 +21,8 @@ Source: [research and experiment](../../capstone-app/2026-11-14-code-mapping.md)
 
 ## Task 1 — Resolve parser ownership and publish a bounded block contract
 
+Research recommendation resolved: Python application-owned markdown-it-py parser and server-issued manifests. Existing environment is 4.2.0. Declare a direct dependency at implementation time, version configuration, and avoid browser/backend AST equivalence. See the Python experiment in the research record. Nested paragraph semantics and GB-scale background indexing remain explicit scope decisions.
+
 - [ ] Inspect the deployed backend/native runtime dependency boundary before choosing parser packaging.
 - [ ] Compare a host-owned parser service with a backend parser plus server-issued manifest. Do not require browser AST paths to match an independently implemented Python parser.
 - [ ] Record the selected runtime, parser/config version identity, byte-to-character conversion, resource limits and unsupported-format behavior.
