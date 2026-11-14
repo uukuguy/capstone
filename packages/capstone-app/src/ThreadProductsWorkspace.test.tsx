@@ -310,3 +310,28 @@ it('adds selected result rows through the existing product workspace reference c
  fireEvent.click(screen.getByRole('button',{name:'引用所选行到下一轮'}))
  await waitFor(()=>expect(reference).toHaveBeenCalledWith(domain,undefined,undefined,selected))
 })
+
+it('opens an exact prior instruction row source after clearing the report presentation scope',async()=>{
+ const source={...entry,ref:{...ref,origin:'domain_result' as const,product_id:'result_source',attempt_id:'attempt_old'},title:'原始线路结果',presentation:{kind:'domain_result' as const},source:{result_id:'result_old'}}
+ const report:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'report_new',attempt_id:'attempt_new'},title:'局部分析报告',presentation:{kind:'native_file'},media_type:'text/markdown',source:{file_name:'report.md'}}
+ const table={tableId:'lines',title:'线路',columns:[{columnId:'mw',label:'功率',unit:'MW'}],rows:[{rowId:'line_old',cells:{mw:0}}]}
+ const projection={resultId:'result_old',status:'completed',source:{capabilityId:'test'},summary:[],tables:[table]} as unknown as import('./threadProtocol').ResultProjection
+ const row={schema:'capstone-result-row-selection/1' as const,parent_ref:source.ref,table_id:'lines',table_version:'b'.repeat(64),row_ids:['line_old'],column_ids:['mw'],digest:'c'.repeat(64)}
+ const client={supportsProductSeries:true,supportsResultRows:true,productIndex:vi.fn().mockResolvedValue({products:[report,source],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async ref=>({entry:ref.product_id==='result_source'?source:report,bytes:null,projection:ref.product_id==='result_source'?projection:null,record:null})),readResultRows:vi.fn().mockResolvedValue({table,tableVersion:row.table_version,totalRows:1,offset:0,nextOffset:null}),prepareResultRows:vi.fn(),discoverProductSeries:vi.fn().mockResolvedValue(null),productSources:vi.fn(async ref=>ref.product_id==='report_new'?[{ref:source.ref,purpose:'historical-context' as const,row_selection:row}]:[]),commandProductSeries:vi.fn(),compareProducts:vi.fn(),seriesMembers:vi.fn()}
+ const clear=vi.fn(),primary=vi.fn(),base={client,threadId:'thr_one',revision:1,onReference:vi.fn(),primaryAttemptId:'attempt_new',onPrimaryReady:primary,onClearInstructionScope:clear}
+ const scope={attemptId:'attempt_new',text:'局部分析',number:1}
+ const view=render(<ThreadProductsWorkspace {...base} instructionScope={scope}/>)
+ await screen.findByRole('heading',{name:'局部分析报告'})
+ primary.mockClear()
+ fireEvent.click(await screen.findByRole('button',{name:/查看来源 1/}))
+ expect(clear).toHaveBeenCalledTimes(1)
+ view.rerender(<ThreadProductsWorkspace {...base}/>)
+ await screen.findByRole('heading',{name:'原始线路结果'})
+ await waitFor(()=>expect((screen.getByLabelText('选择行 line_old') as HTMLInputElement).disabled).toBe(false))
+ expect(screen.getByText(/版本 bbbbbbbb/)).toBeTruthy()
+ expect(screen.queryByText('正在读取所选产物…')).toBeNull()
+ expect(primary).not.toHaveBeenCalled()
+ view.rerender(<ThreadProductsWorkspace {...base} revision={2}/>)
+ await waitFor(()=>expect(client.productIndex.mock.calls.length).toBeGreaterThan(2))
+ expect(screen.getByRole('heading',{name:'原始线路结果'})).toBeTruthy()
+})
