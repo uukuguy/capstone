@@ -94,19 +94,6 @@ jobs:
           uv sync --project packages/capstone-agent
           uv sync --project packages/grid-simulator
           npm ci --prefix packages/capstone-app
-      - name: Verify product references with disposable PostgreSQL
-        if: steps.scope.outputs.gate == 'product-references'
-        timeout-minutes: 10
-        shell: bash
-        run: |
-          brew install postgresql@17
-          export PATH="$(brew --prefix postgresql@17)/bin:$PATH"
-          index_pg_data=$(mktemp -d "$RUNNER_TEMP/paragraph-pg.XXXXXX")
-          initdb -D "$index_pg_data" -A trust -U postgres >/dev/null
-          trap 'pg_ctl -D "$index_pg_data" -m immediate stop >/dev/null 2>&1 || true' EXIT
-          pg_ctl -D "$index_pg_data" -l "$RUNNER_TEMP/paragraph-pg.log" -o "-h 127.0.0.1 -p 55432" -w start
-          export CAPSTONE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres
-          bash tools/test_product_references.sh
       - name: Set up architecture retirement consumers
         if: steps.scope.outputs.gate == 'architecture-retirement'
         run: |
@@ -135,6 +122,19 @@ jobs:
       - run: make install-pi
       - name: Check managed runtime
         run: make doctor
+      - name: Verify product references with disposable PostgreSQL
+        if: steps.scope.outputs.gate == 'product-references'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          brew install postgresql@17
+          export PATH="$(brew --prefix postgresql@17)/bin:$PATH"
+          index_pg_data=$(mktemp -d "$RUNNER_TEMP/paragraph-pg.XXXXXX")
+          initdb -D "$index_pg_data" -A trust -U postgres >/dev/null
+          trap 'pg_ctl -D "$index_pg_data" -m immediate stop >/dev/null 2>&1 || true' EXIT
+          pg_ctl -D "$index_pg_data" -l "$RUNNER_TEMP/paragraph-pg.log" -o "-h 127.0.0.1 -p 55432" -w start
+          export CAPSTONE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres
+          bash tools/test_product_references.sh
       - name: Verify documentation and control tooling
         if: steps.scope.outputs.gate == 'docs' || steps.scope.outputs.gate == 'governance'
         run: |

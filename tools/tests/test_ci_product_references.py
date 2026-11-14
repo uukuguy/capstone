@@ -15,6 +15,8 @@ def test_reference_gate_is_bounded_and_preserves_release_scope():
 
 def test_reference_gate_requires_database_and_runs_direct_consumers():
     root = Path(__file__).resolve().parents[2]
+    workflow = (root/'.github/workflows/verify.yml').read_text()
+    assert workflow.index('run: make doctor') < workflow.index('- name: Verify product references with disposable PostgreSQL')
     script = (root/'tools/test_product_references.sh').read_text()
     assert 'CAPSTONE_TEST_DATABASE_URL:?' in script
     for name in ('test_product_index_service.py', 'test_thread_products.py', 'test_thread_input.py', 'test_cli.py', 'test_hosting.py', 'ProductParagraphPicker.test.tsx', 'threadProductsTransport.test.ts'):
