@@ -26,9 +26,12 @@ verified, merged and deployed scope. Demo releases follow their separate accepta
 
 English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone-app-production-975e.up.railway.app/)
 
-The supported application entry is `capstone-agent`. The `grid-agent` CLI has
-no continuing compatibility commitment. Its package still contains formal
-pandapower runtime modules; see the [retirement plan](docs/superpowers/plans/2026-10-11-retire-grid-cli.md).
+The supported application entry is `capstone-agent`. The retired `grid-agent`
+distribution and CLI have been removed. The separately installable
+`pandapower-application` owns formal pandapower entry points, workers and reports.
+The v1.1.0 baseline defines the unified framework, native execution,
+resource handling and State Grid presentation library. See the
+[release notes](docs/releases/v1.1.0.md) for scope, verification and compatibility.
 
 **Connect agent reasoning to domain capabilities, authoritative computation, and verifiable evidence.**
 
@@ -122,11 +125,24 @@ Live news or weather still needs an accessible source. See the
 Actual model response quality requires separate acceptance; offline checks alone do
 not establish it.
 
-Use `/skills` to inspect available skills and their execution role,
+In the CLI, use `/skills` to inspect available skills and their execution role,
 `/skill:<name> <task>` to select one, and `/context` to include or exclude public background.
 The current model background includes identity, version and history; it does not
 include full model tables. Managed PowerSkills/PowerMCP resources have separate
 native Pi and professional adapters. See the [resource setup instructions](docs/RUNBOOK.md#共享背景与角色资源).
+
+General execution includes six on-demand investigation methods for goal exploration,
+planning and tracking, debugging, completion checks, data investigation and quality.
+Skill loads and model-reported application phases appear in the existing process record;
+loading a method does not prove verification. See the [skill design](docs/superpowers/specs/2026-11-08-investigation-skills-design.md).
+The hosted App provides a read-only skill catalog. Ready skills are available by
+default; the model selects relevant methods without a required manual choice.
+
+When the presentation library is enabled, new PPT products default to the State
+Grid template. Conversation selection persists; a one-render override leaves it
+unchanged. Uploaded templates stay session-only until explicitly saved to the
+library. Saved content bundles support rerendering, and PDF derives from the same
+PPTX. See [template operation and configuration](docs/RUNBOOK.md#ppt-template-library).
 
 The conversation is the primary interface. Cases are an independent module; the
 default federated conversation does not yet assemble Case execution. Registered
@@ -218,7 +234,7 @@ For LLM orchestration, configure the CLI Provider as described in the [runbook](
 make run-llm QUESTION="对 IEEE-39 执行交流潮流，并报告有功损耗。"
 ```
 
-`grid-agent` remains the pandapower compatibility CLI. Its answer, report, and stdout contracts are documented in the [pandapower application guide](docs/PANDAPOWER-APPLICATION.md). The unified `capstone-agent` CLI and guided-case commands are documented in the [runbook](docs/RUNBOOK.md#capstone-统一客户端). Deterministic scripted fixtures support offline validation; they are separate from ordinary LLM conversation.
+The existing pandapower answer, report, and stdout contracts are documented in the [pandapower application guide](docs/PANDAPOWER-APPLICATION.md). The supported `capstone-agent` CLI and guided-case commands are documented in the [runbook](docs/RUNBOOK.md#capstone-统一客户端). The old `grid-agent` CLI has been removed. Application code and tests now belong to `pandapower-application`; the retirement plan records final acceptance. Deterministic scripted fixtures support offline validation; they are separate from ordinary LLM conversation.
 
 ## Develop and deploy
 

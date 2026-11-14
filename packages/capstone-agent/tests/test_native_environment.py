@@ -71,6 +71,38 @@ def test_presentation_usage_requires_installed_packages_and_actual_cli_smoke(tmp
     if advertised:
         assert 'capstone-presentation/1' in context and 'max_rows' in context
         assert 'instead of generating layout or assembly Python' in context
+        assert 'State Grid template by default' in context
+        assert 'wraps text and paginates' not in context
+
+
+@pytest.mark.parametrize('template_checked', [True, False])
+def test_visible_argument_review_is_scoped_to_verified_template_briefings(tmp_path, template_checked):
+    data = receipt()
+    data['packages'].update({'python-pptx': '1.0.2', 'Pillow': '12.3.0'})
+    data['commands']['capstone-report'] = '1.1.0'
+    data['smoke_capabilities'].append('standalone_presentations')
+    if template_checked:
+        data['smoke_capabilities'].append('template_presentations')
+    path = tmp_path / 'receipt.json'
+    path.write_text(json.dumps(data))
+    context = environment_context(path)
+    assert ('VISIBLE ARGUMENT REVIEW' in context) is template_checked
+    if template_checked:
+        assert 'Speaker notes do not count as visible support' in context
+        assert 'final spec SHA-256' in context
+        assert 'at most two targeted repair rounds' in context
+        assert 'Do not enforce a fixed bullet count' in context
+
+
+@pytest.mark.parametrize('argument_checked', [True, False])
+def test_argument_contract_is_advertised_only_after_its_build_smoke(tmp_path, argument_checked):
+    data=receipt()
+    data['packages'].update({'python-pptx':'1.0.2','Pillow':'12.3.0'})
+    data['commands']['capstone-report']='1.2.0'
+    data['smoke_capabilities'].extend(['standalone_presentations','template_presentations'])
+    if argument_checked:data['smoke_capabilities'].append('argument_presentations')
+    path=tmp_path/'receipt.json';path.write_text(json.dumps(data))
+    assert ('capstone-presentation/2' in environment_context(path)) is argument_checked
 
 
 @pytest.mark.parametrize('field,value', [

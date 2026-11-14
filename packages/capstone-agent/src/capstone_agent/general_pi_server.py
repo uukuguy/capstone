@@ -18,6 +18,7 @@ import subprocess
 import threading
 import time
 from urllib.parse import urlsplit, parse_qs
+from typing import cast
 import httpx
 
 from .general_pi_executor import GeneralPiProcess, native_pi_launch, task_workspace, collect_artifacts
@@ -26,6 +27,25 @@ from .general_pi_storage import GeneralPiStorage, request_hash
 from .general_pi_relay import ProviderRelay, forward_provider
 from .bounded_http_loop import run_http
 from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity
+
+
+def _checked_investigation_checkpoint(event, record):
+    """Bound neutral attempt-local context delivery receipts, never goal truth."""
+    from .tool_execution_receipt import checked_investigation_checkpoint
+    value = checked_investigation_checkpoint({key: item for key, item in event.items() if key != 'type'})
+    if value is None or event.get('type') != 'investigation_checkpoint':
+        raise ValueError('Invalid investigation checkpoint')
+    previous = record.get('investigation_checkpoint')
+    if previous != value:
+        if event['state'] == 'response_received':
+            if previous != {**value, 'state': 'context_prepared'}:
+                raise ValueError('Investigation response has no prepared context')
+        elif (event['checkpoint_id'] != (previous['checkpoint_id'] + 1 if previous else 1)
+              or previous and (previous['state'] != 'response_received'
+                               or event['completed_leaf_calls'] <= previous['completed_leaf_calls'])):
+            raise ValueError('Investigation checkpoint lineage changed')
+    record['investigation_checkpoint'] = value
+    return dict(value)
 
 
 def _checked_llm_pool_call(event, native, capability, record):
@@ -269,8 +289,22 @@ class GeneralPiHost:
             profile = (store.accepted(role, request.resource_profile['revision']) if store is not None
                        else self.capability.get('resource_profiles', {}).get(role, {}))
             published = set(self.capability.get('native_tools', ()))
+            from .presentation_template_contract import PRESENTATION_LIBRARY_CAPABILITY
+            if self.capability.get('presentation_library') == PRESENTATION_LIBRARY_CAPABILITY:
+                published.add('agent_presentations')
             from .data_gateway_relay import research_gateway_tools
-            published.update(research_gateway_tools(native, self.capability.get('data_gateway', {})))
+            publication = self.capability.get('data_gateway', {})
+            binding = native.get('gateway_binding')
+            if binding is not None:
+                publication = {'available': False}
+                if binding['catalog_revision'] is not None:
+                    registry = getattr(self._run, 'gateway_registry', None)
+                    if registry is None:
+                        raise ValueError('gateway_bound_instance_unavailable')
+                    _, access = registry.access_for(binding['connection_id'], binding['instance_id'])
+                    publication = {**access.publication(),
+                                   'catalog': access.frozen_catalog(binding['catalog_revision'])}
+            published.update(research_gateway_tools(native, publication))
             published.update(profile.get('load_receipt', {}).get('published_tool_ids', ()))
             if request.research_binding is not None:
                 from .native_research_bridge import ALL_ENTERPRISE_RESEARCH_TOOLS
@@ -564,8 +598,11 @@ class GeneralPiHost:
                 'metadata': {'tool_name': tool_name, 'tool_call_id': call_id,
                     'output_sha256': digest, **provenance, 'action_id': action_id, 'status': status}})
         compaction_started = None
+        from .native_product_roles import PresentationDeliveries
+        presentation_deliveries = PresentationDeliveries()
         def emit(event):
             nonlocal compaction_started
+            presentation_deliveries.observe(event)
             # Public transport uses bounded receipts, never raw native frames.
             kind = event.get('type')
             # The isolated image includes this exact dependency-free Kernel
@@ -581,7 +618,23 @@ class GeneralPiHost:
                 elif compaction_started is not None:
                     payload['runtime_phase']['elapsed_ms'] = round((time.monotonic() - compaction_started) * 1000)
                     compaction_started = None
-            if kind == 'llm_pool_call':
+            if kind == 'tool_batch':
+                from .tool_execution_receipt import checked_tool_batch
+                batch = checked_tool_batch(event.get('tool_batch'), task_id=request.task_id)
+                if batch is None:
+                    raise ValueError('native tool batch invalid')
+                payload = {'type': kind, 'tool_batch': batch}
+            elif kind == 'tool_dispatch':
+                from .tool_execution_receipt import checked_dispatch_receipt
+                call_id, name = event.get('tool_call_id'), event.get('tool_name')
+                receipt = checked_dispatch_receipt(event.get('dispatch_receipt'),
+                    task_id=request.task_id, call_id=call_id)
+                if receipt is None or not isinstance(name, str) or not 0 < len(name) <= 128:
+                    raise ValueError('native dispatch receipt invalid')
+                payload = {'type': kind, 'tool_call_id': call_id, 'tool_name': name, 'dispatch_receipt': receipt}
+            elif kind == 'investigation_checkpoint':
+                payload = {'investigation_checkpoint': _checked_investigation_checkpoint(event, record)}
+            elif kind == 'llm_pool_call':
                 payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
             elif kind == 'model_request_pool':
                 from .native_model_request_pool import checked_model_request_pool
@@ -653,6 +706,12 @@ class GeneralPiHost:
                 if kind == 'enterprise_graph_tool_failure':
                     return  # Private per-call failure status; the native end is public.
                 if kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end':
+                    details = event.get('result', {}).get('details', {})
+                    if isinstance(details, dict) and details.get('kind') == 'external_gateway_observation':
+                        self.verify_gateway_observation(request, event['tool_call_id'], event['tool_name'], event['result'])
+                        if isinstance(details.get('service_bus_calls'), dict):
+                            payload['service_bus_calls'] = {**details['service_bus_calls'],
+                                'reused': bool(details.get('reused_from'))}
                     capture_graph_observation(event['tool_call_id'], event['tool_name'], event.get('result', {}),
                         is_error=event.get('is_error') is True, child=True)
             elif kind == 'enterprise_cycle_progress':
@@ -690,6 +749,18 @@ class GeneralPiHost:
                         (str(record['graph_context'].root),) if record.get('graph_context') is not None else ())
                 else:
                     activity = project_native_tool_activity(event)
+                if kind == 'tool_execution_end':
+                    from .tool_execution_receipt import checked_execution_receipt
+                    details = event.get('result', {}).get('details', {})
+                    receipt = checked_execution_receipt(details.get('execution_receipt') if isinstance(details, dict) else None,
+                        task_id=request.task_id, call_id=payload['tool_call_id'])
+                    if receipt is not None:
+                        activity = {**(activity or {}), 'execution_receipt': receipt}
+                    if isinstance(details, dict) and details.get('kind') == 'external_gateway_observation':
+                        self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], event['result'])
+                        if isinstance(details.get('service_bus_calls'), dict):
+                            activity = {**(activity or {}), 'service_bus_calls': {**details['service_bus_calls'],
+                                'reused': bool(details.get('reused_from'))}}
                 if activity:
                     payload['activity'] = activity
                 if kind == 'tool_execution_end' and (type(event.get('isError')) is bool
@@ -703,6 +774,11 @@ class GeneralPiHost:
                             event.get('result', {}), ensure_ascii=False).encode()).hexdigest():
                         raise ValueError('native observation call identity changed content')
                 details = event.get('result', {}).get('details', {})
+                if kind == 'tool_execution_end' and payload['tool_name'] == 'agent_skill':
+                    from .skill_activity import checked_skill_activity
+                    skill_activity = checked_skill_activity(details.get('skill_activity'))
+                    if skill_activity is not None and event.get('isError') is not True:
+                        payload['skill_activity'] = skill_activity
                 if (request.research_binding is not None and kind == 'tool_execution_end'
                         and details.get('capability') == 'agent_task_progress' and details.get('ok') is True):
                     from jsonschema import Draft202012Validator
@@ -798,7 +874,7 @@ class GeneralPiHost:
             if (payload is not None and (kind == 'tool_execution_end'
                     or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end')
                     and isinstance(payload.get('tool_name'), str)
-                    and payload['tool_name'].startswith('data_gateway_')
+                    and cast(str, payload['tool_name']).startswith('data_gateway_')
                     and payload.get('is_error') is not True):
                 # Verification is mandatory even when the observation capture
                 # budget is full. Only the optional display projection can fail
@@ -815,10 +891,10 @@ class GeneralPiHost:
             if payload is not None:
                 if payload.get('type') == 'assistant_delta':
                     thinking_buffer.flush()
-                    text_buffer.push(payload['text'])
+                    text_buffer.push(cast(str, payload['text']))
                 elif payload.get('type') == 'assistant_thinking_delta':
                     text_buffer.flush()
-                    thinking_buffer.push(payload['text'])
+                    thinking_buffer.push(cast(str, payload['text']))
                 else:
                     text_buffer.flush()
                     thinking_buffer.flush()
@@ -869,7 +945,10 @@ class GeneralPiHost:
                       'General Pi task deadline exceeded': 'task_deadline_exceeded',
                       'General Pi answer is invalid': 'rpc_answer_invalid',
                       'native observation call identity changed content': 'observation_identity_conflict',
-                      'native observation source identity changed': 'observation_source_invalid'}.get(str(error))
+                      'native observation source identity changed': 'observation_source_invalid',
+                      'session_skill_content_changed': 'session_skill_content_changed',
+                      'session_skill_content_unavailable': 'session_skill_content_unavailable',
+                      'session_skill_unavailable': 'session_skill_unavailable'}.get(str(error))
             if reason is not None:
                 failure['reason_code'] = reason
             elif isinstance(error, ModuleNotFoundError):
@@ -895,6 +974,9 @@ class GeneralPiHost:
                 failure['reason_code'] = provider_failure
             public_failure = {'code': {
                 'runtime_dependency_missing': 'native_runtime_dependency_missing',
+                'session_skill_content_changed': 'native_session_skill_content_changed',
+                'session_skill_content_unavailable': 'native_session_skill_content_unavailable',
+                'session_skill_unavailable': 'native_session_skill_unavailable',
                 'research_branch_invalid': 'native_research_branch_invalid',
                 'task_deadline_exceeded': 'native_task_deadline',
                 'model_context_limit': 'native_model_context_limit',
@@ -961,6 +1043,9 @@ class GeneralPiHost:
             self.storage.artifacts(request.task_id, workspace, artifacts)
             if record.get('graph_context') is not None:
                 artifacts.extend(record['graph_context'].artifacts(presentation))
+            if status == 'completed' and not presentation_deliveries.confirmed(artifacts):
+                status, answer = 'failed', ''
+                public_failure = {'code':'native_product_delivery_incomplete','phase':'persistence'}
             saved_artifacts = artifacts
             result = PiTaskResult.from_document({'schema': 'capstone-pi-task-result/2' if public_failure else 'capstone-pi-task-result/1',
                 'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
@@ -1034,7 +1119,7 @@ class NativeTaskRunner:
     managed_resource_service: ManagedResourceService | None = None
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
                  model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
-                 experimental_llm_pool: bool = False) -> None:
+                 experimental_llm_pool: bool = False, presentation_api_origin: str | None = None) -> None:
         if os.geteuid() != 0 or os.name != 'posix':
             raise RuntimeError('General Pi requires its isolated Linux container')
         self.root, self.config_root, self.command = root, config_root, command
@@ -1044,8 +1129,11 @@ class NativeTaskRunner:
         self.task_llm_profiles = {}
         self.task_resource_references = {}
         self.task_resource_inputs = {}
+        self.task_presentations = {}
+        self.presentation_api_origin = presentation_api_origin
         self.task_gateways = {}
         self.task_domain_routes = {}
+        self.task_structural_context = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
@@ -1123,7 +1211,7 @@ class NativeTaskRunner:
                 context['business_context'] = request.business_context.to_document()
             task_input = document.get('input', {'kind': 'text', 'text': request.instruction})
             sdk_config = {'sdk': str(Path(self.command[1]).with_name('index.js')),
-                          'input': task_input, 'skillName': None, 'settings': {}, 'allowedSkills': [],
+                          'input': task_input, 'taskId': request.task_id, 'skillName': None, 'settings': {}, 'allowedSkills': [],
                           'contextFiles': [], 'mcp': None, 'inventoryOnly': inventory_only,
                           'context': context,
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
@@ -1162,6 +1250,7 @@ class NativeTaskRunner:
                     'informational; editing it does not change host-enforced limits. '
                     'Tool JSON schemas and published composition limits also apply before execution.'})
             task_gateway = self.gateway
+            gateway_contract_context = None
             frozen_gateway = (document.get('native_context') or {}).get('gateway_binding')
             if frozen_gateway is not None:
                 if frozen_gateway['catalog_revision'] is None:
@@ -1194,6 +1283,9 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if sdk_config['allowedSkills']:
+                    sdk_config['applicationPolicy'] = {**sdk_config['applicationPolicy'], 'allowed_tools': sorted({
+                        *sdk_config['applicationPolicy']['allowed_tools'], 'agent_skill'})}
                 if request.managed_workspace is not None and self.managed_resource_service is not None:
                     from .resource_permissions import ResourcePrincipal
                     actions=self.managed_resource_service.store.permissions.allowed_actions(
@@ -1229,14 +1321,54 @@ class NativeTaskRunner:
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
                             request.parent_attempt_id))
+                    retained_contracts = getattr(task_gateway, 'contract_context', None)
+                    if callable(retained_contracts):
+                        retained = retained_contracts(request.task_id)
+                        if isinstance(retained, dict) and isinstance(retained.get('sections'), list) and retained['sections']:
+                            gateway_contract_context = retained
+                            sdk_config.setdefault('contextFiles', []).append({
+                                'path': 'gateway-contract-context',
+                                'content': ('Host-verified contract metadata from this connected gateway is available '
+                                    'for the current task grant and frozen publication. This is not live source availability, '
+                                    'data coverage, business results or Authority evidence. It does not select a service. '
+                                    'If relevant, read the compact index at '
+                                    + str(inputs / 'gateway-contract-context' / 'index.json')
+                                    + ' and only the exact sections needed for this instruction. Reuse these read-only '
+                                    'sections before requesting the same contract again; request missing sections from '
+                                    'the published lookup operation. Contract revisions and summary fingerprints are '
+                                    'distinct. The index contains ' + str(len(retained['sections'])) + ' saved sections.')})
                     # This is a menu projection, not a new accepted catalog.
                     # Receipts retain the full host catalog revision and exact tool hashes.
                     task_catalog = {**task_catalog,
                         'entry_tools': [name for name in task_catalog.get('entry_tools', ()) if name in admitted_gateway],
                         'tools': {name: task_catalog['tools'][name] for name in sorted(admitted_gateway)},
                         'tool_hashes': {name: task_catalog['tool_hashes'][name] for name in sorted(admitted_gateway)}}
+                    from .data_gateway_mcp import admitted_provider_guidance
+                    provider_guidance = admitted_provider_guidance(task_catalog, admitted_gateway)
+                    if 'providers' in task_catalog:
+                        task_catalog['providers'] = provider_guidance
+                    if provider_guidance:
+                        from .application_capacity import require_capacity
+                        provider_text = json.dumps(provider_guidance, ensure_ascii=False)
+                        require_capacity('history_context_bytes', len(provider_text.encode('utf-8')), 'gateway_provider_guidance')
+                        sdk_config.setdefault('contextFiles', []).append({
+                            'path': 'registered-data-gateway-provider-guidance',
+                            'content': ('Provider declarations from the current frozen gateway publication follow. '
+                                'Apply each only to its declaring provider after choosing this service as relevant. '
+                                'They do not grant tools, choose a service, establish source availability or create Authority evidence. '
+                                'Candidate conditions and alternative routes require the current user goal and actual observations.\n'
+                                + provider_text)})
                     sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,
                         'grant': grant, 'taskId': request.task_id, 'catalog': task_catalog, 'onDemandTools': True}
+                    if 'progressive' in task_catalog:
+                        sdk_config.setdefault('contextFiles', []).append({'path': 'registered-gateway-progressive-discovery',
+                            'content': 'This task has a current authorized capability index negotiated with the gateway. '
+                            'It contains summaries, not all exact schemas. Search that index only as needed for this instruction. '
+                            'Do not repeat remote discovery merely to initialize this service. Load selected tools for direct calls; '
+                            'composition resolves its selected tools before execution. Exact schemas are obtained and checked by the host, '
+                            'only for those selections. Usage and output details remain available when interpretation requires them. '
+                            'Contract publication does not establish source reachability, which remains unknown until observed. '
+                            'A source failure does not invalidate metadata or independent work.'})
                     if task_catalog.get('instructions'):
                         sdk_config.setdefault('contextFiles', []).append({
                             'path': 'registered-data-gateway-guidance',
@@ -1258,17 +1390,18 @@ class NativeTaskRunner:
                         'Composition programs select admitted names independently of menu activation; tools.describe reads their exact frozen contracts without an upstream call. '
                         'For an inventory request, use summary/default arguments and answer from the returned list; do not expand into unrelated investigations or operations. '
                         'Use the current published tool descriptions and schemas to determine prerequisites and valid combinations; do not assume a fixed discovery or execution sequence. '
+                        'For a complex question, use this connected gateway capability snapshot to decompose it into supported actions before choosing execution calls. Read relevant published usage, prerequisites, output types and composition constraints through discovery and exact contracts. Revise the decomposition after observations; do not send the whole question straight to a generic query merely because it is complex. Missing capability metadata remains unknown. Simple questions need no separate planning stage. '
                         'Compose published data_gateway_ tools for almost all business data access. The gateway writes those queries and handles their performance. '
-                        'Choose by business semantics, not familiarity with a generic query schema. Structured table queries are also a fallback, not a substitute for applicable object, series, statistics or weather operations. '
+                        'Choose dedicated operations, structured queries or advanced exploration by task semantics and the current published access-selection policy, without imposing a fixed tool hierarchy. '
+                        'Prefer a suitable dedicated operation when its business semantics and constraints fit the task. When no suitable dedicated operation can express the needed analysis, use admitted structured queries or read-only SQL for bounded exploration. Do not require failed attempts through unrelated tools before using that fallback. '
                         'One unavailable tool does not make other business tools unavailable; inspect its stated scope and relevant alternatives without probing the entire catalog. '
                         'Before expanding unfamiliar business retrieval, establish its shape and status with a bounded observation; reuse an existing successful observation for the same shape and scope. '
                         'Do not issue a probe only to validate input schemas; batch preflight checks arguments before execution. Stop the batch on a shared contract error instead of repeating it for each object. '
                         'After a timeout, change the access path or selection only with a contract-backed reason; otherwise retain the gap and continue useful work. '
-                        'A query_timeout gap with scope.retry_same_request false must not be sent again. scope.executed true means the statement was cancelled during the scan. '
-                        'Follow scope.fields in order: equality-constrain the first field before later equality fields. Use a time field only after that leading equality, as a left-closed right-open range of one day or one series. '
-                        'A time range alone does not use the index, and limit does not reduce the scan before an aggregate. '
-                        'When scope.suggested_request is present, send that request instead of another full scan. Do not ask to raise the time budget. '
-                        'Use native SQL as advanced exploration only when no admitted tool expresses the necessary operation, or a documented suspected tool defect prevents a reliable result. '
+                        'Honor returned retry restrictions and execution diagnostics. Execution or timeout does not prove remote cancellation; unknown result state remains unknown. '
+                        'A source connection failure is not repaired by changing business filters. Stop work dependent on that connection until it is restored. If a request may have been sent and its outcome is unknown, do not replay it; first reconcile source state or seek operator help. Assess whether independent admitted work or saved products can still support the goal. If required input remains unavailable, state the blocked dependency and preserve partial products rather than claiming the analysis is complete. '
+                        'Apply index order, time ranges and suggested requests only when the current contract or observation declares them for this operation. LIMIT does not prove reduced source scanning. '
+                        'Use admitted SQL only within its published read-only scope, source policy and budgets; compare actual costs rather than assuming an execution location is faster. '
                         'For a suspected defect, retain the actual observation reference and describe why the published valid path cannot complete the operation; do not blindly retry or certify an unverified diagnosis. '
                         'When a tool description or result states connected indexes, limits, plans, or gaps, follow that statement. '
                         'Use only a leading index prefix the tool reports; do not apply functions to indexed columns or skip earlier index columns. '
@@ -1278,7 +1411,10 @@ class NativeTaskRunner:
                         'Do not copy instance-specific indexes or limits into application code. '
                         'Follow returned references and conditional next steps only when needed for the current instruction and admitted by the task grant. '
                         'Read fresh runtime.contracts for task and view states. Task states preparing, queued, running, succeeded and failed are distinct from ready views. '
-                        'Follow only actual data.next_action or provenance.agent_guidance.next_actions returned for this task; ready views publish reads in streams.*.read. '
+                        'Use returned data.next_action or provenance.agent_guidance.next_actions only after checking the current grant and contract; ready views publish reads in streams.*.read. '
+                        'When no next action is returned, select the next operation from the current published contract, including usage and input/output requirements; never invent action names, arguments or references. '
+                        'A successful tool call does not prove that its job succeeded. Inspect returned job state, errors and saved outputs. Creation and status reads do not imply automatic advancement; follow the published execution protocol. '
+                        'Before resuming, verify source identity, reference compatibility, committed progress and remaining budgets; reuse saved results without blindly replaying unknown operations. '
                         'Before polling, wait at least the maximum returned poll_after_seconds and not_before_seconds. Keep reads and follow-up calls bounded; do not retry failed operations automatically. '
                         'Refresh source data only when the current instruction requests it. Captured content may lack verified source transaction consistency. '
                         'Preserve returned status, provenance, source identity, version, time coverage, units, quality, completeness and gaps. '
@@ -1307,19 +1443,31 @@ class NativeTaskRunner:
                     if domain_catalog.get('tools'):
                         self.task_domain_routes[request.task_id] = domain_routes
                         sdk_config['applicationPolicy'] = {**sdk_config['applicationPolicy'], 'allowed_tools': sorted({
-                            *sdk_config['applicationPolicy']['allowed_tools'], *domain_catalog['tools']})}
+                            *sdk_config['applicationPolicy']['allowed_tools'], *domain_catalog['tools'],
+                            'agent_tool_search', 'agent_tool_load'})}
                         sdk_config['domainTools'] = {
                             'url': self.relay_origin + '/domain-tools/' + request.task_id,
-                            'grant': grant, 'taskId': request.task_id, 'catalog': domain_catalog}
+                            'grant': grant, 'taskId': request.task_id, 'catalog': domain_catalog,
+                            'onDemandTools': True}
                         sdk_config.setdefault('contextFiles', []).append({
                             'path': 'published-domain-tools',
                             'content': (
                                 'These tools are the published tools of the Domain Packs this application currently has available: '
                                 + ', '.join(mounted_packs) + '. '
-                                'Call one when the instruction needs that pack\'s result. Quote the returned fields. '
+                                'Select this pack only when its published purpose fits the instruction. '
+                                'Find an unknown tool with agent_tool_search; load an inactive exact contract with '
+                                'agent_tool_load and call it on the next turn. Availability does not require a call. '
+                                'Quote the returned fields. '
                                 'Do not calculate voltages, losses, rankings, topology, or contingency outcomes yourself. '
                                 'A failed or missing call is a limit. Continue the rest of the task and write the report. '
                                 'Do not invent a number the tool did not return.')})
+                structural = getattr(request, 'structural_context', None)
+                if structural:
+                    from .structural_context import management_note
+                    self.task_structural_context[request.task_id] = structural
+                    sdk_config.setdefault('contextFiles', []).append({
+                        'path': 'structural-context',
+                        'content': management_note(structural)})
                 sdk_config['selectedTaskRecords'] = native['selected_task_records']
                 sdk_config['selectedTaskMaterials'] = native.get('materials', [])
                 sdk_config['researchSources'] = sorted({
@@ -1328,6 +1476,18 @@ class NativeTaskRunner:
                       for item in native.get('resource_manifests', [])),
                 })
                 references=native.get('resource_manifests', [])
+                if 'agent_presentations' in native['policy']['allowed_tools']:
+                    from .native_presentation_tasks import TemplateBackendClient, PresentationTaskPort
+                    if not self.presentation_api_origin or request.business_context is None or request.managed_workspace is None:
+                        raise ValueError('presentation_task_scope_missing')
+                    client = TemplateBackendClient(self.presentation_api_origin,
+                        os.environ.get('CAPSTONE_OPERATOR_TOKEN', ''), request.managed_workspace,
+                        request.business_context.to_document()['workspace_id'])
+                    self.task_presentations[request.task_id] = PresentationTaskPort(client,
+                        task_id=request.task_id, inputs=inputs, uid=uid, admitted_resources=references)
+                    sdk_config['presentationLibrary'] = {
+                        'url': self.relay_origin + '/presentation-template-tasks/' + request.task_id,
+                        'grant': grant, 'inputRoot': str(inputs)}
                 if references:
                     from .native_resource_references import NativeResourceReferences
                     port=NativeResourceReferences(self.root/'tasks'/'.resource-references'/request.task_id,
@@ -1441,6 +1601,9 @@ class NativeTaskRunner:
             capacity_path = workspace / '.runtime-capacity.json'
             capacity_path.write_text(json.dumps(task_capacity, ensure_ascii=False, indent=2))
             capacity_path.chmod(0o444)
+            if gateway_contract_context is not None:
+                from .data_gateway_relay import stage_gateway_contract_context
+                stage_gateway_contract_context(inputs, gateway_contract_context)
             for path in [workspace, *workspace.rglob('*')]:
                 os.chown(path, uid, uid)
             for path in [inputs, *inputs.rglob('*')]:
@@ -1492,6 +1655,9 @@ class NativeTaskRunner:
                 with self._lock:
                     self.task_llm_profiles.pop(request.task_id,None)
                     self.task_resource_inputs.pop(request.task_id,None)
+                    presentation = self.task_presentations.pop(request.task_id, None)
+                    if presentation is not None:
+                        run_runtime_cleanup(presentation.client.close, operation='presentation_client_close')
                     port=self.task_resource_references.pop(request.task_id,None)
                     if port is not None:shutil.rmtree(port.root,ignore_errors=True)
                 gateway=self.task_gateways.pop(request.task_id,None)
@@ -1615,8 +1781,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             # starts meanwhile, the guarded commit retains its original source.
             return registry.select(document['id'], commit_guard=commit_guard)
         if action == 'refresh' and document == {}:
-            return registry.refresh()
-        if action == 'reload' and document == {}:
+            registry.refresh()
+        if action in {'refresh', 'reload'} and document == {}:
             try:
                 result = registry.reload_contract()
             finally:
@@ -1728,6 +1894,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if self.path.startswith('/presentation-template-tasks/'):
+                return self.relay_presentation_templates()
             if self.path.startswith('/managed-resource-tasks/'):
                 return self.relay_managed_resources()
             if self.path.startswith('/data-gateway/'):
@@ -1842,6 +2010,54 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             except (RuntimeError, OSError):
                 self.send_json(503, {'error': 'executor_capacity'})
 
+        def relay_presentation_templates(self):
+            from .native_presentation_tasks import TemplateOutcomeUnknown
+            task_id = self.path.removeprefix('/presentation-template-tasks/')
+            port = getattr(runner, 'task_presentations', {}).get(task_id)
+            if runner is None or port is None:
+                return self.send_json(404, {'error': 'presentation_task_unavailable'})
+            try:
+                lease = runner.relay.acquire(task_id,
+                    self.headers.get('Authorization', '').removeprefix('Bearer '),
+                    self.connection, channel='gateway')
+            except PermissionError:
+                return self.send_json(401, {'error': 'unauthorized'})
+            try:
+                with host._lock:
+                    record = host._tasks.get(task_id)
+                    request = None if record is None else record['request']
+                    status = None if record is None else record['status']
+                if status != 'running':
+                    return self.send_json(409, {'error': 'presentation_task_closed'})
+                context = None if request is None else request.business_context
+                if (request is None or context is None or port.task_id != task_id
+                        or port.client.workspace != request.managed_workspace
+                        or port.client.thread_id != context.to_document().get('workspace_id')):
+                    return self.send_json(403, {'error': 'presentation_task_scope_invalid'})
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 16384:
+                    return self.send_json(413, {'error': 'presentation_request_too_large'})
+                body = json.loads(self.rfile.read(length))
+                if (not isinstance(body, dict) or set(body) != {'call_id', 'operation', 'document'}
+                        or not isinstance(body['call_id'], str) or not 0 < len(body['call_id']) <= 256
+                        or not isinstance(body['operation'], str) or not isinstance(body['document'], dict)):
+                    return self.send_json(400, {'error': 'presentation_request_invalid'})
+                result = port.invoke(body['operation'], body['document'], call_id=body['call_id'])
+                return self.send_json(200, {'ok': True, 'result': result})
+            except TemplateOutcomeUnknown as error:
+                return self.send_json(502, {'error': 'presentation_operation_outcome_unknown',
+                    'request_id': error.request_id})
+            except (ValueError, KeyError) as error:
+                reason = str(error)
+                allowed = {'presentation_source_not_admitted', 'presentation_request_invalid',
+                    'presentation_operation_unknown', 'presentation_call_invalid',
+                    'template_request_conflict', 'template_revision_conflict',
+                    'template_source_changed', 'template_identity_changed', 'template_not_found',
+                    'template_processing_limit', 'invalid_template'}
+                return self.send_json(400, {'error': reason if reason in allowed else 'presentation_request_rejected'})
+            finally:
+                runner.relay.release(lease)
+
         def relay_managed_resources(self):
             from .managed_resource_dispatch import dispatch_resource_request
             from .managed_resource_task import resource_task_action
@@ -1913,7 +2129,12 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if origin is None or not token:
                     return self.send_json(404, {'error': 'domain_tool_unavailable'})
                 from .domain_tool_client import invoke_domain_tool
-                result = invoke_domain_tool(origin, token, {**document, 'task_id': task_id})
+                from .structural_context import management_for
+                body = {**document, 'task_id': task_id}
+                management = management_for(getattr(runner, 'task_structural_context', {}).get(task_id))
+                if management is not None:
+                    body['management'] = management
+                result = invoke_domain_tool(origin, token, body)
                 payload = result.get('result') if result.get('ok') is True else result.get('error')
                 if not isinstance(payload, dict):
                     payload = {'message': 'domain tool call failed'}
@@ -1922,6 +2143,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     text = text.encode()[:200000].decode('utf-8', errors='ignore')
                 return self.send_json(200, {
                     'result_json': text, 'is_error': result.get('ok') is not True,
+                    'execution_receipt': result.get('execution_receipt'),
                     'tool': document['name'], 'call_id': document['call_id']})
             except (ValueError, OSError, TimeoutError):
                 return self.send_json(502, {'error': 'domain_tool_call_failed'})
@@ -1953,6 +2175,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 document = json.loads(self.rfile.read(length))
                 preflight = (isinstance(document, dict) and set(document) == {'operation', 'calls'}
                              and document['operation'] == 'validate_batch')
+                contract_load = (isinstance(document, dict) and set(document) == {'operation', 'names'}
+                                 and document['operation'] == 'resolve_contracts')
                 async def forward():
                     lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
                     if lease.cancelled.is_set():
@@ -1960,6 +2184,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     async with asyncio.timeout(max(.001, lease.deadline - time.monotonic())):
                         if preflight:
                             return gateway.validate_batch(task_id, document['calls'])
+                        if contract_load:
+                            return await gateway.resolve_contracts(task_id, document['names'])
                         return await gateway.call(task_id, document)
                 self.send_json(200, run_http(forward()))
             except GatewayError as error:
@@ -2029,6 +2255,9 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 runner.relay.release(lease)
     class BoundedServer(ThreadingHTTPServer):
         maximum = limits.native_server_connections
+        # Bound the TCP backlog to the configured connection budget.
+        # Handler admission and gateway execution retain their separate bounds.
+        request_queue_size = maximum
         slots = threading.BoundedSemaphore(maximum)
         def process_request(self, request, client_address):
             if not self.slots.acquire(blocking=False):
@@ -2087,20 +2316,29 @@ def main():
                       + current_capacity().fingerprint.encode())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
+    revision.update(os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN', '').encode())
+    if os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN'):
+        renderer_root = Path(__file__).parent.parent / 'tools'
+        for name in ('native_presentation_library.py', 'native_report.py',
+                     'native_presentation_template.py', 'native_presentation_layout.py',
+                     'presentation-templates/state-grid.pptx'):
+            revision.update(name.encode() + sha256((renderer_root / name).read_bytes()).digest())
     from .capacity_contract import load_capacity_policy
     revision.update(json.dumps(load_capacity_policy(), sort_keys=True, separators=(',', ':')).encode())
     # Gateway publications can change independently of the executor, including
     # between service restarts. Each task binds its gateway catalog separately;
     # mutable discovery metadata must not invalidate the executor identity.
     lock = json.loads(Path('/opt/general/pi-runtime.lock.json').read_bytes())
+    from capability_agent.runtime import execution_queue
     identity = {'engine': 'pi', 'model': provider['model'],
                 'provider': provider['provider'],
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'managed_resource_contract.py', 'managed_resource_dependencies.py', 'managed_resource_secrets.py', 'managed_resource_bundle.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
-                                 'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'native_timing.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'structural_context.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'managed_resource_contract.py', 'managed_resource_dependencies.py', 'managed_resource_secrets.py', 'managed_resource_bundle.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
+                                 'presentation_template_contract.py', 'native_presentation_tasks.py', 'resources/presentation-templates.mjs',
+                                 'native_resources.py', 'session_skill_preferences.py', 'tool_execution_receipt.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
+                                 'resources/investigation-skills.mjs', 'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'native_timing.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'capacity_contract.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
@@ -2114,13 +2352,15 @@ def main():
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',
                                  'resources/graph-context-client.mjs', 'resources/research-products.mjs', 'resources/delivery-review.mjs', 'resources/product-path-policy.json', 'resources/research-policy-catalog.json',
                                  'resources/managed-subagents.mjs', 'resources/delegation-tool.mjs', 'resources/delegation-scheduler.mjs'))
+                    + Path(execution_queue.__file__).read_bytes()
                     + b''.join(path.relative_to(Path(__file__).parent).as_posix().encode() + path.read_bytes()
                         for directory in ('research-runtime', 'subagents')
                         for path in sorted((Path(__file__).parent / 'resources' / directory).rglob('*.mjs')))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
         relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway, llm_profiles=llm_profiles,
-        experimental_llm_pool=os.environ.get('CAPSTONE_EXPERIMENTAL_LLM_POOL', '0') == '1')
+        experimental_llm_pool=os.environ.get('CAPSTONE_EXPERIMENTAL_LLM_POOL', '0') == '1',
+        presentation_api_origin=os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN'))
     runner.gateway_publication = gateway_publication
     runner.gateway_registry = gateway_registry
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
@@ -2130,6 +2370,9 @@ def main():
     host.record_network_policy('startup_default', network_policy.state())
     host.capability['native_tools'] = runner.verify_tools(identity)
     host.capability['native_builtin_tools'] = runner.builtin_tools
+    if runner.presentation_api_origin:
+        from .presentation_template_contract import PRESENTATION_LIBRARY_CAPABILITY
+        host.capability['presentation_library'] = dict(PRESENTATION_LIBRARY_CAPABILITY)
     host.capability['resource_profiles'] = runner.verify_resources(identity)
     server = make_server(host, control_token=os.environ['CAPSTONE_GENERAL_CONTROL_TOKEN'],
         address=('0.0.0.0', port), runner=runner, upstream=provider['base_url'], provider_key=key,

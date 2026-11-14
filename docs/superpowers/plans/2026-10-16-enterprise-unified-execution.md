@@ -1,5 +1,84 @@
 # Unified Enterprise Execution Implementation Plan
 
+## v1.1.0 首轮发布CI补修
+
+PR105首轮43559147625的Linux在28并发背压检查连接重置，3306通过/224跳过/1失败；
+macOS47分07秒后SDK654通过/1固定轮询失败，本轮不计发布接受。fcc55dbc修复TCP backlog5与既有256连接预算不一致；
+3308完整后端、160定向、类型、实际Linux60轮、真实续接12.27秒和8新/47历史工件hash通过。
+153d19ae将SDK测试固定轮询替换为公开结果等待/事件同步，受控400ms对照先红后绿，655项本地通过，生产JS未改。
+首轮已结束，无旧任务待取消；补修未推送，第二次双平台完整CI需单独批准，预计45–60分钟。
+
+## 2026-11-14 v1.1.0发布基线（用户指定）
+
+用户要求重要tag并合入main，版本明确为v1.1.0。候选release/v1.1.0基于已收口dev8d97596c，
+版本与锁3690e8ff已准备，59f1411b修复完整门禁16项类型问题；全局类型与直接调用方检查通过。
+04f127e4完整本地check-release退出0（26分56秒），正式App构建及真实续接/历史文件hash通过。
+86599cf1仅补齐CI正式App构建及合同检查；main PR、macOS/Linux发布CI和tag待逐次CI明确批准。
+发布说明见[范围与兼容](../../releases/v1.1.0.md)。不部署cloud/demo，不改local-demo；
+发布通过后版本与修复通过受保护PR回流dev，保持控制台账归dev。
+
+## 2026-11-14 PPT与研发分支已收口
+
+PR104已合入dev8d97596c，第二次定向macOS CI43496930369通过4分08秒；
+受检b089faa6与合并树一致。首次清理预算用例失败、600ms注入复现和测试补修均保留。
+PPT默认国网、模板库与选择、冻结源包/PDF、渲染器身份、执行统计及直接调用方已归dev。
+旧PPT和引用研究仅保留原SHA归档/恢复标签，工作树及未提交文档不变；当前无活动研发分支。
+剩余引用出境投影归设计待办，不新增DR运行链；不自动推进IG2–IG4或研究实验。
+实际dev规范重建后的任务/产品恢复、47条下载摘要及默认App实页通过，云端和demo未变。
+详见[收口回执](../../reports/2026-11-14-presentation-integration.md)。以下段落记录过程边界。
+
+## 2026-11-14 已批准的 PPT 集成与引用研究归档
+
+用户批准将已验证的 PPT 模板库、默认国网入口、同源 PDF、执行统计和直接调用方
+增量合入 dev；当前候选 29c0ce72 基于 b4992b94，本地定向检查通过；最终ddc3df02规范重建与真实四轮/47条下载摘要通过，
+尚未批准 CI 或合入。保留 dev 的发现、上下文、退役和 Hook 修复。
+引用研究无独立运行实现：唯一组合试验已移植到当前轻量链并通过。原 2bd086af 已归档，
+剩余出境投影与真实引用闭环进入核心演进设计待办，不保留活动研究分支。
+详见[核对回执](../../reports/2026-11-14-presentation-integration.md)。旧段落记录当时边界。
+
+## 2026-11-14 分支归属审计（不扩展功能实施范围）
+
+依据[分支归属报告](../../reports/2026-11-14-branch-ownership-audit.md)，当前只有PPT综合候选
+等待按功能切片进入dev；其中演示文稿、执行观察和App维护分别归现有模块，不整体合并旧历史。
+引用执行研究按用户此前决定独立暂停，归核心演进笔记，不进入本主线交付清单。
+Research Model只有R1–R5设计，R0是历史实验：设计与证据保留为研究待办，不保留空实施线。
+旧Work草稿PR50已关闭，当前Work与native归dev；旧模板实现已由dev承接，增量归PPT候选。
+已合入、等价吸收及明确撤回的旧分支均保存精确恢复引用；不把改分支名当作代码集成。
+本次只核查归属与整理引用，不自动实施PPT或R1，也不启动CI；IG1接受条件保持不变。
+
+## 2026-11-14 架构改进与旧包退役（本轮已收口）
+
+按[实施计划](2026-11-13-architecture-improvements.md)推进资源事务、状态投影、
+附件生命周期、共享状态转换、真实任务性能量测、架构文档及pandapower运行归属迁移。
+候选b5356998包含锁外分块写入、迟到重复确认、附件读取取消和PostgreSQL增量投影。
+87项后端检查、168项App检查及类型通过；1.078GB真实HTTP往返验证通过，
+详见[资源验证](../../reports/2026-11-13-resource-projection.md)。
+上述实现及分页、预览总预算、工具按需发现和旧发行包退役已通过PR101合入dev0616023f。
+获批macOS CI43443261387通过1分58秒；实际dev规范重建、默认App5173、真实任务恢复和
+成果下载哈希通过。最终回执、代理规则及控制文档已随PR102合入4b857ac9，
+文档macOS CI43473293838通过2分08秒；此处记录合并后回执，不为自身状态循环启动CI。
+IG1整体接受与云端资源规模仍开放，
+不转IG2–IG4。每次新增CI仍需明确批准。
+
+## 自由探索与按需帮助（2026-11-08，用户授权持续推进）
+
+按[设计](../specs/2026-11-08-adaptive-investigation-guidance-design.md)复用现有会话与任务记录，不设固定向导。
+
+| 包 | 状态 | 依赖 | 接受条件 |
+| --- | --- | --- | --- |
+| IG1 | active：独立评审REQUEST CHANGES，需整改 | 六技能2badb1ee及其7ea164de依赖 | 406c7d7b原技术验证保留；按[评审](../../reviews/2026-11-08-session-skill-scope-independent-review.md)修排除传递、内容身份与恢复，再做实页验收，不关闭 |
+| IG2 | planned | IG1接口稳定 | 新会话可编辑示例；草稿保护、无自动业务扫描、现有实页验收 |
+| IG3 | planned | IG1、IG2 | 建议绑定证据与范围版本；用户发送才执行、过期不误用、真实继续 |
+| IG4 | planned | IG3 | 调查连续、改向和局部恢复；旧返回隔离、真实刷新与成果复用 |
+
+当前用户指定先local-dev连接“三区研发”；无CI授权，不推送或合并触发CI。
+
+2026-11-07：网关动态能力与专业动作分解已由PR98合入dev9689c434。分段契约两轮复验完整读取31→0；未知规模超预算和分页/采样混淆在本例纠正。跨指令精确能力上下文复用、实际生产执行与性能接受仍待验证；不以研究分支替代主线交付。见[复验](../../reports/2026-11-07-gateway-sectioned-contract-recheck.md)。
+
+2026-11-07 用户将“引用与执行过程原语”指定为独立创新研究。
+研究在 reference-execution-research 专项工作区推进，不属于本主线交付清单，
+不阻塞实际开发，不自动合入 dev，不更新现有开发部署。接受的局部成果另行评审集成。
+
 2026-11-03锁竞争补修：PR91收口后，真实PG单/双槽位复现行锁释放后无新唤醒而停等。
 8dd51d0b增加匹配待执行状态确认，100项线程/租约检查及类型/独立审查通过，本机候选重建通过。
 补修经独立批准的macOS CI41629449461通过3分05秒，PR92合dev7ad2529a；
@@ -424,3 +503,56 @@ The real graph smoke completed but did not pass result-reuse acceptance: a resul
 Graph-specific execution guidance distinguishes the host-bound assignment from untrusted source contents. Filtering model context is not a per-node filesystem sandbox: the shared task UID and native bash remain. Acceptance must inspect actual reads and exact bindings, not infer isolation from prompt filtering or the task-UID immutability test. Real timing must distinguish native child execution from parent record/assessment and include actual parent plus child model responses. The smoke proves A/B overlap and C release before B assessment; it does not prove C/B native overlap.
 
 Implementation and real acceptance remain open. The focused source-scope brief is in ignored operator evidence; final requirements remain owned here and by the enterprise design.
+
+
+## 2026-11-08 local candidate: execution lifecycle and queue control
+
+- Accepted design: [generic owner lifecycle](../specs/2026-11-08-tool-execution-lifecycle-design.md).
+- Executable supplement: [implementation plan](2026-11-08-tool-execution-lifecycle.md).
+- Status: implemented and verified locally; dev integration and separately approved
+  focused macOS CI remain pending. No package or release closure is inferred.
+- Scope: rolling application/relay/source budgets, real process nodes, durable
+  receipts, whole native-turn batches and accurate unknown-state projection.
+- Evidence: [local real-model verification](../../reports/2026-11-08-tool-execution-lifecycle.md).
+
+## 2026-11-08 user-directed report compilation and later evidence planning
+
+Accepted 2026-11-08: first compile the main briefing from existing admitted data
+and products. Use a chapter argument, agenda, evidence/interpretation/implication
+on each opinion page, synthesized conclusions and a branded closing. Do not use
+a fixed 14-page target or rerun business data acquisition for this compilation.
+The scoped [compilation plan](2026-11-08-briefing-report-compilation.md) owns this
+unit. It does not close IG1 or the full template-library/PDF requirements.
+
+- [x] Finish and visually verify the real Capstone main report from existing
+  immutable inputs; retain old products and trace source/renderer identity.
+  V12 is a fresh original-only16-page local benchmark with13 visible explanations,
+  three actual isolated critiques and autonomous revisions. All16 developer
+  previews and input/output digests are checked; ready for user comparison with
+  v6. No human chapter outline, prior v6 text or per-page feedback is supplied.
+- [ ] Later implement report-led acquisition planning: audience/decision and
+  chapter questions map to candidate claims, evidence requirements, metrics,
+  comparators/windows/units, sources, planned visuals and explicit gap conditions.
+  Save and revise the plan before relevant acquisition. Verify on a new real task
+  and a second topic; do not hardcode the current case or a fixed tool sequence.
+  This item is recorded and accepted, but is not implemented by the current
+  post-analysis report compilation.
+- [x] Capstone's runtime report generator owns autonomous topic classification,
+  chapter organization, page arguments and composition. Developers supply generic
+  mechanisms/quality criteria. Guided v2's three-part outline proves guided
+  compilation only. V12 uses a fresh Work without supplied chapter names/count/
+  order and retains the generator's own argument plan. Do not hardcode this case's
+  categories. This verifies the existing-results benchmark, not universal quality.
+  V6 is reviewed with human feedback; fresh autonomous v7/v9 fail opinion-page
+  reasoning depth, while v8 improves but retains inference gaps. Runtime16845b10
+  adds generic visible-body review and an executable explanation contract,
+  not per-slide patches.4a638740 then fixes selected-call waiting;58 Python and36
+  Node checks pass, with prior106 contract checks retained. V12's three readers
+  return real findings and the runtime revises its own report. No fixed bullet
+  count or minimum text length is a
+  semantic quality gate. Preserve v6 until a replacement is independently accepted.
+- [ ] Broaden cross-topic/default reliability and native visual/PDF acceptance.
+  Cover-subtitle grouping and short final CJK lines remain generic nonblocking
+  polish. The text-reader pool is explicitly enabled only in the local candidate;
+  production defaults, full library/persistence and report-led acquisition remain
+  separate. Local results do not imply dev integration or release acceptance.

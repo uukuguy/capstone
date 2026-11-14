@@ -1,175 +1,58 @@
-# Pandapower Static-Analysis Application
+# Pandapower application
 
-> Status: current operator reference.
+The supported public entry is capstone-agent. The retired grid-agent distribution,
+CLI and compatibility commands have been removed.
 
-This is the single operator reference for the first production domain
-application. It defines how to run the complete pandapower static-analysis
-application, how its output differs from the v1.0.1 compatibility path, and how
-to verify current-run evidence.
+## Ownership
 
-This is Capstone's first formal application. It assembles the pandapower
-Domain Pack through the existing `grid-agent` compatibility product; all
-commands, output envelopes, and current-run evidence rules below remain the
-versioned grid contract.
+The application package is packages/pandapower-application. It selects the
+pandapower Domain Pack and registered gridctl Authority, owns worker/hosted entries,
+reports, application workspace and trajectory projections. The Domain Pack owns
+semantic tools, policies and state. Kernel owns neutral execution and contracts.
+Raw pandapower networks do not cross these boundaries.
 
-## Formal application entry
-
-The primary Makefile entry is:
+## Run registered requests
 
 ```sh
-make application
-```
-
-It defaults to:
-
-- application ID `pandapower-static-analysis`;
-- instruction file `validation/questions/task.md.txt`;
-- the Provider and model resolved by the existing runtime configuration,
-  including the Git-ignored `.env` file.
-
-Operators may override the instruction file, Provider, or model explicitly:
-
-```sh
-make application INSTRUCTIONS=questions.txt
-make application PROVIDER=deepseek MODEL=deepseek-v4-flash
-```
-
-`make application` is a production application command. It invokes the
-registered `ApplicationProfile -> AgentApplication -> DomainBinding -> Domain
-Pack` path and may perform billable LLM requests. It is not an alias for a test
-or validation target.
-
-The Makefile default remains the built-in pandapower application, while an
-explicit `APPLICATION=registered-application-id` override remains available for future
-registered single-domain applications. This does not add dynamic plugin
-discovery, multiple active bindings, or cross-domain routing.
-
-## Runtime and output contract
-
-The formal application delegates to the existing `analysis-generic` runtime.
-Its stdout is exactly one `capability-agent-output/1.0` JSON object containing:
-
-- framework-owned `core` lifecycle, run, turn, audit, and reference metadata;
-- pandapower-owned `domains.grid` status and semantic payload.
-
-Progress, tool events, warnings, and diagnostics remain on stderr. Numerical
-and network claims must come from current-run `gridctl` results admitted through
-the pandapower authority. The run directory retains turns, context, tool
-results, result/evidence artifacts, answer audits, replay state, and the report.
-
-During a multi-question run, stderr shows model/tool activity, each finalized
-turn, and each report checkpoint. `runs/<run_id>/output/report.md` is atomically
-refreshed after every finalized answer, using the v1.0.1 pandapower report
-structure (runtime, per-question answer, simulation context, trajectory, and
-evidence). It is an operator-visible mutable checkpoint until normal completion;
-only then is the final report admitted as the immutable report artifact.
-
-`runs/<run-id>/output/answers.jsonl` is the standard submission checkpoint.
-Each line contains only `question_id` and `answer_output`, in input order, and
-is atomically refreshed after every accepted answer. It can be a valid prefix
-after interruption or failure; completed status confirms that the required
-answer and context transactions finished. Report publication is optional:
-`core.report_ref` and the pandapower `1.1` payload's `report_artifact_ref` are
-null when no report was successfully admitted. JSONL contains no
-evidence, diagnostics, or report-artifact admission data. An ongoing or partial
-JSONL prefix therefore records accepted submissions only; it is not evidence
-and does not prove that the whole run succeeded.
-
-If a run is interrupted, inspect the latest completed work without treating it
-as final output:
-
-```sh
-sed -n '1,240p' runs/<run_id>/output/report.md
-find runs/<run_id>/turns -name answer.json -print
-```
-
-A non-completed outcome means the run was not successfully finalized, even
-when the checkpoint contains prior answers. A completed outcome with a null
-`report_ref` instead means accepted answers survived a presentation failure;
-inspect `core.diagnostic_refs` and `core/diagnostics/<code>/diagnostic.json`.
-If diagnostic storage also fails, a fixed sanitized diagnostic is attempted on
-stderr. A report checkpoint without an admitted reference is not a final
-trusted report, regardless of whether the primary answers completed.
-
-Provider and model arguments never carry credentials. Credentials continue to
-come from environment variables or project-owned ignored authentication state.
-
-## Compatibility boundary
-
-The existing commands remain supported and unchanged:
-
-```sh
-make analysis
-make analysis INSTRUCTIONS=validation/questions/test.md.txt
-```
-
-They are the explicit v1.0.1 compatibility application. Their stdout remains
-one JSON object whose only top-level fields are `question_id` and
-`answer_output`. `make report` remains an alias for this compatibility path.
-
-The compatibility envelope is not the framework-wide application output
-contract. Promoting `make application` must not alter `run`, `analysis`,
-`report`, `grid_*` tools, `grid-capability/1.0`, stderr diagnostics, or current-
-run evidence admission.
-
-## Validation commands
-
-Provider-free wiring and regression checks remain separate from application
-execution:
-
-```sh
+make setup-capstone
 make doctor
-make validate-application
-make test
-make test-e2e
-make validate
-make test-packages
+make capstone-agent-run REQUEST=validation/client/pandapower-analysis-task.json
+make capstone-agent-run REQUEST=validation/client/pandapower-analysis-test.json
 ```
 
-`make validate-application` exercises the same prepared pandapower endpoint
-with deterministic scripted model transport and real semantic `gridctl` calls.
-It does not replace a real Provider-backed application run.
+Provider requests use the configured real model and may incur charges. Credentials
+stay in protected backend environment or ignored project authentication state.
+Use make auth-import-pi or make auth-login for project-local Pi authentication.
+make install-pi reuses a managed runtime when its identity and version match.
 
-When Provider use is authorized, run both canonical business task files through
-the formal application:
+For deterministic execution-contract validation:
 
 ```sh
-make application INSTRUCTIONS=validation/questions/task.md.txt \
-  PROVIDER=deepseek MODEL=deepseek-v4-flash
-make application INSTRUCTIONS=validation/questions/test.md.txt \
-  PROVIDER=deepseek MODEL=deepseek-v4-flash
+make capstone-agent-run REQUEST=validation/client/pandapower-scripted-task.json
+make validate-application
 ```
 
-The Provider and model shown above are examples; the selected values must match
-configured credentials and supported runtime IDs. Provider-backed commands may
-incur charges.
+Scripted output is not real-model acceptance. See the [runbook](RUNBOOK.md#capstone-统一客户端)
+for interactive and hosted entry points.
 
-## Success and failure behavior
+## Output and evidence
 
-A successful formal application run must:
+Captured CLI stdout contains one capstone-client-result/1.0 JSON object. It wraps
+the registered application's composite result with core and domains.grid. Terminal
+output shows a completion summary and report path. Progress goes to stderr.
 
-1. emit one valid composite JSON object to stdout;
-2. complete every required turn;
-3. bind result and evidence references to the current run;
-4. pass answer, report, and context-replay audits;
-5. retain inspectable artifacts under the reported `runs/{run_id}/` directory.
+The application persists admitted answers, reports and current-run result/evidence
+references. The model cannot assert ownership of a result or invent numerical
+claims. Required persistence failure remains fatal. Historical trajectory producer
+labels and ignored .grid-agent storage paths are retained for existing data.
 
-Missing instruction files, unknown application IDs, invalid Provider/model
-configuration, startup integrity failures, failed required turns, or invalid
-answer evidence must return non-zero. Diagnostics go to stderr and must not
-introduce a second stdout object or a raw traceback.
+## Verification and retirement
 
-## Implementation acceptance
+Application tests live under packages/pandapower-application/tests. Development
+commands use its independent environment. The installed application must neither
+import grid_agent nor expose a grid-agent console script.
 
-The Makefile change is complete only when:
-
-- `application` is phony and appears in `make help` as the production registered
-  application entry;
-- `make application` supplies the pandapower application and canonical task
-  defaults to the existing `analysis-generic` implementation;
-- command-line `APPLICATION`, `INSTRUCTIONS`, `PROVIDER`, and `MODEL` overrides
-  continue to work;
-- no application runtime logic is duplicated in the Makefile;
-- v1.0.1 compatibility commands and their stdout contract remain unchanged;
-- provider-free repository gates pass; and
-- at least one authorized real Provider run completes through the new entry.
+The [retirement plan](superpowers/plans/2026-10-11-retire-grid-cli.md) and
+[verification report](reports/2026-11-13-pandapower-application-owner.md) distinguish
+implemented, tested, installed and integrated states. A branch commit does not
+prove deployment or final acceptance.

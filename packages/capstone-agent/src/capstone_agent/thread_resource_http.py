@@ -1,5 +1,8 @@
 """Authenticated bounded-chunk transport for enterprise resources."""
+from urllib.parse import quote
+
 from fastapi import HTTPException, Request
+from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from .thread_resources import ResourceUploads
@@ -38,9 +41,38 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
             'ttl_seconds': uploads.ttl_seconds}
 
     @app.get('/api/v1/threads/{thread_id}/resources')
-    async def resources(thread_id: str, request: Request, draft: bool = False):
+    async def resources(thread_id: str, request: Request, draft: bool = False, limit: int | None = None, cursor: str | None = None):
         check(request)
+        if limit is not None or cursor is not None:
+            return await invoke(uploads.resource_page, thread_id, draft, 100 if limit is None else limit, cursor)
         return {'schema': 'capstone-resources/1', 'resources': await invoke(uploads.resources, thread_id, draft)}
+
+    @app.get('/api/v1/threads/{thread_id}/resources/{resource_id}/content')
+    async def content(thread_id: str, resource_id: str, request: Request):
+        check(request)
+        resource = await invoke(uploads.published, thread_id, resource_id)
+        iterator = iter(uploads.read(thread_id, resource_id))
+
+        def take():
+            try:
+                return next(iterator)
+            except StopIteration:
+                return None
+
+        async def body():
+            while True:
+                chunk = await run_in_threadpool(take)
+                if chunk is None:
+                    return
+                yield chunk
+
+        return StreamingResponse(body(), media_type=resource.get('media_type') or 'application/octet-stream', headers={
+            'Content-Disposition': "attachment; filename*=UTF-8''" + quote(resource['file_name'], safe=''),
+            'Content-Length': str(resource['size_bytes']),
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'private, no-store',
+            'Content-Security-Policy': "default-src 'none'; sandbox",
+        })
 
     @app.post('/api/v1/threads/{thread_id}/resource-uploads', status_code=201)
     async def begin(thread_id: str, request: Request):
@@ -66,7 +98,7 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
     @app.put('/api/v1/threads/{thread_id}/resource-uploads/{upload_id}/parts/{index}')
     async def part(thread_id: str, upload_id: str, index: int, request: Request):
         check(request)
-        state = await invoke(uploads.status, thread_id, upload_id)
+        state = await invoke(uploads.part_limits, thread_id, upload_id)
         data = bytearray()
         async for chunk in request.stream():
             if len(data) + len(chunk) > state['chunk_bytes']:

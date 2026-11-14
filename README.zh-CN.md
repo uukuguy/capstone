@@ -21,8 +21,10 @@ demo 发布遵循独立的发布验收流程。
 
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
 
-正式应用入口为 `capstone-agent`，不再要求保留 `grid-agent` CLI 兼容性。
-旧包仍包含正式 pandapower 运行模块，尚未删除；迁移与退出步骤见[计划](docs/superpowers/plans/2026-10-11-retire-grid-cli.md)。
+正式应用入口为 `capstone-agent`。旧 `grid-agent` 发行包与 CLI 已删除；可独立安装的
+`pandapower-application` 拥有正式 pandapower 入口、worker 和报告。
+v1.1.0 版本基线包含统一框架、原生执行、资源处理及国网 PPT 模板库。
+范围、验证和兼容说明见[发布说明](docs/releases/v1.1.0.md)。
 
 **连接智能体推理、领域能力、权威计算与可核查证据。**
 
@@ -109,10 +111,20 @@ Thread 空闲时可切换模式；会话历史、草稿和模型选择保留。
 详见[共享执行器设计](docs/superpowers/specs/2026-10-09-capstone-pi-delegation-design.md)。
 真实模型的回答质量需单独验收，离线检查不能代替这一验收。
 
-使用 `/skills` 查看可用技能及执行角色，使用 `/skill:<name> <任务>` 选择本轮技能，
+在 CLI 中使用 `/skills` 查看可用技能及执行角色，使用 `/skill:<name> <任务>` 选择本轮技能，
 使用 `/context` 包含或排除公共背景。当前模型背景提供身份、版本与历史，不提供完整模型表。
 托管的 PowerSkills/PowerMCP 资源分别使用原生 Pi 与专业适配器。
 安装方法见[资源配置说明](docs/RUNBOOK.md#共享背景与角色资源)。
+
+通用执行预置六项按需调查方法：目标探索、规划与跟踪、系统调试、完成核验、
+数据调查及质量与可比性检查。技能加载和模型报告的应用阶段进入现有过程记录；
+加载方法不表示验证通过。见[技能设计](docs/superpowers/specs/2026-11-08-investigation-skills-design.md)。
+Hosted App 提供只读技能目录。就绪技能缺省可用，由模型选择相关方法，无需用户先手动选择。
+
+启用 PPT 模板库后，新 PPT 缺省使用国网模板。会话选择持续生效，单次覆盖不改变会话选择。
+上传模板缺省仅用于当前会话，明确要求保存入库后才供库内复用。
+保存的内容源包支持换模板重生成，PDF 从同一份 PPTX 派生。
+使用与配置见[模板库运行说明](docs/RUNBOOK.md#ppt-template-library)。
 
 智能体对话是主要入口。Case 是独立模块；默认联合对话尚未装配 Case 执行服务。
 已登记引导流程与验证样例保留在早期的 `/old` 入口。
@@ -203,7 +215,7 @@ make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 make run-llm QUESTION="对 IEEE-39 执行交流潮流，并报告有功损耗。"
 ```
 
-`grid-agent` 保留为 pandapower 兼容 CLI，答案、报告和标准输出契约见 [pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)。统一的 `capstone-agent` CLI 和引导案例命令见[运行手册](docs/RUNBOOK.md#capstone-统一客户端)。确定性脚本样例用于离线验证，与普通 LLM 对话分开。
+现有 pandapower 答案、报告和标准输出契约见 [pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)。正式支持的 `capstone-agent` CLI 和引导案例命令见[运行手册](docs/RUNBOOK.md#capstone-统一客户端)。旧 `grid-agent` CLI 已删除；应用代码与测试归属 `pandapower-application`；退役计划记录最终验收。确定性脚本样例用于离线验证，与普通 LLM 对话分开。
 
 ## 开发与部署
 

@@ -121,6 +121,12 @@ export function toolFailureCopy(code?: string): string {
 
 export function commandRejectionCopy(code?: string): string {
   const messages: Record<string, string> = {
+    session_skill_unavailable: '会话方法已不可用，本次指令未执行。请打开“会话技能”读取最新配置并重新选择，或在本轮技能中排除该方法后再发送。输入内容已保留。',
+    session_skill_content_changed: '会话方法的内容已变化，本次指令未执行。请打开“会话技能”读取最新配置，移除后重新选择以确认新内容。输入内容已保留。',
+    session_skill_reselect_required: '旧会话方法尚未确认内容版本，本次指令未执行。请在“会话技能”中移除后重新选择，或在本轮技能中排除后发送。输入内容已保留。',
+    session_skill_content_unavailable: '当前无法核对方法的内容身份，本次指令未执行。请读取最新会话技能配置后重选。输入内容已保留。',
+    session_skill_selection_conflict: '本轮同时选择并排除了同一方法，指令未执行。请保留一种选择后发送，输入内容已保留。',
+    skill_exclusion_invalid: '会话方法配置已变化，本次指令未执行。请在本轮技能中清除排除项并重新选择，输入内容已保留。',
     revision_conflict: '任务已更新，本次请求未执行。输入内容已保留，请同步最新状态后重试。',
     stale_event_seq: '页面状态已变化，本次指令未发送。请等待同步完成后重试，输入内容已保留。',
     context_change_pending: '模型或能力正在切换，请等待完成后再发送。',

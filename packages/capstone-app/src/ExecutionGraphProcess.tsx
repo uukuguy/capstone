@@ -82,7 +82,7 @@ function ExecutionMetrics({ node, execution, parentResponses = [], now }: { node
   const llm = responses.length ? responses : intervalResponses
   return <div className="capstone-graph-metrics capstone-graph-heading-metrics">
     <span title="从步骤启动到执行返回；包含等待">{duration === undefined ? '耗时 —' : time(duration)}</span>
-    {execution && <span title="实际工具调用数量及调用区间并集；执行中区间更新至当前时间，并行区间只计一次，不是 CPU 时间。—表示未完整记录">工具 {tools.length}次 / {toolMs === undefined ? '—' : time(toolMs)}</span>}
+    {execution && <span title="实际工具调用数量及调用区间并集；执行中区间更新至当前时间，并行区间只计一次，不是 CPU 时间。—表示未完整记录">工具 {tools.length}次 / 调用区间 {toolMs === undefined ? '—' : time(toolMs)}</span>}
     <span title={node.execution === 'parent' ? '本步骤执行区间内的主流程请求，含网络与 Provider 等待；不是节点独占用量' : '模型请求累计时长，含 Provider 等待；进行中的请求按当前活动区间更新，不含工具执行'}>{llm.length ? `LLM ${llm.length}次 / ${time(llm.reduce((sum, r) => sum + r.ms, 0))}` : 'LLM —'}</span>
   </div>
 }
@@ -115,7 +115,7 @@ function ParallelMetrics({ nodes, executions, now }: { nodes: GraphNode[]; execu
   if (nodes.every(node => !node.execute_action_id)) return <span>尚未启动</span>
   return <>
     <span title="最早分支启动至最后分支结束的实际时间跨度，不累加各分支；未完整记录时显示 —。不含前置准备和后续汇总。">{live ? '已用时' : '总耗时'} {ms === undefined ? '—' : time(ms)}</span>
-    <span title="本组当前执行的实际工具调用次数及调用区间并集，并行区间只计一次；不是 CPU 时间。">工具 {tools.length}次 / {toolMs === undefined ? '—' : time(toolMs)}</span>
+    <span title="本组当前执行的实际工具调用次数及调用区间并集，并行区间只计一次；不是 CPU 时间。">工具 {tools.length}次 / 调用区间 {toolMs === undefined ? '—' : time(toolMs)}</span>
     <span title="各分支已完成模型请求的次数和累计时长，含 Provider 等待；并行请求时长会累加，与总耗时不同。">LLM {responses.length ? `${responses.length}次 / ${time(responses.reduce((sum, r) => sum + r.ms, 0))}` : '—'}</span>
   </>
 }

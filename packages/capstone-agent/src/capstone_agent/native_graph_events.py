@@ -52,6 +52,11 @@ def project_graph_tool_activity(event, private_roots=()):
         details = result.get('details')
         if isinstance(details, dict) and isinstance(details.get('execution_notice'), dict):
             projected_result['details'] = {'execution_notice': details['execution_notice']}
+        if isinstance(details, dict) and event.get('toolName', event.get('tool_name')) == 'agent_skill':
+            from .skill_activity import checked_skill_activity
+            skill = checked_skill_activity(details.get('skill_activity'))
+            if skill is not None:
+                projected_result.setdefault('details', {})['skill_activity'] = skill
         safe['result'] = projected_result
     return public_graph_activity(project_native_tool_activity(safe,
         text_filter=lambda value: _public_text(value, private_roots)), private_roots)
@@ -137,10 +142,15 @@ class NativeGraphEvents:
         elif identity not in self.children:
             raise ValueError('graph child start was not observed')
         elif kind == 'enterprise_graph_child_tool':
-            if (set(event) - base - {'activity', 'tool_name', 'tool_call_id', 'args', 'result', 'is_error', 'execution_ms'}
+            if (set(event) - base - {'activity', 'tool_name', 'tool_call_id', 'args', 'result', 'is_error', 'execution_ms', 'execution_receipt'}
                     or event.get('activity') not in {'start', 'end'}):
                 raise ValueError('graph child tool event is invalid')
             self._tool(event)
+            if 'execution_receipt' in event:
+                from .tool_execution_receipt import checked_execution_receipt
+                if (event['activity'] != 'end' or checked_execution_receipt(event['execution_receipt'],
+                        task_id=event['task_id'], call_id=event['tool_call_id']) is None):
+                    raise ValueError('graph child execution receipt is invalid')
             if self.action_for_call(event['tool_call_id'], event['tool_name']) != event['action_id']:
                 raise ValueError('graph child tool action changed')
             if 'is_error' in event and type(event['is_error']) is not bool:

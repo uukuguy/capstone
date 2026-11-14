@@ -1,0 +1,24 @@
+{
+  "source": "0616023f87e35c0085898c710bcfbdab4ed5d706",
+  "app_product_revision": "d3191a5d593ede0807012b8fdcdd36d9aed78a74",
+  "default_app_port": 5173,
+  "browser_restored": true,
+  "composer_available": true,
+  "horizontal_overflow": false,
+  "deployment_reference_edges_checked": 6,
+  "deployment_edges_crossing_cards": 0,
+  "ready": true,
+  "restored_thread": "thr_08961d5772d25a431f82",
+  "products": [
+    {
+      "name": "architecture-result.txt",
+      "sha256": "61268608150755ae55eb895baa42d665c6287c426a82938ba83c2a8c5cbcac25",
+      "bytes": 9
+    },
+    {
+      "name": "architecture-followup.txt",
+      "sha256": "75a7953ffaf44b96c20610bc4b588f890e1658dbbdcda2c3282bf570446843de",
+      "bytes": 18
+    }
+  ]
+}

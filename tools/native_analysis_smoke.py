@@ -78,20 +78,22 @@ def exercise_presentation(directory, *, renderer=None):
     (directory/'slide-values.csv').write_text('label,value,ratio\n中文,001.2300,12.50%\n',encoding='utf-8')
     Image.new('RGB',(320,180),'teal').save(directory/'slide-figure.png')
     spec={'schema':'capstone-presentation/1','title':'中文演示校验','slides':[{
-        'title':'结果与限制','source_notes':['保存的输入；不验证结论'], 'blocks':[
-            {'type':'paragraph','text':'保存的数值 < 不作重算'},
-            {'type':'table','csv':'slide-values.csv','max_rows':10},
-            {'type':'figure','path':'slide-figure.png','caption':'实际保存的示意图'}]}]}
+        'title':'结果与限制','source_notes':['保存的输入；不验证结论'],
+        'blocks':[{'type':'paragraph','text':'保存的数值 < 不作重算'}]},
+        {'title':'保存的数值','blocks':[{'type':'table','csv':'slide-values.csv','max_rows':10}]},
+        {'title':'保存的图表','blocks':[{'type':'figure','path':'slide-figure.png','caption':'实际保存的示意图'}]}]}
     (directory/'presentation-spec.json').write_text(json.dumps(spec,ensure_ascii=False),encoding='utf-8')
     receipt=json.loads(command([*(renderer or ['capstone-report']),'--spec','presentation-spec.json',
         '--output','presentation.pptx'],cwd=directory))
     assert receipt['schema']=='capstone-presentation-receipt/1'
+    assert receipt['template']['id']=='state-grid'
     deck=Presentation(directory/'presentation.pptx')
     assert len(deck.slides)==receipt['slides'] and len(deck.slides)>=4
     text='\n'.join(shape.text if shape.has_text_frame else '\n'.join(cell.text for row in shape.table.rows for cell in row.cells)
         if shape.has_table else '' for slide in deck.slides for shape in slide.shapes)
     assert all(value in text for value in ['001.2300','12.50%','保存的数值','实际保存的示意图'])
-    assert sum(shape.shape_type==13 for slide in deck.slides for shape in slide.shapes)==1
+    assert any(shape.shape_type==13 and shape.image.blob==(directory/'slide-figure.png').read_bytes()
+        for slide in deck.slides for shape in slide.shapes)
     for slide in deck.slides:
         for shape in slide.shapes:
             assert shape.left>=0 and shape.top>=0
@@ -100,6 +102,38 @@ def exercise_presentation(directory, *, renderer=None):
         assert hashlib.sha256((directory/source).read_bytes()).hexdigest()==digest
     with ZipFile(directory/'presentation.pptx') as archive:
         assert not any(b'TargetMode="External"' in archive.read(path) for path in archive.namelist() if path.endswith('.rels'))
+
+
+def exercise_template_presentation(directory, *, renderer=None):
+    from pptx import Presentation
+    from PIL import Image
+    Image.new('RGB',(320,180),'teal').save(directory/'template-figure.png')
+    spec = {'schema':'capstone-presentation/2', 'title':'模板生成检查',
+            'template':{'id':'state-grid'}, 'slides':[
+            {'role':'agenda','title':'汇报目录','blocks':[{'type':'paragraph','text':'一、已有成果'}]},
+            {'section':'一、已有成果','title':'内容检查',
+            'blocks':[{'type':'bullets','items':['已保存的内容','不新增业务结论']},
+                      {'type':'figure','path':'template-figure.png','caption':'已保存图表'}],
+            'argument':{'explanation':'图表与要点来自同一保存结果；生成成功不验证业务结论。'},
+            'speaker_notes':'详细说明保留在备注，不挤占主页面。'},
+            {'role':'closing','title':'汇报完毕','blocks':[]}]}
+    (directory/'template-spec.json').write_text(json.dumps(spec, ensure_ascii=False))
+    receipt = json.loads(command([*(renderer or ['capstone-report']), '--spec',
+        'template-spec.json', '--output', 'template-output.pptx'], cwd=directory))
+    deck = Presentation(directory/'template-output.pptx')
+    assert receipt['template']['id'] == 'state-grid'
+    assert receipt['visible_arguments'] == [{'slide':3,'explanation_sha256':hashlib.sha256(
+        spec['slides'][1]['argument']['explanation'].encode()).hexdigest()}]
+    visible = ''.join(''.join(s.text.split()) for s in deck.slides[2].shapes if s.has_text_frame)
+    assert ''.join(spec['slides'][1]['argument']['explanation'].split()) in visible
+    assert len(receipt['template']['sha256']) == 64
+    assert len(deck.slides) == 4
+    assert any(shape.shape_type == 13 for shape in deck.slides[0].shapes)
+    assert any(shape.shape_type == 13 for shape in deck.slides[2].shapes)
+    assert any(shape.shape_type == 13 for shape in deck.slides[3].shapes)
+    assert receipt['slide_roles'] == ['cover','agenda','content','closing']
+    assert receipt['template']['cover_text_rgb'] == 'FFFFFF'
+    assert receipt['layout_policy'] == 'one_content_record_per_slide'
 
 
 def exercise(directory):
@@ -229,7 +263,26 @@ def exercise(directory):
     verified.append('standalone_reports')
     exercise_presentation(directory)
     verified.append('standalone_presentations')
+    exercise_template_presentation(directory)
+    verified.append('template_presentations')
+    verified.append('argument_presentations')
+    exercise_library_presentation(directory)
+    verified.append('presentation_library_pdf')
     return verified
+
+
+def exercise_library_presentation(directory):
+    from pypdf import PdfReader
+    template = Path(__file__).parent / 'presentation-templates/state-grid.pptx'
+    (directory / 'library-content.json').write_text(json.dumps({
+        'schema': 'capstone-presentation/1', 'title': '模板库验证',
+        'slides': [{'title': '固定内容', 'blocks': [{'type': 'paragraph', 'text': '保存内容可以再次生成。'}]}]}))
+    receipt = json.loads(command(['capstone-presentation', '--spec', 'library-content.json',
+        '--output', 'library-result.pptx', '--template', str(template),
+        '--template-sha256', hashlib.sha256(template.read_bytes()).hexdigest(), '--template-id', 'state-grid', '--pdf'], cwd=directory))
+    assert receipt['pdf']['status'] == 'ready'
+    assert len(PdfReader(directory / 'library-result.pdf').pages) == receipt['renderer']['slides']
+    assert hashlib.sha256((directory / 'library-result.pptx').read_bytes()).hexdigest() == receipt['output_sha256']
 
 
 def main():

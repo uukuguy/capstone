@@ -4,7 +4,18 @@ import {mkdtemp,readFile,readdir,rm,symlink,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {boundToolResult,restoreToolResult,readSavedObservation} from '../../src/capstone_agent/resources/tool-result-context.mjs';
+import {boundToolResult,restoreToolResult,readSavedObservation,structureIndex} from '../../src/capstone_agent/resources/tool-result-context.mjs';
+
+test('bounded structure index exposes populated containers before empty slots without leaking data',()=>{
+ const value={...Object.fromEntries(Array.from({length:20},(_,i)=>['slot_'+i,{}])),
+  'samples/~':[{time:'2020-01-01',measurement:'secret-value-canary'}]};
+ const before=structuredClone(value),index=structureIndex(value);
+ const array=index.containers.find(c=>c.pointer==='/samples~1~0');
+ assert.ok(array);assert.equal(array.length,1);assert.deepEqual(array.item_keys,['time','measurement']);
+ assert.equal(index.keys_truncated,true);assert.equal(index.partial,true);
+ assert.ok(JSON.stringify(index).length<=900);assert.doesNotMatch(JSON.stringify(index),/secret-value-canary/);
+ assert.deepEqual(value,before);
+});
 
 test('saved-file handles expose the same structured root and retain exact legacy pointers',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'observation-root-'));

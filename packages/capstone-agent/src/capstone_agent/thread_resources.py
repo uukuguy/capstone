@@ -4,6 +4,8 @@ from pathlib import PurePosixPath
 import re
 import secrets
 import time
+import base64
+import json
 
 from .thread_materials import _mutate, _write_event
 from .application_capacity import CapacityExceeded, current_capacity, limits
@@ -34,7 +36,13 @@ class ResourceUploads:
         with self.service._connect() as opened:
             return self._events(thread, opened)
 
-    def _state(self, thread, uid, connection=None, *, events=None):
+    def _state(self, thread, uid, connection=None, *, events=None, part_index=None, include_parts=True):
+        if not hasattr(self.service, '_lock') and events is None:
+            from .resource_projection import state
+            if connection is not None:
+                return state(connection, thread, uid, part_index=part_index, include_parts=include_parts)
+            with self.service._connect() as opened:
+                return state(opened, thread, uid, part_index=part_index, include_parts=include_parts)
         state = None
         for event in self._events(thread, connection) if events is None else events:
             p = event.payload
@@ -84,7 +92,16 @@ class ResourceUploads:
             raise ValueError('invalid upload metadata or configured capacity exceeded')
         def apply(snapshot, connection):
             reservations = {}
-            for event in self._events(thread, connection):
+            if connection is not None:
+                from .resource_projection import states
+                for item in states(connection, thread, published_only=False):
+                    if item['request_id'] == request_id:
+                        if item['file_name'] != name or item['size_bytes'] != size or item.get('initial_draft', False) != draft:
+                            raise ValueError('upload request conflict')
+                        return self._public(self._state(thread, item['upload_id'], connection))
+                    if item['state'] not in ('cancelled', 'expired'):
+                        reservations[item['upload_id']] = item['size_bytes']
+            for event in self._events(thread, connection) if connection is None else ():
                 p = event.payload
                 if event.event_type == 'resource_upload_started':
                     reservations[p['upload_id']] = p['size_bytes']
@@ -118,14 +135,65 @@ class ResourceUploads:
         return [state['resource'] for state in self.resource_states(thread, connection)
                 if state['state'] == 'complete' and state.get('draft', False) == draft]
 
+    def resource_page(self, thread, draft=False, limit=100, cursor=None):
+        if type(limit) is not int or not 1 <= limit <= 100 or type(draft) is not bool:
+            raise ValueError('invalid resource page limit')
+        after, expected = 0, None
+        if cursor is not None:
+            try:
+                if not isinstance(cursor, str) or len(cursor) > 1024:
+                    raise ValueError()
+                value = json.loads(base64.b64decode(cursor, altchars=b'-_', validate=True))
+                if (set(value) != {'thread', 'draft', 'after', 'revision'} or value['thread'] != thread
+                        or type(value['draft']) is not bool or value['draft'] != draft
+                        or type(value['after']) is not int or type(value['revision']) is not int
+                        or not 0 < value['after'] <= value['revision']):
+                    raise ValueError()
+                after, expected = value['after'], value['revision']
+            except (ValueError, TypeError, KeyError, UnicodeError):
+                raise ValueError('invalid resource page cursor') from None
+        self.service.snapshot(thread)
+        if hasattr(self.service, '_lock'):
+            with self.service._lock:
+                events = self._events(thread)
+                revision = max((e.event_seq for e in events), default=0)
+                rows = []
+                for event in events:
+                    if event.event_type == 'resource_published' and event.event_seq > after:
+                        state = self._state(thread, event.payload['upload_id'], events=events)
+                        if state['state'] == 'complete' and state.get('draft', False) == draft:
+                            rows.append((event.event_seq, state['resource']))
+                            if len(rows) > limit:
+                                break
+        else:
+            from .resource_projection import page
+            with self.service._connect() as connection:
+                revision, rows = page(connection, thread, draft, after, limit)
+        if expected is not None and expected != revision:
+            raise ValueError('resource directory changed; restart pagination')
+        next_cursor = None
+        if len(rows) > limit:
+            value = {'thread': thread, 'draft': draft, 'after': rows[limit-1][0], 'revision': revision}
+            next_cursor = base64.urlsafe_b64encode(json.dumps(value, separators=(',', ':')).encode()).decode()
+        return {'schema': 'capstone-resources/1', 'resources': [r for _, r in rows[:limit]],
+                'revision': revision, 'next_cursor': next_cursor}
+
     def resource_states(self, thread, connection=None):
+        if not hasattr(self.service, '_lock'):
+            from .resource_projection import states
+            if connection is not None:
+                return states(connection, thread)
+            with self.service._connect() as opened:
+                return states(opened, thread)
         events = self._events(thread, connection)
         return [self._state(thread, e.payload['upload_id'], connection, events=events)
                 for e in events if e.event_type == 'resource_published']
 
     def part(self, thread, uid, index, data):
+        if type(index) is not int or index < 0:
+            raise ValueError('invalid part index')
         def reserve(snapshot, connection):
-            state = self._state(thread, uid, connection)
+            state = self._state(thread, uid, connection, part_index=index)
             self._editable(state)
             if type(index) is not int or index < 0 or index * state['chunk_bytes'] >= state['size_bytes']:
                 raise ValueError('invalid part index')
@@ -138,17 +206,43 @@ class ResourceUploads:
                 raise ValueError('part conflict')
             if not previous:
                 _write_event(self.service, snapshot, 'resource_part_reserved', part, connection)
-            return part
+            return part, index in state['parts'], previous is not None
         # A committed reservation makes a write-before-ack crash reclaimable.
-        part = _mutate(self.service, thread, reserve)
+        part, stored, retry = _mutate(self.service, thread, reserve)
+        if stored:
+            return part
+        key = self._key(thread, uid, part)
         def apply(snapshot, connection):
-            state = self._state(thread, uid, connection)
+            state = self._state(thread, uid, connection, part_index=index)
+            if state['state'] == 'complete' and state['parts'].get(index) == part:
+                return part
             self._editable(state)
             if index not in state['parts']:
-                self.objects.put(self._key(thread, uid, part), data, 'application/octet-stream')
                 _write_event(self.service, snapshot, 'resource_part_stored', part, connection)
             return part
-        return _mutate(self.service, thread, apply)
+        try:
+            recovered = False
+            if retry:
+                try:
+                    self._bytes(thread, uid, part)
+                    recovered = True
+                except ValueError:
+                    raise
+                except Exception:
+                    # Missing/unavailable bytes do not establish a stored part.
+                    # A write still uses the exact reserved content identity.
+                    pass
+            if not recovered:
+                self.objects.put(key, data, 'application/octet-stream')
+            return _mutate(self.service, thread, apply)
+        except Exception:
+            # Cancellation may delete the reservation before a slow write ends.
+            # Only a durable terminal cancellation permits deletion here; an
+            # unknown acknowledgement must retain its reclaimable reservation.
+            state = self._state(thread, uid, include_parts=False)
+            if state['state'] in ('cancelled', 'expired'):
+                self.objects.delete(key)
+            raise
 
     def _bytes(self, thread, uid, part):
         data = self.objects.get(self._key(thread, uid, part), part['size_bytes'])
@@ -196,6 +290,21 @@ class ResourceUploads:
         state = _mutate(self.service, thread, apply)
         for part in (state['reserved'] | state['parts']).values():
             self.objects.delete(self._key(thread, uid, part))
+
+    def published(self, thread, resource_id):
+        self.service.snapshot(thread)
+        if not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id):
+            raise ValueError('invalid resource identity')
+        state = self._state(thread, 'upload_' + resource_id.removeprefix('resource_'), include_parts=False)
+        if state['state'] != 'complete' or 'resource' not in state:
+            raise ValueError('resource is not published')
+        return state['resource']
+
+    def part_limits(self, thread, uid):
+        self.service.snapshot(thread)
+        state = self._state(thread, uid, include_parts=False)
+        self._editable(state)
+        return {'chunk_bytes': state['chunk_bytes']}
 
     def read(self, thread, resource_id, *, start=0, length=None):
         self.service.snapshot(thread)

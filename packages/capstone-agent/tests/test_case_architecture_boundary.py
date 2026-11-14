@@ -3,23 +3,11 @@
 from __future__ import annotations
 
 import ast
-import importlib.util
-import json
 from pathlib import Path
-from types import ModuleType
 
 
 ROOT = Path(__file__).resolve().parents[3]
 CAPSTONE_SRC = ROOT / "packages" / "capstone-agent" / "src" / "capstone_agent"
-COMPAT_SRC = (
-    ROOT
-    / "packages"
-    / "grid-agent"
-    / "src"
-    / "grid_agent"
-    / "compat"
-    / "v1_0_1.py"
-)
 
 
 def _import_targets(path: Path) -> tuple[str, ...]:
@@ -33,13 +21,6 @@ def _import_targets(path: Path) -> tuple[str, ...]:
     return tuple(targets)
 
 
-def _load_compatibility_adapter() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("capstone_compat_v1_0_1", COMPAT_SRC)
-    if spec is None or spec.loader is None:
-        raise AssertionError(f"could not load compatibility adapter: {COMPAT_SRC}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_case_and_harness_sources_do_not_import_legacy_application_roots() -> None:
@@ -95,22 +76,3 @@ def test_legacy_adapters_do_not_import_case_execution_internals() -> None:
             imports = _import_targets(path)
             present = tuple(target for target in imports if target in forbidden)
             assert not present, f"{path.relative_to(ROOT)} imports Case internals: {present}"
-
-
-def test_compatibility_stdout_is_one_two_field_json_object() -> None:
-    module = _load_compatibility_adapter()
-    assert module.LEGACY_COMMANDS == ("run", "analysis", "report")
-
-    output = module.V1_0_1CompatibilityAdapter().render(
-        question_id="q-architecture-boundary",
-        answer_output="runs/example/report.md",
-    )
-
-    assert output.count("\n") == 1
-    assert len(output.splitlines()) == 1
-    payload = json.loads(output)
-    assert set(payload) == {"question_id", "answer_output"}
-    assert payload == {
-        "question_id": "q-architecture-boundary",
-        "answer_output": "runs/example/report.md",
-    }

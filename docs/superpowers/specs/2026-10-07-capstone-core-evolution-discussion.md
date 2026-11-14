@@ -544,3 +544,54 @@ A reproduced controller conflict forced initialization after a direct answer wit
 
 
 2026-10-24 user baseline update: current three-branch parallel338s/59tools, two-branch parallel412.4s/56tools, sequential544.6s/67tools.146s is archived old-version evidence, not a current performance gate. Keep raw measurements separate from these accepted comparison labels.
+
+
+## 2026-11-08 execution-control implementation feedback
+
+Accepted implementation separates an admitted batch from actual concurrency. A
+neutral rolling queue and source-owned process receipts now cover hosted/formal
+source calls; the application and relay retain their own budgets. A real sixteen-call
+model batch initially reached four processes because the intermediate relay still
+limited connections to four. After aligning that budget, the new model continuation
+reached eight, with zero errors and retained products. This is local verification,
+not distributed source-capacity or general performance acceptance. See the
+[execution receipt](../../reports/2026-11-08-tool-execution-lifecycle.md). Secondary
+research questions remain outside this delivery task.
+
+## 2026-11-13 architecture improvement feedback
+
+The user approved implementation of the architecture review proposals. Resource
+part bytes now write outside Thread transactions. A rebuildable PostgreSQL
+projection and revision-bound directory pages avoid repeated full event reads
+on the deployed part path. Attachment source buffers have a shared reservation
+budget. One pure terminal preparation function now serves both Thread stores;
+leases, transactions and capture persistence remain adapter-owned.
+
+Local verification includes a greater-than-1GiB hash round trip, 205-resource
+HTTP pagination and a real two-instruction model/tool/product continuation.
+These checks do not establish cloud scale, browser acceptance or general
+performance improvement. The small real task used roughly 40k input tokens
+per model response; context-source measurement is needed before optimizing
+connections or reducing policy. Preserve schema, permission and evidence checks.
+
+The current entry matrix in the framework architecture separates default native
+execution from explicit professional selection and historical replay. Historical
+standalone-classifier notes are not the current default. Pack-owned semantic
+tool execution is the first pandapower ownership migration slice; application
+management validation stays with the application. Remaining formal composition,
+output compatibility and replay ownership require separate verified slices.
+The canonical worklist owns delivery; this notebook records design feedback.
+
+### 2026-11-14 引用执行研究分支归档
+
+用户确认当前轻量链已成熟，本轮先核对差异，不将旧研究名称当作另一个 DR 执行器。
+原 `2bd086af` 仅含设计、基线和组合可行性测试；没有独立运行实现。依赖调用、有界并行、
+观察引用复用、失败保留和取消复用当前轻量链。唯一引用试验已提取到集成候选 `29c0ce72`，
+当前 50 项组合检查通过；测试使用模拟服务端，不等于真实网关业务接受或零数据出境证明。
+
+剩余设计待办：核对真实已发布网关的引用与版本契约；比较仅引用、结构化发现和允许摘要
+三种模型上下文投影；审计外发字段和侧信道；验证真实引用驱动报告、改向及恢复。
+这些能力未被旧分支实现，本轮不自动启动。后续从当前 dev 开始具体实验，不复制旧执行链。
+旧分支改为 `archive/branch-ownership-20261114/uukuguy/reference-execution-research`，
+精确来源和远端恢复标签保留，工作树及三个未提交文档未变。
+详见[PPT 集成与引用研究收口](../../reports/2026-11-14-presentation-integration.md)。

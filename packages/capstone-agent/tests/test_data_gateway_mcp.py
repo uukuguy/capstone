@@ -18,6 +18,38 @@ class Tool:
         return copy.deepcopy(self.value)
 
 
+def contract_context_gateway(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    session.tools.append(Tool('alpha'))
+    client.policy['allowed_tools'].append('alpha')
+    catalog = asyncio.run(client.prepare())
+    result = {'isError': False, 'structuredContent': {'status': 'ok', 'data': {
+        'name': 'alpha', 'section': 'usage', 'contract_revision': 'contract-a',
+        'usage': {'purpose': 'Compare admitted inputs'}},
+        'provenance': {'request_id': 'not-carried-between-tasks'}}}
+    return client, session, catalog, result
+
+
+def test_contract_context_accepts_only_exact_successful_metadata(tmp_path):
+    client, _, catalog, result = contract_context_gateway(tmp_path)
+    name = 'data_gateway_describe_gateway_contract'
+    arguments = {'tool_name': 'data_gateway_alpha', 'section': 'usage'}
+    entry = client.contract_context_entry(name, arguments, result, catalog)
+    assert entry['tool'] == 'data_gateway_alpha'
+    assert entry['lookup_tool'] == name
+    assert entry['data'] == result['structuredContent']['data']
+    assert 'provenance' not in entry
+    assert client.contract_context_entry('data_gateway_alpha', arguments, result, catalog) is None
+    for changed in [dict(arguments, tool_name='absent'), dict(arguments, section='input_schema'),
+                    dict(arguments, expected_revision='summary-fingerprint'),
+                    dict(arguments, provider_id='other')]:
+        assert client.contract_context_entry(name, changed, result, catalog) is None
+    for changed in [dict(result, isError=True), {'structuredContent': []},
+                    {'structuredContent': {'status': 'error', 'data': result['structuredContent']['data']}},
+                    {'structuredContent': {'status': 'ok', 'data': {'name': 'other', 'contract_revision': 'a'}}}]:
+        assert client.contract_context_entry(name, arguments, changed, catalog) is None
+
+
 class Session:
     def __init__(self):
         self.tools = [Tool(), Tool('build_network_model'), Tool('new_unapproved_tool')]
@@ -86,6 +118,27 @@ def test_contract_check_unchanged_does_not_download_catalog(tmp_path):
     assert asyncio.run(client.refresh_catalog(catalog)) == catalog
     assert session.calls == [('check_gateway_contract', {})]
     assert session.lists == lists
+
+
+def test_initialization_never_fetches_all_tool_contracts_or_model_discovery(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    assert session.calls == [('check_gateway_contract', {}), ('check_gateway_contract', {})]
+    assert catalog['contract_publication']['instance_id'] == session.instance
+
+
+def test_initialization_rejects_publication_change_during_catalog_read(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    original = session.list_tools
+    async def changing():
+        result = await original()
+        if session.lists == 2:
+            session.stamp = '2026-11-07T22:00:00+08:00'
+        return result
+    session.list_tools = changing
+    with pytest.raises(GatewayError, match='gateway_publication_changed'):
+        asyncio.run(client.prepare())
+    assert not client._accepted
 
 
 @pytest.mark.parametrize('change', ['stamp', 'instance'])
@@ -551,7 +604,19 @@ def test_dynamic_effects_fail_closed(tmp_path, effects):
         asyncio.run(client.call('data_gateway_previously_unknown_action', {}, catalog))
 
 
-@pytest.mark.parametrize('bad_name', ['UpperCase', 'bad-name', 'x' * 51, '', 'a.b'])
+@pytest.mark.parametrize('native_name', ['epri-catalog__describe_service', 'a.b', 'UpperCase', 'x' * 128])
+def test_dynamic_accepts_mcp_tool_names_and_keeps_provider_namespace(tmp_path, native_name):
+    client, session = dynamic_gateway(tmp_path)
+    session.tools[0].name = native_name
+    session.tools[0].value['name'] = native_name
+    catalog = asyncio.run(client.prepare())
+    exposed = 'data_gateway_' + native_name
+    assert catalog['tools'][exposed]['name'] == native_name
+    asyncio.run(client.call(exposed, {}, catalog))
+    assert session.calls[-1] == (native_name, {})
+
+
+@pytest.mark.parametrize('bad_name', ['bad name', 'a/b', 'x' * 129, '', '工具', 'a\n'])
 def test_dynamic_invalid_tool_names_reject_catalog(tmp_path, bad_name):
     client, session = dynamic_gateway(tmp_path)
     session.tools[0].name = bad_name
@@ -708,3 +773,23 @@ def test_handshake_instance_identity_is_bound_and_safely_projected(tmp_path):
     assert 'secret-canary' not in json.dumps(publication)
     instance['instance_id'] = 'another-instance'
     assert asyncio.run(client.prepare())['revision'] != catalog['revision']
+
+
+def test_publication_accepts_additive_metadata_and_refreshes_when_it_changes(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    calling = session.call_tool
+    extension = {'new_service_revision': 'first', 'future_metadata': {'flags': ['supported']}}
+    async def call(name, arguments):
+        from types import SimpleNamespace
+        original = await calling(name, arguments)
+        document = original.model_dump()
+        if name == 'check_gateway_contract':
+            document['structuredContent']['data'].update(copy.deepcopy(extension))
+        return SimpleNamespace(model_dump=lambda **_: copy.deepcopy(document))
+    session.call_tool = call
+    first = asyncio.run(client.prepare())
+    assert first['contract_publication']['future_metadata'] == extension['future_metadata']
+    extension['new_service_revision'] = 'second'
+    second = asyncio.run(client.refresh_catalog(first))
+    assert second['revision'] != first['revision']
+    assert client._accepted[first['revision']] == first

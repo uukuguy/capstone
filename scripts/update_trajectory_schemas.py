@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from grid_agent.trajectory.events import RunEvent
+from pandapower_application.trajectory.events import RunEvent
 
 
 def main() -> None:

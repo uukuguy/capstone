@@ -2,6 +2,34 @@
 
 ## Project snapshot
 
+- Project route: managed
+- Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
+- Active work package: v1.1.0 main release baseline; first CI failed on both platforms; runtime/test repairs verified locally, new CI approval pending.
+- Branch ownership: accepted implementation is on dev. Old PPT and reference
+  research heads are exact archived recovery sources, not active delivery branches.
+  Remaining projection questions belong to the core-evolution design backlog.
+- PPT template library and scoped selection, default State Grid, frozen source/PDF,
+  renderer identity and execution receipts are integrated through PR104.
+
+Session methods are optional versioned preferences, separate from investigation goals.
+Instruction admission freezes the effective preference revision and local exclusions;
+actual skill loading and reports remain instruction-owned. See the
+[guidance design](../superpowers/specs/2026-11-08-adaptive-investigation-guidance-design.md).
+
+The local candidate uses neutral rolling queues and owner-observed lifecycle records.
+Application leaf calls, the private relay and source adapters enforce their own
+bounded capacities. Formal and hosted source calls share an adapter budget through
+opaque leases. Source process start/exit, queue and release records are persisted
+independently of HTTP delivery. Batches group admitted response/SDK-turn calls;
+actual concurrency uses owner clocks, while legacy or remote-unobserved execution
+remains unknown. See the [lifecycle design](../superpowers/specs/2026-11-08-tool-execution-lifecycle-design.md)
+and [verification](../reports/2026-11-08-tool-execution-lifecycle.md).
+
+Gateway discovery uses metadata summaries, selected exact schemas and version-bound
+dispatch. Source connection failure preserves independent metadata work. Planning
+cost and development integration remain separate acceptance concerns. See the
+[gateway verification](../reports/2026-11-07-capstone-progressive-gateway-v1.md).
+
 Tool composition covers independent requests and dependent cursor chains with
 bounded session scheduling. Deployment and validation state belong to the session
 baton and [validation](../reports/2026-11-05-batch-regression.md).
@@ -43,10 +71,27 @@ turns; scientific calculations retain objective Domain Pack/Authority checks.
 
 ## Architecture
 
+The merged development baseline has a separately installable
+`pandapower-application` package for workers,registered entries,composition,
+reports,workspace and trajectory projections. It depends on the Kernel and
+Domain Pack without importing `grid_agent`. The old distribution and CLI are
+removed. Resource storage uses short Thread transactions and a rebuildable
+PostgreSQL projection;pagination is revision-bound and attachment reads have
+a shared byte budget. Runtime identities and stage acceptance are tracked in
+VERSION-CONTROL;cloud scale and overall IG1 acceptance remain separate.
+
 Ownership follows Application → Domain Pack → Kernel → registered Authority.
 Applications select bindings and public projections. Domain Packs own semantic
 execution and policy. The Kernel owns neutral turns, context and trajectory.
 Authorities own models, revisions, numerical results and evidence.
+
+Connected gateway publications build task-admitted capability snapshots. The
+existing discovery index searches names, descriptions and published metadata; exact
+contracts stay provider-owned and are read on demand. The execution model uses
+these capabilities to decompose complex questions into professional actions, with
+bounded exploratory queries for gaps. This adds no fixed business inventory,
+mandatory first action or separate planning model. Published summary fingerprints
+and contract revisions remain distinct.
 
 Native Pi runs general tasks in isolated workspaces. Its source observations do
 not become simulator evidence. Published gateway tools use protected backend
@@ -102,6 +147,10 @@ transcripts previously mixed into this snapshot are preserved byte-for-byte in
 - `GridSourceWorkspace.tsx`, `networkScene.worker.ts`, `networkSceneIndex.ts`: source navigation and bounded large diagrams.
 - `packages/pandapower-domain-pack/`, `packages/pypsa-*-domain-pack/`, `packages/grid-simulator/`, `packages/pypsa-model-authority/`: professional semantics and registered Authorities.
 - [Evolution notebook](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md): secondary research, separate from delivery.
+- `packages/capability-agent-kernel/src/capability_agent/runtime/execution_queue.py`: neutral owner leases and rolling capacity.
+- `packages/capstone-agent/src/capstone_agent/tool_execution_receipt.py`: bounded task/call-bound timing admission.
+- `packages/capstone-app/src/toolExecutionReceipt.ts`: owner-clock timing and concurrency projection.
+
 ## Tool composition boundary
 
 The native composition tool accepts structured independent calls or an isolated
@@ -111,7 +160,9 @@ its actual dependencies. Calls, reuse and skipped outcomes expose host-owned too
 identity. Context helpers share global and tools namespace implementations; datasets
 remain source-referenced arrays. tools.help publishes helper contracts.
 
-The scheduler is shared within one composition session, not across processes.
+Application leaf scheduling is shared by direct and composed calls within one native
+configuration. Relay and source adapters maintain separate process-local owner
+budgets; this is not a distributed semaphore.
 Published read-only operations may overlap; unknown/mutating operations execute
 exclusively. Models still choose semantic dependencies; the host does not rewrite
 arbitrary JavaScript or infer business scope from names.

@@ -308,6 +308,11 @@ def native_context_for(claim, binding):
                                      binding['application_profile']['profile_version'],
                                      policy_variant=entry.variant if entry else 'default')
     tools = set(binding['capability'].get('native_builtin_tools', ()))
+    from .presentation_template_contract import PRESENTATION_LIBRARY_CAPABILITY
+    if (binding['application_profile']['profile_id'] == 'enterprise-research'
+            and binding['capability'].get('presentation_library') == PRESENTATION_LIBRARY_CAPABILITY
+            and {'bash', 'write'} <= tools):
+        tools.add('agent_presentations')
     from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
     diagnosis = binding['capability'].get('systematic_diagnosis')
     if diagnosis == DIAGNOSIS_POLICY:

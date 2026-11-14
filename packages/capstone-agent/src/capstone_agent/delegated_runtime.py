@@ -207,6 +207,10 @@ class DelegatedRuntime:
             messages.append(product_message)
         context = None if context_document is None else BusinessContext.from_document(context_document)
         submission = resources.get('submission')
+        from .session_skill_preferences import method_guidance
+        guidance = method_guidance(submission)
+        if guidance:
+            instruction += '\n\n' + guidance
         selected_input = (submission if submission and submission['input']['kind'] == 'skill_invocation'
                           and (self._direct or goal.get('uses_selected_skill')) else None)
         task_fields = {}
@@ -228,9 +232,16 @@ class DelegatedRuntime:
                 raise HarnessRuntimeConfigurationError('general Pi task schema does not support required context')
         if selected_input is not None and 'input' not in task_fields:
             raise HarnessRuntimeConfigurationError('general Pi task schema does not support selected skill')
+        from .session_skill_preferences import execution_scope
+        skill_scope = execution_scope(submission)
+        if skill_scope is not None:
+            if 'input' not in task_fields:
+                raise HarnessRuntimeConfigurationError('general Pi task schema does not support skill scope')
+            task_fields['skill_scope'] = skill_scope
         from .domain_tool_grant import domain_tool_grant
         granted_tools = domain_tool_grant(
             resources.get('application_catalog'), self._claim.model_context) if task_fields else None
+        structural = resources.get('structural_context') if task_fields else None
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
@@ -239,6 +250,7 @@ class DelegatedRuntime:
             native_context=resources.get('native_context'),
             research_binding=None if self._research_bridge is None else self._research_bridge.binding,
             domain_tools=granted_tools,
+            structural_context=structural,
             **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
@@ -309,6 +321,23 @@ class DelegatedRuntime:
                     pending_tools.pop(tool_call_id, None)
             public_tool = kind in {'tool_execution_start', 'tool_execution_end'} and (
                 isinstance(tool_name, str) and bool(tool_name) and isinstance(tool_call_id, str) and bool(tool_call_id))
+            from .tool_execution_receipt import checked_execution_receipt, checked_dispatch_receipt, checked_tool_batch, checked_investigation_checkpoint
+            investigation_checkpoint = checked_investigation_checkpoint(event.get('investigation_checkpoint'))
+            tool_batch = checked_tool_batch(event.get('tool_batch'), task_id=task_id) if kind == 'tool_batch' else None
+            dispatch_receipt = checked_dispatch_receipt(event.get('dispatch_receipt'),
+                task_id=task_id, call_id=tool_call_id) if kind == 'tool_dispatch' else None
+            raw_result, raw_activity = event.get('result'), event.get('activity')
+            from .gateway_diagnostics import checked_service_bus_calls
+            service_bus_calls = checked_service_bus_calls(raw_activity.get('service_bus_calls')) if (
+                kind == 'tool_execution_end' and isinstance(raw_activity, Mapping)) else None
+            child_service_bus_calls = checked_service_bus_calls(event.get('service_bus_calls')) if (
+                kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end') else None
+            result_details = raw_result.get('details', {}) if isinstance(raw_result, Mapping) else {}
+            raw_receipt = raw_activity.get('execution_receipt') if isinstance(raw_activity, Mapping) else None
+            execution_receipt = checked_execution_receipt(
+                raw_receipt if raw_receipt is not None else
+                result_details.get('execution_receipt') if isinstance(result_details, Mapping) else None,
+                task_id=task_id, call_id=tool_call_id)
             research_branch = kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}
             research_graph_event = kind in {'enterprise_graph_tool_binding', 'enterprise_graph_child_started',
                 'enterprise_graph_child_tool', 'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished'}
@@ -347,7 +376,8 @@ class DelegatedRuntime:
                     except (GridSourceError, ValueError):
                         pass  # Optional presentation metadata cannot block the task.
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
-                'native_type': 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
+                'native_type': 'investigation_checkpoint' if investigation_checkpoint is not None else 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
+                **({'investigation_checkpoint': investigation_checkpoint} if investigation_checkpoint is not None else {}),
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
                 **({'runtime_phase': {key: cast(Mapping, runtime_phase)[key] for key in
                     ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in cast(Mapping, runtime_phase)}}
@@ -360,6 +390,10 @@ class DelegatedRuntime:
                 **({'tool_name': tool_name[:256]} if isinstance(tool_name, str) else {}),
                 **({'tool_call_id': tool_call_id[:256]} if isinstance(tool_call_id, str) else {}),
                 **({'task_progress': event['task_progress']} if isinstance(event.get('task_progress'), Mapping) else {}),
+                **({'dispatch_receipt': dispatch_receipt} if dispatch_receipt is not None else {}),
+                **({'tool_batch': tool_batch} if tool_batch is not None else {}),
+                **({'skill_activity': event['skill_activity']} if isinstance(event.get('skill_activity'), Mapping)
+                    and tool_name == 'agent_skill' and kind == 'tool_execution_end' else {}),
                 **({'source_view': source_view} if source_view is not None else {}),
                 **({'research_cycle': {key: event[key] for key in
                     ('owner', 'attempt_id', 'action_id', 'checkpoint', 'progress') if key in event}}
@@ -370,20 +404,22 @@ class DelegatedRuntime:
                 **({'research_graph_event': {key: event[key] for key in
                     ('type', 'owner', 'attempt_id', 'task_id', 'action_id', 'step_id', 'checkpoint',
                      'tool_call_id', 'tool_name', 'child_id', 'activity', 'tool_activity', 'is_error',
-                     'execution_ms', 'response_number', 'response_ms', 'tool_call_ids', 'tool_requests', 'response_text', 'stop_reason', 'usage', 'status', 'result_summary', 'model_responses', 'turns')
-                    if key in event}} if research_graph_event else {}),
+                     'execution_ms', 'execution_receipt', 'response_number', 'response_ms', 'tool_call_ids', 'tool_requests', 'response_text', 'stop_reason', 'usage', 'status', 'result_summary', 'model_responses', 'turns')
+                    if key in event} | ({'service_bus_calls': child_service_bus_calls} if child_service_bus_calls is not None else {})} if research_graph_event else {}),
                 **({'research_branch': {key: event[key] for key in ('type', 'subordinate', 'owner', 'attempt_id',
                     'parent_action_id', 'parent_step_id', 'parent_tool_call_id', 'child_id', 'title', 'questions',
                     'expected_outputs', 'checkpoint', 'status', 'result_summary', 'error', 'response_number', 'response_ms',
                     'activity', 'tool_activity', 'tool_name', 'tool_call_id', 'is_error') if key in event}} if research_branch else {}),
                 **{key: event[key] for key in ('task_step', 'task_steps', 'task_step_id', 'task_step_number',
                     'step_tool_number', 'task_step_error', 'runtime_step_tracking') if key in event},
-                **({'activity': {key: value[:limit] for key, limit in
+                **({'activity': {**{key: value[:limit] for key, limit in
                     (('operation', 241), ('input_excerpt', 4000), ('output_excerpt', 601), ('warning', 241))
-                    if isinstance((value := cast(Mapping, event.get('activity')).get(key)), str)}}
-                    if isinstance(event.get('activity'), Mapping) else {}),
+                    if isinstance((value := cast(Mapping, event.get('activity') or {}).get(key)), str)},
+                    **({'service_bus_calls':service_bus_calls} if service_bus_calls is not None else {}),
+                    **({'execution_receipt': execution_receipt} if execution_receipt is not None else {})}}
+                    if isinstance(event.get('activity'), Mapping) or execution_receipt is not None else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},
-                visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
+                visibility='public' if tool_batch is not None or dispatch_receipt is not None or public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
         result: PiTaskResult | None = None
@@ -483,6 +519,8 @@ class DelegatedRuntime:
                         sort_keys=True, separators=(',', ':')).encode()).hexdigest()}
                 self._emit(on_event, {'goal_id': goal['goal_id'], 'external_reference_kind': kind,
                                       'reference': reference})
+        if result.failure is not None and result.failure.get('code') == 'native_product_delivery_incomplete':
+            raise GoalReceiptPersistenceError('required report delivery was not confirmed')
         return result.status, result.answer
 
     def bind_artifact_store(self, objects):

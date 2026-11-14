@@ -1,0 +1,28 @@
+{
+  "source": "ecb5781b",
+  "thread_id": "thr_0ec098d622829ff8be3d",
+  "stages": [
+    {
+      "name": "attachment_tool_product",
+      "seconds": 8.178464708849788,
+      "status": "completed"
+    },
+    {
+      "name": "continue",
+      "seconds": 10.223781042266637,
+      "status": "completed"
+    }
+  ],
+  "products": {
+    "architecture-result.txt": {
+      "sha256": "61268608150755ae55eb895baa42d665c6287c426a82938ba83c2a8c5cbcac25",
+      "bytes": 9
+    },
+    "architecture-followup.txt": {
+      "sha256": "75a7953ffaf44b96c20610bc4b588f890e1658dbbdcda2c3282bf570446843de",
+      "bytes": 18
+    }
+  },
+  "restored_completed": true,
+  "scope": "real model, tools, uploaded CSV, saved products, continuation and HTTP snapshot restore; no browser verification"
+}

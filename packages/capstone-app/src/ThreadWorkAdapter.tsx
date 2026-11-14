@@ -28,6 +28,7 @@ import AnswerDetailSheet from './AnswerDetailSheet'
 import AttemptRecordPanel from './AttemptRecordPanel'
 import SessionNewPopover from './SessionNewPopover'
 import type {InputCatalog,InputSubmission,GatewayConnectionStatus} from './threadInput'
+import {composerSubmission} from './threadInput'
 import {sessionTypeNames} from './SessionEntry'
 import ProcessProductWorkspace from './ProcessProductWorkspace'
 import type {ProcessProduct} from './processProducts'
@@ -226,7 +227,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       try{const resources=await transport.readStoredResources(currentId);if(live)setInputCatalog({...value,stored_resources:resources})}catch(cause){rethrowDebugCapacity(cause) /* Keep the existing input catalog available. */}
     }).catch(cause=>{rethrowDebugCapacity(cause);if(live)setInputCatalog(undefined)}).finally(()=>{if(live)setCatalogLoading(false)})
     return()=>{live=false}
-  },[client,currentId,nativeChat,catalogReload,materialRevision])
+  },[client,currentId,nativeChat,catalogReload,materialRevision,snapshot?.sessionSkills?.revision])
   useEffect(() => {
     const refresh=()=>setListReload(value=>value+1)
     window.addEventListener('capstone-session-renamed',refresh)
@@ -360,7 +361,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const payload=command.payload as {text:string}&Partial<InputSubmission>
         setAttachments(files=>files.filter(file=>!payload.attachment_refs?.includes(file.resource_id)))
         setCatalogReload(value=>value+1)
-        const submission=payload.input&&payload.context_selection?{input:payload.input,context_selection:payload.context_selection,...(payload.llm_profile_id===undefined?{}:{llm_profile_id:payload.llm_profile_id}),...(payload.deep_research===undefined?{}:{deep_research:payload.deep_research}),...(payload.resource_profile?{resource_profile:payload.resource_profile}:{}),...(payload.material_refs!==undefined?{material_refs:payload.material_refs}:{}),...(payload.context_product_refs!==undefined?{context_product_refs:payload.context_product_refs}:{})}:undefined
+        const submission=composerSubmission(payload)
         setAcceptedDraft({text:payload.text,commandId:command.command_id,submission})
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message') { drafts.current[selected] = ''; persist(selected) }
@@ -655,6 +656,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       thinkingPreviews={store.thinkingPreviews} instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
       onOpenInstructionProducts={scope=>{markManualView();setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)}}
       onOpenNativeArtifact={nativeChat?openArtifact:undefined}
+      readInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined)return Promise.reject(new Error('附件信息暂不可用。'));return transport.readThreadResource(currentId,{resource_id:file.resource_id,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
+      saveInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined||!file.file_name)return Promise.reject(new Error('附件信息暂不可用。'));return transport.saveThreadResource(currentId,{resource_id:file.resource_id,file_name:file.file_name,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
       onOpenAnswerDetail={nativeChat?()=>setResourcePanelOpen(false):undefined}
       runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation}

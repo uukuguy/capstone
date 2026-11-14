@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { commandRejectionCopy, toolFailureReason } from './threadFeedback'
 
+it.each(['session_skill_unavailable','session_skill_content_changed','session_skill_reselect_required','skill_exclusion_invalid'])('explains how to recover from %s without losing the draft',code=>{
+ expect(commandRejectionCopy(code)).toContain('未执行')
+ expect(commandRejectionCopy(code)).toContain('保留')
+ expect(commandRejectionCopy(code)).toMatch(/重选|重新选择|排除/)
+})
+
 describe('recorded tool failure reasons', () => {
   it('shows the indexed failed subquery and preserves its parent request', () => {
     const summary=toolFailureReason({summary:JSON.stringify({status:'error',provenance:{request_id:'parent'},gaps:[{message:'See subquery',scope:{query_index:1}}],data:[{result:{status:'error',error:{message:'wrong child'}}},{result:{status:'error',gaps:[{reason:'ambiguous_data_source',message:'Select source_id explicitly'}]}}]})})!

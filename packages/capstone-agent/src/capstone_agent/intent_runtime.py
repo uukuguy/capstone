@@ -436,6 +436,11 @@ class IntentRuntimeFactory:
                 if recognized is not None:
                     return recognized
             return self._plan_native_conversation(claim, control, freeze, freeze_decision)
+        from .structural_context import main_chain_native_binding
+        if main_chain_native_binding(claim.submission):
+            # An open model is management context for this chain. It does not
+            # replace the chain with a domain-only route.
+            return self._plan_native_conversation(claim, control, freeze, freeze_decision)
         if claim.attempt.runtime_mode != 'pi_reference' and self._research_router is not None:
             selection = (claim.submission or {}).get('context_selection', {})
             if claim.professional_context.id in selection.get('exclude_refs', ()):
@@ -582,7 +587,9 @@ class IntentRuntimeFactory:
         resources = {'general_executor': general, 'submission': {key: value for key, value in (claim.submission or {}).items() if key != '_materials'},
                      'application_catalog': claim.application_catalog, 'prior_results': []}
         from .native_task_context import native_context_for
+        from .structural_context import structural_context_for
         resources['native_context'] = native_context_for(claim, accepted)
+        resources['structural_context'] = structural_context_for(claim)
         frozen = freeze(claim, {'request': request.to_document(), 'resources': resources})
         if 'engine_identity' in frozen:
             saved = None if freeze_decision is None else freeze_decision(claim, None)
@@ -602,14 +609,21 @@ class IntentRuntimeFactory:
         request_doc['attempt_id'] = claim.attempt.attempt_id
         request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
         request = IntentRequest.from_document(request_doc)
+        source_document = request.to_document()
+        object_refs = list(source_document.get('context_selection', {}).get('include_refs', []))
+        if claim.model_context is not None and any(
+            item.get('object_id') == claim.model_context.id and item.get('model_revision')
+            for item in source_document['objects'] if isinstance(item, Mapping)
+        ):
+            object_refs = list(dict.fromkeys([claim.model_context.id, *object_refs]))
         decision = IntentDecision.from_document({
             'schema': 'capstone-intent-decision/1', 'attempt_id': claim.attempt.attempt_id,
-            'history_cutoff': request.to_document()['history_cutoff'], 'relationship': 'continuation',
+            'history_cutoff': source_document['history_cutoff'], 'relationship': 'continuation',
             'goals': [{'goal_id': 'conversation', 'description': 'Reply to the current user input',
                 'operation': 'answer', 'message_refs': [item['message_id'] for item in request_doc['messages']],
-                'object_refs': request.to_document().get('context_selection', {}).get('include_refs', []),
+                'object_refs': object_refs,
                 'capability_refs': ['general-pi'], 'missing_requirements': [],
-                'depends_on': [], **({'uses_selected_skill': True} if 'selected_skill' in request.to_document() else {})}],
+                'depends_on': [], **({'uses_selected_skill': True} if 'selected_skill' in source_document else {})}],
             'clarification': None}, request)
         if freeze_decision is not None:
             saved = freeze_decision(claim, decision.to_document())
@@ -620,7 +634,8 @@ class IntentRuntimeFactory:
             'conversation': business_context_for(request, decision).to_document()}}
         control.checkpoint()
         return TurnPlan(claim.attempt.turn_id, claim.attempt.attempt_id,
-            'ordinary', 'native_conversation', 'turn-native-conversation-v1', None, {},
+            'ordinary', 'native_conversation', 'turn-native-conversation-v1', None,
+            dict(routing_input_for_claim(claim).context_snapshot),
             intent_request=request, intent_decision=decision, intent_resources=resources)
 
     def _plan_unscoped_research_intent(self, claim, control, freeze, freeze_decision):
@@ -926,7 +941,8 @@ class IntentRuntimeFactory:
             from .delegated_runtime import DelegatedRuntime
             self._check_general_configuration(self._general_resources(claim), resources)
             runtime = DelegatedRuntime(claim, cast(GeneralPiExecutor | None, self._general), self._business)
-            if (claim.model_context is None and self.native_research_root is not None
+            main_chain = plan.source == 'native_conversation'
+            if ((claim.model_context is None or main_chain) and self.native_research_root is not None
                     and not resources.get('assemble_domain_report')):
                 from .native_conversation import NativeResearchRuntime
                 accepted_submission = cast(Mapping, resources.get('submission') or {})

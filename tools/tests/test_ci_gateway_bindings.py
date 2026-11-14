@@ -9,6 +9,24 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = 'packages/capstone-agent/src/capstone_agent/'
 
 
+def test_capability_discovery_and_selection_use_a_focused_gate():
+    paths = [SOURCE + name for name in (
+        'resources/general-tool-discovery.mjs', 'general_pi_server.py',
+        'data_gateway_mcp.py', 'gateway_connections_http.py', 'thread_service.py')]
+    paths += ['packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs',
+              'packages/capstone-agent/tests/test_thread_gateway.py',
+              'packages/capstone-app/src/GatewayStatus.tsx',
+              '.github/workflows/verify.yml', 'tools/ci_scope.py']
+    assert classify(paths) == 'gateway-capabilities'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths, release=True) == 'release'
+    for extra in ['packages/grid-simulator/src/grid_simulator/solver.py',
+                  SOURCE + 'thread_worker.py',
+                  'packages/capstone-app/src/App.tsx',
+                  'packages/capstone-agent/pyproject.toml']:
+        assert classify([*paths, extra]) != 'gateway-capabilities'
+
+
 def test_workflow_environment_has_no_case_insensitive_duplicate_keys():
     import re
     text = (ROOT / '.github/workflows/verify.yml').read_text()
@@ -31,6 +49,22 @@ def test_dynamic_bindings_select_their_direct_consumers():
     assert classify(CHANGES, source_topology=True) == 'gateway-bindings'
     assert classify(CHANGES, target='main') == 'release'
     assert classify(CHANGES, release=True) == 'release'
+
+
+def test_progressive_contracts_keep_a_focused_gateway_gate():
+    paths = [SOURCE + path for path in (
+        'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py',
+        'native_tool_diagnostics.py', 'general_pi_server.py',
+        'resources/general-data-gateway.mjs', 'resources/general-sdk.mjs',
+        'resources/general-tool-discovery.mjs', 'resources/gateway-tool-use.mjs',
+        'resources/tool-composition.mjs')]
+    paths += ['packages/capstone-agent/tests/test_gateway_progressive.py',
+              'packages/capstone-agent/tests/test_native_tool_diagnostics.py',
+              'packages/capstone-agent/tests/test_progress.py',
+              '.github/workflows/verify.yml', 'tools/ci_scope.py']
+    assert classify(paths) == 'gateway-bindings'
+    assert classify(paths, target='main') == 'release'
+    assert classify([*paths, SOURCE + 'thread_worker.py']) != 'gateway-bindings'
 
 
 def test_gateway_scope_includes_only_exact_electrical_view_consumers():
@@ -137,7 +171,7 @@ def test_gateway_setup_is_scoped_and_other_gates_keep_standard_setup():
     workflow = (ROOT / '.github/workflows/verify.yml').read_text()
     block = workflow.split('- name: Set up gateway binding dependencies', 1)[1].split('- name:', 1)[0]
     assert "if: steps.scope.outputs.gate == 'gateway-bindings'" in block
-    for command in ('uv sync --project packages/grid-agent',
+    for command in ('uv sync --project packages/pandapower-application',
                     'uv sync --project packages/capstone-agent',
                     'npm ci --prefix packages/capstone-app'):
         assert command in block

@@ -1,62 +1,62 @@
 # Live Session Checkpoint
 
-Updated 2026-11-06. Active main/tag closeout; not a final handoff.
+User selected v1.1.0 main release/tag and approved ONE first macOS/Linux CI.
+PR105main, remote/firstCIhead21c2ae91;CI43559147625 FINAL failed on both platforms.
+No secondCI approved. Do NOTpush an update to openPR105 until new approval.
 
-User authorized closeout, annotated tag and main integration. One dev PR macOS
-product/governance CI was explicitly approved and has been consumed. No second
-CI approval. Do not push PR updates or rerun CI until new explicit approval.
+## Repair candidate and local evidence
 
-PR94 https://github.com/uukuguy/capstone/pull/94 still OPEN, base dev, remote head
-d416707df6aa196c195a7ebcbeae69c8a8ff11d7. CI42137611817 FAILED after about28m44s:
-applications938/3skip, simulator279/2skip, governance61/2skip passed; backend3142
-passed/197skip,1failure quiet-provider idle count. No merge/tag/deployment occurred.
+Product repairfcc55dbc (local release/v1.1.0), SDK fixture repair153d19ae; final documentation snapshot contains
+final first-CI/repair receipts. Get exact frozen HEAD with git log -1;worktree:
+.worktrees/architecture-retirement-closeout. Rootdev/origin dev8d97596c;
+main/origin main22cd1728. No main merge/tag/deployment yet.
 
-Local candidate branch uukuguy/native-execution-release-20261106 at Orca checkout:
-/Users/sujiangwen/orca/workspaces/capstone/native-execution-release-20261106
-New code/test commit1a0fc847 is NOT pushed. It changes only test_general_pi_executor:
-fixed200ms child quiet period replaced with marker handshake after2idle callbacks;
-original count assertion and5s deadline retained. Controlled300ms callback delay
-reproduced2failures with old test; new handshake passes92related checks in16.13s.
-No production code changed. Earlier code repairs faa9bcc0/6c54b077/a8fbf683 retained.
+First CI Linux job132338703983:one28-concurrent gateway0-debug case failed with
+httpx.ReadError104;3306pass224skip. macOSjob132338704178 failed after47m07s at SDK654pass/1fixed-polling failure.
+Watch32169 finishedexit1;logs and finalJSON in rootruns/release-v1.1.0-20261114.
+No old job remains running.
 
-12original historical receipts existed only in root and were omitted from candidate.
-They are now copied to child with unchanged content; candidate/control and own links
-pass. Include these with final control docs in the next candidate commit. No secrets
-found in copied reports. Local doc/doctor/diff checks must finish before asking approval.
+Exact old test reproduced in isolated Linux3.12 at iteration23. TCP queue default5
+mismatched configured256connection budget. Backlog-only256 comparison60passes.
+fcc55dbc derives request_queue_size=maximum; active handler/gateway/grants unchanged.
+New paused-accept real socket regression oldfails/newpasses;160focused pass32skip;
+3308completebackend pass224skip166.46s;types0;independent review no important issue.
+Prior full make check-release on04f127e4 passed26m56s and App build passed. This
+is not a claim of a new full aggregate onfcc55dbc; nextCI must cover full newsource.
 
-Earlier local release scope passed as split components (not one clean aggregate):
-backend3143/197skip,App1527,Kernel663,E2E39,workers3,workbench156,
-static7/10/8,application2,matrix24/24,package-artifacts/source-setup/build/doctor pass.
-Two original local failed receipts remain; first CI failure remains separate.
-Independent review P2 unbounded diagnostics fixed6c54; followup no new finding.
+Actual repair canonical rebuild ready: backendAPI/3workers all9ff628878972266ea0839b5ed7c9da93267cbbdd8da6274029e5edfcc676732a;
+native386b5cbaeb6c0ef15a155ed6a151c306fa34dd25e0c84dce164c13194f63c7a2;
+layers62/37, scoped cleanup applied. Actual newLinux image60loops pass while
+stdlibqueue5/productqueue256 asserted. Real threadthr_13779becc0580257e718,
+repaircontinuation12.27s;8new artifact records and47historical PPT downloads hashmatch.
+App5174fcc55dbc1.1.0clean;defaultApp5173stillrootdev8d, temporary difference recorded.
+Reports:docs/reports/2026-11-14-v1.1.0-release.md and receipts/*v1.1.0*.json.
+Durable ignored logs:rootruns/release-v1.1.0-20261114. Newgraph nodefcc55dbc,
+6deployment references exact;no crossings/overflow. Existingbrowsercapstone-unified,
+graphserver18744. Rootcanonical register owneddev;main snapshot remainsrelease doc.
 
-Root checkout remains dev6c55e6ee and main0b68c607; remote dev/main unchanged.
-Root mixed work preserved, normal index empty. root-alignment-audit.json identifies
-128paths matching candidate+incoming,17matching incoming before repairs,5candidate
-only,18independent historical documents/template paths. Recompute before any sync.
-Do NOT stash/apply blindly or overwrite old source onto new repairs. On successful
-future dev merge, preserve complete recovery snapshot and independent paths before
-fast-forwarding actual dev. Ignored runtimes,var,data,auth must remain untouched.
+## Next action
 
-Private logs in root .capstone-agent/release-closeout-20261106/:
-dev-ci-receipt.json,dev-ci-failed.log,idle-scheduling-red.log (2fail),
-idle-scheduling-green.log (92pass),ci-authorization.json,missing-receipts-paths.json,
-local-summary.json, earlier failed/passing gate logs and PR body drafts.
+153d19ae repairs onlygeneral-sdk-graph.test.mjs:controlled400msstartup reproduces
+oldfailure427ms;publicwaitForDecision/test-signalledevents pass449ms. Astartup
+gate,Ccompletionevent replace polling;allA/B/Cordering,Bstillrunning,Cinputs,
+cancellation/cleanup assertions retained. Adjacent samepollfixture also fixed.
+CompleteSDK655/65516.86s,parentfocused2/2;productionJSunchanged.
 
-Docs/control snapshot updated in actual dev root and child; links/symlink,
-diff,doctor and1920px browser/source edges verified. Final documentation commit
-follows1a0fc847 and includes12unchanged receipts. Only append-only commit journal
-receipt may remain uncommitted until next state commit. Temporary server stopped;
-browser restored to5173. Root dev source/HEAD still unchanged.
-Next ask approval for second dev PR macOS product/governance CI, estimate25–35min
-(first28m44s). Do not update PR/body/head before approval. After it passes, merge
-through PR without bypass, synchronize actual dev preserving mixed work and record
-actual merge/control. Main PR full macOS+Linux release CI needs separate explicit
-approval. Tag exact accepted main merge only after passing main gate; suggested
-milestone-native-execution-20261106-<short-main-merge-sha>, no deployment tag.
+Finish docs-only verification and clean freeze, then ask explicit approval for
+ONE second full macOS/Linux releaseCI on newcandidate (make check-release build-capstone-app).
+First CI is complete; no old task remains to cancel. ExpectednextCI45–60minutes,
+queue extra. No automatic retry, merge or tag before acceptance.
+FirstMacfailure was collected and repaired locally before approval. After
+newbothpass,normalmainPRmerge,asserttreeidentity,annotatedv1.1.0
+tag exactacceptedmain;returnrelease/controlchanges throughdevPRwithseparateCIapproval.
+No push/tag-trigger workflows exist;onlyPR/manualverify andmanualissueautomation.
 
-Root local-dev stays984131e3 (API/workerscb6678d6,native200f8447),AppPID91545 fixed
-batch-regression app5173→8767. 63/66 lastknown367374aa+overlay255c8855,disconnected,
-untouched. Gateway missing grid_database external assistance stays open.
-Current own browser sessionoffapp tab on5173; reuse it for control snapshot and
-restore it afterwards. Original temporary18976server was stopped. No user tabs close.
+## Preservation and rejected paths
+
+Rootdirtyuser/controlfiles preserved; no var/auth/docx/png/archive deletion.
+Task-owned audit receipts/control copied selectively; no bulk user-doc migration.
+Existing preservedrootstash34e4e74d0d8b5933e50d756f50854f043dc73867.
+GitHubClash127.0.0.1:7897;Dockerhost.docker.internal:7897.
+Do not revive grid-agent CLI or withdrawn fataldebug SDK change:4d57c083per-call
+repair policy remains;general-sdk.mjsunchanged. SDK655/PPT69originallocalpass.

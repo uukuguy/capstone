@@ -50,7 +50,10 @@ class _RuntimeCatalogExecutor(GridctlExecutor):
                 sha256(source_executable.read_bytes()).hexdigest(),
                 tuple(sorted(self._environment.items())), self.max_output_bytes)
 
-    def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:
+    def invoke(self, capability: str, arguments: dict[str, object], *, execution_observer=None, execution_lease=None) -> dict[str, object]:
+        if execution_observer is not None or execution_lease is not None:
+            return super().invoke(capability, arguments,
+                execution_observer=execution_observer, execution_lease=execution_lease)
         if capability != 'environment.describe' or arguments or self._catalog_key is None:
             return super().invoke(capability, arguments)
         global _environment_key, _environment_document

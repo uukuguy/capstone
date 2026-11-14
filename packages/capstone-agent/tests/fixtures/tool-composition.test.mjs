@@ -1,4 +1,18 @@
 import test from 'node:test';
+
+test('composition reports completed dispatches across success, reuse and local failure',()=>fixture(async cwd=>{
+ const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};
+ const t=tool(cwd,async()=>native({status:'ok',rows:[1]}),{catalog:declared});
+ const call={tools:['read'],program:`await tools.call('read',{id:1});return 'ok';`};
+ const first=await t.execute('first',call);
+ assert.equal(first.details.completed_leaf_calls,1);
+ const reuse=await t.execute('reuse',call);
+ assert.equal(reuse.details.completed_leaf_calls,0);
+ const failed=await t.execute('failure',{tools:['read'],program:`await tools.call('read',{id:2});throw Error('processing');`});
+ assert.equal(failed.isError,true);
+ assert.equal(failed.details.kind,'capstone-tool-composition/1');
+ assert.equal(failed.details.completed_leaf_calls,1);
+}));
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -10,6 +24,87 @@ import {createGatewayUseLedger} from '../../src/capstone_agent/resources/gateway
 import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
+
+for(const local of ['return {index:tools.inspect(r.ref)};',
+ 'return {text:JSON.stringify(tools.read(r.ref,"/data"))};',
+ 'const fields=tools.read(r.ref,"/data");return Object.keys(fields);']){
+ test('unawaited observation helpers fail explicitly and retain completed source calls: '+local,()=>fixture(async cwd=>{
+  let calls=0;const t=tool(cwd,async()=>{calls++;return native({value:7});});
+  const result=await t.execute('forgot-await',{tools:['read'],program:`const r=await tools.call('read',{});${local}`});
+  assert.equal(result.isError,true);
+  const body=JSON.parse(result.content[0].text);
+  assert.match(body.message,/composition_unawaited_helper/);assert.match(body.message,/await/);
+  assert.equal(body.completed_calls.length,1);assert.equal(calls,1);
+  const restored=await t.execute('recover-await',{tools:[],program:`return await tools.read(${JSON.stringify(body.completed_calls[0].ref)},'/data/value');`});
+  assert.equal(restored.isError,false);assert.equal(JSON.parse(restored.content[0].text).result,7);
+  assert.equal(calls,1);
+ }));
+}
+
+test('discarded source handles drain before failure and remain recoverable',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>{calls++;await new Promise(resolve=>setTimeout(resolve,10));return native({value:7});});
+ const result=await t.execute('discarded',{tools:['read'],program:`tools.call('read',{});return 'finished';`});
+ assert.equal(result.isError,true);const body=JSON.parse(result.content[0].text);
+ assert.match(body.message,/composition_unawaited_helper/);assert.equal(body.completed_calls.length,1);assert.equal(calls,1);
+}));
+
+test('unawaited batches drain issued calls without claiming success or retrying',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>native({value:++calls}));
+ const result=await t.execute('batch-discarded',{tools:['read'],program:`tools.batch([{tool:'read',arguments:{i:1}},{tool:'read',arguments:{i:2}}]);return 'finished';`});
+ assert.equal(result.isError,true);const body=JSON.parse(result.content[0].text);
+ assert.match(body.message,/composition_unawaited_helper/);assert.equal(body.completed_calls.length,2);assert.equal(calls,2);
+}));
+
+test('Promise combinators and progress prints keep their supported behavior',()=>fixture(async cwd=>{
+ const progress=[];const t=tool(cwd,async()=>native({value:7}),{onProgress:text=>progress.push(text)});
+ const result=await t.execute('awaited',{tools:['read'],program:`
+ const values=await Promise.all([tools.call('read',{}).then(r=>r.data.value).finally(()=>{}),
+  tools.python('import json,sys;print(json.load(sys.stdin))',8)]);
+ print('bounded progress');return values;`});
+ assert.equal(result.isError,false);assert.deepEqual(JSON.parse(result.content[0].text).result,[7,'8\n']);
+ assert.deepEqual(progress,['bounded progress']);
+}));
+
+test('private Python helper has identical global/tools entry points and discoverable contracts',()=>fixture(async cwd=>{
+ let upstream=0;
+ const t=tool(cwd,async()=>{upstream++;return native({});});
+ const result=await t.execute('python-alias',{tools:[],program:`
+ const answer=await tools.python('import json,sys; print(json.dumps(json.load(sys.stdin)))',{items:[1,2,3]});
+ return {same:tools.python===python,answer:JSON.parse(answer),help:tools.help()};`});
+ assert.equal(result.isError,false,JSON.stringify(result));
+ const value=JSON.parse(result.content[0].text).result;
+ assert.equal(value.same,true);assert.deepEqual(value.answer,{items:[1,2,3]});
+ assert.match(value.help.python,/JSON stdin/);
+ assert.match(value.help.describe,/exact/);
+ assert.match(value.help.follow,/issued/);
+ assert.equal(upstream,0);
+}));
+
+test('application selects eight rolling composition slots',()=>{
+ assert.equal(compositionPolicy.concurrency,8);
+});
+
+test('reference pipeline fetches once and analyzes remotely without returning source rows',()=>fixture(async cwd=>{
+ const declared=structuredClone(catalog);let fetches=0;const analyses=[];
+ const rows=[2,4,6]; // Test server-owned data, never returned by its tools.
+ const t=tool(cwd,async(_name,args)=>{
+  if(args.operation==='fetch'){fetches++;return native({dataset_ref:'dataset:one'});}
+  assert.equal(args.dataset_ref,'dataset:one');analyses.push(args.operation);
+  return native({result_ref:'result:'+args.operation,summary:args.operation==='sum'?rows.reduce((a,b)=>a+b,0):rows.length});
+ },{catalog:declared});
+ const response=await t.execute('reference-chain',{tools:['read'],program:`
+ const source=await tools.call('read',{operation:'fetch'});
+ return tools.map(['sum','count'],async operation=>{
+  const result=await tools.call('read',{operation,dataset_ref:source.data.dataset_ref});
+  return result.data;
+ });`});
+ assert.equal(response.isError,false,JSON.stringify(response));
+ const body=JSON.parse(response.content[0].text);
+ assert.equal(fetches,1);assert.deepEqual(analyses.sort(),['count','sum']);
+ assert.deepEqual(body.result,[{result_ref:'result:sum',summary:12},{result_ref:'result:count',summary:3}]);
+ assert.equal(body.completed_calls.length,3);
+ assert.equal(response.content[0].text.includes('"rows"'),false);
+}));
 
 test('one pipeline plans exact calls, reuses observations, validates mappings and publishes only valid tables',()=>fixture(async cwd=>{
  const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};let count=0;
@@ -288,7 +383,9 @@ test('follow honors returned wait and rejects actions from failed observations',
 }));
 
 test('selection, program calls and describe share source and registration identities',()=>fixture(async cwd=>{
-  const actual={revision:'identity',tools:{transport_alpha:{name:'source_alpha',inputSchema:{type:'object'},description:'Alpha'},
+  const actual={revision:'identity',tools:{transport_alpha:{name:'source_alpha',inputSchema:{type:'object'},description:'Alpha',
+    outputSchema:{type:'object',properties:{job_state:{type:'string'}}},
+    _meta:{usage:{purpose:'Inspect saved progress',execution:'Status reads do not advance the job'}}},
     transport_beta:{name:'source_beta',inputSchema:{type:'object'},description:'Beta'}}};
   for(const selected of ['source_alpha','transport_alpha']){
     const issued=[];
@@ -296,6 +393,8 @@ test('selection, program calls and describe share source and registration identi
       tools:[selected,'source_alpha'],program:`
         if(tools.describe('source_alpha').name!=='source_alpha')throw Error('Source contract lost');
         if(tools.describe('transport_alpha').name!=='source_alpha')throw Error('Registered contract lost');
+        if(tools.describe('source_alpha')._meta.usage.execution!=='Status reads do not advance the job')throw Error('Usage lost');
+        if(tools.describe('transport_alpha').outputSchema.properties.job_state.type!=='string')throw Error('Output schema lost');
         await tools.call('source_alpha',{});return await tools.call('transport_alpha',{});`});
     assert.equal(result.isError,false,JSON.stringify(result));
     assert.deepEqual(issued,['transport_alpha','transport_alpha']);

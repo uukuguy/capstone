@@ -177,10 +177,15 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
         assert observation['metadata']['source_ref'] in cache.records
 
 
+def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_path, monkeypatch):
+    test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
+        tmp_path, monkeypatch, '1.20.0', False, False, domain_available=True)
+
+
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 @pytest.mark.parametrize('choice', [None, False, True])
 @pytest.mark.parametrize('experimental_llm_pool', [False, True])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool):
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False):
     if choice is not None and version != '1.20.0':
         pytest.skip('Explicit UI control is verified against the current publication')
     import json
@@ -198,6 +203,11 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         'data_gateway_discover_network_models': {'name': 'discover_network_models'},
         'data_gateway_other': {'name': 'other'}}}}
     gateway_publication['catalog']['entry_tools'] = ['data_gateway_discover_network_models', 'data_gateway_other']
+    gateway_publication['catalog']['providers'] = [
+        {'id': 'visible-provider', 'self_description': {'version': 'provider-description/1', 'purpose': 'VISIBLE_PROVIDER_RULE'}},
+        {'id': 'hidden-provider', 'self_description': {'version': 'provider-description/1', 'purpose': 'HIDDEN_PROVIDER_RULE'}}]
+    for name, provider in [('data_gateway_discover_network_models', 'visible-provider'), ('data_gateway_other', 'hidden-provider')]:
+        gateway_publication['catalog']['tools'][name]['_meta'] = {'data-gateway/capability': {'provider_id': provider}}
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities(),
         'data_gateway': gateway_publication, 'tool_composition': COMPOSITION_POLICY,
@@ -236,7 +246,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         raise Captured()
     monkeypatch.setattr(module, 'native_pi_launch', launch)
     from capstone_agent import domain_tool_client
-    monkeypatch.setattr(domain_tool_client, 'load_domain_tool_catalogs', lambda _: ({}, {}, []))
+    domain_catalog = {'tools': {'pack_inspect': {'description': 'Inspect registered data', 'inputSchema': {'type': 'object'}}}}
+    monkeypatch.setattr(domain_tool_client, 'load_domain_tool_catalogs',
+        lambda _: (domain_catalog, {}, ['fixture-pack@1']) if domain_available else ({}, {}, []))
     monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
@@ -253,7 +265,10 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     runner.environment_context = 'HOST VERIFIED ENVIRONMENT: offline libraries and report renderer'
     gateway_bindings = []
     runner.gateway = SimpleNamespace(publication=lambda: gateway_publication,
-        bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None)
+        bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None,
+        contract_context=lambda _: {'catalog_revision': 'catalog-revision', 'instance_id': 'instance',
+            'sections': [{'tool': 'data_gateway_discover_network_models', 'section': 'usage',
+                'contract_revision': 'contract-r', 'data': {'usage': 'EXACT_CONTRACT_DATA'}}]})
     ready = threading.Event()
     ready.set()
     runner.bind_research_reader(lambda _: SimpleNamespace(root=tmp_path / 'channel', ready=ready))
@@ -268,21 +283,50 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert task not in runner.task_llm_profiles
     assert runner.relay.timings == {}
     actual = captured[0]['researchRuntime']
-    domain_status = next(item['content'] for item in captured[0]['contextFiles']
-                         if item['path'] == 'unavailable-domain-tools')
-    assert 'fixture-pack@1' in domain_status
-    assert 'unavailable' in domain_status
-    assert 'not evidence that source data is absent' in domain_status
-    assert 'domainTools' not in captured[0]
+    if domain_available:
+        assert captured[0]['domainTools']['onDemandTools'] is True
+        assert captured[0]['domainTools']['catalog'] == domain_catalog
+        assert {'pack_inspect', 'agent_tool_search', 'agent_tool_load'} <= set(captured[0]['applicationPolicy']['allowed_tools'])
+    else:
+        domain_status = next(item['content'] for item in captured[0]['contextFiles']
+                             if item['path'] == 'unavailable-domain-tools')
+        assert 'fixture-pack@1' in domain_status
+        assert 'unavailable' in domain_status
+        assert 'not evidence that source data is absent' in domain_status
+        assert 'domainTools' not in captured[0]
     assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
+    cached_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'gateway-contract-context')
+    assert 'gateway-contract-context/index.json' in cached_context
+    assert 'EXACT_CONTRACT_DATA' not in cached_context
+    assert 'not live source availability' in cached_context
+    assert 'scope.executed true means the statement was cancelled' not in gateway_context
+    assert 'When no next action is returned, select the next operation from the current published contract' in gateway_context
+    assert 'A successful tool call does not prove that its job succeeded' in gateway_context
+    assert 'use this connected gateway capability snapshot to decompose' in gateway_context
+    assert 'Missing capability metadata remains unknown' in gateway_context
+    assert 'Structured table queries are also a fallback' not in gateway_context
+    assert 'Use native SQL as advanced exploration only when no admitted tool' not in gateway_context
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
     assert captured[0]['dataGateway']['onDemandTools'] is True
     assert catalog['entry_tools'] == ['data_gateway_discover_network_models']
     guidance = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-data-gateway-guidance')
     assert 'SERVICE_GUIDANCE_SENTINEL' in guidance
+    provider_context = next(item['content'] for item in captured[0]['contextFiles']
+                            if item['path'] == 'registered-data-gateway-provider-guidance')
+    assert 'VISIBLE_PROVIDER_RULE' in provider_context
+    assert 'HIDDEN_PROVIDER_RULE' not in provider_context
+    assert len(catalog['providers']) == 1
+    if version == '1.20.0' and choice is None and not experimental_llm_pool:
+        import subprocess
+        sdk_config_path = tmp_path / 'provider-sdk-config.json'
+        sdk_config_path.write_text(json.dumps(captured[0]))
+        fixture = Path(__file__).parent / 'fixtures/provider-guidance-sdk.mjs'
+        checked = subprocess.run(['node', str(fixture), str(sdk_config_path)],
+                                 capture_output=True, text=True, timeout=30)
+        assert checked.returncode == 0, checked.stderr
     assert 'only after selecting this service as relevant' in guidance
     assert 'do not determine which service to select' in guidance
     assert 'Do not query this service merely because another capability is unavailable' in gateway_context
@@ -301,12 +345,13 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'For an inventory request' in gateway_context
     assert 'leading index prefix the tool reports' in gateway_context
     assert 'Compose published data_gateway_ tools' in gateway_context
-    assert 'Structured table queries are also a fallback' in gateway_context
+    assert 'current published access-selection policy' in gateway_context
+    assert 'When no suitable dedicated operation can express the needed analysis' in gateway_context
     assert 'One unavailable tool does not make other business tools unavailable' in gateway_context
     assert 'Do not issue a probe only to validate input schemas' in gateway_context
     assert 'independently of menu activation' in gateway_context
-    assert 'native SQL as advanced exploration' in gateway_context
-    assert 'suspected tool defect' in gateway_context
+    assert 'Use admitted SQL only within its published read-only scope' in gateway_context
+    assert 'For a suspected defect' in gateway_context
     assert 'actual observation reference' in gateway_context
     assert 'DATASOURCE_ID' not in gateway_context
     assert 'summary/default arguments' in gateway_context
@@ -780,7 +825,7 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     assert isinstance(state['observed_at_ms'], int)
     capacity = json.loads((root / 'tasks' / request.task_id / '.runtime-capacity.json').read_text())
     assert capacity['execution']['timeout_seconds'] == request.timeout_seconds
-    assert capacity['dimensions']['gateway_relay_task_requests']['effective'] == 4
+    assert capacity['dimensions']['gateway_relay_task_requests']['effective'] == 8
     assert capacity['dimensions']['mcp_call_count']['effective'] == 0
 
 
@@ -905,6 +950,9 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
             return self.snapshot()
         def refresh(self):
             return {**self.snapshot(), 'checking': True}
+        def reload_contract(self):
+            self.current_access.catalog = {'tools': {}, 'revision': 'refreshed'}
+            return {**self.snapshot(), 'checking': True}
 
     class Runner:
         gateway_registry = Registry()
@@ -933,6 +981,7 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
         assert runner.gateway.name == 'second'
         assert client.capability['data_gateway']['identity']['instance_name'] == 'second'
         assert client.control_gateway_connections('refresh', {})['checking'] is True
+        assert client.capability['data_gateway']['catalog']['revision'] == 'refreshed'
         # A selected service may recover after startup failed. Health prepares
         # its access independently; publication applies only when idle.
         runner.gateway = None
@@ -1029,6 +1078,24 @@ def test_private_frame_failure_has_fixed_operator_reason(tmp_path, message, reas
     assert record['reason_code'] == reason
 
 
+def test_host_publishes_owner_receipt_in_bounded_tool_activity(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from test_tool_execution_receipt import receipt
+    value = receipt()
+    value.update(task_id='t1', call_id='call-1')
+    def run(request, cancelled, emit):
+        emit({'type': 'tool_execution_end', 'toolName': 'published', 'toolCallId': 'call-1',
+              'result': {'details': {'execution_receipt': value}}})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('t1', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert host.read('t1')['events'][0]['activity']['execution_receipt'] == value
+
+
 def test_sources_reference_actual_host_observed_tool_results(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, cancelled, emit):
@@ -1107,6 +1174,71 @@ def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp
         assert 'nodes' not in hints[0]
 
 
+@pytest.mark.parametrize('forged',[False,True])
+@pytest.mark.parametrize('failed',[False,True])
+def test_service_bus_public_event_uses_host_issued_receipt(tmp_path,forged,failed):
+    import asyncio
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from test_data_gateway_relay import access,request as gateway_request
+    gateway=access()
+    async def call(*args,**kwargs):
+        return {'isError':failed,'structuredContent':{'status':'error' if failed else 'success',
+            'provenance':{'service_bus_calls':{'scope':'current_tool_call','attempt_count':17,
+                'response_count':16,'details_truncated':True,'details':[]}},
+            'data':{'service_bus_calls':{'scope':'job_business_fetch','attempt_count':999}}}}
+    gateway.client.call=call
+    class Runner:
+        def __call__(self,task,cancelled,emit):
+            gateway.bind(task.task_id,task.parent_attempt_id,set(gateway.catalog['tools']))
+            response=asyncio.run(gateway.call(task.task_id,gateway_request()))
+            details=response['observation']
+            if forged:details={**details,'service_bus_calls':{**details['service_bus_calls'],'attempt_count':999}}
+            emit({'type':'tool_execution_end','toolName':gateway_request()['name'],
+                'toolCallId':gateway_request()['call_id'],'isError':failed,'result':{
+                    'content':[{'type':'text','text':response['result_json']}],'details':details}})
+            return 'Answer',{}
+    runner=Runner();runner.gateway=gateway
+    host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=runner)
+    task=PiTaskRequest('service-bus-task','service-bus-attempt','direct','Read source',(),(),host.identity,2)
+    host.submit(task)
+    deadline=time.monotonic()+2
+    while host.read(task.task_id)['status']=='running' and time.monotonic()<deadline:time.sleep(.005)
+    saved=host.read(task.task_id)
+    assert saved['result']['status']==('failed' if forged else 'completed')
+    calls=[event['activity']['service_bus_calls'] for event in saved['events']
+        if isinstance(event.get('activity'),dict) and 'service_bus_calls' in event['activity']]
+    assert len(calls)==(0 if forged else 1)
+    if calls:assert calls[0]['attempt_count']==17 and calls[0]['reused'] is False
+
+
+@pytest.mark.parametrize('success',[False,True])
+def test_failed_requested_render_cannot_become_completed_prose(tmp_path,success):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from hashlib import sha256
+    class Runner:
+        def __call__(self,request,cancelled,emit):
+            emit({'type':'tool_execution_start','toolName':'agent_presentations','toolCallId':'deck',
+                'args':{'operation':'render','document':{'spec':'slides.json','output':'report.pptx','pdf':False}}})
+            if success:
+                workspace=tmp_path/'tasks'/request.task_id;workspace.mkdir(parents=True,exist_ok=True)
+                (workspace/'report.pptx').write_bytes(b'saved renderer output')
+            emit({'type':'tool_execution_end','toolName':'agent_presentations','toolCallId':'deck',
+                'isError':not success,'result':{'details':{'capability':'agent_presentations','ok':success,
+                    'result':{'schema':'capstone-presentation-library-render/1','output':'report.pptx',
+                        'output_sha256':sha256(b'saved renderer output').hexdigest()}}}})
+            return 'I will fix the report.',{}
+    host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=Runner())
+    request=PiTaskRequest('report-failure','attempt','direct','Render saved report',(),(),host.identity,2)
+    host.submit(request)
+    deadline=time.monotonic()+2
+    while host.read(request.task_id)['status']=='running' and time.monotonic()<deadline:time.sleep(.005)
+    result=host.read(request.task_id)['result']
+    assert result['status']==('completed' if success else 'failed')
+    if not success:
+        assert result['failure']['code']=='native_product_delivery_incomplete'
+        assert not result['answer']
+
+
 @pytest.fixture
 def small_answer_envelope():
     from capstone_agent.application_capacity import initialize_capacity
@@ -1140,6 +1272,7 @@ def test_verified_electrical_descriptor_keeps_v2_open_arguments():
 
 def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path):
     import ast
+    from capability_agent.runtime import execution_queue
     from hashlib import sha256
     from pathlib import Path
     import capstone_agent.general_pi_server as server_module
@@ -1160,7 +1293,8 @@ def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path
         'resources/gateway-electrical-view-v2.schema.json').read_bytes())
     # Exercise the exact production hash expression without starting services.
     compiled = compile(ast.Expression(expression), '<executor_revision>', 'eval')
-    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py')}
+    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py'),
+                 'execution_queue': execution_queue}
     before = eval(compiled, namespace)
     schema.write_bytes(schema.read_bytes() + b'\n')
     assert eval(compiled, namespace) != before
@@ -1409,3 +1543,37 @@ def test_terminal_receipt_failure_settles_and_prevents_replay(tmp_path, monkeypa
     restarted = GeneralPiHost(root=tmp_path, identity=host.identity, run_task=run)
     restarted.submit(request)
     assert calls == ['t1']
+
+
+@pytest.mark.parametrize('requested_tool,accepted', [('data_gateway_bound_only', True), ('data_gateway_default_only', False)])
+def test_admission_uses_bound_gateway_catalog_instead_of_default(tmp_path, monkeypatch, requested_tool, accepted):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.native_task_context import POLICY_TEXT
+    class Admitted(Exception):
+        pass
+    catalog = {'revision': 'bound-revision', 'tools': {'data_gateway_bound_only': {}}}
+    access = SimpleNamespace(publication=lambda: {'available': True, 'catalog': catalog},
+                             frozen_catalog=lambda revision: catalog if revision == 'bound-revision' else {})
+    bindings = []
+    def access_for(connection, instance):
+        bindings.append((connection, instance))
+        return connection, access
+    def runner(*args):
+        raise AssertionError('Admission test must not execute a task')
+    runner.gateway_registry = SimpleNamespace(access_for=access_for)
+    runner.gateway_publication = {'available': True, 'catalog': {'tools': {'data_gateway_default_only': {}}}}
+    host = module.GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=runner)
+    native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+        'allowed_tools': [requested_tool], 'external_lookup_enabled': False},
+        'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False,
+        'gateway_binding': {'connection_id': 'selected', 'instance_id': 'bound-instance', 'catalog_revision': 'bound-revision'}}
+    request = PiTaskRequest('bound-admission', 'attempt', 'direct', 'Explain', (), (), host.identity, 2,
+        business_context=BusinessContext.empty('workspace', 0),
+        resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Explain'}, native_context=native)
+    monkeypatch.setattr(host, '_make_room', lambda: (_ for _ in ()).throw(Admitted()))
+    with pytest.raises(Admitted if accepted else ValueError):
+        host.submit(request)
+    assert bindings == [('selected', 'bound-instance')]

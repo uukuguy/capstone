@@ -100,7 +100,7 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
     payload = command['payload']
     if {'professional_resource', '_professional_backend', '_professional_selection'} & payload.keys():
         return None, 'input_invalid'
-    if not {'input', 'context_selection', 'resource_profile', 'context_product_refs', 'deep_research', 'llm_profile_id'} & payload.keys():
+    if not {'input', 'context_selection', 'resource_profile', 'context_product_refs', 'deep_research', 'llm_profile_id', 'excluded_session_skills'} & payload.keys() and not (snapshot.session_skills or {}).get('skills'):
         return None, None  # Existing clients retain their accepted legacy contract.
     context = snapshot.active_model_context
     selected = payload.get('resource_profile')
@@ -122,6 +122,17 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
     try:
         submission = validate_submission(payload, mode=snapshot.runtime_mode,
             objects=catalog['objects'], profiles=catalog['resource_profiles'])
+        if (snapshot.session_skills or {}).get('revision') or 'excluded_session_skills' in payload:
+            from .session_skill_preferences import freeze_preferences
+            try:
+                submission['session_skills'] = freeze_preferences(snapshot.session_skills,
+                    profiles=catalog['resource_profiles'], mode=snapshot.runtime_mode,
+                    excluded=payload.get('excluded_session_skills', []))
+                if (submission['input']['kind'] == 'skill_invocation'
+                        and submission['input']['skill_id'] in submission['session_skills']['excluded']):
+                    raise InputRejected('session_skill_selection_conflict')
+            except ValueError as error:
+                raise InputRejected(str(error)) from error
         submission['model_context'] = None if context is None else context.to_document()
         return submission, None
     except InputRejected as error:

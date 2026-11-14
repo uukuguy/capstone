@@ -5,6 +5,33 @@ from test_data_gateway_relay import access,request
 
 CONTEXT={'task_id':'study-1','run_id':'revision-2','trace_id':'trace-2','parent_span_id':'step-3'}
 
+def test_service_bus_counts_use_current_call_not_job_or_detail_length():
+    from capstone_agent.gateway_diagnostics import service_bus_calls
+    value=service_bus_calls({'structuredContent':{
+        'provenance':{'service_bus_calls':{'scope':'current_tool_call','attempt_count':23,
+            'response_count':22,'history_complete':True,'details_truncated':True,
+            'observed_elapsed_ms':None,'details':[{'service':'query','method':'read',
+                'elapsed_ms':12.5,'status':'response','sql':'private','password':'secret'}]}},
+        'data':{'service_bus_calls':{'scope':'job_business_fetch','attempt_count':999}}}})
+    assert value['attempt_count']==23 and value['response_count']==22
+    assert value['observed_elapsed_ms'] is None and value['details_truncated'] is True
+    assert value['details']==[{'service':'query','method':'read','elapsed_ms':12.5,'status':'response'}]
+    assert 'private' not in str(value) and 'secret' not in str(value)
+
+@pytest.mark.parametrize('count',[True,-1,1.5,'3',float('inf')])
+def test_invalid_service_bus_count_stays_unknown(count):
+    from capstone_agent.gateway_diagnostics import service_bus_calls
+    assert 'attempt_count' not in service_bus_calls({'structuredContent':{'provenance':{
+        'service_bus_calls':{'scope':'current_tool_call','attempt_count':count}}}})
+
+def test_service_bus_zero_is_distinct_from_missing_and_wrong_scope():
+    from capstone_agent.gateway_diagnostics import service_bus_calls
+    assert service_bus_calls({'structuredContent':{'provenance':{'service_bus_calls':{
+        'scope':'current_tool_call','attempt_count':0}}}})['attempt_count']==0
+    assert 'attempt_count' not in service_bus_calls({})
+    assert 'attempt_count' not in service_bus_calls({'structuredContent':{'provenance':{
+        'service_bus_calls':{'scope':'job_business_fetch','attempt_count':999}}}})
+
 def test_admitted_work_is_stable_across_revision_runs():
     from capstone_agent.gateway_diagnostics import research_diagnostics
     binding={'cycle_owner':{'work_id':'work-study'}}
@@ -25,8 +52,9 @@ def test_client_injects_meta_without_changing_business_arguments(tmp_path):
         return await original(name,arguments)
     session.call_tool=call
     catalog=asyncio.run(client.prepare())
-    result=asyncio.run(client.call('data_gateway_discover_data_capabilities',{},catalog,diagnostics=CONTEXT))
-    assert captured==[{'gateway/diagnostics':CONTEXT}]
+    context={**CONTEXT,'client_call_id':'host-leaf-1'}
+    result=asyncio.run(client.call('data_gateway_discover_data_capabilities',{},catalog,diagnostics=context))
+    assert captured==[{'gateway/diagnostics':context}]
     assert session.calls[0][1]=={}
     assert result['structuredContent']['provenance']['request_id']=='source-1'
 
@@ -39,7 +67,8 @@ def test_relay_host_context_spans_business_errors_and_transport_failure():
         return {'isError':True,'structuredContent':{'status':'error','provenance':{'request_id':'gateway-1','span_id':'gateway-span'}}}
     relay.client.call=call
     result=asyncio.run(relay.call('task-1',request()))
-    assert captured==[CONTEXT]
+    assert {key:value for key,value in captured[0].items() if key!='client_call_id'}==CONTEXT
+    assert captured[0]['client_call_id']==relay.diagnostic_calls('task-1')[0]['client_call_id']
     assert result['is_error'] is True
     first=relay.diagnostic_calls('task-1')[0]
     assert first['status']=='business_error' and first['request_id']=='gateway-1'
@@ -50,9 +79,10 @@ def test_relay_host_context_spans_business_errors_and_transport_failure():
     last=relay.diagnostic_calls('task-1')[-1]
     assert last['status']=='transport_error' and 'request_id' not in last
     assert last['span_id']!=first['span_id'] and 'retry_of' not in last
+    assert last['client_call_id']!=first['client_call_id']
     assert 'never persist' not in str(last)
 
-@pytest.mark.parametrize('change',[{'task_id':'bad text'},{'run_id':'x'*129},{'secret':'hidden'},{'trace_id':None}])
+@pytest.mark.parametrize('change',[{'task_id':'bad text'},{'run_id':'x'*129},{'secret':'hidden'},{'trace_id':None},{'client_call_id':'bad text'}])
 def test_invalid_context_is_rejected_before_binding(change):
     relay=access();relay.revoke('task-1')
     with pytest.raises(ValueError):relay.bind('task-1','attempt-1',set(relay.catalog['tools']),diagnostics={**CONTEXT,**change})

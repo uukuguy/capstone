@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from .execution_stages import preparation_step
 from .thread_startup_timing import record_thread_startup
 from threading import RLock
-from typing import TYPE_CHECKING, Any, Mapping, Protocol, cast
+from typing import TYPE_CHECKING, Any, LiteralString, Mapping, Protocol, cast
 
 if TYPE_CHECKING:
     from .turn_router import TurnPlan
@@ -77,15 +77,38 @@ def _resolve_available_families(source: FamilyAvailability) -> frozenset[str] | 
     return families
 
 
+def _attempt_family_predicate(alias: LiteralString = '') -> LiteralString:
+    """One ownership rule for the ledger. The open model does not choose the worker."""
+
+    prefix = alias
+    return f"""(%s::text IS NULL OR CASE
+        WHEN {prefix}submission_snapshot ? '_domain_execution'
+          THEN {prefix}submission_snapshot #>> '{{_domain_execution,implementation_family}}' = %s::text
+        WHEN {prefix}submission_snapshot ? '_native_execution'
+          THEN %s::text = 'native'
+        WHEN {prefix}model_context_snapshot IS NOT NULL
+          THEN {prefix}model_context_snapshot->>'implementation_family' = %s::text
+        ELSE %s::text = 'native'
+      END)"""
+
+
 def _family_owns_attempt(implementation_family: str | None, context, submission) -> bool:
-    """A no-model attempt stays native until a domain handoff names one family."""
+    """The main chain keeps the attempt. A domain handoff names one family.
+
+    An open model is management context. It does not move the attempt to that
+    model's worker while native execution is still recorded.
+    """
     if implementation_family is None:
         return True
-    if context is not None:
-        return getattr(context, 'implementation_family', None) == implementation_family
-    domain = submission.get('_domain_execution') if isinstance(submission, Mapping) else None
+    if not isinstance(submission, Mapping):
+        submission = {}
+    domain = submission.get('_domain_execution')
     if isinstance(domain, Mapping) and isinstance(domain.get('implementation_family'), str):
         return domain['implementation_family'] == implementation_family
+    if isinstance(submission.get('_native_execution'), Mapping):
+        return implementation_family == 'native'
+    if context is not None:
+        return getattr(context, 'implementation_family', None) == implementation_family
     return implementation_family == 'native'
 
 
@@ -108,16 +131,15 @@ def _published_application_catalog(service) -> dict | None:
 
 
 def _claim_application_catalog(service, context, submission):
-    """Service catalog first. A no-model claim can fall back to the submission copy."""
+    """Service catalog first. A claim can fall back to the accepted submission copy."""
     if service._catalog_context is not None:
         return service._catalog_context
-    if context is None and isinstance(submission, Mapping):
+    if context is not None and service._model_catalog is not None:
+        return _thread_catalog_document(service._model_catalog, service._capability_catalog)
+    if isinstance(submission, Mapping):
         saved = submission.get('_application_catalog')
         if isinstance(saved, Mapping):
             return saved
-        return None
-    if context is not None and service._model_catalog is not None:
-        return _thread_catalog_document(service._model_catalog, service._capability_catalog)
     return None
 
 
@@ -277,6 +299,28 @@ def _terminal_result_projections(
     if len({item.result_id for item in projections}) != len(projections):
         raise ThreadProtocolError("attempt.result_projections contain duplicates")
     return tuple(projections)
+
+
+def _prepare_terminal_transition(
+    snapshot: ThreadSnapshot, claim: AttemptClaim, phase: str, payload: Mapping[str, Any],
+) -> tuple[ThreadSnapshot, dict[str, Any], tuple[dict[str, Any], ...]]:
+    """Compute the shared terminal outcome without changing storage or inputs.
+
+    Each adapter validates its active lease under its own lock before calling
+    this function, then commits capture seals, result parts and the terminal
+    event with the returned snapshot in the same storage boundary.
+    """
+    result_projections = _terminal_result_projections(payload, claim=claim, phase=phase)
+    existing_result_ids = {item.result_id for item in snapshot.result_projections}
+    if any(item.result_id in existing_result_ids for item in result_projections):
+        raise ThreadProtocolError("result projection already exists")
+    event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
+    from .thread_work import work_event_payload
+    updated, work_payload = work_event_payload(
+        replace(snapshot, current_attempt=None), claim.task_context,
+        claim.attempt.attempt_id, phase)
+    updated = _result_projection_window(updated, result_projections)
+    return updated, {**event_payload, **work_payload}, projection_parts
 
 
 def _terminal_result_delivery(
@@ -1439,6 +1483,22 @@ class InMemoryThreadService(NativeExecutionOwner):
         self._command_ids.add(parsed['command_id'])
         return receipt
 
+    def _submit_skill_preferences(self, parsed, request_hash):
+        from .session_skill_preferences import apply_preferences
+        settings, rejection = apply_preferences(self._snapshot, parsed,
+            archived=self._archived, provider=self._input_catalog_provider)
+        event_seq = None
+        if settings is not None:
+            event = self._append_control_event(event_type='session_skills_changed', payload={
+                'command_id': parsed['command_id'], 'session_skills': settings})
+            event_seq = event.event_seq
+            self._snapshot = replace(self._snapshot, session_skills=settings, last_event_seq=event_seq)
+        receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
+                                rejection=rejection, accepted_event_seq=event_seq)
+        self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
+        self._command_ids.add(parsed['command_id'])
+        return receipt
+
     def read_thread_gateway(self, thread_id):
         from copy import deepcopy
         with self._lock:
@@ -1450,9 +1510,6 @@ class InMemoryThreadService(NativeExecutionOwner):
     def select_thread_gateway(self, thread_id, binding):
         from copy import deepcopy
         with self._lock:
-            current = self.read_thread_gateway(thread_id)
-            if current and current['locked']:
-                raise ThreadProtocolError('gateway_session_locked')
             self._gateway_binding = {**deepcopy(binding), 'locked': False}
             return deepcopy(self._gateway_binding)
 
@@ -1525,13 +1582,20 @@ class InMemoryThreadService(NativeExecutionOwner):
                     updated.thread_id, event_seq - 1)
                 if updated.active_model_context is None:
                     assert self._native_binding is not None
-                if updated.active_model_context is None:
                     stored_submission = {**(submission or {}), '_native_execution': binding_for_session(native_binding, updated.session_type)}
                     published = _published_application_catalog(self)
                     if published is not None:
                         stored_submission['_application_catalog'] = published
                 else:
                     stored_submission = freeze_activated_submission(submission, updated.professional_context)
+                    if native_binding is not None and updated.session_type == 'enterprise-research':
+                        # The open model stays a management object. This session's
+                        # later instructions remain on the main chain.
+                        stored_submission = {**(stored_submission or {}),
+                            '_native_execution': binding_for_session(native_binding, updated.session_type)}
+                        published = _published_application_catalog(self)
+                        if published is not None and '_application_catalog' not in stored_submission:
+                            stored_submission['_application_catalog'] = published
                 self._attempts[attempt.attempt_id] = {
                     'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
                     'lease_token': None, 'lease_deadline': None, 'model_context': updated.active_model_context,
@@ -1578,6 +1642,8 @@ class InMemoryThreadService(NativeExecutionOwner):
             if command.get('schema') == 'capstone-command/2' and parsed['kind'] not in MODEL_COMMANDS:
                 if parsed['kind'] == 'rename_session':
                     return self._submit_title_command(parsed, request_hash)
+                if parsed['kind'] == 'set_session_skills':
+                    return self._submit_skill_preferences(parsed, request_hash)
                 return self._submit_work_command(parsed, request_hash)
             if self._snapshot.minimum_protocol_version > 1 and command.get('schema') != 'capstone-command/2':
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
@@ -2311,19 +2377,8 @@ class InMemoryThreadService(NativeExecutionOwner):
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
-            result_projections = _terminal_result_projections(
-                payload, claim=claim, phase=phase,
-            )
-            existing_result_ids = {item.result_id for item in self._snapshot.result_projections}
-            if any(item.result_id in existing_result_ids for item in result_projections):
-                raise ThreadProtocolError("result projection already exists")
-            event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
-            from .thread_work import work_event_payload
-            work_snapshot, work_payload = work_event_payload(
-                replace(self._snapshot, current_attempt=None), claim.task_context,
-                claim.attempt.attempt_id, phase)
-            work_snapshot = _result_projection_window(work_snapshot, result_projections)
-            event_payload = {**event_payload, **work_payload}
+            work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
+                self._snapshot, claim, phase, payload)
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
@@ -2789,6 +2844,17 @@ class ThreadCreator:
 
 
 _THREAD_SCHEMA = """
+CREATE TABLE IF NOT EXISTS capstone_presentation_templates (
+    workspace text NOT NULL,
+    template_id text NOT NULL,
+    version text NOT NULL,
+    owner_thread_id text NOT NULL,
+    published boolean NOT NULL DEFAULT false,
+    metadata jsonb NOT NULL,
+    PRIMARY KEY (workspace,template_id,version)
+);
+CREATE INDEX IF NOT EXISTS capstone_presentation_templates_scope
+    ON capstone_presentation_templates (workspace,published,owner_thread_id,template_id);
 CREATE TABLE IF NOT EXISTS capstone_threads (
     thread_id text PRIMARY KEY,
     run_id text NOT NULL UNIQUE,
@@ -2883,6 +2949,7 @@ ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_conte
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS submission_snapshot jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_skills jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
@@ -2898,6 +2965,31 @@ def _timestamp(value: Any) -> str:
 
 
 class PostgresThreadService(NativeExecutionOwner):
+    def _submit_skill_preferences(self, connection, thread, snapshot, parsed, request_hash):
+        from .session_skill_preferences import apply_preferences
+        duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
+                                       (snapshot.thread_id, parsed['command_id'])).fetchone()
+        if duplicate:
+            return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
+        settings, rejection = apply_preferences(snapshot, parsed,
+            archived=thread['archived'], provider=self._input_catalog_provider)
+        event_seq = None
+        if settings is not None:
+            event_seq = snapshot.last_event_seq + 1
+            event = EventEnvelope(event_id='evt_' + secrets.token_hex(8), event_seq=event_seq,
+                event_type='session_skills_changed', event_version=1, thread_id=snapshot.thread_id,
+                run_id=snapshot.run.run_id, turn_id=None, attempt_id=None, model_context_id=None,
+                selection_revision=None, occurred_at=_now(), visibility='public',
+                payload={'command_id': parsed['command_id'], 'session_skills': settings})
+            self._insert_event(connection, event)
+            connection.execute('UPDATE capstone_threads SET session_skills=%s, last_event_seq=%s WHERE thread_id=%s',
+                               (Jsonb(settings), event_seq, snapshot.thread_id))
+        receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id},
+            status='rejected' if rejection else 'accepted', rejection=rejection, accepted_event_seq=event_seq)
+        connection.execute('INSERT INTO capstone_thread_commands (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)',
+            (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
+        return receipt
+
     def _submit_title(self, connection, thread, snapshot, parsed, request_hash):
         from .session_title import rename_session
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
@@ -3005,6 +3097,14 @@ class PostgresThreadService(NativeExecutionOwner):
                         submission['_application_catalog'] = published
                 else:
                     submission = freeze_activated_submission(submission, context)
+                    if native_binding is not None and snapshot.session_type == 'enterprise-research':
+                        # The open model stays a management object. This session's
+                        # later instructions remain on the main chain.
+                        submission = {**(submission or {}),
+                            '_native_execution': binding_for_session(native_binding, snapshot.session_type)}
+                        published = _published_application_catalog(self)
+                        if published is not None and '_application_catalog' not in submission:
+                            submission['_application_catalog'] = published
                 connection.execute("""INSERT INTO capstone_thread_attempts
                     (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
                      selection_revision,model_context_snapshot,conversation_context_snapshot,
@@ -3063,9 +3163,6 @@ class PostgresThreadService(NativeExecutionOwner):
             row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread_id,)).fetchone()
             if row is None:
                 raise ThreadNotFound(thread_id)
-            current = self._thread_gateway_row(connection, row)
-            if current and current['locked']:
-                raise ThreadProtocolError('gateway_session_locked')
             value = {**binding, 'locked': False}
             connection.execute('UPDATE capstone_threads SET gateway_binding=%s WHERE thread_id=%s', (Jsonb(value), thread_id))
             return value
@@ -3121,8 +3218,9 @@ class PostgresThreadService(NativeExecutionOwner):
         )
 
     def initialize(self) -> None:
+        from .resource_projection import SCHEMA as resource_schema
         with self._connect() as connection:
-            for statement in _THREAD_SCHEMA.split(";\n"):
+            for statement in (_THREAD_SCHEMA + resource_schema).split(";\n"):
                 if statement.strip():
                     connection.execute(statement)
 
@@ -3132,10 +3230,10 @@ class PostgresThreadService(NativeExecutionOwner):
         if context is None:
             with self._connect() as connection:
                 connection.execute('''INSERT INTO capstone_threads
-                    (thread_id, run_id, run_state, minimum_protocol_version, works, session_title, session_type, workspace_name)
-                    VALUES (%s, %s, %s, 2, %s, %s, %s, %s)''',
+                    (thread_id, run_id, run_state, minimum_protocol_version, works, session_title, session_type, workspace_name, session_skills)
+                    VALUES (%s, %s, %s, 2, %s, %s, %s, %s, %s)''',
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state, Jsonb(list(snapshot.works)),
-                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type, name))
+                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type, name, Jsonb(dict(snapshot.session_skills or {}))))
             return snapshot
         started = time.perf_counter()
         initial_diagram = None
@@ -3179,6 +3277,9 @@ class PostgresThreadService(NativeExecutionOwner):
             if snapshot.session_type is not None:
                 connection.execute('UPDATE capstone_threads SET session_type=%s WHERE thread_id=%s',
                                    (snapshot.session_type, snapshot.thread_id))
+            if snapshot.session_skills:
+                connection.execute('UPDATE capstone_threads SET session_skills=%s WHERE thread_id=%s',
+                                   (Jsonb(dict(snapshot.session_skills)), snapshot.thread_id))
             if initial_diagram is not None:
                 event = self._make_control_event({"thread_id": snapshot.thread_id, "run_id": snapshot.run.run_id}, context,
                     event_seq=snapshot.last_event_seq + 1, event_type="network_diagram", payload={"diagram": initial_diagram})
@@ -3541,6 +3642,8 @@ class PostgresThreadService(NativeExecutionOwner):
             if command.get('schema') == 'capstone-command/2' and parsed['kind'] not in MODEL_COMMANDS:
                 if parsed['kind'] == 'rename_session':
                     return self._submit_title(connection, thread, snapshot, parsed, request_hash)
+                if parsed['kind'] == 'set_session_skills':
+                    return self._submit_skill_preferences(connection, thread, snapshot, parsed, request_hash)
                 return self._submit_work(connection, thread, snapshot, parsed, request_hash)
             if snapshot.minimum_protocol_version > 1 and command.get('schema') != 'capstone-command/2':
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
@@ -4149,15 +4252,10 @@ class PostgresThreadService(NativeExecutionOwner):
             raise ValueError('implementation family is invalid')
         with self._connect() as connection:
             row = connection.execute(
-                """SELECT EXISTS(SELECT 1 FROM capstone_thread_attempts
-                   WHERE phase = 'accepted' AND lease_token IS NULL
-                     AND (%s::text IS NULL OR model_context_snapshot->>'implementation_family' = %s::text
-                          OR (model_context_snapshot IS NULL AND submission_snapshot ? '_native_execution'
-                              AND ((submission_snapshot ? '_domain_execution'
-                                    AND submission_snapshot #>> '{_domain_execution,implementation_family}' = %s::text)
-                                   OR (NOT (submission_snapshot ? '_domain_execution') AND %s::text = 'native'))))
-                   ) AS pending""",
-                (implementation_family, implementation_family, implementation_family, implementation_family),
+                "SELECT EXISTS(SELECT 1 FROM capstone_thread_attempts "
+                "WHERE phase = 'accepted' AND lease_token IS NULL AND "
+                + _attempt_family_predicate() + ") AS pending",
+                (implementation_family,) * 5,
             ).fetchone()
         assert row is not None
         return bool(row['pending'])
@@ -4197,16 +4295,12 @@ class PostgresThreadService(NativeExecutionOwner):
         token = secrets.token_hex(16)
         with self._connect() as connection:
             row = connection.execute(
-                """SELECT a.attempt_id FROM capstone_thread_attempts a
-                   JOIN capstone_threads t ON t.thread_id = a.thread_id
-                   WHERE a.phase = 'accepted' AND a.lease_token IS NULL
-                     AND (%s::text IS NULL OR a.model_context_snapshot->>'implementation_family' = %s::text
-                          OR (a.model_context_snapshot IS NULL AND a.submission_snapshot ? '_native_execution'
-                              AND ((a.submission_snapshot ? '_domain_execution'
-                                    AND a.submission_snapshot #>> '{_domain_execution,implementation_family}' = %s::text)
-                                   OR (NOT (a.submission_snapshot ? '_domain_execution') AND %s::text = 'native'))))
-                   ORDER BY a.created_at, a.attempt_id LIMIT 1 FOR UPDATE OF t SKIP LOCKED""",
-                (implementation_family, implementation_family, implementation_family, implementation_family),
+                "SELECT a.attempt_id FROM capstone_thread_attempts a "
+                "JOIN capstone_threads t ON t.thread_id = a.thread_id "
+                "WHERE a.phase = 'accepted' AND a.lease_token IS NULL AND "
+                + _attempt_family_predicate('a.')
+                + " ORDER BY a.created_at, a.attempt_id LIMIT 1 FOR UPDATE OF t SKIP LOCKED",
+                (implementation_family,) * 5,
             ).fetchone()
             if row is None:
                 return None
@@ -4689,23 +4783,8 @@ class PostgresThreadService(NativeExecutionOwner):
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             terminal = AttemptSnapshot.from_document({**current, "phase": phase})
-            result_projections = _terminal_result_projections(
-                payload, claim=claim, phase=phase,
-            )
-            existing_projections = tuple(
-                ResultProjection.from_document(item)
-                for item in (thread.get("result_projections") or [])
-            )
-            existing_result_ids = {item.result_id for item in existing_projections}
-            if any(item.result_id in existing_result_ids for item in result_projections):
-                raise ThreadProtocolError("result projection already exists")
-            event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
-            from .thread_work import work_event_payload
-            work_snapshot, work_payload = work_event_payload(
-                replace(self._snapshot_from_row(thread), current_attempt=None),
-                claim.task_context, claim.attempt.attempt_id, phase)
-            work_snapshot = _result_projection_window(work_snapshot, result_projections)
-            event_payload = {**event_payload, **work_payload}
+            work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
+                self._snapshot_from_row(thread), claim, phase, payload)
             event_seq = thread["last_event_seq"]
             event_seq = self._seal_open_captures_postgres(
                 connection, thread, terminal, claim, event_seq, context=claim.model_context)
@@ -5067,6 +5146,7 @@ class PostgresThreadService(NativeExecutionOwner):
             native_execution=self._native_binding,
             session_title=None if row.get('session_title') is None else SessionTitle.from_document(row['session_title']),
             session_type=row.get('session_type'),
+            session_skills=row.get('session_skills'),
         )
 
     @staticmethod

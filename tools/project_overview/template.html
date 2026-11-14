@@ -80,7 +80,7 @@ el('discussion-pending').innerHTML=discussionRows('待讨论').map(discussionCar
 const stageOrder=['local-dev','cloud-demo','local-demo','cloud-dev'];
 const graphStages=[...stageOrder.map(name=>data.environments.find(e=>e.name===name)),...data.environments.filter(e=>!stageOrder.includes(e.name))];
 const sourceNode=e=>data.nodes.find(n=>n.sha.startsWith(e.revision)||e.revision.startsWith(n.sha));
-const graphNodes=data.nodes.filter(n=>n.presentation);
+const graphNodes=data.nodes.filter(n=>n.presentation&&n.graph_visible!==false);
 const levels={};
 function depth(id,seen=new Set()){
  if(levels[id]!==undefined)return levels[id];
@@ -93,7 +93,9 @@ data.nodes.forEach(n=>depth(n.id));
 function deployment(e){const tag=e.origin?'a':'span',line=graphNodes.find(n=>n.sha===e.revision)?.presentation.branch||'来源',pair=data.environment_pairs.find(p=>p.local===e.name||p.cloud===e.name);const note=e.name==='local-demo'?(pair.aligned?'与线上基线一致':'待对齐 cloud-demo '+short(data.environments.find(s=>s.name==='cloud-demo').revision)):e.name==='local-dev'?'开发测试 / cloud-dev 发布验证':'';return '<'+tag+' class="deployment" id="deploy-'+e.name+'" data-environment="'+e.name+'" style="display:block"'+(e.origin?' href="'+esc(e.origin)+'" target="_blank" rel="noopener noreferrer"':'')+'><b>'+esc(e.name)+'</b><small>'+line+' · '+revision(e.revision,'deployment')+' · '+(!e.coherent?'角色来源不同':e.observed?'App已核对':'部署记录')+'</small>'+(!e.coherent&&e.app_revision?'<small>App · '+revision(e.app_revision,'deployment')+'</small>':'')+(note?'<small style="color:'+(e.name==='local-demo'&&!pair.aligned?'#a55a2b':'#60716e')+'">'+esc(note)+'</small>':'')+'</'+tag+'>';}
 el('commits').innerHTML=graphNodes.map(n=>{
  const p=n.presentation,tags=n.tags.filter(t=>/^(demo|cloud-dev)-/.test(t));
-return '<article id="commit-'+n.id+'" class="commit '+n.lane+(n.release_point?' release-point':'')+(p.role.includes('已撤回')?' withdrawn':'')+'" data-sha="'+n.sha+'" data-focus="'+(['当前开发焦点','当前交付重点'].includes(p.role))+'"><div class="head"><div class="node-classification"><p class="node-kind">'+esc(p.role)+'</p><span class="badge">'+esc(p.status)+'</span></div><h3>'+esc(n.title)+'</h3></div><p class="source mono">'+esc(p.branch)+' · '+revision(n.sha)+trialLink(n)+'</p><ul class="points">'+p.changes.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul>'+((n.links||[]).length?'<p class="node-links">'+n.links.map(link=>'<a href="'+esc(link.href)+'">'+esc(link.label)+'</a>').join(' · ')+'</p>':'')+'<details class="node-record"><summary>变更与验证记录</summary><p>'+esc(n.changes)+'</p>'+(tags.length?'<p>关联发布/部署标签：'+tags.map(t=>'<a href="https://github.com/uukuguy/capstone/tree/'+encodeURIComponent(t)+'" target="_blank" rel="noopener noreferrer">'+esc(t)+'</a>').join('、')+'</p>':'')+'</details><button class="detail-button branch-link" data-package="'+n.package+'">功能与验收记录 ↓</button></article>';
+const branchHead=['当前开发焦点','当前交付重点'].includes(p.role)?data.branches.find(branch=>branch.name===p.branch)?.sha:undefined;
+const currentHead=branchHead&&branchHead!==n.sha?'<p class="mono current-branch-head">当前分支 HEAD '+revision(branchHead)+' · 本节点保留部署来源</p>':'';
+return '<article id="commit-'+n.id+'" class="commit '+n.lane+(n.release_point?' release-point':'')+(p.role.includes('已撤回')?' withdrawn':'')+'" data-sha="'+n.sha+'" data-focus="'+(['当前开发焦点','当前交付重点'].includes(p.role))+'"><div class="head"><div class="node-classification"><p class="node-kind">'+esc(p.role)+'</p><span class="badge">'+esc(p.status)+'</span></div><h3>'+esc(n.title)+'</h3></div><p class="source mono">'+esc(p.branch)+' · '+revision(n.sha)+trialLink(n)+'</p>'+currentHead+'<ul class="points">'+p.changes.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul>'+((n.links||[]).length?'<p class="node-links">'+n.links.map(link=>'<a href="'+esc(link.href)+'">'+esc(link.label)+'</a>').join(' · ')+'</p>':'')+'<details class="node-record"><summary>变更与验证记录</summary><p>'+esc(n.changes)+'</p>'+(tags.length?'<p>关联发布/部署标签：'+tags.map(t=>'<a href="https://github.com/uukuguy/capstone/tree/'+encodeURIComponent(t)+'" target="_blank" rel="noopener noreferrer">'+esc(t)+'</a>').join('、')+'</p>':'')+'</details><button class="detail-button branch-link" data-package="'+n.package+'">功能与验收记录 ↓</button></article>';
 }).join('');
 el('graph-history').innerHTML=data.nodes.filter(n=>!graphNodes.includes(n)).map(n=>'<details class="history-entry"><summary>'+esc(n.title)+' · '+revision(n.sha)+' · '+esc(n.status)+'</summary><p>'+esc(n.changes)+'</p></details>').join('');
 
@@ -122,6 +124,9 @@ el('scope').innerHTML='<table class="scope-table">'+[
  ].map(([a,b])=>'<tr><td>'+esc(a)+'</td><td>'+esc(b)+'</td></tr>').join('')+'</table>';
 function packageDetailTable(id){const rows=data.package_details.filter(r=>r.package===id);if(!rows.length)return '';return '<div class="package-detail-scroll" style="overflow-x:auto;margin-bottom:12px"><table class="scope-table package-detail-table" style="min-width:900px;table-layout:fixed"><thead><tr>'+['开发项 / 当前状态','已有实现或依据','剩余工作与依赖','验收要求（非通过声明）'].map(h=>'<th scope="col" style="text-align:left;padding:7px 6px;background:#f3f7f5;border-top:1px solid #dbe4df">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+esc(r.item)+'</b><p class="muted" style="font-weight:400;margin:4px 0">'+esc(r.status)+'</p></td><td>'+esc(r.existing)+'</td><td>'+esc(r.remaining)+'</td><td>'+esc(r.acceptance)+'</td></tr>').join('')+'</tbody></table></div>';}
 el('detail-list').innerHTML=data.packages.filter(p=>!['live','main'].includes(p.id)&&!p.status.includes('已归档')).map(p=>'<details id="detail-'+p.id+'"><summary>'+esc(p.name)+' · '+esc(p.status)+'</summary><div class="detail-body"><div><p>范围：'+esc(p.scope)+'</p><p>下一步：'+esc(p.next)+'</p></div><div><p>'+esc(p.record)+'</p><p class="mono">'+esc(p.branch)+' · '+short(p.source)+'</p>'+data.prs.filter(pr=>pr.package===p.id).map(pr=>'<p><a href="https://github.com/uukuguy/capstone/pull/'+pr.number+'" target="_blank" rel="noopener noreferrer">PR #'+pr.number+'</a>：'+esc(pr.scope)+'</p>').join('')+'</div></div>'+packageDetailTable(p.id)+'</details>').join('');
+const historicalNodes=data.nodes.filter(n=>n.graph_visible===false);
+el('detail-list').insertAdjacentHTML('beforeend','<details><summary>历史提交与中间修复 · '+historicalNodes.length+' 项</summary><div class="detail-body"><table class="scope-table"><thead><tr><th>提交</th><th>变更</th><th>验证与记录</th></tr></thead><tbody>'+historicalNodes.map(n=>'<tr><td class="mono">'+short(n.sha)+'</td><td>'+esc(n.title)+'<br>'+esc(n.changes)+'</td><td>'+esc(n.status)+(n.links||[]).map(l=>' <a href="'+esc(l.href)+'">'+esc(l.label)+'</a>').join('')+'</td></tr>').join('')+'</tbody></table></div></details>');
+
 let fitView=false;
 function fitGraph(){
  const frame=el('graph-frame'),canvas=el('graph-canvas');
@@ -135,7 +140,10 @@ function draw(){
  const deployedSources=new Set(graphStages.map(e=>sourceNode(e)?.id));
  const continuingSources=new Set(data.edges.map(e=>e[0]));
  const followsDeployedSource=n=>data.edges.some(e=>e[1]===n.id&&deployedSources.has(e[0])&&data.nodes.find(parent=>parent.id===e[0])?.package===n.package);
- const rightNode=n=>n.lane!=='main'&&!n.release_point&&rightPackages.has(n.package)&&(deployedSources.has(n.id)||continuingSources.has(n.id)||followsDeployedSource(n));
+ // Keep this latency-work candidate beside its configuration parent. Placement
+ // does not grant a deployment reference or change the candidate's status.
+ const rightCandidates=new Set(['first-thinking-latency-20261105']);
+ const rightNode=n=>n.lane!=='main'&&!n.release_point&&rightPackages.has(n.package)&&(deployedSources.has(n.id)||continuingSources.has(n.id)||followsDeployedSource(n)||rightCandidates.has(n.id));
  const hasRight=graphNodes.some(rightNode);
  const frame=el('graph-frame'),tree=el('tree'),width=Math.max(hasRight?1320:1000,frame.clientWidth),gap=Number(el('density').value)+12;
  el('graph-canvas').style.width=width+'px';

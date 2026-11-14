@@ -1,0 +1,49 @@
+{
+  "schema": "capstone-release-local-verification/1",
+  "version": "1.1.0",
+  "status": "local-passed-ci-pending",
+  "product_source": "04f127e4d5856677e2f50b1c696b56d199d9fccc",
+  "ci_definition_source": "86599cf1",
+  "local_gate": {
+    "command": "make check-release",
+    "exit_code": 0,
+    "seconds": 1616,
+    "source_note": "Product/Makefile frozen04f127e4. Subsequent86599cf1 changes only CI App-build invocation and its focused contract;22focused tests pass."
+  },
+  "app_build": {
+    "command": "make build-capstone-app",
+    "exit_code": 0
+  },
+  "backend_image": "sha256:db8047c28021a4269be6f8a4a82d9bcc9ec2d50df9262bd87c9b16ca383158b0",
+  "native_image": "sha256:c3a9b80173016410251caa5bb9fe23150dca4babeb89b52af2eb2afd4b943613",
+  "real_thread": "thr_13779becc0580257e718",
+  "new_download_records_verified": 6,
+  "historical_ppt_download_records_verified": 47,
+  "final_file_exact_content": "VERSION=1.1.0",
+  "ci_approved": false,
+  "main_merged": false,
+  "tag_created": false,
+  "deployment_performed": false,
+  "logs": {
+    "local-release-acceptance": {
+      "path": "runs/release-v1.1.0-20261114/local-release-acceptance.log",
+      "sha256": "ec38b0cdd72896676df52f4b6274304f75e17638d7b7b94ba92bc64195bdbf2f"
+    },
+    "app-build": {
+      "path": "runs/release-v1.1.0-20261114/app-build.log",
+      "sha256": "a49e6190fb581a46048325616c77116d8c40e0f630116c54ca9b16c07bdcee7a"
+    },
+    "doctor": {
+      "path": "runs/release-v1.1.0-20261114/doctor.log",
+      "sha256": "5743a20b4ec44efdc0cd604f78ba868455df17060096b92179df20ea5648e3b5"
+    },
+    "real-final": {
+      "path": "runs/release-v1.1.0-20261114/real-final.log",
+      "sha256": "7ac1f67d46aeec4def59bede5165339f46ab01894b8a96e16c01a52b07bd5f62"
+    },
+    "rebuild-final": {
+      "path": "runs/release-v1.1.0-20261114/rebuild-final.log",
+      "sha256": "4e102790ac3a80c63430bb71181ceec2d97501388e8e85e93a89650699bef6e3"
+    }
+  }
+}

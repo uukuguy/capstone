@@ -1,4 +1,5 @@
 import {sha256Hex} from './browserDigest'
+import {sha256 as incrementalSha256} from 'js-sha256'
 import {parseThinkingPreview,type ThinkingPreview} from './thinkingPreview'
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
@@ -101,6 +102,26 @@ async function verifiedFileBytes(response:Response,size:number,digest:string,key
   return bytes
 }
 
+async function writeVerifiedStream(response:Response,size:number,digest:string,write:(chunk:Uint8Array)=>Promise<void>){
+  if(!Number.isSafeInteger(size)||size<1||!/^[a-f0-9]{64}$/.test(digest))throw new Error('文件信息无效')
+  const reader=response.body?.getReader()
+  if(!reader)throw new Error('文件内容缺失')
+  const hasher=incrementalSha256.create()
+  let total=0
+  try{
+    while(true){
+      const {value,done}=await reader.read()
+      if(done)break
+      total+=value.byteLength
+      if(total>size){await reader.cancel();throw new Error('文件大小不符')}
+      hasher.update(value)
+      await write(value)
+    }
+  }finally{reader.releaseLock()}
+  if(total!==size)throw new Error('文件不完整')
+  if(hasher.hex()!==digest)throw new Error('文件校验失败')
+}
+
 /** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
 export class HttpThreadTransport implements ThreadTransport {
   readonly workspaceName:string
@@ -135,7 +156,10 @@ export class HttpThreadTransport implements ThreadTransport {
 
   private async gatewayRequest(action?:string,body?:unknown){
     const signal=AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms')*(action?2:1))
-    try{return await this.request('/api/v1/workspace/gateways'+(action?'/'+action:''),action?{method:'POST',body:JSON.stringify(body??{}),signal}:{signal})}
+    return this.gatewayOperation('/api/v1/workspace/gateways'+(action?'/'+action:''),action?{method:'POST',body:JSON.stringify(body??{}),signal}:{signal})
+  }
+  private async gatewayOperation(path:string,init:RequestInit={}){
+    try{return await this.request(path,init)}
     catch(error){
       if(error instanceof ThreadTransportError&&error.body&&typeof error.body==='object'&&'detail' in error.body){
         const detail=error.body.detail
@@ -148,9 +172,10 @@ export class HttpThreadTransport implements ThreadTransport {
   async refreshGatewayConnections(){return parseGatewayConnections(await this.gatewayRequest('refresh'))}
   async refreshGatewayContract(){return parseGatewayConnections(await this.gatewayRequest('reload'))}
   async selectGatewayConnection(id:string){return parseGatewayConnections(await this.gatewayRequest('select',{id}))}
-  async threadGatewayConnections(threadId:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways`))}
-  async selectThreadGatewayConnection(threadId:string,id:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/select`,{method:'POST',body:JSON.stringify({id})}))}
-  async refreshThreadGatewayContract(threadId:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/reload`,{method:'POST',body:'{}'}))}
+  async threadGatewayConnections(threadId:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways`))}
+  async selectThreadGatewayConnection(threadId:string,id:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/select`,{method:'POST',body:JSON.stringify({id})}))}
+  async refreshThreadGatewayConnections(threadId:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/refresh`,{method:'POST',body:'{}'}))}
+  async refreshThreadGatewayContract(threadId:string){return parseGatewayConnections(await this.gatewayOperation(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/reload`,{method:'POST',body:'{}'}))}
   async probeGatewayConnection(input:GatewayConnectionInput){return parseGatewayProbe(await this.gatewayRequest('probe',input))}
   async addGatewayConnection(input:GatewayConnectionInput){return parseGatewayConnections(await this.gatewayRequest('add',input))}
 
@@ -352,7 +377,52 @@ export class HttpThreadTransport implements ThreadTransport {
     return transferResource((path,init)=>this.request(path,init),`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-uploads`,file,options)
   }
   async readStoredResources(threadId:string,signal?:AbortSignal,draft=false) {
-    return parseStoredResources(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources${draft?'?draft=true':''}`,{signal}),threadId)
+    const resources:ReturnType<typeof parseStoredResources>=[]
+    const cursors=new Set<string>(),identities=new Set<string>()
+    let cursor:string|undefined,revision:number|undefined,bytes=0
+    do{
+      signal?.throwIfAborted()
+      const params=new URLSearchParams({limit:'100',...(draft?{draft:'true'}:{}),...(cursor?{cursor}:{})})
+      const raw=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources?${params}`,{signal})
+      const page=parseStoredResources(raw,threadId)
+      const metadata=raw as {revision?:number;next_cursor?:unknown}
+      if(metadata.revision!==undefined){
+        if(!Number.isSafeInteger(metadata.revision)||metadata.revision<0||(revision!==undefined&&metadata.revision!==revision))throw new Error('资源目录已变化，请重新读取。')
+        revision=metadata.revision
+      }else if(cursor)throw new Error('资源分页版本无效。')
+      bytes+=new TextEncoder().encode(JSON.stringify(raw)).byteLength
+      assertCapacity(bytes,'control_document_bytes','resource.directory')
+      for(const item of page){
+        if(identities.has(item.resource_id))throw new Error('资源分页返回重复文件。')
+        identities.add(item.resource_id);resources.push(item)
+      }
+      const next=metadata.next_cursor
+      if(next===undefined||next===null)return resources // Older hosts return one complete page.
+      if(typeof next!=='string'||!next||next.length>1024||cursors.has(next)||!page.length||revision===undefined)throw new Error('资源分页游标无效。')
+      cursors.add(next);cursor=next
+    }while(cursor)
+    return resources
+  }
+  async readThreadResource(threadId:string,file:{resource_id:string;size_bytes:number;sha256:string},signal?:AbortSignal):Promise<Uint8Array> {
+    if(!/^resource_[a-f0-9]{32}$/.test(file.resource_id)||!Number.isSafeInteger(file.size_bytes)||file.size_bytes<1||!/^[a-f0-9]{64}$/.test(file.sha256))throw new Error('资源身份无效')
+    assertCapacity(file.size_bytes,'artifact_file_bytes','resource.content')
+    const response=await this.streamRequest(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources/${encodeURIComponent(file.resource_id)}/content`,signal)
+    return verifiedFileBytes(response,file.size_bytes,file.sha256,'artifact_file_bytes')
+  }
+  async saveThreadResource(threadId:string,file:{resource_id:string;file_name:string;size_bytes:number;sha256:string},signal?:AbortSignal):Promise<void> {
+    if(!/^resource_[a-f0-9]{32}$/.test(file.resource_id)||!file.file_name||!Number.isSafeInteger(file.size_bytes)||!/^[a-f0-9]{64}$/.test(file.sha256))throw new Error('资源身份无效')
+    if(file.size_bytes<=applicationCapacity('artifact_file_bytes'))throw new Error('此文件可在读取后直接保存。')
+    const picker=(globalThis as {showSaveFilePicker?:(options?:{suggestedName?:string})=>Promise<{createWritable:()=>Promise<{write:(data:Uint8Array)=>Promise<void>;close:()=>Promise<void>;abort:()=>Promise<void>}>}>}).showSaveFilePicker
+    if(!picker)throw new Error(`此文件超过浏览器内可校验读取的容量（${applicationCapacity('artifact_file_bytes')} 字节）。请使用支持直接保存的浏览器下载。`)
+    let handle:{createWritable:()=>Promise<{write:(data:Uint8Array)=>Promise<void>;close:()=>Promise<void>;abort:()=>Promise<void>}>}
+    try{handle=await picker({suggestedName:file.file_name})}
+    catch(cause){if(cause instanceof DOMException&&cause.name==='AbortError')throw new Error('已取消保存。');throw cause}
+    const writable=await handle.createWritable()
+    try{
+      const response=await this.streamRequest(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources/${encodeURIComponent(file.resource_id)}/content`,signal)
+      await writeVerifiedStream(response,file.size_bytes,file.sha256,chunk=>writable.write(chunk))
+      await writable.close()
+    }catch(cause){await writable.abort().catch(()=>undefined);throw cause}
   }
   cancelResourceUpload(threadId:string,uploadId:string,signal?:AbortSignal) {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-uploads/${encodeURIComponent(uploadId)}`,{method:'DELETE',signal})
@@ -432,6 +502,11 @@ export class HttpThreadTransport implements ThreadTransport {
   renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown> {
     const transport=new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName)
     return transport.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/commands`,{method:'POST',headers:{'Idempotency-Key':idempotencyKey},body:JSON.stringify({schema:'capstone-command/2',thread_id:threadId,run_id:runId,command_id:commandId,idempotency_key:idempotencyKey,kind:'rename_session',target:{kind:'session_title',id:threadId,expected_revision:revision},payload:{text}})})
+  }
+
+  setSessionSkills(threadId:string,runId:string,revision:number,skills:import('./sessionSkills').SessionSkill[],commandId:string,idempotencyKey:string):Promise<unknown> {
+    const transport=new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName)
+    return transport.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/commands`,{method:'POST',headers:{'Idempotency-Key':idempotencyKey},body:JSON.stringify({schema:'capstone-command/2',thread_id:threadId,run_id:runId,command_id:commandId,idempotency_key:idempotencyKey,kind:'set_session_skills',target:{kind:'session_skills',id:threadId,expected_revision:revision},payload:{skills}})})
   }
 
   createWorkThread(signal?: AbortSignal): Promise<unknown> {

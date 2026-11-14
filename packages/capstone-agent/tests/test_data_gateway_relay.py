@@ -14,6 +14,243 @@ class Client:
                 'structuredContent': {'status': 'partial', 'gaps': ['missing'], 'provenance': {'id': 'actual'}}}
 
 
+def test_all_access_instances_share_eight_rolling_dispatch_slots():
+    async def run():
+        resources = [access(), access()]
+        for resource in resources:
+            resource._tasks['task-1']['catalog']['tools'][request()['name']]['annotations'] = {'readOnlyHint': True}
+        gates = [asyncio.Event() for _ in range(16)]
+        entered = []
+        filled, refilled = asyncio.Event(), asyncio.Event()
+        async def upstream(name, arguments, catalog):
+            i = arguments['i']
+            entered.append(i)
+            if len(entered) == 8: filled.set()
+            if len(entered) == 9: refilled.set()
+            await gates[i].wait()
+            return {'isError': False, 'structuredContent': {'status': 'partial'}}
+        for resource in resources: resource.client.call = upstream
+        tasks = [asyncio.create_task(resources[i % 2].call('task-1', dict(request(), call_id=str(i), arguments={'i': i}))) for i in range(16)]
+        try:
+            await asyncio.wait_for(filled.wait(), 2)
+            await asyncio.sleep(.02)
+            assert len(entered) == 8
+            gates[entered[0]].set()
+            await asyncio.wait_for(refilled.wait(), 2)
+        finally:
+            for gate in gates: gate.set()
+            results = await asyncio.gather(*tasks)
+        receipts = [r['dispatch_receipt'] for r in results]
+        assert len({r['owner_id'] for r in receipts}) == 1
+        assert all(r['schema'] == 'capstone-tool-dispatch/1' for r in receipts)
+        assert all(e['provenance'] == 'host_transport' for r in receipts for e in r['events'])
+        assert all('execution_started' not in [e['phase'] for e in r['events']] for r in receipts)
+    asyncio.run(run())
+
+
+def test_pending_dispatch_cancel_does_not_start_transport_or_leak_lease():
+    async def run():
+        resource = access()
+        resource._tasks['task-1']['catalog']['tools'][request()['name']]['annotations'] = {'readOnlyHint': True}
+        filled, release = asyncio.Event(), asyncio.Event()
+        calls = []
+        async def upstream(name, arguments, catalog):
+            calls.append(arguments['i'])
+            if len(calls) == 8: filled.set()
+            await release.wait()
+            return {'isError': False, 'structuredContent': {'status': 'partial'}}
+        resource.client.call = upstream
+        tasks = [asyncio.create_task(resource.call('task-1', dict(request(), call_id=str(i), arguments={'i': i}))) for i in range(8)]
+        await asyncio.wait_for(filled.wait(), 2)
+        pending = asyncio.create_task(resource.call('task-1', dict(request(), call_id='queued', arguments={'i': 8})))
+        try:
+            await asyncio.sleep(.01)
+            pending.cancel()
+            with pytest.raises(asyncio.CancelledError): await pending
+            assert len(calls) == 8
+            span = resource.diagnostic_calls('task-1')[-1]
+            phases = [e['phase'] for e in span['dispatch_receipt']['events']]
+            assert phases == ['submitted', 'queued', 'cancellation_requested']
+        finally:
+            release.set()
+            await asyncio.gather(*tasks)
+        result = await resource.call('task-1', dict(request(), call_id='after', arguments={'i': 9}))
+        assert result['is_error'] is False
+    asyncio.run(run())
+
+
+def test_declared_source_failure_blocks_replay_but_not_independent_metadata():
+    resource = access(['data_gateway_other'])
+    calls = []
+    failure = {'isError': False, 'structuredContent': {'status': 'error',
+        'provenance': {'request_id': 'source-request', 'execution_diagnostics': {
+            'transport_phase': 'receive', 'request_sent': True, 'result_state': 'unknown',
+            'remote_execution_possible': True, 'automatic_retry': False}}}}
+    async def call(name, arguments, catalog):
+        calls.append(name)
+        return failure if name == request()['name'] else {'isError': False, 'structuredContent': {'status': 'ok', 'data': {}}}
+    resource.client.call = call
+    first = asyncio.run(resource.call('task-1', request()))
+    assert first['is_error'] is True
+    with pytest.raises(GatewayError, match='gateway_operation_retry_blocked'):
+        asyncio.run(resource.call('task-1', dict(request(), call_id='new-call-id')))
+    second = asyncio.run(resource.call('task-1', dict(request(), call_id='metadata', name='data_gateway_other')))
+    assert second['is_error'] is False
+    assert resource.publication()['available'] is True
+    assert calls == [request()['name'], 'data_gateway_other']
+    resource.bind('new-instruction', 'attempt-2', set(resource.catalog['tools']))
+    asyncio.run(resource.call('new-instruction', request()))
+    assert calls[-1] == request()['name']
+    assert failure['isError'] is False
+
+
+@pytest.mark.parametrize('nested', [False, True])
+def test_partial_declared_unknown_execution_blocks_replay_without_losing_partial_results(nested):
+    import json
+    resource = access(['independent'])
+    diagnostic = {'automatic_retry': False, 'request_sent': True,
+                  'remote_execution_possible': True, 'result_state': 'unknown'}
+    partial = {'status': 'partial', 'data': {'accepted': [1]},
+               'provenance': {'execution_diagnostics': diagnostic}}
+    if nested:
+        partial = {'status': 'partial', 'data': [
+            {'result': {'status': 'ok', 'data': [1]}},
+            {'result': {'status': 'failed', 'provenance': {'execution_diagnostics': diagnostic}}}],
+            'gaps': [{'reason': 'unrelated_gap'}, {'reason': 'child_failed', 'scope': {'query_index': 1}}]}
+    result = {'isError': False, 'structuredContent': partial}
+    calls = []
+    async def call(name, arguments, catalog):
+        calls.append((name, arguments))
+        return deepcopy(result)
+    resource.client.call = call
+    first = asyncio.run(resource.call('task-1', request()))
+    assert first['is_error'] is False
+    assert json.loads(first['result_json'])['structuredContent'] == partial
+    with pytest.raises(GatewayError, match='gateway_operation_retry_blocked'):
+        asyncio.run(resource.call('task-1', dict(request(), call_id='replay')))
+    asyncio.run(resource.call('task-1', dict(request(), call_id='changed', arguments={'different': True})))
+    asyncio.run(resource.call('task-1', dict(request(), call_id='independent', name='independent')))
+    assert len(calls) == 3
+
+
+def test_contract_sections_survive_turns_without_reusing_business_results(tmp_path):
+    from test_data_gateway_mcp import contract_context_gateway
+    client, _, catalog, result = contract_context_gateway(tmp_path)
+    calls = []
+    async def call(name, arguments, catalog):
+        calls.append(name)
+        return (deepcopy(result) if name == 'data_gateway_describe_gateway_contract' else
+                {'isError': True, 'structuredContent': {'status': 'error',
+                    'gaps': [{'reason': 'source_unavailable'}]}})
+    client.call = call
+    resource = DataGatewayAccess(client, catalog)
+    granted = set(catalog['tools'])
+    resource.bind('first', 'attempt-1', granted)
+    asyncio.run(resource.call('first', {'call_id': 'lookup', 'name': 'data_gateway_describe_gateway_contract',
+        'arguments': {'tool_name': 'data_gateway_alpha', 'section': 'usage'}}))
+    before = resource.contract_context('first')
+    assert len(before['sections']) == 1
+    resource.revoke('first')
+    resource.bind('second', 'attempt-2', granted)
+    assert resource.contract_context('second') == before
+    failure = asyncio.run(resource.call('second', {'call_id': 'business', 'name': 'data_gateway_alpha', 'arguments': {}}))
+    assert failure['is_error'] is True
+    assert resource.contract_context('second') == before
+    assert resource.publication()['available'] is True
+    for allowed in [{'data_gateway_alpha'}, {'data_gateway_describe_gateway_contract'}]:
+        task = 'restricted-' + str(len(allowed)) + next(iter(allowed))
+        resource.bind(task, 'attempt', allowed)
+        assert resource.contract_context(task)['sections'] == []
+    other = DataGatewayAccess(client, catalog)
+    other.bind('third', 'attempt-3', granted)
+    assert other.contract_context('third')['sections'] == []
+    before['sections'][0]['data']['usage']['purpose'] = 'modified'
+    assert resource.contract_context('second')['sections'][0]['data']['usage']['purpose'] != 'modified'
+    assert calls == ['data_gateway_describe_gateway_contract', 'data_gateway_alpha']
+
+
+def test_publication_refresh_discards_metadata_and_late_old_task_results(tmp_path):
+    from test_data_gateway_mcp import contract_context_gateway
+    client, session, catalog, result = contract_context_gateway(tmp_path)
+    async def call(*args, **kwargs):
+        return deepcopy(result)
+    client.call = call
+    resource = DataGatewayAccess(client, catalog)
+    resource.bind('old', 'attempt-1', set(catalog['tools']))
+    document = {'call_id': 'first', 'name': 'data_gateway_describe_gateway_contract',
+                'arguments': {'tool_name': 'alpha', 'section': 'usage'}}
+    asyncio.run(resource.call('old', document))
+    assert resource.contract_context('old')['sections']
+    session.stamp = '2026-11-07T20:00:00+08:00'
+    asyncio.run(resource.reload_contract())
+    assert resource.catalog['revision'] != catalog['revision']
+    asyncio.run(resource.call('old', dict(document, call_id='late')))
+    resource.bind('new', 'attempt-2', set(resource.catalog['tools']))
+    assert resource.contract_context('new')['sections'] == []
+    asyncio.run(resource.call('new', dict(document, call_id='fresh')))
+    assert resource.contract_context('new')['sections']
+
+
+def test_contract_context_budget_and_conflicting_versions_are_safe(tmp_path):
+    from test_data_gateway_mcp import contract_context_gateway
+    from capstone_agent.data_gateway_mcp import encode
+    client, _, catalog, result = contract_context_gateway(tmp_path)
+    name = 'data_gateway_describe_gateway_contract'
+    args = {'tool_name': 'alpha', 'section': 'usage'}
+    other = deepcopy(result)
+    other['structuredContent']['data'].update(section='input_schema')
+    entries = [client.contract_context_entry(name, dict(args, section=section), value, catalog)
+               for section, value in [('usage', result), ('input_schema', other)]]
+    limit = max(len(encode(entry)) for entry in entries) + 8
+    resource = DataGatewayAccess(client, catalog, contract_context_bytes=limit)
+    resource.bind('task', 'attempt', set(catalog['tools']))
+    response = [result]
+    async def call(*args, **kwargs):
+        return deepcopy(response[0])
+    client.call = call
+    def submit(call_id, section):
+        return asyncio.run(resource.call('task', {'call_id': call_id, 'name': name,
+            'arguments': dict(args, section=section)}))
+    submit('one', 'usage')
+    response[0] = other
+    submit('two', 'input_schema')
+    assert [entry['section'] for entry in resource.contract_context('task')['sections']] == ['input_schema']
+    assert resource._contract_section_bytes <= limit
+    response[0] = deepcopy(result)
+    response[0]['structuredContent']['data']['usage']['purpose'] = 'x' * (limit * 2)
+    assert submit('large', 'usage')['is_error'] is False
+    assert [entry['section'] for entry in resource.contract_context('task')['sections']] == ['input_schema']
+    response[0] = deepcopy(result)
+    response[0]['structuredContent']['data']['contract_revision'] = 'contract-b'
+    submit('conflict', 'usage')
+    assert resource.contract_context('task')['sections'] == []
+    response[0] = result
+    submit('late', 'usage')
+    assert resource.contract_context('task')['sections'] == []
+
+
+def test_contract_snapshot_files_preserve_bytes_hashes_and_readonly_modes(tmp_path):
+    import hashlib
+    import json
+    from pathlib import Path
+    from capstone_agent.data_gateway_relay import stage_gateway_contract_context
+    from capstone_agent.data_gateway_mcp import encode
+    entry = {'tool': 'opaque', 'section': 'usage', 'contract_revision': 'revision',
+             'data': {'purpose': 'Use admitted inputs'}}
+    inputs = tmp_path / 'inputs'
+    inputs.mkdir()
+    manifest = stage_gateway_contract_context(inputs, {'catalog_revision': 'catalog',
+        'instance_id': 'instance', 'sections': [entry]})
+    document = json.loads(manifest.read_bytes())
+    saved = document['sections'][0]
+    body = Path(saved['path']).read_bytes()
+    assert body == encode(entry)
+    assert saved['sha256'] == hashlib.sha256(body).hexdigest()
+    assert saved['size_bytes'] == len(body)
+    assert Path(saved['path']).stat().st_mode & 0o222 == 0
+    assert manifest.stat().st_mode & 0o222 == 0
+
+
 def access(extra_tools=(), schemas=None):
     catalog = {'revision': 'a' * 64, 'tools': {'data_gateway_discover_data_capabilities': {}},
                'tool_hashes': {'data_gateway_discover_data_capabilities': 'b' * 64}}
@@ -526,7 +763,10 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
         process = subprocess.run(['node', str(fixture)], cwd=Path(__file__).resolve().parents[3],
             input=json.dumps(config), text=True, capture_output=True, timeout=20)
         assert process.returncode == 0, process.stderr
-        value = json.loads(process.stdout)
+        frames = [json.loads(line) for line in process.stdout.splitlines() if line.strip()]
+        assert all(frame.get('type') == 'tool_dispatch' for frame in frames[:-1])
+        assert all(frame['dispatch_receipt']['schema'] == 'capstone-tool-dispatch/1' for frame in frames[:-1])
+        value = frames[-1]
         event = value['event']
         assert value['turns'] == 2
         assert len(resource._tasks['task-1']['started']) == 1

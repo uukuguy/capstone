@@ -6,6 +6,15 @@ compatibility requirement. Do not replace the old CLI with forwarding aliases.
 
 ## Current implementation
 
+PR101 merged the complete retirement into dev `0616023f` on2026-11-14.
+The independently installable pandapower application owns worker,previews,
+composition,reports and trajectory. The old source,distribution and console
+script are removed. Installed artifact checks,registered Authority cases,focused
+macOS CI and rebuilt actualdev recovery pass. See the
+[migration receipt](../../reports/2026-11-13-pandapower-application-owner.md).
+
+The following dependency description records the pre-migration state.
+
 The old package is not only a CLI. `capstone_agent.registry` starts
 `grid_agent.worker` and `grid_agent.case_preview`. The hosted application exports
 its catalog through `grid_agent.thread_catalog_export`. The worker imports runtime
@@ -14,22 +23,22 @@ would break the formal application.
 
 ## Ordered work
 
-1. Split local affected checks, PR checks and explicit baseline/release checks.
+1. [x] Split local affected checks, PR checks and explicit baseline/release checks.
    Keep shared runtime, Authority and registered-worker tests. Remove dedicated
    old CLI and compatibility tests from the PR aggregate. Keep existing baseline
    PR #9 acceptance intact; do not change its tested source to make CI green.
-2. Move application-owned pandapower worker, previews, model projections and
+2. [x] Move application-owned pandapower worker, previews, model projections and
    assembly into a clearly named pandapower application package. Keep Domain Pack
    semantics out of `capstone-agent` and the Kernel. Move neutral runtime setup
    to its owning runtime module; remove worker imports from CLI files.
-3. Switch registered application commands, deployment source manifests,
+3. [x] Switch registered application commands, deployment source manifests,
    installations, validation runners and package artifact checks to those owners.
    Preserve current-run evidence and API/worker identity.
-4. Remove the `grid-agent` console script, old `run`/`analysis`/`report` entry
+4. [x] Remove the `grid-agent` console script, old `run`/`analysis`/`report` entry
    contracts, CLI and compatibility implementations, and their dedicated tests.
    Keep tests for shared behavior by moving them with their owner. Update both
    READMEs, runbook, architecture and agent contract together.
-5. Verify the real `capstone-agent` path, registered cases, reports, evidence
+5. [x] Verify the real `capstone-agent` path, registered cases, reports, evidence
    replay and installed packages. Rebuild local-dev from the accepted source.
    Do not update local-demo or cloud stages with ordinary iteration changes.
 

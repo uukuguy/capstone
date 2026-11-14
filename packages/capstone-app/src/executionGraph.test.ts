@@ -1,5 +1,7 @@
+import { receipt } from './toolExecutionReceipt.fixture'
 import { describe, expect, it } from 'vitest'
 import { projectExecutionGraph } from './executionGraph'
+import {serviceBusSummary} from './serviceBusCalls'
 import type { EventEnvelope } from './threadProtocol'
 
 export const owner = { thread_id: 'thread', work_id: 'work', research_id: 'research', goal_revision: 1 }
@@ -12,6 +14,15 @@ export const frame = (seq: number, type: string, step = 'A', extras = {}) => eve
 export const result = (ref = 'result:A:1', revision = 1) => ({ schema: 'capstone-task-result/1', result_ref: ref, producer: { step_id: 'A', action_id: revision === 1 ? 'action:A' : 'action:A2', execution_revision: revision, attempt_id: 'attempt' }, slot: 'answer', kind: 'observation', summary: 'Same bytes', scope: 'selected rows', consumed_results: [], source_versions: [{ ref: 'source:one', revision: 'v1' }], method: { ref: 'method:one', revision: 'v1', environment_unavailable: 'not supplied' }, supersedes: revision === 1 ? [] : ['result:A:1'], recompute_reason: revision === 1 ? null : { kind: 'discrepancy', refs: ['source:one'], diagnostic: 'Recheck' } })
 
 describe('exact execution graph projection', () => {
+  it('retains child service bus counters without counting the graph projection twice',()=>{
+    const calls={schema:'capstone-service-bus-calls/1',scope:'current_tool_call',reused:false,attempt_count:23}
+    const graph=projectExecutionGraph([progress(1),
+      frame(2,'enterprise_graph_tool_binding','A',{tool_call_id:'source:A',tool_name:'data_gateway_query'}),
+      frame(3,'enterprise_graph_child_tool','A',{tool_call_id:'source:A',tool_name:'data_gateway_query',activity:'end',service_bus_calls:calls})],'attempt')!
+    const child=graph.executions[0].tools[0]
+    expect(child.serviceBusCalls?.attempt_count).toBe(23)
+    expect(serviceBusSummary([child,child]).count).toBe(23)
+  })
   it('preserves first-line parent response intent when displayed through the graph trace',()=>{
     const start={...event(2,{runtime_mode:'capstone',phase:'started'}),eventType:'runtime_action'}
     const delta={...event(3,{text:'// 核对目录与物理表的可读范围\n'}),eventType:'assistant_process_delta'}
@@ -312,4 +323,12 @@ describe('scalar graph enums', () => {
   it.each(malformedEnums('graph_committed'))('does not convert malformed control event kinds into graph commits: %j', ({ value }) => {
     expect(projectExecutionGraph([progress(1, graph(), { events: [{ kind: value }] })], 'attempt')!.controlEvents).toEqual([])
   })
+})
+
+it('admits graph execution receipts only for the bound call and task',()=>{
+ const observed=receipt('call:A')
+ const rows=[progress(1),frame(2,'enterprise_graph_tool_binding','A',{tool_call_id:'call:A',tool_name:'bash'}),frame(3,'enterprise_graph_child_tool','A',{activity:'end',tool_call_id:'call:A',tool_name:'bash',execution_receipt:observed})]
+ expect(projectExecutionGraph(rows,'attempt')!.executions[0].tools[0].executionReceipt).toEqual(observed)
+ const wrong=frame(4,'enterprise_graph_child_tool','A',{activity:'end',tool_call_id:'call:A',tool_name:'bash',execution_receipt:{...observed,task_id:'wrong'}})
+ expect(projectExecutionGraph([rows[0],rows[1],wrong],'attempt')!.executions[0].tools[0].executionReceipt).toBeUndefined()
 })

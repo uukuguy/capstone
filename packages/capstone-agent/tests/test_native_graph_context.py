@@ -10,6 +10,25 @@ import pytest
 
 from test_native_graph_progress import graph_fixture
 from capstone_agent.general_pi_storage import GeneralPiStorage
+from capstone_agent.tool_execution_receipt import checked_dispatch_receipt
+
+
+def assert_private_dispatch(frame, task_id):
+    """Private SDK stdout carries host telemetry as well as fixture envelopes."""
+    assert set(frame) == {'type', 'tool_name', 'tool_call_id', 'dispatch_receipt'}
+    assert frame['type'] == 'tool_dispatch'
+    assert isinstance(frame['tool_name'], str) and frame['tool_name']
+    assert checked_dispatch_receipt(frame['dispatch_receipt'], task_id=task_id,
+                                    call_id=frame['tool_call_id']) == frame['dispatch_receipt']
+
+
+def private_probe_result(stdout, task_id):
+    frames = [json.loads(line) for line in stdout.splitlines()]
+    assert frames
+    for frame in frames[:-1]:
+        assert_private_dispatch(frame, task_id)
+    assert 'type' not in frames[-1], 'The probe must finish with its result envelope'
+    return frames[-1]
 
 
 def test_direct_observation_is_selected_raw_source_without_graph_action(tmp_path):
@@ -114,7 +133,7 @@ def assert_sdk_reads_granted_handle(action, inputs, checkpoint, expected, kind, 
     result = {'read': True, 'kind': kind, 'receipts': 1}
     if parent:
         result.update(parent=True, inspection_only=True, consumed_results=[item['result_ref'] for item in inputs['manifests']])
-    assert json.loads(run.stdout) == result
+    assert private_probe_result(run.stdout, 'grant-read') == result
 
 
 def complete_result(request, *, result_ref, kind, observation_refs=(), artifact_refs=()):

@@ -136,6 +136,7 @@ services:
       <<: *host-environment
       CAPSTONE_HOSTED_APPLICATION: pandapower
       CAPSTONE_THREAD_FAMILY: pandapower
+      CAPSTONE_DOMAIN_EXECUTION_RECEIPTS_ROOT: /app/runs/domain-control
     command: [worker]
     networks: [default, general-pi]
     healthcheck:
@@ -206,6 +207,7 @@ services:
       CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:?Set deploy/local.env}
       CAPSTONE_GENERAL_CONTROL_TOKEN: ${CAPSTONE_GENERAL_CONTROL_TOKEN:?Set deploy/local.env}
       CAPSTONE_OPERATOR_TOKEN: ${CAPSTONE_OPERATOR_TOKEN:?Set deploy/local.env}
+      CAPSTONE_PRESENTATION_API_ORIGIN: http://api:8766
       CAPSTONE_THINKING_PREVIEW: ${CAPSTONE_THINKING_PREVIEW:-0}
       CAPSTONE_DOMAIN_TOOL_ORIGINS: pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
       CAPSTONE_NATIVE_INTERNAL_ENDPOINTS: ${CAPSTONE_NATIVE_INTERNAL_ENDPOINTS:-[]}

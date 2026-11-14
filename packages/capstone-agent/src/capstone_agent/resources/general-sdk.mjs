@@ -5,15 +5,18 @@ import { createInterface } from "node:readline";
 import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
-import {createDataGatewayTools,validateGatewayBatch,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
+import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
 import {createDomainTools} from './general-domain-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createManagedResourceTools} from './managed-resource-tools.mjs';
+import {createPresentationTools} from './presentation-templates.mjs';
+import {createSkillRecordTool,admitSkillPresentation,skillContextFiles} from './investigation-skills.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {restoreToolResult,configureObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
+import {applicationToolDispatcher,createToolBatchObserver} from './tool-call-scheduler.mjs';
 import {createLlmCallTools,llmCallToolNames,buildLlmCallPrompt} from './llm-call-tools.mjs';
 import {createModelRequestPool} from './model-request-pool.mjs';
 import {configureCommittedDelivery} from './committed-delivery.mjs';
@@ -291,13 +294,15 @@ function graphChildTools(config,tools,binding){
     emit({type:'enterprise_graph_child_tool',...base,activity:'start',tool_name:tool.name,tool_call_id:scoped,args:args[0]});
     const executionStarted=performance.now();
     try{
-      const actual=await tool.execute(tool.name.startsWith('data_gateway_')?scoped:callId,...args);
+      const actual=await tool.execute(tool.executionIdentity==='owner'||tool.name.startsWith('data_gateway_')?scoped:callId,...args);
       const executionMs=performance.now()-executionStarted;
       const result=actual.isError===true?actual:nativeObservation(config,scoped,actual);
       receipts.push(result.isError===true?graphFailureReceipt(config,token,'failed'):
         {ref:result.details.native_research_source.source_ref,owner:action.owner,
           action_id:action.id,attempt_id:action.attempt_id,status:'completed'});
-      emit({type:'enterprise_graph_child_tool',...base,activity:'end',tool_name:tool.name,tool_call_id:scoped,execution_ms:executionMs,result:rpcEvent({type:'tool_execution_end',toolName:tool.name,result}).result,is_error:result.isError===true});
+      emit({type:'enterprise_graph_child_tool',...base,activity:'end',tool_name:tool.name,tool_call_id:scoped,execution_ms:executionMs,
+        ...(result.details?.execution_receipt?{execution_receipt:result.details.execution_receipt}:{}),
+        result:rpcEvent({type:'tool_execution_end',toolName:tool.name,result}).result,is_error:result.isError===true});
       if(binding.taskReturn&&result.isError!==true){
         const alias=binding.taskReturn.observe(result.details.native_research_source.source_ref);
         const advice=binding.turnGuidance&&taskTurnGuidance(binding.turnGuidance,binding.turnGuidance.started_at_ms);
@@ -373,26 +378,41 @@ export function configureAdaptiveToolHandoff(pi,config,discovery){
   });
 }
 
-export function createGatewayToolDiscovery(config) {
-  if(config.dataGateway?.onDemandTools!==true)return;
+export function createApplicationToolDiscovery(config) {
+  const gateway=config.dataGateway?.onDemandTools===true?config.dataGateway:undefined;
+  const domain=config.domainTools?.onDemandTools===true?config.domainTools:undefined;
+  if(!gateway&&!domain)return;
+  const publications={...gateway?.catalog.tools,...domain?.catalog.tools};
+  if(gateway&&domain&&Object.keys(domain.catalog.tools).some(name=>Object.hasOwn(gateway.catalog.tools,name)))
+    throw new Error('Tool publications contain conflicting registered identities');
   const admittedNames=config.applicationPolicy?.allowed_tools;
-  if(Array.isArray(admittedNames)&&!admittedNames.some(name=>Object.hasOwn(config.dataGateway.catalog.tools,name)))return;
+  if(Array.isArray(admittedNames)&&!admittedNames.some(name=>Object.hasOwn(publications,name)))return;
   if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
     throw new Error('Application did not authorize task tool discovery');
-  return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
+  return createToolDiscovery({tools:[...(gateway?createDataGatewayTools(config):[]),...(domain?createDomainTools(config):[])],publications,
+    ...(gateway?{resolveContracts:(names,options)=>resolveGatewayContracts(config,names,options)}:{}),
     maxActiveTools:config.runtimeLimits?.tool_active_count,maxActiveSchemaChars:config.runtimeLimits?.tool_schema_chars,
     pageSize:config.runtimeLimits?.tool_search_page_items,maxSummaryChars:config.runtimeLimits?.tool_summary_chars,
-    initialNames:config.dataGateway.catalog.entry_tools??[],
-    contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
+    initialNames:gateway?.catalog.entry_tools??[],
+    contractHashes:{...gateway?.catalog.tool_hashes,...domain?.catalog.tool_hashes},admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
 }
 
-export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createGatewayToolDiscovery(config), graphBinding) {
+export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createApplicationToolDiscovery(config), graphBinding) {
   if (!config.applicationPolicy) return {};
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
-  const gatewayTools=discovery?[...discovery.guardedTools,...discovery.tools]:createDataGatewayTools(config);
+  const indexed=new Set(discovery?[
+    ...(config.dataGateway?.onDemandTools?Object.keys(config.dataGateway.catalog.tools):[]),
+    ...(config.domainTools?.onDemandTools?Object.keys(config.domainTools.catalog.tools):[])]:[]);
+  const externalTools=[...createDataGatewayTools(config),...createDomainTools(config)].filter(tool=>!indexed.has(tool.name));
+  if(discovery)externalTools.push(...discovery.guardedTools,...discovery.tools);
+  const dispatcher=applicationToolDispatcher(config,compositionPolicy.concurrency,{observe:(receipt,name)=>{
+    const callId=graphBinding?graphChildCallId(graphBinding.action.id,receipt.call_id):receipt.call_id;
+    hostEmit({type:'tool_dispatch',tool_name:name,tool_call_id:callId,
+      dispatch_receipt:{...receipt,call_id:callId}});
+  }});
   const wrap=tool => {
-    const guarded = guardToolExecution(tool, async call => applicationToolAdmission(config, call.toolName));
+    const guarded = guardToolExecution(dispatcher.wrap(tool), async call => applicationToolAdmission(config, call.toolName));
     // Foundation records do not open a native graph action or produce business evidence.
     if (!config.researchChannelPath||diagnosisTools.includes(tool.name)) return guarded;
     return {...guarded, async execute(callId, ...args) {
@@ -419,13 +439,20 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       return controller?await controller.completeTool(token,observed,{signal:args[1]}):observed;
     }};
   };
-  const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config)].map(wrap);
+  discovery?.setLoadedWrapper(wrap);
+  const skillTools=config.applicationPolicy.allowed_tools.includes('agent_skill')&&config.taskSkills?.length
+    ?[createSkillRecordTool(config.taskSkills)]:[];
+  const customTools=[...nativeTools,...externalTools,...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...createPresentationTools(config),...skillTools].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
     // Explicit program selection uses the admitted catalog, independent of the
     // model's small active menu. The same host relay validates each invocation.
-    let nested=(discovery?.admittedTools??createDataGatewayTools(config)).map(wrap);
+    // Composition keeps its existing gateway grant; domain discovery does not
+    // expand the gateway adapter's invocation or source-evidence boundary.
+    const gatewayNames=new Set(Object.keys(config.dataGateway.catalog.tools));
+    const admittedGateway=discovery?.admittedTools.filter(tool=>gatewayNames.has(tool.name));
+    let nested=(config.dataGateway.onDemandTools&&admittedGateway?admittedGateway:createDataGatewayTools(config)).map(wrap);
     if(graphBinding)nested=graphChildTools(config,nested,graphBinding);
     const selected=new Map(nested.map(tool=>[tool.name,tool]));
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
@@ -434,6 +461,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       reuseEligible:reusableGatewayRead,
       allowedInputs:(graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[]).map(s=>s.path),restore:restoreToolResult,
       validateCalls:(calls,{signal})=>validateGatewayBatch(config,calls,{signal}),
+      resolveContracts:(names,options)=>resolveGatewayContracts(config,names,options),
       async invoke(name,args,{callId,signal,refresh_reason}){
         const tool=selected.get(name);if(!tool)throw Error('Composition tool is not admitted');
         if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_start',toolName:name,toolCallId:callId,args}));
@@ -564,7 +592,9 @@ export class ManagedContinuationStalledError extends Error {
 export async function runSettledPrompt(session, input, skillName, emit, continuation,control={}) {
   let terminal,completedTools=0,previousPending;
   const observedAssistants=[];
+  const observeBatch=typeof control.taskId==='string'?createToolBatchObserver({taskId:control.taskId,emit}):()=>{};
   const unsubscribe = session.subscribe(event => {
+    observeBatch(event);
     // agent_end can precede SDK compaction or a model-request retry. Only
     // completion of prompt() means those continuations have also settled.
     if(event.type==='tool_execution_end')completedTools++;
@@ -666,17 +696,19 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     throw new Error('Child skills are not authorized by the application');
   }
   const childTools=[...new Set(toolNames)];
-  if(config.dataGateway?.onDemandTools===true&&childTools.some(name=>Object.hasOwn(config.dataGateway.catalog.tools,name))) {
+  if([config.dataGateway,config.domainTools].some(source=>source?.onDemandTools===true&&
+      childTools.some(name=>Object.hasOwn(source.catalog.tools,name)))) {
     if(discoveryToolNames.some(name=>!grants.includes(name)))throw new Error('Child tool discovery is not authorized by the application');
     childTools.push(...discoveryToolNames.filter(name=>!childTools.includes(name)));
   }
   const childConfig = {...config, researchChannelPath:undefined,toolResultCwd:cwd,
+    taskSkills:skills,
     diagnosisNamespace:graphBinding?.action?.id??'child-'+randomUUID(),
     researchRuntime:{...config.researchRuntime,isolatedTaskExecution:false},
     applicationPolicy: {...config.applicationPolicy, allowed_tools: childTools}};
   // Children keep their own task-local active set and cannot inherit a parent's
   // loaded menu or add tools outside the selected child grant.
-  const discovery=createGatewayToolDiscovery(childConfig);
+  const discovery=createApplicationToolDiscovery(childConfig);
   const settingsManager = sdk.SettingsManager.inMemory(config.settings);
   const childSources=graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[];
   const runtimeContext=[...(typeof config.runtimeEnvironment==='string'&&config.runtimeEnvironment
@@ -719,6 +751,9 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     modelRuntime, model, resourceLoader: loader, settingsManager,
     ...tools,
     sessionManager: sdk.SessionManager.inMemory()});
+  // The host owns admission capacity. Submit independent same-turn calls
+  // together; dependent arguments are resolved in a later turn or program.
+  session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,childConfig);
   const stopUnenteredTools=graphBinding?session.subscribe(event=>{
     if(event.type!=='tool_execution_end'||!(event.isError===true||event.result?.isError===true)||
@@ -1223,7 +1258,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
 
 export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   config={...config,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
-  const discovery=createGatewayToolDiscovery(config);
+  const discovery=createApplicationToolDiscovery(config);
   let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard,committedDelivery;
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
   if(config.researchRuntime?.deepResearch===false)
@@ -1311,7 +1346,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     settingsManager, extensionFactories, additionalExtensionPaths: [...config.extensions.filter(path =>
       !managedResearch || !path.endsWith('/general-research.mjs')),
       fileURLToPath(new URL("./execution-guidance.mjs", import.meta.url))], noThemes: true,
-    noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: config.contextFiles }),
+    noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: skillContextFiles(config) }),
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
       ...(config.researchRuntime?.deepResearch===true?['The user explicitly selected Deep Research for this instruction. Start by admitting a task plan, then use independent executors and a committed delivery. Do not replace this selection with direct native work or a direct final answer.']:config.researchRuntime?.deepResearch===false?['Deep Research is off for this instruction. Use the ordinary reasoning and authorized tool loop. Do not activate task organization.']:[]),
@@ -1321,7 +1356,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
           'Use agent_llm_submit for substantive independent analysis of explicit supplied text/observations. After a shared factual package is ready, identify independently answerable requested interpretation or report sections and submit them together when their necessary evidence fits the bounded input. It returns immediately; do useful independent program/render preparation while calls run. Actual completed answers arrive asynchronously as labelled observations. Use dependencies only when a later analysis needs a returned answer; do not add a separate synthesis child when the parent can integrate the available answers directly. Gateway reads and program transformations belong in agent_tools_execute, not text-only LLM calls. Collect when blocked, cancel unneeded calls explicitly, and integrate actual results before finalizing. Queue age and collection wait timeout do not prove model failure. Never resubmit an uncertain running/cancelling call or start an automatic retry. Do not parallelize tiny formatting choices or add independent reviews without a concrete need.']:[]),
         ...(managedResearch?[continuationSourceGuidance]:[])]:[]),
       ...(adaptiveLoop?['Start with the current instruction in a lightweight agent loop. At each cycle answer if sufficient, call an authorized tool for needed observations, or use agent_research_plan when task organization is useful. Respect an explicit user request to use Deep Research. When that choice is already clear, activate it promptly with the smallest useful discovery or preparation task; discovering coverage is executable research and can be delegated before the full plan is known. Do not perform a long discovery, data collection or environment inventory in the parent merely to prepare a complete plan. Independent work and known downstream dependencies can be appended or declared once justified. An ordinary answer or short local edit still needs no plan. Tool count, file uploads and session labels do not decide escalation. Before organization you may use native and granted gateway tools directly. After an accepted plan, use the isolated task execution contracts. Reuse exact Host observation references as explicitly selected source_refs; these are raw inputs, never accepted task results or Authority evidence.']:[])],
-    skillsOverride: current => ({ ...current, skills: current.skills.filter(s => config.allowedSkills.includes(s.name)) }) });
+    skillsOverride: current => admitSkillPresentation(config,current) });
   await loader.reload();
   const errors = [...loader.getExtensions().errors, ...loader.getSkills().diagnostics.filter(d => d.type === "collision")];
   if (errors.length) throw new Error("Native resources failed to load");
@@ -1458,6 +1493,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     modelRuntime, model, resourceLoader: loader, settingsManager,
     ...toolOptions,
     sessionManager: sdk.SessionManager.inMemory() });
+  session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,config);
   const stopModelTurn=session.subscribe(event=>{if(event.type==='turn_start')mainModelTurn++});
   llmPool?.setCompletionSink(result=>session.sendCustomMessage({customType:'capstone-llm-pool-results',
@@ -1498,7 +1534,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       await runSettledPrompt(session, config.input, config.skillName,
         event => process.stdout.write(JSON.stringify(event) + "\n"),
         async()=>await llmPool?.continuation()??await researchController?.continuationState(),
-        {failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()});
+        {taskId:config.taskId,failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()});
       break;
     }
     lines.close();

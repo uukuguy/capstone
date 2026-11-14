@@ -1,6 +1,53 @@
 # docs/status INDEX
 
-2026-11-06：[main/tag收口](../reports/2026-11-06-native-execution-closeout.md)PR94首轮macOS CI42137611817失败；1a0fc847修正安静Provider测试的定时计数假设，92项本地通过。补齐12份原始历史回执，候选链接通过；等待第二次CI批准，未合并/tag或部署。
+2026-11-14：[发布补修](../reports/2026-11-14-v1.1.0-release.md#linux-listener-repair)及
+[机器回执](../reports/receipts/2026-11-14-v1.1.0-listener-repair.json)：首轮Linux连接重置，
+fcc55dbc按现有连接预算修复TCP接收队列，3308后端及实际Linux60轮/真实任务通过。
+macOS首轮47分07秒后SDK654通过/1失败；153d19ae修复同步假设，655项本地通过。
+[SDK回执](../reports/receipts/2026-11-14-v1.1.0-sdk-fixture-repair.json)保留受控延迟对照。第二次CI未批准，main/tag未改变。下述段落保留先前验收过程。
+
+2026-11-14：[v1.1.0发布记录](../reports/2026-11-14-v1.1.0-release.md)记录类型、依赖锁及测试入口修复；完整本地门禁及正式App构建通过，发布CI未批准。
+
+2026-11-14：[v1.1.0发布候选](../releases/v1.1.0.md)按用户选定版本冻结；本地完整本地验收已通过，main合入和tag待接受。
+
+2026-11-14：PR104已合入dev8d97596c，第二次定向macOS CI通过4分08秒；旧PPT与引用研究已归档，
+当前仅新增用户授权的v1.1.0发布候选线。实际dev重建/默认入口恢复及47条历史下载摘要通过。
+[收口回执](../reports/2026-11-14-presentation-integration.md)。下述早期段落为过程记录。
+
+2026-11-14：[PPT 集成与引用研究收口](../reports/2026-11-14-presentation-integration.md)：
+候选 29c0ce72 基于当前 dev；旧引用研究原 SHA 归档，剩余设计待办归核心演进笔记。
+本地检查通过，重建和真实验证进行中，尚未合入或启动 CI。
+
+2026-11-14：[分支归属审计](../reports/2026-11-14-branch-ownership-audit.md)明确PPT候选归dev，
+引用执行研究独立暂停；旧Work草稿、历史模板、CI策略、R1设计及R0实验各有承接归属。
+28个本地头原SHA归档，17个旧远端头及PR50关闭；14工作树与53个未提交文件未变。
+[恢复映射](../reports/receipts/2026-11-14-branch-ownership.json)保留精确来源，不把归档当作功能合入。
+
+2026-11-14：PR101已合入dev0616023f；[默认本地入口回执](../reports/receipts/2026-11-14-merged-dev.json)
+记录规范重建、API/worker同镜像、默认App5173、原真实任务恢复及成果下载摘要通过。
+6条部署引用线坐标检查无穿卡；最终控制文档已随PR102合入4b857ac9，文档CI通过。
+IG1及云端规模接受保持独立；此处记录合并后回执，避免仅为快照自身提交号循环提交。
+
+2026-11-13：[退役定向CI回执](../reports/receipts/2026-11-13-retirement-ci.json)
+记录PR101受检源码20469225，macOS通过1分58秒。合并接口持续HTTP502；
+实际dev仍2c4ac72e。图已刷新，未把通过CI误记成合入或部署。
+
+
+2026-11-08：[独立评审与复核](../reviews/2026-11-08-session-skill-scope-independent-review.md)结论REQUEST CHANGES；原始意见与采纳/排除理由分开保存，IG1需修排除、内容身份和恢复路径，无运行代码变更或CI。
+
+2026-11-08：[会话技能作用域](../reports/2026-11-08-session-skill-scope.md)记录406c7d7b及local-dev连接三区研发的两轮真实执行；配置冻结、排除、PG恢复与产品哈希通过，界面/独立审查未接受，无CI。
+
+2026-11-08：[通用执行记录与8路队列](../reports/2026-11-08-tool-execution-lifecycle.md)记录最终本机源码b473fe0d及2b45bc49真实16项同批/源进程峰值8、产物哈希与刷新恢复。dev8da7dc76，待批准定向CI及PR集成；其他部署不变。
+
+2026-11-07：[渐进发现v1实施与验证](../reports/2026-11-07-capstone-progressive-gateway-v1.md)：本机候选248865b1，首次执行零tools/list、断连后元数据与过程恢复通过；启动1.268/0.942秒，整轮110.45/133.55秒，性能未接受。独立审查及dev集成待完成，无新CI。
+
+2026-11-07：[分段契约复验](../reports/2026-11-07-gateway-sectioned-contract-recheck.md)记录PR98及获批CI；控制PR99已合实际dev8da7dc76，图按当前HEAD刷新；完整读取归零、两项判断纠正，续轮复用与性能仍有缺口。
+
+2026-11-07：[动态能力与网关建议](../reports/2026-11-07-gateway-capability-discovery.md)记录9773fca6本机候选、真实两轮方案及未通过的分析质量项；设计和计划见回执关联。未合dev、无CI。
+
+2026-11-06：[网关自动协商修复](../reports/2026-11-06-gateway-auto-negotiation.md)三套dev已运行df4ddf61；已有会话切换、状态刷新和同一工作继续执行均经真实模型验证，客户端移除手动契约按钮。
+
+2026-11-06：推进主图已精简为9个重要节点，109项细节移入折叠历史；部署引用与真实祖先关系保留。[三套dev部署](../reports/2026-11-06-three-dev-deployment.md)与推进图对齐：dev a4efea0e、main22cd1728同内容；研发快照tag已创建，三套dev均运行22cd1728，健康/源码/同镜像与真实短会话通过。
 
 2026-11-05：[真实任务补修](../reports/2026-11-05-batch-regression.md)984131e3已部署local-dev；6链×2页实际并发4、12次查询、0工具错误，CSV下载哈希和刷新通过。原任务59/31调用组仍串行已定位；[网关缺包协查](../reports/2026-11-05-data-gateway-runtime-assist.md)通知已入队，未收到回复。
 
@@ -891,3 +938,6 @@ environment state, exact App builds and the current63 integration focus.
 Default dsv4 (2026-11-05): [current receipt](../reports/2026-11-05-default-dsv4.md)
 records all three environments atbfb16344, intranet defaults18804, unchanged local
 default and explicit selections, plus two real default-model checks.
+
+2026-11-14：PPT最终运行ddc3df02，规范重建、86项渲染检查、真实四轮与47条下载摘要通过；
+[回执](../reports/receipts/2026-11-14-presentation-integration.json)。引用研究已归档；待单独获批CI和dev PR。

@@ -1,0 +1,2 @@
+export const receipt = (call = 'c', offset = 0) => ({schema:'capstone-tool-execution/1' as const,owner_id:'owner',scope_id:'scope',task_id:'task',call_id:call,policy_version:'rolling/1',capacity:8,
+  events:['submitted','queued','acquired','execution_started','execution_ended','released'].map((phase,index)=>({phase,at:new Date(1700000000000+index*1000).toISOString(),elapsed_ms:offset+[0,0,1000,1000,2000,2000][index],provenance:phase.startsWith('execution_')?'authority_process' as const:'owner_scheduler' as const}))})

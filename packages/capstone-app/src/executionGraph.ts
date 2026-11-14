@@ -1,3 +1,5 @@
+import { parseToolExecutionReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
+import {parseServiceBusCalls,type ServiceBusCalls} from './serviceBusCalls'
 import type { EventEnvelope } from './threadProtocol'
 import {projectProcessModelRequests} from './processModelRequests'
 
@@ -22,7 +24,7 @@ export type GraphResult = {
   method: Record<string, string>; supersedes: string[]; recompute_reason: { kind: string; refs: string[]; diagnostic?: string } | null;
 }
 export type ExecutionGraphSnapshot = { schema: string; graph_ref: string; graph_revision: number; goal: string; output_mode: string; model_revision_reason: string | null; nodes: GraphNode[]; actions: GraphAction[]; results: GraphResult[] }
-export type GraphTool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; warning?: string; failure?: string; actionId?: string; actionKind?: string; origin?: 'parent'; returnLimitations?: {count:number;notes:string[]} }
+export type GraphTool = { serviceBusCalls?: ServiceBusCalls; executionReceipt?: ToolExecutionReceipt; id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; warning?: string; failure?: string; actionId?: string; actionKind?: string; origin?: 'parent'; returnLimitations?: {count:number;notes:string[]} }
 export type GraphResponse = { number: number; ms: number; usage?: RecordValue; startedAt?: string; finishedAt?: string; toolCallIds?: string[]; stopReason?: string; responseText?: string; toolRequests?: { id: string; name: string; operation?: string }[] }
 export type GraphExecution = { action: GraphAction; node: GraphNode; tools: GraphTool[]; responses: GraphResponse[]; nativeStatus?: string; resultSummary?: string; startedAt?: string; finishedAt?: string; durationMs?: number; executionStartedAt?: string; executionFinishedAt?: string; executionIntervalMs?: number; modelResponseCount?: number; turnCount?: number }
 export type GraphParentResponse = { id: string; startedAt: string; finishedAt: string; ms: number; kind: string; intent?:string; errorCode?:string; errorStatus?:number }
@@ -242,6 +244,9 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
         const binding = bindings.get(f.tool_call_id)
         if (binding && binding.actionId === f.action_id && binding.name === f.tool_name) {
           applyTool(execution, f.tool_call_id, f.tool_name, f.activity, event, f.is_error, f.tool_activity)
+          const receipt = parseToolExecutionReceipt(f.execution_receipt, f.tool_call_id)
+          if (receipt && receipt.task_id === f.task_id) execution.tools.find(t => t.id === f.tool_call_id)!.executionReceipt = receipt
+          if(f.activity==='end')execution.tools.find(t=>t.id===f.tool_call_id)!.serviceBusCalls=parseServiceBusCalls(f.service_bus_calls)
           if (f.activity === 'end' && nonnegative(f.execution_ms)) execution.tools.find(t => t.id === f.tool_call_id)!.executionMs ??= f.execution_ms
           if(f.activity==='end'&&f.tool_name==='agent_task_return'&&f.is_error===false&&object(f.task_return)
             &&f.task_return.status==='saved'&&Number.isSafeInteger(f.task_return.limitation_count)&&Number(f.task_return.limitation_count)>=0
@@ -254,6 +259,12 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
     if (binding && p.task_id === output.taskId && p.tool_name === binding.name && enumValue(p.native_type, ['tool_execution_start', 'tool_execution_end'])) {
       const execution = actions.get(binding.actionId)!
       applyTool(execution, String(p.tool_call_id), binding.name, p.native_type, event, p.is_error, p.activity)
+      const receipt = parseToolExecutionReceipt(object(p.activity) ? p.activity.execution_receipt : undefined, String(p.tool_call_id))
+      if (receipt && receipt.task_id === p.task_id) execution.tools.find(t => t.id === p.tool_call_id)!.executionReceipt = receipt
+      if(p.native_type==='tool_execution_end'&&object(p.activity)){
+        const calls=parseServiceBusCalls(p.activity.service_bus_calls)
+        if(calls)execution.tools.find(t=>t.id===p.tool_call_id)!.serviceBusCalls=calls
+      }
       const control = output.controlCalls.find(item => item.callId === p.tool_call_id), tool = execution.tools.find(item => item.id === p.tool_call_id)
       if (control?.actionId && tool) { tool.actionId = control.actionId; tool.actionKind = actions.get(control.actionId)?.action.kind; tool.origin = 'parent' }
     }

@@ -62,6 +62,90 @@
       "managed": false,
       "native_name": "explore-data",
       "required_tools": []
+    },
+    {
+      "id": "capstone-brainstorming",
+      "kind": "skill",
+      "version": "1.0.0",
+      "source": "capstone:investigation-skills",
+      "roles": [
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": false,
+      "native_name": "brainstorming",
+      "required_tools": []
+    },
+    {
+      "id": "capstone-task-planning-and-tracking",
+      "kind": "skill",
+      "version": "1.0.0",
+      "source": "capstone:investigation-skills",
+      "roles": [
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": false,
+      "native_name": "task-planning-and-tracking",
+      "required_tools": []
+    },
+    {
+      "id": "capstone-systematic-debugging",
+      "kind": "skill",
+      "version": "1.0.0",
+      "source": "capstone:investigation-skills",
+      "roles": [
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": false,
+      "native_name": "systematic-debugging",
+      "required_tools": []
+    },
+    {
+      "id": "capstone-verification-before-completion",
+      "kind": "skill",
+      "version": "1.0.0",
+      "source": "capstone:investigation-skills",
+      "roles": [
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": false,
+      "native_name": "verification-before-completion",
+      "required_tools": []
+    },
+    {
+      "id": "capstone-data-investigation",
+      "kind": "skill",
+      "version": "1.0.0",
+      "source": "capstone:investigation-skills",
+      "roles": [
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": false,
+      "native_name": "data-investigation",
+      "required_tools": []
+    },
+    {
+      "id": "capstone-data-quality-and-comparability",
+      "kind": "skill",
+      "version": "1.0.0",
+      "source": "capstone:investigation-skills",
+      "roles": [
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": false,
+      "native_name": "data-quality-and-comparability",
+      "required_tools": []
     }
   ]
 }

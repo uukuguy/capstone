@@ -1,0 +1,68 @@
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+
+export function admitSkillPresentation(config,current){
+  const skills=current.skills.filter(skill=>config.allowedSkills.includes(skill.name));
+  config.taskSkills=skills;
+  // Keep SDK inventory and explicit invocation intact, but replace its generic
+  // file-reader scaffold with the application's version-checked semantic port.
+  const semantic=config.applicationPolicy?.allowed_tools.includes('agent_skill');
+  return {...current,skills:semantic?skills.map(skill=>({...skill,disableModelInvocation:true})):skills};
+}
+
+export function skillSelectionGuidance(config){
+  if(!config.applicationPolicy?.allowed_tools.includes('agent_skill')||!config.taskSkills?.length)return '';
+  const catalog=config.taskSkills.map(({name,description})=>({name,description}));
+  return 'Application method instructions for this instruction (on demand, no fixed sequence):\n'+JSON.stringify(catalog)+
+    '\nUsers do not need to select or name a method. Compare these descriptions with the current goal and admitted context. '+
+    'When a description matches a substantive part of the requested work, you must load its exact name with agent_skill operation load before doing that part, then follow the returned instructions. '+
+    'Do not bypass a matching method merely because a direct tool or program can perform the action. '+
+    'For substantive multi-stage work, select the relevant methods and revisit that selection when the evidence, scope or delivery stage changes. '+
+    'Use the semantic loader rather than searching for method files with shell or read. Keep one task plan and evidence record. '+
+    'Record meaningful actual application with agent_skill operation report, concise public phases, related tool_call_ids and saved product refs when available. '+
+    'Loading alone is not application; reports are model statements, not host-certified results. Do not fabricate records for earlier work. '+
+    'Do not load all methods or invoke a method merely because it is installed. A direct answer or simple operation may need no method. '+
+    'There is no fixed first tool or service: select methods and services from this instruction, not keywords or previous service use. '+
+    'Methods grant no tools, data or authority; current grants and exclusions remain binding.';
+}
+
+export function skillContextFiles(config){
+  const guidance=skillSelectionGuidance(config);
+  return [...(config.contextFiles??[]),...(guidance?[{path:'application-methods',content:guidance}]:[])];
+}
+
+// The caller supplies only task-admitted native resources, never model paths.
+export function createSkillRecordTool(skills){
+  const admitted=new Map(skills.map(skill=>[skill.name,{...skill,
+    version:'sha256:'+createHash('sha256').update(readFileSync(skill.filePath)).digest('hex')}]));
+  const loaded=new Set();
+  const fail=code=>({isError:true,content:[{type:'text',text:code}]});
+  return {name:'agent_skill',label:'Use task skill',
+    description:'Load an admitted skill by exact name, or report a meaningful public application phase after loading. Loading returns the method. Reports are model statements, not host verification. refs and tool_call_ids link reported work; they do not grant authority. Do not report private reasoning. Available skills: '+skills.map(s=>s.name+': '+s.description).join('; '),
+    parameters:{type:'object',additionalProperties:false,required:['name','operation'],properties:{
+      name:{type:'string',minLength:1,maxLength:128},operation:{type:'string',enum:['load','report']},
+      phase:{type:'string',minLength:1,maxLength:80},summary:{type:'string',minLength:1,maxLength:600},
+      refs:{type:'array',maxItems:32,items:{type:'string',minLength:1,maxLength:256}},
+      tool_call_ids:{type:'array',maxItems:32,items:{type:'string',minLength:1,maxLength:256}}}},
+    async execute(id,args,signal){
+      signal?.throwIfAborted();
+      if(!args||Object.keys(args).some(key=>!['name','operation','phase','summary','refs','tool_call_ids'].includes(key)))return fail('skill_arguments_invalid');
+      const skill=admitted.get(args.name);
+      if(!skill)return fail('skill_not_admitted');
+      if(!['load','report'].includes(args.operation))return fail('skill_operation_invalid');
+      if(args.phase!==undefined&&(typeof args.phase!=='string'||!args.phase.trim()||args.phase.length>80))return fail('skill_arguments_invalid');
+      for(const key of ['refs','tool_call_ids'])if(args[key]!==undefined&&(!Array.isArray(args[key])||args[key].length>32||args[key].some(v=>typeof v!=='string'||!v||v.length>256)))return fail('skill_arguments_invalid');
+      let body;
+      try{body=readFileSync(skill.filePath);}catch{return fail('skill_unavailable');}
+      if('sha256:'+createHash('sha256').update(body).digest('hex')!==skill.version)return fail('skill_version_changed');
+      if(body.length>65536)return fail('skill_content_too_large');
+      if(args.operation==='report'&&(!loaded.has(skill.name)||typeof args.summary!=='string'||!args.summary.trim()||args.summary.length>600))return fail('skill_report_requires_load_and_summary');
+      if(args.operation==='load')loaded.add(skill.name);
+      const activity={schema:'capstone-skill-activity/1',name:skill.name,version:skill.version,
+        state:args.operation==='load'?'loaded':'reported',source:args.operation==='load'?'host':'model',
+        ...(args.operation==='report'?{summary:args.summary,phase:args.phase??'application',
+          refs:args.refs??[],tool_call_ids:args.tool_call_ids??[]}: {})};
+      return {content:[{type:'text',text:args.operation==='load'?body.toString('utf8'):JSON.stringify(activity)}],
+        details:{skill_activity:activity}};
+    }};
+}

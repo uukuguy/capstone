@@ -39,7 +39,7 @@ def test_client_routes_pandapower_instructions_through_registered_application(tm
     assert result["application_id"] == "pandapower-static-analysis"
     assert result["run_id"] == "grid-run"
     command, options = calls[0]
-    assert command[:5] == ["uv", "run", "--project", "packages/grid-agent", "grid-agent"]
+    assert command[:5] == ["uv", "run", "--project", "packages/pandapower-application", "grid-agent"]
     assert command[5:9] == ["analysis-generic", "--application", "pandapower-static-analysis", "--instructions"]
     assert options["cwd"] == ROOT
     assert "OPENAI_API_KEY" not in command
@@ -91,7 +91,7 @@ def test_client_routes_pandapower_scripted_demo_without_provider_credentials() -
 
     assert result["run_id"] == "grid-demo"
     command, options = calls[0]
-    assert command[:5] == ["uv", "run", "--project", "packages/grid-agent", "python"]
+    assert command[:5] == ["uv", "run", "--project", "packages/pandapower-application", "python"]
     assert command[5:9] == ["tools/pandapower_scripted_demo.py", "--case", "pandapower-scripted-task", "--instructions"]
     assert "OPENAI_API_KEY" not in options["env"]
 

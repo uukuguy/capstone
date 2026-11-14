@@ -571,12 +571,13 @@ class GeneralPiProcess:
                     return answer
                 if event.get('type') in {'turn_start', 'turn_end', 'message_end', 'auto_retry_start', 'auto_retry_end',
                                          'compaction_start', 'compaction_end',
+                                         'tool_dispatch', 'tool_batch',
                                          'tool_execution_start', 'tool_execution_end', 'message_update',
                                          'enterprise_cycle_progress', 'enterprise_graph_progress',
                                          'systematic_diagnosis_request', 'enterprise_graph_context_request', 'enterprise_graph_tool_binding', 'enterprise_graph_tool_failure',
                                          'enterprise_graph_child_started', 'enterprise_graph_child_tool',
                                          'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished', 'delegation_child_started',
-                                         'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response', 'llm_pool_call', 'model_request_pool'}:
+                                         'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response', 'llm_pool_call', 'model_request_pool', 'investigation_checkpoint'}:
                     if event.get('type') == 'tool_execution_end' and event.get('toolName') == 'agent_research_finish':
                         details = event.get('result', {}).get('details', {})
                         committed_delivery = (details.get('result', {}).get('delivery')

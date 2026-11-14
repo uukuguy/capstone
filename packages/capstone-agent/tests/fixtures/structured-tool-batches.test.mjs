@@ -4,7 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
-import {createToolCompositionTool} from '../../src/capstone_agent/resources/tool-composition.mjs';
+import {createToolCompositionTool,compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
 
 const schema={name:'read',description:'Read',inputSchema:{type:'object'},annotations:{readOnlyHint:true,idempotentHint:true,destructiveHint:false}};
 const catalog={revision:'test',tools:{data_gateway_read:schema}};
@@ -14,11 +14,11 @@ const body=result=>{assert.equal(result.isError,false,JSON.stringify(result));re
 async function fixture(run){const cwd=await mkdtemp(join(tmpdir(),'structured-batch-'));try{await run(cwd);}finally{await rm(cwd,{recursive:true,force:true});}}
 const tool=(cwd,invoke,extra={})=>createToolCompositionTool({cwd,catalog,invoke,validateCalls:async()=>{},deadlineAt:Date.now()+10000,...extra});
 
-test('structured calls overlap up to four and preserve IDs, order and readable refs',()=>fixture(async cwd=>{
+test('structured calls overlap within the published capacity and preserve IDs, order and readable refs',()=>fixture(async cwd=>{
  let active=0,peak=0;const finished=[];
  const t=tool(cwd,async(_name,{n})=>{active++;peak=Math.max(peak,active);await delay((8-n)*3);active--;finished.push(n);return native(n);});
  const result=body(await t.execute('direct',{calls}));
- assert.equal(peak,4);assert.notDeepEqual(finished,[0,1,2,3,4,5,6,7]);
+ assert.equal(peak,Math.min(calls.length,compositionPolicy.concurrency));assert.notDeepEqual(finished,[0,1,2,3,4,5,6,7]);
  assert.deepEqual(result.result.map(r=>r.id),calls.map(r=>r.id));
  assert.deepEqual(result.result.map(r=>r.data.n),[0,1,2,3,4,5,6,7]);
  assert.ok(result.result.every(r=>r.ok&&r.ref));
@@ -78,7 +78,7 @@ test('concurrent programs share the session limit',()=>fixture(async cwd=>{
  let active=0,peak=0;
  const t=tool(cwd,async(_name,{n})=>{active++;peak=Math.max(peak,active);await delay(8);active--;return native(n);});
  const result=await Promise.all([t.execute('first',{calls}),t.execute('second',{calls:calls.map(c=>({...c,arguments:{n:c.arguments.n+20}}))})]);
- result.forEach(body);assert.equal(peak,4);
+ result.forEach(body);assert.equal(peak,Math.min(2*calls.length,compositionPolicy.concurrency));
 }));
 
 test('unknown or mutating tools execute exclusively between read groups',()=>fixture(async cwd=>{
@@ -94,7 +94,7 @@ test('cancellation removes waiting calls and releases shared capacity for the ne
  const controller=new AbortController();let entered;const started=new Promise(r=>{entered=r;});let invoked=0;
  const t=tool(cwd,async(_name,{n},{signal})=>{invoked++;entered();await delay(100,undefined,{signal});return native(n);});
  const pending=t.execute('cancel',{calls},controller.signal);await Promise.race([started,pending.then(r=>assert.fail(JSON.stringify(r)))]);controller.abort(Error('user cancelled'));
- await assert.rejects(pending,/cancelled/);assert.ok(invoked<=4);
+ await assert.rejects(pending,/cancelled/);assert.ok(invoked<=compositionPolicy.concurrency);
  const result=body(await t.execute('next',{calls:[calls[0]]}));assert.equal(result.result[0].data.n,0);
 }));
 
@@ -129,13 +129,13 @@ test('independent paginated chains overlap while each cursor remains sequential'
   do {const r=await tools.call('read',{chain,cursor});refs.push(r.ref);cursor=r.data.next;}while(cursor!==null);
   return {chain,refs};
  });`}));
- assert.equal(peak,4);assert.equal(result.calls,18);assert.deepEqual(result.result.map(x=>x.chain),[0,1,2,3,4,5]);
+ assert.equal(peak,Math.min(6,compositionPolicy.concurrency));assert.equal(result.calls,18);assert.deepEqual(result.result.map(x=>x.chain),[0,1,2,3,4,5]);
  assert.ok(result.result.every(x=>x.refs.length===3));assert.equal(pages.size,6);
 }));
 
 test('map rejects invalid limits and drains active mappers before surfacing failure',()=>fixture(async cwd=>{
  let active=0;const t=tool(cwd,async(_name,{n})=>{active++;await delay(5);active--;return native(n);});
- for(const limit of [0,5,1.5]){
+ for(const limit of [0,compositionPolicy.concurrency+1,1.5]){
   const result=await t.execute('bad-map',{tools:['read'],program:`return tools.map([1,2],n=>tools.call('read',{n}),{concurrency:${limit}});`});
   assert.equal(result.isError,true);assert.equal(active,0);
  }

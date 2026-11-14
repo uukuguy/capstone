@@ -10,8 +10,8 @@ For displaying logs and content output, please use the ASD-STE100 specification,
 
 Capstone Agent Framework builds evidence-backed applications over registered
 business-domain systems. The first formal application is pandapower grid static
-analysis. The user has withdrawn the `grid-agent` CLI compatibility requirement;
-its old package still contains formal pandapower runtime modules pending migration.
+analysis. The retired `grid-agent` distribution and CLI have been removed.
+Formal pandapower application modules belong to `pandapower-application`.
 The repository also
 contains registered PyPSA applications, capability-named Domain Packs, and an
 independent operator App.
@@ -196,6 +196,14 @@ counts, prices, limits, versions, or deployment state here.
   `main` holds accepted release baselines; release PRs target main and run full
   verification. Hotfixes start from the actual accepted deployment tag and flow
   back to dev. Do not rewrite shared history.
+- Every working branch must have an owning package, a destination, an acceptance
+  boundary and a recorded next step in the canonical worklist/control register.
+  Keep planning-only work in the backlog until implementation starts. Independent
+  research must record its scope, delivery relationship and resume conditions.
+  At boundaries, check ancestry, patch/content equivalence, PR state and dirty
+  worktrees before closing or archiving a branch. Preserve exact source refs and
+  uncommitted files. An archive is a recovery source, not an active work stream;
+  an old Git ancestor is not proof that its withdrawn feature is still accepted.
 - Browser verification reuses an existing Capstone tab. Do not create a new tab
   for each test; preserve other open tabs and the user's browser context.
 
@@ -326,6 +334,12 @@ counts, prices, limits, versions, or deployment state here.
 
 ### Local rebuild and deployment
 
+- Group Docker source and resource copies by responsibility. Add new files to
+  existing groups; do not add a separate layer for each file or routine update.
+  Keep stable dependencies before frequently changed source. Add a new layer
+  only for a justified cache boundary, and check the final image layer count
+  and cache effect. Preserve the explicit runtime input allowlist.
+
 - After each local build and its validation/use, clean this project's unused
   images and build cache with the scoped `deploy/cleanup_local_build_cache.py`
   helper. This is a standing maintenance step, not a new service or global prune.
@@ -365,6 +379,35 @@ to restrict it to the computer. `make capstone-app-dev` remains the foreground
 alternative when interactive logs are needed. A stale browser session should
 be refreshed or reset before starting a new case.
 
+## GitHub connectivity on this Mac (Clash Verge)
+
+- This Mac uses Clash Verge. The observed system HTTP/HTTPS proxy is
+  `http://127.0.0.1:7897`. A system proxy does not prove that terminal `gh`,
+  Git, or curl requests use it. Check the current system proxy and shell
+  proxy variables first; use the observed port if it changes.
+- On 2026-11-14, GitHub merge requests repeatedly returned HTTP 502 while
+  read-only requests worked. An explicit Clash proxy made the same approved
+  PR101 merge succeed (`0616023f`). Do not conclude that GitHub is unavailable
+  from a failed request on one connection path.
+- For GitHub work on this Mac, use process-scoped proxy settings when the shell
+  has no working proxy. Do not change global Git settings, shell profiles,
+  Clash routing or TLS verification for this task:
+
+  ```sh
+  HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 gh pr view 101
+  git -c http.proxy=http://127.0.0.1:7897 -c http.version=HTTP/1.1 fetch origin dev
+  ```
+
+- Before retrying a failed write, read the actual remote PR/ref state through
+  the working connection. A timeout or 502 does not prove the write failed.
+  Retry only the still-needed approved action, with the expected source SHA.
+  Do not repeat a push, workflow dispatch or PR update that can start another CI.
+  Existing per-run CI approval requirements still apply.
+- Compare bounded read-only requests with and without the explicit proxy when
+  diagnosing a connection problem. Do not print proxy credentials, auth tokens,
+  subscription URLs or complete private proxy configuration. Record the result
+  and selected connection path in the project journal.
+
 ## Verification
 
 During early development, keep CI proportional to the changed layer and its
@@ -388,7 +431,7 @@ make validate
 Use the full gates for integration or release claims; a focused App or
 documentation change does not itself justify repeating every suite.
 Documentation-only changes require link and symlink checks,
-`git diff --check`, and `make doctor`. `make validate-provider PROVIDER=<id> [MODEL=<id>]`
+`git diff --check`, and `make doctor`. `make validate-provider REQUEST=<request.json>`
 is optional and may be billed. The user has authorized model/Provider access for
 development, integration, debugging and verification without repeated permission
 requests (2026-10-17). Run the real model checks needed for the task. Keep the

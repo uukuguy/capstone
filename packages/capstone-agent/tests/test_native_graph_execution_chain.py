@@ -10,6 +10,7 @@ from capstone_agent.native_graph_context import NativeGraphContext
 from capstone_agent.native_graph_events import NativeGraphEvents
 from capstone_agent.native_research_bridge import checked_graph_progress
 from test_native_graph_progress import graph_fixture
+from test_native_graph_context import assert_private_dispatch, private_probe_result
 
 
 @pytest.mark.parametrize('batch,invalid,cohesive,annotations', [(False, False, False, False), (True, False, False, False), (True, True, False, False), (False, False, True, False), (False, False, False, True)])
@@ -21,7 +22,7 @@ def test_pinned_sdk_submits_structured_returns_with_native_tools_without_protoco
         cwd=root, input=json.dumps({'workspace': str(workspace), 'batch': batch, 'invalid': invalid, 'cohesive': cohesive, 'annotations': annotations}) + '\n',
         text=True, capture_output=True, timeout=30)
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == {'turns': 3, 'native_calls': (3 if batch else 2) + int(invalid), 'structured_return': True, 'checks': 'not_run'}
+    assert private_probe_result(result.stdout, 'task') == {'turns': 3, 'native_calls': (3 if batch else 2) + int(invalid), 'structured_return': True, 'checks': 'not_run'}
 
 
 @pytest.mark.parametrize('scenario', ['delivered', 'cancelled', 'feedback', 'fresh-version', 'repeated', 'parent-record', 'autonomous', 'work-valid', 'limited-summary'])
@@ -50,6 +51,9 @@ def test_pinned_graph_chain_preserves_contract_associations_versions_rejections_
     try:
         for line in process.stdout:
             request = json.loads(line)
+            if request.get('type') == 'tool_dispatch':
+                assert_private_dispatch(request, task)
+                continue
             operation, value = request['operation'], request['value']
             if operation == 'commit':
                 command, change = value['id'], value['request']
@@ -65,6 +69,9 @@ def test_pinned_graph_chain_preserves_contract_associations_versions_rejections_
                     'receipt': {'research_revision': json.loads(change['changes']['notes'][-1]['text'])['committed_revision']}}}}}
             elif operation == 'progress':
                 guard.admit_progress(checked_graph_progress(value, binding=binding, task_id=task, attempt_id=attempt, view=view))
+                reply = True
+            elif operation == 'native' and value.get('type') == 'tool_dispatch':
+                assert_private_dispatch(value, task)
                 reply = True
             elif operation == 'native':
                 guard.admit(value)

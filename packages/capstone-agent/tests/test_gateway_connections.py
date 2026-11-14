@@ -239,6 +239,7 @@ def test_seeds_transport_rewrite_and_live_private_path(tmp_path):
     try:
         item.select('local')
         assert item.current_access.client.config['url'] == 'http://host.docker.internal:18001/mcp'
+        assert item.current_access.client.config['origin_authority'] == 'localhost:18001'
         assert item.current_access.client.path.exists()
         assert item.snapshot()['entries'][0]['url'] == seed['connection']['url']
         assert TOKEN not in json.dumps(item.snapshot())
