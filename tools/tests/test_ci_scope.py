@@ -4,8 +4,103 @@ import pytest
 from pathlib import Path
 import os
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture
+def accepted_release_repo(tmp_path):
+    def git(*args):
+        return subprocess.check_output(['git', *args], cwd=tmp_path, text=True,
+                                       stderr=subprocess.DEVNULL).strip()
+
+    def commit(message):
+        git('add', '--all')
+        git('-c', 'commit.gpgsign=false', 'commit', '-qm', message)
+        return git('rev-parse', 'HEAD')
+
+    git('init', '-q')
+    git('config', 'user.name', 'Scope test')
+    git('config', 'user.email', 'scope@example.invalid')
+    git('config', 'tag.gpgsign', 'false')
+    git('branch', '-M', 'main')
+    (tmp_path / 'pyproject.toml').write_text('[project]\nname="capstone"\nversion="1.1.0"\n')
+    (tmp_path / 'runtime.py').write_text('before\n')
+    base = commit('development baseline')
+    (tmp_path / 'runtime.py').write_text('accepted release\n')
+    release = commit('accepted release')
+    git('tag', '-a', 'v1.1.0', '-m', 'Accepted source release')
+    git('update-ref', 'refs/remotes/origin/main', release)
+    (tmp_path / 'docs').mkdir()
+    (tmp_path / 'docs/release.md').write_text('Accepted release record\n')
+    commit('return control record')
+    return tmp_path, git, commit, base, release
+
+
+def release_return_scope(repo, base, *options):
+    return subprocess.check_output([
+        sys.executable, str(ROOT / 'tools/ci_scope.py'), '--base', base,
+        '--head', 'HEAD', *options,
+    ], cwd=repo, text=True).strip()
+
+
+def test_tagged_main_return_reuses_release_acceptance(accepted_release_repo):
+    repo, _, _, base, _ = accepted_release_repo
+    assert release_return_scope(repo, base) == 'governance'
+    assert release_return_scope(repo, base, '--target', 'main') == 'release'
+    assert release_return_scope(repo, base, '--release') == 'release'
+
+
+@pytest.mark.parametrize('change', [
+    'missing_tag', 'lightweight_tag', 'wrong_tag', 'missing_main', 'main_advanced',
+    'post_release_source', 'source_renamed_to_docs', 'diverged_dev_base', 'new_version',
+    'copied_source_without_release_parent', 'leading_space_path',
+])
+def test_release_return_requires_exact_git_proof(accepted_release_repo, change):
+    repo, git, commit, base, release = accepted_release_repo
+    if change in {'missing_tag', 'lightweight_tag', 'wrong_tag'}:
+        git('tag', '-d', 'v1.1.0')
+        if change == 'lightweight_tag':
+            git('tag', 'v1.1.0', release)
+        elif change == 'wrong_tag':
+            git('tag', '-a', 'v1.1.0', base, '-m', 'Wrong source')
+    elif change == 'missing_main':
+        git('update-ref', '-d', 'refs/remotes/origin/main')
+    elif change == 'main_advanced':
+        git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'))
+    elif change == 'post_release_source':
+        (repo / 'runtime.py').write_text('unverified change\n')
+        commit('new runtime')
+    elif change == 'source_renamed_to_docs':
+        git('mv', 'runtime.py', 'docs/runtime.py')
+        commit('move runtime into docs')
+    elif change == 'diverged_dev_base':
+        git('checkout', '-qb', 'independent-dev', base)
+        (repo / 'other-runtime.py').write_text('independent development\n')
+        base = commit('independent development')
+        git('checkout', '-q', 'main')
+    elif change == 'new_version':
+        (repo / 'pyproject.toml').write_text('[project]\nname="capstone"\nversion="1.2.0"\n')
+        commit('unreleased version')
+    elif change == 'copied_source_without_release_parent':
+        git('checkout', '-qb', 'copied-release', base)
+        (repo / 'runtime.py').write_text('accepted release\n')
+        commit('copy content without accepted ancestry')
+    elif change == 'leading_space_path':
+        (repo / ' docs').mkdir()
+        (repo / ' docs/unknown.py').write_text('new code\n')
+        commit('unknown path with a leading space')
+    assert release_return_scope(repo, base) == 'product'
+
+
+def test_unrelated_docs_do_not_become_release_return(accepted_release_repo):
+    repo, git, commit, base, _ = accepted_release_repo
+    git('checkout', '-qb', 'unrelated-docs', base)
+    (repo / 'note.md').write_text('Only documentation\n')
+    commit('unrelated docs')
+    # Unknown root Markdown is conservatively product under the existing rules.
+    assert release_return_scope(repo, base) == 'product'
 
 ADAPTIVE_PATHS = [
     'packages/capability-agent-kernel/src/capability_agent/application/context_store.py',

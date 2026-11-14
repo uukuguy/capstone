@@ -1,5 +1,26 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Accepted release return to dev
+
+Goal: return the accepted source release and its control record through dev's PR.
+Architecture: reuse recorded full release verification only when the exact annotated
+product-version tag is origin/main, the proposed head contains that source, dev's
+base is its ancestor, and all later changes belong to existing control paths.
+Keep main and explicit-release gates full. Any missing proof or product delta
+uses normal classification. This enforces the existing proportional-gate rule;
+it does not add a product execution path or infer deployment from a branch.
+
+- [x] Add Git-fixture regressions in tools/tests/test_ci_scope.py: accepted return,
+  lightweight/missing/wrong tags, missing main, divergent base/head and product
+  changes or renames after the tag. Verify the positive case fails first.
+- [x] Implement the proof in tools/ci_scope.py; select existing governance gate
+  only with complete Git proof, preserving main/release behavior.
+- [x] Scope/governance checks:270passed/3skipped in8.42s; independent review found no important issue. Doctor/link/whitespace are repeated at the final freeze.
+- [ ] Reconcile source acceptance, exact deployment identity and current branch
+  state in the dev-owned register/graph; inspect the actual page.
+- [ ] Freeze a clean candidate, request one scoped macOS CI approval before
+  pushing/creating dev PR, then integrate and verify actual dev entry point.
+
 ## v1.1.0 首轮发布CI补修
 
 PR105首轮43559147625的Linux在28并发背压检查连接重置，3306通过/224跳过/1失败；

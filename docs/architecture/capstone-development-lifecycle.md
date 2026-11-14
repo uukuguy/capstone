@@ -111,6 +111,15 @@ control-document boundary. Record elapsed time and narrow an incorrectly selecte
 gate instead of waiting indefinitely. Complete release and cross-platform checks
 remain explicit baseline/release work.
 
+An accepted release can return to dev through the governance gate when Git proves
+that its annotated product-version tag points exactly to origin/main, the actual
+dev base is an ancestor of that source, and the proposed head contains it. Changes
+after that tag must be limited to the existing documentation/governance paths;
+renames include both paths. This reuses the recorded full release verification
+without repeating unchanged product suites. Missing proof, divergent dev work or
+any later product change uses normal scope selection. Main and explicit release
+verification always retain their complete gates. CI still needs separate approval.
+
 The conversation-runtime gate covers native conversation/context/diagnosis
 resources, the native executor image, and the explicitly registered shared
 research-context mirrors. It checks the named affected backend modules and their

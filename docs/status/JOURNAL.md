@@ -7572,3 +7572,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 首轮macOS SDK竞态：400ms启动延迟使旧100×2ms轮询427ms后读未提交proposal；替换为公开waitForDecision及事件同步，相同延迟449ms通过。保留A/B/C依赖/并行/授权输入/取消清理断言；655完整SDK及父级2项通过，生产JS未改。
 
 - 2026-11-14 首轮CI双平台结果已完整归档：Linux22分14秒失败的TCP预算修复fcc55dbc、macOS47分07秒失败的SDK测试因果同步修复153d19ae均本地通过。发布补修与回执冻结，第二次CI未批准，main/tag未变。
+
+- 2026-11-14 已接受发布回流复用治理门禁：annotatedtag=origin/main、真实dev基线/候选祖先及tag后仅控制路径全部校验；正例先红后绿，270治理检查通过/3跳过，主分支release门禁保留，独立复核无重要问题。
