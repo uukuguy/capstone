@@ -255,7 +255,7 @@ jobs:
         run: make check-pr
       - name: Verify baseline or release
         if: steps.scope.outputs.gate == 'release'
-        run: make check-release
+        run: make check-release build-capstone-app
       - name: Show failed offline validation checks
         if: failure()
         run: |

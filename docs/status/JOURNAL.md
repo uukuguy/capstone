@@ -7551,3 +7551,11 @@ check passed. No CI, integration or remote deployment performed.
 
 - 2026-11-14 b8180f8d：更新过时边界夹具与生成锁摘要，依赖版本/包hash保持。
 - 2026-11-14 发布门禁补入原生SDK与实际PPT渲染套件；22项gate图及失败传播检查通过，17报告/69PPT/655SDK检查通过，普通开发scope未扩大。
+
+- 2026-11-14 04f127e4：完整发布门禁纳入原生SDK与PPT，避免范围遗漏。
+
+- 2026-11-14 最终完整本地验收启动38497，源码04f127e4，新增SDK/PPT门禁已纳入；独立复核无重要问题。重建58734仍在进行；尚无发布CI批准。
+
+- 2026-11-14 最终04f127e4规范重建通过，同后端镜像db8047c2/native c3a9b801；真实续接16.311秒完成，6条新工件及47条历史PPT下载hash通过，最终文件字节准确。
+
+- 2026-11-14 发布CI命令补入正式App构建；本地make build-capstone-app通过，22项workflow/gate合同检查通过。完整运行中的check-release命令及产品源码未改，未启动CI。

@@ -190,7 +190,7 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
     assert "if: steps.scope.outputs.gate != 'gateway-bindings'" in standard
     assert 'run: make setup' in standard
     assert 'run: make check-pr' in workflow
-    assert 'run: make check-release' in workflow
+    assert 'run: make check-release build-capstone-app' in workflow
     assert 'branches: [dev, main]' in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.release" in workflow
 
