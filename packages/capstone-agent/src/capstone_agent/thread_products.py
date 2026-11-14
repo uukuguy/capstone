@@ -56,10 +56,17 @@ def checked_selections(value):
         raise ValueError('invalid product selection')
     selected = []
     for item in value:
-        if (not isinstance(item, dict) or not {'ref', 'purpose'} <= set(item) or set(item) - {'ref', 'purpose', 'excerpt'}
+        if (not isinstance(item, dict) or not {'ref', 'purpose'} <= set(item) or set(item) - {'ref', 'purpose', 'excerpt', 'local_selection'}
                 or item['purpose'] != 'historical-context'):
             raise ValueError('unsupported product purpose')
         parsed = {'ref': checked_ref(item['ref']), 'purpose': item['purpose']}
+        if 'local_selection' in item:
+            from .product_block_identity import selection_identity
+            local = item['local_selection']
+            selection_identity(local)
+            if 'excerpt' in item or local['parent_ref'] != parsed['ref']:
+                raise ValueError('invalid local product parent or excerpt')
+            parsed['local_selection'] = json.loads(_json(local))
         if 'excerpt' in item:
             excerpt = item['excerpt']
             if isinstance(excerpt, dict) and type(excerpt.get('max_bytes')) is int:
@@ -69,7 +76,7 @@ def checked_selections(value):
                 raise ValueError('invalid explicit product excerpt')
             parsed['excerpt'] = excerpt
         selected.append(parsed)
-    if len({_json(item['ref']) for item in selected}) != len(selected):
+    if len({_json(item.get('local_selection', item['ref'])) for item in selected}) != len(selected):
         raise ValueError('duplicate product selection')
     return selected
 
@@ -353,13 +360,21 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
         contexts = []
         selected_bytes = 0
         for selection in selected:
-            result = resolve_product(service, service._material_objects, snapshot.thread_id, selection['ref'],
-                executor=getattr(service, '_native_executor', None), snapshot=snapshot, connection=connection)
-            entry = result['entry']
-            if not entry['capabilities']['select'] and not (selection.get('excerpt') and entry['capabilities']['select_excerpt']):
-                return submission, 'product_context_unavailable'
-            data = (_json(result['projection']) if result['projection'] is not None else
-                    _json(result['record']) if result['record'] is not None else base64.b64decode(result['content_base64'], validate=True))
+            local = selection.get('local_selection')
+            if local is not None:
+                result = service._product_index_service.resolve_selection(snapshot.thread_id, local)
+                entry = result['entry']
+                data = result['content']
+                if result['dependencies']:
+                    data += b'\n' + b'\n'.join(result['dependencies'])
+            else:
+                result = resolve_product(service, service._material_objects, snapshot.thread_id, selection['ref'],
+                    executor=getattr(service, '_native_executor', None), snapshot=snapshot, connection=connection)
+                entry = result['entry']
+                if not entry['capabilities']['select'] and not (selection.get('excerpt') and entry['capabilities']['select_excerpt']):
+                    return submission, 'product_context_unavailable'
+                data = (_json(result['projection']) if result['projection'] is not None else
+                        _json(result['record']) if result['record'] is not None else base64.b64decode(result['content_base64'], validate=True))
             data.decode('utf-8')
             original_size = len(data)
             excerpt = selection.get('excerpt')
@@ -374,6 +389,9 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
                 name = event.payload['delivery']['file_name']
             name = name or selection['ref']['product_id'] + '.txt'
             provenance = {'ref': selection['ref'], 'source_status': entry['source_status'], 'historical_only': True}
+            if local is not None:
+                provenance['local_selection'] = local
+                provenance['dependency_digests'] = [sha256(part).hexdigest() for part in result['dependencies']]
             if excerpt is not None:
                 provenance['excerpt'] = {'original_size_bytes': original_size, 'selected_size_bytes': len(data),
                     'requested_max_bytes': excerpt['max_bytes'], 'truncated': len(data) < original_size}
@@ -392,11 +410,11 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
                     or sum(item['size_bytes'] for item in materials) + len(data) > limits.inline_material_bytes):
                 return submission, 'product_context_unavailable'
             material = {'schema': 'capstone-thread-material/1', 'thread_id': snapshot.thread_id,
-                'material_id': 'material_' + sha256(_json(selection['ref'])).hexdigest()[:32],
+                'material_id': 'material_' + (result['selection_id'] if local is not None else sha256(_json(selection['ref'])).hexdigest())[:32],
                 'file_name': name, 'display_name': entry['title'], 'media_type': entry['media_type'],
                 'size_bytes': len(data), 'sha256': sha256(data).hexdigest(), 'content_base64': base64.b64encode(data).decode(),
                 'source_product': provenance}
-            if selection['ref']['origin'] == 'native_file' and len(data) == original_size:
+            if local is None and selection['ref']['origin'] == 'native_file' and len(data) == original_size:
                 material['source_artifact'] = source
             materials.append(material)
         observe_capacity('native_context_bytes', len(render_product_context(contexts).encode()), phase='product.context')

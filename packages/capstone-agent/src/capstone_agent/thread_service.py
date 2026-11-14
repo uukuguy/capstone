@@ -1193,6 +1193,12 @@ from .thread_gateway import ThreadGatewayOwner, historical_binding
 class NativeExecutionOwner(ThreadGatewayOwner):
     _native_binding = None
     _material_objects = None
+    _product_index_service = None
+
+    def set_product_index_service(self, service) -> None:
+        if service is not None and service.threads is not self:
+            raise ValueError('product index owner mismatch')
+        self._product_index_service = service
 
     def set_material_store(self, objects) -> None:
         self._material_objects = objects

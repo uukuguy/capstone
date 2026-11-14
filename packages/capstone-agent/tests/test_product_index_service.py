@@ -39,6 +39,34 @@ def test_service_runs_retained_product_through_real_database_and_child(postgres_
     assert resolved['content'] == b'First paragraph.\n'
     assert resolved['dependencies'] == []
     assert 'receipt' not in resolved
+    from dataclasses import replace
+    from capstone_agent.thread_products import freeze_product_selection, checked_selections
+    threads.set_product_index_service(restored)
+    second_block = restored.blocks(thread, created['job_id'], offset=1, limit=1)['blocks'][0]
+    second = {**selection, 'block_id': second_block['block_id'], 'content_digest': second_block['content_digest']}
+    selected = [{'ref': ref, 'purpose': 'historical-context', 'local_selection': item}
+                for item in (selection, second)]
+    snapshot = replace(threads.snapshot(thread), active_model_context=None,
+                       minimum_protocol_version=2, active_grid_page_id=None, current_attempt=None)
+    frozen, reason = freeze_product_selection(threads, snapshot, {'context_product_refs': selected}, {})
+    assert reason is None
+    import base64
+    assert [base64.b64decode(item['content_base64']) for item in frozen['_materials']] == [b'First paragraph.\n', b'Second paragraph.\n']
+    assert len({item['material_id'] for item in frozen['_materials']}) == 2
+    assert all('source_artifact' not in item for item in frozen['_materials'])
+    assert frozen['_materials'][0]['source_product']['local_selection'] == selection
+    professional, reason = freeze_product_selection(threads, threads.snapshot(thread),
+        {'context_product_refs': selected}, {})
+    assert reason is None
+    assert [item['content'] for item in professional['_product_context']] == ['First paragraph.\n', 'Second paragraph.\n']
+    unchanged = {'_materials': []}
+    rejected, reason = freeze_product_selection(threads, snapshot,
+        {'context_product_refs': [{**selected[0], 'local_selection': {**selection, 'index_ref': '0'*64}}]}, unchanged)
+    assert reason == 'product_context_unavailable' and rejected == unchanged
+    with pytest.raises(ValueError):
+        checked_selections([selected[0], selected[0]])
+    with pytest.raises(ValueError):
+        checked_selections([{**selected[0], 'excerpt': {'max_bytes': 1}}])
     for invalid in ({**selection, 'index_ref': '0'*64},
                     {**selection, 'content_digest': '0'*64}):
         with pytest.raises((ValueError, KeyError)):

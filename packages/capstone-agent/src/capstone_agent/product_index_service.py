@@ -59,8 +59,11 @@ class ProductIndexService:
             raise ValueError('selection index identity mismatch')
         content = read_index_source(self.threads, self.objects, thread_id, parent,
                                     max_bytes=self.budgets['max_input_bytes'])
+        metadata = index_source_metadata(self.threads, thread_id, parent,
+                                         max_bytes=self.budgets['max_input_bytes'])
         args = (index, content, selection['block_id'], selection['content_digest'])
-        return {'selection_id': identity, 'content': resolve_block(*args),
+        return {'selection_id': identity, 'entry': metadata['entry'],
+                'original_size': len(content), 'content': resolve_block(*args),
                 'dependencies': resolve_dependencies(*args)}
 
     def blocks(self, thread_id, job_id, *, offset, limit):

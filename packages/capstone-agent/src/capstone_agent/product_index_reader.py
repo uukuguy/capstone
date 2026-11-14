@@ -38,7 +38,7 @@ def index_source_metadata(service, thread_id, parent_ref, *, max_bytes):
     else:
         from .thread_deliveries import _key
         key = _key(thread_id, event.payload['delivery'])
-    return {'ref': ref, 'object_key': key, 'size_bytes': size}
+    return {'ref': ref, 'object_key': key, 'size_bytes': size, 'entry': entry}
 
 
 def read_index_source(service, objects, thread_id, parent_ref, *, max_bytes):

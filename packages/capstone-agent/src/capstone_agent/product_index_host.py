@@ -33,6 +33,7 @@ def configured_product_indexes(environ, threads, objects):
     jobs = ProductIndexJobs(threads.dsn)
     jobs.initialize()
     service.jobs = jobs
+    threads.set_product_index_service(service)
     return service
 
 
