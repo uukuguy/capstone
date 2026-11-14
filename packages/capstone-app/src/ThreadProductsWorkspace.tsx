@@ -218,10 +218,10 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
         {view.bytes&&url&&<a aria-label="下载文件" title="下载文件" href={url} download={typeof view.entry.source.file_name==='string'?view.entry.source.file_name:view.entry.title}><ArrowDownToLine aria-hidden="true"/><span>下载文件</span></a>}
       </div>
       {view.projection&&<ResultProjectionCard projection={view.projection} onFocusElement={onFocusElement}/>}
-      {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={viewKey} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={ref=>{userSelected.current=true;setSelection(ref)}}/>}
+      {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={`comparison:${viewKey}`} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={ref=>{userSelected.current=true;setSelection(ref)}}/>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
       {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&
-        <ProductParagraphPicker key={viewKey} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}
+        <ProductParagraphPicker key={`paragraphs:${viewKey}`} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}
       {view.record&&<div><p>此项是执行记录，没有文件内容。</p>{typeof view.record.instruction==='string'&&<p>{view.record.instruction}</p>}{typeof view.record.failure_code==='string'&&<p>记录尚未提供可读的原因说明，可查看原指令和执行详情。</p>}</div>}
       {view.entry.dependencies.length>0&&<details><summary>支撑成果 · {view.entry.dependencies.length}</summary>{view.entry.dependencies.map(ref=><button type="button" key={productRefKey(ref)} onClick={()=>setSelection(ref)}>查看支撑{ref.scope==='task'?'交付':'产物'}{ref.revision?` v${ref.revision}`:''}</button>)}</details>}
       <p className="thread-product-history-note">来自已保存历史；引用不会自动成为当前运行的 Authority 证据。</p>
