@@ -16,7 +16,7 @@ it does not add a product execution path or infer deployment from a branch.
 - [x] Implement the proof in tools/ci_scope.py; select existing governance gate
   only with complete Git proof, preserving main/release behavior.
 - [x] Scope/governance checks:270passed/3skipped in8.42s; independent review found no important issue. Doctor/link/whitespace are repeated at the final freeze.
-- [ ] Reconcile source acceptance, exact deployment identity and current branch
+- [x] Reconcile source acceptance, exact deployment identity and current branch
   state in the dev-owned register/graph; inspect the actual page.
 - [ ] Freeze a clean candidate, request one scoped macOS CI approval before
   pushing/creating dev PR, then integrate and verify actual dev entry point.

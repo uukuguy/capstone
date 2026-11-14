@@ -1,0 +1,34 @@
+{
+  "schema": "capstone-source-release-acceptance/1",
+  "version": "1.1.0",
+  "main_commit": "b6b144c7ab8e023a85a2896e9d55b34695a9928b",
+  "pr": 105,
+  "verified_head": "3429e6a0dfac889609af39fa8f823a308068e8db",
+  "main_tree_matches_verified_head": true,
+  "ci_run": 43564049919,
+  "ci_conclusion": "success",
+  "jobs": [
+    {
+      "name": "verify (ubuntu-latest)",
+      "job_id": 132353886497,
+      "conclusion": "success",
+      "seconds": 2029
+    },
+    {
+      "name": "verify (macos-latest)",
+      "job_id": 132353886694,
+      "conclusion": "success",
+      "seconds": 2678
+    }
+  ],
+  "tag": {
+    "name": "v1.1.0",
+    "type": "annotated",
+    "object": "6889c808f9e7e7acd2b2cb718e5b008a2999b1e3",
+    "target": "b6b144c7ab8e023a85a2896e9d55b34695a9928b",
+    "remote_verified": true
+  },
+  "administrator_bypass": false,
+  "deployment_performed": false,
+  "dev_return": "pending preparation and separately approved CI"
+}

@@ -1,5 +1,10 @@
 # docs/status INDEX
 
+2026-11-14：main b6b144c7/v1.1.0源代码发布已接受，CI43564049919双平台通过。
+[接受回执](../reports/receipts/2026-11-14-v1.1.0-release-acceptance.json)记录精确tag/受检来源；
+版本与控制回流dev在本地准备，复用已接受tag的治理检查270通过，尚未批准回流CI。
+以下段落保留发布过程。
+
 2026-11-14：[发布补修](../reports/2026-11-14-v1.1.0-release.md#linux-listener-repair)及
 [机器回执](../reports/receipts/2026-11-14-v1.1.0-listener-repair.json)：首轮Linux连接重置，
 fcc55dbc按现有连接预算修复TCP接收队列，3308后端及实际Linux60轮/真实任务通过。

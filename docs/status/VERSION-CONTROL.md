@@ -1,5 +1,12 @@
 # 多线版本控制
 
+2026-11-14 v1.1.0源代码发布已接受：第二次双平台CI43564049919通过，Linux33分49秒/macOS44分38秒。
+PR105正常合入main b6b144c7，annotated v1.1.0已推送且远端对象/目标核对一致；版本/补修回流dev待准备。
+没有部署cloud/demo/local-demo，当前local-dev仍为已验证修复来源fcc55dbc。
+
+2026-11-14 第二次双平台发布CI已明确批准：3429e6a0已推送至PR105，CI43564049919的Linux33分49秒通过，macOS运行中。
+首轮两项失败均已受控复现与本地补修；main/tag待通过，不授权第三次CI。
+
 2026-11-14 用户明确批准本次v1.1.0双平台发布CI。PR105已创建，冻结21c2ae91，
 CI43559147625的Linux在28并发背压用例连接重置而失败；macOS47分07秒后SDK回归654通过/1固定轮询失败；main/tag阻塞，不授权重跑。
 
@@ -1186,7 +1193,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| release/v1.1.0 | 用户指定的重要版本发布 | 153d19ae本地补修；首轮21c2ae91双平台失败；macOS测试同步153d19ae已本地通过；新候选未推送，待第二次CI批准 | CI通过后main PR/tag；随后版本回流dev |
+| chore/v1.1.0-dev-return | 已接受版本回流dev | cf30d0d1；main b6b144c7/v1.1.0已接受，实际回流判定governance，未获新CI批准；新候选未推送，待第二次CI批准 | CI通过后main PR/tag；随后版本回流dev |
 | dev | 共同基座与企业工作台集成 | 当前HEAD8d97596c；PR104已合入；本地/远端一致，默认入口与47条历史文件摘要恢复通过 | PPT及直接调用方已收口；没有活动研发分支，后续工作按dev具体任务启动 |
 
 ## 功能包前沿
@@ -1276,6 +1283,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| release-v1-1-0 | 用户指定的重要发布v1.1.0；main精确接受源与annotatedtag |
 | release-v1-1-0-listener-fix | Linux连接突发修复与当前local-dev精确来源；待新CI |
 | release-v1-1-0-candidate | v1.1.0首轮本地完整受检来源，保留失败前后证据 |
 | presentation-merge-20261114 | PR104正式合入dev的PPT与直接调用方基线 |
@@ -1303,8 +1311,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| release-v1-1-0-listener-fix | fcc55dbc | feature | v1.1.0连接接收队列补修 | 3308后端与类型通过；实际Linux60轮/真实续接通过；未推送，待新CI批准 | TCP backlog按既有连接预算；保留handler/网关并发与授权。规范重建ready，同镜像9ff62887。[发布记录](../reports/2026-11-14-v1.1.0-release.md) | shared-agent |
-| release-v1-1-0-candidate | 04f127e4 | feature | v1.1.0发布元数据 | 本地完整门禁与真实运行通过；PR105首轮CI43559147625双平台失败，Linux及macOS测试同步均已本地补修，待新CI批准 | 产品/backend/App1.1.0及本地锁一致；发布说明和main祖先合流。[说明](../releases/v1.1.0.md) | shared-agent |
+| release-v1-1-0 | b6b144c7 | main | main · Capstone v1.1.0 | PR105正常合入；双平台CI43564049919通过；annotatedtag已推送 | 统一框架/退役/资源发现/国网PPT及边界补修；受检3429e6a0与main树一致。[接受回执](../reports/receipts/2026-11-14-v1.1.0-release-acceptance.json) | shared-agent |
+| release-v1-1-0-listener-fix | fcc55dbc | feature | v1.1.0连接接收队列补修 | 3308后端与类型通过；实际Linux60轮/真实续接通过；未推送，第二次CI43564049919运行中 | TCP backlog按既有连接预算；保留handler/网关并发与授权。规范重建ready，同镜像9ff62887。[发布记录](../reports/2026-11-14-v1.1.0-release.md) | shared-agent |
+| release-v1-1-0-candidate | 04f127e4 | feature | v1.1.0发布元数据 | 本地完整门禁与真实运行通过；PR105首轮CI43559147625双平台失败，Linux及macOS测试同步均已本地补修，第二次CI43564049919运行中 | 产品/backend/App1.1.0及本地锁一致；发布说明和main祖先合流。[说明](../releases/v1.1.0.md) | shared-agent |
 | presentation-renderer-identity-20261114 | ddc3df02 | feature | PPT产物绑定渲染器身份 | 86项渲染检查通过；最终规范重建ready，真实补验通过；无CI | 回执保存渲染器版本/源码摘要；安装软链接入口回归修复。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
 | presentation-merge-20261114 | 8d97596c | main | dev · PPT及分支收口 | PR104已合入；第二次macOS CI43496930369通过4分08秒，受检树一致 | 默认国网、模板目录/选择、冻结源包/PDF、渲染器身份和可信执行统计；旧PPT与独立研究归档。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
 | presentation-integration-20261114 | 29c0ce72 | feature | PPT功能回流当前dev | 定向检查与规范重建通过，真实四轮与47条下载摘要通过；未合入、无CI | 默认国网、模板目录与会话选择、冻结源包/PDF、可信执行统计；保留dev发现/资源/Hook修复。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
@@ -1480,7 +1489,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| release-v1-1-0-listener-fix | 当前本地补修来源 | release/v1.1.0 | TCP接收队列对齐现有连接预算；不更改执行授权 | fcc55dbc；3308后端、Linux60轮、真实续接及产物hash通过；第二次CI未批准 |
+| release-v1-1-0 | 已接受发布基线 | main · v1.1.0 | 产品/backend/App1.1.0，独立组件版本保留；正式应用边界、Pi执行与国网PPT | b6b144c7；CI43564049919双平台通过，tag远端验证；dev回流/云部署另列 |
+| release-v1-1-0-listener-fix | 当前本地补修来源 | release/v1.1.0 | TCP接收队列对齐现有连接预算；不更改执行授权 | fcc55dbc；3308后端、Linux60轮、真实续接及产物hash通过；第二次CI43564049919运行中 |
 | release-v1-1-0-candidate | 本地受检产品来源 | release/v1.1.0 | 产品/backend/App版本及锁一致；冻结统一框架、执行与国网PPT能力 | 04f127e4完整门禁26分56秒退出0；正式App构建和真实续接/历史下载通过；当前分支21c2ae91仅新增CI构建合同和验收文档快照，PR105/CI43559147625运行中，main/tag待接受 |
 | presentation-renderer-identity-20261114 | 历史受检运行来源 | dev | 产物回执绑定渲染器版本及源码；安装软链接入口保持可用 | ddc3df02增量已由PR104接受；原本地86项渲染回归通过 |
 | presentation-merge-20261114 | 当前dev已接受基线 | dev | PPT模板、同源PDF与冻结重生成；可信执行统计及旧分支收口 | 8d97596c，PR104定向macOS CI通过4分08秒；实际dev重建/默认入口及47条下载摘要恢复通过 |
@@ -1782,7 +1792,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | recovery/reply-phase-20261014 | 历史恢复引用，非活动研发 | 精确3f5207df；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 | recovery/root-before-dev-20261025 | 历史恢复引用，非活动研发 | 精确6c8f531e；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 
-| release/v1.1.0 | 已授权发布候选 | 153d19ae；3308后端/655SDK/实际Linux60轮及真实续接通过；首轮CI双平台失败，未推送补修 | 主目标main，发布通过后版本回流dev；不部署cloud/demo | shared-agent |
+| chore/v1.1.0-dev-return | 已接受发布回流候选 | cf30d0d1；main/tag发布已接受；运行代码与main完全相同，治理路径证明/270检查通过，未推送回流候选 | 主目标main，发布通过后版本回流dev；不部署cloud/demo | shared-agent |
 
 ## 提出但未实施
 
@@ -1884,7 +1894,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 临时发布验证：API/三worker `fcc55dbc`；候选App5174产品 `fcc55dbc`、仓库 `153d19ae`；默认App5173仍 `8d97596c` | 规范重建ready；API/三worker同镜像9ff62887，缓存维护完成；安装版本1.1.0 | 候选App显示local-dev/v1.1.0，仓库身份随仅CI/文档提交更新；产品输入clean，真实保存、续接、刷新恢复及8条新成果摘要通过；47条历史PPT下载摘要保持。默认App与后端暂不同源，发布收口时对齐；未改变local-demo或云环境。[发布报告](../reports/2026-11-14-v1.1.0-release.md)。 |
+| local-dev | 临时发布验证：API/三worker `fcc55dbc`；候选App5174产品 `fcc55dbc`、仓库 `3429e6a0`；默认App5173仍 `8d97596c` | 规范重建ready；API/三worker同镜像9ff62887，缓存维护完成；安装版本1.1.0 | 候选App显示local-dev/v1.1.0，仓库身份随仅CI/文档提交更新；产品输入clean，真实保存、续接、刷新恢复及8条新成果摘要通过；47条历史PPT下载摘要保持。默认App与后端暂不同源，发布收口时对齐；未改变local-demo或云环境。[发布报告](../reports/2026-11-14-v1.1.0-release.md)。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

@@ -7574,3 +7574,8 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 首轮CI双平台结果已完整归档：Linux22分14秒失败的TCP预算修复fcc55dbc、macOS47分07秒失败的SDK测试因果同步修复153d19ae均本地通过。发布补修与回执冻结，第二次CI未批准，main/tag未变。
 
 - 2026-11-14 已接受发布回流复用治理门禁：annotatedtag=origin/main、真实dev基线/候选祖先及tag后仅控制路径全部校验；正例先红后绿，270治理检查通过/3跳过，主分支release门禁保留，独立复核无重要问题。
+
+- 2026-11-14 CI43564049919双平台通过（Linux33分49秒/macOS44分38秒），PR105正常合入main b6b144c7；annotated v1.1.0远端对象6889c808/目标b6b144c7核对一致，main树与受检3429e6a0相同，无管理员绕过或部署。
+- 2026-11-14 已合main的release/v1.1.0本地/远端分支关闭；chore/v1.1.0-dev-return承接版本和治理记录，真实Git证明选governance，270检查通过/3跳过，回流CI未批准。
+
+- 2026-11-14 发布接受main b6b144c7/v1.1.0已记录，治理回流报告与真实main节点/6来源引用已核验，无穿卡；doctor/语法/链接/空白检查通过，回流候选冻结前不触发CI。
