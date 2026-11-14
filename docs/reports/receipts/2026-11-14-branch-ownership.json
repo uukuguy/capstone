@@ -273,11 +273,21 @@
       "integration_branch": "feat/presentation-closeout-20261114",
       "source": "29c0ce72",
       "renderer_identity_fix": "ddc3df02",
-      "dev_merged": false,
-      "ci_approved": false,
+      "dev_merged": true,
+      "ci_approved": true,
       "local_verified": true,
       "real_rounds": 4,
-      "download_hashes": 47
-    }
+      "download_hashes": 47,
+      "status": "merged and archived",
+      "dev_merge": "8d97596c4483b42137dd02833ba9058883570693",
+      "ci_run": 43496930369,
+      "ci_conclusion": "success",
+      "archive": "archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110",
+      "dirty_docs_preserved": 8,
+      "remote_original_closed": true,
+      "integration_branch_closed": true
+    },
+    "active_feature_research_local": 0,
+    "active_feature_research_remote": 0
   }
 }

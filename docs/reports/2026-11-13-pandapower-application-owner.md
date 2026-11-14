@@ -22,7 +22,9 @@ retains the result preview and composer without horizontal overflow. See
 
 All six deployment reference edges avoid cards in browser coordinate checks.
 This corrects an earlier screenshot inference of a crossing. Final control
-documentation integration remains pending. Cloud/demo and broader IG1 acceptance
+documentation merged through PR102 as4b857ac9;its separately approved macOS docs
+CI43473293838 passed2m08s. This paragraph records the post-merge receipt without
+starting a self-referential documentation commit cycle. Cloud/demo and broader IG1 acceptance
 are unchanged. No full release or Linux acceptance is claimed.
 
 ## Final installed retirement candidate

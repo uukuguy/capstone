@@ -7559,3 +7559,8 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 最终04f127e4规范重建通过，同后端镜像db8047c2/native c3a9b801；真实续接16.311秒完成，6条新工件及47条历史PPT下载hash通过，最终文件字节准确。
 
 - 2026-11-14 发布CI命令补入正式App构建；本地make build-capstone-app通过，22项workflow/gate合同检查通过。完整运行中的check-release命令及产品源码未改，未启动CI。
+
+- 2026-11-14 86599cf1：发布CI补入正式App构建，22项合同通过，尚未运行CI。
+- 2026-11-14 最终完整本地check-release退出0，约26分钟；3307后端/1586App/687Kernel/655SDK/69PPT通过；打包与源码安装、E2E、离线验证、24/24能力矩阵通过。回执及持久日志已保存，发布CI仍待单独批准。
+
+- 2026-11-14 最终控制图浏览器核验：当前候选86599cf1，6条部署引用，local-dev精确来源04f127e4；99点/线抽样无穿卡、无横向溢出。归档/PPT合入最终回执已纳入发布快照。

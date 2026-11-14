@@ -1,5 +1,24 @@
 # 多线版本控制
 
+2026-11-14 用户要求重要版本tag并合入main，明确选择v1.1.0。发布候选
+release/v1.1.0 已保留main22cd1728祖先，未改dev8d97596c基线；3690e8ff统一
+产品/backend/App版本；04f127e4修正类型、依赖锁、Kernel协议归属、测试与直接验证入口，并补齐发布说明。本地完整门禁26分56秒退出0，正式App构建与真实续接/6条新工件及47条历史下载hash通过；CI定义86599cf1补入App构建，
+main PR、双平台发布CI及v1.1.0 tag均未开始；此前PPT CI授权不适用于本轮发布。
+
+2026-11-14 本轮已收口：PR104将PPT模板库、默认国网、冻结源包/PDF和执行统计合入dev `8d97596c`。
+第二次定向macOS CI43496930369通过4分08秒，受检b089faa6与合并树一致；首次失败与本地补修保留。
+本地/远端dev同源。旧PPT81dd3652原SHA归档、8个未提交文档保留，旧远端43acac28及临时集成分支已关闭。
+引用研究2bd086af已归档、3个未提交文档保留；剩余问题归设计待办。当前没有活动功能/研究分支。
+实际dev规范重建与默认App恢复通过，47条历史下载摘要一致；没有新增CI、cloud或demo部署。
+
+PR104 补修已推送 `b089faa6`；用户批准的第二次同范围 macOS CI43496930369
+已开始，未扩大检查范围；当前 dev 仍为b4992b94。
+
+PR104 已创建，受检HEAD `5cb6b6e1`；第一次 macOS presentation-library CI43494883528
+运行2分00秒失败：584通过/66跳过/1个既有父任务清理预算测试失败。补修`b089faa6`
+仅改测试预算与既有定向路径登记；延迟注入、86项Pi及113项治理本地通过；相同CI调用方组585通过/66跳过，未推送或重跑。
+尚未合入 dev，等待第二次同范围CI的明确批准。
+
 2026-11-14：用户批准 PPT 实现回流与旧引用研究关闭。集成候选29c0ce72基于dev b4992b94，
 模板目录、默认国网入口、冻结源包/PDF和服务总线统计已提取；本地定向检查通过，规范重建
 API/三worker同镜像0fcc37a0，真实四轮与47条下载摘要通过。尚未合dev、没有新增CI批准。
@@ -1164,9 +1183,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| feat/presentation-closeout-20261114 | 已批准PPT集成 | ddc3df02；基于dev，本地检查/重建通过，真实四轮/47条下载摘要及渲染器身份通过 | 定向审查与验证后申请一次macOS CI，未批准前不推送 |
-| dev | 共同基座与企业工作台集成 | 当前集成HEAD由Git解析；PR103归属审计已入dev；本地后端临时验证ddc3df02，默认App5173仍来自实际dev | PR101/102及PR103审计均通过各自批准的macOS CI并合入；运行数据保持 |
-| uukuguy/ppt-template-library-20261110 | PPT原实现恢复来源 | local81dd3652；remote43acac28；增量已提取到当前集成候选 | 保留至dev集成接受后关闭，不整体合并旧历史 |
+| release/v1.1.0 | 用户指定的重要版本发布 | 86599cf1；产品04f127e4本地完整门禁/正式App构建/规范重建通过，尚未合main | 本地完整门禁→单独批准macOS/Linux发布CI→main PR/tag；随后版本回流dev |
+| dev | 共同基座与企业工作台集成 | 当前HEAD8d97596c；PR104已合入；本地/远端一致，默认入口与47条历史文件摘要恢复通过 | PPT及直接调用方已收口；没有活动研发分支，后续工作按dev具体任务启动 |
 
 ## 功能包前沿
 
@@ -1255,9 +1273,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| presentation-owner-candidate | 唯一待集成功能候选的实际本地HEAD；归dev且必须按现行模块切片 |
-| presentation-integration-20261114 | PPT功能提取源码；基于实际dev并保留后续修复 |
-| presentation-renderer-identity-20261114 | 当前本机受检运行源码；渲染器身份及安装软链接补修 |
+| release-v1-1-0-candidate | 当前v1.1.0发布候选，独立于已接受main和部署来源 |
+| presentation-merge-20261114 | PR104正式合入dev的PPT与直接调用方基线 |
 | resource-projection-20261113 | 架构改进受检源码，已由PR101合入；后续本地与浏览器接受见0616023f |
 | default-template-20261110 | 普通PPT缺省国网；两dev环境当前来源 |
 | report-repair-20261110 | 报告交付修复；历史受检来源 |
@@ -1282,7 +1299,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| release-v1-1-0-candidate | 04f127e4 | feature | v1.1.0发布元数据 | 本地完整门禁与真实运行通过；未获发布CI批准 | 产品/backend/App1.1.0及本地锁一致；发布说明和main祖先合流。[说明](../releases/v1.1.0.md) | shared-agent |
 | presentation-renderer-identity-20261114 | ddc3df02 | feature | PPT产物绑定渲染器身份 | 86项渲染检查通过；最终规范重建ready，真实补验通过；无CI | 回执保存渲染器版本/源码摘要；安装软链接入口回归修复。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
+| presentation-merge-20261114 | 8d97596c | main | dev · PPT及分支收口 | PR104已合入；第二次macOS CI43496930369通过4分08秒，受检树一致 | 默认国网、模板目录/选择、冻结源包/PDF、渲染器身份和可信执行统计；旧PPT与独立研究归档。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
 | presentation-integration-20261114 | 29c0ce72 | feature | PPT功能回流当前dev | 定向检查与规范重建通过，真实四轮与47条下载摘要通过；未合入、无CI | 默认国网、模板目录与会话选择、冻结源包/PDF、可信执行统计；保留dev发现/资源/Hook修复。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
 | presentation-owner-candidate | 81dd3652 | feature | PPT原实现恢复来源 | 增量已提取至29c0ce72；旧头保留至dev集成接受 | 退役变化由PR101承接；不整体合并旧历史 | shared-agent |
 | reference-owner-research | 2bd086af | feature | 引用执行历史研究 | 已原SHA归档，非活动研发；可行性测试已提取 | 剩余模型投影和真实网关试验归核心演进待办 | research |
@@ -1456,17 +1475,19 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| presentation-renderer-identity-20261114 | 当前PPT受检运行来源 | feat/presentation-closeout-20261114 | 产物回执绑定渲染器版本及源码；安装软链接入口保持可用 | ddc3df02本地重建通过，86项渲染回归通过；无CI |
-| presentation-integration-20261114 | 当前PPT集成候选 | feat/presentation-closeout-20261114 | 默认国网与模板目录/PDF；可信服务总线统计及当前dev修复 | 29c0ce72本地重建/真实三轮通过，未合入、无CI |
-| presentation-owner-candidate | 当前待集成功能候选 | uukuguy/ppt-template-library-20261110 | PPT模板与交付产物；执行观察及App直接调用方另验 | 归dev，local81dd3652；先切片再PR，未整体合入 |
+| release-v1-1-0-candidate | 本地受检产品来源 | release/v1.1.0 | 产品/backend/App版本及锁一致；冻结统一框架、执行与国网PPT能力 | 04f127e4完整门禁26分56秒退出0；正式App构建和真实续接/历史下载通过；当前分支86599cf1仅新增CI构建合同，main/CI/tag待接受 |
+| presentation-renderer-identity-20261114 | 历史受检运行来源 | dev | 产物回执绑定渲染器版本及源码；安装软链接入口保持可用 | ddc3df02增量已由PR104接受；原本地86项渲染回归通过 |
+| presentation-merge-20261114 | 当前dev已接受基线 | dev | PPT模板、同源PDF与冻结重生成；可信执行统计及旧分支收口 | 8d97596c，PR104定向macOS CI通过4分08秒；实际dev重建/默认入口及47条下载摘要恢复通过 |
+| presentation-integration-20261114 | 已接受的功能提取来源 | dev | 默认国网与模板目录/PDF；可信服务总线统计及当前dev修复 | 29c0ce72已由PR104合入8d97596c，非活动候选 |
+| presentation-owner-candidate | 历史实现恢复来源 | archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | 原PPT实现历史；实际功能已由PR104回流dev | 81dd3652原SHA与8个未提交文档保留，非活动研发 |
 | reference-owner-research | 已归档研究 | archive/branch-ownership-20261114/uukuguy/reference-execution-research | 原设计与试验恢复来源；不占主线交付范围 | 2bd086af；组合试验已移植，其他问题归设计待办 |
 | resource-projection-20261113 | 架构改进受检来源 | feat/architecture-retirement-closeout | 资源分页、附件预算、共享状态、工具按需加载；独立pandapower应用与旧包退役 | PR101已合入0616023f；定向macOS CI通过 |
 | architecture-retirement-merge | 架构改进主要合并及运行来源 | dev | 架构资源与执行入口改进合入；旧grid-agent发行包及CLI退役 | PR101代码基线；受检树一致，实际dev规范重建与恢复通过 |
 | retirement-local-source-20261113 | local-dev精确运行来源 | feat/architecture-retirement-closeout | API与三worker统一退役集成源码；真实模型成果保存与续接 | 同镜像f8270cec；App0c5be667；成果哈希与浏览器刷新通过 |
-| app-revision-20261111 | local-dev当前来源 | uukuguy/ppt-template-library-20261110 | App提交号显示8位；继承PPT模板与当前调用统计 | 12项检查、类型、规范重建及实页显示通过 |
-| default-template-20261110 | 三区研发来源 | uukuguy/ppt-template-library-20261110 | 普通PPT入口缺省国网；显式模板保留且无静默回退 | 两dev环境已更新并实测，原运行任务未中断 |
-| report-repair-20261110 | 已验证报告交付基线 | uukuguy/ppt-template-library-20261110 | 完整内容契约和可操作排版诊断；已请求报告按真实保存文件判定完成 | local-dev/dky3-dev已更新，生成/失败状态/文件摘要通过；本轮不做CI或PR |
-| template-library-20261110 | 已验证模板库与总线基线 | uukuguy/ppt-template-library-20261110 | 持久模板目录与国网PPT/PDF源包；服务总线当前调用统计及执行过程标题栏 | 两dev环境健康/真实任务/下载与刷新通过，尚未合入dev |
+| app-revision-20261111 | 历史App版本补修 | archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | App提交号显示8位；继承PPT模板与当前调用统计 | 12项检查、类型、规范重建及实页显示通过 |
+| default-template-20261110 | 三区研发来源 | archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | 普通PPT入口缺省国网；显式模板保留且无静默回退 | 两dev环境已更新并实测，原运行任务未中断 |
+| report-repair-20261110 | 已验证报告交付基线 | archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | 完整内容契约和可操作排版诊断；已请求报告按真实保存文件判定完成 | local-dev/dky3-dev已更新，生成/失败状态/文件摘要通过；本轮不做CI或PR |
+| template-library-20261110 | 已验证模板库与总线基线 | archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | 持久模板目录与国网PPT/PDF源包；服务总线当前调用统计及执行过程标题栏 | 原两dev验证通过；增量现已由PR104合入dev，本轮未改远端环境 |
 | investigation-merge-20261110 | 远端dev主要合并 | dev | 调查执行联合基线合入；已通过macOS定向CI | PR100 merged d7358eac，远端环境不变 |
 | actual-dev-pr100-local | 实际dev本机运行来源 | dev | 本地审计合流；规范重建与真实短任务 | ready与两轮产品/恢复通过，非远端发布 |
 | investigation-closeout-20261110 | 已合入的精确CI来源 | 已关闭的调查分支 | 测试授权在准备后计时；联合定向CI通过 | PR100已合入；detached恢复工作区保留 |
@@ -1662,7 +1683,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| uukuguy/ppt-template-library-20261110 | 唯一待集成功能候选 | local81dd3652、remote43acac28；退役部分已由PR101抽取 | 归dev；PPT模板、执行观察、App维护分别核对再切片，不整体合并旧历史 | shared-agent |
+| archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110 | 已承接的历史实现 | 81dd3652；PPT及直接调用方已由PR104合入 | 原SHA/远端恢复标签与8个未提交文档保留，非活动研发 | shared-agent |
 | uukuguy/investigation-skills-20261108 | PR100合入后已关闭 | 精确受检a1978ffb，远端dev合并d7358eac；恢复工作区保留 | IG1与业务效率接受仍开放；非远端部署 | shared-agent |
 | uukuguy/presentation-templates-20261108 | 已归档，不再作为活动研发分支 | 原源cadc2f3a；archive/branch-ownership-20261114/uukuguy/presentation-templates-20261108 | 8个运行/测试文件与dev相同；余下模板工作归20261110候选 | shared-agent |
 | feat/gateway-contract-context-reuse-20261107 | 已合入并关闭本地分支 | 7ea164de经PR100进入dev；恢复工作区保留 | 不再作为活动实现；既有性能限制保留 | shared-agent |
@@ -1746,7 +1767,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | archive/branch-ownership-20261114/uukuguy/native-execution-release-20261106 | 历史恢复引用，非活动研发 | 原uukuguy/native-execution-release-20261106，精确c9be2193 | Git祖先已在dev；本引用仅保留历史，不代表旧功能仍被准入 | shared-agent |
 | archive/branch-ownership-20261114/uukuguy/presentation-templates-20261108 | 历史恢复引用，非活动研发 | 原uukuguy/presentation-templates-20261108，精确cadc2f3a | 8个运行/测试文件与dev相同；余下模板工作归20261110候选 | shared-agent |
 | archive/branch-ownership-20261114/uukuguy/reference-execution-research | 已归档研究 | 2bd086af；三个未提交文件保留 | 剩余问题归核心演进设计待办，具体实验从当前dev开始 | research |
-| feat/presentation-closeout-20261114 | 当前PPT集成 | 29c0ce72；定向检查/本地重建通过 | 真实产品与审查后申请定向CI | shared-agent |
+| feat/presentation-closeout-20261114 | 已合入并关闭 | b089faa6经PR104合入8d97596c | 本地与远端临时分支已关闭，原提交在dev历史中 | shared-agent |
 | docs/branch-ownership-audit-20261114 | 已合入并关闭的治理文档切片 | a3aafa70经PR103合入b4992b94；文档CI43480426385通过 | 分支已关闭；审计结论归dev，不作为新增实现线 | shared-agent |
 | archive/answer-recovery-before-rollback-20261012 | 历史恢复引用，非活动研发 | 精确42a647bf；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 | archive/pi-before-dev-baseline-20261015 | 历史恢复引用，非活动研发 | 精确38e19db6；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
@@ -1754,6 +1775,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | recovery/investigation-closeout-dev-20261110 | 历史恢复引用，非活动研发 | 精确d4065486；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 | recovery/reply-phase-20261014 | 历史恢复引用，非活动研发 | 精确3f5207df；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 | recovery/root-before-dev-20261025 | 历史恢复引用，非活动研发 | 精确6c8f531e；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
+
+| release/v1.1.0 | 已授权发布候选 | 86599cf1；产品04f127e4完整本地验收通过，CI定义定向检查通过 | 主目标main，发布通过后版本回流dev；不部署cloud/demo | shared-agent |
 
 ## 提出但未实施
 
@@ -1855,7 +1878,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端 `ddc3df02`；默认App5173 `b4992b94`，候选App5174 `ddc3df02` | 后端API/三worker同镜像bd4bb567；本轮PPT规范重建ready，缓存维护完成 | 临时候选验证：普通PPT、模板库PDF和源包重生成真实三轮通过；5173仍是dev源码，5174为集成候选。不冒称前后端均已合入。 |
+| local-dev | 临时发布验证：API/三worker `04f127e4`；候选App5174产品 `b8180f8d`、仓库 `86599cf1`；默认App5173仍 `8d97596c` | 规范重建ready；API/三worker同镜像db8047c2，缓存维护完成；安装版本1.1.0 | 候选App显示local-dev/v1.1.0，仓库身份随仅CI/文档提交更新；产品输入clean，真实保存、续接、刷新恢复及6条新成果摘要通过；47条历史PPT下载摘要保持。默认App与后端暂不同源，发布收口时对齐；未改变local-demo或云环境。[发布报告](../reports/2026-11-14-v1.1.0-release.md)。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

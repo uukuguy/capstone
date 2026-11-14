@@ -1,27 +1,73 @@
 # Live Session Checkpoint
 
-User requested an important version tag and main integration. User explicitly
-chose v1.1.0 (overrides the initial v2 suggestion). Work in the existing isolated
-checkout .worktrees/architecture-retirement-closeout, branch release/v1.1.0.
-Main22cd1728 was not a Git ancestor of dev8d97596c only because of its old merge;
-828d1ef1 retains that ancestry, with a tree byte-identical to dev. No history rewrite.
-Version metadata/root/App/backend and local locks committed3690e8ff at1.1.0.
-Release notes:docs/releases/v1.1.0.md. No release CI approved or started; no tag.
+User chose v1.1.0 for the important source release, main PR and annotated tag.
+Task remains active; no release CI approval, remote release branch, PR or tag yet.
 
-Full local first gate stopped at16Pyright errors. Repairs59f1411b committed;
-global types clean,17Thread/26pandapower/2real scripted-consumer tests passed.
-Full local gate resumed: exec10023, log/tmp/capstone-v1.1.0-local-release-final.log.
-No releaseCI approved. Independent read-only release review is running.
-All workers' implementation files are committed; parent owns only release control
-and post-verification state updates now.
+## Exact state
 
-Next: integrate type repairs, complete local full gate, prepare main PR body and
-reviewable candidate, then ask explicit approval for macOS/Linux release CI
-(estimated after measuring local gate). Only then push/create main PR. Merge via
-required PR, tag exact accepted main source v1.1.0 with an annotation; return
-version/fixes to dev via its required PR/approval, not a direct push. Do not deploy
-cloud/demo or overwrite local-demo. Existing user dirty files and var/auth remain.
-Root dev stays8d97596c with post-merge/user documentation dirty. It runs accepted
-PPT baseline imageb4826b36/native ddedbbc3. Prior branch closeout/47hash/browser
-acceptance remains valid but is not full v1.1 release acceptance. GitHub proxy
-127.0.0.1:7897; Docker proxyhost.docker.internal:7897. Reuse same browser tab.
+Root dev/origin dev8d97596c; main/origin main22cd1728; fetched and0/0 aligned.
+Candidate:.worktrees/architecture-retirement-closeout, release/v1.1.0.
+Product/Makefile tested source04f127e4; CI-only86599cf1 adds App production build.
+Final documentation commit follows; find exact current head with git log -1.
+Prior ancestry-only merge828d1ef1 retained main with no history rewrite.
+
+## Verified
+
+Expanded make check-release exited0 after1616seconds (26m56s).
+Professional892pass3skip; simulator279pass2skip; Capstone3307pass224skip;
+App1586pass;Kernel687pass;SDK655pass;PPT69pass. Packaging/source installation,
+E2E/registered workers/offline validation/24-of-24capability matrix pass.
+App production build and22CI-definition contracts pass separately. CI/docs-only
+changes after aggregate start do not change product inputs or Makefile.
+Doctor, symlink, links and whitespace pass; repeat final links after docs commit.
+Receipt:docs/reports/receipts/2026-11-14-v1.1.0-local-release.json.
+Durable logs/screenshots:root runs/release-v1.1.0-20261114 (ignored).
+
+Canonical local rebuild passed on04f127e4, backend API/three workers all image
+sha256:db8047c28021a4269be6f8a4a82d9bcc9ec2d50df9262bd87c9b16ca383158b0;
+native imagec3a9b801. Scoped cleanup applied. Candidate App5174 version1.1.0,
+product closureb8180f8d; repository identity follows laterCI/docs commits.
+Default App5173 remainsroot8d97596c; temporary difference recorded in register.
+No cloud/demo/local-demo deployment or data realignment performed.
+Real threadthr_13779becc0580257e718 saved/read/continued/restored; final continuation
+16.311s;6new artifact records and47historical PPT downloads hashes match.
+release-final-check.txt exact bytes VERSION=1.1.0. Existing browser session
+capstone-unified tab reused; candidate restored and final preview inspected.
+Graph server18744 live; actual-dev canonical graph updated with exact runtime
+source04 and branch865, no deployment-source substitution by App closure hash.
+
+## Repairs and rejected paths
+
+Version metadata3690e8ff; type adapters59f1411b; lock/pin/importsf12789a1;
+direct runner/runbookecec75cf;App testee20063c;graph JSONL24d1d14c;
+SDK policy fixtures1e008f5e;neutral Kernel schema16b9b152;
+exporter/COPY/workspace/manifest lockb8180f8d;expanded release gates04f127e4.
+Native lock regenerated with owning tool andUV_OVERRIDE existing lock; package
+versions andhashes unchanged. App lock foreign dependencies unchanged.
+DO NOT restore withdrawn fatal debug behavior. Accepted4d57c083 policy allows
+SDK repair after a per-call rejection; debug only diagnoses. general-sdk.mjs is
+unchanged; stale fixtures corrected. Withdrawn patch/tmp/capstone-debug-fatal-withdrawn.patch.
+Independent final review found no important issue.
+
+## Next action / approval boundary
+
+Ask explicit approval for ONE main-PR macOS/Linux releaseCI:
+make check-release build-capstone-app; expected30-45minutes, queue extra.
+AGENTS.md:CI requires explicit user approval before every run. Prior PPT approvals
+are exhausted. Do not trigger any CI before approval. Prepared body:
+/tmp/capstone-v1.1.0-main-pr.md. After approval push reviewed release branch,
+create PRtarget main and inspect both platform results. Each retry needs approval.
+Then merge through required PR and tag exact accepted main source v1.1.0 with
+annotated verification/source identity. Return versions/fixes and canonical
+control updates to actualdev via its PR and separately approved scopedCI.
+No permanent-branch direct pushes, history rewrite, release bypass or deployments.
+
+## Preservation
+
+Root dirty user/control work remains untouched. Exact paths recorded in ignored
+runs/release-v1.1.0-20261114/root-uncommitted-state.txt. Task-owned accepted audit
+receipts/control snapshot are mirrored to release docs; remaining root mixed docs
+are preserved for dev reconciliation, not bulk copied/staged. Chinese docx/png,
+var/auth, archived research and original dirty worktree documents remain.
+Prior recovery stash34e4e74d0d8b5933e50d756f50854f043dc73867 retained.
+GitHub explicit Clash127.0.0.1:7897;Dockerhost.docker.internal:7897.

@@ -1,5 +1,11 @@
 # Branch ownership audit — 2026-11-14
 
+Final closeout: PR104 merged PPT increments into dev8d97596c after the second
+approved macOS CI passed4m08s. Original PPT81dd3652 and reference2bd086af are exact
+archives; their8/3dirty documents and remote recovery references remain. Old remote
+PPT and the merged temporary branch are closed. There are no active feature or
+research branches. Historical audit counts below describe the earlier audit phase.
+
 Follow-up: the user approved PPT integration and reference-research closure.
 Reference head 2bd086af is now archived, with dirty docs preserved. Its composition
 proof runs on the current lightweight chain; remaining projection questions are
@@ -92,9 +98,17 @@ recovery sources,not active delivery streams.
 
 ## Governance boundary
 
+Post-merge receipt:PR103 merged the audit as `b4992b94`;its tree matches tested
+`a3aafa70`. Separately approved macOS docs CI43480426385 passed2m38s. The temporary
+audit branch is closed. The original reference-cleanup scope below records the
+pre-PR audit phase,not a current pending approval. Additional recovery-only tags
+protect local PPT81dd3652,paused reference2bd086af and retirementa89afbf6 ancestry;
+all graph Git sources are now reachable through published references. This
+paragraph and current snapshot record post-merge facts without a self-hash CI loop.
+
 The checked-in workflows have no push/tag/delete or pull-request-closed trigger:
 verify runs on pull_request or explicit dispatch;issue intake is manual only.
 Reference cleanup,archive tags and PR50 closure therefore did not start CI.
-The audit documentation must still enter dev through a PR. Creating that PR
-requires a separate explicit approval for its focused macOS docs CI. No runtime
+The audit documentation required a PR and separate explicit approval for its
+focused macOS docs CI;the post-merge receipt above records completion. No runtime
 rebuild,cloud deployment or product acceptance is implied by this audit.

@@ -4,9 +4,11 @@
 
 User approved integration of the verified PPT candidate and closure of the old
 reference-execution research branch on 2026-11-14. Integration source is
-`29c0ce72`, based on actual dev `b4992b94`. It is not yet merged or CI-approved.
+`29c0ce72`, based on dev `b4992b94`. PR104 has now merged accepted head
+`b089faa6` as `8d97596c`; the second explicitly approved macOS CI passed4m08s.
 The original PPT source remains `81dd3652`, with published head `43acac28`.
-Keep that source until the accepted changes have entered dev.
+The original PPT head is now an exact archive; its8 dirty documents and remote
+recovery tag remain. Both local and remote dev are8d97596c.
 
 ## PPT differences reconciled
 
@@ -100,7 +102,8 @@ Control graph regenerated from the actual dev register; all six deployment
 reference paths sampled without crossing cards. The archived research source is
 removed from active milestones. Same-tab candidate App5174 restore displays all four completed rounds and final PPT/PDF products; the page shows ddc3df02. Screenshot: `/tmp/capstone-ppt-final-app.png`.
 See the [bounded receipt](receipts/2026-11-14-presentation-integration.json).
-No CI, remote PPT deployment or dev merge has occurred for this candidate.
+This paragraph records pre-CI local acceptance. The later CI/merge receipt below
+is current; cloud/demo deployments remain unchanged.
 
 ## First approved CI and local repair
 
@@ -126,3 +129,41 @@ consumer in the existing PPT CI command; its path is now explicitly registered
 in the focused route. This does not add a suite or expand the approved gate.
 The first approval is consumed. No second CI, push or PR update has started;
 new explicit approval is required before publishing this repair.
+
+Post-commit local replay of the exact failed CI consumer group passed585 tests,
+with66 conditional skips, in34.46s on repairb089faa6. Runtime bytes are unchanged.
+
+## Accepted dev closeout
+
+PR104 merged `b089faa6` as `8d97596c4483b42137dd02833ba9058883570693` at
+2026-11-13T20:01:56Z. Its merge tree is byte-identical to the accepted head.
+Second approved macOS run43496930369 passed4m08s after13s queue;585 backend
+passed/66 skipped,86 renderer,62 Node and378 App checks passed. No Linux or release
+suite ran. No third CI is authorized or needed for this closeout.
+
+Actual dev was fast-forwarded without losing root user work. Recovery stash
+`34e4e74d0d8b5933e50d756f50854f043dc73867` and
+`/tmp/capstone-pr104-root-recovery-final` retain originals and the merge map.
+The old PPT head is archived at
+`archive/branch-ownership-20261114/uukuguy/ppt-template-library-20261110`.
+Its8 dirty documents have identical hashes before/after branch closure. Remote
+PPT43acac28 and the merged temporary integration branch are closed. The existing
+remote recovery tag covers original81dd3652 and its ancestry. No worktree, terminal,
+volume, user document or ignored authentication state was deleted.
+
+Actual dev canonical rebuild/doctor/readiness passed. API and all three workers use
+`sha256:b4826b361d6eca9c2fb0c6e36077424aba2e5f80e8ebf1e25f5f292c0646658d`;
+native image is unchangedddedbbc3. Image layer counts remain62/37 and scoped cache
+maintenance completed. The default App5173 has repositoryRevision8d97596c, clean
+product inputs and App code version29c0ce72. The App code closure version is not a
+backend source revision; the graph uses the manually verified repository source
+for this snapshot (`--no-probe`), avoiding automatic substitution of the App code
+version as the backend source. The old real Thread restores completed state and
+State Grid selection;all47 historical download records still match their hashes.
+Default App5173 browser restore passed:final PPT/PDF are visible, the page shows8d97596c, and no task remains active. The actual-dev graph shows the real8d97596c Git node;all6 deployment reference paths have no card crossings. Screenshots:/tmp/capstone-ppt-merged-dev-app.png and /tmp/capstone-ppt-merged-dev-overview.png.
+
+There are zero active local or remote feature/research branches. Remaining
+reference-projection research is design backlog. IG1 acceptance and other existing
+worklist items are not claimed complete. No cloud/demo stage was deployed.
+Post-merge receipts/snapshot remain in the actual dev working copy to record its
+own merge and verification; no additional metadata CI or self-hash commit loop.
