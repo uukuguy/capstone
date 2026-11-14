@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: v1.1.0 main release baseline; v1.1.0 accepted on main; release and control-state return to dev.
+- Active work package: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: accepted implementation is on dev. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.
   Remaining projection questions belong to the core-evolution design backlog.
