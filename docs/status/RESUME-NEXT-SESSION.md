@@ -1,73 +1,56 @@
 # Live Session Checkpoint
 
-User chose v1.1.0 for the important source release, main PR and annotated tag.
-Task remains active; no release CI approval, remote release branch, PR or tag yet.
+User selected v1.1.0 main release/tag and approved ONE first macOS/Linux CI.
+PR105main, remote/firstCIhead21c2ae91;CI43559147625:Linuxfailed,macOSstill running.
+No secondCI approved. Do NOTpush an update to openPR105 until new approval.
 
-## Exact state
+## Repair candidate and local evidence
 
-Root dev/origin dev8d97596c; main/origin main22cd1728; fetched and0/0 aligned.
-Candidate:.worktrees/architecture-retirement-closeout, release/v1.1.0.
-Product/Makefile tested source04f127e4; CI-only86599cf1 adds App production build.
-Final documentation commit follows; find exact current head with git log -1.
-Prior ancestry-only merge828d1ef1 retained main with no history rewrite.
+Product repairfcc55dbc (local release/v1.1.0), next documentation snapshot contains
+final first-CI/repair receipts. Get exact frozen HEAD with git log -1;worktree:
+.worktrees/architecture-retirement-closeout. Rootdev/origin dev8d97596c;
+main/origin main22cd1728. No main merge/tag/deployment yet.
 
-## Verified
+First CI Linux job132338703983:one28-concurrent gateway0-debug case failed with
+httpx.ReadError104;3306pass224skip. macOSjob132338704178 remains at full gate,
+beyond initial30–45minute estimate;running job log download returnsBlobNotFound.
+Watch exec32169; /tmp/capstone-v1.1.0-ci-watch.log. Preserve any finalMacresult.
 
-Expanded make check-release exited0 after1616seconds (26m56s).
-Professional892pass3skip; simulator279pass2skip; Capstone3307pass224skip;
-App1586pass;Kernel687pass;SDK655pass;PPT69pass. Packaging/source installation,
-E2E/registered workers/offline validation/24-of-24capability matrix pass.
-App production build and22CI-definition contracts pass separately. CI/docs-only
-changes after aggregate start do not change product inputs or Makefile.
-Doctor, symlink, links and whitespace pass; repeat final links after docs commit.
-Receipt:docs/reports/receipts/2026-11-14-v1.1.0-local-release.json.
-Durable logs/screenshots:root runs/release-v1.1.0-20261114 (ignored).
+Exact old test reproduced in isolated Linux3.12 at iteration23. TCP queue default5
+mismatched configured256connection budget. Backlog-only256 comparison60passes.
+fcc55dbc derives request_queue_size=maximum; active handler/gateway/grants unchanged.
+New paused-accept real socket regression oldfails/newpasses;160focused pass32skip;
+3308completebackend pass224skip166.46s;types0;independent review no important issue.
+Prior full make check-release on04f127e4 passed26m56s and App build passed. This
+is not a claim of a new full aggregate onfcc55dbc; nextCI must cover full newsource.
 
-Canonical local rebuild passed on04f127e4, backend API/three workers all image
-sha256:db8047c28021a4269be6f8a4a82d9bcc9ec2d50df9262bd87c9b16ca383158b0;
-native imagec3a9b801. Scoped cleanup applied. Candidate App5174 version1.1.0,
-product closureb8180f8d; repository identity follows laterCI/docs commits.
-Default App5173 remainsroot8d97596c; temporary difference recorded in register.
-No cloud/demo/local-demo deployment or data realignment performed.
-Real threadthr_13779becc0580257e718 saved/read/continued/restored; final continuation
-16.311s;6new artifact records and47historical PPT downloads hashes match.
-release-final-check.txt exact bytes VERSION=1.1.0. Existing browser session
-capstone-unified tab reused; candidate restored and final preview inspected.
-Graph server18744 live; actual-dev canonical graph updated with exact runtime
-source04 and branch865, no deployment-source substitution by App closure hash.
+Actual repair canonical rebuild ready: backendAPI/3workers all9ff628878972266ea0839b5ed7c9da93267cbbdd8da6274029e5edfcc676732a;
+native386b5cbaeb6c0ef15a155ed6a151c306fa34dd25e0c84dce164c13194f63c7a2;
+layers62/37, scoped cleanup applied. Actual newLinux image60loops pass while
+stdlibqueue5/productqueue256 asserted. Real threadthr_13779becc0580257e718,
+repaircontinuation12.27s;8new artifact records and47historical PPT downloads hashmatch.
+App5174fcc55dbc1.1.0clean;defaultApp5173stillrootdev8d, temporary difference recorded.
+Reports:docs/reports/2026-11-14-v1.1.0-release.md and receipts/*v1.1.0*.json.
+Durable ignored logs:rootruns/release-v1.1.0-20261114. Newgraph nodefcc55dbc,
+6deployment references exact;no crossings/overflow. Existingbrowsercapstone-unified,
+graphserver18744. Rootcanonical register owneddev;main snapshot remainsrelease doc.
 
-## Repairs and rejected paths
+## Next action
 
-Version metadata3690e8ff; type adapters59f1411b; lock/pin/importsf12789a1;
-direct runner/runbookecec75cf;App testee20063c;graph JSONL24d1d14c;
-SDK policy fixtures1e008f5e;neutral Kernel schema16b9b152;
-exporter/COPY/workspace/manifest lockb8180f8d;expanded release gates04f127e4.
-Native lock regenerated with owning tool andUV_OVERRIDE existing lock; package
-versions andhashes unchanged. App lock foreign dependencies unchanged.
-DO NOT restore withdrawn fatal debug behavior. Accepted4d57c083 policy allows
-SDK repair after a per-call rejection; debug only diagnoses. general-sdk.mjs is
-unchanged; stale fixtures corrected. Withdrawn patch/tmp/capstone-debug-fatal-withdrawn.patch.
-Independent final review found no important issue.
+Finish docs-only verification and clean freeze, then ask explicit approval for
+ONE second full macOS/Linux releaseCI on newcandidate (make check-release build-capstone-app).
+Updating PR105 cancels still-running oldCI under its concurrency rule: disclose
+that in the approval question. No automatic retry, merge or tag before acceptance.
+If firstMacfinishes meanwhile, collect its logs and any additional failures before
+publishing. After newbothpass,normalmainPRmerge,asserttreeidentity,annotatedv1.1.0
+tag exactacceptedmain;returnrelease/controlchanges throughdevPRwithseparateCIapproval.
+No push/tag-trigger workflows exist;onlyPR/manualverify andmanualissueautomation.
 
-## Next action / approval boundary
+## Preservation and rejected paths
 
-Ask explicit approval for ONE main-PR macOS/Linux releaseCI:
-make check-release build-capstone-app; expected30-45minutes, queue extra.
-AGENTS.md:CI requires explicit user approval before every run. Prior PPT approvals
-are exhausted. Do not trigger any CI before approval. Prepared body:
-/tmp/capstone-v1.1.0-main-pr.md. After approval push reviewed release branch,
-create PRtarget main and inspect both platform results. Each retry needs approval.
-Then merge through required PR and tag exact accepted main source v1.1.0 with
-annotated verification/source identity. Return versions/fixes and canonical
-control updates to actualdev via its PR and separately approved scopedCI.
-No permanent-branch direct pushes, history rewrite, release bypass or deployments.
-
-## Preservation
-
-Root dirty user/control work remains untouched. Exact paths recorded in ignored
-runs/release-v1.1.0-20261114/root-uncommitted-state.txt. Task-owned accepted audit
-receipts/control snapshot are mirrored to release docs; remaining root mixed docs
-are preserved for dev reconciliation, not bulk copied/staged. Chinese docx/png,
-var/auth, archived research and original dirty worktree documents remain.
-Prior recovery stash34e4e74d0d8b5933e50d756f50854f043dc73867 retained.
-GitHub explicit Clash127.0.0.1:7897;Dockerhost.docker.internal:7897.
+Rootdirtyuser/controlfiles preserved; no var/auth/docx/png/archive deletion.
+Task-owned audit receipts/control copied selectively; no bulk user-doc migration.
+Existing preservedrootstash34e4e74d0d8b5933e50d756f50854f043dc73867.
+GitHubClash127.0.0.1:7897;Dockerhost.docker.internal:7897.
+Do not revive grid-agent CLI or withdrawn fataldebug SDK change:4d57c083per-call
+repair policy remains;general-sdk.mjsunchanged. SDK655/PPT69originallocalpass.

@@ -7566,3 +7566,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 最终控制图浏览器核验：当前候选86599cf1，6条部署引用，local-dev精确来源04f127e4；99点/线抽样无穿卡、无横向溢出。归档/PPT合入最终回执已纳入发布快照。
 
 - 2026-11-14 发布CI Linux28并发请求重置在隔离Linux3.12第23轮复现；默认TCP backlog5不匹配256连接预算。只对齐队列预算后60轮通过；新增暂停accept的真实socket回归先红后绿，160定向/3308完整后端/类型通过，独立复核无重要问题，未重跑CI。
+
+- 2026-11-14 fcc55dbc规范重建、实际Linux60轮和真实续接12.27秒通过，8新/47旧hash保持；控制图6条来源核验无穿卡。首轮Linux失败、旧macOS未完；补修回执冻结，第二次CI尚未获批。

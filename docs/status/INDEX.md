@@ -1,5 +1,10 @@
 # docs/status INDEX
 
+2026-11-14：[发布补修](../reports/2026-11-14-v1.1.0-release.md#linux-listener-repair)及
+[机器回执](../reports/receipts/2026-11-14-v1.1.0-listener-repair.json)：首轮Linux连接重置，
+fcc55dbc按现有连接预算修复TCP接收队列，3308后端及实际Linux60轮/真实任务通过。
+旧macOS仍运行，第二次CI未批准；main/tag未改变。下述段落保留先前验收过程。
+
 2026-11-14：[v1.1.0发布记录](../reports/2026-11-14-v1.1.0-release.md)记录类型、依赖锁及测试入口修复；完整本地门禁及正式App构建通过，发布CI未批准。
 
 2026-11-14：[v1.1.0发布候选](../releases/v1.1.0.md)按用户选定版本冻结；本地完整本地验收已通过，main合入和tag待接受。
