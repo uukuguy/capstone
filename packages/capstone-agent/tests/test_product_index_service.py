@@ -31,6 +31,20 @@ def test_service_runs_retained_product_through_real_database_and_child(postgres_
     restored = ProductIndexService(threads, objects, ProductIndexJobs(threads.dsn), budgets=budgets)
     page = restored.blocks(thread, created['job_id'], offset=0, limit=1)
     assert len(page['blocks'])==1 and page['next_offset']==1
+    block = page['blocks'][0]
+    selection = {'schema': 'capstone-local-product-selection/1', 'parent_ref': ref,
+        'index_ref': page['index_ref'], 'block_id': block['block_id'],
+        'content_digest': block['content_digest'], 'purpose': 'historical-context'}
+    resolved = restored.resolve_selection(thread, selection)
+    assert resolved['content'] == b'First paragraph.\n'
+    assert resolved['dependencies'] == []
+    assert 'receipt' not in resolved
+    for invalid in ({**selection, 'index_ref': '0'*64},
+                    {**selection, 'content_digest': '0'*64}):
+        with pytest.raises((ValueError, KeyError)):
+            restored.resolve_selection(thread, invalid)
+    with pytest.raises(ValueError):
+        restored.resolve_selection('other-thread', selection)
     assert restored.blocks(thread, created['job_id'], offset=1, limit=1)['next_offset'] is None
     assert 'receipt' not in restored.status(thread, created['job_id'])
     with pytest.raises(KeyError):

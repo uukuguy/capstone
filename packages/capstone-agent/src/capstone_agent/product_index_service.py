@@ -44,6 +44,25 @@ class ProductIndexService:
             max_blocks=self.budgets['max_blocks'], parser_limits={key:self.budgets[key] for key in
                 ('wall_seconds','cpu_seconds','max_rss_bytes','max_output_bytes')})
 
+    def resolve_selection(self, thread_id, selection):
+        """Resolve an admitted index and exact source; caller authorizes Thread access."""
+        from .product_block_identity import selection_identity
+        from .product_blocks import resolve_block, resolve_dependencies
+        identity = selection_identity(selection)
+        parent = selection['parent_ref']
+        if parent['thread_id'] != thread_id:
+            raise ValueError('selection is outside the authorized scope')
+        row = self.jobs.published(thread_id, selection['index_ref'], parent)
+        index = self.indexes.read(thread_id, row['receipt'])
+        if (index['parent_ref'] != parent or index['index_ref'] != selection['index_ref']
+                or index['parser_id'] != row['parser_id']):
+            raise ValueError('selection index identity mismatch')
+        content = read_index_source(self.threads, self.objects, thread_id, parent,
+                                    max_bytes=self.budgets['max_input_bytes'])
+        args = (index, content, selection['block_id'], selection['content_digest'])
+        return {'selection_id': identity, 'content': resolve_block(*args),
+                'dependencies': resolve_dependencies(*args)}
+
     def blocks(self, thread_id, job_id, *, offset, limit):
         if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= limits.product_page_items:
             raise ValueError('invalid block page')

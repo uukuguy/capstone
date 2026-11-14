@@ -117,3 +117,14 @@ class ProductIndexJobs:
             if row is None:
                 raise KeyError('index job unavailable')
             return row
+
+    def published(self, thread_id, index_ref, parent_ref):
+        with self._connect() as connection:
+            row = connection.execute('''SELECT * FROM capstone_product_index_jobs
+                WHERE thread_id=%s AND state='ready' AND parent_ref=%s
+                  AND receipt->>'index_ref'=%s
+                ORDER BY created_at,job_id LIMIT 1''',
+                (thread_id, Jsonb(parent_ref), index_ref)).fetchone()
+            if row is None:
+                raise KeyError('published index unavailable')
+            return row
