@@ -13,6 +13,9 @@ Any new decision must be reconciled with those owning sources before implementat
 
 ## Preserved source files
 
+Research follow-up: [Code mapping and protocol gaps](2026-11-14-code-mapping.md).
+This is a research proposal, not an accepted replacement for the enterprise baseline.
+
 - [企业AI智能体业务工作台.png](企业AI智能体业务工作台.png)
 - [企业级自主智能体应用_整体产品与交互设计方案_V2.0.docx](企业级自主智能体应用_整体产品与交互设计方案_V2.0.docx)
 - [企业级自主智能体应用_界面与交互设计规范_V1.0.docx](企业级自主智能体应用_界面与交互设计规范_V1.0.docx)
