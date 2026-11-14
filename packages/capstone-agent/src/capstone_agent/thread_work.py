@@ -62,6 +62,7 @@ def transition_work(snapshot, task_context, attempt_id, status):
     work['blocked_reason'] = None
     work['latest_attempt_id'] = attempt_id
     if status == 'completed':
+        work.pop('context_product_refs', None)
         if work.get('conversation_mode'):
             # Full transcript is in the same event/Attempt ledger. Keep only
             # unconsumed input here so a normal conversation has no turn cap.
@@ -187,8 +188,14 @@ def apply_work(snapshot, command, *, archived=False):
     if command['kind'] in {'start_work', 'cancel_work'}:
         if payload:
             raise ThreadProtocolError('Work control payload must be empty')
-    elif set(payload) != {'text'} or not isinstance(payload['text'], str) or not payload['text'].strip():
+    elif (not {'text'} <= set(payload) or set(payload)-{'text','context_product_refs'}
+            or not isinstance(payload['text'], str) or not payload['text'].strip()):
         raise ThreadProtocolError('Work text is required')
+    if 'context_product_refs' in payload:
+        from .thread_products import checked_selections
+        refs = checked_selections(payload['context_product_refs'])
+        if any(item['ref']['thread_id'] != snapshot.thread_id for item in refs):
+            return snapshot, 'product_context_unavailable', None
     target = command['target']
     works = deepcopy(list(snapshot.works))
     work = next((item for item in works if item['work_id'] == target['id']), None)
@@ -252,6 +259,11 @@ def apply_work(snapshot, command, *, archived=False):
             context = TaskContext.from_document(work['task_context'])
             work['task_context'] = replace(context, goal_revision=work['goal_revision'],
                                            snapshot_id='task_' + secrets.token_hex(10)).to_document()
+    if 'context_product_refs' in payload:
+        from .thread_products import checked_selections
+        prior = work.get('context_product_refs', [])
+        merged = {json.dumps(item,sort_keys=True):item for item in [*prior,*refs]}
+        work['context_product_refs'] = checked_selections(list(merged.values()))
     if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
         return snapshot, 'work_limit_reached', None
     return replace(snapshot, minimum_protocol_version=2, works=tuple(works)), None, work
@@ -308,7 +320,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -318,6 +330,11 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'context_product_refs' in work:
+            from .thread_products import checked_selections
+            refs = checked_selections(work['context_product_refs'])
+            if any(item['ref']['thread_id'] != snapshot.thread_id for item in refs):
+                raise ThreadProtocolError('invalid Work product scope')
         if type(count) is not int or not 0 <= count <= len(work['messages']):
             raise ThreadProtocolError('invalid Work message cursor')
         if type(work.get('cancel_requested', False)) is not bool:

@@ -210,3 +210,62 @@ def test_tiny_row_selection_admitted_when_parent_exceeds_full_context_budget():
         {'context_product_refs':[{'ref':ref,'purpose':'historical-context','row_selection':selection}]},{})
     assert reason is None
     assert len(frozen['_product_context'][0]['content'])<2048
+
+
+@pytest.mark.parametrize('storage',['memory','postgres'])
+def test_postgres_professional_v2_work_save_start_rows(postgres_thread_service,monkeypatch,storage):
+    from test_thread_work_execution import professional_snapshot,command,save_work
+    from test_result_projection import valid_projection
+    from capstone_agent.thread_products import product_index,resolve_row_request
+    from capstone_agent.thread_service import PostgresThreadService
+    store,thread_id=postgres_thread_service
+    if storage == 'memory':
+        from capstone_agent.thread_service import InMemoryThreadService
+        store=InMemoryThreadService(professional_snapshot(thread_id))
+    store._material_objects=MemoryObjectStore()
+    if storage == 'postgres':
+        store.create_thread(professional_snapshot(thread_id))
+    work=save_work(store,thread_id)
+    start=command(store,thread_id,'start_work','source',work_id=work['work_id'],revision=work['revision'])
+    assert store.submit_command(start).status=='accepted'
+    claim=store.claim_attempt('rows',30)
+    projection={**valid_projection(),'thread_id':thread_id,'run_id':claim.run_id,
+        'turn_id':claim.attempt.turn_id,'attempt_id':claim.attempt.attempt_id,
+        'model_context_id':claim.model_context.id,'model_id':claim.model_context.model_id,
+        'model_revision':claim.model_context.model_revision,'tables':[list(pages())[1]['table']],'element_refs':[],'overlay':None}
+    store.finish_attempt(claim,phase='completed',payload={'answer':'saved','result_projections':[projection],
+        'result_refs':[projection['result_ref']],'evidence_refs':projection['evidence_refs'],
+        'admission':{'mode':'authority_backed','assurance':'lineage_verified'}})
+    ref=next(e['ref'] for e in product_index(store,thread_id)['products'] if e['ref']['origin']=='domain_result')
+    selection=resolve_row_request(store,store._material_objects,thread_id,
+        {'ref':ref,'table_id':'res_line','row_ids':['row_132'],'column_ids':['value']})
+    refs=[{'ref':ref,'purpose':'historical-context','row_selection':selection}]
+    work=store.snapshot(thread_id).works[0]
+    saved=command(store,thread_id,'work_message','save_rows',work_id=work['work_id'],revision=work['revision'],
+        payload={'text':'Analyze this selected null row','context_product_refs':refs})
+    assert store.submit_command(saved).status=='accepted'
+    reopened=PostgresThreadService(store.dsn) if storage == 'postgres' else store
+    reopened._material_objects=store._material_objects
+    work=reopened.snapshot(thread_id).works[0]
+    assert work['context_product_refs']==refs
+    import capstone_agent.thread_products as products
+    def missing(*args,**kwargs):
+        raise OSError('source disappeared')
+    before=reopened.snapshot(thread_id)
+    bad_start=command(reopened,thread_id,'start_work','unavailable_rows',work_id=work['work_id'],revision=work['revision'])
+    with monkeypatch.context() as patch:
+        patch.setattr(products,'resolve_product',missing)
+        assert reopened.submit_command(bad_start).rejection=='product_context_unavailable'
+    assert reopened.snapshot(thread_id)==before
+    start=command(reopened,thread_id,'start_work','selected_rows',work_id=work['work_id'],revision=work['revision'])
+    receipt=reopened.submit_command(start)
+    assert receipt.status=='accepted'
+    monkeypatch.setattr(products,'resolve_product',missing)
+    retry_store=PostgresThreadService(store.dsn) if storage == 'postgres' else store
+    assert retry_store.submit_command(start)==receipt
+    next_claim=reopened.claim_attempt('rows',30)
+    assert next_claim.task_context.binding.work_id==work['work_id']
+    assert next_claim.model_context==claim.model_context
+    assert next_claim.submission['context_product_refs']==refs
+    assert next_claim.submission['_product_context'][0]['row_selection']==selection
+    assert next_claim.submission['_product_context'][0]['historical_only'] is True
