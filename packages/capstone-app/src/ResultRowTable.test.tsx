@@ -23,3 +23,8 @@ it('keeps repeated-value row identities across sorting filtering and page change
  expect(prepareResultRows).toHaveBeenCalledWith(ref,'table_one',['r2','r3'],['value'])
  expect((screen.getByLabelText('草稿') as HTMLInputElement).value).toBe('保留问题')
 })
+it.each([32,128])('uses the published stored page size %s without a larger read',async pageSize=>{
+ const readResultRows=vi.fn().mockResolvedValue({table,tableVersion:'b'.repeat(64),offset:0,totalRows:3,nextOffset:null})
+ render(<ResultRowTable table={{...table,pagination:{...table.pagination!,pageSize}}} projection={{} as ResultProjection} selection={{ref,client:{readResultRows,prepareResultRows:vi.fn()},onSelect:vi.fn()}}/>)
+ await waitFor(()=>expect(readResultRows).toHaveBeenCalledWith(ref,'table_one',0,expect.any(AbortSignal),pageSize))
+})
