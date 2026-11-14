@@ -9,8 +9,12 @@ afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 it('opens comparison in the existing preview and keeps explicit references available',async()=>{
  const file:ProductEntry={...entry,ref:{...ref,origin:'native_file'},title:'draft.md',media_type:'text/markdown',source_status:'completed',source:{file_name:'draft.md'},capabilities:{read:true,select:true}}
  const reference=vi.fn(),client={supportsProductSeries:true,productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null}),discoverProductSeries:vi.fn().mockResolvedValue(null),productSources:vi.fn().mockResolvedValue([]),commandProductSeries:vi.fn(),compareProducts:vi.fn(),seriesMembers:vi.fn()}
- render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1} onReference={reference}/>)
+ const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1} onReference={reference}/>)
  expect(await screen.findByRole('region',{name:'成果对照与采用'})).toBeTruthy()
+ view.rerender(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={2} onReference={reference}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
+ expect(screen.getAllByRole('region',{name:'成果对照与采用'})).toHaveLength(1)
+ expect(screen.getByRole('button',{name:'以当前稿建立系列'}).parentElement?.className).toBe('product-comparison-actions')
  fireEvent.click(screen.getByRole('button',{name:'引用到下一轮'}))
  expect(reference).toHaveBeenCalledWith(file)
  expect(client.commandProductSeries).not.toHaveBeenCalled()

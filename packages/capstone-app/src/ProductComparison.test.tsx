@@ -62,3 +62,28 @@ it('offers the exact series original by default and retries failed reads',async(
  await screen.findByRole('alert');fireEvent.click(screen.getByRole('button',{name:'重新读取系列'}))
  await waitFor(()=>expect((screen.getByLabelText('选择原稿') as HTMLSelectElement).value).toBe(productRefKey(original)))
 })
+it('resets member pagination after adoption without skipping retained versions',async()=>{
+ const refs=Array.from({length:45},(_,i)=>({...ref,product_id:`version-${i}`,event_seq:i+1}))
+ const state={schema:'capstone-product-series/1',thread_id:'t',series_id:'s',revision:2,members:refs.slice(0,20),adopted_ref:null}
+ const client={discoverProductSeries:vi.fn().mockResolvedValue(state),productSources:vi.fn().mockResolvedValue([]),seriesMembers:vi.fn(async(_thread,_series,after)=>({members:refs.slice(after?Number(after):0,(after?Number(after):0)+20),next_cursor:after==='40'?null:after==='20'?'40':'20'})),commandProductSeries:vi.fn().mockResolvedValue({...state,adopted_ref:ref,revision:3}),compareProducts:vi.fn()}
+ render(<ProductComparison client={client} entry={entry} items={[entry]} onOpen={vi.fn()}/>)
+ fireEvent.click(await screen.findByRole('button',{name:'读取更多版本'}))
+ await screen.findByText('系列版本 · 40')
+ fireEvent.click(screen.getByRole('button',{name:'采用当前稿'}))
+ await screen.findByText('系列版本 · 20')
+ fireEvent.click(screen.getByRole('button',{name:'读取更多版本'}))
+ await screen.findByText('系列版本 · 40')
+ fireEvent.click(screen.getByRole('button',{name:'读取更多版本'}))
+ await screen.findByText('系列版本 · 45')
+ expect(client.seriesMembers.mock.calls.map(call=>call[2])).toEqual([undefined,'20',undefined,'20','40'])
+})
+it('shows a specific comparison budget reason without exposing long raw identities',async()=>{
+ const other={...entry,ref:{...ref,product_id:'product_'+ 'f'.repeat(160)}}
+ const client={discoverProductSeries:vi.fn().mockResolvedValue(null),productSources:vi.fn().mockResolvedValue([{ref:other.ref,purpose:'historical-context'}]),compareProducts:vi.fn().mockRejectedValue({status:422,body:{detail:'input_budget'}}),commandProductSeries:vi.fn(),seriesMembers:vi.fn()}
+ render(<ProductComparison client={client} entry={entry} items={[entry,other]} onOpen={vi.fn()}/>)
+ await screen.findByText('尚未登记系列')
+ expect(screen.getByRole('button',{name:/查看来源/}).textContent).not.toContain(other.ref.product_id)
+ fireEvent.change(screen.getByLabelText('选择原稿'),{target:{value:productRefKey(other.ref)}})
+ fireEvent.click(screen.getByRole('button',{name:'对照原稿与当前稿'}))
+ expect((await screen.findByRole('alert')).textContent).toContain('对照处理容量')
+})

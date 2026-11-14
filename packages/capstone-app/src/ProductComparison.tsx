@@ -24,9 +24,9 @@ export default function ProductComparison({client,entry,items,onOpen}:{client:Se
   return()=>abort.abort()
  },[client,key,retry])
  const candidates=[...new Map([...items.map(item=>item.ref),...members].filter(ref=>productRefKey(ref)!==key).map(ref=>[productRefKey(ref),ref])).values()]
- const label=(ref:ProductRef)=>`${items.find(item=>productRefKey(item.ref)===productRefKey(ref))?.title??ref.product_id} · ${ref.digest.slice(0,8)} · ${ref.product_id}`
+ const label=(ref:ProductRef)=>`${items.find(item=>productRefKey(item.ref)===productRefKey(ref))?.title??'已保存版本'} · ${ref.digest.slice(0,8)} · ${ref.revision?`v${ref.revision}`:`记录 ${ref.event_seq}`}`
  const selected=candidates.find(ref=>productRefKey(ref)===original)
- async function action(run:()=>Promise<void>){setBusy(true);setError('');try{await run()}catch(cause){if((cause as {status?:number}).status===409){try{setSeries(await client.discoverProductSeries(entry.ref))}catch{/* Keep the last readable state. */}setError('系列已被更新。请读取当前状态后重新决定。')}else setError(cause instanceof Error?cause.message:'操作失败，请重试。')}finally{setBusy(false)}}
+ async function action(run:()=>Promise<void>){setBusy(true);setError('');try{await run()}catch(cause){if((cause as {status?:number}).status===409){try{setSeries(await client.discoverProductSeries(entry.ref))}catch{/* Keep the last readable state. */}setError('系列已被更新。请读取当前状态后重新决定。')}else setError(productOperationError(cause))}finally{setBusy(false)}}
  async function command(operation:SeriesCommand['operation'],state:ProductSeries|null=series??null,product:ProductRef|null=entry.ref){
   const prior=pending.current
   const same=prior&&prior.operation===operation&&prior.expected_revision===(state?.revision??0)&&(!state||prior.series_id===state.series_id)&&JSON.stringify(prior.product)===JSON.stringify(product)
@@ -34,18 +34,20 @@ export default function ProductComparison({client,entry,items,onOpen}:{client:Se
   pending.current=request
   let result:ProductSeries
   try{result=await client.commandProductSeries(entry.ref.thread_id,request)}catch(cause){if((cause as {status?:number}).status===409)pending.current=null;throw cause}
-  pending.current=null;setSeries(result);setMembers(result.members)
+  pending.current=null;setSeries(result);setMembers(result.members);setCursor(null)
+  const page=await client.seriesMembers(entry.ref.thread_id,result.series_id)
+  setMembers(page.members);setCursor(page.next_cursor)
  }
  return <section className="product-comparison" aria-label="成果对照与采用">
   <h4>成果对照与采用</h4>
   <p>{series===undefined?'正在读取系列…':series?`系列 ${series.series_id} · 修订 ${series.revision}`:'尚未登记系列'}</p>
   {series&&<p role="status">{series.adopted_ref?`当前采用：${label(series.adopted_ref)}`:'尚未采用任何版本'}</p>}
-  <div className="thread-product-actions">
+  <div className="product-comparison-actions">
    {series===null&&<button disabled={busy} type="button" onClick={()=>void action(()=>command('register'))}>以当前稿建立系列</button>}
    {series&&<><button disabled={busy||!!series.adopted_ref&&productRefKey(series.adopted_ref)===key} type="button" onClick={()=>void action(()=>command('adopt'))}>{series.adopted_ref?'改用当前稿':'采用当前稿'}</button><button disabled={busy||!series.adopted_ref} type="button" onClick={()=>void action(()=>command('clear',series,null))}>清除采用</button></>}
   </div>
   <label>选择原稿<select aria-label="选择原稿" value={original} disabled={busy} onChange={event=>{setOriginal(event.target.value);setComparison(undefined)}}><option value="">请选择一个明确版本</option>{candidates.map(ref=><option key={productRefKey(ref)} value={productRefKey(ref)}>{label(ref)}</option>)}</select></label>
-  <div className="thread-product-actions">
+  <div className="product-comparison-actions">
    <button type="button" disabled={busy||!selected} onClick={()=>void action(async()=>setComparison(await client.compareProducts(selected!,entry.ref)))}>对照原稿与当前稿</button>
    {series===null&&<button type="button" disabled={busy||!selected} onClick={()=>void action(async()=>{const existing=await client.discoverProductSeries(selected!);if(!existing)throw new Error('请先打开原稿并建立系列，再关联当前稿。');await command('register',existing)})}>明确关联到原稿系列</button>}
   </div>
@@ -55,4 +57,17 @@ export default function ProductComparison({client,entry,items,onOpen}:{client:Se
   <details open={sources.length>0}><summary>实际输入来源 · {sources.length}</summary>{sources.map((source,index)=><div key={index}><button type="button" onClick={()=>onOpen(source.ref)}>查看来源 {index+1}：{label(source.ref)}</button>{source.local_selection&&<small>段落 {source.local_selection.block_id} · {source.local_selection.content_digest.slice(0,8)}</small>}{source.excerpt&&<small>开头摘录，最多 {source.excerpt.max_bytes} 字节</small>}</div>)}<p>来源表示执行时已准入的输入，不证明逐句使用。</p></details>
   <p>采用后如需继续处理，请明确引用该成果。已有指令引用保持原版本。</p>
  </section>
+}
+function productOperationError(cause:unknown):string{
+ const code=(cause as {body?:{detail?:unknown}}|null)?.body?.detail
+ const reasons:Record<string,string>={
+  unsupported_format:'此格式暂不支持文字对照。请使用独立预览或下载文件。',
+  input_budget:'文件超过对照处理容量。请使用独立预览或下载；文件保存不受影响。',
+  line_budget:'文件行数超过对照处理容量。请使用独立预览或下载文件。',
+  output_budget:'差异结果超过对照处理容量。请分别预览或下载两份文件。',
+  source_unavailable:'文件暂不可读取。请重试，或使用文件预览核对。',
+  source_integrity:'文件完整性检查失败。此次操作未获确认，请重新读取成果。',
+  invalid_utf8:'文件不是有效的 UTF-8 文字，无法对照。请使用独立预览或下载。',
+ }
+ return typeof code==='string'&&reasons[code]?reasons[code]:cause instanceof Error?cause.message:'操作失败，请重试。'
 }
