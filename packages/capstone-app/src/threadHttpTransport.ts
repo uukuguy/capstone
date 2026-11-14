@@ -12,7 +12,7 @@ import { parseAttemptRecords } from './attemptRecords'
 import { parseProcessProducts } from './processProducts'
 import type { WorkCommand } from './threadWorkProtocol'
 import {parseNativeArtifact,parseNativeArtifacts,type NativeArtifact} from './nativeArtifacts'
-import {parseProductIndex,parseProductRef,parseProductResolution,parseContextProductRefs,type ProductQuery,type ProductRef} from './threadProducts'
+import {compareRowIds,parseProductIndex,parseProductRef,parseProductResolution,parseContextProductRefs,type ProductQuery,type ProductRef} from './threadProducts'
 import {object,parseSeries,parseComparison,type SeriesCommand} from './productSeries'
 import {parseBlockJob,parseBlockPage} from './productBlocks'
 import {transferResource,parseStoredResources} from './resourceUploads'
@@ -389,12 +389,12 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async readResultRows(ref:ProductRef,table:string,offset=0,signal?:AbortSignal,limit=32){
     ref=parseProductRef(ref)
-    return parseRowPage(await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-index/table-page`,{method:'POST',body:JSON.stringify({ref,table_id:table,offset,limit}),signal}),ref,table,offset)
+    return parseRowPage(await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-index/table-page`,{method:'POST',body:JSON.stringify({ref,table_id:table,offset,limit}),signal}),ref,table,offset,limit)
   }
   async prepareResultRows(ref:ProductRef,table:string,rows:string[],columns:string[],signal?:AbortSignal){
     ref=parseProductRef(ref)
     const selection=parseRowSelection(await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-index/row-selection`,{method:'POST',body:JSON.stringify({ref,table_id:table,row_ids:rows,column_ids:columns}),signal}),ref)
-    if(selection.table_id!==table||JSON.stringify(selection.row_ids)!==JSON.stringify([...rows].sort())||selection.column_ids.length!==columns.length||selection.column_ids.some(id=>!columns.includes(id)))throw new Error('表格选择响应不符')
+    if(selection.table_id!==table||JSON.stringify(selection.row_ids)!==JSON.stringify([...rows].sort(compareRowIds))||selection.column_ids.length!==columns.length||selection.column_ids.some(id=>!columns.includes(id)))throw new Error('表格选择响应不符')
     return selection
   }
   async readProductBlocks(ref:ProductRef,jobId?:string,offset=0,signal?:AbortSignal) {

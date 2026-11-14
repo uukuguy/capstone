@@ -116,6 +116,16 @@ export async function parseProductResolution(value:unknown,ref:ProductRef):Promi
 export function parseRowSelection(value:unknown,ref:ProductRef):ResultRowSelection {
  const row=object(value)
  const ids=(v:unknown,max:number):v is string[]=>Array.isArray(v)&&v.length>0&&v.length<=max&&v.every(x=>typeof x==='string'&&x.length>0&&x.length<=128)&&new Set(v).size===v.length
- if(Object.keys(row).sort().join(',')!=='column_ids,digest,parent_ref,row_ids,schema,table_id,table_version'||row.schema!=='capstone-result-row-selection/1'||ref.origin!=='domain_result'||productRefKey(parseProductRef(row.parent_ref,ref.thread_id))!==productRefKey(ref)||!(typeof row.table_id==='string'&&/^[a-z][a-z0-9_.:-]{0,127}$/.test(row.table_id))||typeof row.table_version!=='string'||!hash.test(row.table_version)||typeof row.digest!=='string'||!hash.test(row.digest)||!ids(row.row_ids,128)||!ids(row.column_ids,64)||row.row_ids.join('\0')!==[...row.row_ids].sort().join('\0'))throw new Error('表格行引用无效')
+ if(Object.keys(row).sort().join(',')!=='column_ids,digest,parent_ref,row_ids,schema,table_id,table_version'||row.schema!=='capstone-result-row-selection/1'||ref.origin!=='domain_result'||productRefKey(parseProductRef(row.parent_ref,ref.thread_id))!==productRefKey(ref)||!(typeof row.table_id==='string'&&/^[a-z][a-z0-9_.:-]{0,127}$/.test(row.table_id))||typeof row.table_version!=='string'||!hash.test(row.table_version)||typeof row.digest!=='string'||!hash.test(row.digest)||!ids(row.row_ids,128)||!ids(row.column_ids,64)||row.row_ids.join('\0')!==[...row.row_ids].sort(compareRowIds).join('\0'))throw new Error('表格行引用无效')
  return {...row,parent_ref:ref} as ResultRowSelection
+}
+
+/** Match the host Unicode code point order, including supplementary characters. */
+export function compareRowIds(left:string,right:string):number {
+ const a=Array.from(left),b=Array.from(right)
+ for(let index=0;index<Math.min(a.length,b.length);index++){
+  const difference=a[index].codePointAt(0)!-b[index].codePointAt(0)!
+  if(difference)return difference
+ }
+ return a.length-b.length
 }
