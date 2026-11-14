@@ -7581,3 +7581,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 发布接受main b6b144c7/v1.1.0已记录，治理回流报告与真实main节点/6来源引用已核验，无穿卡；doctor/语法/链接/空白检查通过，回流候选冻结前不触发CI。
 
 - 2026-11-14 回流分支归属明确为dev；已合main的release分支关闭，旧本地候选移入历史，v1.1.0/main源与当前运行源分别保留，不把源代码接受混作部署。
+
+- 2026-11-14 用户批准的一次macOS治理CI43570026586通过118秒；PR106正常合入dev20b6cbc0，root已保留18重叠路径备份/stash51d0c117及15无关文件原摘要并快进。规范重建ready/API三worker同镜像d4c15650，默认App1.1.0/仓库20b6/产品fcc/clean，8新成果和47历史PPT摘要通过，无远端部署。
+
+- 2026-11-14 API及三worker各1391个受管backend/config/schema文件SHA256与实际dev20b6cbc0一致；图保留6部署来源和真实dev/main节点，移两项普通历史PPT节点至详情后无穿卡/横向溢出。已合并回流分支本地及远端关闭，恢复引用保留。

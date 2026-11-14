@@ -18,8 +18,11 @@ it does not add a product execution path or infer deployment from a branch.
 - [x] Scope/governance checks:270passed/3skipped in8.42s; independent review found no important issue. Doctor/link/whitespace are repeated at the final freeze.
 - [x] Reconcile source acceptance, exact deployment identity and current branch
   state in the dev-owned register/graph; inspect the actual page.
-- [ ] Freeze a clean candidate, request one scoped macOS CI approval before
-  pushing/creating dev PR, then integrate and verify actual dev entry point.
+- [x] Frozen7b4081e6 accepted through PR106 at20b6cbc0; approved macOS
+  governance CI43570026586 passed118seconds. Actual dev canonical rebuild,
+  default App1.1.0 and8new/47historical product hash checks passed.
+- [ ] Integrate final acceptance receipts and updated actual-dev graph through
+  a documentation PR; obtain a new scoped CI approval before publication.
 
 ## v1.1.0 首轮发布CI补修
 
