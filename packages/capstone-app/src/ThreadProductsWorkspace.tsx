@@ -10,8 +10,11 @@ import {instructionProductLabel,type InstructionProductScope} from './instructio
 import type {ResultProjection} from './threadProtocol'
 import {useSessionViewState,useSessionViewRef,useSessionObjectUrls,sessionObjectUrl} from './workspaceSessionCache'
 import {ResourceFullscreenContext} from './resourceFullscreen'
+import ProductParagraphPicker from './ProductParagraphPicker'
+import type {BlockReader} from './productBlocks'
+import type {LocalProductSelection} from './threadProducts'
 
-type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>}
+type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader}
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
 function newestFirst(a:ProductEntry,b:ProductEntry){
   return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
@@ -61,7 +64,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   instructionScope?:InstructionProductScope;onClearInstructionScope?:()=>void
   primaryAttemptId?:string;runningAttemptId?:string;followAvailable?:boolean;onPrimaryReady?:(entry:ProductEntry)=>void
   onIndexLoaded?:(entries:readonly ProductEntry[])=>void
-  onReference?:(entry:ProductEntry,excerpt?:{max_bytes:number})=>void;onAdopt?:(artifact:NativeArtifact)=>void;onLocate?:(attemptId:string)=>void;onInspect?:(attemptId:string)=>void
+  onReference?:(entry:ProductEntry,excerpt?:{max_bytes:number},local?:LocalProductSelection)=>void;onAdopt?:(artifact:NativeArtifact)=>void;onLocate?:(attemptId:string)=>void;onInspect?:(attemptId:string)=>void
   fallback?:ReactNode
   onBrowse?:(entry:ProductEntry)=>void
   onFocusElement?:(projection:ResultProjection,elementId:string)=>boolean|void
@@ -214,6 +217,8 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
       </div>
       {view.projection&&<ResultProjectionCard projection={view.projection} onFocusElement={onFocusElement}/>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
+      {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&
+        <ProductParagraphPicker key={viewKey} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}
       {view.record&&<div><p>此项是执行记录，没有文件内容。</p>{typeof view.record.instruction==='string'&&<p>{view.record.instruction}</p>}{typeof view.record.failure_code==='string'&&<p>记录尚未提供可读的原因说明，可查看原指令和执行详情。</p>}</div>}
       {view.entry.dependencies.length>0&&<details><summary>支撑成果 · {view.entry.dependencies.length}</summary>{view.entry.dependencies.map(ref=><button type="button" key={productRefKey(ref)} onClick={()=>setSelection(ref)}>查看支撑{ref.scope==='task'?'交付':'产物'}{ref.revision?` v${ref.revision}`:''}</button>)}</details>}
       <p className="thread-product-history-note">来自已保存历史；引用不会自动成为当前运行的 Authority 证据。</p>

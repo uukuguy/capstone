@@ -552,7 +552,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       if(requestedProduct&&(requestedProduct.ref?.attempt_id??requestedProduct.attemptId)===attempt)setRequestedProduct(undefined)
       setResourceView('products');setProductsOpen(true)
     }}
-    onReference={(entry,excerpt)=>setRequestedReference({selection:{ref:entry.ref,purpose:'historical-context',...(excerpt?{excerpt}:{})},nonce:Date.now()})}
+    onReference={(entry,excerpt,local)=>setRequestedReference({selection:{ref:entry.ref,purpose:'historical-context',...(excerpt?{excerpt}:{}),...(local?{local_selection:local}:{})},nonce:Date.now()})}
     onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}} onLocate={attemptId=>void locateInstruction(attemptId)} onBrowse={entry=>{if(entry.ref.attempt_id!==latestInstructionAttempt)markManualView();else setRequestedProduct(undefined)}} onInspect={setInspectedProductAttempt}
     fallback={<><details open={requestedProduct?.origin==='native_file'}><summary>指令文件</summary>{filesPanel}</details><details><summary>任务交付</summary><TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision}/></details><details><summary>过程记录</summary>{processPanel}</details></>}/>
   const materials=inputCatalog?.materials||[]

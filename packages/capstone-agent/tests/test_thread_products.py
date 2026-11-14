@@ -136,13 +136,12 @@ def test_admitted_domain_projection_is_historical_and_not_a_fake_file():
     assert second['has_more'] is False
 
 
-def generated_native_file(store, thread_id):
+def generated_native_file(store, thread_id, data=b'# Actual original bytes\n'):
     from hashlib import sha256
     from types import SimpleNamespace
     from capstone_agent.native_artifact_projection import project_native_artifacts
     executor = native_executor()
     store.set_native_executor(executor)
-    data = b'# Actual original bytes\n'
     executor.read_artifact = lambda *args, **kwargs: data
     assert store.submit_command(command(store, thread_id, 'send_message', 'source_file', payload={'text': 'Create file'})).status == 'accepted'
     claim = store.claim_attempt('products', 30, 'native')

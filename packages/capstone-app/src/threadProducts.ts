@@ -4,7 +4,8 @@ import {parseResultProjection,type ResultProjection} from './threadProtocol'
 
 export type ProductOrigin='native_file'|'task_delivery'|'domain_result'|'process_record'
 export type ProductRef={schema:'capstone-product-ref/1';thread_id:string;product_id:string;origin:ProductOrigin;scope:'instruction'|'task';event_seq:number;revision:number|null;digest:string;work_id:string|null;attempt_id:string|null;producer_attempt_id:string|null}
-export type ContextProductRef={ref:ProductRef;purpose:'historical-context';excerpt?:{max_bytes:number}}
+export type LocalProductSelection={schema:'capstone-local-product-selection/1';parent_ref:ProductRef;index_ref:string;block_id:string;content_digest:string;purpose:'historical-context'}
+export type ContextProductRef={ref:ProductRef;purpose:'historical-context';excerpt?:{max_bytes:number};local_selection?:LocalProductSelection}
 export type ProductEntry={ref:ProductRef;title:string;media_type:string|null;byte_size:number|null;source_status:string;created_at:string;download_url:string|null;source:Record<string,unknown>;dependencies:ProductRef[];presentation:Record<string,unknown>&{kind:ProductOrigin};capabilities:{read:true;select:boolean;select_excerpt?:boolean};selection_unavailable_reason:string|null;historical_only:true}
 export type ProductIndex={products:ProductEntry[];hasMore:boolean;nextCursor:string|null}
 export type ProductResolution={entry:ProductEntry;bytes:Uint8Array|null;projection:ResultProjection|null;record:Record<string,unknown>|null}
@@ -41,11 +42,28 @@ export function productRefKey(ref:ProductRef):string {
 }
 export function parseContextProductRefs(value:unknown,threadId?:string):ContextProductRef[] {
   if(!Array.isArray(value)||exceedsCapacity(value.length,'product_reference_count'))throw new Error('成果引用无效')
-  const refs=value.map(item=>{const selection=object(item);if(!['purpose,ref','excerpt,purpose,ref'].includes(Object.keys(selection).sort().join(','))||selection.purpose!=='historical-context')throw new Error('成果引用用途无效')
+  const refs=value.map(item=>{const selection=object(item);if(!['purpose,ref','excerpt,purpose,ref','local_selection,purpose,ref'].includes(Object.keys(selection).sort().join(','))||selection.purpose!=='historical-context')throw new Error('成果引用用途无效')
+    const ref=parseProductRef(selection.ref,threadId)
+    let local:LocalProductSelection|undefined
+    if(selection.local_selection!==undefined){
+      const item=object(selection.local_selection)
+      if(Object.keys(item).sort().join(',')!=='block_id,content_digest,index_ref,parent_ref,purpose,schema'
+        ||item.schema!=='capstone-local-product-selection/1'||item.purpose!=='historical-context'
+        ||typeof item.index_ref!=='string'||!hash.test(item.index_ref)
+        ||typeof item.content_digest!=='string'||!hash.test(item.content_digest)
+        ||typeof item.block_id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(item.block_id))throw new Error('段落引用无效')
+      const parent=parseProductRef(item.parent_ref,threadId)
+      if(productRefKey(parent)!==productRefKey(ref))throw new Error('段落来源不符')
+      local={...item,parent_ref:parent} as LocalProductSelection
+    }
     if(selection.excerpt!==undefined){const excerpt=object(selection.excerpt);if(Object.keys(excerpt).join(',')!=='max_bytes'||!Number.isSafeInteger(excerpt.max_bytes)||(excerpt.max_bytes as number)<1||exceedsCapacity(excerpt.max_bytes as number,'product_excerpt_bytes'))throw new Error('成果摘录范围无效')}
-    return {ref:parseProductRef(selection.ref,threadId),purpose:'historical-context' as const,...(selection.excerpt===undefined?{}:{excerpt:{max_bytes:(selection.excerpt as {max_bytes:number}).max_bytes}})}})
-  if(new Set(refs.map(item=>productRefKey(item.ref))).size!==refs.length)throw new Error('成果引用重复')
+    return {ref,purpose:'historical-context' as const,...(local?{local_selection:local}:{}),...(selection.excerpt===undefined?{}:{excerpt:{max_bytes:(selection.excerpt as {max_bytes:number}).max_bytes}})}})
+  if(new Set(refs.map(productSelectionKey)).size!==refs.length)throw new Error('成果引用重复')
   return refs
+}
+export function productSelectionKey(selection:ContextProductRef):string {
+  const local=selection.local_selection
+  return local?JSON.stringify([productRefKey(selection.ref),local.index_ref,local.block_id,local.content_digest,local.purpose]):productRefKey(selection.ref)
 }
 export function parseProductEntry(value:unknown,threadId:string):ProductEntry {
   const entry=object(value),ref=parseProductRef(entry.ref,threadId),capabilities=object(entry.capabilities),presentation=object(entry.presentation)

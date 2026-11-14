@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react'
-import {productRefKey,type ContextProductRef,type ProductEntry,type ProductRef,type ProductResolution} from './threadProducts'
+import {productRefKey,productSelectionKey,type ContextProductRef,type ProductEntry,type ProductRef,type ProductResolution} from './threadProducts'
 import './threadProducts.css'
 
 export type ProductReferenceReader=(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>
@@ -17,8 +17,9 @@ export default function ProductReferenceChips({selections,read,onRemove,disabled
     return()=>controller.abort()
   },[keys])
   if(!selections.length)return null
-  return <div className="thread-product-references" aria-label="本轮成果引用">{selections.map(item=>{
-    const key=productRefKey(item.ref),entry=entries[key],name=entry?.title||(errors.has(key)?'成果信息暂不可读取':'正在读取成果名称…')
-    return <span key={key} title="历史上下文；不自动成为当前运行证据"><span>{name}{item.ref.revision?` · v${item.ref.revision}`:''}{item.excerpt?<small> · 开头摘录，最多{Math.ceil(item.excerpt.max_bytes/1024)}KiB</small>:null}</span><button type="button" disabled={disabled} aria-label={`移除成果引用：${name}`} onClick={()=>onRemove(key)}>×</button></span>
+  return <div className="thread-product-references" aria-label="本轮成果引用">{selections.map((item,index)=>{
+    const parentKey=productRefKey(item.ref),key=productSelectionKey(item),entry=entries[parentKey],name=entry?.title||(errors.has(parentKey)?'成果信息暂不可读取':'正在读取成果名称…')
+    const label=item.local_selection?`${name} · 段落引用 ${index+1}`:name
+    return <span key={key} title="历史上下文；不自动成为当前运行证据"><span>{label}{item.ref.revision?` · v${item.ref.revision}`:''}{item.excerpt?<small> · 开头摘录，最多{Math.ceil(item.excerpt.max_bytes/1024)}KiB</small>:null}</span><button type="button" disabled={disabled} aria-label={`移除成果引用：${label}`} onClick={()=>onRemove(key)}>×</button></span>
   })}</div>
 }
