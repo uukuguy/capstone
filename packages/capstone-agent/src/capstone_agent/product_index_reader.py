@@ -9,7 +9,7 @@ from pathlib import PurePosixPath
 from .thread_products import checked_ref, _snapshot, _events, _event_entries
 
 
-def read_index_source(service, objects, thread_id, parent_ref, *, max_bytes):
+def index_source_metadata(service, thread_id, parent_ref, *, max_bytes):
     if type(max_bytes) is not int or max_bytes < 1:
         raise ValueError('invalid source processing budget')
     ref = checked_ref(parent_ref)
@@ -38,7 +38,13 @@ def read_index_source(service, objects, thread_id, parent_ref, *, max_bytes):
     else:
         from .thread_deliveries import _key
         key = _key(thread_id, event.payload['delivery'])
-    content = objects.get(key, size)
+    return {'ref': ref, 'object_key': key, 'size_bytes': size}
+
+
+def read_index_source(service, objects, thread_id, parent_ref, *, max_bytes):
+    metadata = index_source_metadata(service, thread_id, parent_ref, max_bytes=max_bytes)
+    ref, size = metadata['ref'], metadata['size_bytes']
+    content = objects.get(metadata['object_key'], size)
     if len(content) != size or sha256(content).hexdigest() != ref['digest']:
         raise ValueError('source content changed')
     return content

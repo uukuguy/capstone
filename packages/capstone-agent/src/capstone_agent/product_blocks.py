@@ -18,6 +18,10 @@ def _digest(value):
                             separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
+def parser_identity():
+    return f'markdown-it-py/{version("markdown-it-py")};commonmark+table+labels;source-paragraph/2'
+
+
 def build_index(parent_ref, content: bytes, *, max_input_bytes: int, max_blocks: int):
     for budget in (max_input_bytes, max_blocks):
         if type(budget) is not int or budget < 1:
@@ -32,7 +36,7 @@ def build_index(parent_ref, content: bytes, *, max_input_bytes: int, max_blocks:
     text = content.decode('utf-8', errors='strict')
     if '\0' in text:
         raise ValueError('unsupported text content')
-    parser_id = f'markdown-it-py/{version("markdown-it-py")};commonmark+table+labels;source-paragraph/2'
+    parser_id = parser_identity()
     # Markdown normalizes CR/CRLF. Preserve original UTF-8 source boundaries.
     lines = re.findall(r'[^\r\n]*(?:\r\n|\r|\n|$)', text)
     offsets = [0]
