@@ -10,6 +10,10 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_thread_input.py \
   packages/capstone-agent/tests/test_thread_deliveries.py \
   packages/capstone-agent/tests/test_hosting.py -q
+uv run --project packages/capstone-agent pytest \
+  packages/capstone-agent/tests/test_artifacts.py \
+  packages/capstone-agent/tests/test_artifact_transfer_recovery.py \
+  tools/tests/test_ci_product_adoption.py -q
 npm --prefix packages/capstone-app run check
 npm --prefix packages/capstone-app test -- \
   src/productSeries.test.ts src/productSeriesTransport.test.ts \

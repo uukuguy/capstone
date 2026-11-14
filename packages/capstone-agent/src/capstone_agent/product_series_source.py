@@ -42,7 +42,7 @@ def verify_source(threads, objects, thread_id, ref, *, metadata=None, collect=Fa
     """Hash a retained object in fixed chunks; adoption never collects its bytes.
 
     The ledger supplies the immutable key, size and digest. A stream may read at
-    most that size plus one byte before rejection, with constant working memory.
+    most that size plus one 64 KiB chunk before rejection, with constant working memory.
     Text consumers must admit their own budgets before requesting collection.
     """
     metadata = metadata or source_metadata(threads, thread_id, ref)

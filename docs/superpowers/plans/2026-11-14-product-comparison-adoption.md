@@ -9,7 +9,7 @@
 **Stack:** Existing Python/PostgreSQL backend and React/TypeScript App.
 
 Design: [comparison and adoption](../specs/2026-11-14-product-comparison-adoption-design.md).
-Owner: capstone-agent and capstone-app; destination dev. Planning only until written spec review. No CI approval exists.
+Owner: capstone-agent and capstone-app; destination dev. Written spec approved; implementation active on feat/product-comparison-adoption-20261114 in .worktrees/product-adoption. Next: integrate exact-source service, API and existing preview UI; acceptance remains the full real task loop. No CI approval exists.
 
 ## 1. Durable series and adoption
 
@@ -43,3 +43,12 @@ Owner: capstone-agent and capstone-app; destination dev. Planning only until wri
 - [ ] Check concurrent adoption in two clients and failed adoption preserving input. Save bounded receipts/screenshots under ignored runs/.
 - [ ] Run scoped cache maintenance, independent review, local direct-consumer tests and documentation checks. Repair blockers before requesting CI approval.
 - [ ] Register the active branch owner/target/acceptance/next step and update actual dev control graph at boundaries. Request one scoped macOS CI only after concrete local review; integrate through dev PR, synchronize actual dev, preserve recovery data and close verified merged branches.
+
+## Measured progress
+
+- 3efef824: pure explicit series transitions, two behavior checks.
+- 7260d01c: PostgreSQL state and retry receipts; real database rollback/reconnect checks.
+- 9b612758: indexed exclusive membership and paged audit, trusted actor included in retry identity.
+- 32dbd31b: literal Markdown comparison with explicit byte/line/output budgets.
+- 384f5ec6: private HTTP adapter, not yet host-mounted at this boundary.
+- These module tests do not establish full acceptance. Service authorization, in-memory parity, bounded projections, existing UI integration and real model/browser recovery remain required.
