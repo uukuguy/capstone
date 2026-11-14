@@ -7534,3 +7534,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Rejected proposed fatal debug-capacity change: accepted4d57c083 policy requires per-call repair; update obsolete SDK expectations instead.
 
 - 2026-11-14 AppHeader发布显示测试从package.json读取版本；保留环境、八位来源与title断言，12项定向检查通过，避免版本升级被旧0.1.0断言阻断。
+
+- 2026-11-14 ee20063c：AppHeader断言读取产品版本，发布升级不再依赖旧版本常量。
+
+- 2026-11-14 原生图执行夹具按现行私有JSONL验证调度回执后读取RPC/结果；50项通过，保留全部证据、归属、版本与拒绝断言，无runtime改动。
