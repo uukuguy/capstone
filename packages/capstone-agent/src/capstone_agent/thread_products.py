@@ -189,12 +189,13 @@ def _selection_dependencies(service, thread_id, attempt_id, connection):
     return [item['ref'] for item in selected]
 
 
-def _event_entries(service, snapshot, event, connection=None, presentation_cache=None):
-    dependencies = _selection_dependencies(service, snapshot.thread_id, event.attempt_id, connection)
+def _event_entries(service, snapshot, event, connection=None, presentation_cache=None, *, metadata_only=False):
+    dependencies = [] if metadata_only else _selection_dependencies(service, snapshot.thread_id, event.attempt_id, connection)
     if event.event_type == 'native_artifact_published':
         item = event.payload['artifact']
         from .native_product_roles import presentation_for_artifact
-        item = presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache)
+        if not metadata_only:
+            item = presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache)
         if (item['thread_id'] != snapshot.thread_id or item['attempt_id'] != event.attempt_id
                 or item['scope'] != 'instruction'):
             raise ValueError('native product ownership changed')
@@ -216,7 +217,7 @@ def _event_entries(service, snapshot, event, connection=None, presentation_cache
             work_id=item['work_id'], attempt_id=item['trigger_attempt_id'], producer=item.get('producer_attempt_id'),
             download=f'/api/v1/threads/{snapshot.thread_id}/deliveries/{item["artifact_id"]}/revisions/{item["revision"]}/content')
         adopted = item.get('source_artifact')
-        if adopted:
+        if adopted and not metadata_only:
             candidates = _artifact_events(service, snapshot.thread_id, adopted, connection)
             if candidates:
                 entry['dependencies'] = [_event_entries(service, snapshot, candidates[0], connection)[0]['ref']]
