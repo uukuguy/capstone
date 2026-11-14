@@ -7568,3 +7568,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 发布CI Linux28并发请求重置在隔离Linux3.12第23轮复现；默认TCP backlog5不匹配256连接预算。只对齐队列预算后60轮通过；新增暂停accept的真实socket回归先红后绿，160定向/3308完整后端/类型通过，独立复核无重要问题，未重跑CI。
 
 - 2026-11-14 fcc55dbc规范重建、实际Linux60轮和真实续接12.27秒通过，8新/47旧hash保持；控制图6条来源核验无穿卡。首轮Linux失败、旧macOS未完；补修回执冻结，第二次CI尚未获批。
+
+- 2026-11-14 首轮macOS SDK竞态：400ms启动延迟使旧100×2ms轮询427ms后读未提交proposal；替换为公开waitForDecision及事件同步，相同延迟449ms通过。保留A/B/C依赖/并行/授权输入/取消清理断言；655完整SDK及父级2项通过，生产JS未改。

@@ -11,6 +11,17 @@ import {createEnterpriseGraphController} from '../../src/capstone_agent/resource
 import {createGraphContextClient} from '../../src/capstone_agent/resources/graph-context-client.mjs';
 import {createTaskNodeReturn} from '../../src/capstone_agent/resources/task-node-return.mjs';
 
+async function waitForFixtureEvent(promise,signal){
+  signal.throwIfAborted();
+  let onAbort;
+  try{
+    return await Promise.race([promise,new Promise((_,reject)=>{
+      onAbort=()=>reject(signal.reason);
+      signal.addEventListener('abort',onAbort,{once:true});
+    })]);
+  }finally{signal.removeEventListener('abort',onAbort);}
+}
+
 test('SDK selects the graph adapter only for its explicit schema',()=>{
   assert.equal(sdkHost.usesEnterpriseGraph({researchRuntime:{graphSchema:'capstone-enterprise-graph/2'}}),true);
   assert.equal(sdkHost.usesEnterpriseGraph({researchRuntime:{enabled:true}}),false);
@@ -202,7 +213,7 @@ test('lightweight return preserves an imperfect finding without another model or
     assert.equal(result.handoff.outputs[0].summary,'Preserve the observed findings');
   }finally{process.chdir(previous);await rm(dir,{recursive:true,force:true});}
 });
-test('real graph retains a safe product and unverified findings for explicit limited integration',async()=>{
+test('real graph retains a safe product and unverified findings for explicit limited integration',{timeout:10000},async t=>{
   const dir=await realpath(await mkdtemp(join(tmpdir(),'graph-limited-return-'))),previous=process.cwd();process.chdir(dir);
   const owner={thread_id:'T',work_id:'W',research_id:'research',goal_revision:1};
   const seen={returnValue:()=>({schema:'capstone-task-return/1',outputs:[
@@ -228,8 +239,8 @@ test('real graph retains a safe product and unverified findings for explicit lim
     const planned=await controller.execute('plan','plan',{goal:'Research the supplied question',output_mode:'text',source_refs:[],nodes:[declared],
       requirements:[{id:'draft',description:'Useful research draft',kind:'artifact'},{id:'interpretation',description:'Supported interpretation',kind:'finding'}]});
     assert.equal(planned.details.ok,true,JSON.stringify(planned));
-    let state;
-    for(let i=0;i<100;i++){state=await controller.readState();if(state.graph.nodes[0].phase==='executed')break;await new Promise(resolve=>setTimeout(resolve,2));}
+    await controller.waitForDecision({signal:t.signal});
+    let state=await controller.readState();
     assert.equal(state.graph.nodes[0].phase,'executed');assert.equal(seen.prompts,1);
     const proposal=await controller.readProposal(state.graph.nodes[0].execute_action_id);
     assert.match(proposal.output,/Uncertain interpretation retained/);
@@ -702,15 +713,17 @@ test('real SDK entry point registers graph tools without a manual delegate grant
   }finally{process.stdout.write=original;process.chdir(previous);await rm(dir,{recursive:true,force:true});}
 });
 
-test('actual managed child dispatch releases C after model acceptance of A while B still runs',async()=>{
+test('actual managed child dispatch releases C after model acceptance of A while B still runs',{timeout:10000},async t=>{
   const dir=await realpath(await mkdtemp(join(tmpdir(),'graph-schedule-'))),previous=process.cwd();process.chdir(dir);
   const owner={thread_id:'thread',work_id:'work',research_id:'research',goal_revision:1};
   const config={researchTaskId:'task',researchAttemptId:'attempt',researchOwner:owner,model:'fake',extensions:[],allowedSkills:[],settings:{},
     applicationPolicy:{allowed_tools:['write']},researchRuntime:{graphLimits:{maxNodes:8,maxItems:64,maxText:4096,maxExecutions:32,snapshotBytes:500000,publicBytes:100000},delegation:{concurrency:2,maxTurns:4,graceTurns:1}}};
   const observations=new Map(),started=[],frames=[];let view={research_revision:0,state:null};
+  const aStarting=Promise.withResolvers(),releaseA=Promise.withResolvers(),cFinished=Promise.withResolvers();
   const baseSdk=fakeSdk({});
   const sdk={...baseSdk,async createAgentSession(options){
     const id=started.find(item=>options.cwd.endsWith(createHash('sha256').update(item.action.id).digest('hex')))?.node.id;
+    if(id==='A'){aStarting.resolve();await releaseA.promise;}
     const observe={};observations.set(id,observe);
     return fakeSdk(observe,{block:id==='B'}).createAgentSession(options);
   }};
@@ -720,13 +733,25 @@ test('actual managed child dispatch releases C after model acceptance of A while
   const controller=createEnterpriseGraphController({config,readResearch:async()=>structuredClone(view),
     commitResearch:async(id,request)=>{view={research_revision:view.research_revision+1,state:{...(view.state??{}),...request.changes,
       notes:[...(view.state?.notes??[]),...request.changes.notes]}};return {details:{ok:true,result:{status:'committed',receipt:{research_revision:view.research_revision}}}};},
-    inspectProducts:async({products})=>({ready:true,products}),dispatchNode:async(...args)=>{started.push(args[0]);return dispatch(...args);},
+    inspectProducts:async({products})=>({ready:true,products}),dispatchNode:async(...args)=>{
+      started.push(args[0]);
+      try{return await dispatch(...args);}
+      finally{if(args[0].node.id==='C')cFinished.resolve();}
+    },
     resolveInputs:async action=>({handles:[],manifests:action.input_bindings.map(binding=>JSON.parse(view.state.notes.at(-1).text).snapshot.results.find(item=>item.result_ref===binding.result_ref))})});
   const graphNode=(id,extra={})=>({id,purpose:'Inspect '+id,questions:['Question '+id],checks:['Check '+id],depends_on:[],expected_outputs:['Actual observation'],mode:'execute',execution:'delegated',instruction:'Exact '+id,source_refs:[],outputs:[{slot:'value',kind:'observation',description:'Native observation'}],inputs:[],...extra});
   try{
     assert.equal((await controller.execute('plan','plan',{goal:'Inspect actual sources',output_mode:'text',source_refs:[],nodes:[graphNode('A'),graphNode('B'),graphNode('C',{depends_on:['A'],mode:'synthesis',inputs:[{name:'prior',from:{step_id:'A',slot:'value'}}]})]})).details.ok,true);
-    let state;
-    for(let i=0;i<100;i++){state=await controller.readState();if(state.graph.nodes.find(item=>item.id==='A').phase==='executed')break;await new Promise(resolve=>setTimeout(resolve,2));}
+    await waitForFixtureEvent(aStarting.promise,t.signal);
+    let decisionSettled=false;
+    const decision=controller.waitForDecision({signal:t.signal}).then(()=>{decisionSettled=true;});
+    let state=await controller.readState();
+    assert.equal(state.graph.nodes.find(item=>item.id==='A').phase,'executing');
+    assert.equal(decisionSettled,false,'Startup alone does not publish a committed proposal');
+    releaseA.resolve();
+    await decision;
+    state=await controller.readState();
+    assert.equal(state.graph.nodes.find(item=>item.id==='A').phase,'executed');
     assert.deepEqual(started.map(item=>item.node.id),['A','B']);
     const proposal=await controller.readProposal(state.graph.nodes.find(item=>item.id==='A').execute_action_id);
     const receipt=proposal.receipts[0].ref;
@@ -734,12 +759,13 @@ test('actual managed child dispatch releases C after model acceptance of A while
     state=await controller.readState();
     assert.equal((await controller.execute('assess','assess-A',{action_id:state.graph.nodes.find(item=>item.id==='A').assess_action_id,outcome:'success',
       checks:[{description:'Check A',status:'passed',refs:[receipt],explanation:'Observed bytes'}],summary:'Accepted A'})).details.ok,true);
-    for(let i=0;i<100&&!observations.get('C')?.disposed;i++)await new Promise(resolve=>setTimeout(resolve,2));
+    await waitForFixtureEvent(cFinished.promise,t.signal);
+    assert.equal(observations.get('C').disposed,true);
     assert.deepEqual(started.map(item=>item.node.id),['A','B','C']);
     assert.equal(observations.get('B').disposed,undefined);
     assert.ok(started.find(item=>item.node.id==='C').inputs.manifests[0].result_ref);
     await controller.close({reason:'Test complete'});
     assert.equal(observations.get('B').aborted,true);assert.equal(observations.get('B').disposed,true);
     assert.ok(frames.some(frame=>frame.type==='enterprise_graph_child_finished'&&frame.step_id==='B'&&frame.status==='cancelled'));
-  }finally{await controller.close();process.chdir(previous);await rm(dir,{recursive:true,force:true});}
+  }finally{releaseA.resolve();await controller.close();process.chdir(previous);await rm(dir,{recursive:true,force:true});}
 });
