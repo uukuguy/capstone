@@ -1493,7 +1493,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| workspace-research-20261114 | 当前应用实现候选 | research/capstone-app-workspace-20261114 | 版本固定段落与持久索引；多选身份及容量感知分页 | 分支HEAD 7ef73be1（测试）；运行来源a65b35b6；三轮与刷新通过；未合入dev |
+| workspace-research-20261114 | 当前应用实现候选 | research/capstone-app-workspace-20261114 | 版本固定段落与持久索引；多选身份及容量感知分页 | 分支HEAD 79fd05dd（门禁）；运行来源a65b35b6；三轮与刷新通过；未合入dev |
 | release-v1-1-0 | 已接受发布基线 | main · v1.1.0 | 产品/backend/App1.1.0，独立组件版本保留；正式应用边界、Pi执行与国网PPT | b6b144c7；CI43564049919双平台通过，tag远端验证；dev回流/云部署另列 |
 | release-v1-1-0-listener-fix | 当前本地运行来源 | main历史修复来源 | TCP接收队列对齐现有连接预算；不更改执行授权 | fcc55dbc；3308后端、Linux60轮、真实续接及hash通过；第二次CI双平台通过，已由PR105合入main/tag |
 | release-v1-1-0-candidate | 首次本地完整受检历史 | 已关闭release/v1.1.0 | 产品/backend/App版本及锁一致；冻结统一框架、执行与国网PPT能力 | 04f127e4本地完整门禁26分56秒通过；首轮两项失败及补修保留，第二次CI已通过并由main b6b144c7/v1.1.0接受 |

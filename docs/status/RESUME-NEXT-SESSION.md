@@ -4,7 +4,7 @@
 
 ## Current delivery
 
-- Owner: capstone-agent and capstone-app. Branch: research/capstone-app-workspace-20261114, destination dev. Latest implementation/test commit: 7ef73be1. Runtime source: a65b35b6. Later changes cover CI, tests and control records.
+- Owner: capstone-agent and capstone-app. Branch: research/capstone-app-workspace-20261114, destination dev. Latest branch commit: 79fd05dd; control consolidation: de151c9c; source-removal test: 7ef73be1. Runtime source: a65b35b6. Later changes cover CI, tests and control records.
 - Plan: docs/superpowers/plans/2026-11-14-workspace-local-references.md. Scope: top-level Markdown paragraphs, fixed source/index/block identities, durable jobs, bounded isolated parsing, admission and existing preview/composer.
 - Root dev remains 9c855eb2. Canonical control drafts are prepared in the actual dev checkout; they are not integrated until the scoped PR merges.
 
@@ -26,15 +26,15 @@
 
 ## Remaining work
 
-1. Finish control-draft consolidation and exact PR body; run documentation and control checks.
-2. Request explicit approval for one focused macOS product-references CI run before push/PR actions that start CI. No current CI approval exists.
+1. PR body prepared at root runs/paragraph-reference-dev-pr-20261114.md. Control consolidation committed; links, doctor, 22 control checks and Vivaldi candidate area passed. Latest gate manifest correction passed 124 checks; actual branch delta selects product-references. One scoped CI run is approved; create the PR once and record its run.
+2. Request explicit approval for one focused macOS product-references CI run before push/PR actions that start CI. User approved one PR-triggered macOS product-references CI run on 2026-11-14; no rerun approval.
 3. After approved CI and review, integrate through dev PR, synchronize root without losing drafts, refresh the actual dev control graph and verify its entry point.
 - Independent review did not run: two reviewer starts failed with unavailable configured model. Do not claim review acceptance.
 - Keyboard-only and unsent-draft restoration coverage remains open. GB-scale chunk processing, hard parser memory isolation, source I/O deadlines and orphan-index cleanup remain separate requirements.
 
 ## Recovery and preserved files
 
-- Worktree: .worktrees/capstone-app-research. Research code is committed; journal/checkpoint and control preparation are separate changes.
+- Worktree: .worktrees/capstone-app-research. Research code is committed. Uncommitted research paths: docs/status/JOURNAL.md, RESUME-NEXT-SESSION.md, VERSION-CONTROL.md and PROJECT-OVERVIEW.html. These record the final 79fd05dd HEAD and CI approval boundary; retain them for the next control commit, avoiding a snapshot self-hash commit cycle. Matching root copies are the recovery reference.
 - Root pre-consolidation control drafts are preserved under runs/paragraph-control-before-consolidation-20261114/. Preserve unrelated root changes and all user data.
 - Preserve root var/, ignored credentials, other browser tabs and recovery stashes fd43f748, 51d0c117, 34e4e74d.
 - Accepted v1.1.0 release remains unchanged. Evidence: runs/release-v1.1.0-20261114/.

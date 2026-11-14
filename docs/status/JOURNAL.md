@@ -7671,3 +7671,9 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 定向门禁移至Pi安装/doctor之后；24治理检查与YAML解析通过；未运行CI。[b272e279]
 
 - 2026-11-14 补充原文件删除后的段落提交重试验证；26项数据库及直接消费者检查通过，测试容器已移除。[7ef73be1]
+
+- 2026-11-14 整合局部引用控制草稿；22项控制检查、链接、doctor及Vivaldi候选区域复查通过；待定向CI批准。[de151c9c]
+
+- 2026-11-14 补齐引用测试门禁清单，避免误走通用CI；124项路由检查通过，实际差异选择product-references。[79fd05dd]
+
+- 2026-11-14 用户批准一次PR触发macOS局部引用CI；远端dev仍9c855eb2，无已有研究分支或PR；进程级Clash连接可用。
