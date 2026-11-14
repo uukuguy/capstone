@@ -12,7 +12,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false,professionalTyped=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -42,7 +42,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       last_event_seq: events.length, base_event_seq: 0, result_projections: projections }
     return upgraded ? { ...base, schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
       selected_model_context_id: modelFree||(native&&!openedModel) ? null : model.id, works: saved ? [projection()] : [], task_context: saved ? context : null,
-      ...(native?{session_type:'general-chat',native_execution:{available:nativeAvailable&&!openedModel,unavailable_reason:nativeAvailable&&!openedModel?null:'native_executor_unavailable'}}:{}) } : base
+      ...(professionalTyped?{session_type:'grid-analysis'}:{}),...(native?{session_type:'general-chat',native_execution:{available:nativeAvailable&&!openedModel,unavailable_reason:nativeAvailable&&!openedModel?null:'native_executor_unavailable'}}:{}) } : base
   }
   function append(type: string, payload: Record<string, unknown>, withAttempt = false) {
     const event = { event_id: `evt_${events.length + 1}`, event_seq: events.length + 1, event_type: type, event_version: 2,
@@ -645,4 +645,31 @@ it('saves exact restored row references in a professional work command and start
  fireEvent.click(await screen.findByRole('button',{name:'开始任务'}))
  await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('start_work'))
  expect(server.commands.at(-1)?.target.id).toBe('work_one')
+})
+
+it('requires an explicit action to resume a typed professional work through the real workspace route',async()=>{
+ const server=authority({existingWork:true,professionalTyped:true})
+ vi.stubGlobal('fetch',server.fetcher)
+ render(<ThreadLiveEntry threadId="thr_work" presentation="workspace"/>)
+ const resume=await screen.findByRole('button',{name:'继续编辑此专业任务'})
+ expect(screen.queryByRole('button',{name:'开始任务'})).toBeNull()
+ expect(server.commands).toHaveLength(0)
+ fireEvent.click(resume)
+ await screen.findByRole('textbox',{name:'补充任务资料'})
+ expect(screen.getByRole('button',{name:'开始任务'})).toBeTruthy()
+ expect(server.commands).toHaveLength(0)
+ fireEvent.change(screen.getByRole('textbox',{name:'补充任务资料'}),{target:{value:'继续分析'}})
+ fireEvent.click(screen.getByRole('button',{name:'保存任务'}))
+ await waitFor(()=>expect(server.commands[0]?.kind).toBe('work_message'))
+ expect(server.commands[0].thread_id).toBe('thr_work')
+ expect(server.commands[0].target.id).toBe('work_one')
+})
+it('keeps untyped old work sessions in recovery in the real workspace route',async()=>{
+ const server=authority({existingWork:true})
+ vi.stubGlobal('fetch',server.fetcher)
+ render(<ThreadLiveEntry threadId="thr_work" presentation="workspace"/>)
+ await screen.findByText(/此会话使用旧版任务协议/)
+ expect(screen.queryByRole('button',{name:'继续编辑此专业任务'})).toBeNull()
+ expect(screen.queryByRole('button',{name:'开始任务'})).toBeNull()
+ expect(server.commands).toHaveLength(0)
 })

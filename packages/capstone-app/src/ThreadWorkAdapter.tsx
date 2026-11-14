@@ -141,7 +141,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     }).catch(cause=>{rethrowDebugCapacity(cause);if(live)setModelWorkspace(null)})
     return()=>{live=false}
   },[client,currentId,nativeChat,snapshot?.lastEventSeq,snapshot?.modelContext?.id])
-  const recovery=recoveryOnly&&!nativeChat
+  const [professionalEdit,setProfessionalEdit]=useState(false)
+  const canResumeProfessional=snapshot?.sessionType==='grid-analysis'&&!!snapshot.modelContext&&snapshot.works.some(work=>!work.conversationMode)
+  const recovery=recoveryOnly&&!nativeChat&&!professionalEdit
   const materialRevision=Math.max(0,...store.publicEvents.filter(event=>['material_uploaded','material_removed'].includes(event.eventType)).map(event=>event.eventSeq))
   const [inputCatalog,setInputCatalog]=useState<InputCatalog>()
   const [welcomeGateway,setWelcomeGateway]=useState<GatewayConnectionStatus>()
@@ -641,7 +643,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       </div>
     </div>
       {inspectedProductAttempt&&<AnswerDetailSheet title="执行详情" answerLabel="所选成果的来源指令" onClose={()=>setInspectedProductAttempt(undefined)}><AttemptRecordPanel attemptId={inspectedProductAttempt} read={(id,after)=>client.attemptRecords(currentId,id,after)}/></AnswerDetailSheet>}
-      {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。</p>}
+      {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。{canResumeProfessional&&<button type="button" disabled={busy||!!pending} onClick={()=>{const target=snapshot!.works.filter(work=>!work.conversationMode).find(work=>work.contextProductRefs?.length)??snapshot!.works.filter(work=>!work.conversationMode).at(-1);if(target){selectWork(target.workId);setProfessionalEdit(true)}}}>继续编辑此专业任务</button>}</p>}
       {viewingLegacy&&<p role="status">正在查看历史保存记录，可保留草稿、确认原请求及停止已有执行。返回当前对话后可继续发送。</p>}
       {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
