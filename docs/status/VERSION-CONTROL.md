@@ -1193,7 +1193,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| chore/v1.1.0-dev-return | 已接受版本回流dev | cf30d0d1；main b6b144c7/v1.1.0已接受，实际回流判定governance，未获新CI批准；新候选未推送，待第二次CI批准 | CI通过后main PR/tag；随后版本回流dev |
+| chore/v1.1.0-dev-return | 已接受版本回流dev | 6e8052e4；main b6b144c7/v1.1.0已接受，实际回流判定governance，候选未推送，治理CI待批准 | 面向dev创建PR并运行获批macOS治理检查；接受后核对实际dev入口 |
 | dev | 共同基座与企业工作台集成 | 当前HEAD8d97596c；PR104已合入；本地/远端一致，默认入口与47条历史文件摘要恢复通过 | PPT及直接调用方已收口；没有活动研发分支，后续工作按dev具体任务启动 |
 
 ## 功能包前沿
@@ -1285,7 +1285,6 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | --- | --- |
 | release-v1-1-0 | 用户指定的重要发布v1.1.0；main精确接受源与annotatedtag |
 | release-v1-1-0-listener-fix | Linux连接突发修复与当前local-dev精确来源；待新CI |
-| release-v1-1-0-candidate | v1.1.0首轮本地完整受检来源，保留失败前后证据 |
 | presentation-merge-20261114 | PR104正式合入dev的PPT与直接调用方基线 |
 | resource-projection-20261113 | 架构改进受检源码，已由PR101合入；后续本地与浏览器接受见0616023f |
 | default-template-20261110 | 普通PPT缺省国网；两dev环境当前来源 |
@@ -1490,8 +1489,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
 | release-v1-1-0 | 已接受发布基线 | main · v1.1.0 | 产品/backend/App1.1.0，独立组件版本保留；正式应用边界、Pi执行与国网PPT | b6b144c7；CI43564049919双平台通过，tag远端验证；dev回流/云部署另列 |
-| release-v1-1-0-listener-fix | 当前本地补修来源 | release/v1.1.0 | TCP接收队列对齐现有连接预算；不更改执行授权 | fcc55dbc；3308后端、Linux60轮、真实续接及产物hash通过；第二次CI43564049919运行中 |
-| release-v1-1-0-candidate | 本地受检产品来源 | release/v1.1.0 | 产品/backend/App版本及锁一致；冻结统一框架、执行与国网PPT能力 | 04f127e4完整门禁26分56秒退出0；正式App构建和真实续接/历史下载通过；当前分支21c2ae91仅新增CI构建合同和验收文档快照，PR105/CI43559147625运行中，main/tag待接受 |
+| release-v1-1-0-listener-fix | 当前本地运行来源 | main历史修复来源 | TCP接收队列对齐现有连接预算；不更改执行授权 | fcc55dbc；3308后端、Linux60轮、真实续接及hash通过；第二次CI双平台通过，已由PR105合入main/tag |
+| release-v1-1-0-candidate | 首次本地完整受检历史 | 已关闭release/v1.1.0 | 产品/backend/App版本及锁一致；冻结统一框架、执行与国网PPT能力 | 04f127e4本地完整门禁26分56秒通过；首轮两项失败及补修保留，第二次CI已通过并由main b6b144c7/v1.1.0接受 |
 | presentation-renderer-identity-20261114 | 历史受检运行来源 | dev | 产物回执绑定渲染器版本及源码；安装软链接入口保持可用 | ddc3df02增量已由PR104接受；原本地86项渲染回归通过 |
 | presentation-merge-20261114 | 当前dev已接受基线 | dev | PPT模板、同源PDF与冻结重生成；可信执行统计及旧分支收口 | 8d97596c，PR104定向macOS CI通过4分08秒；实际dev重建/默认入口及47条下载摘要恢复通过 |
 | presentation-integration-20261114 | 已接受的功能提取来源 | dev | 默认国网与模板目录/PDF；可信服务总线统计及当前dev修复 | 29c0ce72已由PR104合入8d97596c，非活动候选 |
@@ -1792,7 +1791,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | recovery/reply-phase-20261014 | 历史恢复引用，非活动研发 | 精确3f5207df；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 | recovery/root-before-dev-20261025 | 历史恢复引用，非活动研发 | 精确6c8f531e；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 
-| chore/v1.1.0-dev-return | 已接受发布回流候选 | cf30d0d1；main/tag发布已接受；运行代码与main完全相同，治理路径证明/270检查通过，未推送回流候选 | 主目标main，发布通过后版本回流dev；不部署cloud/demo | shared-agent |
+| chore/v1.1.0-dev-return | 已接受发布回流候选 | 6e8052e4；运行代码与main完全相同，治理Git证明/270检查通过，候选未推送 | 目标dev；回流已接受v1.1.0及控制记录，治理CI待批准；无部署 | shared-agent |
 
 ## 提出但未实施
 

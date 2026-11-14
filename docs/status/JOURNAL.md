@@ -7579,3 +7579,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 已合main的release/v1.1.0本地/远端分支关闭；chore/v1.1.0-dev-return承接版本和治理记录，真实Git证明选governance，270检查通过/3跳过，回流CI未批准。
 
 - 2026-11-14 发布接受main b6b144c7/v1.1.0已记录，治理回流报告与真实main节点/6来源引用已核验，无穿卡；doctor/语法/链接/空白检查通过，回流候选冻结前不触发CI。
+
+- 2026-11-14 回流分支归属明确为dev；已合main的release分支关闭，旧本地候选移入历史，v1.1.0/main源与当前运行源分别保留，不把源代码接受混作部署。
