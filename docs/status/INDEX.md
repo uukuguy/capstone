@@ -3,7 +3,8 @@
 2026-11-14：[发布补修](../reports/2026-11-14-v1.1.0-release.md#linux-listener-repair)及
 [机器回执](../reports/receipts/2026-11-14-v1.1.0-listener-repair.json)：首轮Linux连接重置，
 fcc55dbc按现有连接预算修复TCP接收队列，3308后端及实际Linux60轮/真实任务通过。
-旧macOS仍运行，第二次CI未批准；main/tag未改变。下述段落保留先前验收过程。
+macOS首轮47分07秒后SDK654通过/1失败；153d19ae修复同步假设，655项本地通过。
+[SDK回执](../reports/receipts/2026-11-14-v1.1.0-sdk-fixture-repair.json)保留受控延迟对照。第二次CI未批准，main/tag未改变。下述段落保留先前验收过程。
 
 2026-11-14：[v1.1.0发布记录](../reports/2026-11-14-v1.1.0-release.md)记录类型、依赖锁及测试入口修复；完整本地门禁及正式App构建通过，发布CI未批准。
 

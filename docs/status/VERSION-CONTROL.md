@@ -1,7 +1,7 @@
 # 多线版本控制
 
 2026-11-14 用户明确批准本次v1.1.0双平台发布CI。PR105已创建，冻结21c2ae91，
-CI43559147625的Linux在28并发背压用例连接重置而失败；macOS仍运行；main/tag阻塞，不授权重跑。
+CI43559147625的Linux在28并发背压用例连接重置而失败；macOS47分07秒后SDK回归654通过/1固定轮询失败；main/tag阻塞，不授权重跑。
 
 2026-11-14 用户要求重要版本tag并合入main，明确选择v1.1.0。发布候选
 release/v1.1.0 已保留main22cd1728祖先，未改dev8d97596c基线；3690e8ff统一
@@ -1186,7 +1186,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| release/v1.1.0 | 用户指定的重要版本发布 | fcc55dbc本地补修；首轮21c2ae91 Linux失败/macOS运行中；新候选未推送，待第二次CI批准 | CI通过后main PR/tag；随后版本回流dev |
+| release/v1.1.0 | 用户指定的重要版本发布 | 153d19ae本地补修；首轮21c2ae91双平台失败；macOS测试同步153d19ae已本地通过；新候选未推送，待第二次CI批准 | CI通过后main PR/tag；随后版本回流dev |
 | dev | 共同基座与企业工作台集成 | 当前HEAD8d97596c；PR104已合入；本地/远端一致，默认入口与47条历史文件摘要恢复通过 | PPT及直接调用方已收口；没有活动研发分支，后续工作按dev具体任务启动 |
 
 ## 功能包前沿
@@ -1304,7 +1304,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | release-v1-1-0-listener-fix | fcc55dbc | feature | v1.1.0连接接收队列补修 | 3308后端与类型通过；实际Linux60轮/真实续接通过；未推送，待新CI批准 | TCP backlog按既有连接预算；保留handler/网关并发与授权。规范重建ready，同镜像9ff62887。[发布记录](../reports/2026-11-14-v1.1.0-release.md) | shared-agent |
-| release-v1-1-0-candidate | 04f127e4 | feature | v1.1.0发布元数据 | 本地完整门禁与真实运行通过；PR105双平台CI43559147625运行中 | 产品/backend/App1.1.0及本地锁一致；发布说明和main祖先合流。[说明](../releases/v1.1.0.md) | shared-agent |
+| release-v1-1-0-candidate | 04f127e4 | feature | v1.1.0发布元数据 | 本地完整门禁与真实运行通过；PR105首轮CI43559147625双平台失败，Linux及macOS测试同步均已本地补修，待新CI批准 | 产品/backend/App1.1.0及本地锁一致；发布说明和main祖先合流。[说明](../releases/v1.1.0.md) | shared-agent |
 | presentation-renderer-identity-20261114 | ddc3df02 | feature | PPT产物绑定渲染器身份 | 86项渲染检查通过；最终规范重建ready，真实补验通过；无CI | 回执保存渲染器版本/源码摘要；安装软链接入口回归修复。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
 | presentation-merge-20261114 | 8d97596c | main | dev · PPT及分支收口 | PR104已合入；第二次macOS CI43496930369通过4分08秒，受检树一致 | 默认国网、模板目录/选择、冻结源包/PDF、渲染器身份和可信执行统计；旧PPT与独立研究归档。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
 | presentation-integration-20261114 | 29c0ce72 | feature | PPT功能回流当前dev | 定向检查与规范重建通过，真实四轮与47条下载摘要通过；未合入、无CI | 默认国网、模板目录与会话选择、冻结源包/PDF、可信执行统计；保留dev发现/资源/Hook修复。[回执](../reports/2026-11-14-presentation-integration.md) | shared-agent |
@@ -1782,7 +1782,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | recovery/reply-phase-20261014 | 历史恢复引用，非活动研发 | 精确3f5207df；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 | recovery/root-before-dev-20261025 | 历史恢复引用，非活动研发 | 精确6c8f531e；数据与提交保留 | 归dev项目控制；仅显式恢复复核时使用，不自动作为新开发起点 | shared-agent |
 
-| release/v1.1.0 | 已授权发布候选 | fcc55dbc；首轮CI Linux连接重置已本地补修，3308后端及实际Linux60轮通过，未推送 | 主目标main，发布通过后版本回流dev；不部署cloud/demo | shared-agent |
+| release/v1.1.0 | 已授权发布候选 | 153d19ae；3308后端/655SDK/实际Linux60轮及真实续接通过；首轮CI双平台失败，未推送补修 | 主目标main，发布通过后版本回流dev；不部署cloud/demo | shared-agent |
 
 ## 提出但未实施
 
@@ -1884,7 +1884,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 临时发布验证：API/三worker `fcc55dbc`；候选App5174产品/仓库 `fcc55dbc`；默认App5173仍 `8d97596c` | 规范重建ready；API/三worker同镜像9ff62887，缓存维护完成；安装版本1.1.0 | 候选App显示local-dev/v1.1.0，仓库身份随仅CI/文档提交更新；产品输入clean，真实保存、续接、刷新恢复及8条新成果摘要通过；47条历史PPT下载摘要保持。默认App与后端暂不同源，发布收口时对齐；未改变local-demo或云环境。[发布报告](../reports/2026-11-14-v1.1.0-release.md)。 |
+| local-dev | 临时发布验证：API/三worker `fcc55dbc`；候选App5174产品 `fcc55dbc`、仓库 `153d19ae`；默认App5173仍 `8d97596c` | 规范重建ready；API/三worker同镜像9ff62887，缓存维护完成；安装版本1.1.0 | 候选App显示local-dev/v1.1.0，仓库身份随仅CI/文档提交更新；产品输入clean，真实保存、续接、刷新恢复及8条新成果摘要通过；47条历史PPT下载摘要保持。默认App与后端暂不同源，发布收口时对齐；未改变local-demo或云环境。[发布报告](../reports/2026-11-14-v1.1.0-release.md)。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

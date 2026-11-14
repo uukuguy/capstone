@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: v1.1.0 main release baseline; first CI Linux failed; TCP repair verified locally, new CI approval pending.
+- Active work package: v1.1.0 main release baseline; first CI failed on both platforms; runtime/test repairs verified locally, new CI approval pending.
 - Branch ownership: accepted implementation is on dev. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.
   Remaining projection questions belong to the core-evolution design backlog.

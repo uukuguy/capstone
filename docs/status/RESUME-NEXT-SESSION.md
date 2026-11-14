@@ -1,20 +1,20 @@
 # Live Session Checkpoint
 
 User selected v1.1.0 main release/tag and approved ONE first macOS/Linux CI.
-PR105main, remote/firstCIhead21c2ae91;CI43559147625:Linuxfailed,macOSstill running.
+PR105main, remote/firstCIhead21c2ae91;CI43559147625 FINAL failed on both platforms.
 No secondCI approved. Do NOTpush an update to openPR105 until new approval.
 
 ## Repair candidate and local evidence
 
-Product repairfcc55dbc (local release/v1.1.0), next documentation snapshot contains
+Product repairfcc55dbc (local release/v1.1.0), SDK fixture repair153d19ae; final documentation snapshot contains
 final first-CI/repair receipts. Get exact frozen HEAD with git log -1;worktree:
 .worktrees/architecture-retirement-closeout. Rootdev/origin dev8d97596c;
 main/origin main22cd1728. No main merge/tag/deployment yet.
 
 First CI Linux job132338703983:one28-concurrent gateway0-debug case failed with
-httpx.ReadError104;3306pass224skip. macOSjob132338704178 remains at full gate,
-beyond initial30–45minute estimate;running job log download returnsBlobNotFound.
-Watch exec32169; /tmp/capstone-v1.1.0-ci-watch.log. Preserve any finalMacresult.
+httpx.ReadError104;3306pass224skip. macOSjob132338704178 failed after47m07s at SDK654pass/1fixed-polling failure.
+Watch32169 finishedexit1;logs and finalJSON in rootruns/release-v1.1.0-20261114.
+No old job remains running.
 
 Exact old test reproduced in isolated Linux3.12 at iteration23. TCP queue default5
 mismatched configured256connection budget. Backlog-only256 comparison60passes.
@@ -37,12 +37,18 @@ graphserver18744. Rootcanonical register owneddev;main snapshot remainsrelease d
 
 ## Next action
 
+153d19ae repairs onlygeneral-sdk-graph.test.mjs:controlled400msstartup reproduces
+oldfailure427ms;publicwaitForDecision/test-signalledevents pass449ms. Astartup
+gate,Ccompletionevent replace polling;allA/B/Cordering,Bstillrunning,Cinputs,
+cancellation/cleanup assertions retained. Adjacent samepollfixture also fixed.
+CompleteSDK655/65516.86s,parentfocused2/2;productionJSunchanged.
+
 Finish docs-only verification and clean freeze, then ask explicit approval for
 ONE second full macOS/Linux releaseCI on newcandidate (make check-release build-capstone-app).
-Updating PR105 cancels still-running oldCI under its concurrency rule: disclose
-that in the approval question. No automatic retry, merge or tag before acceptance.
-If firstMacfinishes meanwhile, collect its logs and any additional failures before
-publishing. After newbothpass,normalmainPRmerge,asserttreeidentity,annotatedv1.1.0
+First CI is complete; no old task remains to cancel. ExpectednextCI45–60minutes,
+queue extra. No automatic retry, merge or tag before acceptance.
+FirstMacfailure was collected and repaired locally before approval. After
+newbothpass,normalmainPRmerge,asserttreeidentity,annotatedv1.1.0
 tag exactacceptedmain;returnrelease/controlchanges throughdevPRwithseparateCIapproval.
 No push/tag-trigger workflows exist;onlyPR/manualverify andmanualissueautomation.
 

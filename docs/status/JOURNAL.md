@@ -7570,3 +7570,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 fcc55dbc规范重建、实际Linux60轮和真实续接12.27秒通过，8新/47旧hash保持；控制图6条来源核验无穿卡。首轮Linux失败、旧macOS未完；补修回执冻结，第二次CI尚未获批。
 
 - 2026-11-14 首轮macOS SDK竞态：400ms启动延迟使旧100×2ms轮询427ms后读未提交proposal；替换为公开waitForDecision及事件同步，相同延迟449ms通过。保留A/B/C依赖/并行/授权输入/取消清理断言；655完整SDK及父级2项通过，生产JS未改。
+
+- 2026-11-14 首轮CI双平台结果已完整归档：Linux22分14秒失败的TCP预算修复fcc55dbc、macOS47分07秒失败的SDK测试因果同步修复153d19ae均本地通过。发布补修与回执冻结，第二次CI未批准，main/tag未变。
