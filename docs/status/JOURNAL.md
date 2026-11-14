@@ -7548,3 +7548,6 @@ check passed. No CI, integration or remote deployment performed.
 
 - 2026-11-14 16b9b152：请求协议身份归应用，Kernel保持中性并保留旧工件兼容。
 - 2026-11-14 107项夹具/manifest检查通过，1项真实PG未配置跳过；正式导出模块、分组COPY及SQL具名绑定断言修正。owning lock工具离线解析仅更新manifest摘要，全部依赖版本和hash未变。
+
+- 2026-11-14 b8180f8d：更新过时边界夹具与生成锁摘要，依赖版本/包hash保持。
+- 2026-11-14 发布门禁补入原生SDK与实际PPT渲染套件；22项gate图及失败传播检查通过，17报告/69PPT/655SDK检查通过，普通开发scope未扩大。
