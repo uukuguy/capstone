@@ -269,3 +269,37 @@ def test_postgres_professional_v2_work_save_start_rows(postgres_thread_service,m
     assert next_claim.submission['context_product_refs']==refs
     assert next_claim.submission['_product_context'][0]['row_selection']==selection
     assert next_claim.submission['_product_context'][0]['historical_only'] is True
+
+
+@pytest.mark.parametrize('storage',['memory','postgres'])
+def test_v2_work_http_invalid_refs_do_not_mutate(postgres_thread_service,storage):
+    from fastapi.testclient import TestClient
+    from test_thread_http_api import _app,_auth
+    from test_thread_work_execution import professional_snapshot,command
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_agent.application_capacity import limits
+    store,thread_id=postgres_thread_service
+    if storage=='memory':
+        store=InMemoryThreadService(professional_snapshot(thread_id))
+    else:
+        store.create_thread(professional_snapshot(thread_id))
+    ref={'schema':'capstone-product-ref/1','thread_id':thread_id,'product_id':'result_one','origin':'domain_result','scope':'task','event_seq':1,'revision':None,'digest':'a'*64,'work_id':None,'attempt_id':'attempt_one','producer_attempt_id':'attempt_one'}
+    item={'ref':ref,'purpose':'historical-context'}
+    before=store.snapshot(thread_id)
+    with TestClient(_app(store),base_url='http://localhost',raise_server_exceptions=False) as client:
+        for name,refs in [('malformed',[{}]),('duplicate',[item,item]),('overflow',[{**item,'ref':{**ref,'product_id':'result_'+str(i)}} for i in range(limits.product_reference_count+1)])]:
+            response=client.post('/api/v1/threads/'+thread_id+'/commands',headers={**_auth(),'Capstone-Thread-Version':'2'},
+                json=command(store,thread_id,'work_message',name,payload={'text':'Save selection','context_product_refs':refs}))
+            assert response.status_code==422, response.text
+            assert store.snapshot(thread_id)==before
+        refs=[{**item,'ref':{**ref,'product_id':'result_'+str(i)}} for i in range(limits.product_reference_count)]
+        accepted=client.post('/api/v1/threads/'+thread_id+'/commands',headers={**_auth(),'Capstone-Thread-Version':'2'},
+            json=command(store,thread_id,'work_message','save_limit',payload={'text':'Save selection','context_product_refs':refs}))
+        assert accepted.status_code==200 and accepted.json()['status']=='accepted'
+        before=store.snapshot(thread_id)
+        work=before.works[0]
+        overflow=client.post('/api/v1/threads/'+thread_id+'/commands',headers={**_auth(),'Capstone-Thread-Version':'2'},
+            json=command(store,thread_id,'revise_goal','merged_overflow',work_id=work['work_id'],revision=work['revision'],
+                payload={'text':'Revise with one more source','context_product_refs':[item]}))
+        assert overflow.status_code==422
+        assert store.snapshot(thread_id)==before

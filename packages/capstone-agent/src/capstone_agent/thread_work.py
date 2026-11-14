@@ -13,6 +13,15 @@ from .application_capacity import limits, require_capacity
 WORK_STATUSES = {'ready', 'queued', 'running', 'completed', 'failed', 'cancelled', 'interrupted', 'blocked'}
 
 
+def checked_work_product_refs(value):
+    """Map all public Work selection failures to the command protocol boundary."""
+    from .thread_products import checked_selections
+    try:
+        return checked_selections(value)
+    except (ValueError, TypeError, KeyError) as error:
+        raise ThreadProtocolError('invalid Work product references') from error
+
+
 def execution_model(snapshot):
     """Preview the same pending resource choice that legacy message admission activates."""
     return snapshot.pending_model_switch or snapshot.active_model_context
@@ -192,8 +201,7 @@ def apply_work(snapshot, command, *, archived=False):
             or not isinstance(payload['text'], str) or not payload['text'].strip()):
         raise ThreadProtocolError('Work text is required')
     if 'context_product_refs' in payload:
-        from .thread_products import checked_selections
-        refs = checked_selections(payload['context_product_refs'])
+        refs = checked_work_product_refs(payload['context_product_refs'])
         if any(item['ref']['thread_id'] != snapshot.thread_id for item in refs):
             return snapshot, 'product_context_unavailable', None
     target = command['target']
@@ -260,10 +268,9 @@ def apply_work(snapshot, command, *, archived=False):
             work['task_context'] = replace(context, goal_revision=work['goal_revision'],
                                            snapshot_id='task_' + secrets.token_hex(10)).to_document()
     if 'context_product_refs' in payload:
-        from .thread_products import checked_selections
         prior = work.get('context_product_refs', [])
         merged = {json.dumps(item,sort_keys=True):item for item in [*prior,*refs]}
-        work['context_product_refs'] = checked_selections(list(merged.values()))
+        work['context_product_refs'] = checked_work_product_refs(list(merged.values()))
     if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
         return snapshot, 'work_limit_reached', None
     return replace(snapshot, minimum_protocol_version=2, works=tuple(works)), None, work
@@ -331,8 +338,7 @@ def parse_snapshot(document):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
         if 'context_product_refs' in work:
-            from .thread_products import checked_selections
-            refs = checked_selections(work['context_product_refs'])
+            refs = checked_work_product_refs(work['context_product_refs'])
             if any(item['ref']['thread_id'] != snapshot.thread_id for item in refs):
                 raise ThreadProtocolError('invalid Work product scope')
         if type(count) is not int or not 0 <= count <= len(work['messages']):
