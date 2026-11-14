@@ -1324,7 +1324,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | product-adoption-runtime-20261114 | 825634e6 | feature | 本地采用服务运行来源 | 规范重建通过；App另含928c7aee修复 | API及三worker同镜像8bcee8cd3516；ready/缓存维护通过；采用稿模型续作及审计恢复通过。[本地验证](../reviews/2026-11-14-product-adoption-local.md) | shared-agent |
-| product-adoption-20261114 | 928c7aee | feature | 成果对照与显式采用 | 实施中；未合入dev | 系列独立采用、精确来源与流式校验；122项后端/58项App通过，真实模型采用稿续作及浏览器恢复通过，独立复审无阻塞。[实施计划](../superpowers/plans/2026-11-14-product-comparison-adoption.md) | shared-agent |
+| product-adoption-20261114 | 928c7aee | feature | 成果对照与显式采用 | PR111已合入dev；本地接受通过 | 系列独立采用、精确来源与流式校验；122项后端/58项App通过，真实模型采用稿续作及浏览器恢复通过，独立复审无阻塞。[实施计划](../superpowers/plans/2026-11-14-product-comparison-adoption.md) | shared-agent |
 | workspace-research-20261114 | a65b35b6 | feature | 应用局部引用候选 | 容量修正已重建复核；未合入dev | 23项定向测试、类型与doctor通过；旧索引恢复与Vivaldi段落入口复查通过。[研究记录](../capstone-app/2026-11-14-code-mapping.md) | shared-agent |
 | release-v1-1-0 | b6b144c7 | main | main · Capstone v1.1.0 | PR105正常合入；双平台CI43564049919通过；annotatedtag已推送 | 统一框架/退役/资源发现/国网PPT及边界补修；受检3429e6a0与main树一致。[接受回执](../reports/receipts/2026-11-14-v1.1.0-release-acceptance.json) | shared-agent |
 | release-v1-1-0-listener-fix | fcc55dbc | feature | v1.1.0连接接收队列补修 | 3308后端与类型通过；实际Linux60轮/真实续接通过；双平台CI43564049919通过并进入main/tag/dev | TCP backlog按既有连接预算；保留handler/网关并发与授权。规范重建ready，同镜像9ff62887。[发布记录](../reports/2026-11-14-v1.1.0-release.md) | shared-agent |
@@ -1505,7 +1505,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
 | product-adoption-runtime-20261114 | 当前后端运行来源 | feat/product-comparison-adoption-20261114 | 会话隔离与流式来源校验；持久采用及有界对照 | 后端825634e6镜像8bcee8cd3516；App928c7aee；本地闭环通过，非云端发布 |
-| product-adoption-20261114 | 活动成果续作闭环 | feat/product-comparison-adoption-20261114 | 显式系列关联与采用审计；原文对照及历史版本保留 | 后端/前端已接入；真实采用稿模型续作通过；浏览器对照/采用/刷新及切换恢复通过；PR接受待完成 |
+| product-adoption-20261114 | 已合入的成果续作闭环 | feat/product-comparison-adoption-20261114 | 显式系列关联与采用审计；原文对照及历史版本保留 | 后端/前端已接入；真实采用稿模型续作通过；浏览器对照/采用/刷新及切换恢复通过；PR111与定向CI已接受 |
 | workspace-research-20261114 | 当前应用实现候选 | research/capstone-app-workspace-20261114 | 版本固定段落与持久索引；多选身份及容量感知分页 | 分支HEAD 46baa17e；PR109已合入dev ae0761d1；运行来源a65b35b6；三轮与刷新通过；PR109已合入dev |
 | release-v1-1-0 | 已接受发布基线 | main · v1.1.0 | 产品/backend/App1.1.0，独立组件版本保留；正式应用边界、Pi执行与国网PPT | b6b144c7；CI43564049919双平台通过，tag远端验证；dev回流/云部署另列 |
 | release-v1-1-0-listener-fix | 当前本地运行来源 | main历史修复来源 | TCP接收队列对齐现有连接预算；不更改执行授权 | fcc55dbc；3308后端、Linux60轮、真实续接及hash通过；第二次CI双平台通过，已由PR105合入main/tag |
