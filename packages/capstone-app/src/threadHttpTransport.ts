@@ -1,3 +1,4 @@
+import {parseRowPage,parseRowSelection} from './resultRowSelection'
 import {sha256Hex} from './browserDigest'
 import {sha256 as incrementalSha256} from 'js-sha256'
 import {parseThinkingPreview,type ThinkingPreview} from './thinkingPreview'
@@ -385,6 +386,16 @@ export class HttpThreadTransport implements ThreadTransport {
     const body=object(await this.request(`${this.resourcePath}/${encodeURIComponent(thread)}/product-series/${encodeURIComponent(series)}/members?${query}`,{signal}),['members','next_cursor'])
     if(!Array.isArray(body.members)||body.members.length>20||body.next_cursor!==null&&typeof body.next_cursor!=='string'||body.next_cursor===after)throw new Error('系列分页响应无效。')
     return {members:body.members.map(ref=>parseProductRef(ref,thread)),next_cursor:body.next_cursor as string|null}
+  }
+  async readResultRows(ref:ProductRef,table:string,offset=0,signal?:AbortSignal,limit=32){
+    ref=parseProductRef(ref)
+    return parseRowPage(await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-index/table-page`,{method:'POST',body:JSON.stringify({ref,table_id:table,offset,limit}),signal}),ref,table,offset)
+  }
+  async prepareResultRows(ref:ProductRef,table:string,rows:string[],columns:string[],signal?:AbortSignal){
+    ref=parseProductRef(ref)
+    const selection=parseRowSelection(await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-index/row-selection`,{method:'POST',body:JSON.stringify({ref,table_id:table,row_ids:rows,column_ids:columns}),signal}),ref)
+    if(selection.table_id!==table||JSON.stringify(selection.row_ids)!==JSON.stringify([...rows].sort())||selection.column_ids.length!==columns.length||selection.column_ids.some(id=>!columns.includes(id)))throw new Error('表格选择响应不符')
+    return selection
   }
   async readProductBlocks(ref:ProductRef,jobId?:string,offset=0,signal?:AbortSignal) {
     ref=parseProductRef(ref)

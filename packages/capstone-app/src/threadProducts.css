@@ -132,3 +132,5 @@
 .product-comparison :focus-visible{outline:2px solid currentColor;outline-offset:3px}
 @media(max-width:640px){.product-comparison-columns{grid-template-columns:1fr}}
 @container(max-width:520px){.product-comparison-columns{grid-template-columns:minmax(0,1fr)}}
+
+.result-row-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0}.result-row-controls fieldset{display:flex;flex-wrap:wrap;gap:8px;border:1px solid var(--border-color,#ddd);border-radius:6px}.result-row-controls input:not([type=checkbox]){max-width:150px}.result-row-controls label{font-size:12px}.result-row-controls small{width:100%}

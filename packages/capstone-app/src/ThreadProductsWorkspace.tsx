@@ -1,3 +1,5 @@
+import type {RowClient} from './resultRowSelection'
+import type {ResultRowSelection} from './threadProducts'
 import {applicationCapacity,observeCapacity,rethrowDebugCapacity,CapacityError} from './applicationCapacity'
 import {useContext,useEffect,useLayoutEffect,useRef,useState,type ReactNode} from 'react'
 import {ArrowDownToLine,ArrowUpRight,LocateFixed,ListTree} from 'lucide-react'
@@ -16,7 +18,7 @@ import type {LocalProductSelection} from './threadProducts'
 import ProductComparison from './ProductComparison'
 import type {SeriesClient} from './productSeries'
 
-type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean}&Partial<SeriesClient>
+type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean;supportsResultRows?:boolean}&Partial<SeriesClient>&Partial<RowClient>
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
 function newestFirst(a:ProductEntry,b:ProductEntry){
   return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
@@ -66,7 +68,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   instructionScope?:InstructionProductScope;onClearInstructionScope?:()=>void
   primaryAttemptId?:string;runningAttemptId?:string;followAvailable?:boolean;onPrimaryReady?:(entry:ProductEntry)=>void
   onIndexLoaded?:(entries:readonly ProductEntry[])=>void
-  onReference?:(entry:ProductEntry,excerpt?:{max_bytes:number},local?:LocalProductSelection)=>void;onAdopt?:(artifact:NativeArtifact)=>void;onLocate?:(attemptId:string)=>void;onInspect?:(attemptId:string)=>void
+  onReference?:(entry:ProductEntry,excerpt?:{max_bytes:number},local?:LocalProductSelection,row?:ResultRowSelection)=>void;onAdopt?:(artifact:NativeArtifact)=>void;onLocate?:(attemptId:string)=>void;onInspect?:(attemptId:string)=>void
   fallback?:ReactNode
   onBrowse?:(entry:ProductEntry)=>void
   onFocusElement?:(projection:ResultProjection,elementId:string)=>boolean|void
@@ -217,7 +219,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
         {view.entry.ref.attempt_id&&onLocate&&<button type="button" aria-label="定位指令" title="定位指令" onClick={()=>onLocate(view.entry.ref.attempt_id!)}><LocateFixed aria-hidden="true"/><span>定位指令</span></button>}
         {view.bytes&&url&&<a aria-label="下载文件" title="下载文件" href={url} download={typeof view.entry.source.file_name==='string'?view.entry.source.file_name:view.entry.title}><ArrowDownToLine aria-hidden="true"/><span>下载文件</span></a>}
       </div>
-      {view.projection&&<ResultProjectionCard projection={view.projection} onFocusElement={onFocusElement}/>}
+      {view.projection&&<ResultProjectionCard key={`result:${viewKey}`} projection={view.projection} onFocusElement={onFocusElement} rowSelection={onReference&&client.supportsResultRows&&client.readResultRows&&client.prepareResultRows?{client:client as RowClient,ref:view.entry.ref,onSelect:row=>onReference(view.entry,undefined,undefined,row)}:undefined}/>}
       {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={`comparison:${viewKey}`} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={ref=>{userSelected.current=true;setSelection(ref)}}/>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
       {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&

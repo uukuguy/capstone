@@ -31,3 +31,13 @@ it('reads a scoped index and resolves an exact ref through authenticated transpo
   fetcher.mockResolvedValueOnce(Response.json({schema:'capstone-product-resolution/1',entry,content_base64:'d3Jvbmc=',projection:null}))
   await expect(transport.resolveProduct(ref)).rejects.toThrow(/校验/)
 })
+
+it('binds prepared rows to requested parent table and row ids',async()=>{
+ const parent=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'result_one',origin:'domain_result',scope:'instruction',event_seq:1,revision:null,digest:'a'.repeat(64),work_id:null,attempt_id:'att_one',producer_attempt_id:null})
+ const selected={schema:'capstone-result-row-selection/1',parent_ref:parent,table_id:'lines',table_version:'b'.repeat(64),row_ids:['r1'],column_ids:['mw'],digest:'c'.repeat(64)}
+ const fetcher=vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(selected)).mockResolvedValueOnce(Response.json({...selected,row_ids:['forged']}))
+ const transport=new HttpThreadTransport('https://host.example','private-token',fetcher)
+ expect((await transport.prepareResultRows(parent,'lines',['r1'],['mw'])).row_ids).toEqual(['r1'])
+ expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toEqual({ref:parent,table_id:'lines',row_ids:['r1'],column_ids:['mw']})
+ await expect(transport.prepareResultRows(parent,'lines',['r1'],['mw'])).rejects.toThrow()
+})

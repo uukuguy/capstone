@@ -296,3 +296,17 @@ it('opens the newest primary on scope changes, independent of directory order, a
  view.rerender(<ThreadProductsWorkspace {...props} revision={2}/>)
  await screen.findByRole('heading',{name:'最新报告'})
 })
+
+it('adds selected result rows through the existing product workspace reference callback',async()=>{
+ const domain={...entry,ref:{...ref,origin:'domain_result' as const},presentation:{kind:'domain_result' as const},source:{result_id:'result_one'}}
+ const table={tableId:'lines',title:'线路',columns:[{columnId:'mw',label:'功率',unit:'MW'}],rows:[{rowId:'line_1',cells:{mw:0}}]}
+ const projection={resultId:'result_one',status:'completed',source:{capabilityId:'test'},summary:[],tables:[table]}
+ const selected={schema:'capstone-result-row-selection/1' as const,parent_ref:domain.ref,table_id:'lines',table_version:'b'.repeat(64),row_ids:['line_1'],column_ids:['mw'],digest:'c'.repeat(64)}
+ const reference=vi.fn(),client={supportsResultRows:true,productIndex:vi.fn().mockResolvedValue({products:[domain],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:domain,bytes:null,projection,record:null}),readResultRows:vi.fn().mockResolvedValue({table,tableVersion:selected.table_version,totalRows:1,offset:0,nextOffset:null}),prepareResultRows:vi.fn().mockResolvedValue(selected)}
+ render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1} onReference={reference}/>)
+ await screen.findByLabelText('选择行 line_1')
+ await waitFor(()=>expect((screen.getByLabelText('选择行 line_1') as HTMLInputElement).disabled).toBe(false))
+ fireEvent.click(screen.getByLabelText('选择行 line_1'))
+ fireEvent.click(screen.getByRole('button',{name:'引用所选行到下一轮'}))
+ await waitFor(()=>expect(reference).toHaveBeenCalledWith(domain,undefined,undefined,selected))
+})
