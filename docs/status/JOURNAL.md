@@ -7531,3 +7531,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Release review catches lock overreplacement and old backend pin; repaired, npm ci/metadata invariance pass;38 migrated validation checks pass with module entry.
 - 2026-11-14 Corrected release locks/import entry f12789a1; fresh npm install,38validation/21gate tests pass; full local release gate running.
 - 2026-11-14 Full professional suite878pass/14fail/3skip; repaired direct validation bootstrap and documented retained private state paths; all34 affected checks pass.
+- 2026-11-14 Rejected proposed fatal debug-capacity change: accepted4d57c083 policy requires per-call repair; update obsolete SDK expectations instead.
+
+- 2026-11-14 AppHeader发布显示测试从package.json读取版本；保留环境、八位来源与title断言，12项定向检查通过，避免版本升级被旧0.1.0断言阻断。

@@ -2,13 +2,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest'
 import { AppVersion, PageHeader } from './AppHeader'
 import type { AppEnvironment } from './appBuild'
+import { version as packageVersion } from '../package.json'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 it('shows the build revision beside the product name', () => {
   render(<PageHeader />)
   const version = screen.getByLabelText('App 版本')
-  expect(version.textContent).toMatch(/^环境未配置 · v0\.1\.0 · (?:[a-f0-9]{8}|开发版)$/)
+  expect(version.textContent).toContain(`环境未配置 · v${packageVersion} · `)
+  expect(version.textContent).toMatch(/ · (?:[a-f0-9]{8}|开发版)$/)
   expect(version.getAttribute('title')).toContain('源代码版本')
 })
 
