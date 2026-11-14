@@ -7585,3 +7585,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 用户批准的一次macOS治理CI43570026586通过118秒；PR106正常合入dev20b6cbc0，root已保留18重叠路径备份/stash51d0c117及15无关文件原摘要并快进。规范重建ready/API三worker同镜像d4c15650，默认App1.1.0/仓库20b6/产品fcc/clean，8新成果和47历史PPT摘要通过，无远端部署。
 
 - 2026-11-14 API及三worker各1391个受管backend/config/schema文件SHA256与实际dev20b6cbc0一致；图保留6部署来源和真实dev/main节点，移两项普通历史PPT节点至详情后无穿卡/横向溢出。已合并回流分支本地及远端关闭，恢复引用保留。
+
+- 2026-11-14 本次获批macOS文档CI43571511523通过，PR107正常合入dev0d682556，实际dev快进；6份历史说明/计划与9个DOCX/PNG参考文件按用户提醒核对归档，容器及用户数据未改。DOCX压缩包/XML与PNG块CRC检查通过，历史分支改用精确归档引用；.DS_Store不入库。
+
+- 2026-11-14 历史文档及9设计原件已提交f13ce298（22路径）；内网README原被错分product，先红后绿补精确文档白名单，122分类检查与271治理检查通过/3跳过8.83秒，运行代码仍不放行；后续候选需单独macOS治理CI批准，不扩大已结束PR107范围。

@@ -25,3 +25,10 @@ service and never wait on the writer lock.
 Flags default off: CAPSTONE_THINKING_PREVIEW=1 enables the API bus;
 CAPSTONE_THINKING_PREVIEW_ORIGIN selects the private API origin on the worker.
 CAPSTONE_OPERATOR_TOKEN remains backend only. This trial assumes one API process.
+
+Display correction: when preview is enabled, supplied Thinking uses a75ms/256
+character buffer, independent of required durable batches. Native idle reads
+check the display deadline every50ms; intent control checks remain at1s.
+Host-owned native task identity is carried by both model-call boundaries and
+Thinking so the existing frontend can match provisional content safely.
+See [verification](../../reports/2026-11-05-smooth-thinking.md).

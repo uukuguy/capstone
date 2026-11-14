@@ -1,5 +1,15 @@
 # Capstone 核心能力演进讨论笔记
 
+## 2026-11-06：引用与执行过程原语（用户确认设计实现方向）
+
+数据绑定、计算和确定性分析留在内网网关，Capstone 通过引用组织任务。
+即使不能满足严格零信息出境，仍需验证效率收益；安全、能力和性能分别评价。
+外部模型仅见引用时缺少结果判断依据，结构化发现或统计摘要可增强推理，但属于衍生信息出境。
+工具集没有固定执行顺序；执行链负责跳跃指令下的目标、证据和成果连续性。
+设计及验证顺序原保存在独立分支 uukuguy/reference-execution-research；2026-11-07 用户明确从主线交付清单移出。
+2026-11-14 该分支已归档为 archive/branch-ownership-20261114/uukuguy/reference-execution-research，精确来源2bd086af；它不是活动研发线。
+尚未实施，不把既有网关引用能力等同于完整运行模式。
+
 ## 2026-10-30：企业数据研究分析与轻量链收口（用户接受）
 
 AI 主持问题驱动的多轮研究，用户保留局部探索、纠偏及最终接受的权利。
@@ -544,6 +554,45 @@ A reproduced controller conflict forced initialization after a direct answer wit
 
 
 2026-10-24 user baseline update: current three-branch parallel338s/59tools, two-branch parallel412.4s/56tools, sequential544.6s/67tools.146s is archived old-version evidence, not a current performance gate. Keep raw measurements separate from these accepted comparison labels.
+
+## 2026-11-05 progress display and durable event pressure
+
+Verified:per-fragment durable thinking writes caused approximately99-second
+queue delays and understanding timeouts. Shared bounded text coalescing and
+per-attempt model binding passed scoped and real checks;see the
+[repair receipt](../../reports/2026-11-05-intent-backpressure.md). Large historical
+execution event counts suggest additional pressure,but whole-task persistence
+cost has not been isolated from model and tool time.
+
+Discussion proposal,not an accepted implementation:provisional thinking,text
+and progress may use direct display plus asynchronous batch durability. A future
+contract must define sequence numbers,reconnect recovery,durable watermarks and
+flush barriers. Tool results,final answers,products and Authority evidence keep
+required persistence before acknowledgement. This repair retains the current
+database-backed browser stream;it does not add the proposed transport or make
+this open design the next delivery task.
+
+Measurement correction:the16.3/5.7s direct recognition probes did not include the
+actual two-pass session path. User Qwen103.7s anddsv413.0s match serial low+medium
+calls;the queue delay was already below0.18s. Source68bd1e07 now uses the full
+frozen request once,with depth from explicit user controls. Complete planner
+checks passed but remain distinct from browser wall time and do not establish
+universal speedup. See the [corrected timing receipt](../../reports/2026-11-05-single-pass-understanding.md).
+
+2026-11-05 user-authorized trial: source073860ca implements a bounded provisional
+Thinking channel on single-API三区, with asynchronous required durable batches,
+independent preview IDs, reconnect reconciliation and semantic/terminal barriers.
+Tools, products and final success still require durable events. Real Qwen frames
+arrived before durable batches and rendered without duplicates; dsv4 supplied no
+Thinking. This verifies transport behavior, not whole-task speedup or broad
+multi-instance acceptance. See [trial receipt](../../reports/2026-11-05-direct-thinking-preview.md).
+
+Thinking trial feedback (2026-11-05): direct delivery alone did not correct the
+native display path. Its supplied task ID lacked a matching model-boundary ID,
+so conservative UI attribution waited for durable text. Sourcef34bb4d3 binds the
+same host task ID to both and separates75ms display coalescing from5s persistence.
+Real native previews now render before durability and reconcile once. This is a
+transport/attribution fix, not evidence of faster numerical analysis.
 
 
 ## 2026-11-08 execution-control implementation feedback

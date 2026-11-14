@@ -1,20 +1,21 @@
 # Live Session Checkpoint
 
-Updated: 2026-11-14. Active session; final control receipt integration remains.
+Updated: 2026-11-14. Active session.
 
-v1.1.0 is accepted on main b6b144c7 and annotated tag v1.1.0 is pushed.
-Full release CI43564049919 passed macOS/Linux. PR106 merged normally into
-dev20b6cbc0 after approved governance CI43570026586 passed118seconds.
-Actual dev checkout is synchronized. Canonical local rebuild is ready; API/three
-workers share image d4c156504878. Default App5173 is1.1.0, repository20b6,
-productfcc55dbc and clean. Eight new and47historical PPT artifact hashes passed.
-Cloud/demo/local-demo unchanged.
+v1.1.0 accepted on main b6b144c7; annotated tag pushed and verified. Full
+release CI43564049919 passed macOS/Linux. PR106 returned release source todev;
+PR107 archived acceptance records at0d682556 after approved docs CI43571511523.
+Actual root dev is0d682556. Runtime product source remainsfcc55dbc; backend image
+d4c156504878 has1391tracked files equal todev20b6 in each of four roles. Default
+App5173 is1.1.0;8new and47historical product hashes passed. No cloud/demo update.
 
-Next: verify updated actual-dev graph, prepare final documentation receipt branch,
-run local documentation checks, then seek explicit approval before any new CI.
-The prior approval is consumed. No automatic push/PR/merge before that approval.
+User flagged remaining dirty documents. Six historical Markdown changes plus
+3DOCX/6PNG application design references are now prepared on
+docs/preserved-design-records with an explicit index and current control receipts.
+Documents committed locally asf13ce298. Exact intranet README gate repair
+passed122classifier and271governance checks/3skips. Next: request one macOS
+governance CI approval before publication of the combined candidate. Prior CI approval is consumed. Do not expand CI scope.
 
-Preserve unrelated user files, ignored data/auth and archived research. Root backup:
-runs/release-v1.1.0-20261114/root-before-dev-return; preservation stash51d0c117
-and earlier stash34e4e74d remain. Do not blindly apply or drop them.
-Existing browser session capstone-unified; graph server18744. Clash proxy7897.
+Preserve ignored auth/data, .DS_Store and all archived recovery sources. Root
+backup runs/release-v1.1.0-20261114/root-before-dev-return; stashes51d0c117 and
+34e4e74d remain. Existing browser capstone-unified; graph server18744; Clash7897.

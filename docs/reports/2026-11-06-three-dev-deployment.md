@@ -26,3 +26,12 @@ backups/deploy-22cd1728 directory. Existing data volumes, gateway credentials,
 provider settings and default model selections were retained. No CI was started.
 Short live tasks verify basic execution, not complex business-task acceptance.
 Private deployment receipts and logs: .capstone-agent/deploy-20261106/.
+
+## Shared gateway options
+
+At the recorded 2026-11-06 verification, all three installations offered 内网联调 (192.168.72.63:18001/mcp) and
+三区研发 (192.168.72.66:18001/mcp). Both entries reported connected in each
+installation. Additions used the supported gateway API and durable protected registry.
+This is a historical receipt, not a current connectivity probe.
+Existing selections were retained: local-dev本机联调,intranet-dev内网联调,
+dky3-dev三区研发. No application rebuild, restart or credential logging was needed.
