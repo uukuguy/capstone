@@ -1,6 +1,6 @@
 # Structured row references and local analysis verification
 
-Status: local implementation and real-task verification passed; dev integration and a separately approved CI remain pending. Owner: capstone-agent/capstone-app. Branch: feat/result-row-selection-20261115. Design: [row selection](../superpowers/specs/2026-11-15-result-row-selection-design.md).
+Status: implementation accepted into dev dc2aa71a through PR113. One approved macOS CI43650887728 passed in 212 seconds at acc3bd30: 185 backend, 255 frontend and 271 governance checks passed, three governance checks skipped. Owner: capstone-agent/capstone-app. Product source: 419b07b8. Design: [row selection](../superpowers/specs/2026-11-15-result-row-selection-design.md). Final control receipts await integration.
 
 ## Delivery boundary
 
@@ -40,4 +40,8 @@ Product source 419b07b8 adds the final historical-source navigation repair. Open
 
 Final canonical rebuild at product source 419b07b8 completed readiness. API and three workers run image sha256:dcc22264cdf4dcde773d4d8cbb270006422bf6736b133a993b7abb1e845f2f7e. Candidate App uses 5177. Scoped cache maintenance completed with receipt cache-maintenance-20261115-031710-31830.log. No cloud/demo deployment or release promotion occurred.
 
-Original projection readback after the final rebuild is byte-contract-equivalent to the saved baseline; adopted report v4 restored at series revision5 with the exact original row digest. All four backend roles use the stated image. The actual dev checkout control graph was regenerated and checked in Vivaldi at readable and full overview sizes. The dev HEAD and candidate source are distinct nodes; the local deployment refers to the exact candidate. Focused governance checks passed 123 tests in 3.68 seconds. Doctor, changed documentation links, relative CLAUDE symlink and diff whitespace checks passed. The feature is not yet accepted into dev. CI approval is per run; no approval exists at this checkpoint.
+Original projection readback after the final candidate rebuild is byte-contract-equivalent to the saved baseline; adopted report v4 restored at series revision5 with the exact original row digest. The actual dev checkout control graph was regenerated and checked in Vivaldi at readable and full overview sizes. Focused local governance checks passed 123 tests in 3.68 seconds. Doctor, changed documentation links, relative CLAUDE symlink and diff whitespace checks passed.
+
+After PR113 merged, root dev fast-forwarded to dc2aa71a; its product code is identical to acc3bd30. Canonical actual-dev rebuild passed readiness with API/three workers image sha256:636f0cb736dc97a3c957dc98d3600cfb4c8d20611b50da007f808ae0c103c358. Default App5173 restored the same professional Work after explicit resume, adopted report v4 at series revision5, and the exact two-row/three-column source. Opening that source showed table version e23e20be. Screenshots accepted-dev-report-v4.png and accepted-dev-source.png are in the root evidence directory. Scoped cache maintenance receipt: cache-maintenance-20261115-070459-56570.log. No cloud/demo deployment occurred.
+
+The implementation and design branches are closed. Recovery worktree .worktrees/result-row-selection remains detached at dc2aa71a. Pre-integration root drafts are preserved at stash42b8f54f, and feature journal/baton at stash0f46f231. No authentication state or user data was copied or removed. Any final documentation PR requires a new explicit CI approval.

@@ -2,7 +2,7 @@
 
 ## Structured result row references — 2026-11-15
 
-Owner capstone-agent/capstone-app; branch feat/result-row-selection-20261115, base dev41ebc822, destination dev. Accepted [design](../specs/2026-11-15-result-row-selection-design.md) and [implementation plan](2026-11-15-result-row-selection.md). Exact rows and columns flow through existing professional Work admission, frozen historical input and report sources. Real IEEE39 selection, local model analysis, corrected report comparison/adoption and refresh/session recovery passed. [Measured local evidence](../../reviews/2026-11-15-result-row-local.md). Next: scoped dev PR and separately approved macOS CI; no cloud/demo promotion. GB locator sharding remains unimplemented and oversized indexes reject explicitly.
+Owner capstone-agent/capstone-app; accepted into dev dc2aa71a through PR113, source acc3bd30. Accepted [design](../specs/2026-11-15-result-row-selection-design.md) and [implementation plan](2026-11-15-result-row-selection.md). Exact rows and columns flow through existing professional Work admission, frozen historical input and report sources. Real IEEE39 selection, model analysis, corrected report comparison/adoption and refresh/session recovery passed. Approved macOS CI43650887728 passed in 212 seconds. Actual dev canonical rebuild and App5173 report/source recovery passed. Implementation/design branches closed; recovery worktree and drafts preserved. [Measured evidence](../../reviews/2026-11-15-result-row-local.md). Next: integrate final control receipts through a documentation PR with separate CI approval. No cloud/demo promotion. GB locator sharding remains unimplemented and oversized indexes reject explicitly.
 
 ## Independent workspace research — 2026-11-14
 

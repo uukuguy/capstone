@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-当前实施：[结构化行引用](../superpowers/plans/2026-11-15-result-row-selection.md)。真实IEEE39结果选行、专业Work保存/启动、模型分析修订报告、来源与采用恢复通过；185后端及255前端定向检查通过，待dev集成。见[验证记录](../reviews/2026-11-15-result-row-local.md)。
+当前收口：[结构化行引用](../superpowers/plans/2026-11-15-result-row-selection.md)。PR113已合入dev dc2aa71a；获批macOS CI43650887728通过212秒。实际dev重建、报告v4采用及原表来源恢复通过；产品分支关闭，待控制回执集成。见[验证记录](../reviews/2026-11-15-result-row-local.md)。
 
 当前实施：[成果对照与采用](../superpowers/plans/2026-11-14-product-comparison-adoption.md)，系列归属与来源分离、显式采用及恢复；分支feat/product-comparison-adoption-20261114，目标dev，本地真实续作/采用/恢复通过，PR111已合入dev c6167e5e，macOS CI43613326116通过139秒，实际dev重建及采用恢复通过。见[验证记录](../reviews/2026-11-14-product-adoption-local.md)。
 
