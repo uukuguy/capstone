@@ -2255,6 +2255,9 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 runner.relay.release(lease)
     class BoundedServer(ThreadingHTTPServer):
         maximum = limits.native_server_connections
+        # Bound the TCP backlog to the configured connection budget.
+        # Handler admission and gateway execution retain their separate bounds.
+        request_queue_size = maximum
         slots = threading.BoundedSemaphore(maximum)
         def process_request(self, request, client_address):
             if not self.slots.acquire(blocking=False):

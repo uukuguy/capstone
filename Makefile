@@ -186,10 +186,10 @@ test-capstone-client:
 test-makefile-application:
 	bash tools/test_makefile_application.sh
 
-test-local-rebuild:
+test-local-rebuild: test-native-report
 	bash tools/test_local_rebuild.sh
 	bash tools/test_demo_local_rebuild.sh
-	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py tools/tests/test_prepare_app_source.py tools/tests/test_local_build_cache_cleanup.py tools/tests/test_image_layer_order.py tools/tests/test_native_report.py -q
+	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py tools/tests/test_prepare_app_source.py tools/tests/test_local_build_cache_cleanup.py tools/tests/test_image_layer_order.py -q
 	uv run --project packages/pandapower-application pytest tools/tests/test_dev_trial_deployment.py tools/tests/test_build_dev_trial.py tools/tests/test_user_data_compatibility.py tools/tests/test_capstone_manager.py tools/tests/test_install_user_local_version.py tools/tests/test_user_local_installer.py tools/tests/test_user_local_graph.py tools/tests/test_offline_provider_config.py tools/tests/test_openai_compatible_protocol.py tools/tests/test_user_local_offline.py -q
 
 test-verification-targets:
@@ -200,7 +200,7 @@ benchmark-optimization:
 	uv run --project packages/pandapower-application python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/benchmarks/report.json
 
 test-agent:
-	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e -q
+	uv run --project packages/pandapower-application python -m pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e -q
 
 test-inventory-service:
 	uv run --project packages/inventory-reference-service pytest packages/inventory-reference-service/tests -q
@@ -260,7 +260,7 @@ check-iteration:
 check-pr: check-package-boundaries check-types test-pandapower-application test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench test-registered-workers
 
 test-pandapower-application:
-	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e --ignore=packages/pandapower-application/tests/cli --ignore=packages/pandapower-application/tests/compat --ignore=packages/pandapower-application/tests/test_console_target.py --ignore=packages/pandapower-application/tests/contract/test_application_instantiation_baseline.py -q
+	uv run --project packages/pandapower-application python -m pytest packages/pandapower-application/tests --ignore=packages/pandapower-application/tests/e2e --ignore=packages/pandapower-application/tests/cli --ignore=packages/pandapower-application/tests/compat --ignore=packages/pandapower-application/tests/test_console_target.py --ignore=packages/pandapower-application/tests/contract/test_application_instantiation_baseline.py -q
 
 test-registered-workers:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
@@ -273,7 +273,17 @@ test-pi-capture-runtime:
 
 check-integration: test-pi-capture-runtime test-e2e validate validate-application
 
-check-release: check-fast check-integration test-packages test-source-setup
+.PHONY: test-capstone-agent-native test-native-presentation test-native-report
+test-capstone-agent-native:
+	node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs
+
+test-native-report:
+	uv run --project packages/pandapower-application --with pillow==12.3.0 --with python-pptx==1.0.2 python -m pytest tools/tests/test_native_report.py -q
+
+test-native-presentation: test-native-report
+	uv run --project packages/pandapower-application --with pillow==12.3.0 --with python-pptx==1.0.2 python -m pytest tools/tests/test_presentation_library_render.py tools/tests/test_native_presentation.py -q
+
+check-release: check-fast check-integration test-packages test-source-setup test-capstone-agent-native test-native-presentation
 
 # Manual Issue work. These commands never start a timer or unattended worker.
 .PHONY: issues-doctor issues-scan issues-show issues-context issues-create issues-prepare-image issues-triage issues-begin issues-record-verification issues-complete issues-fix issues-retry issues-pause issues-status issues-release-status test-issue-automation
@@ -331,7 +341,7 @@ check-runtime-risk:
 	python3 tools/check_runtime_risk_exception.py
 
 test-e2e:
-	uv run --project packages/pandapower-application pytest packages/pandapower-application/tests/e2e -q
+	uv run --project packages/pandapower-application python -m pytest packages/pandapower-application/tests/e2e -q
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
 
 validate: check-runtime-risk check-protected-paths

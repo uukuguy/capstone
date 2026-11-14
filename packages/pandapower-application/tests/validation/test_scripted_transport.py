@@ -10,6 +10,35 @@ sys.path.insert(0, str(ROOT))
 from validation.run import ScriptedApplicationTransport
 
 
+def test_scripted_events_use_provider_observer_contract() -> None:
+    from pandapower_application.scripted_execution import _emit_scripted_event
+
+    events = []
+    event = {'type': 'tool_result', 'ok': True}
+    _emit_scripted_event(events.append, event, 1)
+    assert events == [event]
+
+
+def test_scripted_transport_rejects_native_binding() -> None:
+    import pytest
+    from capability_agent.application.native import PreparedNativeBinding
+
+    binding = PreparedNativeBinding(SimpleNamespace(), SimpleNamespace(), SimpleNamespace())
+    with pytest.raises(ValueError, match='professional binding'):
+        ScriptedApplicationTransport({'run_id': 'native', 'questions': []},
+            prepared=SimpleNamespace(bindings={'grid': binding}),
+            catalog=SimpleNamespace(domain_tools=()))
+
+
+def test_scripted_transport_rejects_invalid_question_collection() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match='questions must be a list'):
+        ScriptedApplicationTransport({'run_id': 'invalid', 'questions': {}},
+            prepared=SimpleNamespace(bindings={'grid': SimpleNamespace()}),
+            catalog=SimpleNamespace(domain_tools=()))
+
+
 def test_scripted_transport_delivers_prompt_heartbeat_without_creating_evidence() -> None:
     case = {
         "run_id": "scripted-heartbeat",

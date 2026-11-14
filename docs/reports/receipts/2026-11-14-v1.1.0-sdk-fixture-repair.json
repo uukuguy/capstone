@@ -1,0 +1,51 @@
+{
+  "schema": "capstone-release-sdk-fixture-repair/1",
+  "version": "1.1.0",
+  "fixture_source": "153d19ae",
+  "production_runtime_source": "fcc55dbc11afdf7b49dc4c393eae3b50ceee7b92",
+  "first_ci": {
+    "run_id": 43559147625,
+    "head": "21c2ae917e50bc906226b57366583f0a095c50f2",
+    "conclusion": "failure",
+    "jobs": [
+      {
+        "name": "verify (ubuntu-latest)",
+        "status": "failure",
+        "seconds": 1334,
+        "job_id": 132338703983
+      },
+      {
+        "name": "verify (macos-latest)",
+        "status": "failure",
+        "seconds": 2827,
+        "job_id": 132338704178
+      }
+    ]
+  },
+  "macos_failure": "654SDKpassed/1readProposalbeforecommit",
+  "cause": "100x2msfixturepollcompletedbeforechildstartupandproposalcommit",
+  "controlled_delayed_start_ms": 400,
+  "old": "sameinvalid_enterprise_cyclefailure427ms",
+  "new": "samecontrolleddelaypassed449ms",
+  "change": "publicwaitForDecisionandtest-signalledcausalevents",
+  "preserved_assertions": [
+    "A/B/Corder",
+    "Aproposalcommitted",
+    "Bstillrunning",
+    "Cboundinputresult",
+    "Babortanddispose"
+  ],
+  "production_javascript_changed": false,
+  "full_native_sdk": {
+    "passed": 655,
+    "failed": 0,
+    "milliseconds": 16860.65025
+  },
+  "parent_focused": {
+    "passed": 2,
+    "failed": 0
+  },
+  "additional_ci_approved": false,
+  "main_merged": false,
+  "tag_created": false
+}

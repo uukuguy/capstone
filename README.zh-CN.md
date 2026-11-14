@@ -21,9 +21,10 @@ demo 发布遵循独立的发布验收流程。
 
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
 
-正式应用入口为 `capstone-agent`，不再要求保留 `grid-agent` CLI 兼容性。
-旧包仍包含正式 pandapower 运行模块，尚未删除。应用配置和面向读者的报告现由可独立安装的
-`pandapower-application` 包拥有；worker和入口继续按[计划](docs/superpowers/plans/2026-10-11-retire-grid-cli.md)迁移。
+正式应用入口为 `capstone-agent`。旧 `grid-agent` 发行包与 CLI 已删除；可独立安装的
+`pandapower-application` 拥有正式 pandapower 入口、worker 和报告。
+v1.1.0 版本基线包含统一框架、原生执行、资源处理及国网 PPT 模板库。
+范围、验证和兼容说明见[发布说明](docs/releases/v1.1.0.md)。
 
 **连接智能体推理、领域能力、权威计算与可核查证据。**
 

@@ -1,38 +1,56 @@
 # Live Session Checkpoint
 
-User approved PPT integration and reference research closure. Isolated checkout:
-.worktrees/architecture-retirement-closeout, branch feat/presentation-closeout-20261114.
-Implementation29c0ce72 + renderer fixesa7440980/ddc3df02 are committed on devb4992b94.
-Root user files and runtime data are preserved. The original PPT81dd3652 remains
-until accepted dev integration; do not merge its old history wholesale.
+v1.1.0 SOURCE RELEASE COMPLETE:main/originmainb6b144c7ab8e023a85a2896e9d55b34695a9928b,
+PR105normalmerge;treeequalsCIhead3429e6a0. Annotatedv1.1.0remoteobject6889c808f9e7e7acd2b2cb718e5b008a2999b1e3,
+peeledtargetb6b144c7verified. CI43564049919 Linux33m49/Mac44m38success. Nobypass/deployment.
+Dev/origindev8d97596c; releaseandcontrolreturn todev is the remaining delivery step.
+No thirdCIapproved.
 
-Final local runtime source ddc3df02, API/all three workers imagebd4bb567, native
-ddedbbc3; canonical rebuild/readiness and scoped cache maintenance passed.
-Default App5173 remains actual dev; candidate App5174 is this branch, using the
-same-origin Vite proxy (VITE_API_ORIGIN must be empty). No cloud/demo changes.
+## Prepared dev return
 
-Checks:251backend/46PG-resource/86renderer/378App/12templateSDK/50composition/
-218governance/213direct runtime pass; conditional skips recorded separately.
-Type checks, doctor, links/symlink and diff checks passed. Independent review P2
-renderer provenance fixed; installed symlink regression reproduced then fixed.
-Real Threadthr_04e92aa2a510c0434678: four completed rounds16.333/42.674/32.520/40.664s,
-47download hashes; frozen content, StateGrid default, PDF and final renderer hashes
-verified. Raw private probe data /tmp/capstone-ppt-closeout-real.json; bounded public
-receipt docs/reports/receipts/2026-11-14-presentation-integration.json.
-First library run selected existing blue template; do not count it as default
-selection acceptance. Final round explicitly selected StateGrid and passed.
+Existingisolatedcheckout.worktrees/architecture-retirement-closeout reused;
+branchchore/v1.1.0-dev-return basedonacceptedmainM. Codecommitcf30d0d1 plusfinal
+controlsnapshot follows (getexactHEADwithgitlog-1). No product runtime changes aftertag.
+Oldrelease/v1.1.0local/remotebranchclosed,allworkretainedby main/tag.
 
-Reference2bd086af archived at archive/branch-ownership-20261114/uukuguy/reference-execution-research;
-remote recovery tag exists, worktree and3dirty docs unchanged. Its only code delta
-is the composition fixture now passing on the current chain. Remaining model
-projection/actual gateway research is design backlog, not a second DR executor.
+cf30d0d1 addsGitproof to existinggovernancegate:stable rootproductversion annotatedtag
+must equal fetchedorigin/main; ORIGINALtargetdevbase must beancestorofmain;
+mainancestorofhead;post-tagdeltaonlyexistingcontrolpaths usingNUL/no-renames.
+Rawleadingwhitespacepreserved. Missingproof normalclassification;main/explicit
+releasealwaysfull. Actualcandidateclassifiesgovernance. Positivewasredbeforecode;
+negativecases rejectmissing/lightweight/wrongtag,missing/advancedmain,divergedactual
+base,postsource,renamedsource,copiedcontentwithoutancestry,newversion,leading-spacepath.
+270governancepassed/3skip8.42s;reviewnoimportantfinding;doctor/links/whitespacepass.
+Lifecycle/owningcanonicalplanupdated. Reportandacceptancereceiptcopiedfromroot.
+Mainv1.1.0hasonefixedrealgraphnodeb6b144c7;6deployreferencesexact,no crossings/overflow.
 
-Same-tab App5174 restore and six graph reference paths passed; screenshot
-/tmp/capstone-ppt-final-app.png and /tmp/capstone-ppt-final-overview.png.
-Next: commit task-owned docs, then request ONE focused macOS presentation-library CI for a dev PR. NO CI
-is currently approved. Do not push/create PR/merge before explicit new approval.
-After approved gate passes, merge via PR, synchronize actual dev while preserving
-mixed dirty user/control files, close original PPT and temporary integration refs,
-rebuild actual dev entry and refresh canonical graph. Do not start IG2–IG4 or a
-research experiment. No force pushes or deleting worktrees/data. Clash proxy for
-Git/GitHub http://127.0.0.1:7897; Docker build proxy uses host.docker.internal.
+## Next required approval
+
+Finishcleanfreeze and requestONE macOSgovernance/docsCI (5–10min,queueextra)
+beforepushing/creatingPRtargetdev. No product/solver/fullreleasegate for this return:
+allproductsourcealreadyacceptedmain/tag;onlycontrolchangesafterit.
+Afterapproval re-fetchmain/dev/tag andassertsamebase8d/mainM;localCIselector must
+stillbegovernance beforepublication. Do not expand approvedscope orstartanotherCI.
+Onceaccepted normaldevPRmerge andsyncactualrootdev,canonicalrebuildandactualentry
+verification,updateactual-devcanonicalcontrol/graph;preserveuserdirtyfiles.
+No directpermanentpush/historyrewrite/tagmove/deployment. NothirdCIalreadyrunning.
+
+## Runtime/evidence and preservation
+
+ActualAPI/3workerssourcefcc55dbc image9ff628878972266ea0839b5ed7c9da93267cbbdd8da6274029e5edfcc676732a;
+native386b5cbaeb6c0ef15a155ed6a151c306fa34dd25e0c84dce164c13194f63c7a2,layers62/37;
+scopedcleanupapplied. App5174productfcc/currentrepogovernance/docs;defaultApp5173
+stillroot8doldsource:temporarydifferenceexplicitlyrecorded. No cloud/demo/local-demoupdate.
+Threadthr_13779becc0580257e718realcontinuation12.27s;8new/47oldPPTartifacthashesmatch,
+queuecheckexactVERSION=1.1.0(13bytes). No needrebuildforlaterdocs/CI-onlychanges.
+FirstCI43559147625failed;bothreproducedfixesfcc55dbc(TCPqueue5vs256budget) and
+153d19ae(SDK100x2msfixture→causaleventwait) passedsecondfullCI. ActualLinuximage60loops,
+3308backend/655SDK/69PPT;allCIlogsandreceiptsdurableinrootruns/release-v1.1.0-20261114.
+Acceptedreportdocs/reports/2026-11-14-v1.1.0-release.md andreceipts/*v1.1.0*.json.
+Maincodeandtagimmutable;devreceivesthesourceplusgovernance/controlrecords.
+
+Rootdirtyuser/controlwork,docx/png,var/auth,archivedresearchandoriginaldirtyworktrees
+preserved. Rootmixedplan/currentfactsupdatedselectively;no bulknotebookcopy.
+Existingrootstash34e4e74d0d8b5933e50d756f50854f043dc73867retained.
+Graphserver18744/existingPlaywrightcapstone-unifiedtab. GitHubClash127.0.0.1:7897;
+Dockerhost.docker.internal:7897. Main/devbothprotectedPRwith0mandatoryreviews.

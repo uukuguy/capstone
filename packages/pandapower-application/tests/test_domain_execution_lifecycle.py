@@ -3,6 +3,17 @@ import json
 import pytest
 
 
+def test_application_workspace_cannot_be_replaced_by_caller(tmp_path, monkeypatch):
+    from pandapower_domain.tool_service import PandapowerToolService
+
+    workspaces = []
+    monkeypatch.setattr(PandapowerToolService, 'invoke',
+        lambda self, document, *, workspace_id: workspaces.append(workspace_id) or {})
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    service.invoke({'task_id': 'owned'}, workspace_id='other')
+    assert workspaces == ['owned']
+
+
 def test_open_model_management_selects_one_pack_workspace():
     from pandapower_application.domain_tools import domain_workspace_id
     model = {

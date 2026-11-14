@@ -7524,3 +7524,60 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-14 Fixed installed renderer provenance lookup, ddc3df02; final build and real continuation passed, 47 product hashes verified.
 - 2026-11-14 Verified App5174 restored final PPT/PDF and four completed rounds; six deployment graph paths have no card crossings.
 - 2026-11-14 CI43494883528 failed existing cleanup-budget test; injected delay reproduced it; local86 Pi and113 governance checks pass after test-only fix.
+- 2026-11-14 Retained main ancestry with no source delta [828d1ef1]; user selected v1.1.0, versions/locks aligned, full local gate stopped on16 type errors.
+- 2026-11-14 Prepared v1.1.0 metadata/notes3690e8ff; product/backend/App versions and four locks agree; doctor/App types/links pass.
+- 2026-11-14 Repaired16 release type blockers; globalPyright clean,17Thread/26pandapower/2real scripted-consumer tests pass; full gate resumes.
+- 2026-11-14 Repaired release execution contracts59f1411b; global types and targeted consumers pass; full local release gate resumed, no CI.
+- 2026-11-14 Release review catches lock overreplacement and old backend pin; repaired, npm ci/metadata invariance pass;38 migrated validation checks pass with module entry.
+- 2026-11-14 Corrected release locks/import entry f12789a1; fresh npm install,38validation/21gate tests pass; full local release gate running.
+- 2026-11-14 Full professional suite878pass/14fail/3skip; repaired direct validation bootstrap and documented retained private state paths; all34 affected checks pass.
+- 2026-11-14 Rejected proposed fatal debug-capacity change: accepted4d57c083 policy requires per-call repair; update obsolete SDK expectations instead.
+
+- 2026-11-14 AppHeader发布显示测试从package.json读取版本；保留环境、八位来源与title断言，12项定向检查通过，避免版本升级被旧0.1.0断言阻断。
+
+- 2026-11-14 ee20063c：AppHeader断言读取产品版本，发布升级不再依赖旧版本常量。
+
+- 2026-11-14 原生图执行夹具按现行私有JSONL验证调度回执后读取RPC/结果；50项通过，保留全部证据、归属、版本与拒绝断言，无runtime改动。
+
+- 2026-11-14 24d1d14c：图探针验证现行私有调度帧，恢复完整SDK链路回归。
+
+- 2026-11-14 SDK旧fixture按4d57c083既定容量修复策略更新，真实SDK655项通过；fatal debug runtime草案已完全撤回，生产SDK文件与HEAD一致。
+
+- 2026-11-14 1e008f5e：SDK夹具验证容量修复及授权隔离，撤回不合合同的中断草案。
+- 2026-11-14 Kernel请求schema中性化，pandapower应用显式选择既有协议；117项直接消费者及focused类型通过，父级10项边界/校验回归通过，未改历史工件。
+
+- 2026-11-14 16b9b152：请求协议身份归应用，Kernel保持中性并保留旧工件兼容。
+- 2026-11-14 107项夹具/manifest检查通过，1项真实PG未配置跳过；正式导出模块、分组COPY及SQL具名绑定断言修正。owning lock工具离线解析仅更新manifest摘要，全部依赖版本和hash未变。
+
+- 2026-11-14 b8180f8d：更新过时边界夹具与生成锁摘要，依赖版本/包hash保持。
+- 2026-11-14 发布门禁补入原生SDK与实际PPT渲染套件；22项gate图及失败传播检查通过，17报告/69PPT/655SDK检查通过，普通开发scope未扩大。
+
+- 2026-11-14 04f127e4：完整发布门禁纳入原生SDK与PPT，避免范围遗漏。
+
+- 2026-11-14 最终完整本地验收启动38497，源码04f127e4，新增SDK/PPT门禁已纳入；独立复核无重要问题。重建58734仍在进行；尚无发布CI批准。
+
+- 2026-11-14 最终04f127e4规范重建通过，同后端镜像db8047c2/native c3a9b801；真实续接16.311秒完成，6条新工件及47条历史PPT下载hash通过，最终文件字节准确。
+
+- 2026-11-14 发布CI命令补入正式App构建；本地make build-capstone-app通过，22项workflow/gate合同检查通过。完整运行中的check-release命令及产品源码未改，未启动CI。
+
+- 2026-11-14 86599cf1：发布CI补入正式App构建，22项合同通过，尚未运行CI。
+- 2026-11-14 最终完整本地check-release退出0，约26分钟；3307后端/1586App/687Kernel/655SDK/69PPT通过；打包与源码安装、E2E、离线验证、24/24能力矩阵通过。回执及持久日志已保存，发布CI仍待单独批准。
+
+- 2026-11-14 最终控制图浏览器核验：当前候选86599cf1，6条部署引用，local-dev精确来源04f127e4；99点/线抽样无穿卡、无横向溢出。归档/PPT合入最终回执已纳入发布快照。
+
+- 2026-11-14 发布CI Linux28并发请求重置在隔离Linux3.12第23轮复现；默认TCP backlog5不匹配256连接预算。只对齐队列预算后60轮通过；新增暂停accept的真实socket回归先红后绿，160定向/3308完整后端/类型通过，独立复核无重要问题，未重跑CI。
+
+- 2026-11-14 fcc55dbc规范重建、实际Linux60轮和真实续接12.27秒通过，8新/47旧hash保持；控制图6条来源核验无穿卡。首轮Linux失败、旧macOS未完；补修回执冻结，第二次CI尚未获批。
+
+- 2026-11-14 首轮macOS SDK竞态：400ms启动延迟使旧100×2ms轮询427ms后读未提交proposal；替换为公开waitForDecision及事件同步，相同延迟449ms通过。保留A/B/C依赖/并行/授权输入/取消清理断言；655完整SDK及父级2项通过，生产JS未改。
+
+- 2026-11-14 首轮CI双平台结果已完整归档：Linux22分14秒失败的TCP预算修复fcc55dbc、macOS47分07秒失败的SDK测试因果同步修复153d19ae均本地通过。发布补修与回执冻结，第二次CI未批准，main/tag未变。
+
+- 2026-11-14 已接受发布回流复用治理门禁：annotatedtag=origin/main、真实dev基线/候选祖先及tag后仅控制路径全部校验；正例先红后绿，270治理检查通过/3跳过，主分支release门禁保留，独立复核无重要问题。
+
+- 2026-11-14 CI43564049919双平台通过（Linux33分49秒/macOS44分38秒），PR105正常合入main b6b144c7；annotated v1.1.0远端对象6889c808/目标b6b144c7核对一致，main树与受检3429e6a0相同，无管理员绕过或部署。
+- 2026-11-14 已合main的release/v1.1.0本地/远端分支关闭；chore/v1.1.0-dev-return承接版本和治理记录，真实Git证明选governance，270检查通过/3跳过，回流CI未批准。
+
+- 2026-11-14 发布接受main b6b144c7/v1.1.0已记录，治理回流报告与真实main节点/6来源引用已核验，无穿卡；doctor/语法/链接/空白检查通过，回流候选冻结前不触发CI。
+
+- 2026-11-14 回流分支归属明确为dev；已合main的release分支关闭，旧本地候选移入历史，v1.1.0/main源与当前运行源分别保留，不把源代码接受混作部署。

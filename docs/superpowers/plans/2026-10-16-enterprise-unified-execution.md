@@ -1,5 +1,53 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Accepted release return to dev
+
+Goal: return the accepted source release and its control record through dev's PR.
+Architecture: reuse recorded full release verification only when the exact annotated
+product-version tag is origin/main, the proposed head contains that source, dev's
+base is its ancestor, and all later changes belong to existing control paths.
+Keep main and explicit-release gates full. Any missing proof or product delta
+uses normal classification. This enforces the existing proportional-gate rule;
+it does not add a product execution path or infer deployment from a branch.
+
+- [x] Add Git-fixture regressions in tools/tests/test_ci_scope.py: accepted return,
+  lightweight/missing/wrong tags, missing main, divergent base/head and product
+  changes or renames after the tag. Verify the positive case fails first.
+- [x] Implement the proof in tools/ci_scope.py; select existing governance gate
+  only with complete Git proof, preserving main/release behavior.
+- [x] Scope/governance checks:270passed/3skipped in8.42s; independent review found no important issue. Doctor/link/whitespace are repeated at the final freeze.
+- [x] Reconcile source acceptance, exact deployment identity and current branch
+  state in the dev-owned register/graph; inspect the actual page.
+- [ ] Freeze a clean candidate, request one scoped macOS CI approval before
+  pushing/creating dev PR, then integrate and verify actual dev entry point.
+
+## v1.1.0 首轮发布CI补修
+
+PR105首轮43559147625的Linux在28并发背压检查连接重置，3306通过/224跳过/1失败；
+macOS47分07秒后SDK654通过/1固定轮询失败，本轮不计发布接受。fcc55dbc修复TCP backlog5与既有256连接预算不一致；
+3308完整后端、160定向、类型、实际Linux60轮、真实续接12.27秒和8新/47历史工件hash通过。
+153d19ae将SDK测试固定轮询替换为公开结果等待/事件同步，受控400ms对照先红后绿，655项本地通过，生产JS未改。
+首轮已结束，无旧任务待取消；补修未推送，第二次双平台完整CI需单独批准，预计45–60分钟。
+
+## 2026-11-14 v1.1.0发布基线（用户指定）
+
+用户要求重要tag并合入main，版本明确为v1.1.0。候选release/v1.1.0基于已收口dev8d97596c，
+版本与锁3690e8ff已准备，59f1411b修复完整门禁16项类型问题；全局类型与直接调用方检查通过。
+04f127e4完整本地check-release退出0（26分56秒），正式App构建及真实续接/历史文件hash通过。
+86599cf1仅补齐CI正式App构建及合同检查；main PR、macOS/Linux发布CI和tag待逐次CI明确批准。
+发布说明见[范围与兼容](../../releases/v1.1.0.md)。不部署cloud/demo，不改local-demo；
+发布通过后版本与修复通过受保护PR回流dev，保持控制台账归dev。
+
+## 2026-11-14 PPT与研发分支已收口
+
+PR104已合入dev8d97596c，第二次定向macOS CI43496930369通过4分08秒；
+受检b089faa6与合并树一致。首次清理预算用例失败、600ms注入复现和测试补修均保留。
+PPT默认国网、模板库与选择、冻结源包/PDF、渲染器身份、执行统计及直接调用方已归dev。
+旧PPT和引用研究仅保留原SHA归档/恢复标签，工作树及未提交文档不变；当前无活动研发分支。
+剩余引用出境投影归设计待办，不新增DR运行链；不自动推进IG2–IG4或研究实验。
+实际dev规范重建后的任务/产品恢复、47条下载摘要及默认App实页通过，云端和demo未变。
+详见[收口回执](../../reports/2026-11-14-presentation-integration.md)。以下段落记录过程边界。
+
 ## 2026-11-14 已批准的 PPT 集成与引用研究归档
 
 用户批准将已验证的 PPT 模板库、默认国网入口、同源 PDF、执行统计和直接调用方

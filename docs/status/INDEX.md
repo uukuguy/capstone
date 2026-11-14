@@ -1,5 +1,24 @@
 # docs/status INDEX
 
+2026-11-14：main b6b144c7/v1.1.0源代码发布已接受，CI43564049919双平台通过。
+[接受回执](../reports/receipts/2026-11-14-v1.1.0-release-acceptance.json)记录精确tag/受检来源；
+版本与控制回流dev在本地准备，复用已接受tag的治理检查270通过，尚未批准回流CI。
+以下段落保留发布过程。
+
+2026-11-14：[发布补修](../reports/2026-11-14-v1.1.0-release.md#linux-listener-repair)及
+[机器回执](../reports/receipts/2026-11-14-v1.1.0-listener-repair.json)：首轮Linux连接重置，
+fcc55dbc按现有连接预算修复TCP接收队列，3308后端及实际Linux60轮/真实任务通过。
+macOS首轮47分07秒后SDK654通过/1失败；153d19ae修复同步假设，655项本地通过。
+[SDK回执](../reports/receipts/2026-11-14-v1.1.0-sdk-fixture-repair.json)保留受控延迟对照。第二次CI未批准，main/tag未改变。下述段落保留先前验收过程。
+
+2026-11-14：[v1.1.0发布记录](../reports/2026-11-14-v1.1.0-release.md)记录类型、依赖锁及测试入口修复；完整本地门禁及正式App构建通过，发布CI未批准。
+
+2026-11-14：[v1.1.0发布候选](../releases/v1.1.0.md)按用户选定版本冻结；本地完整本地验收已通过，main合入和tag待接受。
+
+2026-11-14：PR104已合入dev8d97596c，第二次定向macOS CI通过4分08秒；旧PPT与引用研究已归档，
+当前仅新增用户授权的v1.1.0发布候选线。实际dev重建/默认入口恢复及47条历史下载摘要通过。
+[收口回执](../reports/2026-11-14-presentation-integration.md)。下述早期段落为过程记录。
+
 2026-11-14：[PPT 集成与引用研究收口](../reports/2026-11-14-presentation-integration.md)：
 候选 29c0ce72 基于当前 dev；旧引用研究原 SHA 归档，剩余设计待办归核心演进笔记。
 本地检查通过，重建和真实验证进行中，尚未合入或启动 CI。

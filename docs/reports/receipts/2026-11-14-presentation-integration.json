@@ -370,8 +370,8 @@
   "integration_source": "29c0ce72",
   "backend_image": "sha256:bd4bb567941b51ac7a8617f239188116fa2a8c86aed122145f09aa55a2b1537d",
   "native_image": "sha256:ddedbbc35932c48be2096354b5e73e7fa32f06659c365c522e5a8910ade27008",
-  "ci_approved": false,
-  "dev_merged": false,
+  "ci_approved": true,
+  "dev_merged": true,
   "cloud_deployed": false,
   "pr": 104,
   "ci_runs": [
@@ -387,6 +387,20 @@
       "backend_passed": 584,
       "backend_skipped": 66,
       "backend_failed": 1
+    },
+    {
+      "id": 43496930369,
+      "head": "b089faa656f595523c7b025e9b53849a56bfd73a",
+      "platform": "macos",
+      "scope": "presentation-library",
+      "conclusion": "success",
+      "execution_seconds": 248,
+      "queued_seconds": 13,
+      "backend_passed": 585,
+      "backend_skipped": 66,
+      "renderer_passed": 86,
+      "node_passed": 62,
+      "app_passed": 378
     }
   ],
   "local_ci_repair": {
@@ -395,6 +409,64 @@
     "cleanup_budget": "configured default",
     "injected_dispatch_delay_seconds": 0.6,
     "pi_tests_passed": 86,
-    "governance_tests_passed": 113
+    "governance_tests_passed": 113,
+    "commit": "b089faa656f595523c7b025e9b53849a56bfd73a",
+    "exact_ci_group_passed": 585,
+    "exact_ci_group_skipped": 66,
+    "exact_ci_group_seconds": 34.46
+  },
+  "dev_merge": "8d97596c4483b42137dd02833ba9058883570693",
+  "accepted_head": "b089faa656f595523c7b025e9b53849a56bfd73a",
+  "additional_ci_authorized": false,
+  "approved_ci_runs": [
+    43494883528,
+    43496930369
+  ],
+  "post_merge_local": {
+    "dev": "8d97596c4483b42137dd02833ba9058883570693",
+    "thread_id": "thr_04e92aa2a510c0434678",
+    "restored": true,
+    "download_hashes": 47,
+    "selection": {
+      "revision": 0,
+      "template": {
+        "schema": "capstone-presentation-template/1",
+        "template_id": "state-grid",
+        "version": "sha256:00167b213bd215203e100a703ac0716f14b8e93cd095d8ff39e4dc0d3951dad6",
+        "sha256": "00167b213bd215203e100a703ac0716f14b8e93cd095d8ff39e4dc0d3951dad6",
+        "size_bytes": 4759617,
+        "file_name": "state-grid.pptx",
+        "name": "State Grid",
+        "scope": "builtin"
+      }
+    },
+    "app": {
+      "version": "0.1.0",
+      "revision": "29c0ce72919d64e59c0a13f1a3a94d0c873b03f2",
+      "repositoryRevision": "8d97596c4483b42137dd02833ba9058883570693",
+      "dirty": false,
+      "environment": "local-dev"
+    },
+    "backend_image": "sha256:b4826b361d6eca9c2fb0c6e36077424aba2e5f80e8ebf1e25f5f292c0646658d",
+    "native_image": "sha256:ddedbbc35932c48be2096354b5e73e7fa32f06659c365c522e5a8910ade27008",
+    "layers": {
+      "backend": 62,
+      "native": 37
+    },
+    "cache_receipt": ".capstone-agent/cache-maintenance-20261114-040356-56014.log",
+    "browser_restore": true,
+    "browser_header": "local-dev · v0.1.0 · 8d97596c",
+    "graph_dev_node": "8d97596c",
+    "graph_deployment_paths": 6,
+    "graph_card_crossings": 0
+  },
+  "branch_closure": {
+    "active_feature_research_local": 0,
+    "active_feature_research_remote": 0,
+    "ppt_source": "81dd36528fe008fc0d3a2f6cca9de3107ee27a61",
+    "ppt_dirty_docs_preserved": 8,
+    "reference_source": "2bd086af19bd7b19173a58a151d38ac78faad856",
+    "reference_dirty_docs_preserved": 3,
+    "temporary_branch_closed": true
   }
 }

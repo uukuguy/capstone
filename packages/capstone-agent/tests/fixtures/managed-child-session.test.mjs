@@ -66,11 +66,13 @@ test('children use only admitted resources and preserve execution guards',async(
     createCodingTools:()=>['read','bash'].map(name=>({name,execute:async()=>({content:[]})})),
     SessionManager:{inMemory:()=>({})},
     createAgentSession:async options=>{sessionOptions=options;return {session:{
+      agent:{},
       bindExtensions:async()=>{},setActiveToolsByName:names=>{active=names;},dispose:()=>{disposed=true;}}};}};
   const runtime={getModel:()=>({id:'fixed'})};
   const config={model:'fixed',settings:{},extensions:[],allowedSkills:['selected'],
     contextFiles:[],applicationPolicy:{allowed_tools:['read','bash']},appendSystemPrompt:['ORDINARY_CHILD_POLICY_SENTINEL']};
   const child=await createManagedChildSession(config,sdk,runtime,{toolNames:['read'],skills:[]});
+  assert.equal(child.session.agent.toolExecution,'parallel');
   assert.equal(sessionOptions.modelRuntime,runtime);
   assert.deepEqual(active,['read']);
   assert.equal(loaderOptions.noExtensions,true);

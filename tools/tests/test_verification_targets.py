@@ -115,7 +115,7 @@ def test_child_failure_propagates_from_aggregate(tmp_path: Path) -> None:
     leaves = {
         "check-fast": ("check-package-boundaries", "check-types", "test"),
         "check-integration": ("test-pi-capture-runtime", "test-e2e", "validate", "validate-application"),
-        "check-release": ("test-packages", "test-source-setup"),
+        "check-release": ("test-packages", "test-source-setup", "test-capstone-agent-native", "test-native-presentation", "test-native-report"),
     }
     for aggregate, dependencies in leaves.items():
         all_targets = [target
@@ -153,6 +153,21 @@ def test_child_failure_propagates_from_aggregate(tmp_path: Path) -> None:
             assert completed.returncode != 0, f"{aggregate} swallowed {failed} failure"
 
 
+def test_release_executes_native_sdk_and_pinned_renderers_once() -> None:
+    output = _dry_run("check-release")
+    assert output.count("node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs") == 1
+    renderer_lines = [line for line in output.splitlines() if " pytest " in line]
+    for suite in ("test_presentation_library_render.py", "test_native_presentation.py", "test_native_report.py"):
+        matches = [line for line in renderer_lines if "tools/tests/" + suite in line]
+        assert len(matches) == 1, f"Release must execute {suite} exactly once"
+        assert "--with pillow==12.3.0 --with python-pptx==1.0.2" in matches[0]
+    for target in ("check-pr", "check-fast"):
+        ordinary = _dry_run(target)
+        assert "tools/tests/test_native_report.py" in ordinary
+        assert "tools/tests/test_native_presentation.py" not in ordinary
+        assert "tools/tests/test_presentation_library_render.py" not in ordinary
+
+
 def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> None:
     workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
 
@@ -175,7 +190,7 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
     assert "if: steps.scope.outputs.gate != 'gateway-bindings'" in standard
     assert 'run: make setup' in standard
     assert 'run: make check-pr' in workflow
-    assert 'run: make check-release' in workflow
+    assert 'run: make check-release build-capstone-app' in workflow
     assert 'branches: [dev, main]' in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.release" in workflow
 

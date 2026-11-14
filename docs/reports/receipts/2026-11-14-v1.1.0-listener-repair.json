@@ -1,0 +1,81 @@
+{
+  "schema": "capstone-release-repair-verification/1",
+  "version": "1.1.0",
+  "repair_source": "fcc55dbc11afdf7b49dc4c393eae3b50ceee7b92",
+  "first_ci_run": 43559147625,
+  "first_ci_head": "21c2ae917e50bc906226b57366583f0a095c50f2",
+  "first_ci_linux": "failure:28-parallel-gateway-connection-reset",
+  "cause": "TCP listener backlog5 conflicted with configured native connection budget256",
+  "repair": "Derive TCP backlog from the existing connection budget; retain active-handler and gateway bounds",
+  "old_linux_exact_repro": {
+    "first_failed_iteration_zero_based": 22,
+    "error": "httpx.ReadError errno104"
+  },
+  "backlog_only_comparison": {
+    "iterations_passed": 60,
+    "backlog": 256
+  },
+  "regression": {
+    "old": "socket connect timeout in paused accept burst",
+    "new": "passed without retry or reduced concurrency"
+  },
+  "focused": {
+    "passed": 160,
+    "skipped": 32
+  },
+  "complete_backend": {
+    "passed": 3308,
+    "skipped": 224,
+    "seconds": 166.46
+  },
+  "types": "0errors",
+  "review": "no important findings",
+  "actual_linux_image_iterations_passed": 60,
+  "backend_image": "sha256:9ff628878972266ea0839b5ed7c9da93267cbbdd8da6274029e5edfcc676732a",
+  "native_image": "sha256:386b5cbaeb6c0ef15a155ed6a151c306fa34dd25e0c84dce164c13194f63c7a2",
+  "image_layers": {
+    "backend": 62,
+    "native": 37
+  },
+  "real_thread": "thr_13779becc0580257e718",
+  "real_continuation_seconds": 12.27,
+  "new_artifact_records_verified": 8,
+  "historical_ppt_records_verified": 47,
+  "additional_ci_approved": false,
+  "main_merged": false,
+  "tag_created": false,
+  "logs": {
+    "listener-types.log": {
+      "path": "runs/release-v1.1.0-20261114/listener-types.log",
+      "sha256": "3ad2d843353727d542e7367b203d155ef69e68c7e533e1a57e7c5f8a2337fa84"
+    },
+    "listener-real.log": {
+      "path": "runs/release-v1.1.0-20261114/listener-real.log",
+      "sha256": "ef48209ac028b3aacfc74554d6a4b9ef9aaa611c6c0de03a0f4fd5861bc7defe"
+    },
+    "listener-rebuild.log": {
+      "path": "runs/release-v1.1.0-20261114/listener-rebuild.log",
+      "sha256": "3c222aa1908d404e995da5e4f880885ea03baab17cff5a86cb1e259e45fe29dc"
+    },
+    "listener-capstone-full.log": {
+      "path": "runs/release-v1.1.0-20261114/listener-capstone-full.log",
+      "sha256": "dae1543d8bc28c7c01d922406fa16fd2424792e792f02208cff924ae538af933"
+    },
+    "listener-focused.log": {
+      "path": "runs/release-v1.1.0-20261114/listener-focused.log",
+      "sha256": "17a683b85fc92ea27fafb113e1f895241c383de459566adb4717a4476e3bad4f"
+    },
+    "relay-linux-production.log": {
+      "path": "runs/release-v1.1.0-20261114/relay-linux-production.log",
+      "sha256": "81c5100cf5310a012e161501473ffeb72b46bd1248a456f784ac15da9ab9f6e3"
+    },
+    "relay-linux-queue256.log": {
+      "path": "runs/release-v1.1.0-20261114/relay-linux-queue256.log",
+      "sha256": "428844d4cd373131d1d51cfe3ac74ed55fe60edeff2bb348ff2973b9d31d2bde"
+    },
+    "relay-linux-repro.log": {
+      "path": "runs/release-v1.1.0-20261114/relay-linux-repro.log",
+      "sha256": "ea6c7815be742be952d956a2a9ab1ce1dd6d1e27603353e8afe25c19d8fe8906"
+    }
+  }
+}

@@ -16,6 +16,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
+if __package__ in (None, ""):
+    # Direct script entry must resolve repository-owned validation modules too.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from pydantic import JsonValue, ValidationError
 
 from capability_agent.application import (

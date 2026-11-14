@@ -11,6 +11,25 @@ from capstone_agent.application_capacity import current_capacity, initialize_cap
 from capstone_agent.general_pi_relay import ProviderRelay
 
 
+def test_gateway_listener_queues_a_declared_connection_burst_before_accepting(tmp_path):
+    from contextlib import ExitStack
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+
+    original = current_capacity()
+    initialize_capacity({'native_server_connections': 32})
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('unused', {}))
+    server = make_server(host, control_token='control', address=('127.0.0.1', 0))
+    try:
+        # Pause acceptance: an admitted burst must fit the bounded TCP queue,
+        # before HTTP handlers and the separate gateway execution queue run.
+        with ExitStack() as connections:
+            for _ in range(28):
+                connections.enter_context(socket.create_connection(server.server_address, timeout=1))
+    finally:
+        server.server_close()
+        initialize_capacity(original)
+
+
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
 @pytest.mark.parametrize('setup_elapsed', [0, 20])
 def test_28_parallel_gateway_requests_queue_without_cancelling_task_or_using_model_slots(tmp_path, mode, monkeypatch, setup_elapsed):

@@ -4,12 +4,12 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: approved PPT integration onto dev; IG1 acceptance remains open.
-- Branch ownership: dev owns accepted runtime. The PPT candidate is the only
-  pending implementation line;reference-execution research is archived, with
-  remaining projection questions in the core-evolution design backlog. Planning-only Research Model and R0 remain design/reference work,
-  not active implementation branches. See the
-  [ownership audit](../reports/2026-11-14-branch-ownership-audit.md).
+- Active work package: v1.1.0 main release baseline; v1.1.0 accepted on main; release and control-state return to dev.
+- Branch ownership: accepted implementation is on dev. Old PPT and reference
+  research heads are exact archived recovery sources, not active delivery branches.
+  Remaining projection questions belong to the core-evolution design backlog.
+- PPT template library and scoped selection, default State Grid, frozen source/PDF,
+  renderer identity and execution receipts are integrated through PR104.
 
 Session methods are optional versioned preferences, separate from investigation goals.
 Instruction admission freezes the effective preference revision and local exclusions;

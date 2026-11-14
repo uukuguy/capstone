@@ -105,7 +105,10 @@ def test_load_federated_catalog_documents_uses_fixed_family_exporters(monkeypatc
 
         def __init__(self, command, **kwargs):
             calls.append(tuple(command))
-            family = "pandapower" if "grid_agent" in " ".join(command) else "pypsa"
+            family = {
+                "pandapower_application.thread_catalog_export": "pandapower",
+                "pypsa_agent.thread_catalog_export": "pypsa",
+            }[command[-1]]
             kwargs["stdout"].write(json.dumps(manifests[family]).encode())
 
         def communicate(self, timeout=None):
@@ -126,8 +129,10 @@ def test_load_federated_catalog_documents_uses_fixed_family_exporters(monkeypatc
     monkeypatch.setattr("capstone_agent.federated_hosted.subprocess.Popen", fake_popen)
     documents = load_federated_catalog_documents(tmp_path)
     assert [document["default_model_id"] for document in documents] == ["ieee39", "regional-six-bus"]
-    assert len(calls) == 2
-    assert all("--shell" not in call for call in calls)
+    assert calls == [
+        ("uv", "run", "--no-sync", "--project", "packages/pandapower-application", "python", "-m", "pandapower_application.thread_catalog_export"),
+        ("uv", "run", "--no-sync", "--project", "packages/pypsa-agent", "python", "-m", "pypsa_agent.thread_catalog_export"),
+    ]
 
 
 def test_load_federated_catalog_documents_rejects_failed_or_oversized_export(monkeypatch, tmp_path) -> None:

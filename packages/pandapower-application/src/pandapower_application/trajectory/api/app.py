@@ -14,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Receive, Scope, Send
+from pandapower_application.model_request_contract import MODEL_REQUEST_SCHEMA_VERSION
 
 from pandapower_application.trajectory.api.artifacts import (
     ArtifactAccessError,
@@ -457,7 +458,7 @@ def _canonical_request_preview(
     if not isinstance(document, dict):
         return None, False
     try:
-        return canonical_request_preview(document), False
+        return canonical_request_preview(document, schema_version=MODEL_REQUEST_SCHEMA_VERSION), False
     except CanonicalRequestValidationError:
         return None, False
 

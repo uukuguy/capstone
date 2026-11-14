@@ -803,6 +803,30 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     return gate
 
 
+def accepted_release_backflow(base: str, head: str) -> bool:
+    """Reuse accepted source checks only for an exact tagged-main return."""
+    def git(*arguments: str) -> str:
+        return subprocess.check_output(['git', *arguments], text=True,
+                                       stderr=subprocess.DEVNULL).rstrip('\n')
+
+    try:
+        version = tomllib.loads(git('show', f'{head}:pyproject.toml'))['project']['version']
+        if not isinstance(version, str) or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+            return False
+        tag = 'refs/tags/v' + version
+        main_source = git('rev-parse', '--verify', 'refs/remotes/origin/main^{commit}')
+        if git('cat-file', '-t', tag) != 'tag' or git('rev-parse', tag + '^{commit}') != main_source:
+            return False
+        # Use the actual target base, not its merge-base: independent dev work
+        # must retain its normal integration checks.
+        git('merge-base', '--is-ancestor', base, main_source)
+        git('merge-base', '--is-ancestor', main_source, head)
+        changed = git('diff', '--no-renames', '--name-only', '-z', main_source, head, '--')
+        return all(_control_path(path) for path in changed.split('\0') if path)
+    except (subprocess.CalledProcessError, KeyError, TypeError, tomllib.TOMLDecodeError):
+        return False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", required=True)
@@ -811,6 +835,7 @@ def main() -> None:
     parser.add_argument("--release", action="store_true")
     parser.add_argument("--check-docs", action="store_true")
     args = parser.parse_args()
+    target_base = args.base
     # A target branch may contain independent commits. Scope only the proposed
     # branch delta, as a PR does, rather than treating target-only files as removals.
     args.base = subprocess.check_output(
@@ -823,6 +848,9 @@ def main() -> None:
         check_document_links(Path.cwd(), paths)
         print("Changed Markdown file links passed")
     else:
+        if args.target == 'dev' and not args.release and accepted_release_backflow(target_base, args.head):
+            print('governance')
+            return
         print(classify(paths, target=args.target, release=args.release,
                        execution_lifecycle_deployment=execution_lifecycle_deployment_diff(paths, args.base, args.head),
                        session_capacity_deployment=session_capacity_deployment_diff(paths, args.base, args.head),

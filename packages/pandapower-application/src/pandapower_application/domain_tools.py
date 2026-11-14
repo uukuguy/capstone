@@ -28,5 +28,7 @@ def domain_workspace_id(document: dict) -> str:
 class PandapowerDomainToolService(PandapowerToolService):
     """Select the application workspace before entering domain execution."""
 
-    def invoke(self, document: dict) -> dict:
+    def invoke(self, document: dict, *, workspace_id: str | None = None) -> dict:
+        # The application derives workspace ownership from the admitted document.
+        del workspace_id
         return super().invoke(document, workspace_id=domain_workspace_id(document))

@@ -26,11 +26,12 @@ verified, merged and deployed scope. Demo releases follow their separate accepta
 
 English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone-app-production-975e.up.railway.app/)
 
-The supported application entry is `capstone-agent`. The `grid-agent` CLI has
-no continuing compatibility commitment. Its package still contains formal
-pandapower runtime modules. Application profiles and reader-facing reports now
-belong to the separately installable `pandapower-application` package; worker and
-entry migration continues under the [retirement plan](docs/superpowers/plans/2026-10-11-retire-grid-cli.md).
+The supported application entry is `capstone-agent`. The retired `grid-agent`
+distribution and CLI have been removed. The separately installable
+`pandapower-application` owns formal pandapower entry points, workers and reports.
+The v1.1.0 baseline defines the unified framework, native execution,
+resource handling and State Grid presentation library. See the
+[release notes](docs/releases/v1.1.0.md) for scope, verification and compatibility.
 
 **Connect agent reasoning to domain capabilities, authoritative computation, and verifiable evidence.**
 

@@ -27,11 +27,16 @@ make setup
 make doctor
 ```
 
+项目认证仍保存在忽略的 `.grid-agent/auth/pi`，固定 Pi 安装仍使用
+`.grid-agent/runtime/pi`。这些是保留的私有状态目录，不提供旧 `grid-agent` CLI；
+不要删除、复制认证状态或为了更新代码重新安装未变化的固定 SDK。
+认证操作使用 `capstone-agent auth-import-pi` 或 `capstone-agent auth-login`。
+
 `make setup` 分别同步 grid 产品的 `pandapower-application`、`grid-simulator`、PyPSA 行业耦合、容量规划与运行计算 Pack 及其建模 Pack 与 authority 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。inventory 参考域由 `make test-inventory` 按需同步和验证。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。grid／参考包和 PyPSA 包因 pandas 主版本约束分别安装在不同 Python 环境。
 
 ## 包模式与安装验证
 
-本仓库包含十三个 Python 发行包和两个 Pi npm 包；新增中性会话宿主 `capstone-agent` 和 PyPSA 应用包 `pypsa-agent`：
+本仓库包含多个独立 Python 发行包和两个 Pi npm 包，包括中性会话宿主 `capstone-agent` 和 PyPSA 应用包 `pypsa-agent`：
 
 | 发行包 | 资源所有权 |
 | --- | --- |
@@ -51,13 +56,13 @@ make doctor
 | `@capability-agent/pi-tools` | 通用 Pi 能力请求构造、描述符校验、相关性检查和模型请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 当前 grid 产品的 Pi 扩展入口，保留 `grid_*` 工具名与 `grid_guide_open` |
 
-源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建十三个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
+源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建各 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保运行导入不会依赖源码路径。
 
 ```sh
 make test-packages
 ```
 
-该门禁也会运行 package boundary、protected-path digest 和 npm tarball 成员检查，拒绝反向业务依赖、源码路径耦合、测试、fixture、缓存、仓库根文件、环境文件、source map、密钥相关路径和路径逃逸。它不改变外部兼容 CLI、Pi 工具名、`grid-capability/1.0`、v1.0.1 stdout/stderr 契约、`runs/` 证据布局或 simulator-owned truth 边界；`analysis-generic` 使用独立的组合输出契约。
+该门禁也会运行 package boundary、protected-path digest 和 npm tarball 成员检查，拒绝反向业务依赖、源码路径耦合、测试、fixture、缓存、仓库根文件、环境文件、source map、密钥相关路径和路径逃逸。它保留已登记 Pi 工具名、`grid-capability/1.0`、当前运行证据与 simulator-owned truth 边界；旧 CLI 已退役，正式入口为 `capstone-agent`，通用应用使用 `core` 与 `domains` 组合输出契约。
 
 ## Inventory 参考域验证
 
