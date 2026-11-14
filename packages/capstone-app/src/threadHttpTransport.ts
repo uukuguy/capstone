@@ -12,6 +12,7 @@ import { parseProcessProducts } from './processProducts'
 import type { WorkCommand } from './threadWorkProtocol'
 import {parseNativeArtifact,parseNativeArtifacts,type NativeArtifact} from './nativeArtifacts'
 import {parseProductIndex,parseProductRef,parseProductResolution,type ProductQuery,type ProductRef} from './threadProducts'
+import {parseBlockJob,parseBlockPage} from './productBlocks'
 import {transferResource,parseStoredResources} from './resourceUploads'
 import {parseCapacityFailure} from './capacityFailure'
 import {parseGatewayConnectionStatus} from './threadInput'
@@ -357,6 +358,16 @@ export class HttpThreadTransport implements ThreadTransport {
     if(query.cursor)params.set('cursor',query.cursor)
     if(query.workId!==undefined)params.set('work_id',query.workId===null?'legacy':query.workId)
     return parseProductIndex(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/product-index?${params}`,{signal}),threadId)
+  }
+  async readProductBlocks(ref:ProductRef,jobId?:string,offset=0,signal?:AbortSignal) {
+    ref=parseProductRef(ref)
+    if(!Number.isSafeInteger(offset)||offset<0)throw new Error('段落分页无效')
+    const path=`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-block-indexes`
+    const job=parseBlockJob(await this.request(jobId?`${path}/${encodeURIComponent(jobId)}`:path,
+      jobId?{signal}:{method:'POST',body:JSON.stringify({ref}),signal}),ref,jobId)
+    if(job.state!=='ready')return {job}
+    const page=parseBlockPage(await this.request(`${path}/${encodeURIComponent(job.job_id)}/blocks?offset=${offset}&limit=20`,{signal}),ref,job.job_id,offset)
+    return {job,page}
   }
   async resolveProduct(reference:ProductRef,signal?:AbortSignal) {
     const ref=parseProductRef(reference)

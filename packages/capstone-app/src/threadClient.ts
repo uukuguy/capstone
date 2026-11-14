@@ -28,9 +28,11 @@ export type ThreadCommand = {
 export type ThreadTransportState = 'live' | 'reconnecting' | 'resync_required' | 'offline'
 
 import type {ProductIndex,ProductQuery,ProductRef,ProductResolution} from './threadProducts'
+import type {BlockReader} from './productBlocks'
 
 export interface ThreadTransport {
   readProductIndex?(threadId:string,query?:ProductQuery,signal?:AbortSignal):Promise<ProductIndex>
+  readProductBlocks?:BlockReader
   resolveProduct?(ref:ProductRef,signal?:AbortSignal):Promise<ProductResolution>
   uploadThreadMaterial?(threadId:string,file:File,signal?:AbortSignal):Promise<unknown>
   removeThreadMaterial?(threadId:string,materialId:string,signal?:AbortSignal):Promise<unknown>
@@ -89,6 +91,11 @@ export function buildThreadCommand(input: {
 export class CapstoneThreadClient {
   constructor(private readonly transport: ThreadTransport) {}
   get supportsProductIndex():boolean{return Boolean(this.transport.readProductIndex&&this.transport.resolveProduct)}
+  get supportsProductBlocks():boolean{return Boolean(this.transport.readProductBlocks)}
+  readProductBlocks:BlockReader=(ref,job,offset,signal)=>{
+    if(!this.transport.readProductBlocks)throw new Error('当前服务不支持段落引用')
+    return this.transport.readProductBlocks(ref,job,offset,signal)
+  }
   async productIndex(threadId:string,query:ProductQuery={},signal?:AbortSignal):Promise<ProductIndex>{
     if(!this.transport.readProductIndex)throw new Error('当前服务未提供统一成果目录')
     return this.transport.readProductIndex(threadId,query,signal)
