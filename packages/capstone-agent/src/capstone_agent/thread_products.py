@@ -56,10 +56,16 @@ def checked_selections(value):
         raise ValueError('invalid product selection')
     selected = []
     for item in value:
-        if (not isinstance(item, dict) or not {'ref', 'purpose'} <= set(item) or set(item) - {'ref', 'purpose', 'excerpt', 'local_selection'}
+        if (not isinstance(item, dict) or not {'ref', 'purpose'} <= set(item) or set(item) - {'ref', 'purpose', 'excerpt', 'local_selection', 'row_selection'}
                 or item['purpose'] != 'historical-context'):
             raise ValueError('unsupported product purpose')
         parsed = {'ref': checked_ref(item['ref']), 'purpose': item['purpose']}
+        if 'row_selection' in item:
+            from .result_row_selection import checked_row_selection
+            rows = checked_row_selection(item['row_selection'])
+            if {'excerpt', 'local_selection'} & set(item) or rows['parent_ref'] != parsed['ref']:
+                raise ValueError('invalid result row parent or mixed selection')
+            parsed['row_selection'] = json.loads(_json(rows))
         if 'local_selection' in item:
             from .product_block_identity import selection_identity
             local = item['local_selection']
@@ -76,7 +82,7 @@ def checked_selections(value):
                 raise ValueError('invalid explicit product excerpt')
             parsed['excerpt'] = excerpt
         selected.append(parsed)
-    if len({_json(item.get('local_selection', item['ref'])) for item in selected}) != len(selected):
+    if len({_json(item.get('row_selection', item.get('local_selection', item['ref']))) for item in selected}) != len(selected):
         raise ValueError('duplicate product selection')
     return selected
 
@@ -361,6 +367,7 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
         selected_bytes = 0
         for selection in selected:
             local = selection.get('local_selection')
+            rows = selection.get('row_selection')
             if local is not None:
                 result = service._product_index_service.resolve_selection(snapshot.thread_id, local)
                 entry = result['entry']
@@ -375,6 +382,13 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
                     return submission, 'product_context_unavailable'
                 data = (_json(result['projection']) if result['projection'] is not None else
                         _json(result['record']) if result['record'] is not None else base64.b64decode(result['content_base64'], validate=True))
+                if rows is not None:
+                    from .result_row_selection import selected_document, identity
+                    from .result_projection import ResultProjection
+                    from .result_table_store import ResultTableStore
+                    data = _json(selected_document(ResultProjection.from_document(result['projection']), rows,
+                        ResultTableStore(service._material_objects)))
+                    result['selection_id'] = identity(rows)
             data.decode('utf-8')
             original_size = len(data)
             excerpt = selection.get('excerpt')
@@ -392,6 +406,8 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
             if local is not None:
                 provenance['local_selection'] = local
                 provenance['dependency_digests'] = [sha256(part).hexdigest() for part in result['dependencies']]
+            if rows is not None:
+                provenance['row_selection'] = rows
             if excerpt is not None:
                 provenance['excerpt'] = {'original_size_bytes': original_size, 'selected_size_bytes': len(data),
                     'requested_max_bytes': excerpt['max_bytes'], 'truncated': len(data) < original_size}
@@ -410,7 +426,7 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
                     or sum(item['size_bytes'] for item in materials) + len(data) > limits.inline_material_bytes):
                 return submission, 'product_context_unavailable'
             material = {'schema': 'capstone-thread-material/1', 'thread_id': snapshot.thread_id,
-                'material_id': 'material_' + (result['selection_id'] if local is not None else sha256(_json(selection['ref'])).hexdigest())[:32],
+                'material_id': 'material_' + (result['selection_id'] if local is not None or rows is not None else sha256(_json(selection['ref'])).hexdigest())[:32],
                 'file_name': name, 'display_name': entry['title'], 'media_type': entry['media_type'],
                 'size_bytes': len(data), 'sha256': sha256(data).hexdigest(), 'content_base64': base64.b64encode(data).decode(),
                 'source_product': provenance}
@@ -444,6 +460,30 @@ def render_product_context(contexts):
 
 
 def register_product_routes(app, *, service, objects, executor_provider, authorize):
+    async def row_request(thread_id, request, *, page):
+        authorize(request)
+        try:
+            body = await request.body()
+            require_capacity('control_document_bytes',len(body),phase='product.rows.request')
+            from starlette.concurrency import run_in_threadpool
+            return await run_in_threadpool(resolve_row_request,service,objects,thread_id,json.loads(body),page=page)
+        except ThreadNotFound:
+            raise HTTPException(404,'thread not found') from None
+        except CapacityExceeded:
+            raise
+        except (ValueError,TypeError,KeyError,StopIteration,ThreadProtocolError):
+            raise HTTPException(422,'result row identity or selection is unavailable') from None
+        except OSError:
+            raise HTTPException(410,'result row content is unavailable') from None
+
+    @app.post('/api/v1/threads/{thread_id}/product-index/table-page')
+    async def table_page(thread_id: str, request: Request):
+        return await row_request(thread_id,request,page=True)
+
+    @app.post('/api/v1/threads/{thread_id}/product-index/row-selection')
+    async def row_selection(thread_id: str, request: Request):
+        return await row_request(thread_id,request,page=False)
+
     @app.get('/api/v1/threads/{thread_id}/product-index')
     def list_products(thread_id: str, request: Request, cursor: str | None = None,
                       limit: int = 32, work_id: str | None = None):
@@ -478,3 +518,22 @@ def register_product_routes(app, *, service, objects, executor_provider, authori
             raise HTTPException(422, 'product reference or content is unavailable') from None
         except OSError:
             raise HTTPException(410, 'product content is unavailable') from None
+
+
+def resolve_row_request(service, objects, thread_id, value, *, page=False):
+    from .result_projection import ResultProjection
+    from .result_table_store import ResultTableStore
+    from .result_row_selection import read_table_page, prepare_selection
+    allowed = {'ref','table_id','offset','limit'} if page else {'ref','table_id','row_ids','column_ids'}
+    required = {'ref','table_id'} if page else allowed
+    if not isinstance(value,dict) or not required <= set(value) or set(value)-allowed:
+        raise ValueError('invalid result row request')
+    resolved = resolve_product(service,objects,thread_id,value['ref'])
+    if value['ref']['origin'] != 'domain_result' or resolved['projection'] is None:
+        raise ValueError('result row source is unavailable')
+    projection = ResultProjection.from_document(resolved['projection'])
+    store = ResultTableStore(objects)
+    if page:
+        return read_table_page(projection,value['ref'],value['table_id'],store,
+            offset=value.get('offset',0),limit=value.get('limit',32))
+    return prepare_selection(projection,value['ref'],value['table_id'],value['row_ids'],value['column_ids'],store)

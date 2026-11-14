@@ -35,13 +35,13 @@ class ResultTableStore:
         self._objects.put(f"thread-result-tables/{kind}/{digest}", content, "application/json")
         return f"{kind}:sha256:{digest}"
 
-    def _load(self, kind: str, reference: str) -> dict[str, Any]:
+    def _load(self, kind: str, reference: str, *, max_bytes: int = MAX_ARTIFACT_BYTES) -> dict[str, Any]:
         match = re.fullmatch(re.escape(kind) + r":sha256:([a-f0-9]{64})", reference)
         if match is None:
             raise ValueError("result table reference is invalid")
         digest = match[1]
-        content = self._objects.get(f"thread-result-tables/{kind}/{digest}", MAX_ARTIFACT_BYTES)
-        if len(content) > MAX_ARTIFACT_BYTES or hashlib.sha256(content).hexdigest() != digest:
+        content = self._objects.get(f"thread-result-tables/{kind}/{digest}", max_bytes)
+        if len(content) > max_bytes or hashlib.sha256(content).hexdigest() != digest:
             raise ValueError("result table integrity check failed")
         document = json.loads(content)
         if not isinstance(document, dict):
@@ -59,6 +59,7 @@ class ResultTableStore:
         references = []
         row_ids: set[str] = set()
         source_context = None
+        locations = {}
         for source in pages:
             if closed or source.get("result_ref") != projection.result_ref or source.get("revision_ref") != projection.model_revision:
                 raise ValueError("result table source identity does not match its grant")
@@ -89,16 +90,36 @@ class ResultTableStore:
                     "table": table.to_document(), "total_rows": total, "offset": cursor,
                     "next_offset": expected_next, "context_ref": context}
             reference = self._save("table-page", page)
+            locations.update({row.row_id: cursor for row in table.rows})
             references.append({"offset": cursor, "reference": reference})
             cursor = end
             closed = expected_next is None
         if not closed or total is None or cursor != total:
             raise ValueError("result table pages are incomplete")
         return self._save("table-manifest", {"schema": "capstone-result-table-manifest/1",
-            "grant": grant, "total_rows": total, "pages": references})
+            "grant": grant, "total_rows": total, "pages": references, "row_locations": locations})
+
+    def selected_rows(self, projection, table_id, manifest_ref, row_ids):
+        """Use the immutable location index; never scan pages to find rows."""
+        manifest = self._load("table-manifest", manifest_ref)
+        if manifest.get('grant') != self._grant(projection, table_id):
+            raise ValueError('result table manifest identity does not match its grant')
+        locations = manifest.get('row_locations', {})
+        if any(row not in locations for row in row_ids):
+            raise ValueError('result row location is unavailable')
+        offsets = {locations[row] for row in row_ids}
+        if len(offsets) > 8:
+            raise ValueError('selected rows exceed the page budget')
+        found = {}
+        for offset in offsets:
+            page = self.read(projection, table_id, manifest_ref, offset=offset, max_bytes=256*1024)
+            found.update({r['row_id']: r for r in page['table']['rows'] if r['row_id'] in row_ids})
+        if set(found) != set(row_ids):
+            raise ValueError('result row identity is unavailable')
+        return [found[row] for row in row_ids]
 
     def read(self, projection: ResultProjection, table_id: str, manifest_ref: str, *,
-             offset: int = 0) -> dict[str, Any]:
+             offset: int = 0, max_bytes: int = MAX_ARTIFACT_BYTES) -> dict[str, Any]:
         if type(offset) is not int or offset < 0:
             raise ValueError("result table cursor is invalid")
         grant = self._grant(projection, table_id)
@@ -108,7 +129,7 @@ class ResultTableStore:
         entry = next((p for p in manifest["pages"] if p["offset"] == offset), None)
         if entry is None:
             raise ValueError("result table cursor is unavailable")
-        page = self._load("table-page", entry["reference"])
+        page = self._load("table-page", entry["reference"], max_bytes=max_bytes)
         if page.get("schema") != "capstone-result-table-page/1" or page.get("grant") != grant:
             raise ValueError("result table page identity does not match its grant")
         return page

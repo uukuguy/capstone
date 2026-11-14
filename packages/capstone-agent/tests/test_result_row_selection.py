@@ -1,0 +1,127 @@
+from dataclasses import replace
+import pytest
+from capstone_agent.artifacts import MemoryObjectStore
+from capstone_agent.result_projection import ResultTablePagination
+from capstone_agent.result_table_store import ResultTableStore
+from capstone_agent.result_row_selection import prepare_selection, selected_document, checked_row_selection
+from test_result_table_store import projection, pages
+
+
+def test_exact_cross_page_null_and_unit_selection():
+    store = ResultTableStore(MemoryObjectStore())
+    parent = projection()
+    manifest = store.publish(parent, 'res_line', pages())
+    parent = replace(parent, tables=(replace(parent.tables[0], pagination=ResultTablePagination(manifest, 133, 128)),))
+    ref = {'origin': 'domain_result', 'digest': 'a'*64}
+    selection = prepare_selection(parent, ref, 'res_line', ['row_132','row_0'], ['value'], store)
+    assert selection['row_ids'] == ['row_0','row_132']
+    data = selected_document(parent, selection, store)
+    assert data['columns'][0]['unit'] == '%'
+    assert data['rows'][1]['cells'] == {'value': None}
+    with pytest.raises(ValueError):
+        selected_document(parent, {**selection, 'digest': 'f'*64}, store)
+    with pytest.raises(ValueError):
+        prepare_selection(parent, ref, 'res_line', ['row_0','row_0'], ['value'], store)
+    with pytest.raises(ValueError):
+        prepare_selection(parent, ref, 'res_line', ['missing'], ['value'], store)
+
+
+def test_checked_selection_supports_distinct_rows_and_rejects_mixed_modes():
+    from capstone_agent.thread_products import checked_selections
+    ref = {'schema':'capstone-product-ref/1','thread_id':'thr_one','product_id':'result_one','origin':'domain_result','scope':'task','event_seq':1,'revision':None,'digest':'a'*64,'work_id':None,'attempt_id':'attempt_one','producer_attempt_id':'attempt_one'}
+    p = replace(projection(),tables=(replace(projection().tables[0],rows=()),))
+    # A syntactically exact host selection is distinct from its full parent.
+    selection = {'schema':'capstone-result-row-selection/1','parent_ref':ref,'table_id':'res_line','table_version':'b'*64,'row_ids':['row_1'],'column_ids':['value'],'digest':'c'*64}
+    item = {'ref':ref,'purpose':'historical-context','row_selection':selection}
+    assert checked_selections([item, {'ref':ref,'purpose':'historical-context'}])[0] == item
+    with pytest.raises(ValueError):
+        checked_selections([{**item,'excerpt':{'max_bytes':1}}])
+
+from test_thread_postgres import postgres_thread_service
+
+
+def test_postgres_rows_freeze_retry_scope_and_atomic_rejection(postgres_thread_service,monkeypatch):
+    import json
+    from capstone_agent.thread_products import product_index,resolve_row_request
+    from capstone_agent.thread_service import PostgresThreadService
+    from test_thread_work_execution import professional_snapshot
+    from test_result_projection import valid_projection
+    store,thread_id=postgres_thread_service
+    store._material_objects=MemoryObjectStore()
+    store.create_thread(professional_snapshot(thread_id))
+    def command(name,refs=None):
+        snapshot=store.snapshot(thread_id)
+        return {'schema':'capstone-command/1','command_id':'cmd_'+name,'idempotency_key':'idem_'+name,
+            'thread_id':thread_id,'run_id':snapshot.run.run_id,'kind':'send_professional',
+            'expected_event_seq':snapshot.last_event_seq,'payload':{'text':'Analyze historical rows',
+                **({'context_product_refs':refs} if refs is not None else {})}}
+    assert store.submit_command(command('source')).status=='accepted'
+    claim=store.claim_attempt('rows',30)
+    table=list(pages())[1]['table']
+    document={**valid_projection(),'thread_id':thread_id,'run_id':claim.run_id,
+        'turn_id':claim.attempt.turn_id,'attempt_id':claim.attempt.attempt_id,
+        'model_context_id':claim.model_context.id,'model_id':claim.model_context.model_id,
+        'model_revision':claim.model_context.model_revision,'tables':[table],'element_refs':[],'overlay':None}
+    store.finish_attempt(claim,phase='completed',payload={'answer':'saved','result_projections':[document],
+        'result_refs':[document['result_ref']],'evidence_refs':document['evidence_refs'],
+        'admission':{'mode':'authority_backed','assurance':'lineage_verified'}})
+    ref=next(e['ref'] for e in product_index(store,thread_id)['products'] if e['ref']['origin']=='domain_result')
+    selection=resolve_row_request(store,store._material_objects,thread_id,
+        {'ref':ref,'table_id':'res_line','row_ids':['row_132','row_128'],'column_ids':['value']})
+    page=resolve_row_request(store,store._material_objects,thread_id,
+        {'ref':ref,'table_id':'res_line','offset':2,'limit':2},page=True)
+    assert page['table']['rows'][0]['row_id']=='row_130'
+    assert any(b'capstone-result-table-manifest/1' in v for v in store._material_objects.contents.values())
+    before=store.snapshot(thread_id)
+    for name,bad in [('digest',{**selection,'digest':'f'*64}),('thread',{**selection,'parent_ref':{**ref,'thread_id':'thr_forged'}}),
+                     ('row',{**selection,'row_ids':['row_forged']}),('column',{**selection,'column_ids':['forged']})]:
+        receipt=store.submit_command(command('bad_'+name,[{'ref':ref,'purpose':'historical-context','row_selection':bad}]))
+        assert receipt.status=='rejected'
+        assert store.snapshot(thread_id)==before
+    send=command('selected',[{'ref':ref,'purpose':'historical-context','row_selection':selection}])
+    receipt=store.submit_command(send)
+    assert receipt.status=='accepted'
+    reopened=PostgresThreadService(store.dsn)
+    import capstone_agent.thread_products as products
+    def unavailable(*args,**kwargs):
+        raise OSError('source disappeared')
+    monkeypatch.setattr(products,'resolve_product',unavailable)
+    assert reopened.submit_command(send)==receipt
+    frozen=reopened.claim_attempt('rows',30).submission['_product_context'][0]
+    assert frozen['historical_only'] is True
+    assert frozen['row_selection']==selection
+    data=json.loads(frozen['content'])
+    assert data['rows'][1]['cells']=={'value':None}
+    assert data['columns'][0]['unit']=='%'
+
+
+def test_inline_page_read_preserves_original_and_selection_version():
+    from capstone_agent.result_projection import ResultRow
+    from capstone_agent.result_row_selection import read_table_page
+    p=projection()
+    p=replace(p,tables=(replace(p.tables[0],rows=tuple(ResultRow('row_'+str(i),{'value':i}) for i in range(5))),))
+    original=p.to_document()
+    store=ResultTableStore(MemoryObjectStore())
+    ref={'origin':'domain_result'}
+    first=read_table_page(p,ref,'res_line',store,limit=2)
+    second=read_table_page(p,ref,'res_line',store,offset=2,limit=2)
+    assert len(first['table']['rows'])==2 and first['next_offset']==2
+    assert second['table']['rows'][0]['row_id']=='row_2'
+    assert first['table_version']==second['table_version']
+    assert original==p.to_document()
+    a=prepare_selection(p,ref,'res_line',['row_0'],['value'],store)
+    b=prepare_selection(p,ref,'res_line',['row_1'],['value'],store)
+    assert a['digest']!=b['digest']
+
+
+def test_row_endpoint_requires_auth_and_rejects_forged_source():
+    from fastapi.testclient import TestClient
+    from test_thread_deliveries import delivery_app
+    from test_thread_http_api import _service,_auth
+    service=_service()
+    with TestClient(delivery_app(service,MemoryObjectStore(),None),base_url='http://localhost') as client:
+        for suffix in ('table-page','row-selection'):
+            url='/api/v1/threads/thr_demo_39/product-index/'+suffix
+            assert client.post(url,json={}).status_code==401
+            assert client.post(url,json={},headers=_auth()).status_code==422
+            assert client.post(url,json={'ref':{},'table_id':'res_line','manifest_ref':'forged'},headers=_auth()).status_code==422
