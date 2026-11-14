@@ -146,6 +146,9 @@ def test_report_uses_real_admitted_table_values_and_records_truncated_tables():
     assert '67.15' in content and 'MW' in content
     assert RESULT_ONE in content
     assert '42' in content and 'table-manifest:sha256:' in content
+    assert '> saved' in content
+    assert content.index('### 已保存模型分析') < content.index('### 已保存计算结果')
+    assert '不是 Authority 计算事实' in content
 
 
 @pytest.mark.parametrize('tamper', ['turn', 'context', 'admission', 'result_ref', 'evidence_ref'])
@@ -394,3 +397,24 @@ def test_native_adoption_rejects_unbound_or_corrupt_files_without_publication(ta
     with pytest.raises((KeyError, ValueError, OSError)):
         publish_delivery(service, objects, THREAD, body, native_artifact_executor=executor)
     assert not objects.contents and delivery_page(service, THREAD)['deliveries'] == []
+
+
+def test_report_includes_saved_model_analysis_separate_from_authority_results():
+    service,objects=_service(),MemoryObjectStore()
+    attempt=completed(service)
+    receipt=publish_delivery(service,objects,THREAD,request(attempt))
+    content=read_delivery_content(service,objects,THREAD,receipt.target['delivery']['artifact_id'],1).decode()
+    assert '### 已保存模型分析' in content
+    assert 'An answer is not a delivery.' in content
+    assert '不是 Authority 计算事实' in content
+
+
+def test_failed_report_does_not_promote_partial_model_answer():
+    service,objects=_service(),MemoryObjectStore()
+    attempt=completed(service,phase='failed')
+    event=next(e for e in service._events if e.event_type=='attempt_failed')
+    event.payload['answer']='Incomplete interpretation must not appear as accepted analysis'
+    receipt=publish_delivery(service,objects,THREAD,request(attempt))
+    content=read_delivery_content(service,objects,THREAD,receipt.target['delivery']['artifact_id'],1).decode()
+    assert 'Incomplete interpretation' not in content
+    assert '未保存已完成的模型分析' in content

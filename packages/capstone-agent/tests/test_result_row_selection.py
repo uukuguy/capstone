@@ -269,6 +269,17 @@ def test_postgres_professional_v2_work_save_start_rows(postgres_thread_service,m
     assert next_claim.submission['context_product_refs']==refs
     assert next_claim.submission['_product_context'][0]['row_selection']==selection
     assert next_claim.submission['_product_context'][0]['historical_only'] is True
+    reopened.finish_attempt(next_claim,phase='completed',payload={'answer':'Saved interpretation of the selected null row.'})
+    from capstone_agent.thread_deliveries import publish_delivery,read_delivery_content
+    from test_thread_deliveries import request
+    report=publish_delivery(reopened,reopened._material_objects,thread_id,
+        request(next_claim.attempt.attempt_id,work_id=work['work_id']))
+    document=report.target['delivery']
+    content=read_delivery_content(reopened,reopened._material_objects,thread_id,document['artifact_id'],1).decode()
+    assert 'Saved interpretation of the selected null row.' in content
+    assert '### 本次分析的已冻结历史输入' in content
+    assert selection['digest'] in content and 'row_132' in content
+    assert 'content_base64' not in content and '_product_context' not in content
 
 
 @pytest.mark.parametrize('storage',['memory','postgres'])
