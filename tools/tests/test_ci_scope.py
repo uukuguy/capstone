@@ -289,6 +289,14 @@ def test_documentation_and_overview_changes():
     assert classify(["tools/project_overview/template.html", "tools/render_project_overview.py"]) == "docs"
 
 
+def test_intranet_readme_is_documentation_without_admitting_runtime_files():
+    assert classify(["deploy/intranet/README.md"]) == "docs"
+    assert classify(["deploy/intranet/README.md", "tools/ci_scope.py"]) == "governance"
+    for path in ("deploy/intranet/runtime.py", "deploy/intranet/README.md.py", "deploy/intranet/compose.yaml"):
+        assert classify(["deploy/intranet/README.md", path]) == "product"
+    assert classify(["deploy/intranet/README.md"], target="main") == "release"
+
+
 def test_governance_changes_require_gate_tests():
     assert classify([".github/workflows/verify.yml", "tools/ci_scope.py", "docs/RUNBOOK.md"]) == "governance"
     assert classify(["tools/tests/test_verification_targets.py"]) == "governance"

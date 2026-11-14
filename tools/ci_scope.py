@@ -13,6 +13,7 @@ import tomllib
 
 
 DOC_FILES = {"README.md", "README.zh-CN.md", "AGENTS.md", "CLAUDE.md",
+             "deploy/intranet/README.md",
              "tools/render_project_overview.py"}
 GOVERNANCE_FILES = {"tools/tests/test_ci_presentation_library.py",".github/workflows/verify.yml", "tools/ci_scope.py",
                     "configs/development/issue-automation.json",

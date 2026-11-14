@@ -12,8 +12,9 @@ App5173 is1.1.0;8new and47historical product hashes passed. No cloud/demo update
 User flagged remaining dirty documents. Six historical Markdown changes plus
 3DOCX/6PNG application design references are now prepared on
 docs/preserved-design-records with an explicit index and current control receipts.
-Next: finish focused local docs checks and commit, request its own macOS docs CI
-approval before publication. Prior CI approval is consumed. Do not expand CI scope.
+Documents committed locally asf13ce298. Exact intranet README gate repair
+passed122classifier and271governance checks/3skips. Next: request one macOS
+governance CI approval before publication of the combined candidate. Prior CI approval is consumed. Do not expand CI scope.
 
 Preserve ignored auth/data, .DS_Store and all archived recovery sources. Root
 backup runs/release-v1.1.0-20261114/root-before-dev-return; stashes51d0c117 and
