@@ -1,3 +1,4 @@
+import ProductReferenceChips from './ProductReferenceChips'
 import ManagedResourcesPanel from './ManagedResourcesPanel'
 import {instructionProductScopesFromEvents,type InstructionProductScope} from './instructionProducts'
 import {isWorkspaceActive} from './workspaceName'
@@ -646,6 +647,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
+      {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
       {notice && <p role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
       {conversation.hasUnattributedHistory && <p role="status">部分历史执行记录尚未确认任务归属。可加载更早的记录后查看。</p>}
     </>}

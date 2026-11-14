@@ -3,7 +3,7 @@ import {productRefKey,productSelectionKey,type ContextProductRef,type ProductEnt
 import './threadProducts.css'
 
 export type ProductReferenceReader=(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>
-export default function ProductReferenceChips({selections,read,onRemove,disabled}:{selections:readonly ContextProductRef[];read?:ProductReferenceReader;onRemove:(key:string)=>void;disabled?:boolean}) {
+export default function ProductReferenceChips({selections,read,onRemove,disabled,readOnly=false,onOpen}:{selections:readonly ContextProductRef[];read?:ProductReferenceReader;onRemove:(key:string)=>void;disabled?:boolean;readOnly?:boolean;onOpen?:(ref:ProductRef)=>void}) {
   const [entries,setEntries]=useState<Record<string,ProductEntry>>({})
   const [errors,setErrors]=useState<Set<string>>(new Set())
   const reader=useRef(read);reader.current=read
@@ -20,6 +20,6 @@ export default function ProductReferenceChips({selections,read,onRemove,disabled
   return <div className="thread-product-references" aria-label="本轮成果引用">{selections.map((item,index)=>{
     const parentKey=productRefKey(item.ref),key=productSelectionKey(item),entry=entries[parentKey],name=entry?.title||(errors.has(parentKey)?'成果信息暂不可读取':'正在读取成果名称…')
     const label=item.row_selection?`${name} · ${item.row_selection.table_id} · ${item.row_selection.row_ids.length} 行 · ${item.row_selection.column_ids.join('、')} · 版本 ${item.row_selection.table_version.slice(0,8)}`:item.local_selection?`${name} · 段落引用 ${index+1}`:name
-    return <span key={key} title="历史上下文；不自动成为当前运行证据"><span>{label}{item.ref.revision?` · v${item.ref.revision}`:''}{item.excerpt?<small> · 开头摘录，最多{Math.ceil(item.excerpt.max_bytes/1024)}KiB</small>:null}</span><button type="button" disabled={disabled} aria-label={`移除成果引用：${label}`} onClick={()=>onRemove(key)}>×</button></span>
+    return <span key={key} title="历史上下文；不自动成为当前运行证据"><span>{label}{item.ref.revision?` · v${item.ref.revision}`:''}{item.excerpt?<small> · 开头摘录，最多{Math.ceil(item.excerpt.max_bytes/1024)}KiB</small>:null}</span>{onOpen&&<button type="button" aria-label={`查看引用来源：${label}`} onClick={()=>onOpen(item.ref)}>查看来源</button>}{!readOnly&&<button type="button" disabled={disabled} aria-label={`移除成果引用：${label}`} onClick={()=>onRemove(key)}>×</button>}</span>
   })}</div>
 }

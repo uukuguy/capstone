@@ -6,6 +6,7 @@ import { HttpThreadTransport } from './threadHttpTransport'
 import { writePendingCommands } from './threadSessionState'
 import { buildStartWorkCommand } from './threadWorkProtocol'
 import {webcrypto} from 'node:crypto'
+import type {ContextProductRef} from './threadProducts'
 import type { WorkCommand } from './threadWorkProtocol'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
@@ -17,7 +18,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
   const work = { work_id: 'work_one', goal: '测试目标', goal_revision: 1, revision: 1, status: modelFree ? 'blocked' : 'ready',
     blocked_reason: modelFree ? 'execution_unavailable' : null, latest_attempt_id: null as string | null,
-    cancel_requested: false, messages: native&&!legacySaved?[]:['测试目标'], task_context: context, ...(native?{conversation_mode:!legacySaved}:{}) }
+    context_product_refs:[] as ContextProductRef[],cancel_requested: false, messages: native&&!legacySaved?[]:['测试目标'], task_context: context, ...(native?{conversation_mode:!legacySaved}:{}) }
   let upgraded = modelFree || existingWork || native
   let saved = modelFree || existingWork
   let attempt: Record<string, unknown> | null = null
@@ -131,7 +132,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
         return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',status:'accepted',accepted_event_seq:accepted,target:{kind:'model_workspace',id:'thr_work',expected_revision:accepted}})
       }
       if (command.kind === 'send_message' && rejectMessage) return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',run_id:'run_work',status:'rejected',rejection:rejectionCode})
-      if (command.kind === 'work_message') { upgraded = true; saved = true }
+      if (command.kind === 'work_message') { upgraded = true; saved = true;if(command.payload.context_product_refs)work.context_product_refs=command.payload.context_product_refs as ContextProductRef[] }
       if (command.kind === 'send_message') {saved=true;work.messages.push(String(command.payload.text));work.goal=String(command.payload.text)}
       if (command.kind === 'start_work'||command.kind === 'send_message') {
         attemptsCreated += 1; work.status = 'queued'; work.revision += 1; work.latest_attempt_id = 'attempt_one'
@@ -633,6 +634,14 @@ it('saves exact restored row references in a professional work command and start
  await waitFor(()=>expect(server.commands[0]?.payload).toEqual({text:'分析所选行',context_product_refs:[selection]}))
  expect(server.commands[0].kind).toBe('work_message')
  expect(server.commands[0].target.id).toBe('work_one')
+ await screen.findByRole('region',{name:'已保存的任务输入范围'})
+ fireEvent.change(screen.getByRole('textbox',{name:'补充任务资料'}),{target:{value:'新的草稿'}})
+ fireEvent.click(screen.getByRole('button',{name:'刷新任务'}))
+ await waitFor(()=>expect(server.snapshots).toBeGreaterThan(1))
+ const scope=screen.getByRole('region',{name:'已保存的任务输入范围'})
+ expect(scope.textContent).toContain('lines · 1 行 · mw · 版本 bbbbbbbb')
+ expect(scope.querySelector('button')?.textContent).toBe('查看来源')
+ expect((screen.getByRole('textbox',{name:'补充任务资料'}) as HTMLTextAreaElement).value).toBe('新的草稿')
  fireEvent.click(await screen.findByRole('button',{name:'开始任务'}))
  await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('start_work'))
  expect(server.commands.at(-1)?.target.id).toBe('work_one')
