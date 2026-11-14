@@ -33,6 +33,7 @@
     "packages/capstone-agent/tests/test_product_index_reader.py",
     "packages/capstone-agent/tests/test_product_index_service.py",
     "packages/capstone-agent/tests/test_product_index_worker.py",
+    "packages/capstone-agent/tests/test_thread_products.py",
     "packages/capstone-agent/uv.lock",
     "packages/capstone-app/src/CapstoneAssistantThread.tsx",
     "packages/capstone-app/src/ProductParagraphPicker.test.tsx",

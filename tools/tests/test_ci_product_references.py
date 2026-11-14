@@ -8,6 +8,7 @@ def test_reference_gate_is_bounded_and_preserves_release_scope():
     manifest = json.loads((root/'configs/development/product-references-gate.json').read_text())
     paths = manifest['paths']
     assert classify(paths) == 'product-references'
+    assert classify(paths + ['packages/capstone-agent/tests/test_thread_products.py']) == 'product-references'
     assert classify(paths, target='main') == 'release'
     assert classify(paths + ['packages/grid-simulator/src/grid_simulator/engine.py']) != 'product-references'
     assert classify([p for p in paths if p not in manifest['anchors']]) != 'product-references'
