@@ -1,7 +1,7 @@
 import {afterEach,expect,it,vi} from 'vitest'
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import ProductComparison from './ProductComparison'
-import type {ProductEntry} from './threadProducts'
+import {productRefKey,type ProductEntry} from './threadProducts'
 afterEach(cleanup)
 const ref={schema:'capstone-product-ref/1' as const,thread_id:'t',product_id:'a',origin:'native_file' as const,scope:'instruction' as const,event_seq:1,revision:null,digest:'a'.repeat(64),work_id:null,attempt_id:'a',producer_attempt_id:null}
 const entry={ref,title:'same.md'} as ProductEntry
@@ -12,7 +12,7 @@ it('does not group duplicate titles and preserves the outside draft on failed co
  expect(await screen.findByText('尚未登记系列')).toBeTruthy()
  expect(client.commandProductSeries).not.toHaveBeenCalled()
  expect(screen.getAllByRole('button',{name:/查看来源/})).toHaveLength(2)
- fireEvent.change(screen.getByLabelText('选择原稿'),{target:{value:'0'}})
+ fireEvent.change(screen.getByLabelText('选择原稿'),{target:{value:productRefKey(other.ref)}})
  fireEvent.click(screen.getByRole('button',{name:'对照原稿与当前稿'}))
  expect((await screen.findByRole('alert')).textContent).toContain('读取失败')
  expect((screen.getByLabelText('草稿') as HTMLTextAreaElement).value).toBe('保留内容')
@@ -46,11 +46,19 @@ it('compares real original and revised text, then explicitly associates the new 
  const client={discoverProductSeries:vi.fn().mockResolvedValueOnce(null).mockResolvedValue(state),productSources:vi.fn().mockResolvedValue([]),compareProducts:vi.fn().mockResolvedValue({original_text:'原文🙂\r\n',revised_text:'改稿\n',changes:[{kind:'replace',original:[0,1],revised:[0,1]}]}),commandProductSeries:vi.fn().mockResolvedValue({...state,members:[original.ref,ref],revision:4}),seriesMembers:vi.fn()}
  render(<ProductComparison client={client} entry={entry} items={[entry,original]} onOpen={vi.fn()}/>)
  await screen.findByText('尚未登记系列')
- fireEvent.change(screen.getByLabelText('选择原稿'),{target:{value:'0'}})
+ fireEvent.change(screen.getByLabelText('选择原稿'),{target:{value:productRefKey(original.ref)}})
  fireEvent.click(screen.getByRole('button',{name:'对照原稿与当前稿'}))
  expect((await screen.findByRole('region',{name:'原稿文字'})).textContent).toContain('原文🙂')
  expect(screen.getByRole('region',{name:'当前稿文字'}).textContent).toContain('改稿')
  expect(client.commandProductSeries).not.toHaveBeenCalled()
  fireEvent.click(screen.getByRole('button',{name:'明确关联到原稿系列'}))
  await waitFor(()=>expect(client.commandProductSeries).toHaveBeenCalledWith('t',expect.objectContaining({operation:'register',series_id:'original-series',expected_revision:3,product:ref})))
+})
+it('offers the exact series original by default and retries failed reads',async()=>{
+ const original={...ref,product_id:'original'}
+ const state={schema:'capstone-product-series/1',thread_id:'t',series_id:'s',revision:2,members:[original,ref],adopted_ref:null}
+ const client={discoverProductSeries:vi.fn().mockRejectedValueOnce(new Error('读取中断')).mockResolvedValue(state),productSources:vi.fn().mockResolvedValue([]),seriesMembers:vi.fn().mockResolvedValue({members:[original,ref],next_cursor:null}),compareProducts:vi.fn(),commandProductSeries:vi.fn()}
+ render(<ProductComparison client={client} entry={entry} items={[entry]} onOpen={vi.fn()}/>)
+ await screen.findByRole('alert');fireEvent.click(screen.getByRole('button',{name:'重新读取系列'}))
+ await waitFor(()=>expect((screen.getByLabelText('选择原稿') as HTMLSelectElement).value).toBe(productRefKey(original)))
 })
