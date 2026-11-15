@@ -39,6 +39,8 @@
     "packages/capstone-app/src/resourceReads.test.ts",
     "packages/capstone-app/src/ThreadProductsWorkspace.tsx",
     "packages/capstone-app/src/ThreadProductsWorkspace.test.tsx",
+    "packages/capstone-app/src/ProductComparison.tsx",
+    "packages/capstone-app/src/ProductComparison.test.tsx",
     "packages/capstone-app/src/threadClient.ts",
     "packages/capstone-app/src/threadHttpTransport.ts",
     "packages/capstone-app/src/threadHttpTransport.test.ts",
