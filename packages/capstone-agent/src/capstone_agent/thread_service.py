@@ -2362,6 +2362,13 @@ class InMemoryThreadService(NativeExecutionOwner):
                 raise ThreadExecutionError("attempt is not running")
             if visibility not in {"public", "diagnostic"}:
                 raise ThreadProtocolError("event visibility is invalid")
+            if event_type == 'historical_input_delivered':
+                from .historical_input_receipts import previous_delivery
+                previous = previous_delivery(self, claim, payload)
+                if visibility != 'public':
+                    raise ThreadProtocolError('historical delivery must be public')
+                if previous is not None:
+                    return previous
             event = self._append_event(
                 event_type=event_type, attempt=record["attempt"],
                 payload=dict(payload), visibility=visibility,
@@ -4769,6 +4776,13 @@ class PostgresThreadService(NativeExecutionOwner):
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             running = AttemptSnapshot.from_document(current)
+            if event_type == 'historical_input_delivered':
+                from .historical_input_receipts import previous_delivery
+                previous = previous_delivery(self, claim, payload, connection)
+                if visibility != 'public':
+                    raise ThreadProtocolError('historical delivery must be public')
+                if previous is not None:
+                    return previous
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
                 event_type=event_type, payload=dict(payload), visibility=visibility,

@@ -92,4 +92,10 @@ def resource_reader_for(service, claim):
             checkpoint=control.checkpoint)
 
     read_resource.read_range = read_range
+    def record_delivery(task_id, manifest):
+        from .historical_input_receipts import delivery_receipt, EVENT
+        receipt = delivery_receipt(claim, task_id, manifest)
+        if receipt is not None:
+            service.append_runtime_event(claim, event_type=EVENT, payload=receipt, visibility='public')
+    read_resource.record_delivery = record_delivery
     return read_resource

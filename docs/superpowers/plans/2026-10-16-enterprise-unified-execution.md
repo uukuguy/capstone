@@ -1,5 +1,14 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Historical input delivery receipts — active, 2026-11-15
+
+Owner capstone-agent/capstone-app; branch `feat/historical-input-receipts-20261115`,
+destination dev. User approved the [receipt design](../specs/2026-11-15-historical-input-receipts-design.md).
+Acceptance: exact acknowledged delivery, durable idempotent receipts and existing
+execution-detail restoration, without asserting analysis or product derivation.
+Focused checks pass locally; next step is canonical rebuild and real continuation
+in the existing Vivaldi tab. No CI, merge or deployment acceptance is recorded.
+
 ## Resource range reading — active implementation, 2026-11-15
 
 Owner capstone-agent/capstone-app. Bounded uploaded-resource reads and durable receipts are accepted in dev through PR115/f185c080, tested6f5605d4. Approved focused macOS CI43686809091 passed229seconds. Actual dev canonical rebuild and default5173 report/source restoration passed; API/three workers share image5517fe25971f. Real1,077,936,128-byte upload, model12288-byte sample, exact report/source recovery and source hash passed. [Plan](2026-11-15-resource-range-reads.md), [design](../specs/2026-11-15-resource-range-read-design.md) and [acceptance](../../reviews/2026-11-15-resource-range-local.md) retain exact evidence. Source branches are closed with recovery worktree/stashes preserved. Next: integrate documentation closeout through a separate approved docs-only CI; no second CI is authorized. Full processing checkpoints, sharded indexes and remote scale acceptance remain separate unmet requirements.
