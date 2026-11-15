@@ -59,3 +59,51 @@ def test_protected_http_range_delivery(tmp_path):
         assert list(host.resource_staging.root.iterdir())==[]
     finally:
         server.shutdown();server.server_close();thread.join(2)
+
+
+def test_task_admission_publishes_only_uploaded_resource_range_tools(tmp_path):
+    from types import SimpleNamespace
+    import time
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.continuation_resources import artifact_resource
+    from capstone_agent.native_task_context import native_context_for
+    from capstone_agent.pi_delegation import PiTaskRequest
+    from test_research_policy_compatibility import registered_binding
+    received=[]
+    host=GeneralPiHost(root=tmp_path/'host',identity={'engine':'fixture'},
+        run_task=lambda request,*_:received.append(request.task_id) or ('Read capability admitted',{}))
+    upload={'schema':'capstone-resource/1','thread_id':'thr_test','resource_id':'resource_'+'a'*32,
+        'version':1,'file_name':'upload.bin','size_bytes':10000,'sha256':'b'*64}
+    previous={'thread_id':'thr_test','attempt_id':'attempt_old','artifact_id':'artifact_old',
+        'work_id':'work_old','file_name':'old.txt','size_bytes':12,'sha256':'a'*64,'source_status':'completed'}
+    def request(task_id,submission,tools):
+        native=native_context_for(SimpleNamespace(submission=submission,selected_task_reader=None),registered_binding('1.0.0'))
+        native['policy']['allowed_tools']=tools
+        return PiTaskRequest(task_id,'attempt','direct','Read selected bytes',(),(),host.identity,2,
+            business_context=BusinessContext.empty('workspace',0),
+            resource_profile={'profile_id':'direct_pi','revision':'test'},
+            input={'kind':'text','text':'Read selected bytes'},native_context=native)
+    server=make_server(host,control_token='fixture-private',address=('127.0.0.1',0))
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    def post(request):
+        connection=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=2)
+        try:
+            connection.request('POST','/tasks',body=json.dumps(request.to_document()).encode(),
+                headers={'Authorization':'Bearer fixture-private','Content-Type':'application/json'})
+            response=connection.getresponse();body=json.loads(response.read())
+            return response.status,body
+        finally:connection.close()
+    try:
+        uploaded=request('uploaded',{'_resource_manifests':[upload]},['agent_resource_open','agent_resource_read'])
+        assert post(uploaded)==(202,{'task_id':'uploaded'})
+        historic=request('historic',{'_resource_manifests':[artifact_resource(previous)],
+            '_continuation_artifacts':[previous]},['agent_resource_open','agent_resource_read'])
+        assert post(historic)[0]==400
+        accepted=request('historic-open',{'_resource_manifests':[artifact_resource(previous)],
+            '_continuation_artifacts':[previous]},['agent_resource_open'])
+        assert post(accepted)==(202,{'task_id':'historic-open'})
+        deadline=time.monotonic()+2
+        while len(received)<2 and time.monotonic()<deadline:time.sleep(.005)
+        assert set(received)=={'uploaded','historic-open'}
+    finally:
+        server.shutdown();server.server_close();thread.join(2)

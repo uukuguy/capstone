@@ -313,6 +313,9 @@ class GeneralPiHost:
                 published.add('agent_task_records_read')
             if native.get('resource_manifests'):
                 published.add('agent_resource_open')
+                historical={item['resource_id'] for item in native.get('resource_origins',())}
+                if any(item['resource_id'] not in historical for item in native['resource_manifests']):
+                    published.add('agent_resource_read')
             from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
             if native.get('systematic_diagnosis') == DIAGNOSIS_POLICY:
                 published.update(DIAGNOSIS_TOOLS)
