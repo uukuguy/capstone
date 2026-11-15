@@ -75,6 +75,10 @@ function createRangeTool(config,resources){
     const raw=await readFile(join(config.resourceReferencePath,'range-responses',key),'utf8');
     if(Buffer.byteLength(raw)>65536)throw Error('Range receipt exceeds bounds');
     const result=JSON.parse(raw),receipt=result.receipt;
+    if(result.ok===false){
+     if(result.request_id!==request_id||result.error?.schema!=='capstone-resource-range-failure/1'||!['resource_range_unavailable','resource_range_rejected','resource_range_capacity'].includes(result.error.code))throw Error('Range failure identity changed');
+     return {isError:true,content:[{type:'text',text:JSON.stringify(result)}],details:{event:'tool_result',capability:'agent_resource_read',ok:false,result,evidence_refs:[]}};
+    }
     const expected=resolve(config.resourceInputRoot,'ranges',request_id);
     if(result.ok!==true||result.path!==expected||receipt?.schema!=='capstone-resource-read/1'||receipt.task_id!==config.taskId||receipt.attempt_id!==config.resourceAttemptId||receipt.request_id!==request_id||receipt.offset!==args.offset||receipt.length!==args.length||receipt.thread_id!==resource.thread_id||JSON.stringify(canonical(receipt.resource))!==JSON.stringify(canonical(resource)))throw Error('Range receipt identity changed');
     const file=await open(expected,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);

@@ -954,13 +954,24 @@ class HttpGeneralPiExecutor:
                         checked_request(range_request,catalog)
                         manifest=catalog[range_request['resource_id']]
                         from types import SimpleNamespace
+                        from .resource_range_contract import ResourceRangeRejected
+                        from .application_capacity import CapacityExceeded
                         range_control=SimpleNamespace(task_id=request.task_id,checkpoint=checkpoint)
-                        reply=resource_reader.read_range(manifest,range_request,range_control)
-                        document={'task_id':request.task_id,'request':range_request,
-                            'receipt':reply['receipt'],'content_base64':base64.b64encode(reply['content']).decode('ascii')}
-                        checked_reply(document,range_request,manifest,request.task_id)
-                        if reply['receipt']['attempt_id']!=request.parent_attempt_id:
-                            raise ValueError('range attempt identity changed')
+                        try:
+                            reply=resource_reader.read_range(manifest,range_request,range_control)
+                        except (ResourceRangeRejected,CapacityExceeded) as error:
+                            if isinstance(error,CapacityExceeded):
+                                if error.mode=='debug' or not error.dimension.startswith('resource_read_'):raise
+                                code='resource_range_capacity'
+                            else:code=error.code
+                            document={'task_id':request.task_id,'request':range_request,
+                                'error':{'schema':'capstone-resource-range-failure/1','code':code}}
+                        else:
+                            document={'task_id':request.task_id,'request':range_request,
+                                'receipt':reply['receipt'],'content_base64':base64.b64encode(reply['content']).decode('ascii')}
+                            checked_reply(document,range_request,manifest,request.task_id)
+                            if reply['receipt']['attempt_id']!=request.parent_attempt_id:
+                                raise ValueError('range attempt identity changed')
                         checkpoint()
                         acknowledgement=exchange('POST','/range-inputs',operation='resource_range',document=document,
                             timeout=self._exchange_timeout,research_transport=True)

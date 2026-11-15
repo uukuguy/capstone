@@ -59,3 +59,20 @@ test('historical resources keep whole-file open without uploaded range grants',(
  const range=createResourceReferenceTools(config).find(tool=>tool.name==='agent_resource_read');
  assert.deepEqual(range.parameters.properties.resource_id.enum,[uploaded.resource_id]);
 });
+
+test('range failure becomes a bounded tool error without successful source claim',async()=>{
+ const {createHash}=await import('node:crypto');
+ const root=await mkdtemp(join(tmpdir(),'range-rejection-'));
+ try{
+  for(const dir of ['range-requests','range-responses'])await mkdir(join(root,dir));
+  const resource={resource_id:'resource_'+'a'.repeat(32),size_bytes:100};
+  const request_id=createHash('sha256').update(JSON.stringify(['range','failure-call'])).digest('hex');
+  const failure={ok:false,request_id,error:{schema:'capstone-resource-range-failure/1',code:'resource_range_capacity'}};
+  await writeFile(join(root,'range-responses',request_id+'.json'),JSON.stringify(failure));
+  const tool=createResourceReferenceTools({resourceReferences:[resource],resourceReferencePath:root,resourceReadBytes:1024,deadlineAt:Date.now()+1000}).find(tool=>tool.name==='agent_resource_read');
+  const result=await tool.execute('failure-call',{resource_id:resource.resource_id,offset:0,length:1});
+  assert.equal(result.isError,true);assert.equal(result.details.ok,false);
+  assert.deepEqual(JSON.parse(result.content[0].text),failure);
+  assert.equal(result.details.result.path,undefined);
+ }finally{await rm(root,{recursive:true,force:true});}
+});

@@ -34,8 +34,10 @@ class NativeResourceReferences:
     def pending_ranges(self):
         from .native_resource_ranges import checked_request
         result=[]
-        for path in islice((self.root/'range-requests').glob('*.json'),limits.rpc_batch_requests):
-            if not re.fullmatch(r'[a-f0-9]{64}\.json',path.name):continue
+        eligible=(path for path in (self.root/'range-requests').glob('*.json')
+                  if re.fullmatch(r'[a-f0-9]{64}\.json',path.name)
+                  and path.stem not in self.range_completed)
+        for path in islice(eligible,limits.rpc_batch_requests):
             fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
             with os.fdopen(fd,'rb') as incoming:raw=incoming.read(4097)
             if len(raw)>4096:raise ValueError('range request exceeds bounds')
@@ -56,6 +58,15 @@ class NativeResourceReferences:
         if key in self.range_completed:
             if self.range_completed[key]!=document:raise ValueError('range response changed')
             return {'ok':True}
+        if 'error' in document:
+            error=document['error']
+            if (set(document)!={'task_id','request','error'} or not isinstance(error,dict)
+                    or set(error)!={'schema','code'} or error['schema']!='capstone-resource-range-failure/1'
+                    or error['code'] not in {'resource_range_unavailable','resource_range_rejected','resource_range_capacity'}):
+                raise ValueError('range failure is invalid')
+            self._reply(key+'.json',{'ok':False,'request_id':key,'error':error},folder='range-responses')
+            self.range_completed[key]=document
+            return {'ok':True}
         receipt,data=checked_reply(document,request,self.resources[request['resource_id']],self.task_id)
         if self.attempt_id is not None and receipt['attempt_id']!=self.attempt_id:
             raise ValueError('range attempt identity changed')
@@ -67,13 +78,12 @@ class NativeResourceReferences:
         with os.fdopen(fd,'wb') as outgoing:outgoing.write(data)
         os.chown(target,os.getuid(),self.gid)
         result={'ok':True,'receipt':receipt,'path':str(target)}
-        response=self.root/'range-responses'/(key+'.json')
-        response.write_text(json.dumps(result));os.chown(response,os.getuid(),self.gid);response.chmod(0o440)
+        self._reply(key+'.json',result,folder='range-responses')
         self.range_completed[key]=document
         return {'ok':True}
 
-    def _reply(self, name, result):
-        target=self.root/'responses'/name
+    def _reply(self, name, result, *, folder='responses'):
+        target=self.root/folder/name
         temporary=target.with_suffix('.tmp')
         temporary.write_text(json.dumps(result,ensure_ascii=False))
         os.chown(temporary,os.getuid(),self.gid);temporary.chmod(0o440)

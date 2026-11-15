@@ -26,7 +26,7 @@ def test_protected_http_range_delivery(tmp_path):
         'resource_id':resource['resource_id'],'offset':4000,'length':len(data)}
     (port.root/'range-requests'/('a'*64+'.json')).write_text(json.dumps(request))
     assert port.pending_ranges()==[request]
-    receipt={'schema':'capstone-resource-read/1','read_id':'read_test','thread_id':'thr_test',
+    receipt={'schema':'capstone-resource-read/1','read_id':'read_'+'c'*32,'thread_id':'thr_test',
         'attempt_id':'attempt','task_id':'task','request_id':request['request_id'],'resource':resource,
         'offset':request['offset'],'length':len(data),'sha256':sha256(data).hexdigest(),
         'preview':{'bytes_read':len(data),'truncated':False,'status':'text','text':data.decode()}}
