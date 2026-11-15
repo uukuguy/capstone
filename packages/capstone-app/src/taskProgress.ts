@@ -81,10 +81,31 @@ export function projectTaskStepDiagnostics(events: readonly EventEnvelope[], att
 
 // Project committed public work records. Do not invent a stage from tool names.
 export function projectTaskProgress(events: readonly EventEnvelope[], attemptId: string): TaskProgress[] {
+  const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0
+  const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
   const previous = new Map<string, { text: string; refs: string[]; id?: string }>()
   const revisions = new Map<string, number>()
   const output: TaskProgress[] = []
+  const delivered = new Set<string>()
   for (const event of events) {
+    if (event.eventType === 'historical_input_delivered') {
+      const receipt=event.payload, resource=receipt.resource, source=receipt.source
+      if (event.visibility==='public' && event.attemptId===attemptId &&
+          receipt.schema==='capstone-historical-input-delivery/1' && receipt.thread_id===event.threadId &&
+          receipt.attempt_id===attemptId && text(receipt.task_id) && text(receipt.receipt_id) &&
+          /^[a-f0-9]{64}$/.test(receipt.receipt_id) && !delivered.has(receipt.receipt_id) &&
+          object(resource) && object(source) && resource.thread_id===event.threadId && source.thread_id===event.threadId &&
+          resource.schema==='capstone-resource/1' && resource.version===1 && text(resource.file_name) &&
+          resource.file_name.length<=255 && source.file_name===resource.file_name && text(source.attempt_id) &&
+          source.attempt_id!==attemptId && text(source.artifact_id) && text(source.work_id) &&
+          Number.isSafeInteger(resource.size_bytes) && Number(resource.size_bytes)>=0 && source.size_bytes===resource.size_bytes &&
+          text(resource.sha256) && /^[a-f0-9]{64}$/.test(resource.sha256) && source.sha256===resource.sha256) {
+        delivered.add(receipt.receipt_id)
+        output.push({id:receipt.receipt_id,sequence:event.eventSeq,kind:'observation',refs:[],
+          text:`历史输入已交付：${resource.file_name}（版本 ${resource.version}，${resource.size_bytes} 字节）。仅确认交付，不代表完整分析或成果派生。`})
+      }
+      continue
+    }
     const nativeProgress=event.eventType==='runtime_event'&&event.payload.native_type==='tool_execution_end'
       &&event.payload.tool_name==='agent_task_progress'&&event.payload.is_error===false
     if (event.visibility==='public' && event.attemptId === attemptId && (nativeProgress ||

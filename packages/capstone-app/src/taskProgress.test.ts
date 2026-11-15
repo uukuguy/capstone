@@ -6,6 +6,19 @@ const snapshot = (revision: number, text: string) => ({ research_id: 'study', re
 const update = (seq: number, attempt: string, revision: number, text: string): EventEnvelope => ({ eventId: `evt_${seq}`, eventSeq: seq, eventType: 'research_state_updated', eventVersion: 1, threadId: 'thread', runId: 'run', attemptId: attempt, occurredAt: '2026-10-13T05:00:00Z', visibility: 'public', payload: { research_id: 'study', research_revision: revision, goal: '检查故障影响', current_note_ids: ['observation'], research_snapshot: snapshot(revision, text) } })
 
 describe('task progress from committed research', () => {
+  it('restores delivered historical inputs once without asserting analysis or derivation', () => {
+    const event: EventEnvelope = {...update(2, 'current', 1, ''), eventType:'historical_input_delivered', payload:{
+      schema:'capstone-historical-input-delivery/1', receipt_id:'a'.repeat(64), thread_id:'thread', attempt_id:'current', task_id:'task_one',
+      resource:{schema:'capstone-resource/1',resource_id:'resource_one',thread_id:'thread',version:1,file_name:'data.csv',size_bytes:3,sha256:'b'.repeat(64)},
+      source:{thread_id:'thread',attempt_id:'old',artifact_id:'file_old',work_id:'work_one',source_status:'completed',file_name:'data.csv',size_bytes:3,sha256:'b'.repeat(64)}}}
+    const progress=projectTaskProgress([event,event], 'current')
+    expect(progress).toHaveLength(1)
+    expect(progress[0].text).toContain('历史输入已交付：data.csv')
+    expect(progress[0].text).toContain('不代表完整分析或成果派生')
+    expect(projectTaskProgress([event],'other')).toEqual([])
+    expect(projectTaskProgress([{...event,visibility:'diagnostic'}],'current')).toEqual([])
+    expect(projectTaskProgress([{...event,payload:{...event.payload,attempt_id:'other'}}],'current')).toEqual([])
+  })
   it('does not render retained runtime dispatch or checkpoint notes from historical events as progress', () => {
     const event = update(1, 'current', 1, 'Coverage is incomplete')
     const state = snapshot(1, 'Coverage is incomplete')

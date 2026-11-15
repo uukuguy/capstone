@@ -10,6 +10,49 @@ def manifest(data):
         'version':1,'file_name':'data.csv','size_bytes':len(data),'sha256':sha256(data).hexdigest()}
 
 
+@pytest.mark.parametrize('bad_completion', [False, True])
+def test_delivery_callback_requires_exact_completion(tmp_path, monkeypatch, bad_completion):
+    import time
+    from capstone_agent.pi_delegation import HttpGeneralPiExecutor
+    from capstone_agent.request_intent import NodeControl
+    data = b'original bytes'
+    resource = manifest(data)
+    store = NativeResourceStaging(tmp_path)
+    executor = HttpGeneralPiExecutor('http://localhost:1', identity={'engine': 'fixture'}, capability={})
+    delivered = []
+    def reader(_):
+        yield data
+    reader.record_delivery = lambda task, value: delivered.append((task, value))
+    def call(method, path, *, document, **kwargs):
+        result = store.control(document)
+        return {} if bad_completion and document['operation'] == 'complete' else result
+    monkeypatch.setattr(executor, '_call', call)
+    if bad_completion:
+        with pytest.raises(ValueError, match='completion receipt mismatch'):
+            executor.stage_resources('task', [resource], reader, NodeControl(lambda: None, time.monotonic()+2))
+        assert delivered == []
+    else:
+        executor.stage_resources('task', [resource], reader, NodeControl(lambda: None, time.monotonic()+2))
+        assert delivered == [('task', resource)]
+
+
+def test_delivery_persistence_failure_is_fatal(tmp_path, monkeypatch):
+    import time
+    from capstone_agent.pi_delegation import HttpGeneralPiExecutor
+    from capstone_agent.request_intent import NodeControl
+    resource = manifest(b'x')
+    store = NativeResourceStaging(tmp_path)
+    executor = HttpGeneralPiExecutor('http://localhost:1', identity={'engine': 'fixture'}, capability={})
+    def reader(_):
+        yield b'x'
+    def reject(*_):
+        raise OSError('ledger unavailable')
+    reader.record_delivery = reject
+    monkeypatch.setattr(executor, '_call', lambda method, path, *, document, **kw: store.control(document))
+    with pytest.raises(RuntimeError, match='receipt persistence failed'):
+        executor.stage_resources('task', [resource], reader, NodeControl(lambda: None, time.monotonic()+2))
+
+
 def test_resource_stage_restart_exact_identity_and_readonly_source(tmp_path):
     data = b'x' * CHUNK_BYTES + b'end'
     resource = manifest(data)

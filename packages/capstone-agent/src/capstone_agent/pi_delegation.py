@@ -826,6 +826,15 @@ class HttpGeneralPiExecutor:
             receipt = call('complete')
             if receipt != {'resource_id':resource['resource_id'],'sha256':resource['sha256'],'size_bytes':total}:
                 raise ValueError('resource completion receipt mismatch')
+            record_delivery = getattr(reader, 'record_delivery', None)
+            if callable(record_delivery):
+                # The callback records acknowledged delivery, not model analysis.
+                # It must run after exact completion and must not be swallowed
+                # by the recoverable source-unavailable path in _execute.
+                try:
+                    record_delivery(task_id, resource)
+                except Exception as error:
+                    raise RuntimeError('resource delivery receipt persistence failed') from error
 
     def execute_with_research(self, request, control, on_event, bridge):
         return self._execute(request, control, on_event, bridge)
