@@ -7745,3 +7745,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-15 实际dev dc2aa71a规范重建同镜像636f0cb736dc；App5173恢复采用v4及精确行源，原表回读一致，doctor/缓存维护通过。
 
 - 2026-11-15 实现/设计分支合入后关闭；恢复工作树detached dc2aa71a，草稿42b8f54f/0f46f231保留；治理收口分支以dev为目标。
+
+- 2026-11-15 PR114收口合入51fc1cc1，文档CI43678586237通过130秒；实际dev同步，产品与已验dc2aa71a一致，旧收口回执554673f2保留。
+
+- 2026-11-15 实际dev图确认HEAD51fc1cc1与部署dc2aa71a分离，行引用目标完成；大资源审查确认上传/GB扫描已有，首期范围读取提案待复核。

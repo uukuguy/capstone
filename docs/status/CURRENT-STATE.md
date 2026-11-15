@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: structured result row references and local analysis governance closeout, owned by capstone-agent/capstone-app. PR113 is integrated into dev dc2aa71a; actual dev rebuild and report/source recovery passed. Product branch is closed; final control receipts await integration.
+- Active work package: resource range-read design research, owned by capstone-agent/capstone-app, targeting reviewed design delivery to dev. Planning-only backlog; implementation has not started. Row references are complete through PR113/114 on dev51fc1cc1; runtime remains verified dc2aa71a with identical product code.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

@@ -1,6 +1,8 @@
 # docs/status INDEX
 
-当前收口：[结构化行引用](../superpowers/plans/2026-11-15-result-row-selection.md)。PR113已合入dev dc2aa71a；获批macOS CI43650887728通过212秒。实际dev重建、报告v4采用及原表来源恢复通过；产品分支关闭，待控制回执集成。见[验证记录](../reviews/2026-11-15-result-row-local.md)。
+当前设计研究：[大资源范围读取](../superpowers/specs/2026-11-15-resource-range-read-design.md)。复用已实现的分片上传与原生执行，范围读取/持久回执协议待复核，未开始实施。
+
+已完成：[结构化行引用](../superpowers/plans/2026-11-15-result-row-selection.md)。PR113实现及PR114收口已进入dev51fc1cc1；两次获批macOS CI通过，实际dev报告v4与原表来源恢复通过，全部相关分支关闭。见[验证记录](../reviews/2026-11-15-result-row-local.md)。
 
 当前实施：[成果对照与采用](../superpowers/plans/2026-11-14-product-comparison-adoption.md)，系列归属与来源分离、显式采用及恢复；分支feat/product-comparison-adoption-20261114，目标dev，本地真实续作/采用/恢复通过，PR111已合入dev c6167e5e，macOS CI43613326116通过139秒，实际dev重建及采用恢复通过。见[验证记录](../reviews/2026-11-14-product-adoption-local.md)。
 

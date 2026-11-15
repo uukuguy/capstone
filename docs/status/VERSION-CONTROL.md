@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-11-15 结构化表格行引用与局部分析已由PR113合入dev dc2aa71a。受检acc3bd30，产品419b07b8；获批macOS CI43650887728通过212秒，185后端/255前端/271治理通过。实际dev规范重建及5173报告/原表来源恢复通过；实现与设计分支关闭，恢复工作树及草稿保留，待治理回执集成。云端/demo未变。
+2026-11-15 结构化表格行引用与局部分析完成：PR113实现合dc2aa71a，PR114收口合51fc1cc1，实际dev与origin/dev同步。实现CI通过212秒，文档CI43678586237通过130秒。实际运行仍为已验dc2aa71a/镜像636f0cb736dc，后续只有文档变化；全部行引用分支关闭，恢复资料保留。大资源下一包处于范围核对，未开始实现。云端/demo未变。
 
 2026-11-15 最终收口PR112已合入dev 41ebc822；文档CI43617777424通过148秒。实际dev同步；产品与受检7e57641f/已重建c6167e5e一致，运行来源c6167e5e保留。研究/实施工作树仅为回执恢复源。
 
@@ -1663,6 +1663,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
 | 113 | shared-agent | feat/result-row-selection-20261115 | dev | MERGED | dc2aa71a；受检acc3bd30；获批macOS CI43650887728通过212秒，185后端/255前端/271治理通过，云端/demo不变 |
+| 114 | shared-agent | docs/result-row-closeout-20261115 | dev | MERGED | 51fc1cc1；受检ffc35a20；文档CI43678586237通过130秒，实际dev同步，产品与dc2aa71a一致，分支关闭 |
 | 108 | shared-agent | docs/preserved-design-records | dev | MERGED | 9c855eb2；受检9bde7474；macOS治理CI43573233405通过118秒；文档及9设计原件归档，精确README门禁修正 |
 | 107 | shared-agent | docs/v1.1.0-acceptance-closeout | dev | MERGED | 0d682556；受检eb5c3697；macOS文档CI43571511523通过；本机验收和控制图归档 |
 | 106 | shared-agent | chore/v1.1.0-dev-return | dev | MERGED | 20b6cbc0；受检7b4081e6；macOS治理CI43570026586通过118秒，产品/发布套件按范围跳过 |
@@ -1734,7 +1735,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| docs/result-row-closeout-20261115 | 活动治理收口；目标dev | 所有者capstone-agent/capstone-app；基于dc2aa71a，记录PR113与实际dev验收，产品代码无变化 | 本地链接/doctor/图检查后提交；单独申请一次文档macOS CI | shared-agent |
+| research/resource-range-design-20261115 | 独立设计研究；目标dev | 所有者capstone-agent/capstone-app；基于51fc1cc1，范围读取/持久回执提案，未开始实现 | 用户复核书面协议后编写实施计划；规划保留backlog，不启动CI或云端发布 | shared-agent |
+| docs/result-row-closeout-20261115 | PR114合入后已关闭 | 受检ffc35a20，合并51fc1cc1；文档CI43678586237通过130秒；所有者capstone-agent/capstone-app，目标dev完成 | 回执stash554673f2与原始恢复资料保留；非活动交付 | shared-agent |
 | feat/result-row-selection-20261115 | PR113合入后已关闭 | 受检acc3bd30，产品419b07b8，dev合并dc2aa71a；CI通过212秒，原远端实现引用已删除 | 恢复工作树detached dc2aa71a；草稿stash42b8f54f/0f46f231保留，非活动实现 | shared-agent |
 | docs/result-row-selection-design-20261115 | 设计已接受并关闭 | a4c71edb已通过PR113进入dev；所有者capstone-agent/capstone-app，目标dev完成 | 设计/计划保留在dev，后续只在新工作包启动实现 | shared-agent |
 | feat/product-comparison-adoption-20261114 | PR111已合入；目标dev已接受 | 受检7e57641f，合并c6167e5e；CI43613326116通过139秒；独立复审无阻塞 | 保留工作树未提交回执；不再作为活动实现 | shared-agent |

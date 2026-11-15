@@ -2,7 +2,7 @@
 
 Goal: exact structured result rows flow through existing task submission, local analysis, source inspection and product adoption.
 
-Owner: capstone-agent/capstone-app. Destination: dev. Accepted via PR113 at dc2aa71a; one approved macOS CI43650887728 passed at acc3bd30. Actual dev rebuild and original table/report recovery passed. Product and design branches closed; recovery worktree remains detached. Final control receipts await documentation integration. Design: [row selection](../specs/2026-11-15-result-row-selection-design.md). Evidence: [verification](../../reviews/2026-11-15-result-row-local.md).
+Owner: capstone-agent/capstone-app. Destination: dev. Accepted via PR113 at dc2aa71a; approved macOS CI43650887728 passed at acc3bd30. PR114 closeout merged51fc1cc1 after approved docs CI43678586237 passed130seconds. Actual dev rebuild and original table/report recovery passed. Implementation, design and closeout branches closed; recovery worktree remains detached and synchronized51fc1cc1. Package complete; final post-merge snapshots remain local metadata without a self-referential CI cycle. Design: [row selection](../specs/2026-11-15-result-row-selection-design.md). Evidence: [verification](../../reviews/2026-11-15-result-row-local.md).
 
 ## 1. Versioned row identity and bounded resolver
 
