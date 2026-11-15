@@ -176,3 +176,44 @@ def test_postgres_recreated_service_retains_accepted_bytes(chat_store):
     recreated=PostgresThreadService(os.environ['CAPSTONE_TEST_DATABASE_URL'])
     recreated.initialize()
     assert ResourceRangeReads(recreated,objects).read(thread,claim.attempt.attempt_id,'task',resource,request)==expected
+
+def test_metadata_queries_bound_unrelated_history(chat_store,monkeypatch):
+    from capstone_agent.thread_materials import _mutate,_write_event
+    service,thread=chat_store
+    objects,resource,claim=prepared(service,thread)
+    attempt=claim.attempt.attempt_id
+    reads=ResourceRangeReads(service,objects)
+    reply=reads.read(thread,attempt,'task',resource,request_for(resource))
+    def add_history(snapshot,connection):
+        _write_event(service,snapshot,'resource_range_read',{
+            **reply['receipt'],'attempt_id':'unrelated_attempt','read_id':'read_unrelated',
+            'preview':{'text':'x'*8192}},connection)
+    for _ in range(20):
+        _mutate(service,thread,add_history)
+    observed=[]
+    original=reads._records
+    def bounded(*args,**kwargs):
+        rows=original(*args,**kwargs)
+        observed.extend(rows)
+        return rows
+    monkeypatch.setattr(reads,'_records',bounded)
+    assert reads.page(thread,attempt,1)['items']==[reply['receipt']]
+    assert reads.detail(thread,reply['receipt']['read_id'])==reply['receipt']
+    assert reads.read(thread,attempt,'task',resource,request_for(resource))==reply
+    assert observed and all(r['attempt_id']==attempt for _,r in observed)
+
+def test_source_integrity_and_missing_retained_fragment(chat_store):
+    service,thread=chat_store
+    objects,resource,claim=prepared(service,thread)
+    reads=ResourceRangeReads(service,objects)
+    key=next(key for key in objects.contents if '/0/' in key)
+    old=objects.get(key,4)
+    objects.put(key,b'xxxx','application/octet-stream')
+    with pytest.raises(ValueError,match='integrity'):
+        reads.read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
+    assert reads.page(thread,claim.attempt.attempt_id)['items']==[]
+    objects.put(key,old,'application/octet-stream')
+    reply=reads.read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
+    objects.delete(reads._key(reply['receipt']))
+    with pytest.raises((ValueError,KeyError,OSError)):
+        reads.read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
