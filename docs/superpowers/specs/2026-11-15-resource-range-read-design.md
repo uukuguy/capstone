@@ -1,6 +1,6 @@
 # 大资源范围读取与恢复：首期设计提案
 
-状态：用户于2026-11-15确认方案A及书面协议；本地实现、真实>1GB任务及恢复验证通过，待获批CI与dev集成。所有者：capstone-agent/capstone-app。研究来源：dev51fc1cc1、已审提案d4814039；实施分支feat/resource-range-reads-20261115，目标dev。交付关系：设计与本切片实现一同回流dev；不更新云端/demo。[实施计划](../plans/2026-11-15-resource-range-reads.md)与[验收记录](../../reviews/2026-11-15-resource-range-local.md)。
+状态：用户于2026-11-15确认方案A及书面协议；本地实现、真实>1GB任务及恢复验证通过；PR115已合入dev f185c080，获批定向macOS CI通过，默认5173入口已复核。所有者：capstone-agent/capstone-app。研究来源：dev51fc1cc1、已审提案d4814039；实施分支feat/resource-range-reads-20261115，目标dev。交付关系：设计与本切片实现一同回流dev；不更新云端/demo。[实施计划](../plans/2026-11-15-resource-range-reads.md)与[验收记录](../../reviews/2026-11-15-resource-range-local.md)。
 
 上位要求：[企业设计第9节](2026-10-15-enterprise-design-final.md#9-企业文件资源与任务上下文2026-10-18-用户确认)。文件容量、上传配额、处理预算和模型上下文预算必须分开。首期不代表企业大文件要求全部完成。
 

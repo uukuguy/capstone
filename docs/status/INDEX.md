@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-当前交付：[大资源范围读取](../superpowers/plans/2026-11-15-resource-range-reads.md)。真实1,077,936,128字节上传、三段12288字节模型取样、原件哈希及API/浏览器恢复通过。产品来源21b8f7c8，候选5178；本地已验收，待单次定向CI批准及dev集成。见[验收记录](../reviews/2026-11-15-resource-range-local.md)。
+当前收口：[大资源范围读取](../superpowers/plans/2026-11-15-resource-range-reads.md)已由PR115合入dev f185c080；定向macOS CI通过229秒，规范重建及默认5173报告/三条回执恢复通过。控制文档收口待集成。见[验收记录](../reviews/2026-11-15-resource-range-local.md)。
 
 已完成：[结构化行引用](../superpowers/plans/2026-11-15-result-row-selection.md)。PR113实现及PR114收口已进入dev51fc1cc1；两次获批macOS CI通过，实际dev报告v4与原表来源恢复通过，全部相关分支关闭。见[验证记录](../reviews/2026-11-15-result-row-local.md)。
 

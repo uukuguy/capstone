@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: resource range reads and durable read receipts, owned by capstone-agent/capstone-app on feat/resource-range-reads-20261115, targeting dev. Local >1GB/model/source-recovery acceptance passed; focused CI and dev integration pending. Temporary local-dev candidate uses product source21b8f7c8 and App5178. Row references remain complete through PR113/114.
+- Active work package: resource range acceptance closeout documentation. Implementation accepted in dev via PR115/f185c080; focused macOS CI passed, actual dev rebuild and default5173 report/source restoration verified. Remaining enterprise-resource processing requirements stay in the canonical backlog.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.
