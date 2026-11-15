@@ -7775,3 +7775,9 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-15 真实模型7096c738完成三段12288字节读取并存报告；API重启/浏览器来源恢复及1GB原件完整哈希通过；来源位置/分项计数修正[21b8f7c8]85项通过，最终重建中。
 
 - 2026-11-15 最终21b8f7c8规范重建同镜像04085d24f54b就绪、缓存apply；82定向App检查及新来源计数/刷新截图通过，回执与报告字节相同，测试DB已停。
+
+- 2026-11-15 Approved macOS resource-ranges CI43686809091 passed229s; PR115 mergedf185c080, dev synchronized; source branches closed, recovery preserved.
+
+- 2026-11-15 Devf185c080 canonical rebuild ready; API/three workers5517fe25 match, default5173 report/three receipts restored; cacheapply verified.
+
+- 2026-11-15 Actual dev graphf185c080 inspected; local docs scope, links, symlink, diff whitespace and doctor passed; closeout prepared.
