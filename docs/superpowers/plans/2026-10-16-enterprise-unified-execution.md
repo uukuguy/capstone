@@ -1,6 +1,6 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Historical input delivery receipts — active, 2026-11-15
+## Historical input delivery receipts — integrated, 2026-11-15
 
 Owner capstone-agent/capstone-app; branch `feat/historical-input-receipts-20261115`,
 destination dev. User approved the [receipt design](../specs/2026-11-15-historical-input-receipts-design.md).
@@ -9,13 +9,18 @@ execution-detail restoration, without asserting analysis or product derivation.
 Canonical rebuild and real two-turn continuation passed. Two exact delivery
 receipts restore in the existing Vivaldi tab after reload; seven downloads and
 CSV totals31/62 verified. Local focused gate104 backend/73App and types passed.
-Next step: explicit approval for one focused macOS historical-inputs CI run,
-then dev PR integration. No CI or merge is recorded; cloud/demo unchanged.
+Approved macOS historical-inputs CI43704515136 passed149seconds; PR117 merged
+5798dad6 into actual dev. Source branch closed; recovery52561c4c preserves root
+drafts. Actual dev rebuild, same-image identity and default Vivaldi/5173 two
+receipt/seven-download restoration passed. Documentation/control
+closeout belongs to docs/historical-input-closeout-20261115, owner shared-agent,
+destination dev; acceptance is focused docs/link/graph checks and separate CI
+approval. No cloud/demo update or release acceptance is recorded.
 Evidence: [local verification](../../reviews/2026-11-15-historical-input-delivery-local.md).
 
 ## Resource range reading — active implementation, 2026-11-15
 
-Owner capstone-agent/capstone-app. Bounded uploaded-resource reads and durable receipts are accepted in dev through PR115/f185c080, tested6f5605d4. Approved focused macOS CI43686809091 passed229seconds. Actual dev canonical rebuild and default5173 report/source restoration passed; API/three workers share image5517fe25971f. Real1,077,936,128-byte upload, model12288-byte sample, exact report/source recovery and source hash passed. [Plan](2026-11-15-resource-range-reads.md), [design](../specs/2026-11-15-resource-range-read-design.md) and [acceptance](../../reviews/2026-11-15-resource-range-local.md) retain exact evidence. Source branches are closed with recovery worktree/stashes preserved. Next: integrate documentation closeout through a separate approved docs-only CI; no second CI is authorized. Full processing checkpoints, sharded indexes and remote scale acceptance remain separate unmet requirements.
+Owner capstone-agent/capstone-app. Bounded uploaded-resource reads and durable receipts are accepted in dev through PR115/f185c080, tested6f5605d4. Approved focused macOS CI43686809091 passed229seconds. Actual dev canonical rebuild and default5173 report/source restoration passed; API/three workers share image5517fe25971f. Real1,077,936,128-byte upload, model12288-byte sample, exact report/source recovery and source hash passed. [Plan](2026-11-15-resource-range-reads.md), [design](../specs/2026-11-15-resource-range-read-design.md) and [acceptance](../../reviews/2026-11-15-resource-range-local.md) retain exact evidence. Source branches are closed with recovery worktree/stashes preserved. Closeout PR116 is merged at e0fc951e after separately approved macOS docs CI43689071826 passed77seconds. All source branches are closed; the actual dev checkout and control graph are synchronized. No active successor implementation is selected. Full processing checkpoints, sharded indexes and remote scale acceptance remain separate unmet requirements.
 
 ## Structured result row references — 2026-11-15
 

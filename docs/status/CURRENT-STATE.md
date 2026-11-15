@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: resource range acceptance closeout documentation. Implementation accepted in dev via PR115/f185c080; focused macOS CI passed, actual dev rebuild and default5173 report/source restoration verified. Remaining enterprise-resource processing requirements stay in the canonical backlog.
+- Active work package: historical input delivery control closeout, owned by shared-agent; documentation branch targets dev. Runtime receipt implementation is integrated through PR117. Keep acknowledged delivery distinct from model analysis and product derivation. Remaining resource processing and full execution-chain acceptance stay in the backlog.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

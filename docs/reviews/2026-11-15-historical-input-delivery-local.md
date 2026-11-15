@@ -1,8 +1,27 @@
 # Historical input delivery: local verification
 
-Status: local implementation and real-task verification passed; not merged into
-dev, no CI run and no cloud/demo update. Product source: `492b78e2`, based on
-actual dev `e0fc951e`. Owner: capstone-agent/capstone-app; destination: dev.
+Status: PR117 merged into dev5798dad6 after approved macOS CI43704515136 passed
+149seconds on tested source6625c0bb. Actual dev rebuild and existing-tab restore
+passed. No cloud/demo update. Product source492b78e2, basee0fc951e.
+Owner: capstone-agent/capstone-app; destination: dev.
+
+## Merged dev verification
+
+Actual dev and origin/dev synchronized at5798dad6. Canonical rebuild passed;
+API and three workers share image
+`sha256:1cd6589b0c8b6194fab93f8c0412275bcecd7cf076ebee142eba6ecd1f7a8eb1`.
+The existing real Thread restored after refresh in default Vivaldi/5173 with
+App revision5798dad6 and both historical delivery messages. Seven downloads
+retained their exact sizes and hashes. No new model run was needed for this
+same-product restoration. Scoped cache cleanup modeapply is recorded.
+
+Source branch closed locally and remotely. Root drafts were fully preserved in
+stash52561c4cfdc6c1c2ad38c66b5db3706866ea9007. Runtime package paths are clean
+on actual dev; only control/documentation closeout remains. Machine receipts:
+`runs/historical-input-validation-20261115/ci-43704515136.json`,
+`pr117-merged.json`, `postmerge-acceptance.json` and
+`postmerge-refreshed-restored.json`. The sections below retain the original
+candidate verification; their “not merged” state describes that earlier stage.
 
 ## Behavior and boundary
 
@@ -69,7 +88,6 @@ agent tool selected an unavailable model; there is no independent review result.
 No claim of whole-file analysis, output derivation, service-restart acceptance,
 remote scale acceptance or full release acceptance is made.
 
-Next: obtain explicit approval for one focused macOS `historical-inputs` CI run,
-then prepare the dev PR and integrate only after the approved gate passes.
-Do not trigger CI through push/PR updates before that approval. Preserve the
-root temporary patch until accepted integration or explicit rollback.
+The product CI and merge above are complete. Next: independently approve the
+documentation closeout's focused macOS docs gate before its PR can trigger CI.
+The initial one-run approval is exhausted. No second CI has started.
