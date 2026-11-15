@@ -12,6 +12,7 @@ from .application_capacity import limits, require_capacity
 from .resource_manifest import checked_resource
 from .thread_materials import _mutate, _write_event
 from .thread_resources import ResourceUploads
+from .resource_range_contract import ResourceRangeRejected, ResourceRangePersistenceError, preview_for
 
 # A timeout must not allow an unbounded number of blocked storage operations.
 _IO = ThreadPoolExecutor(max_workers=8, thread_name_prefix='resource-range')
@@ -23,11 +24,11 @@ class ResourceRangeReads:
     def __init__(self, service, objects):
         self.service, self.objects = service, objects
 
-    def _io(self, fn, deadline, checkpoint):
+    def _io(self, fn, deadline, checkpoint, *, on_abandon=None):
         checkpoint()
         remaining = deadline - time.monotonic()
         if remaining <= 0 or not _SLOTS.acquire(blocking=False):
-            raise ValueError('resource range I/O deadline or capacity exceeded')
+            raise ResourceRangeRejected('resource range I/O deadline or capacity exceeded','resource_range_unavailable')
         def execute():
             try:
                 return fn()
@@ -38,17 +39,22 @@ class ResourceRangeReads:
         except BaseException:
             _SLOTS.release()
             raise
-        while True:
-            checkpoint()
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ValueError('resource range I/O deadline exceeded')
-            try:
-                result = future.result(timeout=min(remaining, 0.05))
+        try:
+            while True:
                 checkpoint()
-                return result
-            except TimeoutError:
-                continue
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ResourceRangeRejected('resource range I/O deadline exceeded','resource_range_unavailable')
+                try:
+                    result = future.result(timeout=min(remaining, 0.05))
+                    checkpoint()
+                    return result
+                except TimeoutError:
+                    continue
+        except BaseException:
+            if on_abandon is not None:
+                future.add_done_callback(lambda _: on_abandon())
+            raise
 
     def _records(self, thread, connection=None, *, attempt=None, request_id=None, read_id=None, after=0, limit=1025):
         if hasattr(self.service, '_lock'):
@@ -94,9 +100,9 @@ class ResourceRangeReads:
                                         (thread, attempt)).fetchone()
             submission = None if record is None else record['submission_snapshot']
         if record is None:
-            raise ValueError('attempt not found in this Thread')
+            raise ResourceRangeRejected('attempt not found in this Thread')
         if manifest is not None and manifest not in [checked_resource(r) for r in (submission or {}).get('_resource_manifests', [])]:
-            raise ValueError('resource not admitted for this attempt')
+            raise ResourceRangeRejected('resource not admitted for this attempt')
 
     @staticmethod
     def _key(receipt):
@@ -112,7 +118,7 @@ class ResourceRangeReads:
                 or request['offset'] < 0 or request['length'] <= 0
                 or request['offset'] + request['length'] > min(canonical['size_bytes'], 9007199254740991)
                 or not isinstance(task_id, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', task_id)):
-            raise ValueError('invalid resource range request')
+            raise ResourceRangeRejected('invalid resource range request')
         require_capacity('resource_read_bytes', request['length'], phase='resource.read')
         deadline = time.monotonic() + limits.resource_read_io_seconds
         checkpoint()
@@ -125,7 +131,7 @@ class ResourceRangeReads:
             for _, receipt in records:
                 if receipt['attempt_id'] == attempt_id:
                     if any(receipt[k] != v for k, v in expected.items()):
-                        raise ValueError('resource range request conflict')
+                        raise ResourceRangeRejected('resource range request conflict')
                     return receipt
             used,count = self._usage(thread_id,attempt_id,connection)
             require_capacity('resource_read_attempt_bytes', used + request['length'], phase='resource.read')
@@ -133,51 +139,105 @@ class ResourceRangeReads:
             return None
         previous = _mutate(self.service, thread_id, find)
         def recover(receipt):
-            data = self._io(lambda: self.objects.get(self._key(receipt), receipt['length']), deadline, checkpoint)
+            try:
+                data = self._io(lambda: self.objects.get(self._key(receipt), receipt['length']), deadline, checkpoint)
+            except (OSError,KeyError,ValueError) as error:
+                raise ResourceRangePersistenceError('retained resource range is unavailable') from error
             if len(data) != receipt['length'] or sha256(data).hexdigest() != receipt['sha256']:
-                raise ValueError('retained resource range integrity failed')
+                raise ResourceRangePersistenceError('retained resource range integrity failed')
             return {'receipt': receipt, 'content': data}
         if previous:
             return recover(previous)
         uploads = ResourceUploads(self.service, self.objects)
         uid = 'upload_' + canonical['resource_id'].removeprefix('resource_')
-        state = uploads._state(thread_id, uid, include_parts=False)
+        try:
+            state = uploads._state(thread_id, uid, include_parts=False)
+        except ValueError as error:
+            raise ResourceRangeRejected('resource range source is unavailable','resource_range_unavailable') from error
         if state['state'] != 'complete' or checked_resource(state.get('resource')) != canonical:
-            raise ValueError('published resource identity changed')
+            raise ResourceRangeRejected('published resource identity changed','resource_range_unavailable')
         end = request['offset'] + request['length']
         fragments = []
         for index in range(request['offset'] // state['chunk_bytes'], (end + state['chunk_bytes']-1)//state['chunk_bytes']):
             part_state = uploads._state(thread_id, uid, part_index=index)
             part = part_state['parts'][index]
-            data = self._io(lambda p=part: uploads._bytes(thread_id, uid, p), deadline, checkpoint)
+            try:
+                data = self._io(lambda p=part: uploads._bytes(thread_id, uid, p), deadline, checkpoint)
+            except ResourceRangeRejected:
+                raise
+            except (OSError,KeyError,ValueError) as error:
+                raise ResourceRangeRejected('resource range source integrity or availability failed','resource_range_unavailable') from error
             start = index * state['chunk_bytes']
             fragments.append(data[max(0,request['offset']-start):min(len(data),end-start)])
         content = b''.join(fragments)
         if len(content) != request['length']:
             raise ValueError('resource range length changed')
-        sample = content[:limits.resource_read_preview_bytes]
-        status, text = 'text', None
-        try:
-            text = sample.decode('utf-8')
-            if '\x00' in text:
-                status, text = 'binary', None
-        except UnicodeDecodeError:
-            status = 'invalid-UTF8'
         receipt = dict(schema='capstone-resource-read/1', read_id='read_' + secrets.token_hex(16), **expected,
-                       sha256=sha256(content).hexdigest(), preview=dict(bytes_read=len(sample),
-                       truncated=len(sample)<len(content), status=status, text=text))
-        self._io(lambda: self.objects.put(self._key(receipt), content, 'application/octet-stream'), deadline, checkpoint)
-        # Read back before acceptance. Storage corruption cannot create an accepted receipt.
-        recover(receipt)
+                       sha256=sha256(content).hexdigest(), preview=preview_for(content,limits.resource_read_preview_bytes))
+        # A crash before acceptance must leave a durable owned cleanup source.
+        _mutate(self.service,thread_id,lambda snapshot,connection: _write_event(self.service,snapshot,
+            'resource_range_candidate',dict(thread_id=thread_id,read_id=receipt['read_id'],created_at=time.time()),connection))
+        def discard():
+            self.objects.delete(self._key(receipt))
+        try:
+            self._io(lambda: self.objects.put(self._key(receipt), content, 'application/octet-stream'), deadline, checkpoint,
+                     on_abandon=discard)
+            # Read back before acceptance. Storage corruption cannot create an accepted receipt.
+            recover(receipt)
+        except BaseException as error:
+            # Unique candidate keys cannot identify another request's winner.
+            self._io(discard,time.monotonic()+limits.resource_read_io_seconds,lambda: None)
+            if isinstance(error,(OSError,KeyError,ResourceRangeRejected)):
+                raise ResourceRangePersistenceError('resource range retention failed') from error
+            raise
         def accept(snapshot, connection):
             checkpoint()
+            if time.monotonic()>=deadline:
+                raise ResourceRangeRejected('resource range acceptance deadline exceeded','resource_range_unavailable')
             previous = find(snapshot, connection)
             if previous:
                 return previous
             _write_event(self.service, snapshot, _EVENT, receipt, connection)
             return receipt
-        accepted = _mutate(self.service, thread_id, accept)
+        try:
+            accepted = _mutate(self.service, thread_id, accept)
+        except BaseException:
+            # A failed acknowledgement may follow a committed acceptance. Check
+            # the durable identity before removing any candidate object.
+            persisted=self._records(thread_id,read_id=receipt['read_id'],limit=1)
+            if not persisted:
+                self._io(discard,time.monotonic()+limits.resource_read_io_seconds,lambda: None)
+            raise
+        if accepted!=receipt:
+            self._io(discard,time.monotonic()+limits.resource_read_io_seconds,lambda: None)
         return {'receipt': accepted, 'content': content} if accepted == receipt else recover(accepted)
+
+    def reconcile(self,thread_id,*,after=0,limit=100):
+        """Remove expired unaccepted candidates; return a bounded maintenance cursor.
+
+        The grace period exceeds the maximum active storage deadline. A late
+        write in this process also has its own completion cleanup callback.
+        """
+        self.service.snapshot(thread_id)
+        if type(after) is not int or after<0 or type(limit) is not int or not 1<=limit<=100:
+            raise ValueError('invalid range reconciliation cursor')
+        cutoff=time.time()-2*limits.resource_read_io_seconds
+        if hasattr(self.service,'_lock'):
+            from itertools import islice
+            rows=[(e.event_seq,e.payload) for e in islice((e for e in self.service._events
+                if e.thread_id==thread_id and e.event_type=='resource_range_candidate' and e.event_seq>after
+                and e.payload['created_at']<cutoff),limit)]
+        else:
+            with self.service._connect() as connection:
+                rows=[(r['event_seq'],r['payload']) for r in connection.execute(
+                    "SELECT event_seq,payload FROM capstone_thread_events WHERE thread_id=%s AND event_type='resource_range_candidate' "
+                    "AND event_seq>%s AND (payload->>'created_at')::double precision<%s ORDER BY event_seq LIMIT %s",
+                    (thread_id,after,cutoff,limit)).fetchall()]
+        for _,candidate in rows:
+            if not self._records(thread_id,read_id=candidate['read_id'],limit=1):
+                self._io(lambda c=candidate:self.objects.delete(self._key(c)),
+                         time.monotonic()+limits.resource_read_io_seconds,lambda:None)
+        return rows[-1][0] if rows else after
 
     def detail(self, thread_id, read_id):
         self.service.snapshot(thread_id)

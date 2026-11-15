@@ -65,6 +65,7 @@ def test_concurrent_retry_and_quota(chat_store):
             results = [f.result() for f in futures]
         assert results[0] == results[1]
         assert len(reads.page(thread, attempt)['items']) == 1
+        assert len([k for k in objects.contents if k.startswith('resource-range-reads/')])==1
         with pytest.raises(ValueError, match='capacity'):
             reads.read(thread, attempt, 'task', resource, request_for(resource, 'd'))
     finally:
@@ -88,13 +89,13 @@ def test_cancel_persist_failure_corruption_and_scope(chat_store):
     def fail(*args):
         raise OSError('storage unavailable')
     objects.put = fail
-    with pytest.raises(OSError):
+    with pytest.raises(RuntimeError):
         reads.read(thread, attempt, 'task', resource, request_for(resource))
     assert reads.page(thread, attempt)['items'] == []
     objects.put = original
     reply = reads.read(thread, attempt, 'task', resource, request_for(resource))
     original(reads._key(reply['receipt']), b'xxxx', 'application/octet-stream')
-    with pytest.raises(ValueError, match='integrity'):
+    with pytest.raises(RuntimeError, match='integrity'):
         reads.read(thread, attempt, 'task', resource, request_for(resource))
 
 def test_blocking_io_deadline_is_bounded(chat_store):
@@ -202,6 +203,34 @@ def test_metadata_queries_bound_unrelated_history(chat_store,monkeypatch):
     assert reads.read(thread,attempt,'task',resource,request_for(resource))==reply
     assert observed and all(r['attempt_id']==attempt for _,r in observed)
 
+def test_late_retention_timeout_removes_unaccepted_object(chat_store):
+    import threading,time
+    from capstone_agent.resource_range_contract import ResourceRangePersistenceError
+    service,thread=chat_store
+    objects,resource,claim=prepared(service,thread)
+    release=threading.Event()
+    finished=threading.Event()
+    original=objects.put
+    def slow(key,*args):
+        if key.startswith('resource-range-reads/'):
+            release.wait(5)
+        original(key,*args)
+        finished.set()
+    objects.put=slow
+    initialize_capacity({'resource_read_io_seconds':1})
+    try:
+        with pytest.raises(ResourceRangePersistenceError):
+            ResourceRangeReads(service,objects).read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
+        release.set()
+        assert finished.wait(2)
+        deadline=time.monotonic()+2
+        while any(k.startswith('resource-range-reads/') for k in objects.contents) and time.monotonic()<deadline:
+            time.sleep(.01)
+        assert not any(k.startswith('resource-range-reads/') for k in objects.contents)
+    finally:
+        release.set()
+        initialize_capacity()
+
 def test_source_integrity_and_missing_retained_fragment(chat_store):
     service,thread=chat_store
     objects,resource,claim=prepared(service,thread)
@@ -215,5 +244,34 @@ def test_source_integrity_and_missing_retained_fragment(chat_store):
     objects.put(key,old,'application/octet-stream')
     reply=reads.read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
     objects.delete(reads._key(reply['receipt']))
-    with pytest.raises((ValueError,KeyError,OSError)):
+    with pytest.raises(RuntimeError):
         reads.read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
+
+def test_reconcile_discards_crashed_candidate_preserves_winner(chat_store):
+    from capstone_agent.thread_materials import _mutate,_write_event
+    service,thread=chat_store
+    objects,resource,claim=prepared(service,thread)
+    reads=ResourceRangeReads(service,objects)
+    receipt=reads.read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))['receipt']
+    orphan=dict(thread_id=thread,read_id='read_'+'f'*32,created_at=0)
+    objects.put(reads._key(orphan),b'orphan','application/octet-stream')
+    for candidate in (orphan,dict(thread_id=thread,read_id=receipt['read_id'],created_at=0)):
+        _mutate(service,thread,lambda snapshot,connection,c=candidate:
+            _write_event(service,snapshot,'resource_range_candidate',c,connection))
+    reads.reconcile(thread)
+    assert reads._key(orphan) not in objects.contents
+    assert objects.get(reads._key(receipt),4)==b'defg'
+
+def test_shared_receipt_rejects_forged_preview_and_private_fields(chat_store):
+    from capstone_agent.resource_range_contract import checked_receipt
+    service,thread=chat_store
+    objects,resource,claim=prepared(service,thread)
+    reply=ResourceRangeReads(service,objects).read(thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
+    receipt=reply['receipt']
+    assert checked_receipt(receipt,reply['content'],preview_bytes=8192)==receipt
+    for forged in ({**receipt,'private_key':'private'},
+                   {**receipt,'read_id':'arbitrary'},
+                   {**receipt,'preview':{**receipt['preview'],'truncated':0}},
+                   {**receipt,'preview':{**receipt['preview'],'text':'invented'}}):
+        with pytest.raises(ValueError):
+            checked_receipt(forged,reply['content'],preview_bytes=8192)
