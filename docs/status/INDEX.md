@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+当前验证：Harness取消、同一Work新指令、API重启与Vivaldi刷新通过；初稿保持取消标记，未发布旧final.md，两个文件摘要不变。24项定向检查含真实PostgreSQL通过。仅证据更新，无运行代码或CI；文档分支docs/harness-cancellation-acceptance-20261115目标dev。见[验证](../reviews/2026-11-15-harness-cancellation-restoration.md)。
+
+最终收口：PR118合入实际dev d718050c，获批macOS docs CI43708007107通过125秒；来源分支均关闭，根草稿恢复69739de9保留。运行来源仍为已验证5798dad6/镜像1cd6589b，本轮没有运行代码变化或新增部署。控制快照按实际dev HEAD刷新，不为嵌入快照自身提交号循环提交。下文为过程记录。
+
 历史输入交付回执已由PR117合入dev5798dad6；唯一获批macOS CI43704515136通过149秒。实际dev规范重建同镜像1cd6589b、默认Vivaldi/5173两回执与7下载恢复通过；来源分支关闭，52561c4c保留原草稿。文档收口在docs/historical-input-closeout-20261115准备，需独立批准docs CI。见[验证](../reviews/2026-11-15-historical-input-delivery-local.md)。以下记录保留候选过程。
 
 历史输入交付回执本地接受：104后端/73App及类型、规范重建、真实两条回执/7下载与Vivaldi刷新通过；未合dev，CI待单独批准。见[验证](../reviews/2026-11-15-historical-input-delivery-local.md)。下段保留实施过程。

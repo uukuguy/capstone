@@ -88,6 +88,8 @@ agent tool selected an unavailable model; there is no independent review result.
 No claim of whole-file analysis, output derivation, service-restart acceptance,
 remote scale acceptance or full release acceptance is made.
 
-The product CI and merge above are complete. Next: independently approve the
-documentation closeout's focused macOS docs gate before its PR can trigger CI.
-The initial one-run approval is exhausted. No second CI has started.
+The product CI/merge and documentation closeout are complete. PR118 merged
+devd718050c after its separately approved macOS docs CI43708007107 passed125s.
+Both source branches are closed; recovery69739de9 preserves final root drafts.
+Runtime remains the verified5798dad6; no additional build or model run is needed
+for this documentation-only merge. No further CI run is authorized or started.

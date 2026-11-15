@@ -7792,3 +7792,9 @@ check passed. No CI, integration or remote deployment performed.
 - 18:09 User approved one focused macOS run; PR117 created at6625c0bb; CI43704515136 queued through explicit Clash proxy.
 - 18:36 Correction: CI43704515136 started18:31, passed149s; PR117 merged5798dad6; root drafts preserved in52561c4c and dev synchronized.
 - 18:40 Actual dev5798dad6 rebuild ready; API/three workers1cd6589b match; Vivaldi reload/two receipts/seven downloads preserved; cleanupapply verified.
+- 18:44 Docs closeout1250ac71 prepared; docs classification, links, symlink, whitespace and doctor passed; new CI approval remains pending.
+- 19:00 User approved one docs CI; PR118 created at1250ac71; CI43708007107 started through the explicit Clash proxy.
+- 19:18 Correction: approved docs CI43708007107 started19:15, passed125s; PR118 mergedd718050c; dev synchronized, recovery69739de9 preserved.
+- 19:22 Actual devd718050c graph and exact runtime5798dad6 source edge verified in Vivaldi; both source branches closed; final snapshot preserved.
+- 22:03 Real cancellation reachedcancelled in0.55s and retained draft;24 focused checks with PostgreSQL passed; new-instruction continuation under verification.
+- 22:08 Distinct follow-up, API restart and Vivaldi refresh passed; cancelled draft and new file hashes verified; worker-crash acceptance remains open.
