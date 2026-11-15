@@ -1,3 +1,4 @@
+import type {ResourceReadClient} from './resourceReads'
 import type {RowClient} from './resultRowSelection'
 import {assertCapacity} from './applicationCapacity'
 import type {ThinkingPreview} from './thinkingPreview'
@@ -32,7 +33,7 @@ import type {ProductIndex,ProductQuery,ProductRef,ProductResolution} from './thr
 import type {BlockReader} from './productBlocks'
 import type {SeriesClient} from './productSeries'
 
-export interface ThreadTransport extends Partial<SeriesClient>, Partial<RowClient> {
+export interface ThreadTransport extends Partial<SeriesClient>, Partial<RowClient>, ResourceReadClient {
   readProductIndex?(threadId:string,query?:ProductQuery,signal?:AbortSignal):Promise<ProductIndex>
   readProductBlocks?:BlockReader
   resolveProduct?(ref:ProductRef,signal?:AbortSignal):Promise<ProductResolution>
@@ -92,6 +93,9 @@ export function buildThreadCommand(input: {
 
 export class CapstoneThreadClient {
   constructor(private readonly transport: ThreadTransport) {}
+  get supportsResourceReads(){return Boolean(this.transport.listResourceReads&&this.transport.readResourceRead)}
+  listResourceReads:NonNullable<ResourceReadClient['listResourceReads']>=(...args)=>{if(!this.transport.listResourceReads)throw new Error('资源读取来源不可用');return this.transport.listResourceReads(...args)}
+  readResourceRead:NonNullable<ResourceReadClient['readResourceRead']>=(...args)=>{if(!this.transport.readResourceRead)throw new Error('资源读取预览不可用');return this.transport.readResourceRead(...args)}
   get supportsResultRows(){return Boolean(this.transport.readResultRows&&this.transport.prepareResultRows)}
   readResultRows:RowClient['readResultRows']=(...args)=>{if(!this.transport.readResultRows)throw new Error('当前服务不支持行引用');return this.transport.readResultRows(...args)}
   prepareResultRows:RowClient['prepareResultRows']=(...args)=>{if(!this.transport.prepareResultRows)throw new Error('当前服务不支持行引用');return this.transport.prepareResultRows(...args)}

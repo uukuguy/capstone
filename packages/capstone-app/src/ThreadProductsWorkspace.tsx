@@ -1,3 +1,5 @@
+import ResourceReadSources from './ResourceReadSources'
+import type {ResourceReadClient} from './resourceReads'
 import type {RowClient} from './resultRowSelection'
 import type {ResultRowSelection} from './threadProducts'
 import {applicationCapacity,observeCapacity,rethrowDebugCapacity,CapacityError} from './applicationCapacity'
@@ -18,7 +20,7 @@ import type {LocalProductSelection} from './threadProducts'
 import ProductComparison from './ProductComparison'
 import type {SeriesClient} from './productSeries'
 
-type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean;supportsResultRows?:boolean}&Partial<SeriesClient>&Partial<RowClient>
+type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean;supportsResultRows?:boolean}&Partial<SeriesClient>&Partial<RowClient>&ResourceReadClient
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
 function newestFirst(a:ProductEntry,b:ProductEntry){
   return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
@@ -238,6 +240,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
         <ProductParagraphPicker key={`paragraphs:${viewKey}`} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}
       {view.record&&<div><p>此项是执行记录，没有文件内容。</p>{typeof view.record.instruction==='string'&&<p>{view.record.instruction}</p>}{typeof view.record.failure_code==='string'&&<p>记录尚未提供可读的原因说明，可查看原指令和执行详情。</p>}</div>}
       {view.entry.dependencies.length>0&&<details><summary>支撑成果 · {view.entry.dependencies.length}</summary>{view.entry.dependencies.map(ref=><button type="button" key={productRefKey(ref)} onClick={()=>openSource(ref)}>查看支撑{ref.scope==='task'?'交付':'产物'}{ref.revision?` v${ref.revision}`:''}</button>)}</details>}
+      {client.listResourceReads&&client.supportsResourceReads!==false&&(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)&&<ResourceReadSources key={viewKey} client={client} threadId={threadId} attemptId={(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)!} revision={revision}/>}
       <p className="thread-product-history-note">来自已保存历史；引用不会自动成为当前运行的 Authority 证据。</p>
     </article>}
   </section>

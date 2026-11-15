@@ -335,3 +335,11 @@ it('opens an exact prior instruction row source after clearing the report presen
  await waitFor(()=>expect(client.productIndex.mock.calls.length).toBeGreaterThan(2))
  expect(screen.getByRole('heading',{name:'原始线路结果'})).toBeTruthy()
 })
+it('loads read sources for the host producer Attempt and refreshes with revision',async()=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file',producer_attempt_id:'attempt_producer'}}
+ const client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null}),listResourceReads:vi.fn().mockResolvedValue({schema:'capstone-resource-read-page/1',items:[],next_cursor:null})}
+ const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1}/> )
+ await waitFor(()=>expect(client.listResourceReads).toHaveBeenCalledWith('thr_one','attempt_producer',undefined,expect.any(AbortSignal)))
+ view.rerender(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={2}/> )
+ await waitFor(()=>expect(client.listResourceReads).toHaveBeenCalledTimes(2))
+})

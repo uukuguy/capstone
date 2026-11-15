@@ -235,3 +235,12 @@ it('refreshes session gateway through one backend action and reports its actiona
  expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_gateway/gateways/refresh')
  expect(fetcher).toHaveBeenCalledTimes(1)
 })
+it('reads authenticated bounded resource pages and checks detail identity',async()=>{
+ const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({schema:'capstone-resource-read-page/1',items:[],next_cursor:null}),{headers:{'Capstone-Thread-Version':'2'}}))
+ const transport=new HttpThreadTransport('https://api.example','operator',fetcher,'/api/v1/threads','2')
+ await transport.listResourceReads('thr_one','att_one','cursor_next')
+ expect(fetcher.mock.calls[0][0]).toBe('https://api.example/api/v1/threads/thr_one/resource-reads?attempt_id=att_one&limit=20&cursor=cursor_next')
+ expect(new Headers(fetcher.mock.calls[0][1]?.headers).get('Authorization')).toBe('Bearer operator')
+ fetcher.mockResolvedValue(new Response(JSON.stringify({schema:'capstone-resource-read-page/1',items:[],next_cursor:42}),{headers:{'Capstone-Thread-Version':'2'}}))
+ await expect(transport.listResourceReads('thr_one','att_one')).rejects.toThrow('资源读取目录无效')
+})
