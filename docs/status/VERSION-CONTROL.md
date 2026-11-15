@@ -1,5 +1,9 @@
 # 多线版本控制
 
+2026-11-15 Harness取消/恢复现有契约复验通过：真实工具运行中取消后0.548秒观测终态，初稿取消标记保留；同Work新指令、API重启及Vivaldi刷新后两终态和两个文件摘要保持，无旧final.md。24项定向检查含PostgreSQL通过，无运行代码变化。证据分支docs/harness-cancellation-acceptance-20261115归shared-agent，目标dev；本轮未启动CI。[验证](../reviews/2026-11-15-harness-cancellation-restoration.md)。worker异常退出和租约回收仍为独立待验收项。
+
+2026-11-15 最终收口：PR118已合实际dev d718050c；受检1250ac71，独立批准的macOS docs CI43708007107通过125秒。dev/origin一致，两个来源分支均关闭；完整恢复69739de9与52561c4c保留。运行来源仍为已验证5798dad6/镜像1cd6589b，文档合并不等于新增部署。当前无活动实施包；下文保留过程记录。
+
 2026-11-15 实际dev5798dad6规范重建与合并后恢复通过：API/三worker同镜像1cd6589b0c8b，默认App5798dad6，Vivaldi刷新后两条交付回执和7条文件下载摘要保持。项目缓存apply通过；来源功能分支已关闭，恢复52561c4c保留。当前仅文档收口待另行批准一次docs CI；未启动第二次CI。下文保留候选与重建过程。
 
 2026-11-15 PR117已合实际dev5798dad6，唯一获批macOS historical-inputs CI43704515136通过149秒；受检6625c0bb。来源分支已正常关闭，根目录原状态草稿完整备份52561c4c并恢复；实际dev规范重建进行中。文档/控制收口分支docs/historical-input-closeout-20261115归shared-agent，目标dev，需独立批准一次docs CI；未启动第二次CI。下文候选记录为历史过程。
@@ -1344,6 +1348,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| historical-input-merge-20261115 | 5798dad6 | dev | 历史输入交付合入dev与本地运行来源 | PR117与合并后默认入口接受 | 来源6625c0bb；定向CI通过149秒；两回执/7下载/刷新与同镜像重建通过。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) | shared-agent |
 | historical-input-delivery-20261115 | 492b78e2 | feature | 历史输入交付回执产品来源 | PR117已合入5798dad6；macOS CI通过149秒 | 确认交付与持久幂等；104后端/73App及真实两回执/7下载/刷新通过。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) | shared-agent |
 | resource-range-implementation-20261115 | f185c080 | dev | 大资源范围读取与持久回执合入dev | PR115已合入；定向CI通过229秒 | 受检6f5605d4；精确读取、原生传输和来源恢复；真实1GB上传、模型12288字节取样通过。[验收](../reviews/2026-11-15-resource-range-local.md) | shared-agent |
 | resource-range-design-20261115 | d4814039 | feature | 大资源范围读取设计来源 | 书面设计已确认 | 复用现有上传和授权，提议有界范围读取及持久回执；整文件处理检查点与索引分片保留后续。[设计](../superpowers/specs/2026-11-15-resource-range-read-design.md) | shared-agent |
@@ -1531,6 +1536,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| historical-input-merge-20261115 | 已接受的dev运行来源 | dev | 历史输入交付与幂等账本；现有执行详情恢复 | PR117合5798dad6；macOS CI149秒；实际dev重建、同镜像及两回执/7下载/刷新通过 |
 | historical-input-delivery-20261115 | 已集成执行链来源 | feat/historical-input-receipts-20261115（已关闭） | 确认交付后持久幂等；执行详情恢复 | 产品492b78e2，受检6625c0bb；PR117合5798dad6；macOS CI43704515136通过149秒 |
 | resource-range-implementation-20261115 | 已接受的dev交付 | dev | 有界读取及持久回执；真实模型报告与来源恢复 | PR115合并f185c080，受检6f5605d4，macOS定向CI43686809091通过229秒 |
 | resource-range-design-20261115 | 已确认设计依赖 | research/resource-range-design-20261115 | 有界读取及持久回执设计；复用上传与原生执行 | d4814039；用户书面确认，随实现交付dev，非独立活动实现 |
@@ -1683,6 +1689,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 118 | shared-agent | docs/historical-input-closeout-20261115 | dev | MERGED | d718050c；受检1250ac71；获批macOS docs CI43708007107通过125秒；实际dev同步，运行来源5798dad6保留，分支关闭 |
 | 117 | shared-agent | feat/historical-input-receipts-20261115 | dev | MERGED | 5798dad6；受检6625c0bb；唯一获批macOS historical-inputs CI43704515136通过149秒；来源分支关闭，云端/demo未变 |
 | 116 | shared-agent | docs/resource-range-closeout-20261115 | dev | MERGED | e0fc951e；受检9d50ac5d；获批macOS docs CI43689071826通过77秒，实际dev同步，产品与f185c080一致，分支关闭 |
 | 115 | shared-agent | feat/resource-range-reads-20261115 | dev | MERGED | f185c080；受检6f5605d4；获批macOS resource-ranges CI43686809091通过229秒，360后端/82App/271治理通过；分支关闭，云端/demo不变 |
@@ -1759,7 +1766,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| docs/historical-input-closeout-20261115 | 活动文档收口；目标dev | 所有者shared-agent；仅状态/验收/图形台账；承接原7份未提交回执，完整备份52561c4c保留 | 合并后默认入口恢复和文档定向检查；独立批准docs CI后创建PR | shared-agent |
+| docs/harness-cancellation-acceptance-20261115 | 活动证据收口；目标dev | shared-agent所有；仅报告/控制状态；24项含PostgreSQL及真实取消/新指令/API重启/刷新通过 | 本地文档检查后待单独批准docs CI；不宣称worker崩溃恢复已接受 | shared-agent |
+| docs/historical-input-closeout-20261115 | PR118已合入并关闭 | 所有者shared-agent；受检1250ac71、合并d718050c；获批macOS docs CI43708007107通过125秒 | 实际dev已同步；来源分支关闭，恢复69739de9保留；最终图按实际HEAD刷新 | shared-agent |
 | feat/historical-input-receipts-20261115 | PR117已合入并关闭 | 所有者capstone-agent/capstone-app；受检6625c0bb，合并5798dad6；唯一获批macOS CI43704515136通过149秒 | 本地/远端来源分支关闭；恢复52561c4c保留；文档收口另列 | shared-agent |
 | docs/resource-range-closeout-20261115 | PR116已合入并关闭 | 所有者shared-agent；受检9d50ac5d，合并e0fc951e；仅验收/控制记录，产品内容不变 | macOS docs CI43689071826通过77秒；远端/本地分支关闭，恢复工作树detached同步e0fc951e，stash81edb811保留 | shared-agent |
 | feat/resource-range-reads-20261115 | PR115已合入并关闭 | 所有者capstone-agent/capstone-app；受检6f5605d4，合并f185c080，原产品21b8f7c8 | 远端及本地分支关闭；恢复工作树转文档收口分支，stashc63a3fc1保留 | shared-agent |

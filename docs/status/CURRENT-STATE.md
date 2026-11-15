@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: historical input delivery control closeout, owned by shared-agent; documentation branch targets dev. Runtime receipt implementation is integrated through PR117. Keep acknowledged delivery distinct from model analysis and product derivation. Remaining resource processing and full execution-chain acceptance stay in the backlog.
+- Active work package: Harness cancellation/restoration evidence closeout, owned by shared-agent on a docs branch targeting dev. Historical input delivery is integrated through PR117/118. Keep acknowledged delivery distinct from analysis or derivation; worker crash/lease and broader resource acceptance remain independent backlog items.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

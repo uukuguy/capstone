@@ -1,5 +1,17 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Harness cancellation/restoration verification — 2026-11-15
+
+Owner capstone-agent/capstone-app; existing normal-conversation acceptance,
+not a new runtime feature. Evidence branch docs/harness-cancellation-acceptance-20261115
+targets dev; shared-agent owns control closeout. Real running-tool cancellation
+reachedcancelled in observed0.548s; incomplete draft preserved; distinct follow-up,
+API restart and existing Vivaldi refresh restored correct terminals and exact
+files.24 focused tests including PostgreSQL passed with no skips. No runtime
+change or CI. [Evidence](../../reviews/2026-11-15-harness-cancellation-restoration.md).
+Next: focused docs integration after explicit CI approval; worker crash/expired
+lease verification remains a separate unmet acceptance item.
+
 ## Historical input delivery receipts — integrated, 2026-11-15
 
 Owner capstone-agent/capstone-app; branch `feat/historical-input-receipts-20261115`,
@@ -13,9 +25,10 @@ Approved macOS historical-inputs CI43704515136 passed149seconds; PR117 merged
 5798dad6 into actual dev. Source branch closed; recovery52561c4c preserves root
 drafts. Actual dev rebuild, same-image identity and default Vivaldi/5173 two
 receipt/seven-download restoration passed. Documentation/control
-closeout belongs to docs/historical-input-closeout-20261115, owner shared-agent,
-destination dev; acceptance is focused docs/link/graph checks and separate CI
-approval. No cloud/demo update or release acceptance is recorded.
+closeout completed through PR118/devd718050c; separately approved macOS docs
+CI43708007107 passed125seconds. Both source branches are closed; recovery
+69739de9 preserves final drafts. No active successor is selected. Runtime remains
+verified5798dad6; no cloud/demo update or release acceptance is recorded.
 Evidence: [local verification](../../reviews/2026-11-15-historical-input-delivery-local.md).
 
 ## Resource range reading — active implementation, 2026-11-15
