@@ -12,19 +12,25 @@ Repair boundary: reuse existing incomplete-capture sealing in the atomic lease
 reaper and admit interrupted attempts' terminal files into the same-Work history.
 Preserve original bytes and running events; do not import late native results.
 Acceptance: memory/PostgreSQL regression, stale fencing, real recovery reading
-and Vivaldi restoration. Native orphan-execution cancellation needs a separate
-lifecycle design and remains open. No CI approval exists for this package.
+and Vivaldi restoration passed for candidatef0976baf. API/three workers share
+8952043d after canonical rebuild. Fresh interrupted draft28bytes/hash preserved,
+new instruction read it and delivered recovery report; existing Vivaldi refresh
+passed. Native task was stillrunning and was manually cancelled in the probe;
+automatic orphan-execution stop needs separate lifecycle design and remains
+open. No CI approval exists. [Evidence](../../reviews/2026-11-15-worker-loss-product-recovery.md).
 
 ## Harness cancellation/restoration verification — 2026-11-15
 
 Owner capstone-agent/capstone-app; existing normal-conversation acceptance,
 not a new runtime feature. Evidence branch docs/harness-cancellation-acceptance-20261115
-targets dev; shared-agent owns control closeout. Real running-tool cancellation
+delivered to dev and is closed; shared-agent owns control closeout. Real running-tool cancellation
 reachedcancelled in observed0.548s; incomplete draft preserved; distinct follow-up,
 API restart and existing Vivaldi refresh restored correct terminals and exact
 files.24 focused tests including PostgreSQL passed with no skips. No runtime
-change or CI. [Evidence](../../reviews/2026-11-15-harness-cancellation-restoration.md).
-Next: focused docs integration after explicit CI approval; worker crash/expired
+change. [Evidence](../../reviews/2026-11-15-harness-cancellation-restoration.md).
+Evidence integrated through PR119/devfffc881e after separately approved macOS
+docs CI43723280469 passed111seconds. Source branch closed; recoverybcde2615
+preserves drafts. No runtime change or new deployment; worker crash/expired
 lease verification remains a separate unmet acceptance item.
 
 ## Historical input delivery receipts — integrated, 2026-11-15

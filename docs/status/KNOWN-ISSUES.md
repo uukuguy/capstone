@@ -1,5 +1,18 @@
 # Known issues and deferred work
 
+## Open: native task outlives its parent worker — 2026-11-15
+
+A guarded real SIGKILL experiment lost the native Thread worker while its
+isolated task was executing. The ledger expired the lease and rejected stale
+renew/event/completion writes, but the separate native executor continued to a
+completed task. Its late final file was not admitted to Thread products. No
+native work remained active when the probe inspected it. Automatic orphan-task
+stop/liveness is unverified and requires a distinct lifecycle contract; do not
+use a short polling timeout to infer worker death. The retained-draft sealing
+and continuation-admission defect is addressed separately by candidatef0976baf.
+Legacy interrupted/running capture records are not silently rewritten.
+See [baseline and bounded repair](../reviews/2026-11-15-worker-loss-product-recovery.md).
+
 ## Resolved: pending work skipped by a busy thread lock — 2026-11-03
 
 Real PostgreSQL capacities1/2 reproduce a lost wake after SKIP LOCKED returns no
