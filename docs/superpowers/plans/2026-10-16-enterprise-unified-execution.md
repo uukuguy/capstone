@@ -1,5 +1,20 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Worker interruption product recovery — active, 2026-11-15
+
+Owner capstone-agent; branch fix/worker-interruption-products-20261115 targets
+dev. Real SIGKILL verification: lease expired to interrupted and stale renew,
+event and completion writes rejected. Native execution nevertheless completed
+independently; its late final file did not enter Thread products. Published
+draft stayedrunning and was omitted from next instruction's historical inputs;
+real follow-up confirmed it could not read the retained draft.
+Repair boundary: reuse existing incomplete-capture sealing in the atomic lease
+reaper and admit interrupted attempts' terminal files into the same-Work history.
+Preserve original bytes and running events; do not import late native results.
+Acceptance: memory/PostgreSQL regression, stale fencing, real recovery reading
+and Vivaldi restoration. Native orphan-execution cancellation needs a separate
+lifecycle design and remains open. No CI approval exists for this package.
+
 ## Harness cancellation/restoration verification — 2026-11-15
 
 Owner capstone-agent/capstone-app; existing normal-conversation acceptance,

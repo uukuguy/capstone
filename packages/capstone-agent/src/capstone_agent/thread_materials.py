@@ -152,7 +152,7 @@ def _process_files(service, snapshot, work_id, source_id, connection):
                 and event.payload['artifact'].get('work_id') == work_id
                 and event.payload['artifact'].get('source_status') in _TERMINAL_ARTIFACT_STATUSES
                 and ((event.attempt_id == source_id) if source_id else
-                     event.attempt_id in service._attempts and service._attempts[event.attempt_id]['attempt'].phase in {'completed', 'failed', 'cancelled'})]
+                     event.attempt_id in service._attempts and service._attempts[event.attempt_id]['attempt'].phase in {'completed', 'failed', 'cancelled', 'interrupted'})]
     else:
         selection = "DISTINCT ON (e.payload->'artifact'->>'file_name') e.*" if source_id is None else 'e.*'
         query = f"""SELECT {selection} FROM capstone_thread_events e
@@ -160,7 +160,7 @@ def _process_files(service, snapshot, work_id, source_id, connection):
             WHERE e.thread_id=%s AND e.event_type='native_artifact_published'
             AND e.payload->'artifact'->>'work_id'=%s
             AND e.payload->'artifact'->>'source_status' = ANY(%s)
-            AND ((%s::text IS NOT NULL AND e.attempt_id=%s) OR (%s::text IS NULL AND a.phase IN ('completed','failed','cancelled')))"""
+            AND ((%s::text IS NOT NULL AND e.attempt_id=%s) OR (%s::text IS NULL AND a.phase IN ('completed','failed','cancelled','interrupted')))"""
         if source_id is None:
             # Keep the latest version of each path, including earlier saved
             # work that a failed continuation did not replace.
