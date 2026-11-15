@@ -1,4 +1,4 @@
-import {parseResourceRead,parseResourceReadPage} from './resourceReads'
+import {checkResourceReadCursor,parseResourceRead,parseResourceReadPage} from './resourceReads'
 import {parseRowPage,parseRowSelection} from './resultRowSelection'
 import {sha256Hex} from './browserDigest'
 import {sha256 as incrementalSha256} from 'js-sha256'
@@ -153,6 +153,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   async listResourceReads(threadId:string,attemptId:string,cursor?:string,signal?:AbortSignal){
+    if(cursor!==undefined)checkResourceReadCursor(cursor,threadId,attemptId)
     const query=new URLSearchParams({attempt_id:attemptId,limit:'20'})
     if(cursor)query.set('cursor',cursor)
     return parseResourceReadPage(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-reads?${query}`,{signal}),threadId,attemptId)
