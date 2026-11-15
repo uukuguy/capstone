@@ -87,6 +87,24 @@ class ResourceRangeReads:
             count+=1
         return total,count
 
+    def _abandoned(self,thread,read_id,connection):
+        if connection is None:
+            return any(e.thread_id==thread and e.event_type=='resource_range_abandoned'
+                       and e.payload['read_id']==read_id for e in self.service._events)
+        return connection.execute("SELECT 1 FROM capstone_thread_events WHERE thread_id=%s "
+            "AND event_type='resource_range_abandoned' AND payload->>'read_id'=%s LIMIT 1",
+            (thread,read_id)).fetchone() is not None
+
+    def _abandon_candidate(self,thread,candidate):
+        def abandon(snapshot,connection):
+            if self._records(thread,connection,read_id=candidate['read_id'],limit=1):
+                return False
+            if not self._abandoned(thread,candidate['read_id'],connection):
+                _write_event(self.service,snapshot,'resource_range_abandoned',
+                             dict(read_id=candidate['read_id']),connection)
+            return True
+        return _mutate(self.service,thread,abandon)
+
     def _grant(self, thread, attempt, manifest=None, connection=None):
         if hasattr(self.service, '_lock'):
             self.service._check_thread(thread)
@@ -192,11 +210,14 @@ class ResourceRangeReads:
             raise
         def accept(snapshot, connection):
             checkpoint()
-            if time.monotonic()>=deadline:
-                raise ResourceRangeRejected('resource range acceptance deadline exceeded','resource_range_unavailable')
             previous = find(snapshot, connection)
             if previous:
                 return previous
+            if self._abandoned(thread_id,receipt['read_id'],connection):
+                raise ResourceRangePersistenceError('resource range candidate was abandoned')
+            checkpoint()
+            if time.monotonic()>=deadline:
+                raise ResourceRangeRejected('resource range acceptance deadline exceeded','resource_range_unavailable')
             _write_event(self.service, snapshot, _EVENT, receipt, connection)
             return receipt
         try:
@@ -204,8 +225,7 @@ class ResourceRangeReads:
         except BaseException:
             # A failed acknowledgement may follow a committed acceptance. Check
             # the durable identity before removing any candidate object.
-            persisted=self._records(thread_id,read_id=receipt['read_id'],limit=1)
-            if not persisted:
+            if self._abandon_candidate(thread_id,receipt):
                 self._io(discard,time.monotonic()+limits.resource_read_io_seconds,lambda: None)
             raise
         if accepted!=receipt:
@@ -234,7 +254,10 @@ class ResourceRangeReads:
                     "AND event_seq>%s AND (payload->>'created_at')::double precision<%s ORDER BY event_seq LIMIT %s",
                     (thread_id,after,cutoff,limit)).fetchall()]
         for _,candidate in rows:
-            if not self._records(thread_id,read_id=candidate['read_id'],limit=1):
+            # Fence under the same Thread lock as acceptance, then perform
+            # storage deletion after the transaction has ended. A candidate
+            # can never be accepted after this durable tombstone commits.
+            if self._abandon_candidate(thread_id,candidate):
                 self._io(lambda c=candidate:self.objects.delete(self._key(c)),
                          time.monotonic()+limits.resource_read_io_seconds,lambda:None)
         return rows[-1][0] if rows else after

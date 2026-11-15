@@ -275,3 +275,62 @@ def test_shared_receipt_rejects_forged_preview_and_private_fields(chat_store):
                    {**receipt,'preview':{**receipt['preview'],'text':'invented'}}):
         with pytest.raises(ValueError):
             checked_receipt(forged,reply['content'],preview_bytes=8192)
+
+@pytest.mark.parametrize('accept_has_lock',[False,True])
+def test_reconcile_fences_inflight_acceptance(chat_store,monkeypatch,accept_has_lock):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from capstone_agent import resource_range_reads as module
+    from capstone_agent.resource_range_contract import ResourceRangePersistenceError
+    service,thread=chat_store
+    objects,resource,claim=prepared(service,thread)
+    reads=ResourceRangeReads(service,objects)
+    blocked,release=threading.Event(),threading.Event()
+    original_write=module._write_event
+    def old_candidate(service,snapshot,kind,payload,connection):
+        if kind=='resource_range_candidate':
+            payload={**payload,'created_at':0}
+        return original_write(service,snapshot,kind,payload,connection)
+    monkeypatch.setattr(module,'_write_event',old_candidate)
+    if accept_has_lock:
+        original_grant=reads._grant
+        calls=0
+        def grant(*args,**kwargs):
+            nonlocal calls
+            calls+=1
+            if calls==2:
+                blocked.set()
+                assert release.wait(5)
+            return original_grant(*args,**kwargs)
+        monkeypatch.setattr(reads,'_grant',grant)
+    else:
+        original_get=objects.get
+        def get(key,*args):
+            result=original_get(key,*args)
+            if key.startswith('resource-range-reads/'):
+                blocked.set()
+                assert release.wait(5)
+            return result
+        monkeypatch.setattr(objects,'get',get)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        read=executor.submit(reads.read,thread,claim.attempt.attempt_id,'task',resource,request_for(resource))
+        assert blocked.wait(5)
+        cleanup=executor.submit(reads.reconcile,thread)
+        try:
+            if accept_has_lock:
+                with pytest.raises(TimeoutError):
+                    cleanup.result(timeout=.1)
+            else:
+                cleanup.result(timeout=5)
+        finally:
+            release.set()
+        if accept_has_lock:
+            receipt=read.result(timeout=5)['receipt']
+            cleanup.result(timeout=5)
+            reads.reconcile(thread)
+            assert objects.get(reads._key(receipt),4)==b'defg'
+        else:
+            with pytest.raises(ResourceRangePersistenceError,match='abandoned'):
+                read.result(timeout=5)
+            assert reads.page(thread,claim.attempt.attempt_id)['items']==[]
+            assert not any(k.startswith('resource-range-reads/') for k in objects.contents)
