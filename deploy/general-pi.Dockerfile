@@ -101,6 +101,7 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/continuation_resources.py \
      packages/capstone-agent/src/capstone_agent/native_resource_staging.py \
      packages/capstone-agent/src/capstone_agent/native_resource_references.py \
+     packages/capstone-agent/src/capstone_agent/native_resource_ranges.py \
      packages/capstone-agent/src/capstone_agent/native_document_types.py \
      packages/capstone-agent/src/capstone_agent/native_product_roles.py \
      packages/capstone-agent/src/capstone_agent/native_research_bridge.py \
