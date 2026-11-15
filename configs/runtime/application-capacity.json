@@ -1,6 +1,11 @@
 {
   "schema": "capstone-capacity-profile/1",
   "limits": {
+    "resource_read_bytes": 1048576,
+    "resource_read_attempt_bytes": 67108864,
+    "resource_read_attempt_count": 1024,
+    "resource_read_preview_bytes": 8192,
+    "resource_read_io_seconds": 30,
     "control_document_bytes": 33554432,
     "native_task_bytes": 67108864,
     "rpc_frame_bytes": 8388608,

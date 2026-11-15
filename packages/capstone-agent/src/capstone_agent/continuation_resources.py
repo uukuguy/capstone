@@ -82,4 +82,14 @@ def resource_reader_for(service, claim):
         for start in range(0, len(data), CHUNK_BYTES):
             yield data[start:start + CHUNK_BYTES]
 
+    def read_range(manifest, request, control):
+        canonical = checked_resource(dict(manifest))
+        if canonical != allowed.get(canonical['resource_id']) or canonical['resource_id'] in historical:
+            raise ValueError('resource range source is not an admitted upload')
+        from .resource_range_reads import ResourceRangeReads
+        return ResourceRangeReads(service, service._material_objects).read(
+            claim.thread_id, claim.attempt.attempt_id, control.task_id, canonical, request,
+            checkpoint=control.checkpoint)
+
+    read_resource.read_range = read_range
     return read_resource

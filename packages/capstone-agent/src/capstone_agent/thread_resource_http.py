@@ -22,6 +22,19 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
         if objects is None:
             raise HTTPException(503, 'resource storage is unavailable')
 
+    from .resource_range_reads import ResourceRangeReads
+    reads = ResourceRangeReads(service, objects)
+
+    @app.get('/api/v1/threads/{thread_id}/resource-reads')
+    async def resource_reads(thread_id: str, request: Request, attempt_id: str, limit: int = 100, cursor: str | None = None):
+        check(request)
+        return await invoke(reads.page, thread_id, attempt_id, limit, cursor)
+
+    @app.get('/api/v1/threads/{thread_id}/resource-reads/{read_id}')
+    async def resource_read(thread_id: str, read_id: str, request: Request):
+        check(request)
+        return await invoke(reads.detail, thread_id, read_id)
+
     async def invoke(fn, *args):
         try:
             return await run_in_threadpool(fn, *args)
