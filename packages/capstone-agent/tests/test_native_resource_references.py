@@ -280,5 +280,20 @@ def test_range_preview_must_match_verified_bytes(preview):
     receipt={'schema':'capstone-resource-read/1','read_id':'read_'+'c'*32,'thread_id':'thr_test',
         'attempt_id':'attempt','task_id':'task','request_id':'a'*64,'resource':manifest,'offset':2,
         'length':3,'sha256':sha256(b'igi').hexdigest(),'preview':preview}
-    with pytest.raises(ValueError,match='preview'):
+    with pytest.raises(ValueError,match='receipt'):
+        checked_reply({'receipt':receipt,'content_base64':'aWdp'},req,manifest,'task')
+
+
+@pytest.mark.parametrize('private_field',['private_path','storage','object_key'])
+def test_range_receipt_rejects_private_nested_resource_fields(private_field):
+    from capstone_agent.native_resource_ranges import checked_reply
+    manifest=resource()
+    req={'schema':'capstone-resource-range-request/1','request_id':'a'*64,
+        'resource_id':manifest['resource_id'],'offset':2,'length':3}
+    receipt={'schema':'capstone-resource-read/1','read_id':'read_'+'c'*32,'thread_id':'thr_test',
+        'attempt_id':'attempt','task_id':'task','request_id':'a'*64,
+        'resource':{**manifest,private_field:'private-value'},'offset':2,'length':3,
+        'sha256':sha256(b'igi').hexdigest(),
+        'preview':{'bytes_read':3,'truncated':False,'status':'text','text':'igi'}}
+    with pytest.raises(ValueError):
         checked_reply({'receipt':receipt,'content_base64':'aWdp'},req,manifest,'task')
