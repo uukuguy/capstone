@@ -1,6 +1,6 @@
 # Structured row references and local analysis verification
 
-Status: implementation accepted into dev dc2aa71a through PR113. One approved macOS CI43650887728 passed in 212 seconds at acc3bd30: 185 backend, 255 frontend and 271 governance checks passed, three governance checks skipped. Owner: capstone-agent/capstone-app. Product source: 419b07b8. Design: [row selection](../superpowers/specs/2026-11-15-result-row-selection-design.md). Final control receipts await integration.
+Status: implementation accepted into dev dc2aa71a through PR113; closeout accepted through PR114 at51fc1cc1 after approved docs CI43678586237 passed130seconds. Approved macOS CI43650887728 passed in 212 seconds at acc3bd30: 185 backend, 255 frontend and 271 governance checks passed, three governance checks skipped. Owner: capstone-agent/capstone-app. Product source: 419b07b8. Design: [row selection](../superpowers/specs/2026-11-15-result-row-selection-design.md). Package complete; post-merge snapshots remain local metadata.
 
 ## Delivery boundary
 

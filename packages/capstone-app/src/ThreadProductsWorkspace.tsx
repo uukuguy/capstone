@@ -1,3 +1,5 @@
+import ResourceReadSources from './ResourceReadSources'
+import type {ResourceReadClient} from './resourceReads'
 import type {RowClient} from './resultRowSelection'
 import type {ResultRowSelection} from './threadProducts'
 import {applicationCapacity,observeCapacity,rethrowDebugCapacity,CapacityError} from './applicationCapacity'
@@ -18,7 +20,7 @@ import type {LocalProductSelection} from './threadProducts'
 import ProductComparison from './ProductComparison'
 import type {SeriesClient} from './productSeries'
 
-type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean;supportsResultRows?:boolean}&Partial<SeriesClient>&Partial<RowClient>
+type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean;supportsResultRows?:boolean}&Partial<SeriesClient>&Partial<RowClient>&ResourceReadClient
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
 function newestFirst(a:ProductEntry,b:ProductEntry){
   return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
@@ -233,6 +235,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
       </div>
       {view.projection&&<ResultProjectionCard key={`result:${viewKey}`} projection={view.projection} onFocusElement={onFocusElement} rowSelection={onReference&&client.supportsResultRows&&client.readResultRows&&client.prepareResultRows?{client:client as RowClient,ref:view.entry.ref,onSelect:row=>onReference(view.entry,undefined,undefined,row)}:undefined}/>}
       {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={`comparison:${viewKey}`} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={openSource}/>}
+      {client.listResourceReads&&client.supportsResourceReads!==false&&(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)&&<ResourceReadSources key={viewKey} client={client} threadId={threadId} attemptId={(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)!} revision={revision}/>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
       {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&
         <ProductParagraphPicker key={`paragraphs:${viewKey}`} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}

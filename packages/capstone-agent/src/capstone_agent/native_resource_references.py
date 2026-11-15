@@ -12,21 +12,78 @@ from .native_resource_staging import ResourceUnavailable
 
 
 class NativeResourceReferences:
-    def __init__(self, root, inputs, task_id, resources, staging, uid, gid):
+    def __init__(self, root, inputs, task_id, resources, staging, uid, gid, attempt_id=None, resource_origins=()):
         self.root,self.inputs,self.task_id=Path(root),Path(inputs),task_id
         self.resources={item['resource_id']:checked_resource(dict(item)) for item in resources}
+        historical_ids={item['resource_id'] for item in resource_origins}
+        self.range_resources={key:value for key,value in self.resources.items() if key not in historical_ids}
         self.staging,self.uid,self.gid=staging,uid,gid
         self.materialized={}
         self.root.parent.mkdir(parents=True,exist_ok=True)
         self.root.parent.chmod(0o711)
         self.root.mkdir(mode=0o750)
         os.chown(self.root,0 if os.getuid()==0 else os.getuid(),gid)
-        for name in ('requests','responses'):
-            path=self.root/name;path.mkdir(mode=0o700 if name=='requests' else 0o750)
-            os.chown(path,uid if name=='requests' else os.getuid(),gid)
+        self.range_pending={}
+        self.range_completed={}
+        self.attempt_id=attempt_id
+        for name in ('requests','responses','range-requests','range-responses'):
+            requesting=name.endswith('requests')
+            path=self.root/name;path.mkdir(mode=0o700 if requesting else 0o750)
+            os.chown(path,uid if requesting else os.getuid(),gid)
 
-    def _reply(self, name, result):
-        target=self.root/'responses'/name
+    def pending_ranges(self):
+        from .native_resource_ranges import checked_request
+        result=[]
+        eligible=(path for path in (self.root/'range-requests').glob('*.json')
+                  if re.fullmatch(r'[a-f0-9]{64}\.json',path.name)
+                  and path.stem not in self.range_completed)
+        for path in islice(eligible,limits.rpc_batch_requests):
+            fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+            with os.fdopen(fd,'rb') as incoming:raw=incoming.read(4097)
+            if len(raw)>4096:raise ValueError('range request exceeds bounds')
+            request=checked_request(json.loads(raw),self.range_resources)
+            key=request['request_id']
+            if path.name!=key+'.json':raise ValueError('range request identity changed')
+            previous=self.range_pending.setdefault(key,request)
+            if previous!=request:raise ValueError('range request identity changed')
+            if key not in self.range_completed:result.append(request)
+        return result
+
+    def accept_range(self, document):
+        from .native_resource_ranges import checked_request, checked_reply
+        if document.get('task_id')!=self.task_id:raise ValueError('range task changed')
+        request=checked_request(document['request'],self.range_resources)
+        key=request['request_id']
+        if self.range_pending.get(key)!=request:raise ValueError('range request is not pending')
+        if key in self.range_completed:
+            if self.range_completed[key]!=document:raise ValueError('range response changed')
+            return {'ok':True}
+        if 'error' in document:
+            error=document['error']
+            if (set(document)!={'task_id','request','error'} or not isinstance(error,dict)
+                    or set(error)!={'schema','code'} or error['schema']!='capstone-resource-range-failure/1'
+                    or error['code'] not in {'resource_range_unavailable','resource_range_rejected','resource_range_capacity'}):
+                raise ValueError('range failure is invalid')
+            self._reply(key+'.json',{'ok':False,'request_id':key,'error':error},folder='range-responses')
+            self.range_completed[key]=document
+            return {'ok':True}
+        receipt,data=checked_reply(document,request,self.resources[request['resource_id']],self.task_id)
+        if self.attempt_id is not None and receipt['attempt_id']!=self.attempt_id:
+            raise ValueError('range attempt identity changed')
+        directory=self.inputs/'ranges';directory.mkdir(mode=0o750,exist_ok=True)
+        if directory.is_symlink() or not directory.is_dir():raise ValueError('range directory changed')
+        os.chown(directory,os.getuid(),self.gid)
+        target=directory/key
+        fd=os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o440)
+        with os.fdopen(fd,'wb') as outgoing:outgoing.write(data)
+        os.chown(target,os.getuid(),self.gid)
+        result={'ok':True,'receipt':receipt,'path':str(target)}
+        self._reply(key+'.json',result,folder='range-responses')
+        self.range_completed[key]=document
+        return {'ok':True}
+
+    def _reply(self, name, result, *, folder='responses'):
+        target=self.root/folder/name
         temporary=target.with_suffix('.tmp')
         temporary.write_text(json.dumps(result,ensure_ascii=False))
         os.chown(temporary,os.getuid(),self.gid);temporary.chmod(0o440)

@@ -3,6 +3,19 @@
   "description": "Declared application design bounds, not measured resource ceilings. Review flags require workload evidence before claiming adequacy. Enforcement describes intended recovery policy; consumers own enforcement.",
   "groups": [
     {
+      "id": "resource_ranges",
+      "members": ["resource_read_bytes", "resource_read_attempt_bytes", "resource_read_attempt_count"],
+      "category": "execution_budget",
+      "scope": "one resource range request and cumulative accepted reads in one Attempt",
+      "protected_resource": "bounded source transfer and retained fragment allocation",
+      "anomaly": "Large or repeated reads can exhaust the selected processing budget.",
+      "recovery": "Read a smaller relevant range or request an explicit budget change. File storage allowance is separate; accepted receipts remain available for exact retries.",
+      "enforcement": "user_budget",
+      "model_visible": true,
+      "basis": "default_design_bound",
+      "review_needed": true
+    },
+    {
       "id": "attachment_memory",
       "members": ["attachment_buffer_bytes"],
       "category": "resource",
@@ -232,6 +245,7 @@
     {
       "id": "projection",
       "members": [
+        "resource_read_preview_bytes",
         "preview_bytes",
         "product_reference_count",
         "product_excerpt_bytes",
@@ -350,6 +364,7 @@
     {
       "id": "transport_timing",
       "members": [
+        "resource_read_io_seconds",
         "http_loop_start_seconds",
         "native_cancel_seconds",
         "native_http_wait_ms",
@@ -440,6 +455,11 @@
     }
   ],
   "units": {
+    "resource_read_bytes": "bytes",
+    "resource_read_attempt_bytes": "bytes",
+    "resource_read_attempt_count": "items",
+    "resource_read_preview_bytes": "bytes",
+    "resource_read_io_seconds": "seconds",
     "control_document_bytes": "bytes",
     "native_task_bytes": "bytes",
     "rpc_frame_bytes": "bytes",

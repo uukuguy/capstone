@@ -11,6 +11,8 @@ const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof v
 export function createResourceReferenceTools(config){
  if(!config.resourceReferencePath||!config.resourceReferences?.length)return [];
  const resources=new Map(config.resourceReferences.map(resource=>[resource.resource_id,resource]));
+ const historicalIds=new Set((config.resourceOrigins??[]).map(item=>item.resource_id));
+ const rangeResources=new Map([...resources].filter(([id])=>!historicalIds.has(id)));
  return [{name:'agent_resource_open',label:'读取引用资料',
   description:'Read one exact resource from the supplied reference catalog only when needed for the current request. The host checks its frozen version, hash and scope, then returns a bounded leading text preview and a protected read-only path for larger processing. Use the preview directly for short reads. For larger work use the exact returned absolute path; no file bodies are loaded merely because they belong to this conversation. Do not reconstruct a prior file from history.',
   parameters:{type:'object',properties:{resource_id:{type:'string',enum:[...resources.keys()]}},required:['resource_id'],additionalProperties:false},
@@ -52,5 +54,44 @@ export function createResourceReferenceTools(config){
     await delay(10,undefined,{signal});
    }
    throw Error('Resource open deadline expired; do not claim source bytes were read');
-  }}];
+  }},...(Number.isSafeInteger(config.resourceReadBytes)&&rangeResources.size?[createRangeTool(config,rangeResources)]:[])];
+}
+
+function createRangeTool(config,resources){
+ return {name:'agent_resource_read',label:'读取资料片段',
+ description:'Read an exact byte range from an admitted resource. Returns a protected read-only fragment and source receipt. This covers only the requested bytes; it does not establish full-file coverage. Choose whole-file open when the task needs full processing.',
+ parameters:{type:'object',properties:{resource_id:{type:'string',enum:[...resources.keys()]},offset:{type:'integer',minimum:0},length:{type:'integer',minimum:1,maximum:config.resourceReadBytes}},required:['resource_id','offset','length'],additionalProperties:false},
+ async execute(callId,args,signal){
+  const resource=resources.get(args?.resource_id);
+  if(!resource||Object.keys(args).sort().join(',')!=='length,offset,resource_id'||!Number.isSafeInteger(args.offset)||!Number.isSafeInteger(args.length)||args.offset<0||args.length<=0||args.length>config.resourceReadBytes||args.offset+args.length>resource.size_bytes)throw Error('Range is not admitted');
+  const request_id=createHash('sha256').update(JSON.stringify(['range',callId])).digest('hex');
+  const request={schema:'capstone-resource-range-request/1',request_id,...args};
+  const key=request_id+'.json',body=JSON.stringify(request),target=join(config.resourceReferencePath,'range-requests',key);
+  signal?.throwIfAborted();
+  try{await writeFile(target,body,{flag:'wx'});}catch(error){if(error.code!=='EEXIST'||await readFile(target,'utf8')!==body)throw error;}
+  while(Date.now()<config.deadlineAt){
+   signal?.throwIfAborted();
+   try{
+    const raw=await readFile(join(config.resourceReferencePath,'range-responses',key),'utf8');
+    if(Buffer.byteLength(raw)>65536)throw Error('Range receipt exceeds bounds');
+    const result=JSON.parse(raw),receipt=result.receipt;
+    if(result.ok===false){
+     if(result.request_id!==request_id||result.error?.schema!=='capstone-resource-range-failure/1'||!['resource_range_unavailable','resource_range_rejected','resource_range_capacity'].includes(result.error.code))throw Error('Range failure identity changed');
+     return {isError:true,content:[{type:'text',text:JSON.stringify(result)}],details:{event:'tool_result',capability:'agent_resource_read',ok:false,result,evidence_refs:[]}};
+    }
+    const expected=resolve(config.resourceInputRoot,'ranges',request_id);
+    if(result.ok!==true||result.path!==expected||receipt?.schema!=='capstone-resource-read/1'||receipt.task_id!==config.taskId||receipt.attempt_id!==config.resourceAttemptId||receipt.request_id!==request_id||receipt.offset!==args.offset||receipt.length!==args.length||receipt.thread_id!==resource.thread_id||JSON.stringify(canonical(receipt.resource))!==JSON.stringify(canonical(resource)))throw Error('Range receipt identity changed');
+    const file=await open(expected,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
+    try{
+     const stat=await file.stat();
+     if(!stat.isFile()||stat.size!==args.length||(stat.mode&0o222))throw Error('Range fragment identity changed');
+     const bytes=await file.readFile();
+     if(bytes.length!==args.length||createHash('sha256').update(bytes).digest('hex')!==receipt.sha256)throw Error('Range digest changed');
+    }finally{await file.close();}
+    return {content:[{type:'text',text:JSON.stringify(result)}],details:{event:'tool_result',capability:'agent_resource_read',ok:true,result,evidence_refs:[]}};
+   }catch(error){if(error.code!=='ENOENT')throw error;}
+   await delay(10,undefined,{signal});
+  }
+  throw Error('Range read deadline expired; no returned bytes confirmed');
+ }};
 }

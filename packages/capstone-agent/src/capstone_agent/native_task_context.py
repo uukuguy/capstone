@@ -365,6 +365,10 @@ def native_context_for(claim, binding):
     origins = [artifact_origin(public_document(item)) for item in submission.get('_continuation_artifacts', [])]
     if submission.get('_resource_manifests'):
         tools.add('agent_resource_open')
+        historical_ids = {item['resource_id'] for item in origins}
+        if any(item['resource_id'] not in historical_ids
+               for item in submission['_resource_manifests']):
+            tools.add('agent_resource_read')
     work = {}
     if entry and entry.work_edition:
         if not isinstance(getattr(claim, 'started_at', None), str):

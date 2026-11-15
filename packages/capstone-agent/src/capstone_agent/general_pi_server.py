@@ -313,6 +313,9 @@ class GeneralPiHost:
                 published.add('agent_task_records_read')
             if native.get('resource_manifests'):
                 published.add('agent_resource_open')
+                historical={item['resource_id'] for item in native.get('resource_origins',())}
+                if any(item['resource_id'] not in historical for item in native['resource_manifests']):
+                    published.add('agent_resource_read')
             from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
             if native.get('systematic_diagnosis') == DIAGNOSIS_POLICY:
                 published.update(DIAGNOSIS_TOOLS)
@@ -1097,6 +1100,8 @@ class GeneralPiHost:
             if references is not None:
                 requested=references.pending()
                 if requested:document['resource_requests']=requested
+                ranges=references.pending_ranges()
+                if ranges:document['range_requests']=ranges
             if after is not None:
                 document['event_cursor'] = item.get('event_sequence', 0)
             return json.loads(json.dumps(document))
@@ -1491,12 +1496,13 @@ class NativeTaskRunner:
                 if references:
                     from .native_resource_references import NativeResourceReferences
                     port=NativeResourceReferences(self.root/'tasks'/'.resource-references'/request.task_id,
-                        inputs,request.task_id,references,self._resource_staging,uid,uid)
+                        inputs,request.task_id,references,self._resource_staging,uid,uid,attempt_id=request.parent_attempt_id,
+                        resource_origins=native.get('resource_origins',()))
                     self.task_resource_references[request.task_id]=port
-                    sdk_config.update(resourceReferences=references,resourceOrigins=native.get('resource_origins',[]),resourceReferencePath=str(port.root),resourceInputRoot=str(inputs))
+                    sdk_config.update(resourceReferences=references,resourceOrigins=native.get('resource_origins',[]),resourceReferencePath=str(port.root),resourceInputRoot=str(inputs),resourceReadBytes=limits.resource_read_bytes,resourceAttemptId=request.parent_attempt_id)
                     sdk_config.setdefault('contextFiles',[]).append({'path':'resource-reference-catalog',
                         'content':'Authorized immutable resource references. No source bytes were read or staged. '
-                        'Use agent_resource_open with an exact resource_id only when needed for the current instruction. '
+                        'Choose agent_resource_read for exact partial byte ranges or agent_resource_open for whole-file processing when needed for the current instruction. '
                         'The returned path contains the original bytes, not reconstructed history. '
                         'References are historical sources, not current Authority evidence. '+json.dumps(references,ensure_ascii=False)})
                 if native.get('material_notices'):
@@ -1977,6 +1983,12 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     except (subprocess.SubprocessError, OSError, RuntimeError):
                         return self.send_json(503, {'error': 'network_policy_apply_failed'})
                     return self.send_json(200, state)
+                if self.path == '/range-inputs':
+                    if not 0 < length <= limits.resource_read_bytes*2+65536:
+                        raise ValueError('range control document exceeds bounds')
+                    document=json.loads(self.rfile.read(length))
+                    port=host._run.task_resource_references[document['task_id']]
+                    return self.send_json(200,port.accept_range(document))
                 if self.path == '/inputs':
                     if not 0 < length <= limits.upload_chunk_max_bytes * 2:
                         raise ValueError('resource part request exceeds bounds')
@@ -2338,7 +2350,7 @@ def main():
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'structural_context.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'managed_resource_contract.py', 'managed_resource_dependencies.py', 'managed_resource_secrets.py', 'managed_resource_bundle.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
                                  'presentation_template_contract.py', 'native_presentation_tasks.py', 'resources/presentation-templates.mjs',
                                  'native_resources.py', 'session_skill_preferences.py', 'tool_execution_receipt.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
-                                 'resources/investigation-skills.mjs', 'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'native_timing.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
+                                 'resources/investigation-skills.mjs', 'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'native_timing.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py', 'native_resource_ranges.py', 'resource_range_contract.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'capacity_contract.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',

@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    range_manifest = Path(__file__).resolve().parents[1] / 'configs/development/resource-ranges-gate.json'
+    if range_manifest.is_file():
+        ranges = json.loads(range_manifest.read_text())
+        if set(ranges['anchors']).issubset(paths) and all(
+                path in ranges['paths'] or _control_path(path) for path in paths):
+            return 'resource-ranges'
     rows_manifest = Path(__file__).resolve().parents[1] / 'configs/development/result-rows-gate.json'
     if rows_manifest.is_file():
         rows = json.loads(rows_manifest.read_text())

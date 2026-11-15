@@ -1,3 +1,4 @@
+import {checkResourceReadCursor,parseResourceRead,parseResourceReadPage} from './resourceReads'
 import {parseRowPage,parseRowSelection} from './resultRowSelection'
 import {sha256Hex} from './browserDigest'
 import {sha256 as incrementalSha256} from 'js-sha256'
@@ -151,6 +152,17 @@ export class HttpThreadTransport implements ThreadTransport {
     if(!matches){await response.body?.cancel().catch(()=>undefined);throw new ThreadTransportError(409,'服务端尚未确认当前工作空间，请更新后端后重试。')}
   }
 
+  async listResourceReads(threadId:string,attemptId:string,cursor?:string,signal?:AbortSignal){
+    if(cursor!==undefined)checkResourceReadCursor(cursor,threadId,attemptId)
+    const query=new URLSearchParams({attempt_id:attemptId,limit:'20'})
+    if(cursor)query.set('cursor',cursor)
+    return parseResourceReadPage(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-reads?${query}`,{signal}),threadId,attemptId)
+  }
+  async readResourceRead(threadId:string,readId:string,attemptId:string,signal?:AbortSignal){
+    const item=parseResourceRead(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-reads/${encodeURIComponent(readId)}`,{signal}),threadId,attemptId)
+    if(item.read_id!==readId)throw new Error('资源读取回执身份不一致')
+    return item
+  }
   async workspaceConnections():Promise<WorkspaceConnections> {
     const value=await this.request('/api/v1/workspace/connections') as WorkspaceConnections
     if(!value||value.schema!=='capstone-workspace-connections/1')throw new Error('工作台连接信息无效')
