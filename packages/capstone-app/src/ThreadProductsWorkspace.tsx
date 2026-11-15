@@ -235,12 +235,12 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
       </div>
       {view.projection&&<ResultProjectionCard key={`result:${viewKey}`} projection={view.projection} onFocusElement={onFocusElement} rowSelection={onReference&&client.supportsResultRows&&client.readResultRows&&client.prepareResultRows?{client:client as RowClient,ref:view.entry.ref,onSelect:row=>onReference(view.entry,undefined,undefined,row)}:undefined}/>}
       {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={`comparison:${viewKey}`} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={openSource}/>}
+      {client.listResourceReads&&client.supportsResourceReads!==false&&(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)&&<ResourceReadSources key={viewKey} client={client} threadId={threadId} attemptId={(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)!} revision={revision}/>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
       {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&
         <ProductParagraphPicker key={`paragraphs:${viewKey}`} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}
       {view.record&&<div><p>此项是执行记录，没有文件内容。</p>{typeof view.record.instruction==='string'&&<p>{view.record.instruction}</p>}{typeof view.record.failure_code==='string'&&<p>记录尚未提供可读的原因说明，可查看原指令和执行详情。</p>}</div>}
       {view.entry.dependencies.length>0&&<details><summary>支撑成果 · {view.entry.dependencies.length}</summary>{view.entry.dependencies.map(ref=><button type="button" key={productRefKey(ref)} onClick={()=>openSource(ref)}>查看支撑{ref.scope==='task'?'交付':'产物'}{ref.revision?` v${ref.revision}`:''}</button>)}</details>}
-      {client.listResourceReads&&client.supportsResourceReads!==false&&(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)&&<ResourceReadSources key={viewKey} client={client} threadId={threadId} attemptId={(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)!} revision={revision}/>}
       <p className="thread-product-history-note">来自已保存历史；引用不会自动成为当前运行的 Authority 证据。</p>
     </article>}
   </section>

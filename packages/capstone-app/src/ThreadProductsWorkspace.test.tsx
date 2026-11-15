@@ -6,6 +6,21 @@ import {ResourceFullscreenContext} from './resourceFullscreen'
 import {parseProductRef,type ProductEntry} from './threadProducts'
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
+it('keeps separate resource and product source counts before the report body',async()=>{
+ vi.stubGlobal('URL',class extends URL{static createObjectURL(){return 'blob:report'}static revokeObjectURL(){}})
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file',producer_attempt_id:'attempt_producer'},title:'report.md',media_type:'text/markdown',source:{file_name:'report.md'}}
+ const reads=[0,1,2].map(index=>({read_id:`read_${index}`,resource:{file_name:'large.txt',version:1,size_bytes:100,sha256:'b'.repeat(64)},offset:index*4,length:4,sha256:'c'.repeat(64)}))
+ const client={supportsProductSeries:true,productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:new TextEncoder().encode('# Range report\n\nLimited sample.'),projection:null,record:null}),discoverProductSeries:vi.fn().mockResolvedValue(null),productSources:vi.fn().mockResolvedValue([]),commandProductSeries:vi.fn(),compareProducts:vi.fn(),seriesMembers:vi.fn(),listResourceReads:vi.fn().mockResolvedValue({schema:'capstone-resource-read-page/1',items:reads,next_cursor:null})}
+ render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1}/> )
+ const body=await screen.findByRole('heading',{name:'Range report'})
+ const resources=await screen.findByText('资源读取来源 · 3')
+ const products=await screen.findByText('成果引用来源 · 0')
+ expect(resources.compareDocumentPosition(body)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+ expect(products.compareDocumentPosition(resources)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+ expect(resources.closest('details')?.open).toBe(false)
+ expect(screen.queryByText(/实际输入来源/)).toBeNull()
+ expect(client.listResourceReads).toHaveBeenCalledWith('thr_one','attempt_producer',undefined,expect.any(AbortSignal))
+})
 it('keeps one comparison and paragraph picker when switching real Markdown previews',async()=>{
  vi.stubGlobal('URL',class extends URL{static createObjectURL(){return 'blob:preview'}static revokeObjectURL(){}})
  const error=vi.spyOn(console,'error').mockImplementation(()=>{})

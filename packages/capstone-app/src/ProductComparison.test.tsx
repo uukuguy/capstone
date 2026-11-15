@@ -12,6 +12,8 @@ it('does not group duplicate titles and preserves the outside draft on failed co
  expect(await screen.findByText('尚未登记系列')).toBeTruthy()
  expect(client.commandProductSeries).not.toHaveBeenCalled()
  expect(screen.getAllByRole('button',{name:/查看来源/})).toHaveLength(2)
+ expect(screen.getByText('成果引用来源 · 2')).toBeTruthy()
+ expect(screen.queryByText(/实际输入来源/)).toBeNull()
  fireEvent.change(screen.getByLabelText('选择原稿'),{target:{value:productRefKey(other.ref)}})
  fireEvent.click(screen.getByRole('button',{name:'对照原稿与当前稿'}))
  expect((await screen.findByRole('alert')).textContent).toContain('读取失败')

@@ -21,7 +21,7 @@ export default function ResourceReadSources({client,threadId,attemptId,revision}
   void client.readResourceRead(threadId,selected,attemptId,controller.signal).then(value=>{if(!controller.signal.aborted)setPreview(value)}).catch(()=>{if(!controller.signal.aborted)setPreviewError('预览读取失败，请重试。')})
   return()=>controller.abort()
  },[client,threadId,attemptId,selected,revision,retry])
- return <details className="thread-product-sources resource-read-sources"><summary>资源读取来源</summary>
+ return <details className="thread-product-sources resource-read-sources"><summary>资源读取来源{page&&!error&&!loading?` · ${page.items.length}${page.next_cursor?'+':''}`:''}</summary>
   <p>按所选成果的生成执行列出。回执仅表示已返回的字节，不表示完整分析。</p>
   {loading&&<p role="status">正在读取来源…</p>}
   {error?<p role="alert">{error}<button type="button" onClick={()=>setRetry(n=>n+1)}>重试来源</button></p>:!loading&&!page?.items.length&&<p>此执行没有已确认的资源范围读取。</p>}
