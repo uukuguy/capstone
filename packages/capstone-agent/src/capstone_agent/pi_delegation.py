@@ -947,6 +947,8 @@ class HttpGeneralPiExecutor:
                     from .native_resource_ranges import checked_request,checked_reply
                     catalog={item['resource_id']:_json_document(item) for item in
                         (request.native_context or {}).get('resource_manifests', ())}
+                    for historical in (request.native_context or {}).get('resource_origins', ()):
+                        catalog.pop(historical['resource_id'],None)
                     for range_request in range_requests:
                         checkpoint()
                         checked_request(range_request,catalog)
@@ -960,8 +962,10 @@ class HttpGeneralPiExecutor:
                         if reply['receipt']['attempt_id']!=request.parent_attempt_id:
                             raise ValueError('range attempt identity changed')
                         checkpoint()
-                        exchange('POST','/range-inputs',operation='resource_range',document=document,
+                        acknowledgement=exchange('POST','/range-inputs',operation='resource_range',document=document,
                             timeout=self._exchange_timeout,research_transport=True)
+                        if acknowledgement!={'ok':True}:
+                            raise ValueError('range delivery completion is unknown')
                 if set(response) != ({"status", "events", "result", "event_cursor"} if paged else {"status", "events", "result"}) or not isinstance(response["events"], list):
                     raise ValueError("Pi task status fields are invalid")
                 if not isinstance(requested_resources,list):

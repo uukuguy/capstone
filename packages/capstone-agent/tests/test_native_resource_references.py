@@ -176,3 +176,15 @@ def test_range_reply_rejects_forgery(tmp_path,change):
         'resource':manifest,'offset':2,'length':3,'sha256':sha256(b'igi').hexdigest(),'preview':{}},
         'content_base64':base64.b64encode(b'igi').decode()}
     with pytest.raises(ValueError):port.accept_range({**doc,**change})
+
+
+def test_native_range_rejects_historical_product_grant(tmp_path):
+    staging=NativeResourceStaging(tmp_path/'staging');inputs=tmp_path/'inputs';inputs.mkdir()
+    manifest=resource()
+    port=NativeResourceReferences(tmp_path/'port',inputs,'task',[manifest],staging,os.getuid(),os.getgid(),
+        resource_origins=[{'resource_id':manifest['resource_id']}])
+    req={'schema':'capstone-resource-range-request/1','request_id':'a'*64,
+         'resource_id':manifest['resource_id'],'offset':0,'length':1}
+    (port.root/'range-requests'/('a'*64+'.json')).write_text(json.dumps(req))
+    with pytest.raises(ValueError,match='bounds'):port.pending_ranges()
+    assert list(staging.root.iterdir())==[]

@@ -49,3 +49,13 @@ test('range tool returns exact protected fragment and receipt',async()=>{
   await assert.rejects(()=>tool.execute('selected',{resource_id:resource.resource_id,offset:11,length:6}));
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('historical resources keep whole-file open without uploaded range grants',()=>{
+ const resource={resource_id:'resource_'+'a'.repeat(32)};
+ const config={resourceReadBytes:1024,resourceReferencePath:'/private/reference',resourceReferences:[resource],resourceOrigins:[{resource_id:resource.resource_id}]};
+ assert.deepEqual(createResourceReferenceTools(config).map(tool=>tool.name),['agent_resource_open']);
+ const uploaded={resource_id:'resource_'+'b'.repeat(32)};
+ config.resourceReferences.push(uploaded);
+ const range=createResourceReferenceTools(config).find(tool=>tool.name==='agent_resource_read');
+ assert.deepEqual(range.parameters.properties.resource_id.enum,[uploaded.resource_id]);
+});

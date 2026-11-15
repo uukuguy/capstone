@@ -11,6 +11,8 @@ const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof v
 export function createResourceReferenceTools(config){
  if(!config.resourceReferencePath||!config.resourceReferences?.length)return [];
  const resources=new Map(config.resourceReferences.map(resource=>[resource.resource_id,resource]));
+ const historicalIds=new Set((config.resourceOrigins??[]).map(item=>item.resource_id));
+ const rangeResources=new Map([...resources].filter(([id])=>!historicalIds.has(id)));
  return [{name:'agent_resource_open',label:'读取引用资料',
   description:'Read one exact resource from the supplied reference catalog only when needed for the current request. The host checks its frozen version, hash and scope, then returns a bounded leading text preview and a protected read-only path for larger processing. Use the preview directly for short reads. For larger work use the exact returned absolute path; no file bodies are loaded merely because they belong to this conversation. Do not reconstruct a prior file from history.',
   parameters:{type:'object',properties:{resource_id:{type:'string',enum:[...resources.keys()]}},required:['resource_id'],additionalProperties:false},
@@ -52,7 +54,7 @@ export function createResourceReferenceTools(config){
     await delay(10,undefined,{signal});
    }
    throw Error('Resource open deadline expired; do not claim source bytes were read');
-  }},...(Number.isSafeInteger(config.resourceReadBytes)?[createRangeTool(config,resources)]:[])];
+  }},...(Number.isSafeInteger(config.resourceReadBytes)&&rangeResources.size?[createRangeTool(config,rangeResources)]:[])];
 }
 
 function createRangeTool(config,resources){

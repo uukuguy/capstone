@@ -12,9 +12,11 @@ from .native_resource_staging import ResourceUnavailable
 
 
 class NativeResourceReferences:
-    def __init__(self, root, inputs, task_id, resources, staging, uid, gid, attempt_id=None):
+    def __init__(self, root, inputs, task_id, resources, staging, uid, gid, attempt_id=None, resource_origins=()):
         self.root,self.inputs,self.task_id=Path(root),Path(inputs),task_id
         self.resources={item['resource_id']:checked_resource(dict(item)) for item in resources}
+        historical_ids={item['resource_id'] for item in resource_origins}
+        self.range_resources={key:value for key,value in self.resources.items() if key not in historical_ids}
         self.staging,self.uid,self.gid=staging,uid,gid
         self.materialized={}
         self.root.parent.mkdir(parents=True,exist_ok=True)
@@ -37,7 +39,7 @@ class NativeResourceReferences:
             fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
             with os.fdopen(fd,'rb') as incoming:raw=incoming.read(4097)
             if len(raw)>4096:raise ValueError('range request exceeds bounds')
-            request=checked_request(json.loads(raw),self.resources)
+            request=checked_request(json.loads(raw),self.range_resources)
             key=request['request_id']
             if path.name!=key+'.json':raise ValueError('range request identity changed')
             previous=self.range_pending.setdefault(key,request)
@@ -48,7 +50,7 @@ class NativeResourceReferences:
     def accept_range(self, document):
         from .native_resource_ranges import checked_request, checked_reply
         if document.get('task_id')!=self.task_id:raise ValueError('range task changed')
-        request=checked_request(document['request'],self.resources)
+        request=checked_request(document['request'],self.range_resources)
         key=request['request_id']
         if self.range_pending.get(key)!=request:raise ValueError('range request is not pending')
         if key in self.range_completed:

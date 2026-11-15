@@ -1493,7 +1493,8 @@ class NativeTaskRunner:
                 if references:
                     from .native_resource_references import NativeResourceReferences
                     port=NativeResourceReferences(self.root/'tasks'/'.resource-references'/request.task_id,
-                        inputs,request.task_id,references,self._resource_staging,uid,uid,attempt_id=request.parent_attempt_id)
+                        inputs,request.task_id,references,self._resource_staging,uid,uid,attempt_id=request.parent_attempt_id,
+                        resource_origins=native.get('resource_origins',()))
                     self.task_resource_references[request.task_id]=port
                     sdk_config.update(resourceReferences=references,resourceOrigins=native.get('resource_origins',[]),resourceReferencePath=str(port.root),resourceInputRoot=str(inputs),resourceReadBytes=limits.resource_read_bytes,resourceAttemptId=request.parent_attempt_id)
                     sdk_config.setdefault('contextFiles',[]).append({'path':'resource-reference-catalog',
