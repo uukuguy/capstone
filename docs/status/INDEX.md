@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-当前设计研究：[大资源范围读取](../superpowers/specs/2026-11-15-resource-range-read-design.md)。复用已实现的分片上传与原生执行，范围读取/持久回执协议待复核，未开始实施。
+当前实施：[大资源范围读取](../superpowers/plans/2026-11-15-resource-range-reads.md)。书面设计已确认，复用现有上传和原生执行，实现有界范围读取、持久回执及来源恢复；当前大文件验收待完成，无CI批准。
 
 已完成：[结构化行引用](../superpowers/plans/2026-11-15-result-row-selection.md)。PR113实现及PR114收口已进入dev51fc1cc1；两次获批macOS CI通过，实际dev报告v4与原表来源恢复通过，全部相关分支关闭。见[验证记录](../reviews/2026-11-15-result-row-local.md)。
 

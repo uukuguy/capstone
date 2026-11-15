@@ -1,6 +1,6 @@
 # 大资源范围读取与恢复：首期设计提案
 
-状态：设计提案，待用户复核；未开始实现。所有者：capstone-agent/capstone-app。研究来源：dev 51fc1cc1；研究分支 research/resource-range-design-20261115。交付关系：经复核的设计与后续实现回流 dev；不更新云端/demo。恢复条件：用户确认本切片的协议和接受范围后编写实施计划。
+状态：用户于2026-11-15确认方案A及书面协议，实施已启动。所有者：capstone-agent/capstone-app。研究来源：dev 51fc1cc1、已审提案d4814039；实施分支 feat/resource-range-reads-20261115，目标dev。交付关系：设计与本切片实现一同回流dev；不更新云端/demo。实施计划：[范围读取](../plans/2026-11-15-resource-range-reads.md)。
 
 上位要求：[企业设计第9节](2026-10-15-enterprise-design-final.md#9-企业文件资源与任务上下文2026-10-18-用户确认)。文件容量、上传配额、处理预算和模型上下文预算必须分开。首期不代表企业大文件要求全部完成。
 

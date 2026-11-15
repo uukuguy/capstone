@@ -1,8 +1,8 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Resource range reading — design backlog, 2026-11-15
+## Resource range reading — active implementation, 2026-11-15
 
-Owner capstone-agent/capstone-app. User accepted the large-resource direction after row-reference closure. Independent design research starts from dev51fc1cc1 on research/resource-range-design-20261115; destination dev after review. Scope: [bounded range reads and durable read receipts](../specs/2026-11-15-resource-range-read-design.md), reusing existing chunk uploads and native execution. Existing GB transfer/full-file scan evidence remains distinct from current range-read acceptance. This is planning-only backlog, not active implementation. Resume when the user reviews this written protocol, then write the implementation plan. Full processing checkpoints, sharded product indexes and remote scale acceptance remain separate unmet requirements.
+Owner capstone-agent/capstone-app. User approved the written [bounded range reads and durable read receipts](../specs/2026-11-15-resource-range-read-design.md) design on2026-11-15. Implementation branch feat/resource-range-reads-20261115 starts from reviewed designd4814039 and dev51fc1cc1, targetingdev. [Implementation plan](2026-11-15-resource-range-reads.md) owns durable admission, existing native transport and workspace source display, followed by current >1GB real acceptance. Existing uploads and prior GB/full-file scan remain reused evidence, not new range-read acceptance. No CI approval exists. Full processing checkpoints, sharded product indexes and remote scale acceptance remain separate unmet requirements.
 
 ## Structured result row references — 2026-11-15
 

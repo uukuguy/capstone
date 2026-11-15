@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: resource range-read design research, owned by capstone-agent/capstone-app, targeting reviewed design delivery to dev. Planning-only backlog; implementation has not started. Row references are complete through PR113/114 on dev51fc1cc1; runtime remains verified dc2aa71a with identical product code.
+- Active work package: resource range reads and durable read receipts, owned by capstone-agent/capstone-app on feat/resource-range-reads-20261115, targeting dev. Written design approved; implementation active with current large-file acceptance pending. Row references complete through PR113/114; runtime remains verified dc2aa71a until the candidate rebuild.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

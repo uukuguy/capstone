@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-11-15 结构化表格行引用与局部分析完成：PR113实现合dc2aa71a，PR114收口合51fc1cc1，实际dev与origin/dev同步。实现CI通过212秒，文档CI43678586237通过130秒。实际运行仍为已验dc2aa71a/镜像636f0cb736dc，后续只有文档变化；全部行引用分支关闭，恢复资料保留。大资源下一包处于范围核对，未开始实现。云端/demo未变。
+2026-11-15 结构化表格行引用与局部分析完成：PR113实现合dc2aa71a，PR114收口合51fc1cc1，实际dev与origin/dev同步。实现CI通过212秒，文档CI43678586237通过130秒。实际运行仍为已验dc2aa71a/镜像636f0cb736dc，后续只有文档变化；全部行引用分支关闭，恢复资料保留。大资源范围读取设计d4814039待书面复核，规划保留backlog，未开始实现。云端/demo未变。
 
 2026-11-15 最终收口PR112已合入dev 41ebc822；文档CI43617777424通过148秒。实际dev同步；产品与受检7e57641f/已重建c6167e5e一致，运行来源c6167e5e保留。研究/实施工作树仅为回执恢复源。
 
@@ -1300,6 +1300,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| resource-range-design-20261115 | 当前独立设计研究；未开始产品实现 |
 | result-rows-20261115 | 已接受的结构化结果行引用产品来源 |
 | result-rows-merge-20261115 | PR113合入dev的重要交付节点 |
 | product-adoption-merge-20261115 | 已接受成果对照采用的重要dev合并 |
@@ -1329,6 +1330,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| resource-range-design-20261115 | d4814039 | feature | 大资源范围读取设计研究 | 提案待复核；无实现或CI | 复用现有上传和授权，提议有界范围读取及持久回执；整文件处理检查点与索引分片保留后续。[设计](../superpowers/specs/2026-11-15-resource-range-read-design.md) | shared-agent |
 | result-rows-20261115 | 419b07b8 | feature | 结构化行引用与局部分析 | PR113已接受产品来源 | 精确行列/版本/摘要，专业Work准入，报告解释与Authority事实分离；185后端/255前端通过，模型及浏览器恢复通过。[本地验证](../reviews/2026-11-15-result-row-local.md) | shared-agent |
 | result-rows-merge-20261115 | dc2aa71a | main | 结构化行引用合入dev | PR113与实际dev接受 | 原表版本固定引用、专业局部分析及报告追溯已接受；受检acc3bd30，CI通过212秒，实际dev重建/来源恢复通过。[本地验证](../reviews/2026-11-15-result-row-local.md) | shared-agent |
 | product-adoption-runtime-20261114 | 825634e6 | feature | 本地采用服务运行来源 | 规范重建通过；App另含928c7aee修复 | API及三worker同镜像8bcee8cd3516；ready/缓存维护通过；采用稿模型续作及审计恢复通过。[本地验证](../reviews/2026-11-14-product-adoption-local.md) | shared-agent |
@@ -1513,6 +1515,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| resource-range-design-20261115 | 活动独立设计研究 | research/resource-range-design-20261115 | 有界读取及持久回执提案；复用上传与原生执行 | d4814039；书面复核待定，规划backlog，未开始实现 |
 | result-rows-20261115 | 已接受专业结果局部分析来源 | feat/result-row-selection-20261115 | 版本固定行列引用与私有冻结；真实分析报告与来源恢复 | 产品419b07b8；PR113接受，185后端/255前端通过 |
 | result-rows-merge-20261115 | 已接受dev集成与本地运行来源 | dev | 精确行引用及局部分析；报告解释与Authority事实分离 | PR113合dc2aa71a；CI通过212秒，实际dev重建与恢复通过 |
 | product-adoption-runtime-20261114 | 当前后端运行来源 | feat/product-comparison-adoption-20261114 | 会话隔离与流式来源校验；持久采用及有界对照 | 后端825634e6镜像8bcee8cd3516；App928c7aee；本地闭环通过，非云端发布 |
@@ -1735,7 +1738,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| research/resource-range-design-20261115 | 独立设计研究；目标dev | 所有者capstone-agent/capstone-app；基于51fc1cc1，范围读取/持久回执提案，未开始实现 | 用户复核书面协议后编写实施计划；规划保留backlog，不启动CI或云端发布 | shared-agent |
+| feat/resource-range-reads-20261115 | 活动应用实现；目标dev | 所有者capstone-agent/capstone-app；依赖已审d4814039，基于dev51fc1cc1，独立工作树setup/doctor通过 | 持久读取回执、原生范围传输、现有来源UI；真实>1GB验收及定向门禁，无CI批准 | shared-agent |
+| research/resource-range-design-20261115 | 独立设计研究；目标dev | 所有者capstone-agent/capstone-app；基于51fc1cc1，提案d4814039，未开始实现 | 用户复核书面协议后编写实施计划；规划保留backlog，不启动CI或云端发布 | shared-agent |
 | docs/result-row-closeout-20261115 | PR114合入后已关闭 | 受检ffc35a20，合并51fc1cc1；文档CI43678586237通过130秒；所有者capstone-agent/capstone-app，目标dev完成 | 回执stash554673f2与原始恢复资料保留；非活动交付 | shared-agent |
 | feat/result-row-selection-20261115 | PR113合入后已关闭 | 受检acc3bd30，产品419b07b8，dev合并dc2aa71a；CI通过212秒，原远端实现引用已删除 | 恢复工作树detached dc2aa71a；草稿stash42b8f54f/0f46f231保留，非活动实现 | shared-agent |
 | docs/result-row-selection-design-20261115 | 设计已接受并关闭 | a4c71edb已通过PR113进入dev；所有者capstone-agent/capstone-app，目标dev完成 | 设计/计划保留在dev，后续只在新工作包启动实现 | shared-agent |
