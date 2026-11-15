@@ -939,6 +939,29 @@ class HttpGeneralPiExecutor:
                 checkpoint()
                 paged = 'event_cursor' in response
                 requested_resources = response.pop('resource_requests', [])
+                range_requests = response.pop('range_requests', [])
+                if not isinstance(range_requests,list) or len(range_requests)>limits.rpc_batch_requests:
+                    raise ValueError('range requests exceed bounds')
+                if range_requests:
+                    import base64
+                    from .native_resource_ranges import checked_request,checked_reply
+                    catalog={item['resource_id']:_json_document(item) for item in
+                        (request.native_context or {}).get('resource_manifests', ())}
+                    for range_request in range_requests:
+                        checkpoint()
+                        checked_request(range_request,catalog)
+                        manifest=catalog[range_request['resource_id']]
+                        from types import SimpleNamespace
+                        range_control=SimpleNamespace(task_id=request.task_id,checkpoint=checkpoint)
+                        reply=resource_reader.read_range(manifest,range_request,range_control)
+                        document={'task_id':request.task_id,'request':range_request,
+                            'receipt':reply['receipt'],'content_base64':base64.b64encode(reply['content']).decode('ascii')}
+                        checked_reply(document,range_request,manifest,request.task_id)
+                        if reply['receipt']['attempt_id']!=request.parent_attempt_id:
+                            raise ValueError('range attempt identity changed')
+                        checkpoint()
+                        exchange('POST','/range-inputs',operation='resource_range',document=document,
+                            timeout=self._exchange_timeout,research_transport=True)
                 if set(response) != ({"status", "events", "result", "event_cursor"} if paged else {"status", "events", "result"}) or not isinstance(response["events"], list):
                     raise ValueError("Pi task status fields are invalid")
                 if not isinstance(requested_resources,list):
