@@ -7781,3 +7781,14 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-15 Devf185c080 canonical rebuild ready; API/three workers5517fe25 match, default5173 report/three receipts restored; cacheapply verified.
 
 - 2026-11-15 Actual dev graphf185c080 inspected; local docs scope, links, symlink, diff whitespace and doctor passed; closeout prepared.
+
+- 2026-11-15 Approved macOS docs CI43689071826 passed77s; PR116 mergede0fc951e, dev synchronized; closeout branch closed with recovery81edb811 preserved.
+
+- 16:45 Harness-chain baseline: 139 backend/72 App passed, one skipped; two real turns and six downloads verified; browser unavailable.
+- 17:02 Correction: Vivaldi available through Orca; same-tab report/refresh passed; implicit historical consumption absent from structured product sources.
+- 17:55 Historical delivery receipts persist exact acknowledged inputs without derivation claims; 103 backend/73 App checks passed [492b78e2].
+- 18:04 Candidate492b78e2 rebuilt; two real delivery receipts, seven downloads and Vivaldi reload passed; scoped104/73 checks passed; no CI.
+- 18:06 Focused historical-inputs gate and local acceptance committed; changed links, symlink and doctor passed [6625c0bb].
+- 18:09 User approved one focused macOS run; PR117 created at6625c0bb; CI43704515136 queued through explicit Clash proxy.
+- 18:36 Correction: CI43704515136 started18:31, passed149s; PR117 merged5798dad6; root drafts preserved in52561c4c and dev synchronized.
+- 18:40 Actual dev5798dad6 rebuild ready; API/three workers1cd6589b match; Vivaldi reload/two receipts/seven downloads preserved; cleanupapply verified.

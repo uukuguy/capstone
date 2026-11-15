@@ -1,6 +1,12 @@
 # docs/status INDEX
 
-当前收口：[大资源范围读取](../superpowers/plans/2026-11-15-resource-range-reads.md)已由PR115合入dev f185c080；定向macOS CI通过229秒，规范重建及默认5173报告/三条回执恢复通过。控制文档收口待集成。见[验收记录](../reviews/2026-11-15-resource-range-local.md)。
+历史输入交付回执已由PR117合入dev5798dad6；唯一获批macOS CI43704515136通过149秒。实际dev规范重建同镜像1cd6589b、默认Vivaldi/5173两回执与7下载恢复通过；来源分支关闭，52561c4c保留原草稿。文档收口在docs/historical-input-closeout-20261115准备，需独立批准docs CI。见[验证](../reviews/2026-11-15-historical-input-delivery-local.md)。以下记录保留候选过程。
+
+历史输入交付回执本地接受：104后端/73App及类型、规范重建、真实两条回执/7下载与Vivaldi刷新通过；未合dev，CI待单独批准。见[验证](../reviews/2026-11-15-historical-input-delivery-local.md)。下段保留实施过程。
+
+当前实施：历史输入交付回执，capstone-agent/capstone-app所有，功能分支492b78e2，目标dev；103后端（含PostgreSQL）/73App及类型通过，规范重建与真实验证待完成。见[台账](VERSION-CONTROL.md)及[设计](../superpowers/specs/2026-11-15-historical-input-receipts-design.md)。未合并、无CI。
+
+当前收口：[大资源范围读取](../superpowers/plans/2026-11-15-resource-range-reads.md)已由PR115合入dev f185c080；定向macOS CI通过229秒，规范重建及默认5173报告/三条回执恢复通过。文档收口PR116已合入e0fc951e，macOS文档CI通过77秒；来源分支已关闭。见[验收记录](../reviews/2026-11-15-resource-range-local.md)。
 
 已完成：[结构化行引用](../superpowers/plans/2026-11-15-result-row-selection.md)。PR113实现及PR114收口已进入dev51fc1cc1；两次获批macOS CI通过，实际dev报告v4与原表来源恢复通过，全部相关分支关闭。见[验证记录](../reviews/2026-11-15-result-row-local.md)。
 

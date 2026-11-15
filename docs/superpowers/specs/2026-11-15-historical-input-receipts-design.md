@@ -1,6 +1,6 @@
 # Historical input delivery receipts
 
-Status: approved by the user; implementation492b78e2 passed local real-task and Vivaldi restoration checks. Dev integration remains pending.
+Status: approved by the user; implementation492b78e2 and tested6625c0bb integrated through PR117/dev5798dad6 after focused macOS CI. Actual dev rebuild and Vivaldi restoration passed.
 Owner: capstone-agent and capstone-app. Destination: dev.
 Parent: Harness execution-chain baseline, approved by the user on 2026-11-15.
 

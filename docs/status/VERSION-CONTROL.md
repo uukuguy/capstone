@@ -1,5 +1,15 @@
 # 多线版本控制
 
+2026-11-15 实际dev5798dad6规范重建与合并后恢复通过：API/三worker同镜像1cd6589b0c8b，默认App5798dad6，Vivaldi刷新后两条交付回执和7条文件下载摘要保持。项目缓存apply通过；来源功能分支已关闭，恢复52561c4c保留。当前仅文档收口待另行批准一次docs CI；未启动第二次CI。下文保留候选与重建过程。
+
+2026-11-15 PR117已合实际dev5798dad6，唯一获批macOS historical-inputs CI43704515136通过149秒；受检6625c0bb。来源分支已正常关闭，根目录原状态草稿完整备份52561c4c并恢复；实际dev规范重建进行中。文档/控制收口分支docs/historical-input-closeout-20261115归shared-agent，目标dev，需独立批准一次docs CI；未启动第二次CI。下文候选记录为历史过程。
+
+2026-11-15 历史输入交付候选492b78e2本地接受：规范重建、API/三worker同镜像13a0eec29d86、两轮真实模型及Vivaldi执行详情/刷新通过；两条回执、7条下载摘要与31/62合计核对通过。定向门禁104后端/73App及类型、123分类检查通过。根源码为e0fc951e临时候选补丁，非已合入；CI尚未批准，云端/demo未变。[验证](../reviews/2026-11-15-historical-input-delivery-local.md)。下段保留重建前记录。
+
+2026-11-15 当前实施：历史输入交付回执，所有者capstone-agent/capstone-app，分支feat/historical-input-receipts-20261115，目标dev，源码492b78e2。103项定向后端（含真实PostgreSQL）及73项App/类型通过；精确完成确认后记录，重复交付幂等，执行详情不冒充分析或派生来源。根工作区仅临时应用该提交的8个运行/测试文件用于规范重建；原7个收口文件及3份研究/设计草稿保留。重建仍在基础镜像元数据阶段，尚未确认切换；未合dev、无CI、云端/demo未变。[设计](../superpowers/specs/2026-11-15-historical-input-receipts-design.md)。下一步为真实续作及Vivaldi刷新回执验证。
+
+2026-11-15 大资源范围读取及文档收口已完成：PR115产品合并f185c080，PR116收口合并e0fc951e；受检9d50ac5d的获批macOS docs CI43689071826通过77秒。实际dev/origin同步e0fc951e；产品与已重建f185c080内容相同，运行来源仍f185c080/镜像5517fe25971f。默认5173及报告/三条回执已验证；三个来源分支均关闭，恢复工作树与stash保留。云端/demo未变。
+
 2026-11-15 大资源范围读取PR115已合入dev f185c080，受检6f5605d4；获批macOS resource-ranges CI43686809091通过229秒。实际dev规范重建ready，API/三worker同镜像5517fe25971f；默认5173报告/三条回执恢复通过，缓存apply。设计/实现分支关闭，恢复工作树和stash保留，云端/demo未变。
 
 2026-11-15 PR115合入前产品21b8f7c8在候选5178完成真实1GB取样与恢复；该记录保留为验收来源，当前实际dev入口为f185c080/5173。
@@ -1302,6 +1312,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| historical-input-delivery-20261115 | PR117已合入dev的历史输入交付来源 |
 | resource-range-implementation-20261115 | 已接受范围读取dev合并；更广资源需求未整体接受 |
 | resource-range-design-20261115 | 已确认的独立设计来源与实现依赖 |
 | result-rows-20261115 | 已接受的结构化结果行引用产品来源 |
@@ -1333,6 +1344,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| historical-input-delivery-20261115 | 492b78e2 | feature | 历史输入交付回执产品来源 | PR117已合入5798dad6；macOS CI通过149秒 | 确认交付与持久幂等；104后端/73App及真实两回执/7下载/刷新通过。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) | shared-agent |
 | resource-range-implementation-20261115 | f185c080 | dev | 大资源范围读取与持久回执合入dev | PR115已合入；定向CI通过229秒 | 受检6f5605d4；精确读取、原生传输和来源恢复；真实1GB上传、模型12288字节取样通过。[验收](../reviews/2026-11-15-resource-range-local.md) | shared-agent |
 | resource-range-design-20261115 | d4814039 | feature | 大资源范围读取设计来源 | 书面设计已确认 | 复用现有上传和授权，提议有界范围读取及持久回执；整文件处理检查点与索引分片保留后续。[设计](../superpowers/specs/2026-11-15-resource-range-read-design.md) | shared-agent |
 | result-rows-20261115 | 419b07b8 | feature | 结构化行引用与局部分析 | PR113已接受产品来源 | 精确行列/版本/摘要，专业Work准入，报告解释与Authority事实分离；185后端/255前端通过，模型及浏览器恢复通过。[本地验证](../reviews/2026-11-15-result-row-local.md) | shared-agent |
@@ -1519,6 +1531,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| historical-input-delivery-20261115 | 已集成执行链来源 | feat/historical-input-receipts-20261115（已关闭） | 确认交付后持久幂等；执行详情恢复 | 产品492b78e2，受检6625c0bb；PR117合5798dad6；macOS CI43704515136通过149秒 |
 | resource-range-implementation-20261115 | 已接受的dev交付 | dev | 有界读取及持久回执；真实模型报告与来源恢复 | PR115合并f185c080，受检6f5605d4，macOS定向CI43686809091通过229秒 |
 | resource-range-design-20261115 | 已确认设计依赖 | research/resource-range-design-20261115 | 有界读取及持久回执设计；复用上传与原生执行 | d4814039；用户书面确认，随实现交付dev，非独立活动实现 |
 | result-rows-20261115 | 已接受专业结果局部分析来源 | feat/result-row-selection-20261115 | 版本固定行列引用与私有冻结；真实分析报告与来源恢复 | 产品419b07b8；PR113接受，185后端/255前端通过 |
@@ -1628,7 +1641,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | PR104已接受PPT，PR106已回流发布版本与补修；保留实际运行来源 | 当前HEAD由Git解析；PR106治理CI通过118秒，默认入口1.1.0及成果恢复通过 |
+| dev-head | 当前研发位置 | dev | PR117历史输入交付回执已集成；保留范围读取、成果引用和发布基线 | 当前HEAD由Git解析；PR117受检6625c0bb，macOS CI通过149秒；实际dev重建及两回执/7下载恢复通过 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1670,6 +1683,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 117 | shared-agent | feat/historical-input-receipts-20261115 | dev | MERGED | 5798dad6；受检6625c0bb；唯一获批macOS historical-inputs CI43704515136通过149秒；来源分支关闭，云端/demo未变 |
+| 116 | shared-agent | docs/resource-range-closeout-20261115 | dev | MERGED | e0fc951e；受检9d50ac5d；获批macOS docs CI43689071826通过77秒，实际dev同步，产品与f185c080一致，分支关闭 |
 | 115 | shared-agent | feat/resource-range-reads-20261115 | dev | MERGED | f185c080；受检6f5605d4；获批macOS resource-ranges CI43686809091通过229秒，360后端/82App/271治理通过；分支关闭，云端/demo不变 |
 | 113 | shared-agent | feat/result-row-selection-20261115 | dev | MERGED | dc2aa71a；受检acc3bd30；获批macOS CI43650887728通过212秒，185后端/255前端/271治理通过，云端/demo不变 |
 | 114 | shared-agent | docs/result-row-closeout-20261115 | dev | MERGED | 51fc1cc1；受检ffc35a20；文档CI43678586237通过130秒，实际dev同步，产品与dc2aa71a一致，分支关闭 |
@@ -1744,7 +1759,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| docs/resource-range-closeout-20261115 | 活动文档收口；目标dev | 所有者shared-agent；基于PR115合并f185c080；仅验收/控制记录，产品内容不变 | 本地链接/doctor/图检查后提交，待新一次macOS docs CI明确批准；无新增CI授权 | shared-agent |
+| docs/historical-input-closeout-20261115 | 活动文档收口；目标dev | 所有者shared-agent；仅状态/验收/图形台账；承接原7份未提交回执，完整备份52561c4c保留 | 合并后默认入口恢复和文档定向检查；独立批准docs CI后创建PR | shared-agent |
+| feat/historical-input-receipts-20261115 | PR117已合入并关闭 | 所有者capstone-agent/capstone-app；受检6625c0bb，合并5798dad6；唯一获批macOS CI43704515136通过149秒 | 本地/远端来源分支关闭；恢复52561c4c保留；文档收口另列 | shared-agent |
+| docs/resource-range-closeout-20261115 | PR116已合入并关闭 | 所有者shared-agent；受检9d50ac5d，合并e0fc951e；仅验收/控制记录，产品内容不变 | macOS docs CI43689071826通过77秒；远端/本地分支关闭，恢复工作树detached同步e0fc951e，stash81edb811保留 | shared-agent |
 | feat/resource-range-reads-20261115 | PR115已合入并关闭 | 所有者capstone-agent/capstone-app；受检6f5605d4，合并f185c080，原产品21b8f7c8 | 远端及本地分支关闭；恢复工作树转文档收口分支，stashc63a3fc1保留 | shared-agent |
 | research/resource-range-design-20261115 | 已交付设计依赖并关闭 | 所有者capstone-agent/capstone-app；用户确认d4814039，已随PR115进入dev | 本地设计分支关闭，精确设计来源可由合并历史恢复 | shared-agent |
 | docs/result-row-closeout-20261115 | PR114合入后已关闭 | 受检ffc35a20，合并51fc1cc1；文档CI43678586237通过130秒；所有者capstone-agent/capstone-app，目标dev完成 | 回执stash554673f2与原始恢复资料保留；非活动交付 | shared-agent |
@@ -1947,7 +1964,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | dev `f185c080`，默认App5173 | API/三worker同镜像5517fe25971f84400d0d481d435508d9e44d0c6bfaf6ece0ad807973150e2e7e，ready及缓存apply通过 | http://127.0.0.1:5173/；实际dev入口报告与三条范围回执恢复通过，内容与原验收完全一致；云端/demo未变。 |
+| local-dev | 实际dev `5798dad6`；App5173，运行包源码无补丁 | API/三worker同镜像1cd6589b0c8b6194fab93f8c0412275bcecd7cf076ebee142eba6ecd1f7a8eb1；ready及缓存apply通过 | http://127.0.0.1:5173/；PR117已合入且macOS CI通过149秒；两回执、7下载与Vivaldi刷新通过；仅文档草稿未提交，云端/demo未变。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
