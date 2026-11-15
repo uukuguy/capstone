@@ -6,8 +6,12 @@ Owner capstone-agent/capstone-app; branch `feat/historical-input-receipts-202611
 destination dev. User approved the [receipt design](../specs/2026-11-15-historical-input-receipts-design.md).
 Acceptance: exact acknowledged delivery, durable idempotent receipts and existing
 execution-detail restoration, without asserting analysis or product derivation.
-Focused checks pass locally; next step is canonical rebuild and real continuation
-in the existing Vivaldi tab. No CI, merge or deployment acceptance is recorded.
+Canonical rebuild and real two-turn continuation passed. Two exact delivery
+receipts restore in the existing Vivaldi tab after reload; seven downloads and
+CSV totals31/62 verified. Local focused gate104 backend/73App and types passed.
+Next step: explicit approval for one focused macOS historical-inputs CI run,
+then dev PR integration. No CI or merge is recorded; cloud/demo unchanged.
+Evidence: [local verification](../../reviews/2026-11-15-historical-input-delivery-local.md).
 
 ## Resource range reading — active implementation, 2026-11-15
 

@@ -1,6 +1,6 @@
 # Historical input delivery receipts
 
-Status: concrete design for review; no runtime implementation yet.
+Status: approved by the user; implementation492b78e2 passed local real-task and Vivaldi restoration checks. Dev integration remains pending.
 Owner: capstone-agent and capstone-app. Destination: dev.
 Parent: Harness execution-chain baseline, approved by the user on 2026-11-15.
 
