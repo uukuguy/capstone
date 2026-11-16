@@ -6,6 +6,9 @@ from .result_projection import ResultProjection
 
 
 NATIVE_FAILURE_REASONS = {
+    'native_execution_outcome_unknown': '上次执行结果未知，未自动重复任务。已有产物保留；继续前请核对原操作状态。',
+    'native_result_retention_expired': '上次执行结果的保留期已结束，未自动重复任务。请核对现有来源和产物后继续。',
+    'native_process_cleanup_unconfirmed': '尚未确认本地执行进程已全部停止。已保留现有产物；请先核对执行状态，避免重复执行。',
     'native_product_delivery_incomplete': '报告生成未完成，或请求的文件尚未确认保存。已有数据、图表和草稿保留，可据此修复，无需重新取数。',
     'native_session_skill_content_changed': '本轮绑定的技能内容已变化，执行已停止。请核对当前技能版本后发起新指令；过期的固定绑定需先解除或更新。已有文件保留。',
     'native_session_skill_content_unavailable': '无法取得本轮绑定的技能内容，执行已停止。请检查技能安装状态和版本绑定后再发起新指令。已有文件保留。',

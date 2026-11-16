@@ -59,6 +59,134 @@ def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, 
     assert len(idle) >= 2
 
 
+@pytest.mark.parametrize('reason', ['cancelled', 'deadline'])
+def test_cancellation_stops_process_while_output_callback_is_blocked(tmp_path, single_child_cleanup, reason):
+    from threading import Event, Thread
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    entered, release, cancelled = Event(), Event(), Event()
+    script = tmp_path / 'blocked.py'
+    script.write_text('import sys,time,json\nsys.stdin.readline()\n'
+        'print(json.dumps({"type":"turn_start"}),flush=True)\ntime.sleep(30)\n')
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    failures = []
+    def callback(event):
+        entered.set()
+        assert release.wait(5)
+    def run():
+        try:
+            process.run('task', timeout=.3 if reason == 'deadline' else 10,
+                        cancelled=cancelled.is_set, on_event=callback)
+        except Exception as error:
+            failures.append(error)
+    thread = Thread(target=run)
+    thread.start()
+    try:
+        assert entered.wait(3)
+        child = process.process
+        assert child is not None
+        if reason == 'cancelled':
+            cancelled.set()
+        deadline = time.monotonic() + 2
+        while child.poll() is None and time.monotonic() < deadline:
+            time.sleep(.01)
+        assert child.poll() is not None, 'output callback blocked process cancellation'
+        assert thread.is_alive(), 'fixture must still block the output callback'
+    finally:
+        release.set()
+        thread.join(4)
+        process.stop()
+    assert not thread.is_alive()
+    assert failures and isinstance(failures[0], InterruptedError if reason == 'cancelled' else TimeoutError)
+
+
+def test_failed_stop_keeps_process_handle_for_cleanup_retry(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    process = module.GeneralPiProcess(('unused',), {}, tmp_path)
+    child = SimpleNamespace(pid=12345, stdin=None, stdout=None, stderr=None, wait=lambda **_:None)
+    process.process = child
+    def denied(*_):
+        raise PermissionError('cleanup unavailable')
+    monkeypatch.setattr(module.os, 'killpg', denied)
+    with pytest.raises(PermissionError):
+        process._stop_process()
+    assert process.process is child
+    monkeypatch.setattr(module.os, 'killpg', lambda *_:None)
+    process._stop_process()
+    assert process.process is None
+
+
+def test_uid_cleanup_does_not_signal_a_reaped_process_group(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    process = module.GeneralPiProcess(('unused',), {}, tmp_path, uid=10000)
+    reaped = False
+    def wait(**_):
+        nonlocal reaped
+        reaped = True
+    def signal_group(*_):
+        assert not reaped, 'process group ID may belong to another task after wait'
+    child = SimpleNamespace(pid=12345, stdin=None, stdout=None, stderr=None, wait=wait)
+    process.process = child
+    monkeypatch.setattr(module.os, 'killpg', signal_group)
+    alive = [12346]
+    monkeypatch.setattr(module, '_live_task_processes', lambda uid:list(alive))
+    monkeypatch.setattr(module, '_kill_task_process', lambda uid,pid:alive.remove(pid))
+    process._stop_process()
+    assert process.process is None
+    assert alive == []
+
+
+def test_uid_cleanup_never_certifies_success_while_a_descendant_is_live(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    process = module.GeneralPiProcess(('unused',), {}, tmp_path, uid=10000)
+    child = SimpleNamespace(pid=12345, stdin=None, stdout=None, stderr=None, wait=lambda **_:None)
+    process.process = child
+    monkeypatch.setattr(module.os, 'killpg', lambda *_:None)
+    monkeypatch.setattr(module.os, 'kill', lambda *_:None)
+    monkeypatch.setattr(module, '_kill_task_process', lambda *_:None)
+    monkeypatch.setattr(module, '_live_task_processes', lambda uid:[12346], raising=False)
+    with pytest.raises(RuntimeError, match='cleanup unconfirmed'):
+        process._stop_process()
+    assert process.process is child
+    monkeypatch.setattr(module, '_live_task_processes', lambda uid:[])
+    process._stop_process()
+    assert process.process is None
+
+
+def test_uid_process_observation_excludes_zombies_and_fails_closed(tmp_path):
+    import os
+    from capstone_agent.general_pi_executor import _live_task_processes
+    for pid, state in [(123, 'S (sleeping)'), (124, 'Z (zombie)')]:
+        path = tmp_path / str(pid)
+        path.mkdir()
+        (path / 'status').write_text('State:\t' + state + '\n')
+    assert _live_task_processes(os.getuid(), proc_root=tmp_path) == [123]
+    assert _live_task_processes(os.getuid()+1, proc_root=tmp_path) == []
+    (tmp_path / '123' / 'status').write_text('invalid')
+    with pytest.raises(RuntimeError, match='cleanup unconfirmed'):
+        _live_task_processes(os.getuid(), proc_root=tmp_path)
+
+
+@pytest.mark.parametrize('owner_matches', [False, True])
+def test_uid_cleanup_pins_process_and_rechecks_owner(tmp_path, monkeypatch, owner_matches):
+    import os
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    descriptor = os.open('/dev/null', os.O_RDONLY)
+    sent = []
+    monkeypatch.setattr(module.os, 'pidfd_open', lambda pid:descriptor, raising=False)
+    monkeypatch.setattr(module.signal, 'pidfd_send_signal', lambda fd,sig:sent.append((fd,sig)), raising=False)
+    monkeypatch.setattr(module, 'Path', lambda _:SimpleNamespace(stat=lambda:SimpleNamespace(st_uid=10000 if owner_matches else 10001)))
+    module._kill_task_process(10000,12345)
+    assert bool(sent) is owner_matches
+    if sent:
+        assert sent == [(descriptor,module.signal.SIGKILL)]
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+
+
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
 @pytest.mark.parametrize('outcome', ['complete', 'cancelled', 'deadline'])
 def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, single_child_cleanup, mode, outcome):

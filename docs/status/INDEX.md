@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+用户已明确批准一次macOS recoverable-tasks定向CI（预计3–5分钟）；准备最终提交并创建面向dev的PR，不扩大至发布/Linux，也不自动触发第二次。
+
+249346e6补强未知工具结果回归：持久事件明确记录取消未确认、工具结果unknown且仅执行一次；两项定向检查通过0.99秒。运行源码仍40ddb637，CI批准待回复。
+
 worker中断文件恢复切片本地接受：候选f0976baf规范重建8952043d，真实incomplete封存、28字节读取/报告与Vivaldi刷新通过。整体worker丢失接受仍partial：native自动停止缺口未解决，实验清理是人工操作。116定向/123分类通过，待单独批准CI；见[验证](../reviews/2026-11-15-worker-loss-product-recovery.md)和[KNOWN-ISSUES](KNOWN-ISSUES.md)。以下为过程记录。
 
 当前修正：worker中断后的文件封存与历史准入，候选f0976baf，capstone-agent所有，目标dev；116项定向检查及123项分类检查通过，规范重建/真实复验中。旧租约写入保护通过，但独立native任务在父worker丢失后仍继续，已记[KNOWN-ISSUES](KNOWN-ISSUES.md)。[验证与范围](../reviews/2026-11-15-worker-loss-product-recovery.md)明确不把本修正当作整链停止接受。无CI批准。
@@ -976,3 +980,13 @@ default and explicit selections, plus two real default-model checks.
 
 2026-11-14：PPT最终运行ddc3df02，规范重建、86项渲染检查、真实四轮与47条下载摘要通过；
 [回执](../reports/receipts/2026-11-14-presentation-integration.json)。引用研究已归档；待单独获批CI和dev PR。
+
+2026-11-16: PR120 merged as `44abf3c5`; approved macOS CI `43806396571` passed in 116 seconds. Native automatic stop remains open.
+
+Active recoverable long-task branch `feat/recoverable-long-tasks-20261116`, runtime source `40ddb637`; real worker/API/executor faults, short-outage continuation and cancellation verified locally. Focused gate583 passed/33 skipped; review/CI/dev integration and graph browser inspection pending. [Evidence](../reviews/2026-11-16-recoverable-long-task-local.md).
+
+Recoverable execution candidate `f577d6f0`: real automatic native stop and idle ledger recovery passed; exact143-byte continuation/2340-byte report verified. Full restart/uncertain-result acceptance pending.
+
+Candidate chain through `44fc1293`: real worker fault, API restart, short transport outage and executor unknown-outcome continuation verified. Feature evidence HEAD `f62a241c`; final cancellation/context/review/CI acceptance pending.
+
+当前长任务候选40ddb637已完成本地多故障恢复、精确续作与取消清理核验；定向PG门禁583通过/33跳过，上下文94通过/1跳过。CI/合入dev与最新控制图浏览器复核待完成；无新CI批准。[证据](../reviews/2026-11-16-recoverable-long-task-local.md)。下文保留历史记录。

@@ -13,7 +13,7 @@ import shutil
 import signal
 import stat
 import subprocess
-from threading import Event, Thread
+from threading import Event, Thread, Lock
 import time
 from collections.abc import Callable, Mapping
 from .application_capacity import limits, require_capacity
@@ -382,6 +382,50 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
     return argv, environment
 
 
+def _live_task_processes(uid: int, *, proc_root=Path('/proc')) -> list[int]:
+    if not proc_root.is_dir():
+        raise RuntimeError('native process cleanup unconfirmed')
+    live = []
+    for path in proc_root.glob('[0-9]*'):
+        try:
+            if path.stat().st_uid != uid:
+                continue
+            fields = next(line.split() for line in (path / 'status').read_text().splitlines()
+                          if line.startswith('State:'))
+            if len(fields) < 2:
+                raise ValueError('invalid process state')
+            if fields[1] not in {'Z', 'X'}:
+                live.append(int(path.name))
+        except (ProcessLookupError, FileNotFoundError):
+            continue
+        except (OSError, ValueError, StopIteration):
+            raise RuntimeError('native process cleanup unconfirmed') from None
+    return live
+
+
+def _kill_task_process(uid: int, pid: int) -> None:
+    # Pin the process before checking its UID. A recycled numeric PID must not
+    # turn cleanup of one task into a signal to another task's process.
+    try:
+        descriptor = os.pidfd_open(pid)
+    except ProcessLookupError:
+        return
+    try:
+        try:
+            if Path(f'/proc/{pid}').stat().st_uid != uid:
+                return
+            signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+        except (ProcessLookupError, FileNotFoundError):
+            pass
+    finally:
+        os.close(descriptor)
+
+
+class NativeProcessCleanupUnconfirmed(RuntimeError):
+    def __init__(self):
+        super().__init__('native process cleanup unconfirmed')
+
+
 class GeneralPiProcess:
     """Finite native RPC with a separate process group and optional Unix identity."""
 
@@ -397,6 +441,7 @@ class GeneralPiProcess:
                 or any(not isinstance(name, str) or not name for name in (*required_tools, *forbidden_tools))):
             raise ValueError('General Pi tool role is invalid')
         self.process: subprocess.Popen | None = None
+        self._stop_lock = Lock()
         self.usage: dict = {}
         self.tools: list[str] = []
         self.inventory: dict = {}
@@ -411,13 +456,37 @@ class GeneralPiProcess:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             start_new_session=True, **privilege)
         process = self.process
+        deadline = time.monotonic() + timeout
+        stopped = Event()
+        revoked = Event()
+
+        def watch_execution():
+            # Output persistence and callbacks can block the RPC reader. They
+            # must not block local cancellation or the execution deadline.
+            while not stopped.wait(.05):
+                try:
+                    denied = cancelled()
+                except Exception:
+                    denied = True
+                if denied or time.monotonic() >= deadline:
+                    if denied:
+                        revoked.set()
+                    try:
+                        self.stop()
+                    except Exception:
+                        # The main finally retries cleanup and propagates its
+                        # failure. Never declare successful cleanup here.
+                        pass
+                    return
+
+        watcher = Thread(target=watch_execution, daemon=True, name='capstone-native-process-guard')
+        watcher.start()
         if on_process_started is not None:
             try:
                 on_process_started()
             except Exception:
                 pass  # Optional host diagnostics must not change task execution.
         frames: Queue[bytes | None | Exception] = Queue(maxsize=limits.native_rpc_queue_frames)
-        stopped = Event()
 
         def enqueue(frame):
             while not stopped.is_set():
@@ -456,7 +525,6 @@ class GeneralPiProcess:
 
         Thread(target=read, daemon=True).start()
         Thread(target=drain, daemon=True).start()
-        deadline = time.monotonic() + timeout
         accounting = _NativeUsage()
         committed_delivery = None
         try:
@@ -465,7 +533,7 @@ class GeneralPiProcess:
                 process.stdin.write((json.dumps({'type': 'prompt', 'message': instruction}) + '\n').encode())
                 process.stdin.flush()
             while True:
-                if cancelled():
+                if revoked.is_set() or cancelled():
                     raise InterruptedError('General Pi task cancelled')
                 if time.monotonic() >= deadline:
                     raise TimeoutError('General Pi task deadline exceeded')
@@ -476,6 +544,12 @@ class GeneralPiProcess:
                     if callable(on_idle):
                         on_idle()
                     continue
+                # The guard may close stdout while this thread waits on the
+                # queue. Preserve the actual cancellation/deadline outcome.
+                if revoked.is_set() or cancelled():
+                    raise InterruptedError('General Pi task cancelled')
+                if time.monotonic() >= deadline:
+                    raise TimeoutError('General Pi task deadline exceeded')
                 if frame is None:
                     raise RuntimeError('General Pi ended before completion')
                 if isinstance(frame, Exception):
@@ -589,40 +663,47 @@ class GeneralPiProcess:
             raise
         finally:
             stopped.set()
+            watcher.join(timeout=.1)
             self.stop()
 
     def stop(self) -> None:
-        process, self.process = self.process, None
+        with self._stop_lock:
+            try:
+                self._stop_process()
+            except Exception:
+                raise NativeProcessCleanupUnconfirmed() from None
+
+    def _stop_process(self) -> None:
+        process = self.process
         if process is None:
             return
-        # Native tools may have descendants after Pi exits. Kill the group too.
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            process.wait(timeout=0.1)
-        except subprocess.TimeoutExpired:
-            pass
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        process.wait(timeout=1)
         if self.uid is not None:
             # A tool can create another process session. Each task has a unique UID.
+            # Pin each process before signalling; a reaped Pi PID/group may be reused.
             for _ in range(3):
-                alive = False
-                for path in Path('/proc').glob('[0-9]*'):
-                    try:
-                        if path.stat().st_uid == self.uid:
-                            os.kill(int(path.name), signal.SIGKILL)
-                            alive = True
-                    except (ProcessLookupError, FileNotFoundError):
-                        pass
+                alive = _live_task_processes(self.uid)
                 if not alive:
                     break
+                for pid in alive:
+                    _kill_task_process(self.uid, pid)
                 time.sleep(0.01)
+            if _live_task_processes(self.uid):
+                raise RuntimeError('native process cleanup unconfirmed')
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=0.1)
+            except subprocess.TimeoutExpired:
+                pass
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.wait(timeout=1)
         for stream in (process.stdin, process.stdout, process.stderr):
             if stream is not None:
                 stream.close()
+        self.process = None

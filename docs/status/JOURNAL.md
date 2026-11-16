@@ -7805,3 +7805,50 @@ check passed. No CI, integration or remote deployment performed.
 - 23:34 Real worker SIGKILL reached lease_expired; stale renew/event/completion rejected; native task continued, draft stayedrunning and recovery could not read it.
 - 23:40 Sealed expired captures and admitted interrupted historical files;116 focused checks plus123 scope checks passed; native orphan lifecycle deferred [f0976baf].
 - 23:49 Candidate rebuilt8952043d; fresh worker loss sealed draft incomplete; exact28byte read/report and Vivaldi refresh passed; native cleanup was manual.
+
+- 23:57 Local recovery evidence/control committed as 5725aeb9 after product f0976baf; document links, relative CLAUDE symlink, doctor and diff checks passed. Focused gate resolves worker-interruption. Independent reviewer dispatch unavailable; no review result. CI not started; waiting for per-run approval.
+
+- 2026-11-16 12:52 CST User approved one macOS worker-interruption CI; PR120 run43806396571 passed in116s (116 backend checks,271 governance passed/3 skipped). PR120 merged as44abf3c5; actual dev fast-forwarded. Pre-integration exact files/stash preserved under runs/harness-worker-loss-fixed-20261115/pre-integration/. No CI rerun.
+- 2026-11-16 12:56 CST Post-merge canonical rebuild passed; API/three workers image0381ea6b, cleanup apply and retained Thread read verified. Vivaldi no longer running; final graph visual check pending. No cloud/demo change.
+- 2026-11-16 14:23 CST User activated recoverable long-task capability goal. Inspected current worker guard, native ownership and executor cancellation; drafted capability design with full acceptance, explicit safe-retry boundary and executor-local renewable authority. Design review pending; no runtime change or CI run. Doctor and diff checks passed. Draft paths: docs/superpowers/specs/2026-11-16-recoverable-long-task-design.md and canonical unified execution plan.
+- 2026-11-16 Design evidence correction: GeneralPiHost already persists admission before execution, checks request hashes and avoids replay after unknown restart outcomes. Capability design now requires reuse and generation integration rather than a duplicate admission ledger. Source inspected; no fresh restart acceptance claimed.
+- 2026-11-16 Focused Python3.12 restart/receipt baseline passed13 cases in0.72s; no real executor restart or orphan-stop claim. New recovery design remains awaiting explicit review; repeated automatic continuation is not design approval. Implementation blocked at brainstorming design gate; no runtime changes or CI.
+- 2026-11-16 User approved recoverable long-task design; implementation resumed in initialized worktree historical-input-receipts on feat/recoverable-long-tasks-20261116 based44abf3c5. Added expiring executor authority with red-first tests:11 passed0.03s. HTTP/runner wiring and whole-capability acceptance remain pending. No CI or deployment.
+- 70beeab3: Added expiring execution authority to prevent stale generations from renewing; transport integration remains pending.
+- 6abb3aa9: Bound native execution to renewable ownership and conservative host deadlines; local consumers passed288 with32 expected skips.
+- Runtime setup repaired: stale unowned Pi shallow.lock preserved under worktree runs/recoverable-long-task-20261116; process-scoped proxy installation and doctor passed. No credentials copied.
+- bd1a16bc: Added independent process guard so blocked output cannot prevent cancellation;85 process checks and isolated Linux parent/child termination passed.
+- Candidatebd1a16bc exact seven runtime paths applied to root dev44abf3c5 after a database guard found no active attempts. Canonical rebuild running; receipt runs/recoverable-long-task-20261116/rebuild-bd1a16bc.log. No acceptance claimed yet.
+- f577d6f0: Added idle lease reaping after real worker loss left its ledger running;52 focused checks passed.
+- Candidatebd1a16bc real native task auto-cancelled in29.3426s without manual cleanup; UID12370 cleared. Snapshot read was needed for ledger interruption; distinct continuation read28 original bytes and completed2059-byte report. Native stop accepted locally; ledger background recovery requiredf577d6f0.
+- Candidatef577d6f0 real worker SIGKILL: old lease renew/event/completion rejected without public Thread reads; native auto-cancelled29.083s, old UID clear. Distinct continuation read143 original bytes and completed2340-byte report with verified hashes; no manual cleanup. Probe fixed an incorrect28-byte fixture assumption without resubmission.
+- Existing Vivaldi Capstone tab restored candidatef577d6f0 interrupted task and completed continuation; reload preserved incomplete draft preview and recovery report. No new tab or UI source change.
+- dc40538e: Recorded real automatic worker-loss recovery, exact historical continuation and browser refresh; kept remaining long-task acceptance explicit.
+- Graph inspection found the new accepted dev44abf3c5 node used a branch lane; corrected only that node to the existing mainline lane vocabulary. Historical layout retained.
+- 867dd1f8: Aligned recovery checkpoint and dev-source graph lane; preserved historical layout and pending whole-capability acceptance.
+- 6c4c87d9: Kept cleanup uncertainty explicit and pinned task processes before signalling;227 focused consumers and Linux parent/child stop passed.
+- a16229e5: Separated authority-envelope overhead from task quota;105 focused checks passed without reducing admitted task capacity.
+- Candidate6c4c87d9 real API restart and6.268s native network outage preserved the same attempt and one long operation; checkpoint/final hashes verified. Network aliases/address restored; no resubmission. Receipts runs/recoverable-long-task-api-outage-20261116/.
+- 44fc1293: Added receipt-only recovery without readmission;279 focused checks passed, retaining tombstones and uncertain-cleanup reservations.
+- f62a241c: Recorded real executor restart, unknown outcome without readmission, and exact retained-file continuation after failure.
+- Candidate44fc1293 executor-restart trial: original attempt failed with native_execution_outcome_unknown, old UID12384 cleared, recovered receipt hash unchanged, old task absent from new memory. Explicit new attempt read240-byte draft and completed2944-byte report; hashes verified. Existing failed-file status is valid unfinished projection, so the inherited incomplete-only probe assertion was corrected without restarting/replaying the task.
+- Current local source44fc1293/imagea30d9662 is recorded in the control graph and exact-source manifests. Doc links, relative symlink, diff checks and doctor passed. Latest graph visual review remains pending; no alignment/integration completion claimed.
+
+- 27e6ed1b: Checkpointed four real fault trials and control records to preserve the verified recovery boundary.
+
+- 40ddb637: Pinned native cleanup and allowed terminal receipt reads;477 focused checks passed to guard isolation and recovery.
+
+- 014e6733: Added focused recoverable-task CI routing;583 local checks passed with33 skips to avoid a broad development gate.
+
+- Candidate40ddb637 rebuilt with matched API/three-worker image76da821f; real cancel cleared UID12392 four processes, retained exact draft and no final.
+- Local scoped PostgreSQL gate583 passed/33 skipped75.39s; context94 passed/1 skipped4.24s. CI not started; review dispatch/graph AX inspection unavailable.
+
+- 913ee5a7: Recorded local capability acceptance and explicit remaining integration gates; preserves cancellation, context and scoped-check evidence.
+
+- 249346e6: Verified persisted cancellation uncertainty and unknown tool outcome without replay; two focused regressions passed.
+
+- 80158a40: Linked persisted-uncertainty regression evidence to the control register; runtime unchanged and CI approval remains pending.
+
+- Goal marked blocked after three turns awaiting explicit CI approval; implementation/evidence preserved, review and graph inspection still pending.
+
+- User explicitly approved one macOS recoverable-tasks CI run, expected3–5minutes; selected Clash proxy7897, remote dev44abf3c5 unchanged.

@@ -633,6 +633,47 @@ def test_cancel_accepts_already_completed_bound_task(service):
     assert state["polls"] == 1
 
 
+def test_cancel_does_not_confirm_an_unverified_process_cleanup(service):
+    origin, state = service
+    request = PiTaskRequest.from_document(request_document())
+    result = {**result_document(request), 'schema':'capstone-pi-task-result/2', 'status':'failed',
+        'failure':{'code':'native_process_cleanup_unconfirmed','phase':'execution'}}
+    state['cancel_response'] = {'status':'failed','events':[],'result':result}
+    with pytest.raises(RuntimeError, match='cleanup unconfirmed'):
+        executor(origin).cancel('task-1')
+
+
+@pytest.mark.parametrize('receipt_present', [True,False])
+def test_lost_executor_state_uses_receipt_only_recovery_without_readmission(monkeypatch, receipt_present):
+    from capstone_agent.pi_delegation import PiHTTPFailure
+    request=PiTaskRequest.from_document(request_document())
+    client=HttpGeneralPiExecutor('http://executor.invalid',identity=request.executor_identity,
+        capability={'task_recovery_schemas':['capstone-pi-task-recovery/1']})
+    calls=[]
+    def call(method,path,**kwargs):
+        calls.append((method,path))
+        if method=='POST' and path=='/tasks':return {'task_id':request.task_id}
+        if method=='GET':raise PiHTTPFailure(404,'task_not_found')
+        if path.endswith('/recover'):
+            assert kwargs['document']=={'request':request.to_document()}
+            if not receipt_present:raise PiHTTPFailure(404,'task_receipt_missing')
+            return {'task_id':request.task_id,'result':{**result_document(request),
+                'schema':'capstone-pi-task-result/2','status':'failed',
+                'failure':{'code':'native_execution_outcome_unknown','phase':'execution'}}}
+        if method=='DELETE':raise PiHTTPFailure(404,'task_not_found')
+        pytest.fail('unexpected execution request')
+    monkeypatch.setattr(client,'_call',call)
+    control=NodeControl(lambda:None,time.monotonic()+2)
+    if receipt_present:
+        result=client.execute(request,control,lambda _:None)
+        assert result.failure['code']=='native_execution_outcome_unknown'
+    else:
+        with pytest.raises(RuntimeError,match='outcome unknown'):
+            client.execute(request,control,lambda _:None)
+    assert calls.count(('POST','/tasks'))==1
+    assert ('POST','/tasks/task-1/recover') in calls
+
+
 def test_cancel_total_budget_includes_dripped_response_headers(service):
     origin, state = service
     state["slow_delete_headers"] = True

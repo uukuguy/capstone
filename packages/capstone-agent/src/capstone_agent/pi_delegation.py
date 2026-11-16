@@ -695,6 +695,8 @@ class HttpGeneralPiExecutor:
                                  _json_document(self.identity))
                 if document["status"] != status:
                     raise ValueError("Pi cancellation terminal status is invalid")
+                if document.get('failure', {}).get('code') == 'native_process_cleanup_unconfirmed':
+                    raise RuntimeError('Pi native process cleanup unconfirmed; task state is unknown')
                 control.checkpoint()
                 return PiTaskResult(**{key: value for key, value in document.items() if key != 'schema'})
             if status not in {"queued", "running"} or response["result"] is not None:
@@ -848,9 +850,15 @@ class HttpGeneralPiExecutor:
         if request.executor_identity != self.identity:
             raise ValueError("Pi request executor identity is not selected")
         deadline = min(control.deadline, time.monotonic() + request.timeout_seconds)
+        from .native_execution_authority import SCHEMA
+        from .native_execution_renewal import ExecutionRenewal
+        renewal = (ExecutionRenewal(self, request, control)
+                   if SCHEMA in self.capability.get('execution_authority_schemas', ()) else None)
 
         def checkpoint():
             control.checkpoint()
+            if renewal is not None:
+                renewal.check()
             if time.monotonic() >= deadline:
                 raise TimeoutError("Pi task deadline expired")
 
@@ -932,19 +940,43 @@ class HttpGeneralPiExecutor:
             last_research_service = time.monotonic()
 
         try:
-            accepted = exchange("POST", "/tasks", operation='task_admission', document=request.to_document(),
+            accepted = exchange("POST", '/owned-tasks' if renewal is not None else '/tasks',
+                                  operation='task_admission', document=(request.to_document() if renewal is None else
+                                      {'request': request.to_document(), 'execution_authority': renewal.grant}),
                                   # Admission validates and durably saves selected file bytes.
                                   # Its read timeout is distinct from lightweight status polling.
                                   timeout=self._exchange_timeout)
             if accepted != {"task_id": request.task_id}:
                 raise ValueError("Pi accepted task identity is invalid")
+            if renewal is not None:
+                renewal.start()
             event_cursor = 0
             while True:
                 checkpoint()
-                response = exchange("GET", "/tasks/" + request.task_id + '?after=' + str(event_cursor), operation='task_status',
+                try:
+                    response = exchange("GET", "/tasks/" + request.task_id + '?after=' + str(event_cursor), operation='task_status',
                                       # Scheduling and receipt I/O can exceed one poll interval.
                                       # User cancellation remains checked every 25 ms in _call.
-                                      timeout=self._exchange_timeout)
+                                          timeout=self._exchange_timeout)
+                except PiHTTPFailure as error:
+                    if (error.diagnostic['http_status'] != 404 or 'capstone-pi-task-recovery/1'
+                            not in self.capability.get('task_recovery_schemas', ())):
+                        raise
+                    try:
+                        recovered = exchange('POST', '/tasks/' + request.task_id + '/recover',
+                            operation='task_recovery', document={'request': request.to_document()},
+                            timeout=self._exchange_timeout)
+                    except PiHTTPFailure as recovery_error:
+                        if recovery_error.diagnostic['http_status'] == 404:
+                            raise RuntimeError('Pi execution outcome unknown; task was not repeated') from None
+                        raise
+                    if (not isinstance(recovered, dict) or set(recovered) != {'task_id', 'result'}
+                            or recovered['task_id'] != request.task_id):
+                        raise ValueError('Pi recovery receipt identity is invalid')
+                    result = PiTaskResult.from_document(recovered['result'], request)
+                    checkpoint()
+                    complete = True
+                    return result
                 checkpoint()
                 paged = 'event_cursor' in response
                 requested_resources = response.pop('resource_requests', [])
@@ -1061,6 +1093,8 @@ class HttpGeneralPiExecutor:
                 service_research()
                 time.sleep(min(self._poll_interval, max(0, deadline - time.monotonic())))
         finally:
+            if renewal is not None:
+                renewal.close()
             if not complete:
                 original = sys.exception()
                 try:

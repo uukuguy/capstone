@@ -2,6 +2,18 @@
 
 ## Open: native task outlives its parent worker — 2026-11-15
 
+Candidate update2026-11-16: the unmerged candidate chain through40ddb637 has
+real automatic native stop, idle ledger reaping, stale-write fencing, API restart,
+short-outage recovery and executor receipt-only recovery without readmission.
+Exact retained-file continuation and refresh also have evidence. Current real
+cancellation stops all four task processes; pinned cleanup, terminal retry and
+bounded context have focused local checks. CI/dev integration, independent review
+and latest control graph browser inspection remain pending.
+The accepted dev baseline44abf3c5 has not received that fix. Keep this issue open
+until reviewed integration and remaining capability acceptance. See
+[local evidence](../reviews/2026-11-16-recoverable-long-task-local.md).
+
+
 A guarded real SIGKILL experiment lost the native Thread worker while its
 isolated task was executing. The ledger expired the lease and rejected stale
 renew/event/completion writes, but the separate native executor continued to a

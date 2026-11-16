@@ -1,6 +1,39 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Worker interruption product recovery — active, 2026-11-15
+## Recoverable long-task capability — implementation, 2026-11-16
+
+User goal: 建立可恢复的长任务执行能力. Owner capstone-agent/capstone-harness;
+destination dev. [Proposed capability design](../specs/2026-11-16-recoverable-long-task-design.md)
+defines bounded executor authority, durable recovery boundaries, safe retry and
+whole-chain acceptance. User approved the design. Implementation branch
+feat/recoverable-long-tasks-20261116 targets dev in the initialized
+historical-input-receipts worktree. [Implementation plan](2026-11-16-recoverable-long-tasks.md).
+PR120 is merged as44abf3c5 after approved macOS CI43806396571 passed116seconds.
+It closes captured-file recovery only. Native termination, restart reconciliation
+and whole long-task acceptance remain open. State machine70beeab3, HTTP renewal6abb3aa9, blocked-output guardbd1a16bc and
+idle reaperf577d6f0 have focused local evidence. Real worker SIGKILL now produces
+automatic native stop, idle ledger interruption and stale-write rejection without
+public Thread reads. Distinct continuation read143 original bytes and delivered
+a verified2340-byte report; Vivaldi refresh preserved incomplete draft and report.
+Candidate6c4c87d9 passed API restart and6.268s outage with the same attempt.
+Candidate44fc1293 passed executor restart to typed unknown outcome without
+readmission, then exact240-byte draft continuation and2944-byte report. Cleanup
+uncertainty keeps capacity reserved; expired tombstones remain expired.
+Candidate40ddb637 fixes pinned UID cleanup and exact terminal receipt retries.
+Current real cancellation cleared four processes, retained the28-byte draft and
+admitted no final.583 scoped PostgreSQL checks passed/33 skipped;94 context
+checks passed/1 skipped. Focused macOS gate prepared at014e6733.
+Next: review, latest graph browser inspection and separately approved CI/dev
+integration. Full capability remains active.
+User approved one focused macOS recoverable-tasks CI run on2026-11-16; no release/Linux scope. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
+
+## Worker interruption product recovery — integrated, 2026-11-16
+
+PR120 integrated this file-recovery slice into dev44abf3c5 after explicitly
+approved macOS CI43806396571 passed116seconds. Its historical source branch
+is no longer an implementation stream; retain its exact refs until branch
+retirement checks finish. Native lifetime recovery now belongs to the active
+recoverable-long-task package above. The following records its local evidence.
 
 Owner capstone-agent; branch fix/worker-interruption-products-20261115 targets
 dev. Real SIGKILL verification: lease expired to interrupted and stale renew,
@@ -17,7 +50,9 @@ and Vivaldi restoration passed for candidatef0976baf. API/three workers share
 new instruction read it and delivered recovery report; existing Vivaldi refresh
 passed. Native task was stillrunning and was manually cancelled in the probe;
 automatic orphan-execution stop needs separate lifecycle design and remains
-open. No CI approval exists. [Evidence](../../reviews/2026-11-15-worker-loss-product-recovery.md).
+open at that baseline. Later file-recovery integration is recorded above;
+the new long-task package has no CI approval yet.
+[Evidence](../../reviews/2026-11-15-worker-loss-product-recovery.md).
 
 ## Harness cancellation/restoration verification — 2026-11-15
 
