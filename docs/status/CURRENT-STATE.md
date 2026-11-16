@@ -5,6 +5,9 @@
 Workspace pins persist in PostgreSQL. Explicit unpins survive stale browser
 migration; request errors retain the accepted state and exact pending intent.
 Browser origin changes do not own or erase the canonical pin set.
+Resolved older-session row descriptors belong to the access-scoped presentation
+catalog, so navigation remounts can reuse them while refreshing. Catalog mutations
+invalidate prior history reads; this cache does not own the persistent pin set.
 [Acceptance](../reviews/2026-11-16-durable-session-pins-local.md).
 
 ## Project snapshot

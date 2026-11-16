@@ -1809,6 +1809,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| fix/session-sidebar-stability-20261117 | capstone-app修正，目标dev | 已复现会话切换时置顶10→3→10；冷挂载丢失旧会话元数据，两项回归先失败 | 访问范围内复用已解析记录、失效旧响应；定向检查、规范重建/浏览器及dev PR | shared-agent |
 | docs/control-delegation-closeout-20261117 | project-control收口所有，目标dev | PR126已合87e780df；macOS CI43929754196、实际dev重建与5173恢复通过；产品源分支已关闭 | 一次docs范围macOS CI/PR将验收台账和控制图合dev；最终自身回执仅写忽略目录 | shared-agent |
 | feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
 | fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |

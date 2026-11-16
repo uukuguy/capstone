@@ -1,0 +1,16 @@
+{
+  "schema": "capstone-development-gate/1",
+  "gate": "session-navigation",
+  "anchors": [
+    "packages/capstone-app/src/SessionNavigation.tsx",
+    "packages/capstone-app/src/sessionCatalog.ts"
+  ],
+  "paths": [
+    "configs/development/session-navigation-gate.json",
+    "tools/test_session_navigation.sh",
+    "tools/tests/test_ci_session_navigation.py",
+    "packages/capstone-app/src/SessionNavigation.tsx",
+    "packages/capstone-app/src/SessionNavigation.test.tsx",
+    "packages/capstone-app/src/sessionCatalog.ts"
+  ]
+}

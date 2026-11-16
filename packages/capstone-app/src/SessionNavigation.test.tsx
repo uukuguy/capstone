@@ -2,6 +2,7 @@ import {Activity,useEffect,useState} from 'react'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import SessionNavigation,{SessionAdjacentControls} from './SessionNavigation'
+import {removeCatalogSession} from './sessionCatalog'
 const items=['a','b','c'].map(threadId=>({threadId,modelId:null,implementationFamily:null,createdAt:'2026-10-24',archived:false,lastEventSeq:0,sessionTitle:{text:`会话${threadId}`,source:'user' as const,source_ref:null,revision:1}}))
 it('anchors deletion confirmation beside its menu instead of the screen center',()=>{
   render(<SessionNavigation items={items} actions={{rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn()}}/>)
@@ -28,6 +29,41 @@ it('restores pinned sessions outside the recent page',async()=>{
   render(<SessionNavigation items={items.slice(0,1)} storageKey="older" actions={{rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn(),history}}/>)
   expect(await screen.findByRole('link',{name:'会话c'})).toBeTruthy()
   expect(screen.queryByRole('link',{name:'会话b'})).toBeNull()
+})
+it('keeps resolved pinned rows and scroll position through a cold session switch while history reloads',async()=>{
+  const storageKey='navigation-cold-switch'
+  localStorage.setItem(`capstone.session-pins:${storageKey}`,JSON.stringify(['b','c']))
+  const history=vi.fn().mockResolvedValueOnce(items).mockImplementation(()=>new Promise(()=>{}))
+  const actions={rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn(),history}
+  const first=render(<SessionNavigation items={items.slice(0,1)} currentId="a" storageKey={storageKey} actions={actions}/>)
+  await screen.findByRole('link',{name:'会话c'})
+  const names=screen.getAllByRole('link').map(link=>link.textContent)
+  const list=first.container.querySelector('.session-navigation-scroll') as HTMLElement
+  fireEvent.wheel(list);list.scrollTop=640;fireEvent.scroll(list)
+  first.unmount()
+  const second=render(<SessionNavigation items={items.slice(0,1)} currentId="c" storageKey={storageKey} actions={actions}/>)
+  expect(screen.getAllByRole('link').map(link=>link.textContent)).toEqual(names)
+  expect(second.container.querySelector('.session-navigation-scroll')?.scrollTop).toBe(640)
+  expect(history).toHaveBeenCalledTimes(2)
+})
+it('does not republish a removed session from an older in-flight history response',async()=>{
+  const storageKey='navigation-removed-history'
+  localStorage.setItem(`capstone.session-pins:${storageKey}`,JSON.stringify(['c']))
+  let finish!:(value:typeof items)=>void
+  const history=vi.fn().mockImplementationOnce(()=>new Promise<typeof items>(resolve=>{finish=resolve})).mockResolvedValue(items.slice(0,2))
+  render(<SessionNavigation items={items.slice(0,1)} storageKey={storageKey} actions={{rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn(),history}}/>)
+  act(()=>removeCatalogSession(storageKey,'c'))
+  await act(async()=>finish(items))
+  expect(screen.queryByRole('link',{name:'会话c'})).toBeNull()
+})
+it('does not reuse resolved pinned records across access namespaces',async()=>{
+  for(const scope of ['navigation-scope-a','navigation-scope-b'])localStorage.setItem(`capstone.session-pins:${scope}`,JSON.stringify(['c']))
+  const history=vi.fn().mockResolvedValueOnce(items).mockImplementation(()=>new Promise(()=>{}))
+  const actions={rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn(),history}
+  const view=render(<SessionNavigation items={items.slice(0,1)} storageKey="navigation-scope-a" actions={actions}/>)
+  await screen.findByRole('link',{name:'会话c'})
+  view.rerender(<SessionNavigation items={items.slice(0,1)} storageKey="navigation-scope-b" actions={actions}/>)
+  expect(screen.queryByRole('link',{name:'会话c'})).toBeNull()
 })
 it('does not navigate after an archive response arrives in another workspace',async()=>{
   window.history.replaceState({},'','/?workspace=A')
