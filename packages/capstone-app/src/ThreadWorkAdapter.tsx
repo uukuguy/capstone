@@ -1,5 +1,5 @@
 import GoalControls from './GoalControls'
-import {goalCommand} from './goalMode'
+import {goalCommand,goalObjectiveFromInput} from './goalMode'
 import ProductReferenceChips from './ProductReferenceChips'
 import ManagedResourcesPanel from './ManagedResourcesPanel'
 import {instructionProductScopesFromEvents,type InstructionProductScope} from './instructionProducts'
@@ -89,6 +89,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const client=useMemo(()=>new CapstoneThreadClient(transport),[transport])
   const store = useMemo(() => preparedStore??new ThreadProjectionStore(client, commandStorageKey, { protocolVersion: '2' }), [client, commandStorageKey,preparedStore])
   const [projection, setProjection] = useState(store.state)
+  const [goalDraft,setGoalDraft]=useState<string|null>(null)
   const [pageVisible,setPageVisible]=useState(()=>document.visibilityState!=='hidden')
   useEffect(()=>{
     const changed=()=>setPageVisible(document.visibilityState!=='hidden')
@@ -395,6 +396,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     catch{/* dispatch retains the error and exact request for recovery. */}
   }
   async function send(text: string,submission?:InputSubmission) {
+    const objective=goalObjectiveFromInput(text)
+    if(objective!==null){
+      setGoalDraft(objective||selectedWork?.goal||'')
+      setNotice('请确认持续目标、执行次数和截止时间，再启用。')
+      return
+    }
     if(nativeChat&&!pendingMessage){
       if(attachmentsLoading)throw new MessageNotSentError('正在确认待发送附件，请稍后发送。')
       submission={...(submission||{input:{kind:'text',text},context_selection:{include_refs:[],exclude_refs:[]}}),attachment_refs:attachments.map(file=>file.resource_id)}
@@ -652,10 +659,19 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
-      {selectedWork && <GoalControls goal={selectedWork.goalMode} objective={selectedWork.goal}
+      {(selectedWork||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} objective={goalDraft??selectedWork?.goal??''}
         disabled={busy||!!pending||projection.connection!=='live'} onControl={(kind,payload)=>{
-          if(snapshot)void dispatch(goalCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,
-            selectedWork.workId,selectedWork.revision,kind,payload)).catch(()=>{})
+          if(snapshot)void (async()=>{
+            let work=selectedWork
+            if(!work){
+              await dispatch(buildWorkCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,'new',0,String(payload.objective)))
+              work=store.state.workSnapshot?.works.at(-1)
+            }
+            if(!work)throw new Error('目标记录尚未保存，请重试。')
+            await dispatch(goalCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,
+              work.workId,work.revision,kind,payload))
+            setGoalDraft(null)
+          })().catch(cause=>setError(cause instanceof Error?cause.message:'目标未提交'))
         }}/>}
       {notice && <p role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
       {conversation.hasUnattributedHistory && <p role="status">部分历史执行记录尚未确认任务归属。可加载更早的记录后查看。</p>}

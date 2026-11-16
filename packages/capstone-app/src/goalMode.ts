@@ -1,5 +1,10 @@
 import {ThreadProtocolError} from './threadProtocol'
 
+export function goalObjectiveFromInput(text:string):string|null{
+  const match=/^\/goal(?:\s+([\s\S]*))?$/.exec(text)
+  return match?(match[1]||'').trim():null
+}
+
 export type GoalMode={schema:'capstone-work-goal/1';objective:string;objective_revision:number;
   generation:number;state:string;reason:string|null;max_attempts:number;attempts_admitted:number;
   deadline_at:string;last_settled_attempt_id:string|null}

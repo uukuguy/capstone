@@ -1,8 +1,13 @@
 import {describe,it,expect} from 'vitest'
-import {parseGoalMode,goalCommand} from './goalMode'
+import {parseGoalMode,goalCommand,goalObjectiveFromInput} from './goalMode'
 import {parseStoredWorkCommand} from './threadWorkProtocol'
 
 describe('goal mode protocol',()=>{
+  it('recognizes only an explicit goal command',()=>{
+    expect(goalObjectiveFromInput('/goal Review report')).toBe('Review report')
+    expect(goalObjectiveFromInput('Discuss /goal')).toBeNull()
+    expect(goalObjectiveFromInput('/goals report')).toBeNull()
+  })
   it('reads persisted state and rejects invalid budgets',()=>{
     const goal={schema:'capstone-work-goal/1',objective:'Report',objective_revision:1,
       generation:1,state:'paused',reason:'user_pause',max_attempts:3,attempts_admitted:1,
