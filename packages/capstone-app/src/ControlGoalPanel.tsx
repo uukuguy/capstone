@@ -11,7 +11,7 @@ type Pending={kind:'create';body:ControlGoalCreate}|{kind:'command';body:Control
 const names:Record<string,string>={ready:'待执行',running:'推进中',waiting:'等待处理',paused:'已暂停',pausing:'暂停中',
   cancelling:'撤销中',cancelled:'已撤销',revising:'等待旧阶段停止',delivered:'待最终接受',accepted:'已接受',
   pending:'待前置阶段',dispatching:'正在委托',delivered_task:'待阶段核验',verified:'阶段核验通过',
-  revoke_requested:'等待停止确认',resume_requested:'正在恢复',blocked:'需处理',failed:'执行失败'}
+  revoke_requested:'等待停止确认',resume_requested:'正在恢复',blocked:'需处理',failed:'执行失败',completed:'执行已完成'}
 const fresh=():ControlDraft=>({objective:'',criteria:'',maxDelegations:8,deadline:new Date(Date.now()+86400000).toISOString(),
   stages:[{objective:'',files:'',mode:'single',maxAttempts:1},{objective:'',files:'',mode:'single',maxAttempts:1}]})
 function read<T>(key:string,fallback:T):T{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}}
@@ -48,16 +48,22 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
   const choose=(id:string)=>{setSelected(id);write(scope+'.selected',id);setForm(null)}
   const refresh=useCallback(async(id=selected)=>{
     const page=await transport.controlGoals()
-    setGoals(previous=>[...page.goals,...previous.filter(g=>!page.goals.some(next=>next.goal_id===g.goal_id))]);setCursor(page.nextCursor)
+    setGoals(previous=>{
+      const next=[...page.goals,...previous.filter(g=>!page.goals.some(item=>item.goal_id===g.goal_id))]
+      return next.length===previous.length&&next.every((g,i)=>g.goal_id===previous[i].goal_id&&g.revision===previous[i].revision)?previous:next
+    });setCursor(page.nextCursor)
     const target=id||page.goals[0]?.goal_id
-    if(target){setGoal(await transport.controlGoal(target));if(!id){setSelected(target);write(scope+'.selected',target)}}
+    if(target){const next=await transport.controlGoal(target);setGoal(previous=>previous?.goal_id===next.goal_id&&previous.revision===next.revision?previous:next);if(!id){setSelected(target);write(scope+'.selected',target)}}
     else setGoal(null)
   },[transport,selected,scope])
   useEffect(()=>{
     if(!open)return
     let active=true
     const load=()=>void refresh().catch(e=>{if(active)setError(e instanceof Error?e.message:'长期目标读取失败')})
-    load();const timer=window.setInterval(load,3000)
+    load();const timer=window.setInterval(()=>{
+      if(['SELECT','INPUT','TEXTAREA'].includes(document.activeElement?.tagName||''))return
+      load()
+    },3000)
     return ()=>{active=false;window.clearInterval(timer)}
   },[open,refresh])
   async function perform(operation:Pending){
@@ -94,7 +100,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
         <button disabled={busy} onClick={()=>void perform(pending)}>重试原请求</button>
         <button disabled={busy} onClick={()=>rememberPending(null)}>清除本机待确认记录</button><p>清除此记录不会撤销服务端已接收的目标，请先刷新列表核对。</p></section>}
       {goals.length>0&&<label>选择长期目标<select aria-label="选择长期目标" value={selected} onChange={e=>choose(e.target.value)} disabled={disabled}>
-        {goals.map(g=><option key={g.goal_id} value={g.goal_id}>{g.objective}</option>)}</select></label>}
+        {goals.map(g=><option key={g.goal_id} value={g.goal_id}>{g.objective} · {names[g.state]||g.state} · {g.goal_id.slice(-6)}</option>)}</select></label>}
       {cursor&&<button onClick={()=>void transport.controlGoals(cursor).then(page=>{setGoals(previous=>[...previous,...page.goals]);setCursor(page.nextCursor)}).catch(e=>setError(String(e)))}>更多目标</button>}
       {form?<form onSubmit={e=>{e.preventDefault();submit()}} className="control-goal-form">
         <h3>{form==='revise'?'修改长期目标':'新建长期目标'}</h3>

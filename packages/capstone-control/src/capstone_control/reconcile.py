@@ -15,6 +15,7 @@ def reconcile(service, agent: AgentPort, *, workspace=None, limit=32, goal_id=No
         owner, goal_id = item['workspace'], item['goal_id']
         delegation_id = item['task']['delegation']['delegation_id']
         try:
+            service.expire_pending(owner, goal_id, delegation_id)
             delegation = service.delegation_request(owner, goal_id, delegation_id)
             if delegation['binding'] is None and delegation['requested_control'] is None:
                 binding = agent.delegate(owner, delegation)

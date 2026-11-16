@@ -12,7 +12,7 @@ const goal=()=>parseControlGoal({schema:'capstone-control-goal/1',workspace:'ent
       depends_on:[],agent_id:'capstone',mode:'single',max_attempts:1,state:'running',
       delegation:{delegation_id:'delegation_one',binding:{thread_id:'thr_one',work_id:'work_one'}},delivery:null,verification:null}]})
 function transport(goals=[goal()]){return {workspaceName:'enterprise',controlGoals:vi.fn().mockResolvedValue({goals,nextCursor:null}),
-  controlGoal:vi.fn().mockResolvedValue(goals[0]),createControlGoal:vi.fn(),controlGoalCommand:vi.fn()}}
+  controlGoal:vi.fn().mockResolvedValue(goals[0]??goal()),createControlGoal:vi.fn(),controlGoalCommand:vi.fn()}}
 
 it('opens the existing delegated Thread instead of building another chat',async()=>{
   const api=transport(),open=vi.fn()

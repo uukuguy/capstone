@@ -82,6 +82,22 @@ class ControlService:
                     if previous['task_id'] in task['depends_on'] and previous['state'] == 'verified'
                     for product in previous['delivery']['products']]}
 
+    def expire_pending(self, workspace, goal_id, delegation_id):
+        """Revoke the exact operation: a lost admission acknowledgement may exist."""
+        def change(goal):
+            if goal is None:
+                raise KeyError(goal_id)
+            task = self._delegated_task(goal, delegation_id)
+            if (task['state'] != 'dispatching' or task['delegation']['binding'] is not None
+                    or self.now() < utc_deadline(goal['deadline_at'])):
+                return goal, public(goal)
+            task['state'] = 'revoke_requested'
+            task['delegation']['requested_control'] = 'cancel'
+            task['delegation']['control_revision'] += 1
+            goal.update(state='pausing', reason='deadline_exhausted', revision=goal['revision'] + 1)
+            return goal, public(goal)
+        return self.store.transact(workspace, goal_id, change)
+
     @staticmethod
     def _delegated_task(goal, delegation_id):
         task = next((t for t in goal['tasks'] if t['delegation'] and
@@ -147,6 +163,8 @@ class ControlService:
                     if not any(t['state'] == 'revoke_requested' for t in goal['tasks']):
                         if goal['state'] == 'revising':
                             self._activate_revision(goal)
+                        elif goal['reason'] == 'deadline_exhausted':
+                            goal['state'] = 'paused'
                         else:
                             goal['state'] = 'cancelled' if kind == 'cancel' else 'paused'
             elif state == 'completed':

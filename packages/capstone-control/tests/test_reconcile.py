@@ -110,3 +110,24 @@ def test_binding_and_same_sequence_content_changes_are_rejected():
     with pytest.raises(Conflict):
         s.observe('a', g['goal_id'], d['delegation_id'],
                   {'sequence': 2, 'state': 'running', 'summary': 'changed', 'delivery': None})
+
+
+def test_deadline_before_binding_revokes_intent_without_new_admission():
+    s, g, agent = setup()
+    s.now = lambda: NOW.replace(year=2100)
+    reconcile(s, agent)
+    current = s.read('a', g['goal_id'])
+    assert agent.executions == {}
+    assert current['state'] == 'paused'
+    assert current['reason'] == 'deadline_exhausted'
+
+
+def test_deadline_after_lost_binding_ack_revokes_original_operation():
+    s, g, agent = setup()
+    d = s.delegation_request('a', g['goal_id'], g['tasks'][0]['delegation']['delegation_id'])
+    agent.delegate('a', d)  # Agent admitted; Control process lost the response.
+    s.now = lambda: NOW.replace(year=2100)
+    reconcile(s, agent)
+    assert len(agent.executions) == 1
+    assert agent.revoked[0][0] == d['delegation_id']
+    assert s.read('a', g['goal_id'])['state'] == 'paused'

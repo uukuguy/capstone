@@ -3,6 +3,7 @@ import pytest
 from capstone_agent.control_host import ControlHost, register_control_routes
 from capstone_control.service import ControlService
 from capstone_control.store import MemoryStore
+from test_thread_postgres import postgres_thread_service
 
 
 def goal_request():
@@ -78,3 +79,27 @@ def test_control_http_workspace_cas_and_exact_acceptance():
         assert client.post(path + '/commands', headers=_auth(), json={**cmd, 'operation_id': 'stale'}).status_code == 409
         bad = {**cmd, 'goal_id': 'forged'}
         assert client.post(path + '/commands', headers=_auth(), json=bad).status_code == 422
+
+
+def test_concurrent_api_worker_bootstrap_initializes_owned_tables(postgres_thread_service):
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+    from uuid import uuid4
+    import psycopg
+    from psycopg import sql
+    from capstone_agent.control_host import configure_control
+    threads, _ = postgres_thread_service
+    schema = 'control_bootstrap_' + uuid4().hex
+    with psycopg.connect(threads.dsn) as connection:
+        connection.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
+    dsn = psycopg.conninfo.make_conninfo(threads.dsn, options='-c search_path=' + schema)
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            hosts = list(pool.map(lambda _: configure_control(SimpleNamespace(dsn=dsn)), range(8)))
+        assert len(hosts) == 8
+        with psycopg.connect(threads.dsn) as connection:
+            rows = connection.execute('SELECT tablename FROM pg_tables WHERE schemaname=%s', (schema,)).fetchall()
+        assert {row[0] for row in rows} == {'capstone_control_goals', 'capstone_agent_delegations'}
+    finally:
+        with psycopg.connect(threads.dsn) as connection:
+            connection.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))

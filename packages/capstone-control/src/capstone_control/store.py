@@ -41,6 +41,7 @@ class PostgresStore:
 
     def initialize(self):
         with self.connect() as connection:
+            connection.execute("SELECT pg_advisory_xact_lock(hashtext('capstone-control-schema/1'))")
             connection.execute('''CREATE TABLE IF NOT EXISTS capstone_control_goals (
                 workspace text NOT NULL, goal_id text NOT NULL,
                 document jsonb NOT NULL, PRIMARY KEY(workspace, goal_id))''')
