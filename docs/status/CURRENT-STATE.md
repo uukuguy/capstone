@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: recoverable long-task execution, owned by capstone-agent/capstone-harness on feat/recoverable-long-tasks-20261116 targeting dev. User-approved design covers execution authority, durable recovery and safe continuation. Candidate f577d6f0 has real worker-loss stopping/ledger recovery and historical continuation evidence; executor/API restart and uncertain-result acceptance remain open. PR120 retained-product repair is integrated; this candidate is not.
+- Active work package: recoverable long-task execution, owned by capstone-agent/capstone-harness on feat/recoverable-long-tasks-20261116 targeting dev. User-approved design covers bounded execution, durable recovery and safe continuation. The candidate chain through44fc1293 has real worker/API/executor restart and short-outage evidence; final cleanup/cancellation/context audit and governed integration remain open. PR120 retained-product repair is integrated; this candidate is not.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

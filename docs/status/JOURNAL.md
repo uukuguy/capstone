@@ -7825,3 +7825,11 @@ check passed. No CI, integration or remote deployment performed.
 - Existing Vivaldi Capstone tab restored candidatef577d6f0 interrupted task and completed continuation; reload preserved incomplete draft preview and recovery report. No new tab or UI source change.
 - dc40538e: Recorded real automatic worker-loss recovery, exact historical continuation and browser refresh; kept remaining long-task acceptance explicit.
 - Graph inspection found the new accepted dev44abf3c5 node used a branch lane; corrected only that node to the existing mainline lane vocabulary. Historical layout retained.
+- 867dd1f8: Aligned recovery checkpoint and dev-source graph lane; preserved historical layout and pending whole-capability acceptance.
+- 6c4c87d9: Kept cleanup uncertainty explicit and pinned task processes before signalling;227 focused consumers and Linux parent/child stop passed.
+- a16229e5: Separated authority-envelope overhead from task quota;105 focused checks passed without reducing admitted task capacity.
+- Candidate6c4c87d9 real API restart and6.268s native network outage preserved the same attempt and one long operation; checkpoint/final hashes verified. Network aliases/address restored; no resubmission. Receipts runs/recoverable-long-task-api-outage-20261116/.
+- 44fc1293: Added receipt-only recovery without readmission;279 focused checks passed, retaining tombstones and uncertain-cleanup reservations.
+- f62a241c: Recorded real executor restart, unknown outcome without readmission, and exact retained-file continuation after failure.
+- Candidate44fc1293 executor-restart trial: original attempt failed with native_execution_outcome_unknown, old UID12384 cleared, recovered receipt hash unchanged, old task absent from new memory. Explicit new attempt read240-byte draft and completed2944-byte report; hashes verified. Existing failed-file status is valid unfinished projection, so the inherited incomplete-only probe assertion was corrected without restarting/replaying the task.
+- Current local source44fc1293/imagea30d9662 is recorded in the control graph and exact-source manifests. Doc links, relative symlink, diff checks and doctor passed. Latest graph visual review remains pending; no alignment/integration completion claimed.
