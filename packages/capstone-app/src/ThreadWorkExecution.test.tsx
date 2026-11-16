@@ -87,6 +87,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
   })}
   const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const parsed = new URL(String(url), 'http://localhost')
+    if(parsed.pathname.endsWith('/workspace/session-pins'))return response({schema:'capstone-session-pins/1',workspace:'enterprise',revision:0,pins:[]})
     if (parsed.pathname.endsWith('/thread-access')) return response({ schema: 'capstone-thread-access/1', mode: 'open' })
     if(parsed.pathname.endsWith('/resources'))return response({schema:'capstone-resources/1',resources:[]})
     if(parsed.pathname.endsWith('/input-catalog'))return response({schema:'capstone-thread-input-catalog/1',revision:`input_${materials.length}`,context_id:'ctx_native',selection_revision:'sel_native',objects:[],materials,resource_profiles:{},operations:[]})
