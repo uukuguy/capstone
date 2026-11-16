@@ -11,11 +11,14 @@ live in root ignored runs/agent-goal-acceptance-20261116/closeout-receipt.json.
 [StageB plan](2026-11-17-control-delegation.md) implements the approved Control
 design: persistent Goal and ordered Tasks, public Agent delegation, fresh-Thread
 resource handoff, versioned revocation/idempotency and exact user acceptance.
-Candidate8ca05b19 implements transactional Control state, public Agent binding
-and explicit per-Work cross-Thread resource grants.111 checks with PostgreSQL
-pass, including original bytes in single/goal modes. Goal revision and complete
-pause/resume, runtime assembly, App and real acceptance remain open. Next:
-complete Control controls and assemble public delegation/runtime interfaces.
+Runtime candidate995c06a8 implements transactional Control state, public Agent
+binding, per-Work cross-Thread grants, background maintenance and the existing
+App Goal panel. Real two-stage Goal and original181-byte/report3369-byte downloads,
+hash/marker plus explicit Vivaldi acceptance passed. First failed probe was retained
+and fixed through native single Work input admission. Expiry/bootstrap fixes passed
+181 backend/governance and71 App checks plus types; canonical rebuild pending.
+Next: real controls/restart/budget, review, focused CI and actualdev integration.
+This is partial stageB validation, not package closure.
 Focused macOS CI is authorized directly by the user. Task board and external
 triggers remain later stages. Cloud/demo unchanged.
 

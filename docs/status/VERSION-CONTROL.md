@@ -1,4 +1,4 @@
-2026-11-17 阶段二Control委托闭环实施：所有者capstone-control，消费者capstone-agent/capstone-app；feat/control-delegation-20261117目标dev。候选8ca05b19具备独立Goal/Task事务状态、Agent公开幂等绑定与单Work跨Thread原文件授权；111项含PostgreSQL检查通过。下一步完成目标修订/暂停恢复、host/worker组装、现有App入口及真实两阶段验收。尚未合入或部署；CI用户允许直接执行，范围限开发定向macOS。
+2026-11-17 阶段二Control本地验证：所有者capstone-control，消费者capstone-agent/capstone-app；feat/control-delegation-20261117目标dev。运行候选995c06a8已接通后台与现有App；真实两个独立Thread、181字节原稿/3369字节报告与原标记/哈希及显式接受通过。期限和并发建表补修181后端/治理、71App及类型通过，待规范重建。真实控制/重启/预算、review/CI/dev集成未完成。5173仍dev App，候选5174为实施工作树；云端/demo不变。
 
 2026-11-17 阶段一已完成：PR125合入dev4f511d46，受检edd782b6，macOS CI43909552457通过。实际dev规范重建，API/三worker同镜像3bac22777b30、ready及5173刷新恢复原文件完成目标2/4通过；原10个置顶保留。来源分支已关闭。云端/demo不变。最终自身回执见root忽略目录runs/agent-goal-acceptance-20261116/closeout-receipt.json；下文旧段落保留过程记录。
 
@@ -1247,7 +1247,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR125阶段一已合入4f511d46，实际dev本机验收通过；发布基线1.1.0保留 | 阶段二在独立实施分支；Control运行组装与真实验收未完成，未部署 |
+| dev | 共同基座与企业工作台集成 | PR125阶段一已合入4f511d46，实际dev本机验收通过；发布基线1.1.0保留 | 阶段二本地验证中；控制/故障验收及集成未完成，未部署云端 |
 
 ## 功能包前沿
 
@@ -1336,7 +1336,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| control-delegation-20261117 | 当前阶段二实施来源，尚未合入或部署 |
+| control-delegation-20261117 | 当前阶段二验证来源，尚未合入dev或部署云端 |
 | agent-goal-mode-20261116 | 已接受阶段一产品来源；PR125已合入dev |
 | worker-interruption-products-20261115 | 当前worker中断文件恢复修正；整链停止协议仍独立待设计 |
 | historical-input-delivery-20261115 | PR117已合入dev的历史输入交付来源 |
@@ -1371,7 +1371,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| control-delegation-20261117 | 8ca05b19 | feature | Control持久委托与原文件跨会话授权 | 实施中；111项含PG检查通过，未接通App或真实模型验收 | 独立Goal/Task状态、幂等Agent绑定、进度/撤销和原文件引用。[计划](../superpowers/plans/2026-11-17-control-delegation.md) | shared-agent |
+| control-delegation-20261117 | 995c06a8 | feature | Control后台委托与长期目标工作台 | 本地双会话原文件与显式接受通过；阶段二验收未收口 | 持久Goal/Task、公开Agent绑定、后台接续与跨会话原文件引用；181后端/71App，真实控制/重启/预算及集成待完成。[计划](../superpowers/plans/2026-11-17-control-delegation.md) | shared-agent |
 | agent-goal-mode-20261116 | 9dd95faf | feature | Agent会话目标与原文件自动接续 | PR125已合入4f511d46；CI43909552457及实际dev验收通过 | 有界目标与控制、持久自动接续、只读历史资源；真实模型/重启/预算/下载通过。[验收](../reviews/2026-11-17-agent-goal-mode-local.md) | shared-agent |
 | durable-session-pins-20261116 | 981ddc3d | feature | 工作空间置顶持久化 | PR124已合入4834ebe3，来源分支关闭 | PostgreSQL持久化与并发更新、旧记录补导入/取消标记、失败状态保留和精确重试、清理保护。[设计](../superpowers/specs/2026-11-16-durable-session-pins-design.md) | shared-agent |
 | worker-interruption-merge-20261116 | 44abf3c5 | main | 中断文件恢复合入dev | PR120已合并，macOS CI43806396571通过116秒 | 中断捕获原子封存与历史准入；独立native停止另见未合并候选。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
@@ -1567,7 +1567,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| control-delegation-20261117 | 当前阶段二实施 | feat/control-delegation-20261117 | 持久Goal/Task与幂等Agent绑定；原文件跨Thread授权 | 8ca05b19；111项含PG检查通过，App/真实验收未完成，未合入或部署 |
+| control-delegation-20261117 | 当前阶段二本地验证 | feat/control-delegation-20261117 | 后台委托与现有工作台；原文件跨Thread授权和显式接受 | 995c06a8双阶段/下载/接受通过；181后端/71App；补修待重建，故障与集成仍开放 |
 | agent-goal-mode-20261116 | 已合入的阶段一来源 | dev（PR125来源分支已关闭） | 有界目标、控制与持久自动接续；原文件引用、保存成果和恢复 | 产品9dd95faf；CI43909552457通过，已合入4f511d46并在实际dev验收；云端/demo不变 |
 | durable-session-pins-20261116 | 已合入的持久置顶来源 | dev（PR124来源分支已关闭） | PostgreSQL持久置顶与旧记录迁移；失败保留、精确重试和清理保护 | PR124已合入4834ebe3；原10个置顶在实际dev重建后保留 |
 | worker-interruption-merge-20261116 | 当前dev接受基线 | dev | 中断时草稿原子封存；后续指令读取保留原稿 | PR120合入44abf3c5；批准的macOS CI43806396571通过116秒；新执行权候选尚未合并 |
@@ -1806,7 +1806,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/control-delegation-20261117 | 阶段二实施；capstone-control所有，目标dev | 8ca05b19；111项含PG检查通过，跨Thread原文件授权已验证 | 完成公开委托运行组装、控制、现有App和真实两阶段验收，再定向CI/PR合dev | shared-agent |
+| feat/control-delegation-20261117 | 阶段二本地验证；capstone-control所有，目标dev | 995c06a8真实双会话/原文件/显式接受通过；补修181后端/71App及类型通过 | 补修规范重建、真实控制/重启/预算、review和定向CI/PR合dev | shared-agent |
 | feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
 | fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
@@ -2019,7 +2019,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 实际dev `4f511d46`；App5173同源 | API/三worker同镜像3bac22777b309f990e4cde3184f27af1d00fc2d4830f9ecfee1601284e3c3ff8；ready及规范缓存维护通过 | 已完成目标2/4、原157字节资源及哈希/成果刷新恢复通过；原10置顶保留。阶段二未部署。[验收](../reviews/2026-11-17-agent-goal-mode-local.md) |
+| local-dev | API/三worker候选 `995c06a8`；App5173仍dev `4f511d46`，候选5174为实施工作树 | API/三worker同镜像d08481461e7d4c74190f72e6b4c102eb0af321c507b610172de3bbc8b0cd1fb6；ready及规范缓存维护通过 | 阶段二双会话181字节原稿/3369字节报告和显式接受通过；补修待重建。原置顶/用户数据保留，未更新云端/demo。阶段一[验收](../reviews/2026-11-17-agent-goal-mode-local.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

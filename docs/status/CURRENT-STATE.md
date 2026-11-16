@@ -87,6 +87,15 @@ turns; scientific calculations retain objective Domain Pack/Authority checks.
 
 ## Architecture
 
+Application-owned Control composition uses the independent capstone-control
+package for durable Goal/Task coordination. Its Agent port binds public
+delegations to Thread/Work identity without writing Agent ledger internals.
+The native worker runs bounded Control maintenance; the App presents state and
+explicit acceptance. Agent Work goal mode remains independently usable.
+Goal.revision is CAS state; objective_revision binds delegated semantics.
+Task verification and exact-version user acceptance remain distinct. Business
+ownership stays Application → Domain Pack → Kernel → registered Authority.
+
 The merged development baseline has a separately installable
 `pandapower-application` package for workers,registered entries,composition,
 reports,workspace and trajectory projections. It depends on the Kernel and

@@ -57,6 +57,15 @@ Bounded context contains only task instructions, accepted summaries, source
 identities and resource references. No full-chat/file copying or Authority claim
 promotion. Validate access again at delegation and resource admission.
 
+Implementation precision: Goal.revision is the CAS/storage version, including
+observations. Goal.objective_revision is the semantic version bound by
+Delegation.goal_revision; Task.revision binds the phase contract. Optional
+Task.required_products lists explicit plain file names. Host byte/hash checks
+may release these declared products; prose requirements are not interpreted by
+keyword code. Tasks without this deterministic policy await explicit phase
+verification. Final semantic acceptance remains a distinct user action naming
+the exact saved product versions, with the application actor recorded.
+
 ## Unit1 — Control domain and transactional persistence
 
 Create capstone-control package, contracts.py, service.py, store.py and tests.
