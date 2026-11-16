@@ -48,3 +48,37 @@ def parse_goal_mode(value: object) -> dict:
         raise ValueError('invalid goal settled attempt identity')
     # All accepted fields are immutable scalar values; callers own the mapping.
     return dict(value)
+
+
+def control_goal(value: object, command: str, payload: dict, *, now: datetime) -> dict:
+    """Validate control intent; the caller owns locking and executor cancellation."""
+    goal = parse_goal_mode(value)
+    if now.utcoffset() != timedelta(0):
+        raise ValueError('goal control clock must be UTC')
+    if goal['state'] in {'completed', 'cancelled', 'failed'}:
+        raise ValueError('goal is terminal')
+    if command == 'revise_goal_objective':
+        if set(payload) != {'objective'}:
+            raise ValueError('invalid objective revision payload')
+        goal.update(objective=payload['objective'],
+                    objective_revision=goal['objective_revision'] + 1,
+                    generation=goal['generation'] + 1,
+                    state='paused', reason='objective_revised')
+    else:
+        if payload:
+            raise ValueError('goal control payload must be empty')
+        if command == 'pause_goal':
+            goal.update(state='paused', reason='user_pause')
+        elif command == 'cancel_goal':
+            goal.update(state='cancelled', reason='user_cancel')
+        elif command == 'resume_goal':
+            if goal['state'] not in {'paused', 'waiting'}:
+                raise ValueError('goal cannot resume from current state')
+            if goal['attempts_admitted'] >= goal['max_attempts']:
+                raise ValueError('goal attempt budget exhausted')
+            if datetime.fromisoformat(goal['deadline_at']) <= now:
+                raise ValueError('goal deadline elapsed')
+            goal.update(state='ready', reason=None)
+        else:
+            raise ValueError('unsupported goal control')
+    return parse_goal_mode(goal)

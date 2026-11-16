@@ -2,6 +2,7 @@
 from dataclasses import replace
 
 import pytest
+from datetime import datetime, timezone
 
 from capstone_agent.goal_mode import parse_goal_mode
 from capstone_agent.thread_protocol import ThreadProtocolError, ThreadSnapshot
@@ -53,6 +54,36 @@ def test_parser_returns_owned_value(goal):
     parsed = parse_goal_mode(goal)
     parsed['objective'] = 'changed'
     assert goal['objective'] == 'Produce a reviewed report'
+
+
+def test_pause_resume_preserves_consumed_budget(goal):
+    from capstone_agent.goal_mode import control_goal
+    now = datetime(2026, 11, 16, tzinfo=timezone.utc)
+    original = {**goal, 'state': 'running', 'attempts_admitted': 2}
+    paused = control_goal(original, 'pause_goal', {}, now=now)
+    assert paused['state'] == 'paused'
+    resumed = control_goal(paused, 'resume_goal', {}, now=now)
+    assert resumed['state'] == 'ready'
+    assert resumed['attempts_admitted'] == 2
+    assert original['state'] == 'running'
+
+
+@pytest.mark.parametrize('patch', [{'attempts_admitted': 4},
+    {'deadline_at': '2000-01-01T00:00:00Z'}, {'state': 'cancelled'}])
+def test_resume_cannot_bypass_limits_or_terminal_state(goal, patch):
+    from capstone_agent.goal_mode import control_goal
+    with pytest.raises(ValueError):
+        control_goal({**goal, 'state': 'paused', 'reason': 'user_pause', **patch},
+                     'resume_goal', {}, now=datetime(2026, 11, 16, tzinfo=timezone.utc))
+
+
+def test_revision_invalidates_prior_generation_without_resetting_budget(goal):
+    from capstone_agent.goal_mode import control_goal
+    revised = control_goal({**goal, 'attempts_admitted': 2}, 'revise_goal_objective',
+        {'objective': 'Updated report'}, now=datetime(2026, 11, 16, tzinfo=timezone.utc))
+    assert revised['generation'] == revised['objective_revision'] == 2
+    assert revised['attempts_admitted'] == 2
+    assert revised['state'] == 'paused'
 
 
 def saved_work():
