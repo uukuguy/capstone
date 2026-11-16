@@ -5,6 +5,7 @@ import {parseSessionSkills,type SessionSkills} from './sessionSkills'
 import type { InputSubmission } from './threadInput'
 import {validLlmProfileId} from './threadInput'
 import {parseContextProductRefs} from './threadProducts'
+import {parseGoalMode,type GoalMode} from './goalMode'
 import type { AttemptPhase, RuntimeMode } from './threadProtocol'
 
 export type WorkRecord = {
@@ -14,6 +15,7 @@ export type WorkRecord = {
   cancelRequested?: boolean
   contextProductRefs?:InputSubmission['context_product_refs']
   conversationMode?: boolean
+  goalMode?: GoalMode
 }
 export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPhase;
   targetModelContextId: string | null; runtimeMode: RuntimeMode; workId: string | null }
@@ -106,6 +108,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       latestAttemptId: work.latest_attempt_id == null ? null : id(work.latest_attempt_id),
       startAvailable: typeof work.start_available === 'boolean' ? work.start_available : false,
       cancelRequested: work.cancel_requested === true, conversationMode: work.conversation_mode === true,
+      ...(work.goal_mode===undefined?{}:{goalMode:parseGoalMode(work.goal_mode)}),
       startUnavailableReason: work.start_unavailable_reason == null ? null : String(work.start_unavailable_reason),
       blockedReason: work.blocked_reason as string | null, messages: work.messages as string[] }
   })
