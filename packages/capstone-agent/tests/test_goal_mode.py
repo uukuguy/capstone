@@ -86,6 +86,67 @@ def test_revision_invalidates_prior_generation_without_resetting_budget(goal):
     assert revised['state'] == 'paused'
 
 
+def test_work_goal_controls_persist_without_admitting_execution(goal):
+    from capstone_agent.thread_work import apply_work
+    snapshot = saved_work()
+    work = snapshot.works[0]
+    command = {'kind': 'start_goal', 'run_id': None,
+        'target': {'id': work['work_id'], 'expected_revision': work['revision']},
+        'payload': {'objective': work['goal'], 'max_attempts': 4,
+                    'deadline_at': '2099-01-01T00:00:00Z'}}
+    updated, rejection, result = apply_work(snapshot, command)
+    assert rejection is None
+    assert updated.current_attempt is None
+    assert result['goal_mode']['state'] == 'ready'
+    assert ThreadSnapshot.from_document(updated.to_document()) == updated
+    command.update(kind='pause_goal', payload={}, target={**command['target'],
+        'expected_revision': result['revision']})
+    paused, rejection, result = apply_work(updated, command)
+    assert rejection is None
+    assert result['goal_mode']['state'] == 'paused'
+    assert snapshot.works[0].get('goal_mode') is None
+
+
+def test_goal_commands_use_service_idempotency_and_revision_checks():
+    snapshot = saved_work()
+    store = InMemoryThreadService(snapshot)
+    work = snapshot.works[0]
+    start = {'schema': 'capstone-command/2', 'command_id': 'cmd_start_goal',
+        'idempotency_key': 'key_start_goal', 'thread_id': snapshot.thread_id,
+        'kind': 'start_goal', 'target': {'kind': 'work', 'id': work['work_id'],
+        'expected_revision': work['revision']}, 'payload': {'objective': work['goal'],
+        'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'}}
+    receipt = store.submit_command(start)
+    assert receipt.status == 'accepted'
+    assert store.submit_command(start) == receipt
+    restored = store.snapshot(snapshot.thread_id)
+    assert restored.works[0]['goal_mode']['max_attempts'] == 3
+    pause = {**start, 'command_id': 'cmd_pause_goal', 'idempotency_key': 'key_pause_goal',
+             'kind': 'pause_goal', 'payload': {}}
+    assert store.submit_command(pause).rejection == 'revision_conflict'
+    pause['target'] = {**pause['target'], 'expected_revision': restored.works[0]['revision']}
+    # Rejected commands have durable receipts too; a corrected request needs a new identity.
+    pause.update(command_id='cmd_pause_corrected', idempotency_key='key_pause_corrected')
+    assert store.submit_command(pause).status == 'accepted'
+    assert store.snapshot(snapshot.thread_id).works[0]['goal_mode']['state'] == 'paused'
+
+
+@pytest.mark.parametrize('command_kind', ['start_goal', 'pause_goal', 'resume_goal',
+                                        'cancel_goal', 'revise_goal_objective'])
+def test_goal_controls_never_mutate_frozen_active_attempt(goal, command_kind):
+    from capstone_agent.thread_work import apply_work
+    from capstone_agent.thread_protocol import AttemptSnapshot
+    snapshot = saved_work()
+    work = {**snapshot.works[0], 'goal_mode': goal}
+    snapshot = replace(snapshot, works=(work,),
+        current_attempt=AttemptSnapshot('turn_active', 'attempt_active', 'accepted', None, 'capstone'))
+    command = {'kind': command_kind, 'run_id': None,
+        'target': {'id': work['work_id'], 'expected_revision': work['revision']}, 'payload': {}}
+    unchanged, rejection, _ = apply_work(snapshot, command)
+    assert unchanged == snapshot
+    assert rejection == 'attempt_in_progress'
+
+
 def saved_work():
     class Store:
         def create_thread(self, snapshot):

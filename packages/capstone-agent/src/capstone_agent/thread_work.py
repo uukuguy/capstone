@@ -163,6 +163,42 @@ def apply_work(snapshot, command, *, archived=False):
         return snapshot, 'case_execution_active', None
     target_work = next((item for item in snapshot.works
                         if item['work_id'] == command['target']['id']), None)
+    if command['kind'] in {'start_goal', 'pause_goal', 'resume_goal', 'cancel_goal', 'revise_goal_objective'}:
+        from datetime import datetime, timezone
+        from .goal_mode import GOAL_SCHEMA, control_goal, parse_goal_mode
+        if target_work is None:
+            return snapshot, 'work_not_found', None
+        if target_work['revision'] != command['target']['expected_revision']:
+            return snapshot, 'revision_conflict', None
+        work = deepcopy(target_work)
+        now = datetime.now(timezone.utc)
+        try:
+            if command['kind'] == 'start_goal':
+                if 'goal_mode' in work:
+                    return snapshot, 'goal_already_exists', None
+                payload = command['payload']
+                if set(payload) != {'objective', 'max_attempts', 'deadline_at'}:
+                    raise ValueError('invalid goal start payload')
+                goal = parse_goal_mode({'schema': GOAL_SCHEMA, **payload,
+                    'objective_revision': work['goal_revision'] + 1, 'generation': 1,
+                    'state': 'ready', 'reason': None, 'attempts_admitted': 0,
+                    'last_settled_attempt_id': None})
+                if datetime.fromisoformat(goal['deadline_at']) <= now:
+                    raise ValueError('goal deadline elapsed')
+            else:
+                if 'goal_mode' not in work:
+                    return snapshot, 'goal_unavailable', None
+                goal = control_goal(work['goal_mode'], command['kind'], command['payload'], now=now)
+        except ValueError as error:
+            raise ThreadProtocolError(str(error)) from error
+        work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'],
+                    revision=work['revision'] + 1)
+        context = TaskContext.from_document(work['task_context'])
+        work['task_context'] = replace(context, goal_revision=work['goal_revision']).to_document()
+        works = tuple(work if item['work_id'] == work['work_id'] else deepcopy(item) for item in snapshot.works)
+        if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
+            return snapshot, 'work_limit_reached', None
+        return replace(snapshot, works=works), None, work
     if (target_work is not None and 'goal_mode' in target_work
             and command['kind'] in {'send_message', 'work_message', 'revise_goal', 'start_work'}):
         # Legacy commands cannot change the objective or bypass its execution
