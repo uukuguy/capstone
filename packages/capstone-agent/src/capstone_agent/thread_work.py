@@ -161,6 +161,13 @@ def apply_work(snapshot, command, *, archived=False):
         return snapshot, context_lock, None
     if _application_case_active(snapshot):
         return snapshot, 'case_execution_active', None
+    target_work = next((item for item in snapshot.works
+                        if item['work_id'] == command['target']['id']), None)
+    if (target_work is not None and 'goal_mode' in target_work
+            and command['kind'] in {'send_message', 'work_message', 'revise_goal', 'start_work'}):
+        # Legacy commands cannot change the objective or bypass its execution
+        # budget. Goal controls use their own versioned admission contract.
+        return snapshot, 'goal_control_required', None
     if command['kind'] == 'send_message':
         if command['target']['id'] == 'new' and any(work.get('conversation_mode') for work in snapshot.works):
             return snapshot, 'conversation_work_exists', None
@@ -327,7 +334,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -337,6 +344,14 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'goal_mode' in work:
+            from .goal_mode import parse_goal_mode
+            try:
+                goal = parse_goal_mode(work['goal_mode'])
+            except ValueError as error:
+                raise ThreadProtocolError('invalid Work goal mode') from error
+            if goal['objective'] != work['goal'] or goal['objective_revision'] != work['goal_revision']:
+                raise ThreadProtocolError('inconsistent Work goal objective')
         if 'context_product_refs' in work:
             refs = checked_work_product_refs(work['context_product_refs'])
             if any(item['ref']['thread_id'] != snapshot.thread_id for item in refs):

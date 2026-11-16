@@ -8,6 +8,8 @@
 
 # 多线版本控制
 
+2026-11-16 Agent目标模式实施已开始：所有者capstone-agent/capstone-harness，消费者capstone-app；feat/agent-goal-mode-20261116目标dev，工作区为historical-input-receipts。验收边界是显式目标、有界自动接续、暂停/修改/取消、持久恢复和真实模型成果交付。当前仅状态契约与Work快照兼容通过87项本地检查，14项数据库条件检查跳过；控制命令和自动接续尚未接通。下一步实现版本化控制命令与事务验证。未合dev、无CI批准、未部署；控制图对齐随本实施检查点更新，不把此记录当作能力验收。
+
 2026-11-15 worker中断文件恢复候选f0976baf本地复验通过：规范重建8952043d同镜像，旧租约三项写入保护、running→incomplete→interrupted顺序、28字节原稿读取/恢复报告及Vivaldi刷新通过。native任务在父worker丢失后仍运行，实验做了显式人工取消；此生命周期缺口未解决，整链worker丢失接受仍为partial。116定向/123分类检查通过；PR120已合入dev 44abf3c5；明确批准的macOS CI43806396571通过116秒。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md)。下段保留实施过程。
 
 2026-11-15 当前修正：worker中断后已保存文件封存与历史准入，所有者capstone-agent，分支fix/worker-interruption-products-20261115目标dev，候选f0976baf。真实SIGKILL的旧租约续租/事件/完成提交均被拒绝，但初稿未封存，真实续作无法读到。修正复用现有incomplete封存事务和同Work历史契约；116项定向检查、123项分类检查及真实PG回滚/原字节读取通过。PR120已合并；CI43806396571通过；合入后规范重建通过。[范围与证据](../reviews/2026-11-15-worker-loss-product-recovery.md)。独立native任务父worker丢失后继续执行的缺口单独记KNOWN-ISSUES，不宣称已解决。

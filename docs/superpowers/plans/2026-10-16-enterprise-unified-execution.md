@@ -1,5 +1,17 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Agent goal mode — implementation started, 2026-11-16
+
+Owner capstone-agent/capstone-harness, consumer capstone-app. Branch
+feat/agent-goal-mode-20261116 targets dev in the initialized historical-input-receipts
+worktree. [Approved design](../specs/2026-11-16-capstone-control-design.md) and
+[stage-A plan](2026-11-16-agent-goal-mode.md) define acceptance: explicit autonomous
+Work goals, bounded continuation, pause/revise/cancel, durable recovery and saved
+products verified with real models. Current unit: state contracts and backward
+compatible Work snapshots, followed by transactional control commands. No runtime
+acceptance, dev integration, CI approval or deployment is claimed. Control delegation,
+shared task boards and external triggers remain dependent future stages.
+
 ## Durable workspace pins — active, 2026-11-16
 
 Owner capstone-agent/capstone-app; branch fix/durable-session-pins-20261116,
