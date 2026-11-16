@@ -86,6 +86,11 @@ def transition_work(snapshot, task_context, attempt_id, status):
             goal = pending['goal_mode']
             work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'])
             work['task_context'] = replace(task_context, goal_revision=goal['objective_revision']).to_document()
+        elif 'goal_mode' in work:
+            goal = dict(work['goal_mode'])
+            goal.update(state='paused', reason=('goal_receipt_missing' if status == 'completed'
+                        else 'attempt_' + status), last_settled_attempt_id=attempt_id)
+            work['goal_mode'] = goal
         if status != 'completed' and work.get('conversation_mode'):
             # This instruction's input is closed. The text stays for an explicit
             # retry; a later new instruction does not append to it.
@@ -101,6 +106,17 @@ def work_event_payload(snapshot, task_context, attempt_id, status):
 def create_attempt(snapshot, work, *, turn_id=None):
     """Adapt one explicit Work start to the existing accepted Attempt contract."""
     from .thread_protocol import AttemptSnapshot
+    if snapshot.current_attempt is not None:
+        raise ThreadProtocolError('attempt already active')
+    if 'goal_mode' in work:
+        from datetime import datetime, timezone
+        from .goal_mode import parse_goal_mode
+        goal = parse_goal_mode(work['goal_mode'])
+        if (goal['state'] != 'ready' or goal['attempts_admitted'] >= goal['max_attempts']
+                or datetime.fromisoformat(goal['deadline_at']) <= datetime.now(timezone.utc)):
+            raise ThreadProtocolError('goal execution unavailable')
+        goal.update(state='running', reason=None, attempts_admitted=goal['attempts_admitted'] + 1)
+        work['goal_mode'] = goal
     token = secrets.token_hex(8)
     model = snapshot.active_model_context
     context = replace(TaskContext.from_document(work['task_context']),

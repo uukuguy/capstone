@@ -195,6 +195,32 @@ def test_service_pause_requests_worker_cancel_and_settles_goal(goal):
     assert restored.current_attempt is None
 
 
+def test_attempt_boundary_does_not_complete_goal_without_receipt(goal):
+    from capstone_agent.thread_work import transition_work
+    from capstone_agent.enterprise_context import TaskContext
+    snapshot = saved_work()
+    work = {**snapshot.works[0], 'goal_mode': {**goal, 'state': 'running', 'attempts_admitted': 1}}
+    snapshot = replace(snapshot, works=(work,))
+    updated, result = transition_work(snapshot, TaskContext.from_document(work['task_context']),
+                                      'attempt_one', 'completed')
+    assert result['status'] == 'completed'
+    assert result['goal_mode']['state'] == 'paused'
+    assert result['goal_mode']['reason'] == 'goal_receipt_missing'
+    assert result['goal_mode']['last_settled_attempt_id'] == 'attempt_one'
+
+
+def test_goal_attempt_admission_consumes_budget_once(goal):
+    from capstone_agent.thread_work import create_attempt
+    snapshot = saved_work()
+    work = {**snapshot.works[0], 'goal_mode': goal}
+    snapshot = replace(snapshot, works=(work,))
+    updated, attempt, _, _ = create_attempt(snapshot, work)
+    assert work['goal_mode']['attempts_admitted'] == 1
+    assert work['goal_mode']['state'] == 'running'
+    with pytest.raises(ThreadProtocolError):
+        create_attempt(updated, work)
+
+
 def saved_work():
     class Store:
         def create_thread(self, snapshot):
