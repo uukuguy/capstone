@@ -1,5 +1,21 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Control delegation — active stageB, 2026-11-17
+
+User goal: 完成阶段二. Owner capstone-control, consumers capstone-agent/capstone-app;
+branch feat/control-delegation-20261117 targets dev in the initialized
+historical-input-receipts worktree. StageA is integrated through PR125/4f511d46,
+checked headedd782b6, macOS CI43909552457 passed. Actual dev canonical rebuild,
+same-image readiness and5173 restored completed goal2/4 passed; final receipts
+live in root ignored runs/agent-goal-acceptance-20261116/closeout-receipt.json.
+[StageB plan](2026-11-17-control-delegation.md) implements the approved Control
+design: persistent Goal and ordered Tasks, public Agent delegation, fresh-Thread
+resource handoff, versioned revocation/idempotency and exact user acceptance.
+Contract tests15 pass. Persistence, adapter, runtime/App and real acceptance are
+not yet implemented. Next: transactional Control store and lifecycle tests.
+Focused macOS CI is authorized directly by the user. Task board and external
+triggers remain later stages. Cloud/demo unchanged.
+
 ## Agent goal mode — locally accepted, dev PR pending, 2026-11-17
 
 Owner capstone-agent/capstone-harness, consumer capstone-app. Branch

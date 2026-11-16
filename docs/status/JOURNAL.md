@@ -7958,3 +7958,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 9dd95faf: Reused historical resource admission for goal starts and continuations after browser review exposed reconstructed draft.
 
 - 2026-11-17 4a912447: Verified goal admission freezes historical resource descriptors and reads exact saved bytes across storage adapters.
+
+- 2026-11-17: Verified PR125 merged4f511d46, CI43909552457 success onedd782b6; actualdev canonical rebuild/readiness/same-image and5173 original-resource restoration passed. Finite final receipts in root runs/agent-goal-acceptance-20261116/closeout-receipt.json.
+- 2026-11-17: Started stageB Control delegation onfeat/control-delegation-20261117 from4f511d46 in the initialized worktree. Approved architecture retained; implementation plan written. Strict Goal/ordered-Task contract tests15 pass after initial missing-module failure. No runtime or deployment change.

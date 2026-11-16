@@ -17,6 +17,7 @@ No CI approval or dev merge yet; cloud/demo/main unchanged.
 ## Project snapshot
 
 - Project route: managed
+- Active work package: stageB Control delegation; capstone-control owns durable Goal/Task coordination, capstone-agent owns delegated Thread/Work execution. Plan: `docs/superpowers/plans/2026-11-17-control-delegation.md`.
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
 - Delivery baseline: recoverable long-task execution is implemented and accepted locally on dev. PR121 integrated product source00999b8a after approved macOS CI43839482466; PR122 integrated acceptance/control documents as2cc689af after separately approved docs CI43845523515. Actual runtime source stays00999b8a, with verified rebuild, real retained-file continuation, downloads, refresh and independent review. Both delivery branches are closed; no runtime overlays remain. Cloud/demo unchanged. No successor implementation package is selected by this goal.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.

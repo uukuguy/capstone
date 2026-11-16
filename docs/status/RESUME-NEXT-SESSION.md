@@ -1,5 +1,25 @@
 # Live Session Checkpoint
 
+## StageB active checkpoint — 2026-11-17
+
+User goal: 完成阶段二. Branchfeat/control-delegation-20261117 in initialized
+.worktrees/historical-input-receipts, based ondev4f511d46. StageA is complete:
+PR125 merged, focused CI43909552457 passed, actualdev rebuilt and5173 restored
+completed2/4 original-byte task. Root ignored final receipt:
+runs/agent-goal-acceptance-20261116/closeout-receipt.json. Old checkpoints below
+are history, not live process handles. Candidate Vite9689 has stopped.
+
+StageB plan: docs/superpowers/plans/2026-11-17-control-delegation.md, based on
+already approved Control architecture. Independent package capstone-control has
+strict Goal creation/ordered Task contracts and15 passing tests. Next implement
+transactional Goal/Task lifecycle and operation receipts with memory/PostgreSQL
+parity, then public Agent delegation/reconciliation, existing App UI and real
+two-stage fresh-Thread acceptance. No StageB runtime is deployed or accepted.
+Command: PYTHONPATH=packages/capstone-control/src uv run --project
+packages/capstone-agent pytest packages/capstone-control/tests -q.
+User authorized direct focused CI; no release scope. Preserve root data/auth,
+old recovery stashes, all unrelated worktrees and cloud/demo sources.
+
 ## Agent goal active checkpoint — 2026-11-17
 
 Implementation worktree `.worktrees/historical-input-receipts`, branch feat/agent-goal-mode-20261116, latest source7295e003 and test3a24b058. Stage A remains incomplete; user goal includes full acceptance and dev PR merge. Direct focused macOS CI is explicitly authorized by user. No push/PR/CI run yet.
