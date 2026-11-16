@@ -1359,7 +1359,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| worker-interruption-merge-20261116 | 44abf3c5 | dev | 中断文件恢复合入dev | PR120已合并，macOS CI43806396571通过116秒 | 中断捕获原子封存与历史准入；独立native停止另见未合并候选。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
+| worker-interruption-merge-20261116 | 44abf3c5 | main | 中断文件恢复合入dev | PR120已合并，macOS CI43806396571通过116秒 | 中断捕获原子封存与历史准入；独立native停止另见未合并候选。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
 | recoverable-long-task-20261116 | f577d6f0 | feature | 可恢复长任务执行候选 | 真实worker故障恢复通过；完整能力仍在验证 | 执行权续租、独立停止、空闲回收；143字节续作/2340字节报告通过，未推送/未合并。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
 | worker-interruption-products-20261115 | f0976baf | feature | 中断初稿封存与历史恢复 | 文件恢复接受；PR120已合并44abf3c5，macOS CI通过 | 原子封存/历史准入；116定向/123分类及真实原字节读取/刷新通过；native自动停止仍开放。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
 | historical-input-merge-20261115 | 5798dad6 | dev | 历史输入交付合入dev与本地运行来源 | PR117与合并后默认入口接受 | 来源6625c0bb；定向CI通过149秒；两回执/7下载/刷新与同镜像重建通过。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) | shared-agent |
