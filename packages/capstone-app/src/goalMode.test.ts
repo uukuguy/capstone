@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest'
 import {parseGoalMode,goalCommand} from './goalMode'
+import {parseStoredWorkCommand} from './threadWorkProtocol'
 
 describe('goal mode protocol',()=>{
   it('reads persisted state and rejects invalid budgets',()=>{
@@ -13,5 +14,6 @@ describe('goal mode protocol',()=>{
     const command=goalCommand('thr_one','run_one','cmd_one','key_one','work_one',3,'pause_goal',{})
     expect(command.target.expected_revision).toBe(3)
     expect(command.kind).toBe('pause_goal')
+    expect(parseStoredWorkCommand(command,'thr_one')).toEqual(command)
   })
 })

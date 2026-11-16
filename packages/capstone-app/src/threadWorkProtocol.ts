@@ -5,7 +5,7 @@ import {parseSessionSkills,type SessionSkills} from './sessionSkills'
 import type { InputSubmission } from './threadInput'
 import {validLlmProfileId} from './threadInput'
 import {parseContextProductRefs} from './threadProducts'
-import {parseGoalMode,type GoalMode} from './goalMode'
+import {parseGoalMode,goalCommand,type GoalMode,type GoalControl} from './goalMode'
 import type { AttemptPhase, RuntimeMode } from './threadProtocol'
 
 export type WorkRecord = {
@@ -34,9 +34,9 @@ export type WorkSnapshot = {
 }
 export type WorkCommand = {
   schema: 'capstone-command/2'; thread_id: string; run_id: string
-  command_id: string; idempotency_key: string; kind: 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'open_model' | 'activate_model' | 'close_model'
+  command_id: string; idempotency_key: string; kind: 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'open_model' | 'activate_model' | 'close_model' | GoalControl
   target: { kind: 'work' | 'model_workspace'; id: string; expected_revision: number }
-  payload: ({ text: string; source_attempt_id?: string } & Partial<InputSubmission>) | Record<string, string>
+  payload: ({ text: string; source_attempt_id?: string } & Partial<InputSubmission>) | Record<string, string|number>
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ThreadProtocolError('工作记录无效')
@@ -186,6 +186,11 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
     return buildModelWorkspaceCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),revision(target.expected_revision),command.kind as 'open_model'|'activate_model'|'close_model',payload)
   }
   if (target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
+  if (['start_goal','pause_goal','resume_goal','cancel_goal','revise_goal_objective'].includes(String(command.kind))) {
+    if(!Object.values(payload).every(value=>typeof value==='string'||typeof value==='number'))throw new ThreadProtocolError('目标命令无效')
+    return goalCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),
+      id(target.id),revision(target.expected_revision,1),command.kind as GoalControl,payload as Record<string,string|number>)
+  }
   if (command.kind === 'send_message' && typeof payload.text === 'string'
       && Object.keys(payload).every(key => ['text', 'input', 'context_selection', 'resource_profile', 'source_attempt_id', 'material_refs','context_product_refs','attachment_refs','deep_research','llm_profile_id'].includes(key))) {
     const {text, source_attempt_id, ...submission} = payload
