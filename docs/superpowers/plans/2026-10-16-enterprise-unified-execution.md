@@ -8,8 +8,10 @@ loss. Ten original pins survive under the old browser origin and all ten Threads
 exist. [Design](../specs/2026-11-16-durable-session-pins-design.md) and
 [plan](2026-11-16-durable-session-pins.md) cover PostgreSQL state, additive legacy
 import, explicit unpin tombstones, error retention and cleanup protection.
-Implementation and focused local tests are in progress. Next: canonical local
-rebuild, real recovery and cross-origin browser acceptance. No CI is approved.
+Product981ddc3d passed86 backend/83 App checks,272 governance checks, final
+canonical rebuild47cc7638, exact original-pin recovery across two browser origins,
+API restart and independent review. [Acceptance](../../reviews/2026-11-16-durable-session-pins-local.md).
+Next: one approved focused macOS CI and PR integration. No CI is approved.
 
 ## Project-control clean closeout — approved, 2026-11-16
 

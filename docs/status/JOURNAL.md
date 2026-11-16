@@ -7887,3 +7887,6 @@ check passed. No CI, integration or remote deployment performed.
 
 - Durable-pin repair started on fix/durable-session-pins-20261116, owner capstone-agent/capstone-app, destination dev. User approved backend persistence and workspace sharing. Read-only evidence found ten old-origin pins and all ten live Threads; original records preserved in ignored incident evidence. Focused backend/App checks and disposable PostgreSQL concurrent-client/reconnect checks pass. Next: canonical rebuild, original-pin recovery and browser acceptance. No CI approval or cloud/demo change.
 - 20:53 Persisted workspace pins with migration tombstones and cleanup protection to prevent origin-switch loss [dbdb3202].
+- 21:03 Retained intended pin writes for safe retry and added focused macOS persistence checks [981ddc3d].
+- 21:06 Verified ten pins across origins, API restart and final rebuild; independent review passed; dev integration awaits CI approval.
+- 21:09 Freeze pin acceptance/control snapshot; record this commit and later CI/merge receipts in ignored incident evidence to avoid self-metadata loops.
