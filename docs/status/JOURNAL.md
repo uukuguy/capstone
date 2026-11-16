@@ -7950,3 +7950,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 7295e003: Bound goal product references to current Attempt publication records;85 focused PostgreSQL checks passed.
 
 - 2026-11-17 3a24b058: Verified service terminal continuation accepts a product reference only after current Attempt publication.
+
+- 2026-11-17 261c22a1: Aligned goal JSON with required native answer envelope after real response split the two contracts.
