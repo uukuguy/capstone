@@ -59,6 +59,63 @@ def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, 
     assert len(idle) >= 2
 
 
+@pytest.mark.parametrize('reason', ['cancelled', 'deadline'])
+def test_cancellation_stops_process_while_output_callback_is_blocked(tmp_path, single_child_cleanup, reason):
+    from threading import Event, Thread
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    entered, release, cancelled = Event(), Event(), Event()
+    script = tmp_path / 'blocked.py'
+    script.write_text('import sys,time,json\nsys.stdin.readline()\n'
+        'print(json.dumps({"type":"turn_start"}),flush=True)\ntime.sleep(30)\n')
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    failures = []
+    def callback(event):
+        entered.set()
+        assert release.wait(5)
+    def run():
+        try:
+            process.run('task', timeout=.3 if reason == 'deadline' else 10,
+                        cancelled=cancelled.is_set, on_event=callback)
+        except Exception as error:
+            failures.append(error)
+    thread = Thread(target=run)
+    thread.start()
+    try:
+        assert entered.wait(3)
+        child = process.process
+        assert child is not None
+        if reason == 'cancelled':
+            cancelled.set()
+        deadline = time.monotonic() + 2
+        while child.poll() is None and time.monotonic() < deadline:
+            time.sleep(.01)
+        assert child.poll() is not None, 'output callback blocked process cancellation'
+        assert thread.is_alive(), 'fixture must still block the output callback'
+    finally:
+        release.set()
+        thread.join(4)
+        process.stop()
+    assert not thread.is_alive()
+    assert failures and isinstance(failures[0], InterruptedError if reason == 'cancelled' else TimeoutError)
+
+
+def test_failed_stop_keeps_process_handle_for_cleanup_retry(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    process = module.GeneralPiProcess(('unused',), {}, tmp_path)
+    child = SimpleNamespace(pid=12345, stdin=None, stdout=None, stderr=None, wait=lambda **_:None)
+    process.process = child
+    def denied(*_):
+        raise PermissionError('cleanup unavailable')
+    monkeypatch.setattr(module.os, 'killpg', denied)
+    with pytest.raises(PermissionError):
+        process._stop_process()
+    assert process.process is child
+    monkeypatch.setattr(module.os, 'killpg', lambda *_:None)
+    process._stop_process()
+    assert process.process is None
+
+
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
 @pytest.mark.parametrize('outcome', ['complete', 'cancelled', 'deadline'])
 def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, single_child_cleanup, mode, outcome):
