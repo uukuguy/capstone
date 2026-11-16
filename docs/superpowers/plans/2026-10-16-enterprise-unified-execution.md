@@ -1,6 +1,6 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Recoverable long-task capability — implementation, 2026-11-16
+## Recoverable long-task capability — merged; acceptance/control closeout, 2026-11-16
 
 User goal: 建立可恢复的长任务执行能力. Owner capstone-agent/capstone-harness;
 destination dev. [Proposed capability design](../specs/2026-11-16-recoverable-long-task-design.md)
@@ -23,9 +23,16 @@ Candidate40ddb637 fixes pinned UID cleanup and exact terminal receipt retries.
 Current real cancellation cleared four processes, retained the28-byte draft and
 admitted no final.583 scoped PostgreSQL checks passed/33 skipped;94 context
 checks passed/1 skipped. Focused macOS gate prepared at014e6733.
-Next: review, latest graph browser inspection and separately approved CI/dev
-integration. Full capability remains active.
-User approved one focused macOS recoverable-tasks CI run on2026-11-16; no release/Linux scope. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
+PR121 merged as00999b8a after the one approved macOS CI43839482466
+passed240seconds (583 focused/271 governance checks passed; skips recorded).
+Actual dev rebuilt/image46c1b66d; new explicit attempt read the28-byte cancelled
+draft and wrote a verified1425-byte report, without old wait/final replay.
+Actual dev browser refresh retained the original source and new report;
+independent read-only review found no clear actionable defect. Next: control
+documentation integration through docs/recoverable-long-task-closeout-20261116.
+Goal closure remains open until that final governance step is integrated.
+The single approved CI run is consumed; any documentation PR that starts CI
+requires fresh explicit approval. No release/Linux scope. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
 
 ## Worker interruption product recovery — integrated, 2026-11-16
 

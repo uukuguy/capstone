@@ -1,4 +1,4 @@
-2026-11-16 候选链至44fc1293：真实worker故障、API重启、6.268秒断连及执行器重启后的回执恢复/不重放/历史续作均有本地证据。当前运行40ddb637/image76da821f，取消四进程清理、28字节下载及上下文检查通过；583项定向PG检查通过/33跳过。未合并/未推送；用户已批准一次macOS定向CI，review、图浏览器复核及CI/dev合入待完成。[验证](../reviews/2026-11-16-recoverable-long-task-local.md)。
+2026-11-16：PR121在获批macOS CI43839482466通过240秒后合入dev00999b8a（受检55687333）；定向583通过/33跳过，治理271通过/3跳过。实际dev重建、原文件续作/下载/刷新及独立只读review通过；云端/demo未变。控制收口由docs分支准备，第二次CI尚未批准。
 
 2026-11-16 候选f577d6f0的真实故障恢复通过：native约29.08秒自动停止、空闲账本自动interrupted、旧租约三项写保护、143字节原稿续作与2340字节报告哈希通过；原任务UID无残留，无人工取消。未合并、无新CI批准；完整能力的重启/不确定结果等验收仍开放。
 
@@ -1239,7 +1239,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 当前HEAD由Git解析；PR104/106/107/108已合入；发布基线1.1.0保留 | 局部引用候选a65b35b6已在local-dev真实验证；浏览器双选、提交和刷新通过，PR109已合入dev |
+| dev | 共同基座与企业工作台集成 | 当前HEAD由Git解析；PR121长任务执行链已合入00999b8a；发布基线1.1.0保留 | 获批macOS定向CI通过；实际dev规范重建、原取消初稿续作、下载哈希和浏览器刷新通过 |
 
 ## 功能包前沿
 
@@ -1362,7 +1362,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | worker-interruption-merge-20261116 | 44abf3c5 | main | 中断文件恢复合入dev | PR120已合并，macOS CI43806396571通过116秒 | 中断捕获原子封存与历史准入；独立native停止另见未合并候选。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
-| receipt-recovery-20261116 | 40ddb637 | feature | 长任务恢复、隔离清理与续作 | 本地故障及取消验证；待CI/合入 | 执行权、有界停止和后台回收；精确回执恢复不重放，重启/断连及原文件续作通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
+| recoverable-long-task-merge-20261116 | 00999b8a | main | 可恢复长任务执行链合入dev | PR121已合并，macOS CI43839482466通过240秒 | 有界执行权、自动进程清理与后台回收；回执恢复不重放，原文件续作和取消通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
+| receipt-recovery-20261116 | 40ddb637 | feature | 长任务恢复、隔离清理与续作 | 本地故障及取消验证；PR121已合入00999b8a，macOS CI通过 | 执行权、有界停止和后台回收；精确回执恢复不重放，重启/断连及原文件续作通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
 | recoverable-long-task-20261116 | f577d6f0 | feature | 可恢复长任务执行候选 | 真实worker故障恢复通过；完整能力仍在验证 | 执行权续租、独立停止、空闲回收；143字节续作/2340字节报告通过，未推送/未合并。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
 | worker-interruption-products-20261115 | f0976baf | feature | 中断初稿封存与历史恢复 | 文件恢复接受；PR120已合并44abf3c5，macOS CI通过 | 原子封存/历史准入；116定向/123分类及真实原字节读取/刷新通过；native自动停止仍开放。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
 | historical-input-merge-20261115 | 5798dad6 | dev | 历史输入交付合入dev与本地运行来源 | PR117与合并后默认入口接受 | 来源6625c0bb；定向CI通过149秒；两回执/7下载/刷新与同镜像重建通过。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) | shared-agent |
@@ -1554,9 +1555,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
 | worker-interruption-merge-20261116 | 当前dev接受基线 | dev | 中断时草稿原子封存；后续指令读取保留原稿 | PR120合入44abf3c5；批准的macOS CI43806396571通过116秒；新执行权候选尚未合并 |
-| receipt-recovery-20261116 | 当前开发焦点 | feat/recoverable-long-tasks-20261116 | 有界执行与自动停止；回执恢复、不确定结果和历史续作 | 产品40ddb637；本地多故障路径已验证，取消/上下文检查通过，review/CI/合入待完成；证据HEAD014e6733 |
+| recoverable-long-task-merge-20261116 | 当前dev接受基线 | dev | 执行权到期与自动停止；精确回执恢复、不确定结果和历史续作 | PR121合入00999b8a；批准的macOS CI43839482466通过240秒；实际dev续作与刷新通过 |
+| receipt-recovery-20261116 | 已合入的长任务来源 | feat/recoverable-long-tasks-20261116 | 有界执行与自动停止；回执恢复、不确定结果和历史续作 | 产品40ddb637；本地多故障路径已验证，取消/上下文检查通过，PR121已合入00999b8a，macOS CI通过；独立review未获结果 |
 | recoverable-long-task-20261116 | 已验证的worker故障恢复阶段 | feat/recoverable-long-tasks-20261116 | 执行权到期与进程独立停止；后台租约回收和历史续作 | f577d6f0；真实worker丢失与续作通过；重启/不确定结果待验收，无CI批准 |
-| worker-interruption-products-20261115 | 当前文件恢复修正 | fix/worker-interruption-products-20261115 | 原子封存未完成捕获；同Work历史恢复 | 产品f0976baf；PR120合入44abf3c5，macOS CI通过；原文件恢复接受，native生命周期另见新候选 |
+| worker-interruption-products-20261115 | 已合入的文件恢复来源 | fix/worker-interruption-products-20261115 | 原子封存未完成捕获；同Work历史恢复 | 产品f0976baf；PR120合入44abf3c5，macOS CI通过；native生命周期由PR121合入00999b8a |
 | historical-input-merge-20261115 | 已接受的dev运行来源 | dev | 历史输入交付与幂等账本；现有执行详情恢复 | PR117合5798dad6；macOS CI149秒；实际dev重建、同镜像及两回执/7下载/刷新通过 |
 | historical-input-delivery-20261115 | 已集成执行链来源 | feat/historical-input-receipts-20261115（已关闭） | 确认交付后持久幂等；执行详情恢复 | 产品492b78e2，受检6625c0bb；PR117合5798dad6；macOS CI43704515136通过149秒 |
 | resource-range-implementation-20261115 | 已接受的dev交付 | dev | 有界读取及持久回执；真实模型报告与来源恢复 | PR115合并f185c080，受检6f5605d4，macOS定向CI43686809091通过229秒 |
@@ -1788,7 +1790,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/recoverable-long-tasks-20261116 | 当前可恢复长任务实施；目标dev | capstone-agent/harness；产品40ddb637，范围HEAD014e6733，未知结果回归249346e6；本地故障/续作已验证 | review、图浏览器复核与明确批准的定向CI；未推送/未合并 | shared-agent |
+| feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
+| docs/recoverable-long-task-closeout-20261116 | 长任务验收/控制收口；目标dev | capstone-agent/harness；基于00999b8a，实际dev本地验证与CI/合并回执 | 准备文档及控制更新；不得在未获新批准时创建触发CI的PR | shared-agent |
 | fix/worker-interruption-products-20261115 | 文件恢复已合入dev；PR120 | capstone-agent所有；f0976baf；116定向/123分类；真实worker丢失后原字节恢复与刷新通过 | CI43806396571通过116秒；dev44abf3c5；自动native停止仍未解决 | shared-agent |
 | docs/harness-cancellation-acceptance-20261115 | PR119已合入并关闭 | shared-agent所有；受检0e1fb9f2、合并fffc881e；获批macOS docs CI43723280469通过111秒 | 实际dev同步；恢复bcde2615保留，工作树detached同步；worker崩溃验收仍独立 | shared-agent |
 | docs/historical-input-closeout-20261115 | PR118已合入并关闭 | 所有者shared-agent；受检1250ac71、合并d718050c；获批macOS docs CI43708007107通过125秒 | 实际dev已同步；来源分支关闭，恢复69739de9保留；最终图按实际HEAD刷新 | shared-agent |
@@ -1996,7 +1999,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 临时候选 `40ddb637`；根dev44abf3c5加10个精确运行文件，App5173 | API/三worker同镜像76da821fd22bdb053b0933fafd5d302495146244dcbc23b2f93fefbbc1138452；ready及缓存apply通过 | 候选链的worker/API/执行器故障与短暂断连已验证，旧执行不重放、原文件续作和产物哈希通过；当前取消清理与583项定向PG检查通过，review/CI/合入待完成，云端/demo未变。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) |
+| local-dev | 已合入dev `00999b8a`；App5173，无源码覆盖 | API/三worker同镜像46c1b66d1406cea965195e7df4301ee34bc4bd92e17ccd5921eb8abf7eeb9f97；ready及缓存apply通过 | PR121/获批macOS CI通过；实际dev原28字节取消初稿续作、1425字节报告与下载哈希通过，浏览器刷新保留；云端/demo未变。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

@@ -7852,3 +7852,15 @@ check passed. No CI, integration or remote deployment performed.
 - Goal marked blocked after three turns awaiting explicit CI approval; implementation/evidence preserved, review and graph inspection still pending.
 
 - User explicitly approved one macOS recoverable-tasks CI run, expected3–5minutes; selected Clash proxy7897, remote dev44abf3c5 unchanged.
+
+- 55687333: Recorded explicit one-run macOS CI approval before publishing the reviewed-scope development candidate.
+
+- PR121 opened at55687333; approved macOS CI43839482466 is running. Proxied GitHub works; unproxied read failed HTTP2.
+
+- PR121 merged00999b8a after approved macOS CI43839482466 passed240seconds; root dev fast-forwarded, overlay files match merged source.
+- Preserved21 task-owned paths in stashc7d9a7fc and pre-dev-integration backup; restored only docs, not runtime overlays or user data.
+
+- Dev00999b8a rebuilt/image46c1b66d; explicit attempt0269274b read exact28-byte cancelled draft and saved verified1425-byte report; scoped cache apply passed.
+
+- Independent read-only review completed exit0 without clear actionable defects; process-only Clash proxy resolved direct API timeout, no model override or CI.
+- Existing Vivaldi Thread reload retained original draft/version/hash and1425-byte continuation report; actual dev entry accepted locally.

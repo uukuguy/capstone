@@ -1,17 +1,18 @@
 # Known issues and deferred work
 
-## Open: native task outlives its parent worker — 2026-11-15
+## Resolved in dev: native task outlives its parent worker — 2026-11-16
 
-Candidate update2026-11-16: the unmerged candidate chain through40ddb637 has
-real automatic native stop, idle ledger reaping, stale-write fencing, API restart,
-short-outage recovery and executor receipt-only recovery without readmission.
-Exact retained-file continuation and refresh also have evidence. Current real
-cancellation stops all four task processes; pinned cleanup, terminal retry and
-bounded context have focused local checks. CI/dev integration, independent review
-and latest control graph browser inspection remain pending.
-The accepted dev baseline44abf3c5 has not received that fix. Keep this issue open
-until reviewed integration and remaining capability acceptance. See
-[local evidence](../reviews/2026-11-16-recoverable-long-task-local.md).
+PR121 integrated the tested execution-authority chain into dev00999b8a after
+approved macOS CI43839482466 passed240seconds. Worker-loss automatic stop,
+stale-write fencing, receipt-only recovery, real cancellation and exact retained
+continuation have local evidence. Actual dev was rebuilt and a new explicit
+attempt read the28-byte cancelled draft, producing a verified1425-byte report.
+No old wait/final was repeated. Independent read-only review found no clear
+actionable defect; this resolution is scoped to the demonstrated local capability,
+not cloud/demo acceptance.
+See [local evidence](../reviews/2026-11-16-recoverable-long-task-local.md).
+
+Historical failure and bounded repair:
 
 
 A guarded real SIGKILL experiment lost the native Thread worker while its

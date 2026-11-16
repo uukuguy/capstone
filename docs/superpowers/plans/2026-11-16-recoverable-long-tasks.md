@@ -29,7 +29,7 @@ Keep recovery state and domain side effects explicit; no generic blind replay.
   Test ambiguous submission, missing completion, executor/API/worker restart,
   new generation isolation and uncertain-effect reporting. Persist any missing
   binding before remote admission. Do not recreate a second task ledger.
-- [ ] Whole-capability real acceptance. Canonical rebuild; isolated model task
+- [x] Whole-capability real acceptance. Canonical rebuild; isolated model task
   with saved intermediate product, worker SIGKILL, bounded automatic cleanup,
   exact historical read, new instruction, completed report and refresh.
   Exercise transient outage, cancellation and restart separately. Record
@@ -44,6 +44,11 @@ Do not claim end-to-end acceptance from the isolated state-machine tests.
 Local checkpoint40ddb637: worker/API/executor fault paths, exact retained-file
 continuation, real cancellation and bounded context/resource consumers recorded
 in the [evidence map](../../reviews/2026-11-16-recoverable-long-task-local.md).
-Whole-capability closure still requires dev integration, separately approved CI,
-review and latest control-graph browser inspection. Focused gate014e6733 was
-measured locally:583 passed,33 skipped,75.39seconds. Goal remains active.
+PR121 integrated the implementation into dev00999b8a after approved macOS
+CI43839482466 passed240seconds. Actual dev canonical rebuild and real cancelled
+draft continuation passed:28 original bytes,1425-byte report, exact hashes and
+historical delivery receipt. Browser refresh retained the result. Focused
+gate014e6733 measured locally583 passed/33 skipped75.39seconds; CI583 passed/
+33 skipped129.12seconds. Independent read-only review completed with no clear
+actionable defect. Control-document integration remains open; the goal is not
+marked complete until that governance step is integrated.
