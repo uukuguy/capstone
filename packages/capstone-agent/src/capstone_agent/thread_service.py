@@ -319,6 +319,32 @@ def _prepare_terminal_transition(
     updated, work_payload = work_event_payload(
         replace(snapshot, current_attempt=None), claim.task_context,
         claim.attempt.attempt_id, phase)
+    if phase == 'completed' and claim.task_context is not None and 'goal_proposal' in payload:
+        from .goal_receipts import apply_terminal_goal_proposal
+        original = next((work for work in snapshot.works
+            if work['work_id'] == claim.task_context.binding.work_id), None)
+        if original is None or 'goal_mode' not in original:
+            raise ThreadProtocolError('goal proposal outside goal execution')
+        if 'pending_goal_control' not in original:
+            # Qualify against the running version, then retain the terminal Work
+            # projection and message cursor prepared above in this transaction.
+            try:
+                qualified = apply_terminal_goal_proposal(snapshot, claim.task_context,
+                    claim.attempt.attempt_id, payload['goal_proposal'],
+                    saved_product_refs=(), delivery_saved=isinstance(payload.get('answer'), str)
+                    and bool(payload['answer'].strip()))
+            except ValueError as error:
+                raise ThreadProtocolError('invalid terminal goal proposal') from error
+            source = next(work for work in qualified.works if work['work_id'] == original['work_id'])
+            works = []
+            for work in updated.works:
+                if work['work_id'] == original['work_id']:
+                    work = {**work, 'goal_mode': source['goal_mode']}
+                    if 'goal_continuation' in source:
+                        work['goal_continuation'] = source['goal_continuation']
+                    work_payload['work'] = work
+                works.append(work)
+            updated = replace(updated, works=tuple(works))
     updated = _result_projection_window(updated, result_projections)
     return updated, {**event_payload, **work_payload}, projection_parts
 

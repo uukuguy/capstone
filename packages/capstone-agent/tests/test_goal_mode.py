@@ -238,6 +238,26 @@ def test_terminal_goal_proposal_is_saved_with_work_state(goal):
     assert ThreadSnapshot.from_document(updated.to_document()) == updated
 
 
+def test_service_terminal_commits_continuation_with_attempt(goal):
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    assert store.submit_command(command(store, 'thr_work_exec', 'start_work', 'run_goal',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    claim = store.claim_attempt('worker', 30)
+    work = dict(store._snapshot.works[0])
+    work['goal_mode'] = {**goal, 'objective': work['goal'], 'state': 'running', 'attempts_admitted': 1}
+    store._snapshot = replace(store._snapshot, works=(work,))
+    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Draft ready', 'next_instruction': 'Review draft',
+        'waiting_reason': None, 'product_refs': []}
+    restored = store.finish_attempt(claim, phase='completed',
+        payload={'answer': 'Draft ready', 'goal_proposal': progress})
+    assert restored.current_attempt is None
+    assert restored.works[0]['goal_mode']['state'] == 'ready'
+    assert restored.works[0]['goal_continuation']['predecessor_attempt_id'] == claim.attempt.attempt_id
+
+
 def saved_work():
     class Store:
         def create_thread(self, snapshot):
