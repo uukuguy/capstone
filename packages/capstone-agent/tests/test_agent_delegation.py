@@ -80,3 +80,37 @@ def test_cross_workspace_delegation_identity_has_separate_thread(postgres_thread
         for workspace, binding in bindings:
             threads.delete_thread(binding['thread_id'])
             registry.delete(workspace, d['operation_id'])
+
+
+def test_goal_pause_resume_retains_work_and_consumed_budget(postgres_thread_service):
+    from test_enterprise_normal_chat import native_executor
+    threads, _ = postgres_thread_service
+    threads.set_native_executor(native_executor())
+    registry = PostgresDelegations(threads.dsn)
+    registry.initialize()
+    agent = AgentDelegations(threads, registry)
+    d = {**delegation(), 'mode': 'goal', 'max_attempts': 3}
+    binding = agent.delegate('enterprise', d)
+    d['binding'] = binding
+    try:
+        first = threads.claim_attempt('pause-test', 60)
+        assert first is not None
+        assert agent.control('enterprise', d, 'pause', 'pause-1')['state'] == 'running'
+        threads.finish_attempt(first, phase='cancelled', payload={})
+        paused = agent.control('enterprise', d, 'pause', 'pause-1')
+        assert paused['state'] == 'paused'
+        resumed = agent.control('enterprise', d, 'resume', 'resume-1')
+        assert resumed['state'] == 'running'
+        assert agent.control('enterprise', d, 'resume', 'resume-1') == resumed
+        second = threads.claim_attempt('resume-test', 60)
+        assert second is not None and second.attempt.attempt_id != first.attempt.attempt_id
+        goal = threads.snapshot(binding['thread_id']).works[0]['goal_mode']
+        assert goal['attempts_admitted'] == 2
+        assert goal['max_attempts'] == 3
+        assert second.task_context.binding.work_id == binding['work_id']
+        agent.control('enterprise', d, 'cancel', 'cancel-1')
+        threads.finish_attempt(second, phase='cancelled', payload={})
+        assert agent.control('enterprise', d, 'cancel', 'cancel-1')['state'] == 'cancelled'
+    finally:
+        threads.delete_thread(binding['thread_id'])
+        registry.delete('enterprise', d['operation_id'])

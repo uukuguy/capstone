@@ -65,7 +65,7 @@ class ControlService:
     def pending(self, workspace=None, limit=128):
         return [{'goal_id': g['goal_id'], 'workspace': g['workspace'], 'task': deepcopy(t)}
                 for g in self.store.list(workspace, limit)
-                for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'revoke_requested'}][:limit]
+                for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}][:limit]
 
     def delegation_request(self, workspace, goal_id, delegation_id):
         goal = self.read(workspace, goal_id)
@@ -130,7 +130,7 @@ class ControlService:
                 if observation['sequence'] == old['sequence'] and observation != old:
                     raise Conflict('observation sequence has different content')
                 return goal, public(goal)
-            if task['state'] not in {'running', 'waiting', 'revoke_requested'}:
+            if task['state'] not in {'running', 'waiting', 'resume_requested', 'revoke_requested'}:
                 return goal, public(goal)
             task['observation'] = deepcopy(observation)
             state = observation['state']
@@ -141,7 +141,10 @@ class ControlService:
                     kind = task['delegation']['requested_control']
                     task['state'] = 'cancelled' if kind == 'cancel' else 'paused'
                     if not any(t['state'] == 'revoke_requested' for t in goal['tasks']):
-                        goal['state'] = 'cancelled' if kind == 'cancel' else 'paused'
+                        if goal['state'] == 'revising':
+                            self._activate_revision(goal)
+                        else:
+                            goal['state'] = 'cancelled' if kind == 'cancel' else 'paused'
             elif state == 'completed':
                 self._settle_delivery(task, observation['delivery'])
             elif state in {'failed', 'unknown', 'cancelled'}:
@@ -149,7 +152,12 @@ class ControlService:
                 goal.update(state='paused', reason='delegation_' + state)
             elif state in {'waiting', 'paused'}:
                 task['state'] = 'waiting'
+                task['delegation']['requested_control'] = None
                 goal.update(state='waiting', reason='agent_' + state)
+            elif state == 'running':
+                task['state'] = 'running'
+                task['delegation']['requested_control'] = None
+                goal.update(state='running', reason=None)
             goal['revision'] += 1
             return goal, public(goal)
         return self.store.transact(workspace, goal_id, change)
@@ -203,17 +211,33 @@ class ControlService:
         elif kind in {'pause', 'cancel'}:
             if goal['state'] in {'cancelled', 'accepted'}:
                 raise InvalidTransition('Goal is terminal')
-            active = [t for t in goal['tasks'] if t['state'] in {'dispatching', 'running', 'revoke_requested'}]
+            active = [t for t in goal['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}]
+            goal.pop('_pending_tasks', None)
             for task in active:
                 task['state'] = 'revoke_requested'
                 task['delegation']['requested_control'] = kind
+                task['delegation']['control_revision'] += 1
             goal['state'] = ('cancelling' if kind == 'cancel' else 'pausing') if active else (
                 'cancelled' if kind == 'cancel' else 'paused')
             goal['reason'] = 'user_' + kind
         elif kind == 'resume':
-            if goal['state'] != 'paused':
-                raise InvalidTransition('only a paused Goal can resume')
+            if goal['state'] not in {'paused', 'waiting'}:
+                raise InvalidTransition('only a paused or waiting Goal can resume')
+            if goal['reason'] in {'delegation_unknown', 'delegation_failed', 'delegation_cancelled'}:
+                raise InvalidTransition('uncertain or failed execution requires explicit reconciliation')
+            for task in goal['tasks']:
+                if task['state'] in {'paused', 'waiting'}:
+                    d = task['delegation']
+                    if task['mode'] == 'goal' and d['binding'] is not None:
+                        task['state'] = 'resume_requested'
+                        d['requested_control'] = 'resume'
+                        d['control_revision'] += 1
+                    else:
+                        task.setdefault('delegation_history', []).append(deepcopy(d))
+                        task.update(state='pending', delegation=None)
             goal.update(state='ready', reason=None)
+        elif kind == 'revise':
+            self._revise(goal, payload)
         elif kind == 'verify_task':
             self._verify(goal, payload)
         elif kind == 'accept':
@@ -231,7 +255,7 @@ class ControlService:
     def _delegate(self, goal):
         if goal['state'] not in {'ready', 'running'}:
             raise InvalidTransition('Goal is not dispatchable')
-        if any(t['state'] in {'dispatching', 'running', 'revoke_requested'} for t in goal['tasks']):
+        if any(t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'} for t in goal['tasks']):
             raise InvalidTransition('an active delegation already owns execution')
         if self.now() >= utc_deadline(goal['deadline_at']):
             goal.update(state='paused', reason='deadline_exhausted')
@@ -245,17 +269,51 @@ class ControlService:
         if task is None:
             raise InvalidTransition('no dependency-ready Task')
         task['generation'] += 1
-        delegation_id = 'delegation_' + fingerprint([goal['goal_id'], task['task_id'],
+        delegation_id = 'delegation_' + fingerprint([goal['goal_id'], goal['objective_revision'], task['task_id'],
                                                     task['revision'], task['generation']])[:32]
         task['delegation'] = dict(schema='capstone-agent-delegation/1',
             delegation_id=delegation_id, operation_id=delegation_id,
             goal_id=goal['goal_id'], goal_revision=goal['objective_revision'],
             task_id=task['task_id'], task_revision=task['revision'],
             generation=task['generation'], agent_id=task['agent_id'],
-            binding=None, requested_control=None)
+            binding=None, requested_control=None, control_revision=0)
         task['state'] = 'dispatching'
         goal['delegations_admitted'] += 1
         goal.update(state='running', reason=None)
+
+    def _revise(self, goal, payload):
+        object_fields(payload, {'objective', 'acceptance_criteria', 'tasks'})
+        if goal['state'] in {'accepted', 'cancelled', 'cancelling', 'revising'}:
+            raise InvalidTransition('Goal cannot revise from this state')
+        checked = validate_goal_request(dict(schema='capstone-control-goal-create/1',
+            operation_id='revision', max_delegations=goal['max_delegations'],
+            deadline_at=goal['deadline_at'], **payload))
+        goal['history'].append({key: deepcopy(goal[key]) for key in
+            ['objective_revision', 'objective', 'acceptance_criteria', 'tasks', 'acceptance']})
+        goal['objective_revision'] += 1
+        goal['objective'] = checked['objective']
+        goal['acceptance_criteria'] = checked['acceptance_criteria']
+        goal['_pending_tasks'] = checked['tasks']
+        goal['acceptance'] = None
+        active = [t for t in goal['tasks'] if t['state'] in
+                  {'dispatching', 'running', 'waiting', 'paused', 'resume_requested', 'revoke_requested'}
+                  and t['delegation'] is not None]
+        for task in active:
+            task['state'] = 'revoke_requested'
+            task['delegation']['requested_control'] = 'cancel'
+            task['delegation']['control_revision'] += 1
+        goal.update(state='revising', reason='objective_revised')
+        if not active:
+            self._activate_revision(goal)
+
+    @staticmethod
+    def _activate_revision(goal):
+        previous = {t['task_id']: t['revision'] for t in goal['tasks']}
+        goal['tasks'] = [{**task, 'revision': previous.get(task['task_id'], 0) + 1,
+                          'state': 'pending', 'generation': 0, 'delegation': None,
+                          'delivery': None, 'verification': None}
+                         for task in goal.pop('_pending_tasks')]
+        goal.update(state='ready', reason=None)
 
     def _verify(self, goal, payload):
         object_fields(payload, {'task_id', 'delivery_revision', 'checks'})

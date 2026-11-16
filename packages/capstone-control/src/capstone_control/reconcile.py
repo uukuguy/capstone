@@ -23,7 +23,7 @@ def reconcile(service, agent: AgentPort, *, workspace=None, limit=32):
             if delegation['requested_control'] is not None:
                 kind = delegation['requested_control']
                 observation = agent.control(owner, delegation, kind,
-                                            delegation_id + '_' + kind)
+                    delegation_id + '_' + kind + '_' + str(delegation.get('control_revision', 0)))
             else:
                 observation = agent.observe(owner, delegation)
             service.observe(owner, goal_id, delegation_id, observation)

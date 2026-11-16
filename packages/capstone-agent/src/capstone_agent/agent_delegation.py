@@ -26,7 +26,9 @@ def _request(value):
     fields = {'schema', 'delegation_id', 'operation_id', 'goal_id', 'goal_revision',
               'task_id', 'task_revision', 'generation', 'agent_id', 'binding', 'requested_control',
               'objective', 'delivery_requirements', 'mode', 'max_attempts', 'deadline_at', 'context_products'}
-    if not isinstance(value, dict) or set(value) != fields or value['schema'] != 'capstone-agent-delegation/1':
+    if (not isinstance(value, dict) or not fields <= set(value)
+            or set(value) - fields - {'control_revision'}
+            or value['schema'] != 'capstone-agent-delegation/1'):
         raise ValueError('invalid Agent delegation contract')
     for key in ['delegation_id', 'operation_id', 'goal_id', 'task_id', 'agent_id']:
         if not isinstance(value[key], str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', value[key]):
@@ -49,7 +51,7 @@ def _request(value):
     if not isinstance(value['context_products'], list) or len(value['context_products']) > 64:
         raise ValueError('invalid delegation context')
     # Binding and control are server state, not part of the immutable request.
-    return deepcopy({key: item for key, item in value.items() if key not in {'binding', 'requested_control'}})
+    return deepcopy({key: item for key, item in value.items() if key not in {'binding', 'requested_control', 'control_revision'}})
 
 
 class AgentDelegations:
@@ -178,7 +180,7 @@ class AgentDelegations:
 
     def control(self, workspace, delegation, kind, operation_id):
         workspace = normalize_workspace_name(workspace)
-        if kind not in {'cancel', 'pause'}:
+        if kind not in {'cancel', 'pause', 'resume'}:
             raise ValueError('unsupported delegation control')
         self._reserve(workspace, delegation)
         def revoke(current):
@@ -187,19 +189,31 @@ class AgentDelegations:
                 if old != kind:
                     raise DelegationConflict('control operation content conflict')
                 return current, current
-            current['control'] = kind
+            if kind == 'resume' and (current['control'] == 'cancel' or current['binding'] is None
+                                     or current['request']['mode'] != 'goal'):
+                raise DelegationRevoked('delegation cannot resume')
+            current['control'] = None if kind == 'resume' else kind
             current['control_receipts'][operation_id] = kind
             binding = current['binding']
             if binding is not None:
                 snapshot = self.threads.snapshot(binding['thread_id'])
                 work = next(w for w in snapshot.works if w['work_id'] == binding['work_id'])
                 goal = work.get('goal_mode')
-                if goal and goal['state'] not in {'completed', 'cancelled', 'failed'}:
+                if kind == 'resume':
+                    if goal is None or goal['state'] not in {'paused', 'waiting', 'running', 'ready'}:
+                        raise DelegationRevoked('Agent goal cannot resume')
+                    if (goal['state'] in {'paused', 'waiting'} and
+                            goal['attempts_admitted'] < goal['max_attempts'] and
+                            datetime.fromisoformat(goal['deadline_at']) > datetime.now(timezone.utc)):
+                        self._command(binding['thread_id'], work, 'resume_goal', operation_id)
+                elif goal and goal['state'] not in {'completed', 'cancelled', 'failed'}:
                     self._command(binding['thread_id'], work, kind + '_goal', operation_id)
                 elif snapshot.current_attempt is not None and not work.get('cancel_requested'):
                     self._command(binding['thread_id'], work, 'cancel_work', operation_id)
             return current, current
         current = self.registry.transact(workspace, delegation['operation_id'], revoke)
+        if kind == 'resume' and self.wake is not None:
+            self.wake(current['binding']['thread_id'])
         if current['binding'] is None:
             return {'sequence': 1, 'state': 'cancelled' if kind == 'cancel' else 'paused',
                     'summary': 'revoked before admission', 'delivery': None}

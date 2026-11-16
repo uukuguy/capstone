@@ -7970,3 +7970,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 1d2fd693: Added Agent-owned delegation registry to bind retries to one public Thread/Work without Control ledger writes.
 - 2026-11-17: Fresh-Thread delegation grants now freeze exact source descriptors for one target Work and recheck workspace and bytes at read. Both single/goal modes, forged refs, duplicate delivery receipts and direct consumers passed111 checks with PostgreSQL. First broader command named a missing test file and ran no checks; corrected selection passed.
 - 2026-11-17 8ca05b19: Added per-Work immutable product grants so fresh delegated Threads read original bytes without copying chat or file payloads.
+- 2026-11-17 b93382d4: Aligned stageB candidate register and recovery checkpoint; graph20 checks, doctor, symlink and browser layout passed.
+- 2026-11-17: Added versioned Goal revision with old-delegation revocation, same-Work bounded goal resume and separately budgeted single-execution retry.37 PostgreSQL checks pass; host/worker/App and real model acceptance remain open.
