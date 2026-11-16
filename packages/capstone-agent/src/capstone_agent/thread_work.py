@@ -83,6 +83,7 @@ def transition_work(snapshot, task_context, attempt_id, status):
         work['cancel_requested'] = False
         pending = work.pop('pending_goal_control', None)
         if pending is not None:
+            work.pop('goal_continuation', None)
             goal = pending['goal_mode']
             work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'])
             work['task_context'] = replace(task_context, goal_revision=goal['objective_revision']).to_document()
@@ -230,6 +231,8 @@ def apply_work(snapshot, command, *, archived=False):
             return replace(snapshot, works=works), None, work
         work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'],
                     revision=work['revision'] + 1)
+        if command['kind'] in {'revise_goal_objective', 'cancel_goal'}:
+            work.pop('goal_continuation', None)
         context = TaskContext.from_document(work['task_context'])
         work['task_context'] = replace(context, goal_revision=work['goal_revision']).to_document()
         if command['kind'] in {'start_goal', 'resume_goal', 'continue_goal'} and start_unavailable_reason(snapshot) is None:

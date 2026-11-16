@@ -221,6 +221,20 @@ def test_goal_attempt_admission_consumes_budget_once(goal):
         create_attempt(updated, work)
 
 
+def test_revise_discards_old_continuation(goal):
+    from capstone_agent.thread_work import apply_work
+    snapshot = saved_work()
+    work = {**snapshot.works[0], 'goal_mode': goal, 'goal_continuation': {
+        'generation': 1, 'predecessor_attempt_id': 'attempt_old', 'next_instruction': 'Old step'}}
+    snapshot = replace(snapshot, works=(work,))
+    updated, rejection, result = apply_work(snapshot, {'kind': 'revise_goal_objective',
+        'run_id': None, 'target': {'id': work['work_id'], 'expected_revision': work['revision']},
+        'payload': {'objective': 'New report'}})
+    assert rejection is None
+    assert 'goal_continuation' not in result
+    assert ThreadSnapshot.from_document(updated.to_document()) == updated
+
+
 def test_terminal_goal_proposal_is_saved_with_work_state(goal):
     from capstone_agent.goal_receipts import apply_terminal_goal_proposal
     from capstone_agent.enterprise_context import TaskContext
