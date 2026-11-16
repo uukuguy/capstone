@@ -1,30 +1,33 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Control delegation — active stageB, 2026-11-17
+## Control delegation — accepted in dev, control closeout, 2026-11-17
 
-User goal: 完成阶段二. Owner capstone-control, consumers capstone-agent/capstone-app;
-branch feat/control-delegation-20261117 targets dev in the initialized
-historical-input-receipts worktree. StageA is integrated through PR125/4f511d46,
-checked headedd782b6, macOS CI43909552457 passed. Actual dev canonical rebuild,
-same-image readiness and5173 restored completed goal2/4 passed; final receipts
-live in root ignored runs/agent-goal-acceptance-20261116/closeout-receipt.json.
-[StageB plan](2026-11-17-control-delegation.md) implements the approved Control
-design: persistent Goal and ordered Tasks, public Agent delegation, fresh-Thread
-resource handoff, versioned revocation/idempotency and exact user acceptance.
-Candidate8d292962 implements transactional Control state, public Agent binding,
-per-Work cross-Thread grants, background maintenance and the existing App Goal
-panel. Real two-stage original-byte downloads and explicit Vivaldi acceptance,
-browser creation/refresh, stage-boundary native-worker restart, API restart,
-pause/resume/revise/cancel and exact replay, and total delegation budget stop
-passed. First failed native-input probe remains recorded.183 backend/governance,
-71 App checks and types passed. Direct source review found and fixed active
-delegation expiry; independent review tooling could not start. PR126 targets dev.
-Latest canonical rebuild/real active-deadline stop passed at8d292962; accepted
-products restored after rebuild. Next: final focused macOS CI and actualdev
-integration. [Evidence](../../reviews/2026-11-17-control-delegation-local.md).
-This is partial stageB validation, not package closure.
-Focused macOS CI is authorized directly by the user. Task board and external
-triggers remain later stages. Cloud/demo unchanged.
+User goal: 完成阶段二. Owner capstone-control; consumers capstone-agent/capstone-app.
+[StageB plan](2026-11-17-control-delegation.md) delivers persistent Goal/Tasks,
+public Agent delegation, fresh-Thread original-resource handoff, versioned
+revocation/idempotency and exact user acceptance. Agent still owns each Work's
+autonomous Attempts. StageA remains integrated through PR125/dev4f511d46.
+
+PR126 merged87e780df after final-head0529e059 macOS CI43929754196 passed127s.
+183 focused backend/governance and71 App checks plus types passed. Real
+two-stage original-byte downloads, explicit browser acceptance, browser creation/
+refresh, stage-boundary native-worker restart, API restart, pause/resume/revise/
+cancel/exact replay, delegation budget and active-single deadline stop passed.
+Failed native-input and CI configuration trials remain recorded. Direct source
+review found/fixed active expiry; independent reviewer tooling could not start.
+
+Actual dev87e780df canonical rebuild passed readiness, API/three-worker identity
+at image2c105d56 and scoped cache maintenance. Existing5173 restored both accepted
+Goals/exact products, four original downloads, control/budget/deadline states,
+the bound phase2 conversation/report after refresh and all10 original pins.
+Candidate5174 stopped; implementation branch closed after ancestry/PR checks.
+[Acceptance](../../reviews/2026-11-17-control-delegation-local.md).
+
+Only canonical control closeout remains in docs/control-delegation-closeout-20261117,
+owner project-control, destinationdev, acceptance docs-focused macOS CI/PR and
+actualdev graph/clean-state receipt. Final own commit/merge receipts stay ignored,
+so this does not start another documentation cycle. CI is authorized directly.
+No successor implementation is selected; stagesC/D and cloud/demo are unchanged.
 
 ## Agent goal mode — locally accepted, dev PR pending, 2026-11-17
 

@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-17：阶段一PR125已合入dev4f511d46；阶段二PR126目标dev，真实双会话/原字节/接受、浏览器创建/刷新、API/worker重启、控制重放、预算和活动期限停止通过。8d292962修复183后端/71App、类型及规范重建通过；最终CI/dev集成仍开放。独立审查工具不可用。见[验收](../reviews/2026-11-17-control-delegation-local.md)，候选控制图尚未合入dev。
+2026-11-17：阶段二PR126已合入dev87e780df；最终macOS CI43929754196、183后端/71App及类型通过。真实双会话/原字节/接受、重启、控制重放、预算及期限停止通过。实际dev规范重建、5173目标/四原成果/刷新与10置顶恢复通过，临时5174已停止。独立审查工具不可用。只剩控制文档PR合入和最终忽略回执，见[验收](../reviews/2026-11-17-control-delegation-local.md)。
 
 2026-11-17 VERSION-CONTROL与控制图更新Agent目标模式本地接受、精确来源9dd95faf和PR125待合并；验收见docs/reviews/2026-11-17-agent-goal-mode-local.md。
 
