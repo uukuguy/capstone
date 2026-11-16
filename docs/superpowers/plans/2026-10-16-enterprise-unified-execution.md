@@ -8,8 +8,10 @@ pinned rows during navigation. Durable pins remain intact; component-local
 older-row metadata is lost on remount. [Plan](2026-11-17-session-sidebar-stability.md).
 Acceptance: cold/warm switching preserves resolved rows/order and shared scroll,
 namespace isolation and removed-row invalidation; real existing-browser trial,
-focused macOS CI and actualdev integration. Next finish direct-consumer checks,
-canonical rebuild and browser verification. No backend or Authority change.
+focused macOS CI and actualdev integration.399f90f3 passes125 App/types,145
+governance and canonical rebuild. Five cold/warm browser switches retain10 pins
+and order with correct headings; screenshots inspected. Next focused macOS CI,
+dev PR and actual5173 verification. No backend or Authority behavior change.
 
 ## Control delegation — accepted in dev, control closeout, 2026-11-17
 
