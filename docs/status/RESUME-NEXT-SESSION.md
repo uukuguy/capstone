@@ -1,5 +1,22 @@
 # Live Session Checkpoint
 
+## Agent goal active checkpoint — 2026-11-17
+
+Implementation worktree `.worktrees/historical-input-receipts`, branch feat/agent-goal-mode-20261116, latest source7295e003 and test3a24b058. Stage A remains incomplete; user goal includes full acceptance and dev PR merge. Direct focused macOS CI is explicitly authorized by user. No push/PR/CI run yet.
+
+Implemented: Work goal lifecycle, active pause/revise/cancel, structured response protocol forwarded into delegated native task instruction, persistent terminal continuation, bounded worker scan, API and maintenance wake, current-Attempt product-ref qualification, App controls and slash setup. Tests are evidence only; real full acceptance remains open.
+
+Runtime: canonical rebuild6 is running in shell session11002, log `/tmp/capstone-goal-rebuild-6.log`; poll this exact handle before starting anything else. Candidate App Vite is session9689 on5174, same-origin proxy; existing Vivaldi tab points to it. Actual5173 App remains rootdev but backend local candidate is feature source; no cloud/demo changes. Rebuild5 source60845e83 imagee8b3fabf is prior runtime until rebuild6 completes.
+
+Real probe evidence is in root checkout `runs/agent-goal-acceptance-20261116/`; threadthr_cda21d4ed80e96aa3d5b paused after3/4 Attempts. First failure missing input; second ignored outer prompt; third produced valid JSON continue and draft.md but terminal rejected product refs, then lease expired. All preserved. Fix7295e003 qualifies refs from host publication records; not yet real-verified. After rebuild6, resume original goal once with fresh command identity and observe. It has one Attempt remaining; no budget reset. A separate new synthetic goal may be needed to prove clean two-Attempt completion.
+
+Remaining: real goal continuation/products plus pause/revise/cancel/budget and restart checks, browser interaction and refresh, focused gate rerun, code review (subagent unavailable: unknown gpt-6.1-luna config), acceptance and canonical control updates, push/PR approved focused CI, merge actualdev and runtime verification. Current controls are not dev-integrated.
+
+Owned dirty docs: JOURNAL.md accumulates append-only lines and this baton; preserve and commit at next coherent boundary. Rootdev contains earlier task-owned design/control drafts; exact paths under runs/always-on-architecture-research-20261116. Do not overwrite user data or reapply obsolete pin closeout. PR124 pin repair already merged4834ebe3.
+
+
+Latest implementation: d2274fac on feat/agent-goal-mode-20261116. Two-Attempt in-memory service continuation passes. PostgreSQL, real model, App entry and dev integration remain open. User explicitly authorized direct CI for this stage; focused macOS scope only. Next verify PostgreSQL continuation before UI. Journal has task-owned pending lines; preserve them.
+
 > Current checkpoint: Agent goal mode, 2026-11-16. Session active, not final handoff.
 
 Work in `.worktrees/historical-input-receipts`, branch

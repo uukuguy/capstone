@@ -7892,3 +7892,61 @@ check passed. No CI, integration or remote deployment performed.
 - 21:09 Freeze pin acceptance/control snapshot; record this commit and later CI/merge receipts in ignored incident evidence to avoid self-metadata loops.
 
 - 2026-11-16 4792b7d8: Added strict goal state and snapshot compatibility to isolate autonomous objectives from legacy Work commands.
+
+- 2026-11-16 7075fe14: Added goal control transitions to preserve budgets and reject expired or terminal resume.
+
+- 2026-11-16 94e9a271: Admitted idle Work goal controls with idempotency and revision tests; active execution controls remain pending.
+
+- 2026-11-16 018794f5: Deferred active controls to terminal boundaries and qualified progress proposals against host identity and saved delivery.
+
+- 2026-11-16 5d82b21c: Bound goal budgets to Attempt admission and paused receiptless completion to prevent false goal success.
+
+- 2026-11-16 624426fa: Prepared persistent continuation markers from qualified proposals so restart can retain next-step intent.
+
+- 2026-11-16 94ee2cd3: Committed qualified goal continuation with terminal Attempt state to preserve causal next-step intent.
+
+- 2026-11-16 e67ee80d: Captured one structured goal proposal per Attempt for terminal admission; native production channel remains pending.
+
+- 2026-11-16 1cccc19d: Defined goal-only response envelope and strict decoding to carry reader delivery and structured progress.
+
+- 2026-11-16 3c59c21a: Connected goal response decoding to Harness invocation while preserving ordinary runtime calls.
+
+- 2026-11-16 bfb7c933: Connected ready goal starts and resumes to existing Attempt admission and budget accounting.
+
+- 2026-11-16 e98a1e19: Added deterministic continuation admission bound to persisted predecessor and current Work revision.
+
+- 2026-11-16 f4dad66e: Added bounded durable goal scanning to worker maintenance for restart and lost-wake recovery.
+
+- 2026-11-16 d2274fac: Verified automatic two-Attempt service continuation, duplicate scan suppression and final budget accounting.
+
+- 2026-11-16 6c7caa20: Verified PostgreSQL restart and concurrent continuation;129 focused tests passed without database skips.
+
+- 2026-11-16 e2671f4c: Added App goal projection and control builders;15 protocol tests and TypeScript checks passed.
+
+- 2026-11-16 6437f1eb: Enabled goal control recovery from pending App commands to preserve idempotent retries.
+
+- 2026-11-16 05f3dbea: Added visible bounded goal controls and objective revision;43 App regression tests passed.
+
+- 2026-11-16 28c7bae0: Connected explicit slash goal input to budget setup and preserved existing command menu behavior.
+
+- 2026-11-16 7dff0ce8: Cleared stale continuation on objective revision and cancellation; started canonical local candidate rebuild.
+
+- 2026-11-16 66bf2df0: Refreshed bound gateway identity for HTTP and worker goal admission; candidate rebuild running.
+
+- 2026-11-16 a9aeaab4: Added focused goal CI route; candidate rebuild passed and real goal task was admitted.
+
+- 2026-11-16 d255d342: Fixed goal worker wake after real task stayed queued;50 focused tests passed,12 database skips.
+
+- 2026-11-16 0a948a15: Added HTTP goal-start wake regression so accepted goals cannot silently remain queued.
+
+- 2026-11-16 524680a5: Prepared standard goal input snapshots after real execution exposed missing submission.input.
+
+- 2026-11-17 60845e83: Forwarded goal protocol into actual frozen native instruction after real output ignored outer prompt.
+
+- 2026-11-17 d87b45fc: Kept goal wake regression within focused CI routing; independent reviewer unavailable due model configuration.
+
+- 2026-11-17 90f3939b: Improved goal control layout and failure reasons after inspecting actual conversation screenshots.
+
+- 2026-11-17 7295e003: Bound goal product references to current Attempt publication records;85 focused PostgreSQL checks passed.
+
+- 2026-11-17 3a24b058: Verified service terminal continuation accepts a product reference only after current Attempt publication.
