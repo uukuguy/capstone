@@ -1,4 +1,5 @@
 import GoalControls from './GoalControls'
+import ControlGoalPanel from './ControlGoalPanel'
 import {goalCommand,goalObjectiveFromInput} from './goalMode'
 import ProductReferenceChips from './ProductReferenceChips'
 import ManagedResourcesPanel from './ManagedResourcesPanel'
@@ -623,6 +624,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     selectedResourceView={resourceView} onResourceViewChange={selectResourceView}
     resourceLabel={resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'Artifacts':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
     sidebar={<nav className="thread-session-navigation" aria-label="任务与会话">
+      <ControlGoalPanel transport={transport} onOpenThread={(thread,work)=>{
+        const storageKey=`${namespace}.${thread}.work-draft`
+        try{const saved=JSON.parse(sessionStorage.getItem(storageKey)||'{}');sessionStorage.setItem(storageKey,JSON.stringify({...saved,selected:work}))}catch{/* Keep existing drafts if storage is unavailable. */}
+        if(thread===currentId)selectWork(work)
+        else navigateSession(thread)
+      }}/>
       {currentId==='new'&&!recoveryOnly&&!nativeChat?<button className="thread-session-new" disabled={busy} onClick={()=>void create()}><Plus aria-hidden="true" size={16}/>新建任务会话</button>:<SessionNewPopover onCreated={navigateSession} />}
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
       {viewingLegacy&&<button type="button" disabled={busy||!!pending} onClick={()=>selectWork(snapshot?.works.find(work=>work.conversationMode)?.workId||'new')}>返回当前对话</button>}

@@ -163,7 +163,8 @@ def create_host_app(
         request.state.public_demo = False
         thread_resource = (request.url.path == '/api/v1/threads'
                            or request.url.path.startswith('/api/v1/threads/'))
-        versioned_resource = (thread_resource or request.url.path == '/api/v1/workspace/connections'
+        control_resource = request.url.path.startswith(('/api/v1/control/', '/api/v1/agent/delegations'))
+        versioned_resource = (thread_resource or control_resource or request.url.path == '/api/v1/workspace/connections'
                               or request.url.path.startswith('/api/v1/workspace/session-pins')
                               or request.url.path.startswith('/api/v1/workspace/gateways')
                               or request.url.path.startswith('/api/v1/managed-resources'))
@@ -221,7 +222,7 @@ def create_host_app(
                                 if upgrade else await call_next(request))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
-        if thread_resource or request.url.path.startswith('/api/v1/workspace/session-pins'):
+        if thread_resource or control_resource or request.url.path.startswith('/api/v1/workspace/session-pins'):
             response.headers.append('Vary', WORKSPACE_HEADER)
             selected_workspace = getattr(request.state, 'workspace_name', None)
             if selected_workspace is not None:
@@ -237,7 +238,7 @@ def create_host_app(
             response.headers["Access-Control-Allow-Headers"] = (
                 "Authorization, Content-Type, Idempotency-Key, Capstone-Thread-Version, Capstone-Workspace"
             )
-            if thread_resource or request.url.path.startswith('/api/v1/workspace/session-pins'):
+            if thread_resource or control_resource or request.url.path.startswith('/api/v1/workspace/session-pins'):
                 response.headers['Access-Control-Expose-Headers'] = 'Capstone-Thread-Version, Capstone-Workspace'
         return response
 
