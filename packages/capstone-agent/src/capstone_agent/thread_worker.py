@@ -304,6 +304,20 @@ def serve_thread_attempts(
     if type(max_concurrent_attempts) is not int or max_concurrent_attempts < 1:
         raise ValueError('thread worker capacity must be a positive integer')
     stop = stop_event or threading.Event()
+    recovery_interval = max(1.0, min(10.0, lease_seconds / 3))
+    next_recovery = time.monotonic() + recovery_interval
+
+    def reap_recovery() -> None:
+        nonlocal next_recovery
+        now = time.monotonic()
+        if now >= next_recovery:
+            next_recovery = now + recovery_interval
+            service.interrupt_expired_attempts()
+
+    def reconcile_recovery() -> None:
+        reap_recovery()
+        if case_service is not None:
+            case_service.reconcile_active()
     def has_pending() -> bool:
         reader = getattr(service, 'has_pending_attempts', None)
         return bool(reader(implementation_family)) if callable(reader) else False
@@ -318,14 +332,20 @@ def serve_thread_attempts(
                     case_service=case_service, implementation_family=implementation_family),
                 capacity=max_concurrent_attempts, stop=stop, wake=wake_event,
                 poll_seconds=poll_seconds, sweep=getattr(runtime_factory, 'sweep_idle', None),
-                reconcile=case_service.reconcile_active if case_service is not None else None,
+                reconcile=reconcile_recovery,
                 pending=has_pending,
             )
             return
         while not stop.is_set():
+            try:
+                reap_recovery()
+            except Exception:
+                _LOG.warning('Thread lease recovery failed; retrying after maintenance interval')
+                stop.wait(poll_seconds)
+                continue
             if idle and wake_event is not None:
-                # Local cache expiry must still run while idle, but no ledger
-                # connection is needed until an authenticated wake arrives.
+                # Admission stays wake-driven. Bounded lease maintenance above
+                # must recover dead workers without a new command or UI read.
                 sweep = getattr(runtime_factory, 'sweep_idle', None)
                 if callable(sweep):
                     try:
