@@ -88,7 +88,7 @@ class ControlService:
             if goal is None:
                 raise KeyError(goal_id)
             task = self._delegated_task(goal, delegation_id)
-            if (task['state'] != 'dispatching' or task['delegation']['binding'] is not None
+            if (task['state'] not in {'dispatching', 'running', 'waiting', 'resume_requested'}
                     or self.now() < utc_deadline(goal['deadline_at'])):
                 return goal, public(goal)
             task['state'] = 'revoke_requested'

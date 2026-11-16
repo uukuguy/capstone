@@ -31,9 +31,11 @@ class Agent:
                 'summary': '', 'delivery': None}
 
 
-def setup():
+def setup(mode='single'):
     s = ControlService(MemoryStore(), now=lambda: NOW)
-    g = s.create('a', request())
+    body = request()
+    body['tasks'][0]['mode'] = mode
+    g = s.create('a', body)
     g = s.command('a', command(g, 'delegate_next', 'dispatch'))['goal']
     return s, g, Agent()
 
@@ -131,3 +133,24 @@ def test_deadline_after_lost_binding_ack_revokes_original_operation():
     assert len(agent.executions) == 1
     assert agent.revoked[0][0] == d['delegation_id']
     assert s.read('a', g['goal_id'])['state'] == 'paused'
+
+
+@pytest.mark.parametrize('mode', ['single', 'goal'])
+def test_deadline_revokes_bound_execution_before_admitting_late_delivery(mode):
+    s, g, agent = setup(mode)
+    reconcile(s, agent)
+    bound = s.read('a', g['goal_id'])
+    d = bound['tasks'][0]['delegation']
+    # Deadline belongs to Control even when single-shot Agent execution has no
+    # inner /goal deadline. A late completion is a stop ack, never a delivery.
+    agent.observations[d['delegation_id']] = {'sequence': 1, 'state': 'completed',
+        'summary': 'late result', 'delivery': {'answer_ref': 'late', 'products': [], 'status': 'completed'}}
+    s.now = lambda: NOW.replace(year=2100)
+    reconcile(s, agent)
+    current = s.read('a', g['goal_id'])
+    assert current['state'] == 'paused'
+    assert current['reason'] == 'deadline_exhausted'
+    assert current['tasks'][0]['delivery'] is None
+    assert current['tasks'][0]['state'] == 'cancelled'
+    assert agent.revoked[0][:2] == (d['delegation_id'], 'cancel')
+    assert len(agent.executions) == current['delegations_admitted'] == 1
