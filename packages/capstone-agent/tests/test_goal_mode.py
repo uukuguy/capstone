@@ -285,6 +285,24 @@ def test_start_goal_admits_first_attempt_through_existing_service():
     assert store.snapshot('thr_work_exec').works[0]['goal_mode']['attempts_admitted'] == 1
 
 
+def test_goal_start_prepares_standard_input_submission(monkeypatch):
+    import capstone_agent.thread_service as module
+    from test_thread_work_execution import professional_snapshot, save_work
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    observed = []
+    def admission(snapshot, parsed, provider):
+        observed.append(parsed)
+        return {'input': {'kind': 'text', 'text': parsed['payload']['text']}}, None
+    monkeypatch.setattr(module, 'admission_submission', admission)
+    snapshot, submission, rejection = module._work_send_input(store.snapshot('thr_work_exec'), {
+        'kind': 'start_goal', 'target': {'id': work['work_id']},
+        'payload': {'objective': 'Review report'}}, None, None)
+    assert rejection is None
+    assert submission['input'] == {'kind': 'text', 'text': 'Review report'}
+    assert observed
+
+
 def saved_work():
     class Store:
         def create_thread(self, snapshot):

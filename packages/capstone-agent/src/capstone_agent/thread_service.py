@@ -1198,6 +1198,12 @@ class _StoredCommand:
 
 
 def _work_send_input(snapshot, parsed, provider, capability_catalog):
+    if parsed['kind'] in {'start_goal', 'resume_goal', 'continue_goal'}:
+        from .thread_work import work_instruction
+        work = next((item for item in snapshot.works if item['work_id'] == parsed['target']['id']), None)
+        if work is not None:
+            text = parsed['payload']['objective'] if parsed['kind'] == 'start_goal' else work_instruction(work)
+            parsed = {**parsed, 'kind': 'send_message', 'payload': {'text': text}}
     if parsed['kind'] == 'start_work':
         from .thread_work import work_instruction
         work = next((item for item in snapshot.works if item['work_id'] == parsed['target']['id']), None)
