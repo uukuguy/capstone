@@ -12,10 +12,12 @@ are history, not live process handles. Candidate Vite9689 has stopped.
 StageB plan: docs/superpowers/plans/2026-11-17-control-delegation.md, based on
 already approved Control architecture. Independent package capstone-control has
 strict Goal/Task contracts, transactional lifecycle, idempotent receipts and
-memory/PostgreSQL stores.23 focused tests pass with a disposable PostgreSQL
-database, including eight concurrent replays, restart and rollback. Next implement
-public Agent delegation/reconciliation (binding, observation, revocation and
-objective revision are still incomplete), existing App UI and real
+memory/PostgreSQL stores. Public Agent port reconciliation and Agent-owned
+delegation registry now provide identity binding, sequenced progress and revoke
+intents.31 focused tests pass with disposable PostgreSQL, including eight
+concurrent replays, restart, rollback, workspace isolation and pre-admission cancel.
+Next implement cross-Thread explicit resource grants, complete objective revision
+and pause/resume controls, assemble host/worker interfaces, existing App UI and real
 two-stage fresh-Thread acceptance. No StageB runtime is deployed or accepted.
 Command: PYTHONPATH=packages/capstone-control/src uv run --project
 packages/capstone-agent pytest packages/capstone-control/tests -q.
