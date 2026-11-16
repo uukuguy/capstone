@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+控制图干净收口修正：用户批准忽略目录中的实时状态旁文件。9个待提交文档一并交付；默认HTML保留验收快照，--live只刷新忽略状态。最终Git/PR回执保存在runs/project-overview，避免再次留下自身合并的待提交记录。见[设计](../superpowers/specs/2026-11-16-project-control-clean-closeout-design.md)。
+
+最终收口：PR122获批macOS docs CI43845523515通过62秒后合入实际dev2cc689af；PR121产品来源00999b8a及本地镜像不变。两条交付分支均已核对并关闭，原文件续作、下载、刷新及独立审阅通过。最后自身合并回执/图快照按恢复记录保存，不为记录自身哈希循环创建CI。
+
 独立只读审阅已完成，无明确可操作缺陷；实际dev00999b8a续作、下载及浏览器刷新均通过。当前只剩验收/控制文档合入，需新批准的macOS docs CI；不复用已消耗的实施CI批准。
 
 PR121已合入dev00999b8a，唯一获批macOS CI43839482466通过240秒；实际dev规范重建、原取消初稿28字节续作及1425字节报告哈希通过。源码分支已安全关闭，控制收口在docs/recoverable-long-task-closeout-20261116准备，尚无第二次CI批准。

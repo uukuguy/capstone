@@ -7864,3 +7864,23 @@ check passed. No CI, integration or remote deployment performed.
 
 - Independent read-only review completed exit0 without clear actionable defects; process-only Clash proxy resolved direct API timeout, no model override or CI.
 - Existing Vivaldi Thread reload retained original draft/version/hash and1425-byte continuation report; actual dev entry accepted locally.
+
+- f7eb9f7b: Recorded accepted dev runtime, independent review, CI/merge receipts and recovery/control state for governed documentation closeout.
+
+- User approved one macOS docs CI for closeoutf7eb9f7b; fresh docs scope/links/symlink/diff/doctor checks passed before PR creation.
+
+- PR122 merged2cc689af after approved macOS docs CI43845523515 passed62seconds; actual dev and detached initialized checkout synchronized.
+- Both delivered source branches closed after ancestry/PR checks; all postcommit drafts and recovery stashes preserved, runtime source stays00999b8a.
+
+- Final audit proved8 criteria and re-downloaded8 products with original hashes; current dev2cc689af/source00999b8a, both approved CI receipts and independent review verified.
+- Final graph refreshed/visually checked with real HEAD2cc689af, product00999b8a and correct PR122 CI; self-closure metadata preserved explicitly to avoid recursive CI.
+
+- Goal completed: all8 approved capability criteria, independent review, two approved macOS gates, integrated dev and final recovery/control snapshot verified.
+
+- User requested strict closure of9 dirty control files and approved ignored live-state sidecar; final self-commit/merge receipts move to ignored operator journal at the freeze boundary.
+- Live renderer and browser selection regressions failed first, then passed:2 Python/3 Node tests cover no tracked HTML write, atomic failure, fresh/stale/missing/malformed/future fallback.
+
+- Preserved the9 original root drafts in stashbef9c5f4 and ignored pre-final-closure backup; root dev is clean while the reviewed control delivery retains their content.
+
+- Clean-control delivery verified:2 Python/3 Node checks,271 governance checks with3 skips, doctor and independent read-only review passed; existing browser proved snapshot fallback and live mode.
+- Freeze boundary: preserve this delivery commit and later CI/merge journal lines only in ignored runs/project-overview/closeout-journal.jsonl; no tracked postcommit/self-merge edits.

@@ -50,5 +50,7 @@ draft continuation passed:28 original bytes,1425-byte report, exact hashes and
 historical delivery receipt. Browser refresh retained the result. Focused
 gate014e6733 measured locally583 passed/33 skipped75.39seconds; CI583 passed/
 33 skipped129.12seconds. Independent read-only review completed with no clear
-actionable defect. Control-document integration remains open; the goal is not
-marked complete until that governance step is integrated.
+actionable defect. Control-document PR122 passed its separately approved macOS
+docs CI43845523515 in62seconds and merged as2cc689af. The actual dev checkout is
+synchronized; product runtime remains the tested00999b8a source. Final own-merge
+receipt/graph refresh does not open another implementation or CI cycle.
