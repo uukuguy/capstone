@@ -131,6 +131,8 @@ def create_attempt(snapshot, work, *, turn_id=None):
 
 def work_instruction(work):
     """Keep every unconsumed supplement; a closed conversation retries its saved text."""
+    if 'goal_continuation' in work:
+        return work['goal'] + '\n\nNext step:\n' + work['goal_continuation']['next_instruction']
     pending = work['messages'][work.get('consumed_message_count', 0):]
     if work.get('conversation_mode'):
         return '\n\n'.join(pending or work['messages'])
@@ -185,7 +187,7 @@ def apply_work(snapshot, command, *, archived=False):
         return snapshot, 'case_execution_active', None
     target_work = next((item for item in snapshot.works
                         if item['work_id'] == command['target']['id']), None)
-    if command['kind'] in {'start_goal', 'pause_goal', 'resume_goal', 'cancel_goal', 'revise_goal_objective'}:
+    if command['kind'] in {'start_goal', 'pause_goal', 'resume_goal', 'cancel_goal', 'revise_goal_objective', 'continue_goal'}:
         from datetime import datetime, timezone
         from .goal_mode import GOAL_SCHEMA, control_goal, parse_goal_mode
         if target_work is None:
@@ -207,6 +209,12 @@ def apply_work(snapshot, command, *, archived=False):
                     'last_settled_attempt_id': None})
                 if datetime.fromisoformat(goal['deadline_at']) <= now:
                     raise ValueError('goal deadline elapsed')
+            elif command['kind'] == 'continue_goal':
+                from .goal_continuation import continuation_command
+                expected = continuation_command(snapshot.thread_id, work)
+                if expected is None or command['payload'] != expected['payload']:
+                    return snapshot, 'goal_continuation_unavailable', None
+                goal = parse_goal_mode(work['goal_mode'])
             else:
                 if 'goal_mode' not in work:
                     return snapshot, 'goal_unavailable', None
@@ -224,7 +232,7 @@ def apply_work(snapshot, command, *, archived=False):
                     revision=work['revision'] + 1)
         context = TaskContext.from_document(work['task_context'])
         work['task_context'] = replace(context, goal_revision=work['goal_revision']).to_document()
-        if command['kind'] in {'start_goal', 'resume_goal'} and start_unavailable_reason(snapshot) is None:
+        if command['kind'] in {'start_goal', 'resume_goal', 'continue_goal'} and start_unavailable_reason(snapshot) is None:
             work.update(status='queued', blocked_reason=None, cancel_requested=False)
         works = tuple(work if item['work_id'] == work['work_id'] else deepcopy(item) for item in snapshot.works)
         if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
