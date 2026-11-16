@@ -47,7 +47,11 @@ def goal_response_instruction(instruction: str) -> str:
         'product_refs (array of saved product references; use [] when no references are needed). '
         'Use continue when more useful work remains, wait when input is missing, and complete '
         'only when the objective has been delivered. Save useful products before responding. '
-        'Do not add markdown fences or execution identity fields.')
+        'Do not add markdown fences or execution identity fields. '
+        'If the native execution contract requires a capstone-answer XML envelope, '
+        'place this entire JSON object as the sole content inside that required envelope. '
+        'Do not write a separate prose answer or append JSON outside the envelope. '
+        'The answer field inside the JSON is the reader-facing answer.')
 
 
 def prompt_goal_runtime(runtime, instruction, *, on_event, correlation_id, on_heartbeat):
