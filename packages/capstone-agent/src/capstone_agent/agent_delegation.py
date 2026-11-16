@@ -94,8 +94,6 @@ class AgentDelegations:
             request, thread = current['request'], current['thread_id']
             if datetime.fromisoformat(request['deadline_at']) <= datetime.now(timezone.utc):
                 raise DelegationRevoked('delegation deadline expired')
-            if request['context_products']:
-                raise ValueError('cross-Thread resource grant is not configured')
             try:
                 self.threads.require_workspace(thread, workspace)
             except ThreadNotFound:
@@ -110,6 +108,10 @@ class AgentDelegations:
                 text = request['objective'] + '\n\n交付要求：\n' + '\n'.join(request['delivery_requirements'])
                 self._command(thread, None, 'work_message', 'create-work', {'text': text})
             work = self.threads.snapshot(thread).to_document()['works'][0]
+            if request['context_products']:
+                from .delegation_resources import grant_resources
+                grant_resources(self.threads, workspace, thread, work['work_id'],
+                                request['delegation_id'], request['context_products'])
             if work['latest_attempt_id'] is None and work['start_available']:
                 if request['mode'] == 'goal':
                     self._command(thread, work, 'start_goal', 'start',

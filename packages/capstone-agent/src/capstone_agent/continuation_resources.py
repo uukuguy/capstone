@@ -57,6 +57,10 @@ def resource_reader_for(service, claim):
         canonical = checked_resource(dict(manifest))
         if canonical != allowed.get(canonical['resource_id']) or canonical['thread_id'] != claim.thread_id:
             raise ValueError('resource not admitted for this attempt')
+        if any(g['resource'] == canonical for g in submission.get('_delegation_resources', ())):
+            from .delegation_resources import read_granted_resource
+            yield from read_granted_resource(service, claim, canonical)
+            return
         source = historical.get(canonical['resource_id'])
         if source is None:
             from .thread_resources import ResourceUploads
@@ -84,7 +88,8 @@ def resource_reader_for(service, claim):
 
     def read_range(manifest, request, control):
         canonical = checked_resource(dict(manifest))
-        if canonical != allowed.get(canonical['resource_id']) or canonical['resource_id'] in historical:
+        if (canonical != allowed.get(canonical['resource_id']) or canonical['resource_id'] in historical
+                or any(g['resource'] == canonical for g in submission.get('_delegation_resources', ()))):
             raise ValueError('resource range source is not an admitted upload')
         from .resource_range_reads import ResourceRangeReads
         return ResourceRangeReads(service, service._material_objects).read(
@@ -93,6 +98,11 @@ def resource_reader_for(service, claim):
 
     read_resource.read_range = read_range
     def record_delivery(task_id, manifest):
+        from .delegation_resources import delivery_receipt as delegated_receipt, DELIVERY_EVENT
+        delegated = delegated_receipt(claim, task_id, manifest)
+        if delegated is not None:
+            service.append_runtime_event(claim, event_type=DELIVERY_EVENT, payload=delegated, visibility='public')
+            return
         from .historical_input_receipts import delivery_receipt, EVENT
         receipt = delivery_receipt(claim, task_id, manifest)
         if receipt is not None:
