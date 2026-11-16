@@ -65,7 +65,105 @@ class ControlService:
     def pending(self, workspace=None, limit=128):
         return [{'goal_id': g['goal_id'], 'workspace': g['workspace'], 'task': deepcopy(t)}
                 for g in self.store.list(workspace, limit)
-                for t in g['tasks'] if t['state'] in {'dispatching', 'revoke_requested'}][:limit]
+                for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'revoke_requested'}][:limit]
+
+    def delegation_request(self, workspace, goal_id, delegation_id):
+        goal = self.read(workspace, goal_id)
+        task = self._delegated_task(goal, delegation_id)
+        return {**deepcopy(task['delegation']), 'objective': task['objective'],
+                'delivery_requirements': deepcopy(task['delivery_requirements']),
+                'mode': task['mode'], 'max_attempts': task['max_attempts'],
+                'deadline_at': goal['deadline_at'],
+                'context_products': [deepcopy(product) for previous in goal['tasks']
+                    if previous['task_id'] in task['depends_on'] and previous['state'] == 'verified'
+                    for product in previous['delivery']['products']]}
+
+    @staticmethod
+    def _delegated_task(goal, delegation_id):
+        task = next((t for t in goal['tasks'] if t['delegation'] and
+                     t['delegation']['delegation_id'] == delegation_id), None)
+        if task is None:
+            raise InvalidTransition('delegation is not current')
+        return task
+
+    def bind(self, workspace, goal_id, delegation_id, binding):
+        object_fields(binding, {'thread_id', 'work_id'})
+        for value in binding.values():
+            identity(value)
+        def change(goal):
+            if goal is None:
+                raise KeyError(goal_id)
+            task = self._delegated_task(goal, delegation_id)
+            old = task['delegation']['binding']
+            if old is not None:
+                if old != binding:
+                    raise Conflict('execution binding mismatch')
+                return goal, public(goal)
+            if task['state'] not in {'dispatching', 'revoke_requested'}:
+                raise InvalidTransition('delegation is not awaiting binding')
+            task['delegation']['binding'] = deepcopy(binding)
+            if task['state'] == 'dispatching':
+                task['state'] = 'running'
+            goal['revision'] += 1
+            return goal, public(goal)
+        return self.store.transact(workspace, goal_id, change)
+
+    def observe(self, workspace, goal_id, delegation_id, observation):
+        from .contracts import text
+        object_fields(observation, {'sequence', 'state', 'summary', 'delivery'})
+        if type(observation['sequence']) is not int or observation['sequence'] < 0:
+            raise ContractError('nonnegative observation sequence required')
+        if observation['state'] not in {'running', 'waiting', 'paused', 'completed', 'failed', 'cancelled', 'unknown'}:
+            raise ContractError('invalid observed state')
+        if observation['summary'] != '':
+            text(observation['summary'], limit=4096)
+        def change(goal):
+            if goal is None:
+                raise KeyError(goal_id)
+            task = self._delegated_task(goal, delegation_id)
+            if task['delegation']['binding'] is None and not (
+                    task['state'] == 'revoke_requested' and
+                    observation['state'] in {'paused', 'cancelled'}):
+                raise InvalidTransition('unbound delegation cannot publish observations')
+            old = task.get('observation')
+            if old is not None and observation['sequence'] <= old['sequence']:
+                if observation['sequence'] == old['sequence'] and observation != old:
+                    raise Conflict('observation sequence has different content')
+                return goal, public(goal)
+            if task['state'] not in {'running', 'waiting', 'revoke_requested'}:
+                return goal, public(goal)
+            task['observation'] = deepcopy(observation)
+            state = observation['state']
+            if task['state'] == 'revoke_requested':
+                # Terminal execution is an acknowledgement, never permission to
+                # accept a late completion for the revoked delegation.
+                if state in {'paused', 'cancelled', 'completed', 'failed'}:
+                    kind = task['delegation']['requested_control']
+                    task['state'] = 'cancelled' if kind == 'cancel' else 'paused'
+                    if not any(t['state'] == 'revoke_requested' for t in goal['tasks']):
+                        goal['state'] = 'cancelled' if kind == 'cancel' else 'paused'
+            elif state == 'completed':
+                self._settle_delivery(task, observation['delivery'])
+            elif state in {'failed', 'unknown', 'cancelled'}:
+                task['state'] = 'failed' if state == 'failed' else 'blocked'
+                goal.update(state='paused', reason='delegation_' + state)
+            elif state in {'waiting', 'paused'}:
+                task['state'] = 'waiting'
+                goal.update(state='waiting', reason='agent_' + state)
+            goal['revision'] += 1
+            return goal, public(goal)
+        return self.store.transact(workspace, goal_id, change)
+
+    @staticmethod
+    def _settle_delivery(task, delivery):
+        object_fields(delivery, {'answer_ref', 'products', 'status'})
+        identity(delivery['answer_ref'])
+        if delivery['status'] != 'completed' or not isinstance(delivery['products'], list):
+            raise ContractError('completed persisted delivery required')
+        content = {**deepcopy(delivery), 'revision': 1}
+        if task['delivery'] is not None and task['delivery'] != content:
+            raise Conflict('delivery changed after persistence')
+        task.update(state='delivered', delivery=content)
 
     def command(self, workspace, command):
         object_fields(command, {'schema', 'operation_id', 'goal_id', 'expected_revision',
