@@ -2,6 +2,7 @@
   "include": [
     "packages/capability-agent-kernel/src",
     "packages/capstone-agent/src",
+    "packages/capstone-control/src",
     "packages/enterprise-research-domain-pack/src",
     "packages/capstone-model-capability-spi/src",
     "packages/pypsa-agent/src",
@@ -19,6 +20,7 @@
   "extraPaths": [
     "packages/capability-agent-kernel/src",
     "packages/capstone-agent/src",
+    "packages/capstone-control/src",
     "packages/enterprise-research-domain-pack/src",
     "packages/capstone-model-capability-spi/src",
     "packages/pypsa-agent/src",

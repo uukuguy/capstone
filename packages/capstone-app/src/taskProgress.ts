@@ -88,13 +88,15 @@ export function projectTaskProgress(events: readonly EventEnvelope[], attemptId:
   const output: TaskProgress[] = []
   const delivered = new Set<string>()
   for (const event of events) {
-    if (event.eventType === 'historical_input_delivered') {
+    if (event.eventType === 'historical_input_delivered'||event.eventType==='delegation_input_delivered') {
       const receipt=event.payload, resource=receipt.resource, source=receipt.source
+      const delegated=event.eventType==='delegation_input_delivered'
       if (event.visibility==='public' && event.attemptId===attemptId &&
-          receipt.schema==='capstone-historical-input-delivery/1' && receipt.thread_id===event.threadId &&
+          receipt.schema===(delegated?'capstone-delegation-input-delivery/1':'capstone-historical-input-delivery/1') && receipt.thread_id===event.threadId &&
           receipt.attempt_id===attemptId && text(receipt.task_id) && text(receipt.receipt_id) &&
           /^[a-f0-9]{64}$/.test(receipt.receipt_id) && !delivered.has(receipt.receipt_id) &&
-          object(resource) && object(source) && resource.thread_id===event.threadId && source.thread_id===event.threadId &&
+          object(resource) && object(source) && resource.thread_id===event.threadId &&
+          (delegated?text(receipt.delegation_id)&&text(source.thread_id):source.thread_id===event.threadId) &&
           resource.schema==='capstone-resource/1' && resource.version===1 && text(resource.file_name) &&
           resource.file_name.length<=255 && source.file_name===resource.file_name && text(source.attempt_id) &&
           source.attempt_id!==attemptId && text(source.artifact_id) && text(source.work_id) &&
@@ -102,7 +104,7 @@ export function projectTaskProgress(events: readonly EventEnvelope[], attemptId:
           text(resource.sha256) && /^[a-f0-9]{64}$/.test(resource.sha256) && source.sha256===resource.sha256) {
         delivered.add(receipt.receipt_id)
         output.push({id:receipt.receipt_id,sequence:event.eventSeq,kind:'observation',refs:[],
-          text:`历史输入已交付：${resource.file_name}（版本 ${resource.version}，${resource.size_bytes} 字节）。仅确认交付，不代表完整分析或成果派生。`})
+          text:`${delegated?'委托':'历史'}输入已交付：${resource.file_name}（版本 ${resource.version}，${resource.size_bytes} 字节）。仅确认交付，不代表完整分析或成果派生。`})
       }
       continue
     }

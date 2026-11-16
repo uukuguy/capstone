@@ -17,6 +17,7 @@ No CI approval or dev merge yet; cloud/demo/main unchanged.
 ## Project snapshot
 
 - Project route: managed
+- Active work package: stageB Control delegation; capstone-control owns durable Goal/Task coordination, capstone-agent owns delegated Thread/Work execution. Plan: `docs/superpowers/plans/2026-11-17-control-delegation.md`.
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
 - Delivery baseline: recoverable long-task execution is implemented and accepted locally on dev. PR121 integrated product source00999b8a after approved macOS CI43839482466; PR122 integrated acceptance/control documents as2cc689af after separately approved docs CI43845523515. Actual runtime source stays00999b8a, with verified rebuild, real retained-file continuation, downloads, refresh and independent review. Both delivery branches are closed; no runtime overlays remain. Cloud/demo unchanged. No successor implementation package is selected by this goal.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
@@ -85,6 +86,15 @@ remain independent. Research node quality gaps support user judgement across
 turns; scientific calculations retain objective Domain Pack/Authority checks.
 
 ## Architecture
+
+Application-owned Control composition uses the independent capstone-control
+package for durable Goal/Task coordination. Its Agent port binds public
+delegations to Thread/Work identity without writing Agent ledger internals.
+The native worker runs bounded Control maintenance; the App presents state and
+explicit acceptance. Agent Work goal mode remains independently usable.
+Goal.revision is CAS state; objective_revision binds delegated semantics.
+Task verification and exact-version user acceptance remain distinct. Business
+ownership stays Application → Domain Pack → Kernel → registered Authority.
 
 The merged development baseline has a separately installable
 `pandapower-application` package for workers,registered entries,composition,

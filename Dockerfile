@@ -15,6 +15,7 @@ WORKDIR /app
 # Locked third-party dependencies. These inputs stay ahead of application source.
 COPY packages/capability-agent-kernel/pyproject.toml packages/capability-agent-kernel/uv.lock packages/capability-agent-kernel/
 COPY packages/capstone-agent/pyproject.toml packages/capstone-agent/uv.lock packages/capstone-agent/
+COPY packages/capstone-control/pyproject.toml packages/capstone-control/
 COPY packages/capstone-model-capability-spi/pyproject.toml packages/capstone-model-capability-spi/uv.lock packages/capstone-model-capability-spi/
 COPY packages/enterprise-research-domain-pack/pyproject.toml packages/enterprise-research-domain-pack/
 COPY packages/pandapower-application/pyproject.toml packages/pandapower-application/uv.lock packages/pandapower-application/

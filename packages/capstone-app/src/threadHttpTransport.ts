@@ -23,6 +23,7 @@ import type {WorkspaceConnections} from './workspaceConnections'
 import type {GatewayConnectionInput} from './gatewayConnectionTypes'
 import {parseGatewayConnections,parseGatewayProbe} from './gatewayConnectionProtocol'
 import {currentWorkspaceName,normalizeWorkspaceName} from './workspaceName'
+import {parseControlGoal,parseControlGoals,type ControlCommand,type ControlGoalCreate} from './controlGoals'
 
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
 const THREAD_VERSION = '1'
@@ -128,6 +129,22 @@ async function writeVerifiedStream(response:Response,size:number,digest:string,w
 
 /** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
 export class HttpThreadTransport implements ThreadTransport {
+  private controlDocument(value:unknown){const goal=parseControlGoal(value);if(goal.workspace!==this.workspaceName)throw new Error('长期目标不属于当前工作空间。');return goal}
+  private controlRequest(path:string,init:RequestInit={}){return this.request('/api/v1/control/goals'+path,{...init,signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))})}
+  async controlGoals(after?:string){
+    const page=parseControlGoals(await this.controlRequest(after?'?after='+encodeURIComponent(after):''))
+    if(page.goals.some(g=>g.workspace!==this.workspaceName))throw new Error('目标列表不属于当前工作空间。')
+    return page
+  }
+  async controlGoal(id:string){const goal=this.controlDocument(await this.controlRequest('/'+encodeURIComponent(id)));if(goal.goal_id!==id)throw new Error('目标身份不匹配。');return goal}
+  async createControlGoal(body:ControlGoalCreate){return this.controlDocument(await this.controlRequest('',{method:'POST',body:JSON.stringify(body)}))}
+  async controlGoalCommand(body:ControlCommand){
+    const result=await this.controlRequest('/'+encodeURIComponent(body.goal_id)+'/commands',{method:'POST',body:JSON.stringify(body)})
+    if(!result||typeof result!=='object'||!('schema' in result)||result.schema!=='capstone-control-receipt/1'||!('goal' in result)||!('operation_id' in result)||result.operation_id!==body.operation_id)throw new Error('目标控制回执无效')
+    const goal=this.controlDocument(result.goal)
+    if(goal.goal_id!==body.goal_id)throw new Error('目标控制回执身份不匹配。')
+    return {goal}
+  }
   readonly workspaceName:string
   private get workspaceHeaders():Record<string,string>{return this.workspaceName==='enterprise'?{}:{'Capstone-Workspace':encodeURIComponent(this.workspaceName)}}
   readonly workspaceConnectionsScope:object
@@ -241,7 +258,7 @@ export class HttpThreadTransport implements ThreadTransport {
         ...(threadVersion && (this.versionAdvertised || this.protocolVersion === '2') ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}),
       },
     }, this.fetcher)
-    if(path===this.resourcePath||path.startsWith(this.resourcePath+'/'))await this.checkWorkspace(response)
+    if(path===this.resourcePath||path.startsWith(this.resourcePath+'/')||path.startsWith('/api/v1/control/'))await this.checkWorkspace(response)
     if(threadVersion)await checkResponseVersion(response, this.protocolVersion)
     if(response.status===204)return undefined
     if(threadVersion)this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion

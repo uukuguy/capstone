@@ -1,0 +1,17 @@
+.control-goal-sheet .answer-detail-sheet{width:min(820px,94vw)}
+.control-goal-sheet .answer-detail-content{font-size:13px;line-height:1.6}
+.control-goal-sheet p,.control-goal-sheet h3,.control-goal-sheet h4{overflow-wrap:anywhere}
+.control-goal-sheet label{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+.control-goal-sheet input,.control-goal-sheet textarea,.control-goal-sheet select{width:100%;min-width:0;box-sizing:border-box;padding:9px;border:1px solid #c7d7ce;border-radius:6px;background:var(--surface,#fff);color:inherit;font:inherit}
+.control-goal-sheet textarea{min-height:76px;resize:vertical}
+.control-goal-sheet button{padding:8px 12px;min-height:40px;border:1px solid #c7d7ce;border-radius:6px;background:#edf3ef;color:inherit;cursor:pointer;font:inherit}
+.control-goal-sheet button:disabled{opacity:.5;cursor:default}
+.control-goal-sheet button:focus-visible,.control-goal-sheet input:focus-visible,.control-goal-sheet textarea:focus-visible,.control-goal-sheet select:focus-visible{outline:2px solid #357d69;outline-offset:2px}
+.control-goal-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.control-goal-budget{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.control-goal-form fieldset{border:1px solid #c7d7ce;border-radius:8px;margin:16px 0;padding:12px}
+.control-goal-stages{padding-left:24px}
+.control-goal-stages>li{padding:8px 0 18px;border-bottom:1px solid #dce6df}
+.control-goal-stages>li>button{margin:6px 8px 0 0}
+.control-goal-sheet [role=alert]{color:#a52929}
+@media(max-width:640px){.control-goal-budget{grid-template-columns:1fr;gap:0}.control-goal-sheet button{min-height:44px}.control-goal-sheet .answer-detail-sheet{width:100vw}}

@@ -139,6 +139,8 @@ def main() -> int:
         executor, research_root=settings.runs_root / 'native-research',
         recognizer_factory=lazy_native_unscoped_recognizer(settings.runs_root / 'native-intent'))
     stop, wake = threading.Event(), threading.Event()
+    from .control_host import configure_control
+    configure_control(service, wake=lambda _: wake.set())
     scheduler = threading.Thread(target=serve_thread_attempts, kwargs={
         'service': service, 'runtime_factory': factory,
         'worker_id': 'capstone-native-worker', 'implementation_family': 'native',

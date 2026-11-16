@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-17：阶段一PR125已合入dev4f511d46；阶段二PR126目标dev，真实双会话/原字节/接受、浏览器创建/刷新、API/worker重启、控制重放、预算和活动期限停止通过。8d292962修复183后端/71App、类型及规范重建通过；最终CI/dev集成仍开放。独立审查工具不可用。见[验收](../reviews/2026-11-17-control-delegation-local.md)，候选控制图尚未合入dev。
+
 2026-11-17 VERSION-CONTROL与控制图更新Agent目标模式本地接受、精确来源9dd95faf和PR125待合并；验收见docs/reviews/2026-11-17-agent-goal-mode-local.md。
 
 2026-11-16 Agent目标模式：VERSION-CONTROL/PROJECT-OVERVIEW登记实施分支

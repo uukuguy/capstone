@@ -279,9 +279,13 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
                  if not state.get('draft', False) or ref in attachments]
     from .continuation_resources import artifact_resource
     resources.extend(artifact_resource(source) for source in deferred)
+    from .delegation_resources import frozen_grants
+    grants = frozen_grants(service, snapshot.thread_id, work_id, connection)
+    resources.extend(grant['resource'] for grant in grants)
     return {**(submission or {}), 'material_refs': refs, '_materials': frozen, '_material_notices': notices,
         'attachment_refs': attachments,
         **({'_continuation_artifacts': deferred} if deferred else {}),
+        **({'_delegation_resources': grants} if grants else {}),
         **({'_resource_manifests': resources} if resources else {})}, None
 
 

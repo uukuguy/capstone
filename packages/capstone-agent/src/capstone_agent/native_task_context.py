@@ -366,6 +366,7 @@ def native_context_for(claim, binding):
     if submission.get('_resource_manifests'):
         tools.add('agent_resource_open')
         historical_ids = {item['resource_id'] for item in origins}
+        historical_ids.update(grant['resource']['resource_id'] for grant in submission.get('_delegation_resources', []))
         if any(item['resource_id'] not in historical_ids
                for item in submission['_resource_manifests']):
             tools.add('agent_resource_read')

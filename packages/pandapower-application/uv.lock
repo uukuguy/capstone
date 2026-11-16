@@ -103,6 +103,7 @@ source = { editable = "../capstone-agent" }
 dependencies = [
     { name = "boto3" },
     { name = "capability-agent-kernel" },
+    { name = "capstone-control" },
     { name = "capstone-model-capability-spi" },
     { name = "enterprise-research-domain-pack" },
     { name = "fastapi" },
@@ -122,6 +123,7 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.40,<2" },
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
+    { name = "capstone-control", editable = "../capstone-control" },
     { name = "capstone-model-capability-spi", editable = "../capstone-model-capability-spi" },
     { name = "enterprise-research-domain-pack", editable = "../enterprise-research-domain-pack" },
     { name = "fastapi", specifier = ">=0.139,<1" },
@@ -139,6 +141,17 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=9,<10" }]
+
+[[package]]
+name = "capstone-control"
+version = "0.1.0"
+source = { editable = "../capstone-control" }
+dependencies = [
+    { name = "psycopg", extra = ["binary"] },
+]
+
+[package.metadata]
+requires-dist = [{ name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" }]
 
 [[package]]
 name = "capstone-model-capability-spi"
