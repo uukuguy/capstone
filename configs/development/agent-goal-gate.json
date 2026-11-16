@@ -31,6 +31,7 @@
     "packages/capstone-agent/tests/test_goal_mode.py",
     "packages/capstone-agent/tests/test_goal_receipts.py",
     "packages/capstone-agent/tests/test_thread_work_execution.py",
+    "packages/capstone-agent/tests/test_worker_interruption_products.py",
     "packages/capstone-app/src/GoalControls.css",
     "packages/capstone-app/src/GoalControls.test.tsx",
     "packages/capstone-app/src/GoalControls.tsx",
