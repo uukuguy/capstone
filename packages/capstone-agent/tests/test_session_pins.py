@@ -81,3 +81,18 @@ def test_postgres_pins_survive_new_service_and_concurrent_clients():
     finally:
         with psycopg.connect(dsn) as connection:
             connection.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
+
+
+def test_public_demo_cannot_read_or_change_workspace_pins():
+    from fastapi.testclient import TestClient
+    from capstone_agent.host_api import create_host_app
+    from capstone_agent.session import WorkerRegistry
+    from test_thread_http_api import _service, _Ledger
+    app = create_host_app(_Ledger(),WorkerRegistry(()),operator_token='hosted-secret',
+        allowed_hosts={'localhost'},allowed_origins={'http://localhost:5173'},
+        public_demo=True,thread_service=_service())
+    with TestClient(app,base_url='http://localhost') as client:
+        token=client.get('/api/v1/demo-credential').json()['token']
+        headers={'Authorization':'Bearer '+token}
+        assert client.get('/api/v1/workspace/session-pins',headers=headers).status_code == 404
+        assert client.put('/api/v1/workspace/session-pins',headers=headers,json={'import':['thr_demo_39']}).status_code == 404

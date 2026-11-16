@@ -30,3 +30,22 @@ it('serializes rapid toggles and imports without replacing the saved list',async
   expect(state.snapshot.pins).toEqual(['old','legacy'])
   expect(operations.slice(-2)).toEqual([{thread_id:'new',pinned:true},{thread_id:'new',pinned:false}])
 })
+
+it('retries the intended pin value after a response is lost',async()=>{
+  let saved={schema:'capstone-session-pins/1' as const,workspace:'enterprise',revision:0,pins:[] as string[]}
+  let fail=true
+  const writes:unknown[]=[]
+  const state=new PinState('enterprise',{read:async()=>saved,write:async operation=>{
+    writes.push(operation)
+    if('thread_id' in operation){saved={...saved,revision:saved.revision+1,pins:operation.pinned?[operation.thread_id]:[]};if(fail){fail=false;throw new Error('response lost')}}
+    return saved
+  }})
+  await state.refresh();await state.toggle('a')
+  expect(state.snapshot.error).toBeTruthy()
+  await state.refresh()
+  expect(state.snapshot.error).toBeTruthy()
+  await state.retry([])
+  expect(writes).toEqual([{thread_id:'a',pinned:true},{thread_id:'a',pinned:true}])
+  expect(state.snapshot.pins).toEqual(['a'])
+  expect(state.snapshot.error).toBe('')
+})

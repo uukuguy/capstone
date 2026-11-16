@@ -155,7 +155,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     </div>}
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
-      {!archiveView&&<button role="menuitem" onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}
+      {!archiveView&&<button role="menuitem" disabled={!pinsReady} onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}
       <button role="menuitem" disabled={!actions||busy} onClick={()=>void archive(menu.item,!archiveView)}>{archiveView?<Archive size={14}/>:<X size={13}/>}<span>{archiveView?'恢复会话':'关闭并归档'}</span></button>
       <button role="menuitem" className="is-destructive" disabled={!actions||busy} onClick={()=>{setDeleteAnchor({left:menu.x,top:menu.y});setDeleting(menu.item);setMenu(undefined)}}><Trash2 size={14}/>删除</button>
     </div>,document.body)}

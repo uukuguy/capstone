@@ -11,6 +11,17 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('persists pin operations through the selected workspace transport',async()=>{
+    const body={schema:'capstone-session-pins/1',workspace:'研究',revision:1,pins:['thr_a']}
+    const fetcher=vi.fn<typeof fetch>().mockImplementation(async()=>new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2','Capstone-Workspace':encodeURIComponent('研究')}}))
+    const transport=new HttpThreadTransport('https://api.example','operator',fetcher,'/api/v1/threads','2','研究')
+    expect(await transport.readSessionPins()).toEqual(body)
+    expect(await transport.writeSessionPins({thread_id:'thr_a',pinned:true})).toEqual(body)
+    expect(fetcher.mock.calls[1][0]).toBe('https://api.example/api/v1/workspace/session-pins')
+    expect(fetcher.mock.calls[1][1]?.method).toBe('PUT')
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get('Capstone-Workspace')).toBe(encodeURIComponent('研究'))
+    expect(JSON.parse(fetcher.mock.calls[1][1]?.body as string)).toEqual({thread_id:'thr_a',pinned:true})
+  })
   it('delivers named thinking previews without advancing the durable stream cursor',async()=>{
     const preview={thread_id:'thr_demo_39',attempt_id:'attempt_live',batch_id:'batch',text:'Live',created_at:'2026-11-05T00:00:00Z'}
     const durable={event_id:'evt_1',event_seq:1,event_type:'assistant_thinking_delta',event_version:1,thread_id:preview.thread_id,attempt_id:preview.attempt_id,run_id:'run_001',occurred_at:preview.created_at,visibility:'public',payload:{text:'Live',preview_batch_ids:['batch']}}

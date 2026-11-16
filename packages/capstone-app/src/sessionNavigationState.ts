@@ -47,7 +47,7 @@ export function useSessionPins(storageKey='workspace'){
     if(remote){
       const update=()=>{setPins(remote.snapshot.pins);setError(remote.snapshot.error)}
       const unsubscribe=remote.subscribe(update)
-      const retry=()=>void remote.import(readLegacySessionPins(storageKey))
+      const retry=()=>void remote.retry(readLegacySessionPins(storageKey))
       update();retry()
       const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void remote.refresh()},15000)
       window.addEventListener('focus',retry)
@@ -62,7 +62,7 @@ export function useSessionPins(storageKey='workspace'){
     return()=>{window.removeEventListener('capstone-session-pins',refresh);window.removeEventListener('storage',storage)}
   },[key,remote])
   const toggle=(id:string)=>{if(remote){void remote.toggle(id);return}const current=read(),next=current.includes(id)?current.filter(value=>value!==id):[...current,id];try{localStorage.setItem(key,JSON.stringify(next))}catch{/* Retain live state. */}setPins(next);window.dispatchEvent(new Event('capstone-session-pins'))}
-  return {pins,toggle,error,ready:remote?.snapshot.ready??true,retry:()=>remote&&void remote.import(readLegacySessionPins(storageKey))}
+  return {pins,toggle,error,ready:remote?.snapshot.ready??true,retry:()=>remote&&void remote.retry(readLegacySessionPins(storageKey))}
 }
 
 export function readLegacySessionPins(storageKey:string):string[]{

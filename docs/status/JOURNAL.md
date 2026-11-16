@@ -7886,3 +7886,4 @@ check passed. No CI, integration or remote deployment performed.
 - Freeze boundary: preserve this delivery commit and later CI/merge journal lines only in ignored runs/project-overview/closeout-journal.jsonl; no tracked postcommit/self-merge edits.
 
 - Durable-pin repair started on fix/durable-session-pins-20261116, owner capstone-agent/capstone-app, destination dev. User approved backend persistence and workspace sharing. Read-only evidence found ten old-origin pins and all ten live Threads; original records preserved in ignored incident evidence. Focused backend/App checks and disposable PostgreSQL concurrent-client/reconnect checks pass. Next: canonical rebuild, original-pin recovery and browser acceptance. No CI approval or cloud/demo change.
+- 20:53 Persisted workspace pins with migration tombstones and cleanup protection to prevent origin-switch loss [dbdb3202].
