@@ -65,6 +65,19 @@ it('does not reuse resolved pinned records across access namespaces',async()=>{
   view.rerender(<SessionNavigation items={items.slice(0,1)} storageKey="navigation-scope-b" actions={actions}/>)
   expect(screen.queryByRole('link',{name:'会话c'})).toBeNull()
 })
+it('keeps all pinned descriptors when concurrent navigation views have different recent pages',async()=>{
+  const storageKey='navigation-concurrent-pages'
+  localStorage.setItem(`capstone.session-pins:${storageKey}`,JSON.stringify(['b','c']))
+  const finish:Array<(value:typeof items)=>void>=[]
+  const history=vi.fn(()=>new Promise<typeof items>(resolve=>finish.push(resolve)))
+  const actions={rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn(),history}
+  const view=render(<><SessionNavigation items={[items[0]]} storageKey={storageKey} actions={actions}/><SessionNavigation items={[items[0],items[2]]} storageKey={storageKey} actions={actions}/></>)
+  const first=within(view.container.querySelectorAll<HTMLElement>('.session-navigation-scroll')[0])
+  await act(async()=>finish[0](items))
+  expect(first.getByRole('link',{name:'会话c'})).toBeTruthy()
+  await act(async()=>finish[1](items))
+  expect(first.getAllByRole('link').map(link=>link.textContent)).toEqual(['会话b','会话c','会话a'])
+})
 it('does not navigate after an archive response arrives in another workspace',async()=>{
   window.history.replaceState({},'','/?workspace=A')
   let finish!:()=>void

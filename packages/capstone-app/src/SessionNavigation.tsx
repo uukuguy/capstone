@@ -48,7 +48,9 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     if(!wanted.length||!load)return
     const controller=new AbortController()
     void load(false,controller.signal).then(records=>{
-      if(!controller.signal.aborted&&mayUpdate())rememberResolvedSessionHistory(storageKey,records.filter(item=>wanted.includes(item.threadId)),resolved.revision)
+      // Retained views can have different recent pages. Share every pin, not
+      // only the subset missing from this view, or another view loses rows.
+      if(!controller.signal.aborted&&mayUpdate())rememberResolvedSessionHistory(storageKey,records.filter(item=>pins.includes(item.threadId)),resolved.revision)
     }).catch(()=>{if(!controller.signal.aborted&&mayUpdate())setError('置顶会话暂时无法读取，请刷新重试。')})
     return()=>controller.abort()
   },[missingPins,storageKey,Boolean(actions?.history),resolved.revision])
