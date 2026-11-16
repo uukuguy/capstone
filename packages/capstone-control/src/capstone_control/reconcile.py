@@ -9,9 +9,9 @@ class AgentPort(Protocol):
     def control(self, workspace: str, delegation: dict, kind: str, operation_id: str) -> dict: ...
 
 
-def reconcile(service, agent: AgentPort, *, workspace=None, limit=32):
+def reconcile(service, agent: AgentPort, *, workspace=None, limit=32, goal_id=None):
     result = {'processed': 0, 'errors': 0}
-    for item in service.pending(workspace, limit):
+    for item in service.pending(workspace, limit, goal_id):
         owner, goal_id = item['workspace'], item['goal_id']
         delegation_id = item['task']['delegation']['delegation_id']
         try:

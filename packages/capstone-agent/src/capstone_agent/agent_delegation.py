@@ -27,7 +27,7 @@ def _request(value):
               'task_id', 'task_revision', 'generation', 'agent_id', 'binding', 'requested_control',
               'objective', 'delivery_requirements', 'mode', 'max_attempts', 'deadline_at', 'context_products'}
     if (not isinstance(value, dict) or not fields <= set(value)
-            or set(value) - fields - {'control_revision'}
+            or set(value) - fields - {'control_revision', 'required_products'}
             or value['schema'] != 'capstone-agent-delegation/1'):
         raise ValueError('invalid Agent delegation contract')
     for key in ['delegation_id', 'operation_id', 'goal_id', 'task_id', 'agent_id']:
@@ -36,7 +36,7 @@ def _request(value):
     for key in ['goal_revision', 'task_revision', 'generation', 'max_attempts']:
         if type(value[key]) is not int or value[key] < 1:
             raise ValueError('invalid delegation version or budget')
-    if (value['agent_id'] != 'capstone' or value['mode'] not in {'single', 'goal'}
+    if (value['agent_id'] != 'capstone' or not isinstance(value['mode'], str) or value['mode'] not in {'single', 'goal'}
             or value['mode'] == 'single' and value['max_attempts'] != 1):
         raise ValueError('unregistered Agent or execution mode')
     if not isinstance(value['objective'], str) or not value['objective'].strip() or len(value['objective']) > 16384:
@@ -45,6 +45,8 @@ def _request(value):
             or len(value['delivery_requirements']) > 64
             or any(not isinstance(item, str) or not item.strip() or len(item) > 16384 for item in value['delivery_requirements'])):
         raise ValueError('invalid delivery requirements')
+    if not isinstance(value['deadline_at'], str):
+        raise ValueError('explicit UTC deadline required')
     deadline = datetime.fromisoformat(value['deadline_at'])
     if deadline.utcoffset() != timedelta(0):
         raise ValueError('explicit UTC deadline required')
@@ -108,6 +110,8 @@ class AgentDelegations:
             snapshot = self.threads.snapshot(thread)
             if not snapshot.works:
                 text = request['objective'] + '\n\n交付要求：\n' + '\n'.join(request['delivery_requirements'])
+                if request.get('required_products'):
+                    text += '\n必须保存的成果文件：' + json.dumps(request['required_products'], ensure_ascii=False)
                 self._command(thread, None, 'work_message', 'create-work', {'text': text})
             work = self.threads.snapshot(thread).to_document()['works'][0]
             if request['context_products']:
@@ -180,8 +184,10 @@ class AgentDelegations:
 
     def control(self, workspace, delegation, kind, operation_id):
         workspace = normalize_workspace_name(workspace)
-        if kind not in {'cancel', 'pause', 'resume'}:
+        if not isinstance(kind, str) or kind not in {'cancel', 'pause', 'resume'}:
             raise ValueError('unsupported delegation control')
+        if not isinstance(operation_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', operation_id):
+            raise ValueError('invalid control operation identity')
         self._reserve(workspace, delegation)
         def revoke(current):
             old = current['control_receipts'].get(operation_id)

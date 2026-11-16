@@ -7972,3 +7972,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 8ca05b19: Added per-Work immutable product grants so fresh delegated Threads read original bytes without copying chat or file payloads.
 - 2026-11-17 b93382d4: Aligned stageB candidate register and recovery checkpoint; graph20 checks, doctor, symlink and browser layout passed.
 - 2026-11-17: Added versioned Goal revision with old-delegation revocation, same-Work bounded goal resume and separately budgeted single-execution retry.37 PostgreSQL checks pass; host/worker/App and real model acceptance remain open.
+- 2026-11-17 d931d2ce: Added revocation-first Goal revisions and bounded resume controls to prevent stale completion or budget reset.
+- 2026-11-17: Assembled Control HTTP routes and native-worker maintenance; declared required products now receive host byte/hash checks before dependency release, separate from user acceptance.103 focused checks with PostgreSQL passed. Package dependency and three consumer locks updated; no stageB runtime deployed yet.

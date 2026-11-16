@@ -64,8 +64,10 @@ def validate_goal_request(value):
         raise ContractError('one to64 ordered Tasks required')
     admitted = set()
     for task in tasks:
-        object_fields(task, {'task_id', 'objective', 'delivery_requirements',
-                             'depends_on', 'agent_id', 'mode', 'max_attempts'})
+        fields = {'task_id', 'objective', 'delivery_requirements',
+                  'depends_on', 'agent_id', 'mode', 'max_attempts'}
+        if not isinstance(task, dict) or not fields <= task.keys() or set(task) - fields - {'required_products'}:
+            raise ContractError('Task fields do not match contract')
         task_id = identity(task['task_id'])
         if task_id in admitted:
             raise ContractError('duplicate Task identity')
@@ -77,9 +79,16 @@ def validate_goal_request(value):
             raise ContractError('dependencies must name distinct preceding Tasks')
         text(task['objective'])
         text_list(task['delivery_requirements'])
+        products = task.get('required_products', [])
+        if (not isinstance(products, list) or len(products) > 64 or
+                any(not isinstance(name, str) or not name or len(name.encode()) > 255
+                    or name in {'.', '..'} or '/' in name or '\\' in name
+                    or any(ord(c) < 32 or ord(c) == 127 for c in name) for name in products)
+                or len(set(products)) != len(products)):
+            raise ContractError('required products must name distinct plain file names')
         identity(task['agent_id'])
         positive_integer(task['max_attempts'])
-        if task['mode'] not in {'single', 'goal'}:
+        if not isinstance(task['mode'], str) or task['mode'] not in {'single', 'goal'}:
             raise ContractError('unsupported execution mode')
         if task['mode'] == 'single' and task['max_attempts'] != 1:
             raise ContractError('single execution requires one Attempt')

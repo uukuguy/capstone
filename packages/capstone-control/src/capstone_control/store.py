@@ -20,10 +20,13 @@ class MemoryStore:
         with self._lock:
             return deepcopy(self._values[(workspace, goal_id)])
 
-    def list(self, workspace=None, limit=128):
+    def list(self, workspace=None, limit=128, *, after=None, active_only=False):
         with self._lock:
-            return deepcopy([value for (owner, _), value in self._values.items()
-                             if workspace is None or workspace == owner][:limit])
+            return deepcopy([value for (owner, goal_id), value in sorted(self._values.items(),
+                key=lambda item: (item[0][1], item[0][0]))
+                if (workspace is None or workspace == owner)
+                and (after is None or goal_id > after)
+                and (not active_only or value['state'] in ACTIVE_STATES)][:limit])
 
 
 class PostgresStore:
@@ -63,9 +66,15 @@ class PostgresStore:
                 raise KeyError(goal_id)
             return row['document']
 
-    def list(self, workspace=None, limit=128):
+    def list(self, workspace=None, limit=128, *, after=None, active_only=False):
         with self.connect() as connection:
             rows = connection.execute('''SELECT document FROM capstone_control_goals
-                WHERE (%s::text IS NULL OR workspace=%s) ORDER BY workspace,goal_id LIMIT %s''',
-                (workspace, workspace, limit)).fetchall()
+                WHERE (%s::text IS NULL OR workspace=%s)
+                AND (%s::text IS NULL OR goal_id>%s)
+                AND (NOT %s OR document->>'state'=ANY(%s))
+                ORDER BY goal_id,workspace LIMIT %s''',
+                (workspace, workspace, after, after, active_only, sorted(ACTIVE_STATES), limit)).fetchall()
             return [row['document'] for row in rows]
+
+
+ACTIVE_STATES = {'ready', 'running', 'waiting', 'pausing', 'cancelling', 'revising'}

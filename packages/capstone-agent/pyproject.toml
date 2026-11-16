@@ -11,6 +11,7 @@ dependencies = [
   "capability-agent-kernel==0.1.0",
   "enterprise-research-domain-pack==1.0.0",
   "capstone-model-capability-spi==0.1.0",
+  "capstone-control==0.1.0",
   "fastapi>=0.139,<1",
   "google-cloud-storage>=3.14,<4",
   "httpx>=0.28,<1",
@@ -67,3 +68,4 @@ exclude = [
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
 enterprise-research-domain-pack = { path = "../enterprise-research-domain-pack", editable = true }
 capstone-model-capability-spi = { path = "../capstone-model-capability-spi", editable = true }
+capstone-control = { path = "../capstone-control", editable = true }

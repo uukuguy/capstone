@@ -384,6 +384,9 @@ def create_host_app(
 
         from .session_pins import register_session_pin_routes
         register_session_pin_routes(app, service=thread_service, authorize=require_private_thread)
+        from .control_host import register_control_routes
+        register_control_routes(app, threads=thread_service, authorize=require_private_thread,
+                                wake=lambda identity: request_worker(identity, force=True))
 
         @app.get('/api/v1/workspace/connections')
         def workspace_connections(request: Request):

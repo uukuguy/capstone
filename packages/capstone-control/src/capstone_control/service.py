@@ -31,7 +31,8 @@ class ControlService:
         self.now = now or (lambda: datetime.now(timezone.utc))
 
     def create(self, workspace, request):
-        identity(workspace)
+        from .contracts import text
+        text(workspace, limit=128)
         request = validate_goal_request(request)
         goal_id = 'goal_' + fingerprint([workspace, request['operation_id']])[:32]
         digest = fingerprint(request)
@@ -62,9 +63,11 @@ class ControlService:
     def read(self, workspace, goal_id):
         return public(self.store.read(workspace, goal_id))
 
-    def pending(self, workspace=None, limit=128):
+    def pending(self, workspace=None, limit=128, goal_id=None):
+        goals = ([self.read(workspace, goal_id)] if goal_id is not None
+                 else self.store.list(workspace, limit, active_only=True))
         return [{'goal_id': g['goal_id'], 'workspace': g['workspace'], 'task': deepcopy(t)}
-                for g in self.store.list(workspace, limit)
+                for g in goals
                 for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}][:limit]
 
     def delegation_request(self, workspace, goal_id, delegation_id):
@@ -72,6 +75,7 @@ class ControlService:
         task = self._delegated_task(goal, delegation_id)
         return {**deepcopy(task['delegation']), 'objective': task['objective'],
                 'delivery_requirements': deepcopy(task['delivery_requirements']),
+                'required_products': deepcopy(task.get('required_products', [])),
                 'mode': task['mode'], 'max_attempts': task['max_attempts'],
                 'deadline_at': goal['deadline_at'],
                 'context_products': [deepcopy(product) for previous in goal['tasks']
@@ -173,7 +177,7 @@ class ControlService:
             raise Conflict('delivery changed after persistence')
         task.update(state='delivered', delivery=content)
 
-    def command(self, workspace, command):
+    def command(self, workspace, command, *, actor='application:trusted'):
         object_fields(command, {'schema', 'operation_id', 'goal_id', 'expected_revision',
                                 'kind', 'payload'})
         if command['schema'] != 'capstone-control-command/1':
@@ -183,7 +187,7 @@ class ControlService:
         positive_integer(command['expected_revision'])
         if not isinstance(command['payload'], dict):
             raise ContractError('command payload must be an object')
-        digest = fingerprint(command)
+        digest = fingerprint([command, actor])
 
         def change(goal):
             if goal is None:
@@ -195,7 +199,7 @@ class ControlService:
                 return goal, old['receipt']
             if goal['revision'] != command['expected_revision']:
                 raise Conflict('stale Goal revision')
-            self._apply(goal, command['kind'], command['payload'])
+            self._apply(goal, command['kind'], command['payload'], actor=actor)
             goal['revision'] += 1
             receipt = {'schema': 'capstone-control-receipt/1',
                        'operation_id': command['operation_id'], 'goal': public(goal)}
@@ -203,7 +207,7 @@ class ControlService:
             return goal, receipt
         return self.store.transact(workspace, command['goal_id'], change)
 
-    def _apply(self, goal, kind, payload):
+    def _apply(self, goal, kind, payload, *, actor):
         if kind in {'pause', 'cancel', 'resume', 'delegate_next'}:
             object_fields(payload, set())
         if kind == 'delegate_next':
@@ -240,14 +244,16 @@ class ControlService:
             self._revise(goal, payload)
         elif kind == 'verify_task':
             self._verify(goal, payload)
+            next(t for t in goal['tasks'] if t['task_id'] == payload['task_id'])['verification']['actor'] = actor
         elif kind == 'accept':
             object_fields(payload, {'products'})
             if goal['state'] != 'delivered' or not all(t['state'] == 'verified' for t in goal['tasks']):
                 raise InvalidTransition('all Tasks must be verified before acceptance')
             products = [p for t in goal['tasks'] for p in t['delivery']['products']]
-            if payload['products'] != products:
+            if fingerprint(payload['products']) != fingerprint(products):
                 raise Conflict('acceptance must name exact delivered product versions')
             goal.update(state='accepted', acceptance={'goal_revision': goal['revision'],
+                                                      'objective_revision': goal['objective_revision'], 'actor': actor,
                                                       'products': deepcopy(products)})
         else:
             raise ContractError('unsupported Control command kind')
@@ -285,6 +291,8 @@ class ControlService:
         object_fields(payload, {'objective', 'acceptance_criteria', 'tasks'})
         if goal['state'] in {'accepted', 'cancelled', 'cancelling', 'revising'}:
             raise InvalidTransition('Goal cannot revise from this state')
+        if goal['reason'] == 'delegation_unknown':
+            raise InvalidTransition('unknown execution outcome requires explicit reconciliation')
         checked = validate_goal_request(dict(schema='capstone-control-goal-create/1',
             operation_id='revision', max_delegations=goal['max_delegations'],
             deadline_at=goal['deadline_at'], **payload))
@@ -317,6 +325,8 @@ class ControlService:
 
     def _verify(self, goal, payload):
         object_fields(payload, {'task_id', 'delivery_revision', 'checks'})
+        identity(payload['task_id'])
+        positive_integer(payload['delivery_revision'])
         task = next((t for t in goal['tasks'] if t['task_id'] == payload['task_id']), None)
         if task is None or task['state'] != 'delivered':
             raise InvalidTransition('Task has no current delivery')
