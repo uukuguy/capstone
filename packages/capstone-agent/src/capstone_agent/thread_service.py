@@ -1627,7 +1627,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     'work_id': work['work_id'], 'work': project_work(updated, work)})
                 self._snapshot = replace(self._snapshot, last_event_seq=accepted.event_seq)
                 target.update(turn_id=attempt.turn_id, attempt_id=attempt.attempt_id)
-            if parsed['kind'] == 'cancel_work':
+            if parsed['kind'] == 'cancel_work' or (work is not None and work.get('pending_goal_control') is not None):
                 current = updated.current_attempt
                 assert current is not None
                 self._cancel_requests.add(current.attempt_id)
@@ -3151,7 +3151,7 @@ class PostgresThreadService(NativeExecutionOwner):
                      None if submission is None else Jsonb(submission)))
                 last_event_seq = accepted.event_seq
                 target.update(turn_id=attempt.turn_id, attempt_id=attempt.attempt_id)
-            if parsed['kind'] == 'cancel_work':
+            if parsed['kind'] == 'cancel_work' or (work is not None and work.get('pending_goal_control') is not None):
                 current = updated.current_attempt
                 assert current is not None
                 requested = self._make_attempt_event(thread, current, event_seq=last_event_seq + 1,
@@ -3164,7 +3164,7 @@ class PostgresThreadService(NativeExecutionOwner):
             connection.execute('UPDATE capstone_threads SET minimum_protocol_version=2, works=%s, last_event_seq=%s, current_attempt=%s WHERE thread_id=%s',
                 (Jsonb(list(updated.works)), last_event_seq,
                  None if updated.current_attempt is None else Jsonb(updated.current_attempt.to_document()), snapshot.thread_id))
-            if parsed['kind'] == 'cancel_work':
+            if parsed['kind'] == 'cancel_work' or (work is not None and work.get('pending_goal_control') is not None):
                 self._cancel_waiting_attempt(connection, snapshot.thread_id)
         receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id}, status='rejected' if rejection else 'accepted', rejection=rejection,
             accepted_event_seq=event_seq, target=target)

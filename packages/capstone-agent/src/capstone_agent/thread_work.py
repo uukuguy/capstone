@@ -81,6 +81,11 @@ def transition_work(snapshot, task_context, attempt_id, status):
             work['consumed_message_count'] = len(work['messages'])
     if status in {'completed', 'failed', 'cancelled', 'interrupted'}:
         work['cancel_requested'] = False
+        pending = work.pop('pending_goal_control', None)
+        if pending is not None:
+            goal = pending['goal_mode']
+            work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'])
+            work['task_context'] = replace(task_context, goal_revision=goal['objective_revision']).to_document()
         if status != 'completed' and work.get('conversation_mode'):
             # This instruction's input is closed. The text stays for an explicit
             # retry; a later new instruction does not append to it.
@@ -154,7 +159,8 @@ def apply_work(snapshot, command, *, archived=False):
         return snapshot, 'run_not_open', None
     if command['run_id'] is not None and command['run_id'] != snapshot.run.run_id:
         return snapshot, 'run_mismatch', None
-    if snapshot.current_attempt is not None and command['kind'] != 'cancel_work':
+    if snapshot.current_attempt is not None and command['kind'] not in {
+            'cancel_work', 'pause_goal', 'cancel_goal', 'revise_goal_objective'}:
         return snapshot, 'attempt_in_progress', None
     from .thread_service import _application_case_active, _application_context_lock
     if (context_lock := _application_context_lock(snapshot)) is not None:
@@ -191,6 +197,13 @@ def apply_work(snapshot, command, *, archived=False):
                 goal = control_goal(work['goal_mode'], command['kind'], command['payload'], now=now)
         except ValueError as error:
             raise ThreadProtocolError(str(error)) from error
+        if snapshot.current_attempt is not None:
+            if work.get('latest_attempt_id') != snapshot.current_attempt.attempt_id:
+                return snapshot, 'attempt_target_mismatch', None
+            work.update(pending_goal_control={'goal_mode': goal}, cancel_requested=True,
+                        revision=work['revision'] + 1)
+            works = tuple(work if item['work_id'] == work['work_id'] else deepcopy(item) for item in snapshot.works)
+            return replace(snapshot, works=works), None, work
         work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'],
                     revision=work['revision'] + 1)
         context = TaskContext.from_document(work['task_context'])
@@ -370,7 +383,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -380,6 +393,15 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'pending_goal_control' in work:
+            from .goal_mode import parse_goal_mode
+            pending = work['pending_goal_control']
+            try:
+                if not isinstance(pending, dict) or set(pending) != {'goal_mode'} or not work.get('cancel_requested'):
+                    raise ValueError('invalid pending goal control')
+                parse_goal_mode(pending['goal_mode'])
+            except ValueError as error:
+                raise ThreadProtocolError('invalid pending goal control') from error
         if 'goal_mode' in work:
             from .goal_mode import parse_goal_mode
             try:

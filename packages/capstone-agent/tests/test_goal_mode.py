@@ -131,8 +131,7 @@ def test_goal_commands_use_service_idempotency_and_revision_checks():
     assert store.snapshot(snapshot.thread_id).works[0]['goal_mode']['state'] == 'paused'
 
 
-@pytest.mark.parametrize('command_kind', ['start_goal', 'pause_goal', 'resume_goal',
-                                        'cancel_goal', 'revise_goal_objective'])
+@pytest.mark.parametrize('command_kind', ['start_goal', 'resume_goal'])
 def test_goal_controls_never_mutate_frozen_active_attempt(goal, command_kind):
     from capstone_agent.thread_work import apply_work
     from capstone_agent.thread_protocol import AttemptSnapshot
@@ -145,6 +144,55 @@ def test_goal_controls_never_mutate_frozen_active_attempt(goal, command_kind):
     unchanged, rejection, _ = apply_work(snapshot, command)
     assert unchanged == snapshot
     assert rejection == 'attempt_in_progress'
+
+
+@pytest.mark.parametrize('kind', ['pause_goal', 'cancel_goal', 'revise_goal_objective'])
+def test_active_goal_control_is_deferred_to_terminal_boundary(goal, kind):
+    from capstone_agent.thread_work import apply_work, transition_work
+    from capstone_agent.thread_protocol import AttemptSnapshot
+    from capstone_agent.enterprise_context import TaskContext
+    snapshot = saved_work()
+    work = {**snapshot.works[0], 'goal_mode': {**goal, 'state': 'running'},
+            'latest_attempt_id': 'attempt_active'}
+    snapshot = replace(snapshot, works=(work,), current_attempt=AttemptSnapshot(
+        'turn_active', 'attempt_active', 'running', None, 'capstone'))
+    payload = {'objective': 'New objective'} if kind == 'revise_goal_objective' else {}
+    updated, rejection, changed = apply_work(snapshot, {'kind': kind, 'run_id': None,
+        'target': {'id': work['work_id'], 'expected_revision': work['revision']}, 'payload': payload})
+    assert rejection is None
+    assert changed['cancel_requested'] is True
+    assert changed['task_context'] == work['task_context']
+    assert changed['goal'] == work['goal']
+    settled, result = transition_work(updated, TaskContext.from_document(work['task_context']),
+                                      'attempt_active', 'cancelled')
+    assert 'pending_goal_control' not in result
+    assert result['goal_mode']['state'] == ('cancelled' if kind == 'cancel_goal' else 'paused')
+    if kind == 'revise_goal_objective':
+        assert result['goal'] == 'New objective'
+    assert ThreadSnapshot.from_document(settled.to_document()) == settled
+
+
+def test_service_pause_requests_worker_cancel_and_settles_goal(goal):
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    start = command(store, 'thr_work_exec', 'start_work', 'execute',
+                    work_id=work['work_id'], revision=work['revision'])
+    assert store.submit_command(start).status == 'accepted'
+    claim = store.claim_attempt('worker', 30)
+    assert claim is not None
+    # Seed goal state to exercise the running boundary independently of start admission.
+    work = dict(store._snapshot.works[0])
+    work['goal_mode'] = {**goal, 'objective': work['goal'], 'state': 'running'}
+    store._snapshot = replace(store._snapshot, works=(work,))
+    pause = command(store, 'thr_work_exec', 'pause_goal', 'pause_running',
+                    work_id=work['work_id'], revision=work['revision'])
+    assert store.submit_command(pause).status == 'accepted'
+    assert store.cancel_requested(claim)
+    store.finish_attempt(claim, phase='cancelled', payload={})
+    restored = store.snapshot('thr_work_exec')
+    assert restored.works[0]['goal_mode']['state'] == 'paused'
+    assert restored.current_attempt is None
 
 
 def saved_work():
