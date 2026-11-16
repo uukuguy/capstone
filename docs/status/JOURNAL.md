@@ -7798,3 +7798,10 @@ check passed. No CI, integration or remote deployment performed.
 - 19:22 Actual devd718050c graph and exact runtime5798dad6 source edge verified in Vivaldi; both source branches closed; final snapshot preserved.
 - 22:03 Real cancellation reachedcancelled in0.55s and retained draft;24 focused checks with PostgreSQL passed; new-instruction continuation under verification.
 - 22:08 Distinct follow-up, API restart and Vivaldi refresh passed; cancelled draft and new file hashes verified; worker-crash acceptance remains open.
+- 22:10 Cancellation/restoration evidence committed0e1fb9f2; docs links, scope, symlink, whitespace and doctor passed; CI approval pending.
+- 22:14 User approved one macOS docs CI; PR119 created at0e1fb9f2 through Clash; read-only run lookup retry after EOF.
+- 22:19 Approved docs CI43723280469 passed111s; PR119 mergedfffc881e, actual dev synchronized; source branch closed, recoverybcde2615 preserved.
+- 22:21 Actual devfffc881e graph visually verified; deployed5798dad6 source/ancestry retained; only final control receipts remain uncommitted.
+- 23:34 Real worker SIGKILL reached lease_expired; stale renew/event/completion rejected; native task continued, draft stayedrunning and recovery could not read it.
+- 23:40 Sealed expired captures and admitted interrupted historical files;116 focused checks plus123 scope checks passed; native orphan lifecycle deferred [f0976baf].
+- 23:49 Candidate rebuilt8952043d; fresh worker loss sealed draft incomplete; exact28byte read/report and Vivaldi refresh passed; native cleanup was manual.

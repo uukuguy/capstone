@@ -2340,6 +2340,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 record["attempt"] = terminal
                 record["lease_token"] = None
                 record["lease_deadline"] = None
+                self._seal_open_captures(terminal, record.get('model_context'))
                 event = self._append_event(
                     event_type="attempt_interrupted", attempt=terminal,
                     payload={"reason": "lease_expired", **work_payload},
@@ -2408,7 +2409,7 @@ class InMemoryThreadService(NativeExecutionOwner):
             record["attempt"] = terminal
             record["lease_token"] = None
             self._cancel_requests.discard(claim.attempt.attempt_id)
-            self._seal_open_captures(claim, terminal, record["model_context"])
+            self._seal_open_captures(terminal, record["model_context"])
             for part in projection_parts:
                 part_event = self._append_event(event_type="result_projection_part", attempt=terminal,
                                                 payload=part, context=record["model_context"])
@@ -2427,10 +2428,10 @@ class InMemoryThreadService(NativeExecutionOwner):
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
 
-    def _seal_open_captures(self, claim, terminal, context) -> None:
+    def _seal_open_captures(self, terminal, context) -> None:
         from .native_artifact_projection import incomplete_capture_seals
         published = [event.payload['artifact'] for event in self._events
-                     if event.attempt_id == claim.attempt.attempt_id
+                     if event.attempt_id == terminal.attempt_id
                      and event.event_type == 'native_artifact_published'
                      and isinstance(event.payload.get('artifact'), dict)]
         for artifact in incomplete_capture_seals(published):
@@ -4729,8 +4730,10 @@ class PostgresThreadService(NativeExecutionOwner):
                 work_snapshot, work_payload = work_event_payload(
                     replace(self._snapshot_from_row(thread), current_attempt=None),
                     task_context, terminal.attempt_id, 'interrupted')
+                event_seq = self._seal_open_captures_postgres(
+                    connection, thread, terminal, thread["last_event_seq"], context=None)
                 event = self._make_attempt_event(
-                    thread, terminal, event_seq=thread["last_event_seq"] + 1,
+                    thread, terminal, event_seq=event_seq + 1,
                     event_type="attempt_interrupted", payload={"reason": "lease_expired", **work_payload},
                 )
                 self._insert_event(connection, event)
@@ -4825,7 +4828,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 self._snapshot_from_row(thread), claim, phase, payload)
             event_seq = thread["last_event_seq"]
             event_seq = self._seal_open_captures_postgres(
-                connection, thread, terminal, claim, event_seq, context=claim.model_context)
+                connection, thread, terminal, event_seq, context=claim.model_context)
             for part in projection_parts:
                 event_seq += 1
                 part_event = self._make_attempt_event(
@@ -4859,13 +4862,13 @@ class PostgresThreadService(NativeExecutionOwner):
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
 
-    def _seal_open_captures_postgres(self, connection, thread, terminal, claim, event_seq, *, context) -> int:
+    def _seal_open_captures_postgres(self, connection, thread, terminal, event_seq, *, context) -> int:
         from .native_artifact_projection import incomplete_capture_seals
         rows = connection.execute(
             """SELECT payload->'artifact' AS artifact FROM capstone_thread_events
                WHERE thread_id = %s AND attempt_id = %s AND event_type = 'native_artifact_published'
                ORDER BY event_seq""",
-            (claim.thread_id, claim.attempt.attempt_id)).fetchall()
+            (thread['thread_id'], terminal.attempt_id)).fetchall()
         for artifact in incomplete_capture_seals(row['artifact'] for row in rows):
             event_seq += 1
             event = self._make_attempt_event(

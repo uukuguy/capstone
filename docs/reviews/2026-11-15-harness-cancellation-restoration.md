@@ -1,7 +1,8 @@
 # Harness cancellation and instruction restoration
 
-Status: local verification of existing behavior passed. No runtime code change,
-new image, CI or deployment. Repository source: devd718050c; local runtime source
+Status: local verification passed; evidence integrated through PR119/devfffc881e,
+tested0e1fb9f2. Separately approved macOS docs CI43723280469 passed111seconds.
+No runtime code change, new image or deployment. Verification source devd718050c; local runtime source
 remains verified5798dad6. Owner: capstone-agent/capstone-app. Evidence/control
 delivery branch: docs/harness-cancellation-acceptance-20261115; destination dev.
 
@@ -66,4 +67,4 @@ It does not prove worker crash recovery, expired-lease fencing under real
 process loss, arbitrary slow-tool cancellation or complete execution-chain
 acceptance. Those need separate bounded experiments. No runtime fix is justified
 by this passing slice. Any documentation PR requires a separately approved CI
-run; none has been started for this evidence update.
+run; the one approved docs run above is complete. No further CI was started.

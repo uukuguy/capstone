@@ -1,5 +1,11 @@
 # 多线版本控制
 
+2026-11-15 worker中断文件恢复候选f0976baf本地复验通过：规范重建8952043d同镜像，旧租约三项写入保护、running→incomplete→interrupted顺序、28字节原稿读取/恢复报告及Vivaldi刷新通过。native任务在父worker丢失后仍运行，实验做了显式人工取消；此生命周期缺口未解决，整链worker丢失接受仍为partial。116定向/123分类检查通过；待明确批准macOS worker-interruption CI，未推送/合并。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md)。下段保留实施过程。
+
+2026-11-15 当前修正：worker中断后已保存文件封存与历史准入，所有者capstone-agent，分支fix/worker-interruption-products-20261115目标dev，候选f0976baf。真实SIGKILL的旧租约续租/事件/完成提交均被拒绝，但初稿未封存，真实续作无法读到。修正复用现有incomplete封存事务和同Work历史契约；116项定向检查、123项分类检查及真实PG回滚/原字节读取通过。本地规范重建中，未合并、无CI批准。[范围与证据](../reviews/2026-11-15-worker-loss-product-recovery.md)。独立native任务父worker丢失后继续执行的缺口单独记KNOWN-ISSUES，不宣称已解决。
+
+2026-11-15 Harness取消/恢复证据已由PR119合入实际dev fffc881e；受检0e1fb9f2，获批macOS docs CI43723280469通过111秒。dev/origin一致，来源分支本地及远端关闭，恢复bcde2615保留。24项含PostgreSQL、真实取消/独立新指令/API重启/Vivaldi刷新证据已归档；无运行代码变化，运行来源保持5798dad6，worker异常退出和租约回收仍未接受。下文为过程记录。
+
 2026-11-15 Harness取消/恢复现有契约复验通过：真实工具运行中取消后0.548秒观测终态，初稿取消标记保留；同Work新指令、API重启及Vivaldi刷新后两终态和两个文件摘要保持，无旧final.md。24项定向检查含PostgreSQL通过，无运行代码变化。证据分支docs/harness-cancellation-acceptance-20261115归shared-agent，目标dev；本轮未启动CI。[验证](../reviews/2026-11-15-harness-cancellation-restoration.md)。worker异常退出和租约回收仍为独立待验收项。
 
 2026-11-15 最终收口：PR118已合实际dev d718050c；受检1250ac71，独立批准的macOS docs CI43708007107通过125秒。dev/origin一致，两个来源分支均关闭；完整恢复69739de9与52561c4c保留。运行来源仍为已验证5798dad6/镜像1cd6589b，文档合并不等于新增部署。当前无活动实施包；下文保留过程记录。
@@ -1316,6 +1322,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| worker-interruption-products-20261115 | 当前worker中断文件恢复修正；整链停止协议仍独立待设计 |
 | historical-input-delivery-20261115 | PR117已合入dev的历史输入交付来源 |
 | resource-range-implementation-20261115 | 已接受范围读取dev合并；更广资源需求未整体接受 |
 | resource-range-design-20261115 | 已确认的独立设计来源与实现依赖 |
@@ -1348,6 +1355,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| worker-interruption-products-20261115 | f0976baf | feature | 中断初稿封存与历史恢复 | 文件恢复本地接受；未合并、无CI | 原子封存/历史准入；116定向/123分类及真实原字节读取/刷新通过；native自动停止仍开放。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
 | historical-input-merge-20261115 | 5798dad6 | dev | 历史输入交付合入dev与本地运行来源 | PR117与合并后默认入口接受 | 来源6625c0bb；定向CI通过149秒；两回执/7下载/刷新与同镜像重建通过。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) | shared-agent |
 | historical-input-delivery-20261115 | 492b78e2 | feature | 历史输入交付回执产品来源 | PR117已合入5798dad6；macOS CI通过149秒 | 确认交付与持久幂等；104后端/73App及真实两回执/7下载/刷新通过。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) | shared-agent |
 | resource-range-implementation-20261115 | f185c080 | dev | 大资源范围读取与持久回执合入dev | PR115已合入；定向CI通过229秒 | 受检6f5605d4；精确读取、原生传输和来源恢复；真实1GB上传、模型12288字节取样通过。[验收](../reviews/2026-11-15-resource-range-local.md) | shared-agent |
@@ -1536,6 +1544,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| worker-interruption-products-20261115 | 当前文件恢复修正 | fix/worker-interruption-products-20261115 | 原子封存未完成捕获；同Work历史恢复 | 产品f0976baf；116定向/123分类及真实恢复/刷新通过；native清理为人工，整链接受partial；待CI |
 | historical-input-merge-20261115 | 已接受的dev运行来源 | dev | 历史输入交付与幂等账本；现有执行详情恢复 | PR117合5798dad6；macOS CI149秒；实际dev重建、同镜像及两回执/7下载/刷新通过 |
 | historical-input-delivery-20261115 | 已集成执行链来源 | feat/historical-input-receipts-20261115（已关闭） | 确认交付后持久幂等；执行详情恢复 | 产品492b78e2，受检6625c0bb；PR117合5798dad6；macOS CI43704515136通过149秒 |
 | resource-range-implementation-20261115 | 已接受的dev交付 | dev | 有界读取及持久回执；真实模型报告与来源恢复 | PR115合并f185c080，受检6f5605d4，macOS定向CI43686809091通过229秒 |
@@ -1689,6 +1698,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 119 | shared-agent | docs/harness-cancellation-acceptance-20261115 | dev | MERGED | fffc881e；受检0e1fb9f2；获批macOS docs CI43723280469通过111秒；现有取消/新指令/API重启与刷新证据，无运行代码变化 |
 | 118 | shared-agent | docs/historical-input-closeout-20261115 | dev | MERGED | d718050c；受检1250ac71；获批macOS docs CI43708007107通过125秒；实际dev同步，运行来源5798dad6保留，分支关闭 |
 | 117 | shared-agent | feat/historical-input-receipts-20261115 | dev | MERGED | 5798dad6；受检6625c0bb；唯一获批macOS historical-inputs CI43704515136通过149秒；来源分支关闭，云端/demo未变 |
 | 116 | shared-agent | docs/resource-range-closeout-20261115 | dev | MERGED | e0fc951e；受检9d50ac5d；获批macOS docs CI43689071826通过77秒，实际dev同步，产品与f185c080一致，分支关闭 |
@@ -1766,7 +1776,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| docs/harness-cancellation-acceptance-20261115 | 活动证据收口；目标dev | shared-agent所有；仅报告/控制状态；24项含PostgreSQL及真实取消/新指令/API重启/刷新通过 | 本地文档检查后待单独批准docs CI；不宣称worker崩溃恢复已接受 | shared-agent |
+| fix/worker-interruption-products-20261115 | 本地文件恢复接受；目标dev | capstone-agent所有；f0976baf；116定向/123分类；真实worker丢失后原字节恢复与刷新通过 | 待批准一次macOS worker-interruption CI；自动native停止仍未解决，未合并 | shared-agent |
+| docs/harness-cancellation-acceptance-20261115 | PR119已合入并关闭 | shared-agent所有；受检0e1fb9f2、合并fffc881e；获批macOS docs CI43723280469通过111秒 | 实际dev同步；恢复bcde2615保留，工作树detached同步；worker崩溃验收仍独立 | shared-agent |
 | docs/historical-input-closeout-20261115 | PR118已合入并关闭 | 所有者shared-agent；受检1250ac71、合并d718050c；获批macOS docs CI43708007107通过125秒 | 实际dev已同步；来源分支关闭，恢复69739de9保留；最终图按实际HEAD刷新 | shared-agent |
 | feat/historical-input-receipts-20261115 | PR117已合入并关闭 | 所有者capstone-agent/capstone-app；受检6625c0bb，合并5798dad6；唯一获批macOS CI43704515136通过149秒 | 本地/远端来源分支关闭；恢复52561c4c保留；文档收口另列 | shared-agent |
 | docs/resource-range-closeout-20261115 | PR116已合入并关闭 | 所有者shared-agent；受检9d50ac5d，合并e0fc951e；仅验收/控制记录，产品内容不变 | macOS docs CI43689071826通过77秒；远端/本地分支关闭，恢复工作树detached同步e0fc951e，stash81edb811保留 | shared-agent |
@@ -1972,7 +1983,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 实际dev `5798dad6`；App5173，运行包源码无补丁 | API/三worker同镜像1cd6589b0c8b6194fab93f8c0412275bcecd7cf076ebee142eba6ecd1f7a8eb1；ready及缓存apply通过 | http://127.0.0.1:5173/；PR117已合入且macOS CI通过149秒；两回执、7下载与Vivaldi刷新通过；仅文档草稿未提交，云端/demo未变。[验证](../reviews/2026-11-15-historical-input-delivery-local.md) |
+| local-dev | 临时候选 `f0976baf`；根dev fffc881e加3个精确包/测试文件补丁，App5173 | API/三worker同镜像8952043d0e6a2268237c93c3a8a2f1c78ecfb0059bcda1bc6866c948e4bf9987；ready及缓存apply通过 | http://127.0.0.1:5173/；新真实中断文件封存/原字节读取/恢复报告与Vivaldi刷新通过；native孤儿任务人工清理，整体partial，云端/demo未变。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
