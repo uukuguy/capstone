@@ -1571,7 +1571,7 @@ class InMemoryThreadService(NativeExecutionOwner):
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
-        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message'}:
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self.read_thread_gateway(parsed['thread_id']))
         event_seq = None
         target = None
@@ -1587,7 +1587,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
-        if rejection is None and parsed['kind'] in {'start_work', 'send_message'}:
+        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
             if selected_model is not None and not self.is_family_available(selected_model.implementation_family):
@@ -3089,7 +3089,7 @@ class PostgresThreadService(NativeExecutionOwner):
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
-        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message'}:
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self._thread_gateway_row(connection, thread))
         event_seq = None
         target = None
@@ -3106,7 +3106,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
-        if rejection is None and parsed['kind'] in {'start_work', 'send_message'}:
+        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
             if selected_model is not None and not self.is_family_available(selected_model.implementation_family):

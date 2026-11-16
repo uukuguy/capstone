@@ -224,6 +224,8 @@ def apply_work(snapshot, command, *, archived=False):
                     revision=work['revision'] + 1)
         context = TaskContext.from_document(work['task_context'])
         work['task_context'] = replace(context, goal_revision=work['goal_revision']).to_document()
+        if command['kind'] in {'start_goal', 'resume_goal'} and start_unavailable_reason(snapshot) is None:
+            work.update(status='queued', blocked_reason=None, cancel_requested=False)
         works = tuple(work if item['work_id'] == work['work_id'] else deepcopy(item) for item in snapshot.works)
         if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
             return snapshot, 'work_limit_reached', None

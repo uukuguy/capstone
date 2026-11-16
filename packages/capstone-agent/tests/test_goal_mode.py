@@ -258,6 +258,19 @@ def test_service_terminal_commits_continuation_with_attempt(goal):
     assert restored.works[0]['goal_continuation']['predecessor_attempt_id'] == claim.attempt.attempt_id
 
 
+def test_start_goal_admits_first_attempt_through_existing_service():
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    receipt = store.submit_command(command(store, 'thr_work_exec', 'start_goal', 'goal_start',
+        work_id=work['work_id'], revision=work['revision'], payload={
+        'objective': work['goal'], 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'}))
+    assert receipt.status == 'accepted'
+    claim = store.claim_attempt('worker', 30)
+    assert claim is not None
+    assert store.snapshot('thr_work_exec').works[0]['goal_mode']['attempts_admitted'] == 1
+
+
 def saved_work():
     class Store:
         def create_thread(self, snapshot):
