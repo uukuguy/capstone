@@ -303,6 +303,7 @@ def _terminal_result_projections(
 
 def _prepare_terminal_transition(
     snapshot: ThreadSnapshot, claim: AttemptClaim, phase: str, payload: Mapping[str, Any],
+    *, saved_product_refs: tuple[str, ...] = (),
 ) -> tuple[ThreadSnapshot, dict[str, Any], tuple[dict[str, Any], ...]]:
     """Compute the shared terminal outcome without changing storage or inputs.
 
@@ -331,7 +332,7 @@ def _prepare_terminal_transition(
             try:
                 qualified = apply_terminal_goal_proposal(snapshot, claim.task_context,
                     claim.attempt.attempt_id, payload['goal_proposal'],
-                    saved_product_refs=(), delivery_saved=isinstance(payload.get('answer'), str)
+                    saved_product_refs=saved_product_refs, delivery_saved=isinstance(payload.get('answer'), str)
                     and bool(payload['answer'].strip()))
             except ValueError as error:
                 raise ThreadProtocolError('invalid terminal goal proposal') from error
@@ -2456,8 +2457,11 @@ class InMemoryThreadService(NativeExecutionOwner):
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
+            from .goal_receipts import published_goal_refs
+            refs = published_goal_refs([{'attempt_id': event.attempt_id, 'event_type': event.event_type,
+                'payload': event.payload} for event in self._events], claim.attempt.attempt_id)
             work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
-                self._snapshot, claim, phase, payload)
+                self._snapshot, claim, phase, payload, saved_product_refs=refs)
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
@@ -4890,8 +4894,13 @@ class PostgresThreadService(NativeExecutionOwner):
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             terminal = AttemptSnapshot.from_document({**current, "phase": phase})
+            from .goal_receipts import published_goal_refs
+            products = connection.execute("SELECT attempt_id,event_type,payload FROM capstone_thread_events "
+                "WHERE thread_id=%s AND attempt_id=%s AND event_type='native_artifact_published'",
+                (claim.thread_id, claim.attempt.attempt_id)).fetchall()
             work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
-                self._snapshot_from_row(thread), claim, phase, payload)
+                self._snapshot_from_row(thread), claim, phase, payload,
+                saved_product_refs=published_goal_refs(products, claim.attempt.attempt_id))
             event_seq = thread["last_event_seq"]
             event_seq = self._seal_open_captures_postgres(
                 connection, thread, terminal, event_seq, context=claim.model_context)

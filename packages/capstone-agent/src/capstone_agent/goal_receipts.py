@@ -8,6 +8,19 @@ import json
 from .goal_mode import parse_goal_mode
 
 
+def published_goal_refs(events, attempt_id):
+    refs = set()
+    for event in events:
+        if event.get('attempt_id') != attempt_id or event.get('event_type') != 'native_artifact_published':
+            continue
+        artifact = event.get('payload', {}).get('artifact', {})
+        for key in ('artifact_id', 'file_name'):
+            value = artifact.get(key)
+            if isinstance(value, str) and value.strip():
+                refs.add(value)
+    return tuple(sorted(refs))
+
+
 def decode_goal_response(text: str) -> tuple[str, dict]:
     """Decode the explicit goal-only response protocol, never ordinary prose."""
     def unique_object(pairs):
