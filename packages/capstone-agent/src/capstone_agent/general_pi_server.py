@@ -188,6 +188,7 @@ class GeneralPiHost:
             'enabled': True, 'available': True, 'operations': ['answer', 'rewrite', 'external_lookup'],
             'executor_identity': self.identity}
         self.capability['native_context_schemas'] = ['capstone-native-context/1']
+        self.capability['execution_authority_schemas'] = ['capstone-execution-authority/1']
         self.capability['research_bridge_schemas'] = ['capstone-research-bridge/1']
         self.capability['research_graph_schemas'] = ['capstone-enterprise-graph/2']
         self.capability['delivery_review_schemas'] = ['capstone-delivery-review/1']
@@ -276,7 +277,10 @@ class GeneralPiHost:
             self._tasks[request.task_id]['graph_context'] = context
         return context
 
-    def submit(self, request: PiTaskRequest) -> None:
+    def submit(self, request: PiTaskRequest, *, execution_authority=None) -> None:
+        from .native_execution_authority import checked_grant, ExecutionAuthority, AUTHORITY_SECONDS
+        if execution_authority is not None:
+            checked_grant(execution_authority)
         if request.to_document()['executor_identity'] != self.identity:
             raise ValueError('General Pi configuration changed')
         if request.native_context is not None:
@@ -335,6 +339,12 @@ class GeneralPiHost:
             if old is not None:
                 if old['request'].to_document() != request.to_document():
                     raise ValueError('General Pi task identity conflict')
+                authority = old.get('execution_authority')
+                if authority is not None and (execution_authority is None or not authority.matches(
+                        execution_authority['generation'], execution_authority['capability'])):
+                    raise PermissionError('execution authority rejected')
+                if authority is None and execution_authority is not None and old['status'] in {'running', 'queued'}:
+                    raise PermissionError('execution authority rejected')
                 return
             self._make_room()
             saved = self.storage.load(request.task_id)
@@ -358,6 +368,9 @@ class GeneralPiHost:
                                        'native_task_admission', mode=current_capacity().mode)
             record = {'request': request, 'status': 'running', 'events': [], 'result': None,
                       'cancel': threading.Event(), 'research_sources': [], 'research_call_hashes': {}}
+            if execution_authority is not None:
+                record['execution_authority'] = ExecutionAuthority(
+                    execution_authority['generation'], execution_authority['capability'], AUTHORITY_SECONDS)
             if request.research_binding is not None:
                 from .native_research_bridge import ResearchMirror
                 record['research'] = ResearchMirror(self._research_path(request.task_id),
@@ -474,6 +487,9 @@ class GeneralPiHost:
         discovery_sources.update(gateway_discovery_tools(native, self.capability.get('data_gateway', {}),
             gateway_available=getattr(self._run, 'gateway', None) is not None))
         def cancelled():
+            authority = record.get('execution_authority')
+            if authority is not None and not authority.active():
+                record['cancel'].set()
             return record['cancel'].is_set() or time.monotonic() - started >= request.timeout_seconds
         def publish(payload, *, check=lambda:None):
             # Assign the transport sequence only after text coalescing. The
@@ -1105,6 +1121,16 @@ class GeneralPiHost:
             if after is not None:
                 document['event_cursor'] = item.get('event_sequence', 0)
             return json.loads(json.dumps(document))
+
+    def renew_execution(self, task_id: str, document) -> None:
+        from .native_execution_authority import checked_grant
+        checked_grant(document, renewal=True)
+        with self._lock:
+            record = self._tasks[task_id]
+            authority = record.get('execution_authority')
+            if authority is None or record['status'] not in {'queued', 'running'}:
+                raise PermissionError('execution authority rejected')
+            authority.renew(document['generation'], document['capability'], document['sequence'])
 
     def cancel(self, task_id: str) -> None:
         with self._lock:
@@ -1915,6 +1941,14 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 parts = self.path.split('/')
+                if len(parts) == 4 and parts[1] == 'tasks' and parts[3] == 'authority':
+                    if not 0 < length <= 1024:
+                        raise ValueError('execution authority exceeds bounds')
+                    try:
+                        host.renew_execution(parts[2], json.loads(self.rfile.read(length)))
+                    except PermissionError:
+                        return self.send_json(409, {'error': 'execution_authority_rejected'})
+                    return self.send_json(200, {'renewed': True})
                 if self.path == '/managed-resources':
                     from .managed_resource_dispatch import dispatch_resource_request
                     if not 0 < length <= limits.control_document_bytes:
@@ -2006,10 +2040,22 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         if str(error) == 'research transport file changed':
                             return self.send_json(400, {'error': 'research_transport_file_changed'})
                         raise
-                if self.path != '/tasks' or not 0 < length <= limits.native_task_bytes:
+                if self.path not in {'/tasks', '/owned-tasks'} or not 0 < length <= limits.native_task_bytes:
                     raise ValueError()
-                request = PiTaskRequest.from_document(json.loads(self.rfile.read(length)))
-                host.submit(request)
+                document = json.loads(self.rfile.read(length))
+                authority = None
+                if self.path == '/owned-tasks':
+                    if not isinstance(document, dict) or set(document) != {'request', 'execution_authority'}:
+                        raise ValueError('invalid owned admission')
+                    authority = document['execution_authority']
+                    if authority is None:
+                        raise ValueError('missing execution authority')
+                    document = document['request']
+                request = PiTaskRequest.from_document(document)
+                try:
+                    host.submit(request, execution_authority=authority)
+                except PermissionError:
+                    return self.send_json(409, {'error': 'execution_authority_rejected'})
                 self.send_json(202, {'task_id': request.task_id})
             except GridSourceError as error:
                 self.source_error(error)

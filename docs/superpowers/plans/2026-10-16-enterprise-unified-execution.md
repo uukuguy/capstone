@@ -1,5 +1,21 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Recoverable long-task capability — implementation, 2026-11-16
+
+User goal: 建立可恢复的长任务执行能力. Owner capstone-agent/capstone-harness;
+destination dev. [Proposed capability design](../specs/2026-11-16-recoverable-long-task-design.md)
+defines bounded executor authority, durable recovery boundaries, safe retry and
+whole-chain acceptance. User approved the design. Implementation branch
+feat/recoverable-long-tasks-20261116 targets dev in the initialized
+historical-input-receipts worktree. [Implementation plan](2026-11-16-recoverable-long-tasks.md).
+PR120 is merged as44abf3c5 after approved macOS CI43806396571 passed116seconds.
+It closes captured-file recovery only. Native termination, restart reconciliation
+and whole long-task acceptance remain open. State machine70beeab3 has11 passing
+tests. Protected admission/HTTP renewal, executor expiry and conservative host
+lease deadlines are under local verification; no real orphan-stop acceptance yet.
+Next: verify blocked-output cleanup and real process/worker failure, then complete
+durable recovery selection and whole-task acceptance. No new CI approval exists.
+
 ## Worker interruption product recovery — active, 2026-11-15
 
 Owner capstone-agent; branch fix/worker-interruption-products-20261115 targets

@@ -1,6 +1,6 @@
 # Recoverable long-task execution
 
-Status: proposed design for the user goal; not implementation acceptance.
+Status: user-approved design, 2026-11-16; not implementation acceptance.
 Owner: capstone-agent / capstone-harness. Destination: dev through scoped PRs.
 
 ## Outcome

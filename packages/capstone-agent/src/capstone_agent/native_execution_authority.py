@@ -7,8 +7,26 @@ from __future__ import annotations
 
 from hmac import compare_digest
 import math
+import re
 from threading import Lock
 import time
+
+SCHEMA = 'capstone-execution-authority/1'
+AUTHORITY_SECONDS = 30.0
+RENEW_SECONDS = 5.0
+EXCHANGE_SECONDS = 2.0
+
+
+def checked_grant(document, *, renewal=False):
+    fields = {'schema', 'generation', 'capability'} | ({'sequence'} if renewal else set())
+    if (not isinstance(document, dict) or set(document) != fields
+            or document.get('schema') != SCHEMA
+            or any(not isinstance(document.get(key), str)
+                   or re.fullmatch('[a-f0-9]{64}', document[key]) is None
+                   for key in ('generation', 'capability'))
+            or renewal and (type(document['sequence']) is not int or document['sequence'] < 1)):
+        raise ValueError('invalid execution authority')
+    return document
 
 
 class ExecutionAuthority:
@@ -37,6 +55,10 @@ class ExecutionAuthority:
     def active(self) -> bool:
         with self._lock:
             return self._active(self._clock())
+
+    def matches(self, generation: str, capability: str) -> bool:
+        return (generation == self._generation and isinstance(capability, str)
+                and capability.isascii() and compare_digest(capability, self._capability))
 
     def renew(self, generation: str, capability: str, sequence: int) -> None:
         with self._lock:

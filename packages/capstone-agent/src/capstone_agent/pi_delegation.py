@@ -848,9 +848,15 @@ class HttpGeneralPiExecutor:
         if request.executor_identity != self.identity:
             raise ValueError("Pi request executor identity is not selected")
         deadline = min(control.deadline, time.monotonic() + request.timeout_seconds)
+        from .native_execution_authority import SCHEMA
+        from .native_execution_renewal import ExecutionRenewal
+        renewal = (ExecutionRenewal(self, request, control)
+                   if SCHEMA in self.capability.get('execution_authority_schemas', ()) else None)
 
         def checkpoint():
             control.checkpoint()
+            if renewal is not None:
+                renewal.check()
             if time.monotonic() >= deadline:
                 raise TimeoutError("Pi task deadline expired")
 
@@ -932,12 +938,16 @@ class HttpGeneralPiExecutor:
             last_research_service = time.monotonic()
 
         try:
-            accepted = exchange("POST", "/tasks", operation='task_admission', document=request.to_document(),
+            accepted = exchange("POST", '/owned-tasks' if renewal is not None else '/tasks',
+                                  operation='task_admission', document=(request.to_document() if renewal is None else
+                                      {'request': request.to_document(), 'execution_authority': renewal.grant}),
                                   # Admission validates and durably saves selected file bytes.
                                   # Its read timeout is distinct from lightweight status polling.
                                   timeout=self._exchange_timeout)
             if accepted != {"task_id": request.task_id}:
                 raise ValueError("Pi accepted task identity is invalid")
+            if renewal is not None:
+                renewal.start()
             event_cursor = 0
             while True:
                 checkpoint()
@@ -1061,6 +1071,8 @@ class HttpGeneralPiExecutor:
                 service_research()
                 time.sleep(min(self._poll_interval, max(0, deadline - time.monotonic())))
         finally:
+            if renewal is not None:
+                renewal.close()
             if not complete:
                 original = sys.exception()
                 try:
