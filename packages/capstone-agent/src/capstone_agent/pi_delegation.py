@@ -695,6 +695,8 @@ class HttpGeneralPiExecutor:
                                  _json_document(self.identity))
                 if document["status"] != status:
                     raise ValueError("Pi cancellation terminal status is invalid")
+                if document.get('failure', {}).get('code') == 'native_process_cleanup_unconfirmed':
+                    raise RuntimeError('Pi native process cleanup unconfirmed; task state is unknown')
                 control.checkpoint()
                 return PiTaskResult(**{key: value for key, value in document.items() if key != 'schema'})
             if status not in {"queued", "running"} or response["result"] is not None:

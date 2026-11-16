@@ -129,6 +129,32 @@ protocol change or new tab was needed.
 
 ## Remaining whole-capability acceptance
 
+## Cleanup confirmation and PID ownership
+
+A red-first regression showed that exhausting the UID kill loop could still
+return success with a live descendant. Cleanup now observes non-zombie processes
+again after retries and keeps its process handle on failure. Observation errors
+fail closed. Signals to UID descendants use Linux pidfds and recheck ownership;
+a recycled numeric PID cannot redirect that signal to another task. The native
+Linux runtime must support pidfd_open/pidfd_send_signal; macOS's UID-free fixture
+does not claim that capability.
+
+Cleanup exceptions carry a fixed private category. The executor publishes
+native_process_cleanup_unconfirmed through the existing failed-result contract;
+the cancellation client rejects it as stop confirmation. Reader text says the
+process stop is unconfirmed. Cancellation requests do not replace cleanup
+failure withcancelled. Two red-first host/client regressions cover that boundary.
+
+The process, transport, owned-execution and failure-delivery consumers passed227
+checks in40.90seconds. A separate network-free Linux container using the exact
+candidate process module stopped its UID10000 parent and separate-session child
+while output was blocked, observed0.0499seconds. Receipts remain in the isolated
+worktree runs/recoverable-long-task-20261116/, cleanup-consumers.log and
+linux-process-confirmation.json. These changes require a rebuilt candidate
+before the remaining real restart/outage trials.
+
+## Remaining whole-capability acceptance
+
 Pending: actual executor/API restart, ambiguous admission/completion, short
 transport loss, safe uncertain-effect handling and long-context/resource bounds.
 Worker-loss stopping, exact historical continuation and conversation refresh

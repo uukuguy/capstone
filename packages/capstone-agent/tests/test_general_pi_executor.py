@@ -116,6 +116,56 @@ def test_failed_stop_keeps_process_handle_for_cleanup_retry(tmp_path, monkeypatc
     assert process.process is None
 
 
+def test_uid_cleanup_never_certifies_success_while_a_descendant_is_live(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    process = module.GeneralPiProcess(('unused',), {}, tmp_path, uid=10000)
+    child = SimpleNamespace(pid=12345, stdin=None, stdout=None, stderr=None, wait=lambda **_:None)
+    process.process = child
+    monkeypatch.setattr(module.os, 'killpg', lambda *_:None)
+    monkeypatch.setattr(module.os, 'kill', lambda *_:None)
+    monkeypatch.setattr(module, '_kill_task_process', lambda *_:None)
+    monkeypatch.setattr(module, '_live_task_processes', lambda uid:[12346], raising=False)
+    with pytest.raises(RuntimeError, match='cleanup unconfirmed'):
+        process._stop_process()
+    assert process.process is child
+    monkeypatch.setattr(module, '_live_task_processes', lambda uid:[])
+    process._stop_process()
+    assert process.process is None
+
+
+def test_uid_process_observation_excludes_zombies_and_fails_closed(tmp_path):
+    import os
+    from capstone_agent.general_pi_executor import _live_task_processes
+    for pid, state in [(123, 'S (sleeping)'), (124, 'Z (zombie)')]:
+        path = tmp_path / str(pid)
+        path.mkdir()
+        (path / 'status').write_text('State:\t' + state + '\n')
+    assert _live_task_processes(os.getuid(), proc_root=tmp_path) == [123]
+    assert _live_task_processes(os.getuid()+1, proc_root=tmp_path) == []
+    (tmp_path / '123' / 'status').write_text('invalid')
+    with pytest.raises(RuntimeError, match='cleanup unconfirmed'):
+        _live_task_processes(os.getuid(), proc_root=tmp_path)
+
+
+@pytest.mark.parametrize('owner_matches', [False, True])
+def test_uid_cleanup_pins_process_and_rechecks_owner(tmp_path, monkeypatch, owner_matches):
+    import os
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    descriptor = os.open('/dev/null', os.O_RDONLY)
+    sent = []
+    monkeypatch.setattr(module.os, 'pidfd_open', lambda pid:descriptor, raising=False)
+    monkeypatch.setattr(module.signal, 'pidfd_send_signal', lambda fd,sig:sent.append((fd,sig)), raising=False)
+    monkeypatch.setattr(module, 'Path', lambda _:SimpleNamespace(stat=lambda:SimpleNamespace(st_uid=10000 if owner_matches else 10001)))
+    module._kill_task_process(10000,12345)
+    assert bool(sent) is owner_matches
+    if sent:
+        assert sent == [(descriptor,module.signal.SIGKILL)]
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+
+
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
 @pytest.mark.parametrize('outcome', ['complete', 'cancelled', 'deadline'])
 def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, single_child_cleanup, mode, outcome):

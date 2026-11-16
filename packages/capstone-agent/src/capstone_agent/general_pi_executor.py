@@ -382,6 +382,50 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
     return argv, environment
 
 
+def _live_task_processes(uid: int, *, proc_root=Path('/proc')) -> list[int]:
+    if not proc_root.is_dir():
+        raise RuntimeError('native process cleanup unconfirmed')
+    live = []
+    for path in proc_root.glob('[0-9]*'):
+        try:
+            if path.stat().st_uid != uid:
+                continue
+            fields = next(line.split() for line in (path / 'status').read_text().splitlines()
+                          if line.startswith('State:'))
+            if len(fields) < 2:
+                raise ValueError('invalid process state')
+            if fields[1] not in {'Z', 'X'}:
+                live.append(int(path.name))
+        except (ProcessLookupError, FileNotFoundError):
+            continue
+        except (OSError, ValueError, StopIteration):
+            raise RuntimeError('native process cleanup unconfirmed') from None
+    return live
+
+
+def _kill_task_process(uid: int, pid: int) -> None:
+    # Pin the process before checking its UID. A recycled numeric PID must not
+    # turn cleanup of one task into a signal to another task's process.
+    try:
+        descriptor = os.pidfd_open(pid)
+    except ProcessLookupError:
+        return
+    try:
+        try:
+            if Path(f'/proc/{pid}').stat().st_uid != uid:
+                return
+            signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+        except (ProcessLookupError, FileNotFoundError):
+            pass
+    finally:
+        os.close(descriptor)
+
+
+class NativeProcessCleanupUnconfirmed(RuntimeError):
+    def __init__(self):
+        super().__init__('native process cleanup unconfirmed')
+
+
 class GeneralPiProcess:
     """Finite native RPC with a separate process group and optional Unix identity."""
 
@@ -624,7 +668,10 @@ class GeneralPiProcess:
 
     def stop(self) -> None:
         with self._stop_lock:
-            self._stop_process()
+            try:
+                self._stop_process()
+            except Exception:
+                raise NativeProcessCleanupUnconfirmed() from None
 
     def _stop_process(self) -> None:
         process = self.process
@@ -647,17 +694,14 @@ class GeneralPiProcess:
         if self.uid is not None:
             # A tool can create another process session. Each task has a unique UID.
             for _ in range(3):
-                alive = False
-                for path in Path('/proc').glob('[0-9]*'):
-                    try:
-                        if path.stat().st_uid == self.uid:
-                            os.kill(int(path.name), signal.SIGKILL)
-                            alive = True
-                    except (ProcessLookupError, FileNotFoundError):
-                        pass
+                alive = _live_task_processes(self.uid)
                 if not alive:
                     break
+                for pid in alive:
+                    _kill_task_process(self.uid, pid)
                 time.sleep(0.01)
+            if _live_task_processes(self.uid):
+                raise RuntimeError('native process cleanup unconfirmed')
         for stream in (process.stdin, process.stdout, process.stderr):
             if stream is not None:
                 stream.close()

@@ -633,6 +633,16 @@ def test_cancel_accepts_already_completed_bound_task(service):
     assert state["polls"] == 1
 
 
+def test_cancel_does_not_confirm_an_unverified_process_cleanup(service):
+    origin, state = service
+    request = PiTaskRequest.from_document(request_document())
+    result = {**result_document(request), 'schema':'capstone-pi-task-result/2', 'status':'failed',
+        'failure':{'code':'native_process_cleanup_unconfirmed','phase':'execution'}}
+    state['cancel_response'] = {'status':'failed','events':[],'result':result}
+    with pytest.raises(RuntimeError, match='cleanup unconfirmed'):
+        executor(origin).cancel('task-1')
+
+
 def test_cancel_total_budget_includes_dripped_response_headers(service):
     origin, state = service
     state["slow_delete_headers"] = True

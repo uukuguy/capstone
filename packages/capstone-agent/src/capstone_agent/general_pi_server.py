@@ -958,6 +958,7 @@ class GeneralPiHost:
             # Only fixed runtime messages map to private codes. Never persist
             # arbitrary exception text from tools, providers or user files.
             reason = {'General Pi frame exceeds bounds': 'rpc_frame_too_large',
+                      'native process cleanup unconfirmed': 'process_cleanup_unconfirmed',
                       'General Pi ended before completion': 'rpc_process_ended',
                       'General Pi rejected request': 'rpc_request_rejected',
                       'General Pi did not complete': 'model_turn_incomplete',
@@ -992,6 +993,7 @@ class GeneralPiHost:
                     'model_read_timeout', 'model_connection_failed', 'model_transport'}:
                 failure['reason_code'] = provider_failure
             public_failure = {'code': {
+                'process_cleanup_unconfirmed': 'native_process_cleanup_unconfirmed',
                 'runtime_dependency_missing': 'native_runtime_dependency_missing',
                 'session_skill_content_changed': 'native_session_skill_content_changed',
                 'session_skill_content_unavailable': 'native_session_skill_content_unavailable',

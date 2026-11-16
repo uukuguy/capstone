@@ -74,6 +74,36 @@ def test_invalid_authority_never_admits_a_task(tmp_path, change):
     assert not host._tasks
 
 
+def test_unconfirmed_process_cleanup_stays_failed_even_after_cancellation(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    entered = Event()
+    process = module.GeneralPiProcess(('unused',), {}, tmp_path, uid=10000)
+    process.process = SimpleNamespace(pid=12345, stdin=None, stdout=None, stderr=None, wait=lambda **_:None)
+    monkeypatch.setattr(module.os, 'killpg', lambda *_:None)
+    monkeypatch.setattr(module, '_kill_task_process', lambda *_:None)
+    monkeypatch.setattr(module, '_live_task_processes', lambda uid:[12346])
+    def run(request, cancelled, emit):
+        entered.set()
+        while not cancelled():
+            time.sleep(.002)
+        process._stop_process()
+        return 'Stopped', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('cleanup-failed', 'a', 'delegated', 'Work', (), (), host.identity, 3)
+    host.submit(request, execution_authority=grant())
+    assert entered.wait(1)
+    host.cancel(request.task_id)
+    deadline = time.monotonic()+2
+    while host.read(request.task_id)['status']=='running' and time.monotonic()<deadline:
+        time.sleep(.005)
+    result = host.read(request.task_id)
+    assert result['status']=='failed'
+    assert result['result']['status']=='failed'
+    assert result['result']['failure']['code']=='native_process_cleanup_unconfirmed'
+    assert process.process is not None
+
+
 @pytest.mark.parametrize('outcome', ['complete', 'guard_lost', 'lost_ack'])
 def test_http_client_renews_during_quiet_work_and_stops_when_guard_is_lost(tmp_path, monkeypatch, outcome):
     from capstone_agent.general_pi_server import make_server
