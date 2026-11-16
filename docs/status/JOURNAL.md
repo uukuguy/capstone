@@ -7890,3 +7890,5 @@ check passed. No CI, integration or remote deployment performed.
 - 21:03 Retained intended pin writes for safe retry and added focused macOS persistence checks [981ddc3d].
 - 21:06 Verified ten pins across origins, API restart and final rebuild; independent review passed; dev integration awaits CI approval.
 - 21:09 Freeze pin acceptance/control snapshot; record this commit and later CI/merge receipts in ignored incident evidence to avoid self-metadata loops.
+
+- 2026-11-16 4792b7d8: Added strict goal state and snapshot compatibility to isolate autonomous objectives from legacy Work commands.

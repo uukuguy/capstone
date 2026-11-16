@@ -1,5 +1,27 @@
 # Live Session Checkpoint
 
+> Current checkpoint: Agent goal mode, 2026-11-16. Session active, not final handoff.
+
+Work in `.worktrees/historical-input-receipts`, branch
+`feat/agent-goal-mode-20261116`, destination dev. Source4792b7d8 adds strict persisted
+goal state, Work snapshot compatibility and refusal of legacy mutation bypass.
+87 focused tests pass;14 database-dependent tests skipped. No goal commands,
+structured completion receipts, automatic continuation or App entry exist yet.
+Next: stage-A Unit1 transactional controls, then receipts and continuation; follow
+`docs/superpowers/plans/2026-11-16-agent-goal-mode.md`. No CI approval exists.
+Actual local-dev remains4834ebe3 with persistent pins. PR124 closeout is complete;
+use `runs/session-pins-investigation-20261116/delivery-receipt.json`, not the old
+checkpoint below, to determine pin status. No cloud/demo change.
+
+Root dev contains task-owned design/worklist/control drafts copied to the feature
+branch for integration. Preserve them until the scoped PR is accepted; do not
+restore or stage unrelated files. Recovery snapshots and exact dirty-path records:
+`runs/always-on-architecture-research-20261116/`. Generated graph shows4792b7d8
+connected to actual dev by verified ancestry; live pin overlay remains receipt-backed.
+Control update is locally prepared, not integrated into dev. Do not report full alignment.
+
+## Prior checkpoint retained for recovery only
+
 > Updated: 2026-11-16 21:03. **Session remains active — not a final handoff.**
 
 Current correction: durable workspace pins. User explicitly requires persistence.
