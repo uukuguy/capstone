@@ -8,6 +8,7 @@
   "paths": [
     ".github/workflows/verify.yml",
     "Dockerfile",
+    "pyrightconfig.json",
     "README.md",
     "README.zh-CN.md",
     "configs/development/control-delegation-gate.json",
