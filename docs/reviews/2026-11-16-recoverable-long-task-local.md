@@ -315,3 +315,11 @@ approval before push/PR update. Independent reviewer dispatch remains unavailabl
 with Unknown model gpt-6.1-luna; no independent-review pass is claimed. Vivaldi
 GUI inspection attempted twice: Orca reports blocked AX reads despite granted
 permissions; no unrelated tab was changed. Preserve that inspection as pending.
+
+Follow-up249346e6 strengthens the existing failure regression: persisted child
+events must retain cancellation_confirmed=false, the original execution failure
+code and an unsettled tool with outcome=unknown; execution count must stay one.
+This regression and the transport primary-error preservation regression passed2
+checks in0.99seconds. Product/runtime source stays40ddb637; no rebuild or CI was
+needed for this test-only change. This is focused verification, not an independent
+code-review pass.

@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+249346e6补强未知工具结果回归：持久事件明确记录取消未确认、工具结果unknown且仅执行一次；两项定向检查通过0.99秒。运行源码仍40ddb637，CI批准待回复。
+
 worker中断文件恢复切片本地接受：候选f0976baf规范重建8952043d，真实incomplete封存、28字节读取/报告与Vivaldi刷新通过。整体worker丢失接受仍partial：native自动停止缺口未解决，实验清理是人工操作。116定向/123分类通过，待单独批准CI；见[验证](../reviews/2026-11-15-worker-loss-product-recovery.md)和[KNOWN-ISSUES](KNOWN-ISSUES.md)。以下为过程记录。
 
 当前修正：worker中断后的文件封存与历史准入，候选f0976baf，capstone-agent所有，目标dev；116项定向检查及123项分类检查通过，规范重建/真实复验中。旧租约写入保护通过，但独立native任务在父worker丢失后仍继续，已记[KNOWN-ISSUES](KNOWN-ISSUES.md)。[验证与范围](../reviews/2026-11-15-worker-loss-product-recovery.md)明确不把本修正当作整链停止接受。无CI批准。

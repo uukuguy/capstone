@@ -1788,7 +1788,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/recoverable-long-tasks-20261116 | 当前可恢复长任务实施；目标dev | capstone-agent/harness；产品40ddb637，范围HEAD014e6733；本地故障/续作已验证 | review、图浏览器复核与明确批准的定向CI；未推送/未合并 | shared-agent |
+| feat/recoverable-long-tasks-20261116 | 当前可恢复长任务实施；目标dev | capstone-agent/harness；产品40ddb637，范围HEAD014e6733，未知结果回归249346e6；本地故障/续作已验证 | review、图浏览器复核与明确批准的定向CI；未推送/未合并 | shared-agent |
 | fix/worker-interruption-products-20261115 | 文件恢复已合入dev；PR120 | capstone-agent所有；f0976baf；116定向/123分类；真实worker丢失后原字节恢复与刷新通过 | CI43806396571通过116秒；dev44abf3c5；自动native停止仍未解决 | shared-agent |
 | docs/harness-cancellation-acceptance-20261115 | PR119已合入并关闭 | shared-agent所有；受检0e1fb9f2、合并fffc881e；获批macOS docs CI43723280469通过111秒 | 实际dev同步；恢复bcde2615保留，工作树detached同步；worker崩溃验收仍独立 | shared-agent |
 | docs/historical-input-closeout-20261115 | PR118已合入并关闭 | 所有者shared-agent；受检1250ac71、合并d718050c；获批macOS docs CI43708007107通过125秒 | 实际dev已同步；来源分支关闭，恢复69739de9保留；最终图按实际HEAD刷新 | shared-agent |

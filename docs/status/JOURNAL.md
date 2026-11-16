@@ -7842,3 +7842,7 @@ check passed. No CI, integration or remote deployment performed.
 
 - Candidate40ddb637 rebuilt with matched API/three-worker image76da821f; real cancel cleared UID12392 four processes, retained exact draft and no final.
 - Local scoped PostgreSQL gate583 passed/33 skipped75.39s; context94 passed/1 skipped4.24s. CI not started; review dispatch/graph AX inspection unavailable.
+
+- 913ee5a7: Recorded local capability acceptance and explicit remaining integration gates; preserves cancellation, context and scoped-check evidence.
+
+- 249346e6: Verified persisted cancellation uncertainty and unknown tool outcome without replay; two focused regressions passed.
