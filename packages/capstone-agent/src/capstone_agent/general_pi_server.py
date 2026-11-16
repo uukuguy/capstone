@@ -348,7 +348,7 @@ class GeneralPiHost:
                 if old['request'].to_document() != request.to_document():
                     raise ValueError('General Pi task identity conflict')
                 authority = old.get('execution_authority')
-                if authority is not None and (execution_authority is None or not authority.matches(
+                if _execution_reserved(old) and authority is not None and (execution_authority is None or not authority.matches(
                         execution_authority['generation'], execution_authority['capability'])):
                     raise PermissionError('execution authority rejected')
                 if authority is None and execution_authority is not None and old['status'] in {'running', 'queued'}:

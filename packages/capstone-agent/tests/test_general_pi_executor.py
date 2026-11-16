@@ -116,6 +116,27 @@ def test_failed_stop_keeps_process_handle_for_cleanup_retry(tmp_path, monkeypatc
     assert process.process is None
 
 
+def test_uid_cleanup_does_not_signal_a_reaped_process_group(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_executor as module
+    process = module.GeneralPiProcess(('unused',), {}, tmp_path, uid=10000)
+    reaped = False
+    def wait(**_):
+        nonlocal reaped
+        reaped = True
+    def signal_group(*_):
+        assert not reaped, 'process group ID may belong to another task after wait'
+    child = SimpleNamespace(pid=12345, stdin=None, stdout=None, stderr=None, wait=wait)
+    process.process = child
+    monkeypatch.setattr(module.os, 'killpg', signal_group)
+    alive = [12346]
+    monkeypatch.setattr(module, '_live_task_processes', lambda uid:list(alive))
+    monkeypatch.setattr(module, '_kill_task_process', lambda uid,pid:alive.remove(pid))
+    process._stop_process()
+    assert process.process is None
+    assert alive == []
+
+
 def test_uid_cleanup_never_certifies_success_while_a_descendant_is_live(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from capstone_agent import general_pi_executor as module

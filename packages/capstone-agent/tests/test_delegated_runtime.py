@@ -1299,7 +1299,9 @@ def test_hosted_http_retry_replays_child_without_repeating_action(tmp_path):
             retry = replace(current, attempt=replace(current.attempt, attempt_id=attempt_id))
             plan = selected.plan_intent(retry, control, freeze)
             runtime = selected(replace(retry, turn_plan=plan))
-            assert runtime.prompt(current.instruction, on_event=lambda _: None) == 'Saved answer'
+            events = []
+            answer = runtime.prompt(current.instruction, on_event=events.append)
+            assert answer == 'Saved answer', events
             runtime.stop()
         assert len(actions) == 1
     finally:

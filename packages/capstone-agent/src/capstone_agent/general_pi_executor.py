@@ -677,22 +677,9 @@ class GeneralPiProcess:
         process = self.process
         if process is None:
             return
-        # Native tools may have descendants after Pi exits. Kill the group too.
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            process.wait(timeout=0.1)
-        except subprocess.TimeoutExpired:
-            pass
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        process.wait(timeout=1)
         if self.uid is not None:
             # A tool can create another process session. Each task has a unique UID.
+            # Pin each process before signalling; a reaped Pi PID/group may be reused.
             for _ in range(3):
                 alive = _live_task_processes(self.uid)
                 if not alive:
@@ -702,6 +689,20 @@ class GeneralPiProcess:
                 time.sleep(0.01)
             if _live_task_processes(self.uid):
                 raise RuntimeError('native process cleanup unconfirmed')
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=0.1)
+            except subprocess.TimeoutExpired:
+                pass
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.wait(timeout=1)
         for stream in (process.stdin, process.stdout, process.stderr):
             if stream is not None:
                 stream.close()

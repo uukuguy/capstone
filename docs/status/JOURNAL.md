@@ -7833,3 +7833,5 @@ check passed. No CI, integration or remote deployment performed.
 - f62a241c: Recorded real executor restart, unknown outcome without readmission, and exact retained-file continuation after failure.
 - Candidate44fc1293 executor-restart trial: original attempt failed with native_execution_outcome_unknown, old UID12384 cleared, recovered receipt hash unchanged, old task absent from new memory. Explicit new attempt read240-byte draft and completed2944-byte report; hashes verified. Existing failed-file status is valid unfinished projection, so the inherited incomplete-only probe assertion was corrected without restarting/replaying the task.
 - Current local source44fc1293/imagea30d9662 is recorded in the control graph and exact-source manifests. Doc links, relative symlink, diff checks and doctor passed. Latest graph visual review remains pending; no alignment/integration completion claimed.
+
+- 27e6ed1b: Checkpointed four real fault trials and control records to preserve the verified recovery boundary.

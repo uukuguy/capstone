@@ -216,6 +216,8 @@ def test_unconfirmed_process_cleanup_stays_failed_even_after_cancellation(tmp_pa
     assert result['result']['status']=='failed'
     assert result['result']['failure']['code']=='native_process_cleanup_unconfirmed'
     assert process.process is not None
+    with pytest.raises(PermissionError):
+        host.submit(request, execution_authority={**grant(), 'capability': 'c' * 64})
     from capstone_agent.application_capacity import CapacityExceeded
     with pytest.raises(CapacityExceeded):
         host.submit(PiTaskRequest('next','b','delegated','Work',(),(),host.identity,3))
