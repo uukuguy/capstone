@@ -127,6 +127,9 @@ class AgentDelegations:
                     self._command(thread, work, 'start_work', 'start')
             binding = {'thread_id': thread, 'work_id': work['work_id']}
             current['binding'] = binding
+            admitted = self.threads.snapshot(thread).works[0]
+            current['work_goal_revision'] = admitted['goal_revision']
+            current['work_goal_digest'] = _digest(admitted['goal'])
             return current, binding
         binding = self.registry.transact(workspace, delegation['operation_id'], admit)
         if self.wake is not None:
@@ -149,10 +152,15 @@ class AgentDelegations:
         snapshot = self.threads.snapshot(binding['thread_id'])
         sequence = snapshot.last_event_seq + len(current['control_receipts'])
         work = next(w for w in snapshot.works if w['work_id'] == binding['work_id'])
-        if current['control'] is not None and snapshot.current_attempt is None:
+        active = snapshot.current_attempt is not None and snapshot.current_attempt.attempt_id == work['latest_attempt_id']
+        if current['control'] is not None and not active:
             return {'sequence': sequence,
                     'state': 'cancelled' if current['control'] == 'cancel' else 'paused',
                     'summary': 'execution stopped', 'delivery': None}
+        if (work['goal_revision'] != current.get('work_goal_revision') or
+                _digest(work['goal']) != current.get('work_goal_digest')):
+            return {'sequence': sequence, 'state': 'unknown',
+                    'summary': '委托目标已在执行侧修改，请在长期目标中核对。', 'delivery': None}
         status = work.get('goal_mode', {}).get('state', work['status'])
         state = {'ready': 'waiting', 'queued': 'running', 'blocked': 'waiting',
                  'interrupted': 'unknown'}.get(status, status)
@@ -214,7 +222,8 @@ class AgentDelegations:
                         self._command(binding['thread_id'], work, 'resume_goal', operation_id)
                 elif goal and goal['state'] not in {'completed', 'cancelled', 'failed'}:
                     self._command(binding['thread_id'], work, kind + '_goal', operation_id)
-                elif snapshot.current_attempt is not None and not work.get('cancel_requested'):
+                elif (snapshot.current_attempt is not None and
+                      snapshot.current_attempt.attempt_id == work['latest_attempt_id'] and not work.get('cancel_requested')):
                     self._command(binding['thread_id'], work, 'cancel_work', operation_id)
             return current, current
         current = self.registry.transact(workspace, delegation['operation_id'], revoke)

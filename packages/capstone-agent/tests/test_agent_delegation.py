@@ -55,6 +55,12 @@ def test_public_delegation_replays_after_restart_and_concurrent_calls(postgres_t
             restarted.delegate('enterprise', {**d, 'objective': 'Changed objective'})
         with pytest.raises(DelegationConflict):
             restarted.observe('enterprise', {**d, 'binding': {**binding, 'work_id': 'forged'}})
+        from test_thread_work_execution import command
+        work = threads.snapshot(binding['thread_id']).works[0]
+        changed = threads.submit_command(command(threads, binding['thread_id'], 'revise_goal', 'external-change',
+            work_id=binding['work_id'], revision=work['revision'], payload={'text': 'Changed outside Control'}))
+        assert changed.status == 'accepted'
+        assert restarted.observe('enterprise', {**d, 'binding': binding})['state'] == 'unknown'
         ack = restarted.control('enterprise', {**d, 'binding': binding}, 'cancel', 'cancel-1')
         assert ack['state'] == 'cancelled'
     finally:
