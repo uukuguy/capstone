@@ -17,27 +17,32 @@ saved-product verification and existing-workspace Goal panel. Goal.revision is
 CAS; Delegation.goal_revision binds Goal.objective_revision. Final acceptance
 is a separate user action naming exact products. StagesC/D are not active.
 
-Latest implementation fix0a510e1e adds expired unbound-intent revocation,
-concurrent API/worker schema locks and stable Goal selection. This checkpoint/
-control draft is being committed next. Rebuild that fixed source before more
-real trials. User permits direct focused macOS CI. No new CI or PR exists yet.
+Latest implementation8d292962 extends expiry revocation to bound active execution;
+84b789f4 adds the missing pyright package roots after a reproduced CI governance
+failure. Focused gate183 backend/71App/types passed. PR126 is a draft todev.
+User explicitly permits direct focused macOS CI without repeated approval.
+CI43926983198 failed the now-fixed config; CI43927606440 passed84b789f4.
+The deadline fix and verification docs have not yet been pushed. Latest stageB
+evidence is docs/reviews/2026-11-17-control-delegation-local.md.
 
 ## Current runtime and live handles
 
-Canonical rebuild2 source995c06a8, image
-d08481461e7d4c74190f72e6b4c102eb0af321c507b610172de3bbc8b0cd1fb6
+Canonical rebuild3 source3770e892, image
+34a60dea85d5c11c585c506af6e862cd300e2218d4d34ab534a7903203f67eff
 passed readiness, API/three-worker image identity and scoped cache maintenance.
+Rebuild4 source8d292962 completed0 in22594, log
+/tmp/capstone-control-rebuild-4.log. API/three-worker identity and readiness,
+scoped cache maintenance passed at image
+ca5031fdaef4f12f79c083e4e169691a9f4ffa9e6e0cc5d6624cc22dcddf2c9a.
 Root App5173 remains dev4f511d46; candidate App5174 uses the feature worktree.
 The actual dev graph live sidecar records that temporary mixed-source state;
 the committed dev register has not yet received stageB.
 
 Candidate Vite5174: shell session97706. Browser: existing Vivaldi window355034,
 App tab5174 and actualdev file control tab. Do not create more tabs.
-Observer59171 completed0. Rebuild2 session15394 reached completion.
-Rebuild3 log: /tmp/capstone-control-rebuild-3.log. Once started, its exact source/
-session is in root runs/control-delegation-20261117/active-operations.json.
-Inspect that file and poll its confirmed handle before any replacement.
-Do not edit package/backend source while a canonical build copies it.
+Observers59171/65258/61200/5548 and rebuild315158/422594 completed0. Focused gate372426
+completed0. Exact active operation pointers are in root
+runs/control-delegation-20261117/active-operations.json. No live model trial now.
 
 Rebuild from the feature worktree uses root deploy/local.env and root
 .grid-agent/runtime/pypsa-models by explicit environment paths, plus
@@ -77,29 +82,39 @@ Do not relabel the failed first run as success.
 
 ## Remaining acceptance and integration
 
-1. Canonical rebuild3 of fixed source; readiness and same-image check. Goal2
-   accepted state/products/pins must survive. No cloud/demo changes.
-2. Create a fresh two-stage Goal through the existing App. Before creation start
-   an observer. Restart native worker only at the durable boundary: first Task
-   verified, second Task dispatching, its deterministic target Thread not yet
-   admitted. Check no other active native attempts before disrupting the worker.
-   Prove exactly one successor and original-byte handoff after restart.
-3. Real active pause/resume/revise/cancel. Use a bounded synthetic goal-mode Task
-   that saves a partial file and waits in a private tool. Confirm pause acknowledgement,
-   resume keeps Work/budget, revision revokes old generation before a new Thread,
-   and cancel stops new execution without deleting products.
-4. Real delegation-budget stop: two phases with max_delegations1; first saves
-   declared product, second never admits. Deadline/lost-binding paths have unit
-   coverage; verify latest runtime deadline state as needed.
-5. Browser refresh and delegated Work navigation must restore actual bound Work,
-   existing conversation and products. Do not replace the conversation UI.
-6. Review task-owned code, run focused gate, create dev PR and authorized focused
-   macOS CI, integrate dev, rebuild actual dev and verify5173. No release/Linux
-   scope. Record acceptance and exact sources in canonical worklist/register/
-   graph. Final self-merge receipts stay ignored to prevent endless commit cycles.
+Completed real probes under source3770e892:
+- Browser-created restart Goalgoal_e19b58506e67d464cfdd28e3a4a0a5fa: native worker
+  restarted at verified pre-admission phase boundary; API restarted afterward;
+  two Threads/one completed Attempt each, original33bytes/report1846bytes and
+  one input receipt match. Browser refresh and open-stage2 restore existing
+  conversation/products. Explicit browser acceptance persisted with exact products
+  and actorworkspace:open after rebuild4; restart-accepted-goal-3.json is saved.
+- Goalgoal_dea8ead1fde03c75d11d6289313a3945 controls61200 completed0: real pause
+  stopped Attempt; resume kept Work and attempts1→2; revision2 stopped old
+  Thread before new one; cancel stopped new execution; all4 exact replays equal.
+  controls-result-3.json and full snapshots saved. No active trial remains.
+- Budget Goalgoal_d7bd3c46b320c864a587ac14dd50fbe2 paused after1 delegation and
+  verified15-byte product; second Task pending with no delegation.
 
-Current fixes have passing local tests but not final runtime acceptance.
-No independent stageB code review has run. Do not mark the goal complete yet.
+Real active-single deadline Goalgoal_48bb4df10d239d2f4ae6998741bf1d4a passed:
+running before55-second expiry, then deadline_exhausted/one delegation/no late
+delivery/no active Attempt. deadline-result-4.json is saved. Graph regenerated
+after recording exact8d source/image;22 Python/3Node graph checks, doctor,
+symlink and diff passed. Added Markdown links resolve; old ignored-delivery
+links are absent in this worktree and are not changed. Existing root graph
+live sidecar and screenshot show actualdev4f node and candidate8d source edge;
+canonical dev register remains unmerged. ui-ux-pro-max network-chart guidance
+and visual source-edge check applied. Node tests live in
+tools/project_overview/live_snapshot.test.cjs; Python tests in same directory.
+
+Next: finish docs/graph checkpoint commit, push final task-owned commits once,
+await current-head focused macOS CI,
+ready/merge PR126 into dev, rebuild actualdev and verify5173 original products,
+accepted Goal, paused budget/control states and pins. Canonical graph/register
+must reach actualdev. Final self-merge/source/clean receipts remain ignored.
+Independent reviewer dispatch failed with Unknown model gpt-6.1-luna. Direct
+source review found/fixed active expiry; do not claim independent review passed.
+StageB is not complete; cloud/demo and stagesC/D are unchanged.
 
 ## Recovery and operational rules
 

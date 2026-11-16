@@ -11,13 +11,17 @@ live in root ignored runs/agent-goal-acceptance-20261116/closeout-receipt.json.
 [StageB plan](2026-11-17-control-delegation.md) implements the approved Control
 design: persistent Goal and ordered Tasks, public Agent delegation, fresh-Thread
 resource handoff, versioned revocation/idempotency and exact user acceptance.
-Runtime candidate995c06a8 implements transactional Control state, public Agent
-binding, per-Work cross-Thread grants, background maintenance and the existing
-App Goal panel. Real two-stage Goal and original181-byte/report3369-byte downloads,
-hash/marker plus explicit Vivaldi acceptance passed. First failed probe was retained
-and fixed through native single Work input admission. Expiry/bootstrap fixes passed
-181 backend/governance and71 App checks plus types; canonical rebuild pending.
-Next: real controls/restart/budget, review, focused CI and actualdev integration.
+Candidate8d292962 implements transactional Control state, public Agent binding,
+per-Work cross-Thread grants, background maintenance and the existing App Goal
+panel. Real two-stage original-byte downloads and explicit Vivaldi acceptance,
+browser creation/refresh, stage-boundary native-worker restart, API restart,
+pause/resume/revise/cancel and exact replay, and total delegation budget stop
+passed. First failed native-input probe remains recorded.183 backend/governance,
+71 App checks and types passed. Direct source review found and fixed active
+delegation expiry; independent review tooling could not start. PR126 targets dev.
+Latest canonical rebuild/real active-deadline stop passed at8d292962; accepted
+products restored after rebuild. Next: final focused macOS CI and actualdev
+integration. [Evidence](../../reviews/2026-11-17-control-delegation-local.md).
 This is partial stageB validation, not package closure.
 Focused macOS CI is authorized directly by the user. Task board and external
 triggers remain later stages. Cloud/demo unchanged.
