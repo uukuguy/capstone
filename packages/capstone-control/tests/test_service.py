@@ -102,3 +102,36 @@ def test_user_acceptance_requires_all_verified_tasks_and_exact_products():
     goal = s.create('a', request())
     with pytest.raises(InvalidTransition):
         s.command('a', command(goal, 'accept', 'accept-1', products=[]))
+
+
+@pytest.mark.parametrize('kind', [[], {}, None, True, 'unknown'])
+def test_invalid_command_kind_has_contract_error(kind):
+    from capstone_control.contracts import ContractError
+    s = service()
+    goal = s.create('a', request())
+    with pytest.raises(ContractError):
+        s.command('a', command(goal, kind, 'invalid-kind'))
+
+
+def test_acceptance_binds_exact_product_types_and_records_user_actor():
+    s = service()
+    goal = s.create('a', request())
+    products = []
+    for index, task_id in enumerate(['draft', 'verify']):
+        goal = s.command('a', command(goal, 'delegate_next', 'dispatch-' + task_id))['goal']
+        d = goal['tasks'][index]['delegation']
+        product = {'artifact_id': 'file_' + task_id, 'version': 1, 'sha256': 'a' * 64}
+        products.append(product)
+        goal = s.deliver('a', goal['goal_id'], d['delegation_id'],
+                         {'thread_id': 'thread_' + task_id, 'work_id': 'work_' + task_id},
+                         {'answer_ref': 'answer_' + task_id, 'products': [product], 'status': 'completed'})
+        goal = s.command('a', command(goal, 'verify_task', 'verify-' + task_id, task_id=task_id,
+            delivery_revision=1, checks=[{'name': 'saved product', 'passed': True}]))['goal']
+    assert goal['state'] == 'delivered' and goal['acceptance'] is None
+    with pytest.raises(Conflict):
+        s.command('a', command(goal, 'accept', 'wrong-products',
+            products=[{**products[0], 'version': True}, products[1]]), actor='user:alice')
+    accepted = s.command('a', command(goal, 'accept', 'accept', products=products), actor='user:alice')['goal']
+    assert accepted['state'] == 'accepted'
+    assert accepted['acceptance']['actor'] == 'user:alice'
+    assert accepted['acceptance']['products'] == products

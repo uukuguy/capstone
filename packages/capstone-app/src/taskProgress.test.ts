@@ -6,6 +6,17 @@ const snapshot = (revision: number, text: string) => ({ research_id: 'study', re
 const update = (seq: number, attempt: string, revision: number, text: string): EventEnvelope => ({ eventId: `evt_${seq}`, eventSeq: seq, eventType: 'research_state_updated', eventVersion: 1, threadId: 'thread', runId: 'run', attemptId: attempt, occurredAt: '2026-10-13T05:00:00Z', visibility: 'public', payload: { research_id: 'study', research_revision: revision, goal: '检查故障影响', current_note_ids: ['observation'], research_snapshot: snapshot(revision, text) } })
 
 describe('task progress from committed research', () => {
+  it('shows an admitted delegated original without treating it as current Authority evidence',()=>{
+    const event:EventEnvelope={...update(3,'current',1,''),eventType:'delegation_input_delivered',payload:{
+      schema:'capstone-delegation-input-delivery/1',receipt_id:'c'.repeat(64),thread_id:'thread',attempt_id:'current',task_id:'task_one',delegation_id:'delegation_one',
+      resource:{schema:'capstone-resource/1',resource_id:'resource_one',thread_id:'thread',version:1,file_name:'draft.txt',size_bytes:3,sha256:'b'.repeat(64)},
+      source:{thread_id:'source_thread',attempt_id:'old',artifact_id:'file_old',work_id:'source_work',file_name:'draft.txt',size_bytes:3,sha256:'b'.repeat(64)}}}
+    const progress=projectTaskProgress([event,event],'current')
+    expect(progress).toHaveLength(1)
+    expect(progress[0].text).toContain('委托输入已交付：draft.txt')
+    expect(progress[0].refs).toEqual([])
+    expect(projectTaskProgress([{...event,payload:{...event.payload,delegation_id:null}}],'current')).toEqual([])
+  })
   it('restores delivered historical inputs once without asserting analysis or derivation', () => {
     const event: EventEnvelope = {...update(2, 'current', 1, ''), eventType:'historical_input_delivered', payload:{
       schema:'capstone-historical-input-delivery/1', receipt_id:'a'.repeat(64), thread_id:'thread', attempt_id:'current', task_id:'task_one',

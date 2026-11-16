@@ -185,6 +185,8 @@ class ControlService:
         identity(command['operation_id'])
         identity(command['goal_id'])
         positive_integer(command['expected_revision'])
+        if not isinstance(command['kind'], str):
+            raise ContractError('Control command kind must be text')
         if not isinstance(command['payload'], dict):
             raise ContractError('command payload must be an object')
         digest = fingerprint([command, actor])

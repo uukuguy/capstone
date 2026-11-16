@@ -23,8 +23,16 @@ Latest product8ca05b19; Control bindingaac9d49f, Agent registry1d2fd693.
 Goal revision now revokes old delegations before replacing Tasks. Goal-mode
 pause/resume preserves binding and consumed Attempt budget; single mode retries
 use a new delegation generation and budget.37 focused PostgreSQL checks pass.
-Next assemble host/worker interfaces, existing App UI and real
-two-stage fresh-Thread acceptance. No StageB runtime is deployed or accepted.
+Host/API/native maintenance and existing-workspace Goal panel are now implemented.
+Focused gate178 backend/governance +61 App and types passed; progress projection10
+also passed. First real Goalgoal_d2cac0bb36baaec64a94a1c12f48f27b failed safely
+because single Work input was not frozen; phase2 remained pending. Evidence in
+root runs/control-delegation-20261117/first-failed-events.json. Fix8a89fdbf passed74
+PostgreSQL checks. Source26911c03 adds App;24fdc056 guards externally changed Work
+objectives. Candidate1 imagef4aec307 is diagnostic, not accepted. No StageB runtime
+is accepted or merged. Next canonical rebuild of fixed source, new bounded real
+two-stage goal (do not reset first goal budget), real controls/restart/acceptance,
+existing Vivaldi App check, review, focused CI and actualdev integration.
 Command: PYTHONPATH=packages/capstone-control/src uv run --project
 packages/capstone-agent pytest packages/capstone-control/tests -q.
 User authorized direct focused CI; no release scope. Preserve root data/auth,
