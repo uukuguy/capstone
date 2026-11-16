@@ -1,4 +1,5 @@
 from capstone_agent.goal_continuation import continuation_command
+from test_thread_postgres import postgres_thread_service
 
 
 def test_continuation_command_is_stable_and_version_bound():
@@ -61,3 +62,34 @@ def test_service_runs_two_attempts_without_another_user_instruction():
     goal = store.snapshot('thr_work_exec').works[0]['goal_mode']
     assert goal['state'] == 'completed'
     assert goal['attempts_admitted'] == 2
+
+
+def test_postgres_restart_and_concurrent_continuation(postgres_thread_service):
+    from concurrent.futures import ThreadPoolExecutor
+    from capstone_agent.thread_service import PostgresThreadService
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store, thread_id = postgres_thread_service
+    store.create_thread(professional_snapshot(thread_id))
+    work = save_work(store, thread_id)
+    assert store.submit_command(command(store, thread_id, 'start_goal', 'start',
+        work_id=work['work_id'], revision=work['revision'], payload={
+        'objective': 'Inspect model', 'max_attempts': 3,
+        'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
+    first = store.claim_attempt('worker', 30)
+    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Draft saved', 'next_instruction': 'Review draft',
+        'waiting_reason': None, 'product_refs': []}
+    store.finish_attempt(first, phase='completed', payload={'answer': 'Draft', 'goal_proposal': progress})
+    restarted = PostgresThreadService(store.dsn)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(drain_goal_continuations, [store, restarted]))
+    second = restarted.claim_attempt('worker_two', 30)
+    assert second is not None
+    assert restarted.claim_attempt('worker_three', 30) is None
+    assert 'Review draft' in second.instruction
+    restarted.finish_attempt(second, phase='completed', payload={'answer': 'Reviewed',
+        'goal_proposal': {**progress, 'disposition': 'complete', 'next_instruction': None}})
+    restored = PostgresThreadService(store.dsn).snapshot(thread_id)
+    assert restored.works[0]['goal_mode']['state'] == 'completed'
+    assert restored.works[0]['goal_mode']['attempts_admitted'] == 2
