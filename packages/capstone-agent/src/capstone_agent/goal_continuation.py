@@ -11,7 +11,10 @@ def drain_goal_continuations(service, limit: int = 32) -> int:
         for work in snapshot.works:
             command = continuation_command(thread_id, work)
             if command is not None:
-                receipt = service.submit_command(command)
+                submit = getattr(service, 'submit_goal_continuation', service.submit_command)
+                receipt = submit(command)
+                if receipt is None:
+                    continue
                 admitted += receipt.status == 'accepted'
                 break
     return admitted

@@ -766,7 +766,7 @@ def create_host_app(
                     else thread_service
                 )
                 scoped_gateway = None
-                if isinstance(kind, str) and kind in {'start_work', 'send_message', 'work_message', 'send_auto', 'send_ordinary', 'send_professional'}:
+                if isinstance(kind, str) and kind in {'start_work', 'send_message', 'work_message', 'send_auto', 'send_ordinary', 'send_professional', 'start_goal', 'resume_goal', 'continue_goal'}:
                     scoped_reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
                     if callable(scoped_reader) and hasattr(service, 'read_thread_gateway'):
                         saved = await run_in_threadpool(getattr(service, 'read_thread_gateway'), thread_id)

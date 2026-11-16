@@ -1227,6 +1227,18 @@ class NativeExecutionOwner(ThreadGatewayOwner):
     _material_objects = None
     _product_index_service = None
 
+    def submit_goal_continuation(self, command):
+        saved = self.read_thread_gateway(command['thread_id'])
+        reader = getattr(getattr(self, '_native_executor', None), 'thread_gateway_publication', None)
+        if callable(reader):
+            publication = reader(saved, refresh=True)
+            return self.submit_gateway_command(command, publication)
+        if saved and saved.get('instance_id'):
+            # A worker without this gateway adapter must not admit a stale or
+            # different instance. The native worker will drain the same intent.
+            return None
+        return self.submit_command(command)
+
     def set_product_index_service(self, service) -> None:
         if service is not None and service.threads is not self:
             raise ValueError('product index owner mismatch')
