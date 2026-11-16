@@ -7961,3 +7961,5 @@ check passed. No CI, integration or remote deployment performed.
 
 - 2026-11-17: Verified PR125 merged4f511d46, CI43909552457 success onedd782b6; actualdev canonical rebuild/readiness/same-image and5173 original-resource restoration passed. Finite final receipts in root runs/agent-goal-acceptance-20261116/closeout-receipt.json.
 - 2026-11-17: Started stageB Control delegation onfeat/control-delegation-20261117 from4f511d46 in the initialized worktree. Approved architecture retained; implementation plan written. Strict Goal/ordered-Task contract tests15 pass after initial missing-module failure. No runtime or deployment change.
+- 2026-11-17 05499217: Defined independent Control Goal/Task contracts and stageB delivery plan to preserve delegation ownership boundaries.
+- 2026-11-17: Control transactional lifecycle and independent PostgreSQL store passed23 focused checks, including eight concurrent dispatch replays, restart, rollback, workspace isolation and budget stop. Disposable database removed after validation. No real Agent binding or stageB runtime acceptance yet.
