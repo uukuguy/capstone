@@ -694,6 +694,8 @@ class HarnessAttemptRunner:
             return self._run(claim, lease)
 
     def _run(self, claim: AttemptClaim, lease: AttemptLeaseRenewal) -> HarnessAttemptResult:
+        from .goal_receipts import GoalProposalCapture
+        goal_progress = GoalProposalCapture()
         self._stages = ExecutionStages(preparation_seconds=preparation_seconds(claim.started_at))
         self._tools_observed = False
         self._result_refs.clear()
@@ -711,6 +713,8 @@ class HarnessAttemptRunner:
 
         def persist(event: Mapping[str, object]) -> None:
             lease.check()
+            if goal_progress.observe(event):
+                return
             self._persist_event(claim, event)
 
         def heartbeat() -> None:
@@ -870,6 +874,8 @@ class HarnessAttemptRunner:
             lease.check()
             terminal_commit_started = True
             terminal_payload['task_steps'] = self._stages.finish()
+            if goal_progress.proposal is not None:
+                terminal_payload['goal_proposal'] = goal_progress.proposal
             self._service.finish_attempt(
                 claim, phase="completed", payload=terminal_payload,
             )

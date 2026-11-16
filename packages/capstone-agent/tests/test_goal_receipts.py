@@ -65,6 +65,17 @@ def test_complete_is_only_a_proposal():
     assert parse_goal_proposal(value) == value
 
 
+def test_progress_channel_rejects_duplicate_proposals():
+    from capstone_agent.goal_receipts import GoalProposalCapture
+    capture = GoalProposalCapture()
+    assert capture.observe({'event_type': 'unrelated', 'payload': {}}) is False
+    event = {'event_type': 'goal_progress_proposed', 'payload': proposal()}
+    assert capture.observe(event) is True
+    assert capture.proposal == proposal()
+    with pytest.raises(ValueError):
+        capture.observe(event)
+
+
 @pytest.mark.parametrize('refs', [['x'] * 65, [1], 'artifact'])
 def test_product_references_are_bounded(refs):
     with pytest.raises(ValueError):

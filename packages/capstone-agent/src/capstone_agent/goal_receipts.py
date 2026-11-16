@@ -7,6 +7,25 @@ from dataclasses import replace
 from .goal_mode import parse_goal_mode
 
 
+class GoalProposalCapture:
+    """Capture one explicit progress proposal per Attempt."""
+
+    def __init__(self):
+        self._proposal = None
+
+    @property
+    def proposal(self):
+        return deepcopy(self._proposal)
+
+    def observe(self, event) -> bool:
+        if event.get('event_type') != 'goal_progress_proposed':
+            return False
+        if self._proposal is not None:
+            raise ValueError('duplicate goal progress proposal')
+        self._proposal = parse_goal_proposal(event.get('payload'))
+        return True
+
+
 def parse_goal_proposal(value: object) -> dict:
     fields = {'schema', 'disposition', 'summary', 'next_instruction', 'waiting_reason', 'product_refs'}
     if not isinstance(value, dict) or set(value) != fields:
