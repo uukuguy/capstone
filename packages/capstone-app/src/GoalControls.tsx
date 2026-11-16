@@ -1,5 +1,6 @@
 import {useState} from 'react'
 import type {GoalMode,GoalControl} from './goalMode'
+import './GoalControls.css'
 
 export default function GoalControls({goal,objective,disabled,onControl}:{goal?:GoalMode;
   objective:string;disabled:boolean;onControl:(kind:GoalControl,payload:Record<string,string|number>)=>void}){
@@ -7,8 +8,8 @@ export default function GoalControls({goal,objective,disabled,onControl}:{goal?:
   const [revised,setRevised]=useState(objective)
   const [deadline,setDeadline]=useState(()=>new Date(Date.now()+3600000).toISOString().slice(0,16))
   const states:Record<string,string>={ready:'等待执行',running:'执行中',waiting:'等待输入',paused:'已暂停',completed:'已完成',failed:'执行失败',cancelled:'已取消'}
-  const reasons:Record<string,string>={user_pause:'用户暂停',objective_revised:'目标已修改，请恢复执行',attempt_budget_exhausted:'已达到执行次数上限',deadline_elapsed:'已到截止时间',goal_receipt_missing:'缺少有效进度回执',attempt_interrupted:'执行中断，需要检查后恢复'}
-  return <section aria-label="持续目标">
+  const reasons:Record<string,string>={user_pause:'用户暂停',objective_revised:'目标已修改，请恢复执行',attempt_budget_exhausted:'已达到执行次数上限',deadline_elapsed:'已到截止时间',goal_receipt_missing:'缺少有效进度回执',attempt_interrupted:'执行中断，需要检查后恢复',attempt_failed:'本次执行失败，可检查已有成果后恢复',attempt_cancelled:'执行已停止'}
+  return <section className="goal-controls" aria-label="持续目标">
     {goal?<>
       <p role="status">持续目标：{states[goal.state]} · 已执行 {goal.attempts_admitted}/{goal.max_attempts} 次</p>
       <p>{goal.objective}</p>
