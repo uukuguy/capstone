@@ -1,0 +1,43 @@
+{
+  "schema": "capstone-development-gate/1",
+  "gate": "agent-goal",
+  "anchors": [
+    "packages/capstone-agent/src/capstone_agent/goal_mode.py",
+    "packages/capstone-agent/tests/test_goal_mode.py"
+  ],
+  "paths": [
+    ".github/workflows/verify.yml",
+    "configs/development/agent-goal-gate.json",
+    "docs/status/INDEX.md",
+    "docs/status/JOURNAL.md",
+    "docs/status/PROJECT-OVERVIEW.html",
+    "docs/status/RESUME-NEXT-SESSION.md",
+    "docs/status/VERSION-CONTROL.md",
+    "docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md",
+    "docs/superpowers/plans/2026-11-16-agent-goal-mode.md",
+    "docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md",
+    "docs/superpowers/specs/2026-11-16-capstone-control-design.md",
+    "packages/capstone-agent/src/capstone_agent/goal_continuation.py",
+    "packages/capstone-agent/src/capstone_agent/goal_mode.py",
+    "packages/capstone-agent/src/capstone_agent/goal_receipts.py",
+    "packages/capstone-agent/src/capstone_agent/harness.py",
+    "packages/capstone-agent/src/capstone_agent/host_api.py",
+    "packages/capstone-agent/src/capstone_agent/thread_service.py",
+    "packages/capstone-agent/src/capstone_agent/thread_work.py",
+    "packages/capstone-agent/src/capstone_agent/thread_worker.py",
+    "packages/capstone-agent/tests/test_goal_continuation.py",
+    "packages/capstone-agent/tests/test_goal_mode.py",
+    "packages/capstone-agent/tests/test_goal_receipts.py",
+    "packages/capstone-app/src/GoalControls.test.tsx",
+    "packages/capstone-app/src/GoalControls.tsx",
+    "packages/capstone-app/src/ThreadCommandMenu.tsx",
+    "packages/capstone-app/src/ThreadWorkAdapter.tsx",
+    "packages/capstone-app/src/ThreadWorkExecution.test.tsx",
+    "packages/capstone-app/src/goalMode.test.ts",
+    "packages/capstone-app/src/goalMode.ts",
+    "packages/capstone-app/src/threadWorkProtocol.ts",
+    "tools/ci_scope.py",
+    "tools/test_agent_goal.sh",
+    "tools/tests/test_ci_agent_goal.py"
+  ]
+}
