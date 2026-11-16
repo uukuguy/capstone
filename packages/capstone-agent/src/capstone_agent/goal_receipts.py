@@ -37,6 +37,14 @@ def goal_response_instruction(instruction: str) -> str:
         'Do not add markdown fences or execution identity fields.')
 
 
+def prompt_goal_runtime(runtime, instruction, *, on_event, correlation_id, on_heartbeat):
+    response = runtime.prompt(goal_response_instruction(instruction), on_event=on_event,
+        correlation_id=correlation_id, on_heartbeat=on_heartbeat)
+    answer, progress = decode_goal_response(response)
+    on_event({'event_type': 'goal_progress_proposed', 'payload': progress})
+    return answer
+
+
 class GoalProposalCapture:
     """Capture one explicit progress proposal per Attempt."""
 

@@ -743,7 +743,17 @@ class HarnessAttemptRunner:
             lease.check()
             self._renew_lease(claim)
             self._stages.mark_execution_entry()
-            answer = self._runtime.prompt(
+            goal_mode = False
+            if claim.task_context is not None:
+                work = next((item for item in self._service.snapshot(claim.thread_id).works
+                    if item['work_id'] == claim.task_context.binding.work_id), None)
+                goal_mode = work is not None and 'goal_mode' in work
+            prompt = self._runtime.prompt
+            if goal_mode:
+                from functools import partial
+                from .goal_receipts import prompt_goal_runtime
+                prompt = partial(prompt_goal_runtime, self._runtime)
+            answer = prompt(
                 claim.instruction,
                 correlation_id=claim.attempt.attempt_id,
                 on_event=persist,

@@ -87,6 +87,20 @@ def test_goal_response_envelope_preserves_answer_and_checks_proposal():
         decode_goal_response('I completed everything')
 
 
+def test_goal_runtime_adapter_returns_delivery_and_emits_progress():
+    import json
+    from capstone_agent.goal_receipts import prompt_goal_runtime
+    events = []
+    class Runtime:
+        def prompt(self, instruction, **kwargs):
+            assert 'capstone-goal-response/1' in instruction
+            return json.dumps({'schema': 'capstone-goal-response/1',
+                'answer': 'Saved draft', 'progress': proposal()})
+    assert prompt_goal_runtime(Runtime(), 'Write report', on_event=events.append,
+                               correlation_id='attempt_one', on_heartbeat=None) == 'Saved draft'
+    assert events == [{'event_type': 'goal_progress_proposed', 'payload': proposal()}]
+
+
 @pytest.mark.parametrize('refs', [['x'] * 65, [1], 'artifact'])
 def test_product_references_are_bounded(refs):
     with pytest.raises(ValueError):
