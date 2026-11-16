@@ -1208,9 +1208,10 @@ def _work_send_input(snapshot, parsed, provider, capability_catalog):
     if parsed['kind'] == 'start_work':
         from .thread_work import work_instruction
         work = next((item for item in snapshot.works if item['work_id'] == parsed['target']['id']), None)
-        if work is not None and work.get('context_product_refs'):
+        if work is not None and (work.get('context_product_refs') or snapshot.active_model_context is None):
             parsed = {**parsed, 'kind':'send_message', 'payload':{
-                'text':work_instruction(work), 'context_product_refs':work['context_product_refs']}}
+                'text':work_instruction(work),
+                **({'context_product_refs':work['context_product_refs']} if work.get('context_product_refs') else {})}}
     if parsed['kind'] != 'send_message':
         return snapshot, None, None
     message = {**parsed, 'kind': 'send_auto', 'payload': {**parsed['payload'],

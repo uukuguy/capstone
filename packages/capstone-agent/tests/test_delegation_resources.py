@@ -54,6 +54,7 @@ def test_fresh_thread_admits_original_bytes_without_copying_file_into_goal(postg
         assert binding['thread_id'] != source_thread
         following = service.claim_attempt('next-worker', 60)
         assert following.thread_id == binding['thread_id']
+        assert following.submission['input']['text'].startswith(d['objective'])
         manifest, = following.submission['_resource_manifests']
         assert manifest['thread_id'] == following.thread_id
         assert manifest['sha256'] == source['sha256']
