@@ -252,7 +252,8 @@ def test_terminal_goal_proposal_is_saved_with_work_state(goal):
     assert ThreadSnapshot.from_document(updated.to_document()) == updated
 
 
-def test_service_terminal_commits_continuation_with_attempt(goal):
+@pytest.mark.parametrize('with_product', [False, True])
+def test_service_terminal_commits_continuation_with_attempt(goal, with_product):
     from test_thread_work_execution import professional_snapshot, save_work, command
     store = InMemoryThreadService(professional_snapshot())
     work = save_work(store, 'thr_work_exec')
@@ -265,6 +266,10 @@ def test_service_terminal_commits_continuation_with_attempt(goal):
     progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
         'summary': 'Draft ready', 'next_instruction': 'Review draft',
         'waiting_reason': None, 'product_refs': []}
+    if with_product:
+        store.append_runtime_event(claim, event_type='native_artifact_published', payload={
+            'artifact': {'artifact_id': 'artifact_draft', 'file_name': 'draft.md'}}, visibility='public')
+        progress['product_refs'] = ['draft.md']
     restored = store.finish_attempt(claim, phase='completed',
         payload={'answer': 'Draft ready', 'goal_proposal': progress})
     assert restored.current_attempt is None
