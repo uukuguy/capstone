@@ -315,7 +315,8 @@ def serve_thread_attempts(
             service.interrupt_expired_attempts()
             if callable(getattr(service, 'goal_continuation_candidates', None)):
                 from .goal_continuation import drain_goal_continuations
-                drain_goal_continuations(service)
+                if drain_goal_continuations(service) and wake_event is not None:
+                    wake_event.set()
 
     def reconcile_recovery() -> None:
         reap_recovery()
