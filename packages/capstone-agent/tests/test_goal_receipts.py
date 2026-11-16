@@ -76,6 +76,17 @@ def test_progress_channel_rejects_duplicate_proposals():
         capture.observe(event)
 
 
+def test_goal_response_envelope_preserves_answer_and_checks_proposal():
+    import json
+    from capstone_agent.goal_receipts import decode_goal_response
+    answer, progress = decode_goal_response(json.dumps({'schema': 'capstone-goal-response/1',
+        'answer': 'Saved draft', 'progress': proposal()}))
+    assert answer == 'Saved draft'
+    assert progress == proposal()
+    with pytest.raises(ValueError):
+        decode_goal_response('I completed everything')
+
+
 @pytest.mark.parametrize('refs', [['x'] * 65, [1], 'artifact'])
 def test_product_references_are_bounded(refs):
     with pytest.raises(ValueError):

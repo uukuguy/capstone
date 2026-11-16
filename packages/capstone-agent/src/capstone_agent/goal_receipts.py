@@ -3,8 +3,38 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from datetime import timezone
 from dataclasses import replace
+import json
 
 from .goal_mode import parse_goal_mode
+
+
+def decode_goal_response(text: str) -> tuple[str, dict]:
+    """Decode the explicit goal-only response protocol, never ordinary prose."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate goal response field')
+            result[key] = value
+        return result
+    value = json.loads(text, object_pairs_hook=unique_object)
+    if (not isinstance(value, dict) or set(value) != {'schema', 'answer', 'progress'}
+            or value['schema'] != 'capstone-goal-response/1'
+            or not isinstance(value['answer'], str) or not value['answer'].strip()):
+        raise ValueError('invalid goal response envelope')
+    return value['answer'], parse_goal_proposal(value['progress'])
+
+
+def goal_response_instruction(instruction: str) -> str:
+    return (instruction + '\n\nGoal mode response contract: return exactly one JSON object with '
+        'schema="capstone-goal-response/1", answer (your reader-facing delivery), and progress. '
+        'progress has schema="capstone-work-goal-proposal/1", disposition '
+        '(continue, wait, complete), summary, next_instruction (nonempty only for continue; '
+        'otherwise null), waiting_reason (nonempty only for wait; otherwise null), '
+        'product_refs (array of saved product references; use [] when no references are needed). '
+        'Use continue when more useful work remains, wait when input is missing, and complete '
+        'only when the objective has been delivered. Save useful products before responding. '
+        'Do not add markdown fences or execution identity fields.')
 
 
 class GoalProposalCapture:
