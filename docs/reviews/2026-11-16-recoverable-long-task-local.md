@@ -180,6 +180,32 @@ in25.97seconds. This small quota correction is not yet in the running image.
 
 ## Remaining whole-capability acceptance
 
+## Receipt-only recovery after executor state loss
+
+The new private recovery operation requires an existing durable acceptance
+receipt and exact request hash. It cannot admit or schedule a task. Saved
+terminal results are reused unchanged; a missing completion becomes an explicit
+native_execution_outcome_unknown result. Missing acceptance fails closed.
+The transport uses this operation after a selected, capable executor returns
+404 for an already admitted task; it does not resubmit the task. Receipt
+recovery does not invent a replacement event cursor or replay old events.
+
+An expired retention tombstone remains a tombstone; recovery does not persist
+the old request body again. Cleanup-unconfirmed results keep their execution
+capacity reservation and are excluded from normal eviction and active-task
+retention sweeps. They also block mutable executor policy changes. This is a
+conservative hold until physical cleanup is established, not proof of a stop.
+
+Red-first tests cover missing and conflicting receipts, completed and unknown
+outcomes, live-task rejection, authenticated HTTP identity/budget checks,
+retention tombstones, no readmission and retained uncertain-cleanup capacity.
+The focused transport/server/owned-execution/failure/continuation checks passed
+279 with32 existing conditional skips in31.72seconds. Real executor restart
+acceptance still requires a rebuilt candidate; no real unknown outcome is
+claimed from these fixtures.
+
+## Remaining whole-capability acceptance
+
 Pending: actual executor restart, ambiguous admission/completion, safe
 uncertain-effect handling and long-context/resource bounds.
 Worker-loss stopping, exact historical continuation and conversation refresh

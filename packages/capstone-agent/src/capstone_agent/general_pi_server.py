@@ -176,6 +176,13 @@ def _electrical_view_from_verified_result(result, arguments):
         return None
 
 
+def _execution_reserved(item: dict) -> bool:
+    if item['status'] in {'queued', 'running'}:
+        return True
+    failure = (item.get('result') or {}).get('failure') or {}
+    return failure.get('code') == 'native_process_cleanup_unconfirmed'
+
+
 class GeneralPiHost:
     def __init__(self, *, root: Path, identity: dict, run_task: Callable,
                  max_tasks: int | None = None, max_records: int | None = None, retention_seconds: float | None = None,
@@ -189,6 +196,7 @@ class GeneralPiHost:
             'executor_identity': self.identity}
         self.capability['native_context_schemas'] = ['capstone-native-context/1']
         self.capability['execution_authority_schemas'] = ['capstone-execution-authority/1']
+        self.capability['task_recovery_schemas'] = ['capstone-pi-task-recovery/1']
         self.capability['research_bridge_schemas'] = ['capstone-research-bridge/1']
         self.capability['research_graph_schemas'] = ['capstone-enterprise-graph/2']
         self.capability['delivery_review_schemas'] = ['capstone-delivery-review/1']
@@ -351,18 +359,11 @@ class GeneralPiHost:
             if saved is not None:
                 if saved['request_hash'] != request_hash(request.to_document()):
                     raise ValueError('General Pi task identity conflict')
-                if saved['result'] is None:
-                    saved['result'] = {'schema': 'capstone-pi-task-result/1',
-                        'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
-                        'executor_identity': self.identity, 'status': 'failed',
-                        'answer': ('Result retention expired; task was not repeated.' if saved.get('expired')
-                                   else 'Previous execution outcome is unknown; the task was not repeated.'),
-                        'sources': [], 'artifacts': self.storage.captured_artifacts(request.task_id), 'usage': {}}
-                result = PiTaskResult.from_document(saved['result'], request)
+                result = self._receipt_result(request, saved)
                 self._tasks[request.task_id] = {'request': request, 'status': result.status,
                     'events': [], 'result': result.to_document(), 'cancel': threading.Event()}
                 return
-            active_count = sum(item['status'] in {'queued', 'running'} for item in self._tasks.values())
+            active_count = sum(_execution_reserved(item) for item in self._tasks.values())
             if active_count >= self._max_tasks:
                 raise CapacityExceeded('native_task_count', active_count + 1, self._max_tasks,
                                        'native_task_admission', mode=current_capacity().mode)
@@ -382,6 +383,36 @@ class GeneralPiHost:
 
     def _save(self, request: PiTaskRequest, result: dict | None) -> None:
         self.storage.save(request.to_document(), result)
+
+    def _receipt_result(self, request: PiTaskRequest, saved: dict) -> PiTaskResult:
+        document = saved['result']
+        if document is None:
+            expired = saved.get('expired') is True
+            document = {'schema': 'capstone-pi-task-result/2',
+                'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
+                'executor_identity': dict(request.executor_identity), 'status': 'failed',
+                'answer': ('Result retention expired; task was not repeated.' if expired
+                           else 'Previous execution outcome is unknown; the task was not repeated.'),
+                'sources': [], 'artifacts': self.storage.captured_artifacts(request.task_id), 'usage': {},
+                'failure': {'code': 'native_result_retention_expired' if expired else
+                            'native_execution_outcome_unknown', 'phase': 'execution'}}
+        return PiTaskResult.from_document(document, request)
+
+    def recover(self, request: PiTaskRequest) -> dict:
+        """Return an existing receipt only; this method cannot start execution."""
+        with self._lock:
+            current = self._tasks.get(request.task_id)
+            if current is not None and current['status'] in {'queued', 'running'}:
+                raise PermissionError('task execution is still active')
+            saved = self.storage.load(request.task_id)
+            if saved is None:
+                raise KeyError(request.task_id)
+            if saved['request_hash'] != request_hash(request.to_document()):
+                raise ValueError('General Pi task identity conflict')
+            result = self._receipt_result(request, saved).to_document()
+            if saved['result'] is None and not saved.get('expired'):
+                self._save(request, result)
+            return result
 
     def verify_gateway_observation(self, request, call_id, name, result, *, include_arguments=False):
         gateway = getattr(self._run, 'task_gateways', {}).get(request.task_id, getattr(self._run, 'gateway', None))
@@ -406,7 +437,7 @@ class GeneralPiHost:
     def _make_room(self):
         if len(self._tasks) >= self._max_records:
             completed = next((key for key, item in self._tasks.items()
-                              if item['status'] not in {'queued', 'running'}), None)
+                              if not _execution_reserved(item)), None)
             if completed is None:
                 raise CapacityExceeded('native_record_count', len(self._tasks) + 1, self._max_records,
                                        'native_record_admission', mode=current_capacity().mode)
@@ -415,7 +446,7 @@ class GeneralPiHost:
 
     def sweep(self):
         with self._lock:
-            active = {key for key, item in self._tasks.items() if item['status'] in {'queued', 'running'}}
+            active = {key for key, item in self._tasks.items() if _execution_reserved(item)}
             self.resource_staging.sweep(active)
             for task_id in self.storage.sweep(active):
                 shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
@@ -1793,7 +1824,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             with host._lock:
                 access = registry.current_access
                 if (access is not None and access is not getattr(target, 'gateway', None)
-                        and not any(item['status'] in {'queued', 'running'} for item in host._tasks.values())):
+                        and not any(_execution_reserved(item) for item in host._tasks.values())):
                     apply_gateway_access(target, access)
             return registry.snapshot()
         if action == 'select':
@@ -1802,12 +1833,12 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             with host._lock:
                 if registry.snapshot().get('selected_id') == document['id'] and registry.current_access is not None:
                     return registry.snapshot()
-                if any(item['status'] in {'queued', 'running'} for item in host._tasks.values()):
+                if any(_execution_reserved(item) for item in host._tasks.values()):
                     raise GatewayError('gateway_connections_busy')
             @contextmanager
             def commit_guard():
                 with host._lock:
-                    if any(item['status'] in {'queued', 'running'} for item in host._tasks.values()):
+                    if any(_execution_reserved(item) for item in host._tasks.values()):
                         raise GatewayError('gateway_connections_busy')
                     yield
                     apply_gateway_access(target, registry.current_access)
@@ -1948,9 +1979,27 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         raise ValueError('execution authority exceeds bounds')
                     try:
                         host.renew_execution(parts[2], json.loads(self.rfile.read(length)))
-                    except PermissionError:
+                    except (PermissionError, KeyError):
                         return self.send_json(409, {'error': 'execution_authority_rejected'})
                     return self.send_json(200, {'renewed': True})
+                if len(parts) == 4 and parts[1] == 'tasks' and parts[3] == 'recover':
+                    if not 0 < length <= limits.native_task_bytes + 1024:
+                        raise ValueError('recovery document exceeds bounds')
+                    document = json.loads(self.rfile.read(length))
+                    if not isinstance(document, dict) or set(document) != {'request'}:
+                        raise ValueError('invalid recovery document')
+                    if len(json.dumps(document['request'], ensure_ascii=False).encode('utf-8')) > limits.native_task_bytes:
+                        raise ValueError('task document exceeds bounds')
+                    request = PiTaskRequest.from_document(document['request'])
+                    if request.task_id != parts[2]:
+                        raise ValueError('task identity conflict')
+                    try:
+                        result = host.recover(request)
+                    except KeyError:
+                        return self.send_json(404, {'error': 'task_receipt_missing'})
+                    except PermissionError:
+                        return self.send_json(409, {'error': 'task_still_active'})
+                    return self.send_json(200, {'task_id': request.task_id, 'result': result})
                 if self.path == '/managed-resources':
                     from .managed_resource_dispatch import dispatch_resource_request
                     if not 0 < length <= limits.control_document_bytes:

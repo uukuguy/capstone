@@ -953,10 +953,30 @@ class HttpGeneralPiExecutor:
             event_cursor = 0
             while True:
                 checkpoint()
-                response = exchange("GET", "/tasks/" + request.task_id + '?after=' + str(event_cursor), operation='task_status',
+                try:
+                    response = exchange("GET", "/tasks/" + request.task_id + '?after=' + str(event_cursor), operation='task_status',
                                       # Scheduling and receipt I/O can exceed one poll interval.
                                       # User cancellation remains checked every 25 ms in _call.
-                                      timeout=self._exchange_timeout)
+                                          timeout=self._exchange_timeout)
+                except PiHTTPFailure as error:
+                    if (error.diagnostic['http_status'] != 404 or 'capstone-pi-task-recovery/1'
+                            not in self.capability.get('task_recovery_schemas', ())):
+                        raise
+                    try:
+                        recovered = exchange('POST', '/tasks/' + request.task_id + '/recover',
+                            operation='task_recovery', document={'request': request.to_document()},
+                            timeout=self._exchange_timeout)
+                    except PiHTTPFailure as recovery_error:
+                        if recovery_error.diagnostic['http_status'] == 404:
+                            raise RuntimeError('Pi execution outcome unknown; task was not repeated') from None
+                        raise
+                    if (not isinstance(recovered, dict) or set(recovered) != {'task_id', 'result'}
+                            or recovered['task_id'] != request.task_id):
+                        raise ValueError('Pi recovery receipt identity is invalid')
+                    result = PiTaskResult.from_document(recovered['result'], request)
+                    checkpoint()
+                    complete = True
+                    return result
                 checkpoint()
                 paged = 'event_cursor' in response
                 requested_resources = response.pop('resource_requests', [])

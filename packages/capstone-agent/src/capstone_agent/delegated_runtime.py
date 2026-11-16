@@ -30,6 +30,7 @@ def child_failure_code(error: BaseException) -> str:
     if isinstance(error, PiHTTPFailure):
         return 'native_executor_http_rejected'
     known = {
+        'Pi execution outcome unknown; task was not repeated': 'native_execution_outcome_unknown',
         'Pi native process cleanup unconfirmed; task state is unknown': 'native_process_cleanup_unconfirmed',
         'Pi transport deadline expired; task state is unknown': 'native_transport_timeout',
         'Pi executor transport failed; task state may be unknown': 'native_transport_failed',

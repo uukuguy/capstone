@@ -14,6 +14,91 @@ def grant():
             'capability': 'b' * 64}
 
 
+def test_receipt_recovery_never_admits_missing_or_unknown_work(tmp_path):
+    host = GeneralPiHost(root=tmp_path, identity={'engine':'pi'},
+        run_task=lambda *_:pytest.fail('receipt recovery started execution'))
+    request = PiTaskRequest('recover', 'a', 'delegated', 'Work', (), (), host.identity, 3)
+    with pytest.raises(KeyError):
+        host.recover(request)
+    assert host.storage.load(request.task_id) is None
+    host.storage.save(request.to_document(), None)
+    result = host.recover(request)
+    assert result['status']=='failed'
+    assert result['failure']['code']=='native_execution_outcome_unknown'
+    assert host.recover(request)==result
+    assert not host._tasks
+    changed = PiTaskRequest('recover', 'a', 'delegated', 'Changed', (), (), host.identity, 3)
+    with pytest.raises(ValueError):
+        host.recover(changed)
+
+
+def test_receipt_recovery_reuses_actual_completed_result_after_host_restart(tmp_path):
+    called=[]
+    def run(*_):
+        called.append(True)
+        return 'Saved answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine':'pi'}, run_task=run)
+    request = PiTaskRequest('completed', 'a', 'delegated', 'Work', (), (), host.identity, 3)
+    host.submit(request)
+    deadline=time.monotonic()+2
+    while host.read(request.task_id)['status']=='running' and time.monotonic()<deadline:time.sleep(.005)
+    result=host.read(request.task_id)['result']
+    restarted=GeneralPiHost(root=tmp_path,identity=host.identity,
+        run_task=lambda *_:pytest.fail('repeated work'))
+    assert restarted.recover(request)==result
+    assert called==[True]
+
+
+def test_receipt_recovery_cannot_terminalize_a_live_task(tmp_path):
+    release=Event()
+    host=GeneralPiHost(root=tmp_path, identity={'engine':'pi'},
+        run_task=lambda *_:(release.wait(2) and 'Done', {}))
+    request=PiTaskRequest('live', 'a', 'delegated', 'Work', (), (), host.identity,3)
+    try:
+        host.submit(request)
+        with pytest.raises(PermissionError):host.recover(request)
+        assert host.read(request.task_id)['status']=='running'
+    finally:release.set()
+
+
+def test_receipt_recovery_does_not_rehydrate_an_expired_tombstone(tmp_path):
+    import json
+    host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=lambda *_:pytest.fail('repeated'))
+    request=PiTaskRequest('expired', 'a', 'delegated', 'Work', (), (), host.identity,3)
+    host.storage.save(request.to_document(),None)
+    tombstone={**host.storage.load(request.task_id),'expired':True}
+    tombstone.pop('request')
+    host.storage._write(host.storage.root/'records'/f'{request.task_id}.json',json.dumps(tombstone).encode())
+    assert host.recover(request)['failure']['code']=='native_result_retention_expired'
+    assert host.storage.load(request.task_id)==tombstone
+
+
+def test_receipt_recovery_http_is_authenticated_exact_and_cannot_admit(tmp_path):
+    import httpx
+    from capstone_agent.general_pi_server import make_server
+    host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=lambda *_:pytest.fail('repeated'))
+    request=PiTaskRequest('recover-http','a','delegated','Work',(),(),host.identity,3)
+    host.storage.save(request.to_document(),None)
+    server=make_server(host,control_token='test-control',address=('127.0.0.1',0))
+    thread=Thread(target=server.serve_forever,daemon=True);thread.start()
+    try:
+        origin=f'http://127.0.0.1:{server.server_port}'
+        body={'request':request.to_document()}
+        url=origin+'/tasks/recover-http/recover'
+        assert httpx.post(url,json=body).status_code==401
+        headers={'Authorization':'Bearer test-control'}
+        result=httpx.post(url,headers=headers,json=body)
+        assert result.status_code==200
+        assert result.json()['result']['failure']['code']=='native_execution_outcome_unknown'
+        assert httpx.post(origin+'/tasks/other/recover',headers=headers,json=body).status_code==400
+        missing={**request.to_document(),'task_id':'missing'}
+        assert httpx.post(origin+'/tasks/missing/recover',headers=headers,json={'request':missing}).status_code==404
+        assert httpx.post(origin+'/tasks/missing/authority',headers=headers,json={**grant(),'sequence':1}).status_code==409
+        assert host.storage.load('missing') is None
+        assert not host._tasks
+    finally:server.shutdown();server.server_close();thread.join(2)
+
+
 def test_owned_admission_keeps_task_budget_separate_from_authority_envelope(tmp_path, monkeypatch):
     import json
     import httpx
@@ -111,12 +196,14 @@ def test_unconfirmed_process_cleanup_stays_failed_even_after_cancellation(tmp_pa
     monkeypatch.setattr(module, '_kill_task_process', lambda *_:None)
     monkeypatch.setattr(module, '_live_task_processes', lambda uid:[12346])
     def run(request, cancelled, emit):
+        if request.task_id!='cleanup-failed':
+            return 'Done', {}
         entered.set()
         while not cancelled():
             time.sleep(.002)
         process._stop_process()
         return 'Stopped', {}
-    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run, max_tasks=1)
     request = PiTaskRequest('cleanup-failed', 'a', 'delegated', 'Work', (), (), host.identity, 3)
     host.submit(request, execution_authority=grant())
     assert entered.wait(1)
@@ -129,6 +216,17 @@ def test_unconfirmed_process_cleanup_stays_failed_even_after_cancellation(tmp_pa
     assert result['result']['status']=='failed'
     assert result['result']['failure']['code']=='native_process_cleanup_unconfirmed'
     assert process.process is not None
+    from capstone_agent.application_capacity import CapacityExceeded
+    with pytest.raises(CapacityExceeded):
+        host.submit(PiTaskRequest('next','b','delegated','Work',(),(),host.identity,3))
+    host._max_records=1
+    with pytest.raises(CapacityExceeded):
+        host._make_room()
+    host.storage.retention=.00001
+    time.sleep(.001)
+    host.sweep()
+    assert host.storage.load(request.task_id) is not None
+    assert request.task_id in host._tasks
 
 
 @pytest.mark.parametrize('outcome', ['complete', 'guard_lost', 'lost_ack'])
