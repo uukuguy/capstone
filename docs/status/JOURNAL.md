@@ -7835,3 +7835,5 @@ check passed. No CI, integration or remote deployment performed.
 - Current local source44fc1293/imagea30d9662 is recorded in the control graph and exact-source manifests. Doc links, relative symlink, diff checks and doctor passed. Latest graph visual review remains pending; no alignment/integration completion claimed.
 
 - 27e6ed1b: Checkpointed four real fault trials and control records to preserve the verified recovery boundary.
+
+- 40ddb637: Pinned native cleanup and allowed terminal receipt reads;477 focused checks passed to guard isolation and recovery.

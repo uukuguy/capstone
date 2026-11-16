@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    recovery_manifest = Path(__file__).resolve().parents[1] / 'configs/development/recoverable-tasks-gate.json'
+    if recovery_manifest.is_file():
+        recovery = json.loads(recovery_manifest.read_text())
+        if set(recovery['anchors']).issubset(paths) and all(
+                path in recovery['paths'] or _control_path(path) for path in paths):
+            return 'recoverable-tasks'
     interruption_manifest = Path(__file__).resolve().parents[1] / 'configs/development/worker-interruption-gate.json'
     if interruption_manifest.is_file():
         interruption = json.loads(interruption_manifest.read_text())
