@@ -47,8 +47,6 @@ as root with a task-specific unprivileged UID, matching native-runner ownership.
 Receipts/scripts: ignored worktree runs/recoverable-long-task-20261116/,
 linux-process-guard.py and linux-process-guard.json.
 
-## Remaining acceptance
-
 ## First real worker-loss trial on candidate bd1a16bc
 
 Canonical root rebuild passed with seven exact candidate runtime files over
@@ -87,11 +85,52 @@ bounded recovery reads. The worker/recovery/wake direct consumers passed52
 cases in11.48seconds. This fix still needs a rebuilt real trial without any
 snapshot read before ledger interruption.
 
+## Real idle recovery on candidate f577d6f0
+
+Canonical rebuild passed: API/three workers healthy on image
+ee17536f0f4d4c2e57fb613deab39358090b781d5685d92a306328ee1658de64;
+scoped cache maintenance completed. Root source-identity-f577d6f0.json records
+eight exact runtime file hashes over dev44abf3c5.
+
+Fresh Thread thr_0c133e3268461ada7008 saved its draft and entered the long tool.
+A sole-active-task guard preceded SIGKILL/restart of the native worker. Without
+post-kill public Thread access, attempt_859507ad904891e7 became interrupted;
+the original RAM-only claim failed renewal, event insertion and completion.
+Fence observations completed26.461seconds after the kill. API access logs
+confirm no request for this Thread before interruption. Native task
+pi-e4599abf5e204650dfef56d4d30e5467e1950c1b4dcd52199a4a5f3699622e56
+automatically becamecancelled at29.083seconds after its observer started near
+the kill. The original task UID had no remaining processes. No manual task
+cancellation or cleanup was used.
+
+Distinct attempt_a1f05d07cc875172 read the actual admitted historical draft and
+completed recovery-check.md. Draft143bytes hash
+a39ef299657b65a62a3d502a76a87dbc519007dad86a4dc93141f30d2ffb9f3d;
+report2340bytes hash
+79e75cc8d85c757f9435ca65fbb2e0c1e71d6ca5a2c26de32262bdb27d41471b.
+Initial capture, incomplete seal and independently downloaded draft agree in
+artifact identity, size and hash. The delivery receipt and report bind that
+source. No late final.md was admitted. The probe initially assumed28bytes from
+an earlier model response; this fixture assumption was corrected to compare
+the actual original descriptor. It caused no task resubmission or runtime fix.
+
+Receipts/scripts: root ignored
+runs/recoverable-long-task-idle-recovery-20261116/, including no-snapshot-before-
+interruption.json, fence-result.jsonl, native-stop-result.json, before/after
+processes, download-verification.json and fixture-correction.json.
+
+The existing Vivaldi Capstone tab loaded the accepted enterprise workspace
+route and restored both instructions, interruption and recovery report. Reload
+retained the selected draft preview with its“结束时未完成”status and the
+completed recovery report. Screenshot and tree were inspected in
+root runs/recoverable-long-task-20261116/browser-refreshed.json. The
+plain professional route correctly rejected the enterprise Thread; no UI
+protocol change or new tab was needed.
+
 ## Remaining whole-capability acceptance
 
-The idle recovery correction needs canonical rebuild and real validation. Also
-pending: actual executor/API restart, ambiguous admission/completion, short
-transport loss, safe uncertain-effect handling, exact historical continuation,
-long-context/resource bounds and existing conversation restoration. The
-isolated process result does not close any of those requirements. No new CI,
+Pending: actual executor/API restart, ambiguous admission/completion, short
+transport loss, safe uncertain-effect handling and long-context/resource bounds.
+Worker-loss stopping, exact historical continuation and conversation refresh
+now have real evidence, but do not close the other criteria. No new CI,
 cloud or demo deployment was started. Full goal stays active.

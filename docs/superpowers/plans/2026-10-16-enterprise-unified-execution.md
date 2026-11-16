@@ -10,11 +10,14 @@ feat/recoverable-long-tasks-20261116 targets dev in the initialized
 historical-input-receipts worktree. [Implementation plan](2026-11-16-recoverable-long-tasks.md).
 PR120 is merged as44abf3c5 after approved macOS CI43806396571 passed116seconds.
 It closes captured-file recovery only. Native termination, restart reconciliation
-and whole long-task acceptance remain open. State machine70beeab3 has11 passing
-tests. Protected admission/HTTP renewal, executor expiry and conservative host
-lease deadlines are under local verification; no real orphan-stop acceptance yet.
-Next: verify blocked-output cleanup and real process/worker failure, then complete
-durable recovery selection and whole-task acceptance. No new CI approval exists.
+and whole long-task acceptance remain open. State machine70beeab3, HTTP renewal6abb3aa9, blocked-output guardbd1a16bc and
+idle reaperf577d6f0 have focused local evidence. Real worker SIGKILL now produces
+automatic native stop, idle ledger interruption and stale-write rejection without
+public Thread reads. Distinct continuation read143 original bytes and delivered
+a verified2340-byte report; Vivaldi refresh preserved incomplete draft and report.
+Next: executor/API restart, transient transport and uncertain-effect acceptance;
+check cleanup confirmation and bounded context. Full capability remains active.
+No new CI approval exists. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
 
 ## Worker interruption product recovery — active, 2026-11-15
 

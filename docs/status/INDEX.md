@@ -976,3 +976,9 @@ default and explicit selections, plus two real default-model checks.
 
 2026-11-14：PPT最终运行ddc3df02，规范重建、86项渲染检查、真实四轮与47条下载摘要通过；
 [回执](../reports/receipts/2026-11-14-presentation-integration.json)。引用研究已归档；待单独获批CI和dev PR。
+
+2026-11-16: PR120 merged as `44abf3c5`; approved macOS CI `43806396571` passed in 116 seconds. Native automatic stop remains open.
+
+Active recoverable long-task branch `feat/recoverable-long-tasks-20261116` at `6abb3aa9`; 288 focused checks passed, whole-capability real acceptance pending.
+
+Recoverable execution candidate `f577d6f0`: real automatic native stop and idle ledger recovery passed; exact143-byte continuation/2340-byte report verified. Full restart/uncertain-result acceptance pending.
