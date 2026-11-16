@@ -1041,15 +1041,24 @@ def test_business_clarification_does_not_prepare_domain_or_invent_partial_succes
 
 def test_executor_failure_has_child_terminal_receipt_and_preserves_cancel_failure_cause(caplog):
     service, current = claim()
+    actions = []
     class Broken(Executor):
         def execute(self, request, control, on_event):
+            actions.append(request.task_id)
+            on_event({'type': 'tool_execution_start', 'tool_name': 'bash',
+                      'tool_call_id': 'unsettled-action'})
             raise RuntimeError('host lost')
         def cancel(self, task_id):
             raise RuntimeError('cancel unknown')
     result = run(service, current, factory(Broken(), Recognizer([goal('one')])))
     assert result.status == 'completed'
     events = service.read_events(current.thread_id, 0).events
-    assert any(e.payload.get('child_status') == 'failed' for e in events)
+    failed = next(e.payload for e in events if e.payload.get('child_status') == 'failed')
+    assert failed['cancellation_confirmed'] is False
+    assert failed['failure_code'] == 'native_execution_error'
+    assert failed['unsettled_tools'] == [{'tool_call_id': 'unsettled-action',
+                                         'tool_name': 'bash', 'outcome': 'unknown'}]
+    assert len(actions) == 1
     assert 'Child cancellation failed' in caplog.text
     assert 'cancel unknown' not in caplog.text
 
