@@ -1,7 +1,8 @@
 # Recoverable long-task execution: local evidence
 
-Status: local capability evidence recorded; dev integration, CI and final control
-graph browser inspection remain pending. Whole goal remains active.
+Status: implementation merged into dev00999b8a; approved macOS CI, independent
+read-only review and actual dev entry verification passed. Control-document
+integration remains open. Whole goal is not marked complete.
 Owner capstone-agent/capstone-harness; branch
 feat/recoverable-long-tasks-20261116 targets dev. Design approved2026-11-16.
 
@@ -323,3 +324,68 @@ This regression and the transport primary-error preservation regression passed2
 checks in0.99seconds. Product/runtime source stays40ddb637; no rebuild or CI was
 needed for this test-only change. This is focused verification, not an independent
 code-review pass.
+
+## PR121 integration and actual dev verification
+
+User approved one focused macOS CI run. PR121 tested exact head55687333;
+run43839482466 passed240seconds. It selected recoverable-tasks:583 passed,
+33 skipped in129.12seconds; governance271 passed,3 skipped in11.31seconds.
+No Linux/release job ran. PR121 merged normally as00999b8a; no second CI started.
+
+Actual root dev fast-forwarded to00999b8a.21 owned dirty paths were preserved in
+stashc7d9a7fcb3128cc07ddc17b1957e42a5be9539a2 and ignored pre-dev-integration/
+backup. Only control drafts were restored. The10 former runtime overlays match
+merged source and are no longer dirty. Source branch was closed after verified
+ancestry, PR state and separate preservation of its three dirty control files.
+Documentation closeout owns docs/recoverable-long-task-closeout-20261116,
+destination dev; no second CI approval is carried forward.
+
+Canonical rebuild passed readiness/App reachability. API and all three workers
+share image46c1b66d1406cea965195e7df4301ee34bc4bd92e17ccd5921eb8abf7eeb9f97.
+Nine module hashes in each backend role and five published source files in the
+native image match the exact merged source. Native files use its Dockerfile's
+/opt/general layout; a first observer used the backend /app layout and failed.
+That observer error did not rebuild or rerun a task. Scoped cache apply receipt:
+.capstone-agent/cache-maintenance-20261116-174823-72072.log. Doctor passed.
+
+The existing cancelled Threadthr_81c0b4fc0f142e6456e1 received one new explicit
+instruction. Attempt0269274bb3664e17 read the original28-byte draft, emitted
+historical_input_delivered and completed dev-recovery-check.md1425bytes,
+SHA2566a28d610062cd26301be2be8c84c88621f743da286b047205898d94103451eab.
+The old draft stayscancelled with its original hash; no old wait or final.md was
+repeated. Independent downloads verified both products. Receipts:
+runs/recoverable-long-task-dev-entry-20261116/ and source/runtime identity under
+runs/recoverable-long-task-20261116/.
+
+The existing Vivaldi enterprise tab loaded this Thread; visible source version,
+bytes, hash and report matched. Refresh retained the completed new instruction
+and report. Initial address set-value changed text without moving focus; the
+observer corrected focus using Cmd+L before navigation. No new tab or instruction
+was created by that correction. Latest root control graph also rendered in its
+existing tab; final merge-state graph refresh is part of documentation closeout.
+
+## Independent review and final local acceptance
+
+The collaboration tool could not launch its configured model. A separate local
+Codex review then inspected44abf3c5..00999b8a with its existing model configuration,
+read-only sandbox and no external MCP servers. Direct API access timed out;
+bounded unauthenticated probes showed direct status000 at8seconds and proxy
+status401 in4.985seconds. The owned direct review was stopped. A process-scoped
+Clash proxy allowed the independent review to complete with exit0. No global
+configuration, credentials, source files or CI state changed. One intermediate
+configuration parse failed before model access; its original log is retained.
+
+The completed review inspected production diffs, direct tests, lease/guard
+consumers, UID ownership, recovery, deployment copies and the scoped gate. It
+reported no clear actionable defect introduced by this patch. This is a static
+review result; real-task and test acceptance comes from the separate receipts
+above. Log: runs/recoverable-long-task-20261116/
+independent-review-proxy-configured.log. Earlier unavailable-review notes are
+historical and are superseded by this result.
+
+All eight approved capability criteria have the scoped evidence mapped above,
+and the merged dev entry has real continuation plus browser-refresh evidence.
+Final control-document integration is the remaining governance step. The one
+approved implementation CI was consumed; a documentation PR needs separate
+approval. Cloud/demo/main acceptance and arbitrary external-effect exactly-once
+execution remain outside this local capability claim.

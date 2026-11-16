@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: recoverable long-task execution, owned by capstone-agent/capstone-harness on feat/recoverable-long-tasks-20261116 targeting dev. User-approved design covers bounded execution, durable recovery and safe continuation. Candidate40ddb637 adds pinned native cleanup and terminal-receipt retry; real worker/API/executor restart, short outage, retained continuation and current cancellation have local evidence. Focused PostgreSQL gate583 passed/33 skipped; context94 passed/1 skipped. CI/dev integration and latest graph browser inspection remain open. PR120 retained-product repair is integrated; this candidate is not.
+- Active work package: recoverable long-task acceptance/control closeout, owned by capstone-agent/capstone-harness on docs/recoverable-long-task-closeout-20261116 targeting dev. PR121 integrated the implementation into dev00999b8a after approved focused macOS CI43839482466 passed240seconds. Actual dev rebuild, real cancelled-draft continuation, exact downloads, browser refresh and independent read-only review passed. No runtime overlays remain. Governed control-document integration remains open. Cloud/demo unchanged.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.
