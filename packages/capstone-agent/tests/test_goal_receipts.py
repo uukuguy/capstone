@@ -92,7 +92,11 @@ def test_goal_runtime_adapter_returns_delivery_and_emits_progress():
     from capstone_agent.goal_receipts import prompt_goal_runtime
     events = []
     class Runtime:
+        enabled = False
+        def enable_goal_response(self):
+            self.enabled = True
         def prompt(self, instruction, **kwargs):
+            assert self.enabled
             assert 'capstone-goal-response/1' in instruction
             return json.dumps({'schema': 'capstone-goal-response/1',
                 'answer': 'Saved draft', 'progress': proposal()})

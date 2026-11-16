@@ -38,6 +38,9 @@ def goal_response_instruction(instruction: str) -> str:
 
 
 def prompt_goal_runtime(runtime, instruction, *, on_event, correlation_id, on_heartbeat):
+    enable = getattr(runtime, 'enable_goal_response', None)
+    if callable(enable):
+        enable()
     response = runtime.prompt(goal_response_instruction(instruction), on_event=on_event,
         correlation_id=correlation_id, on_heartbeat=on_heartbeat)
     answer, progress = decode_goal_response(response)
