@@ -127,8 +127,6 @@ root runs/recoverable-long-task-20261116/browser-refreshed.json. The
 plain professional route correctly rejected the enterprise Thread; no UI
 protocol change or new tab was needed.
 
-## Remaining whole-capability acceptance
-
 ## Cleanup confirmation and PID ownership
 
 A red-first regression showed that exhausting the UID kill loop could still
@@ -153,10 +151,37 @@ worktree runs/recoverable-long-task-20261116/, cleanup-consumers.log and
 linux-process-confirmation.json. These changes require a rebuilt candidate
 before the remaining real restart/outage trials.
 
+## Real API restart and short transport outage on 6c4c87d9
+
+Canonical rebuild passed; API/three workers shared healthy image
+6aa1f9c1ab13811fce30c30d850ac0c4b5320522c2dfccf30c2115cec97f61c2,
+with scoped cache maintenance. New real Thread thr_06758496cc6fffb35770
+saved checkpoint.md and began its long operation. A sole-active-task guard
+preceded API restart. After readiness returned, attempt_406470745b3c4bb6
+remainedrunning with unchanged identity.
+
+A second sole-active guard preceded disconnecting only the native executor's
+private Docker network. Its original address and aliases were saved and
+restored in a finally block. The measured outage was6.268seconds. Durable
+transport interruption/restoration records were observed. The same attempt
+completed; the long operation started exactly once. Independent downloads
+matched checkpoint28bytes SHA256
+84b1d27e8b614ee4ddb67697d4345252320d4e7ce7ffce14e18b5a3e5d5596b6
+and final13bytes SHA256
+e7733ab4fe6f613c481e92fe696970894db0c7ef26e058edb14c4a0056504cc2.
+No task resubmission or new attempt was needed. The private network was restored.
+Receipts: root runs/recoverable-long-task-api-outage-20261116/.
+
+A separate red-first boundary test found the ownership wrapper consumed the
+original task-body quota. Admission now bounds its fixed wrapper separately,
+while still enforcing the original request-body limit. Oversized task bodies
+remain rejected.105 transport/ownership/continuation-capacity checks passed
+in25.97seconds. This small quota correction is not yet in the running image.
+
 ## Remaining whole-capability acceptance
 
-Pending: actual executor/API restart, ambiguous admission/completion, short
-transport loss, safe uncertain-effect handling and long-context/resource bounds.
+Pending: actual executor restart, ambiguous admission/completion, safe
+uncertain-effect handling and long-context/resource bounds.
 Worker-loss stopping, exact historical continuation and conversation refresh
 now have real evidence, but do not close the other criteria. No new CI,
 cloud or demo deployment was started. Full goal stays active.

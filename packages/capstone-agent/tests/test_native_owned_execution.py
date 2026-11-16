@@ -14,6 +14,33 @@ def grant():
             'capability': 'b' * 64}
 
 
+def test_owned_admission_keeps_task_budget_separate_from_authority_envelope(tmp_path, monkeypatch):
+    import json
+    import httpx
+    from capstone_agent import general_pi_server as module
+    request = PiTaskRequest('budget', 'a', 'delegated', 'Work', (), (), {'engine':'pi'}, 3)
+    document = request.to_document()
+    original = module.limits
+    class Limits:
+        native_task_bytes = len(json.dumps(document, ensure_ascii=False).encode())
+        def __getattr__(self, name):return getattr(original, name)
+    monkeypatch.setattr(module, 'limits', Limits())
+    host = GeneralPiHost(root=tmp_path, identity={'engine':'pi'}, run_task=lambda *_:('Done', {}))
+    server = module.make_server(host, control_token='test-control', address=('127.0.0.1',0))
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url=f'http://127.0.0.1:{server.server_port}/owned-tasks'
+        response=httpx.post(url, headers={'Authorization':'Bearer test-control'},
+            json={'request':document,'execution_authority':grant()})
+        assert response.status_code==202, response.text
+        oversized={**document,'task_id':'budget-too-large','instruction':'Work'*100}
+        assert httpx.post(url,headers={'Authorization':'Bearer test-control'},
+            json={'request':oversized,'execution_authority':grant()}).status_code==400
+    finally:
+        server.shutdown();server.server_close();thread.join(2)
+
+
 def test_owned_task_expires_without_reads_or_a_live_caller(tmp_path, monkeypatch):
     from capstone_agent import native_execution_authority as authority
     monkeypatch.setattr(authority, 'AUTHORITY_SECONDS', .08)

@@ -2042,7 +2042,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         if str(error) == 'research transport file changed':
                             return self.send_json(400, {'error': 'research_transport_file_changed'})
                         raise
-                if self.path not in {'/tasks', '/owned-tasks'} or not 0 < length <= limits.native_task_bytes:
+                envelope_bytes = 1024 if self.path == '/owned-tasks' else 0
+                if self.path not in {'/tasks', '/owned-tasks'} or not 0 < length <= limits.native_task_bytes + envelope_bytes:
                     raise ValueError()
                 document = json.loads(self.rfile.read(length))
                 authority = None
@@ -2053,6 +2054,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     if authority is None:
                         raise ValueError('missing execution authority')
                     document = document['request']
+                    if len(json.dumps(document, ensure_ascii=False).encode('utf-8')) > limits.native_task_bytes:
+                        raise ValueError('task document exceeds bounds')
                 request = PiTaskRequest.from_document(document)
                 try:
                     host.submit(request, execution_authority=authority)
