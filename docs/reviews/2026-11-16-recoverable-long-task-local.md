@@ -178,8 +178,6 @@ while still enforcing the original request-body limit. Oversized task bodies
 remain rejected.105 transport/ownership/continuation-capacity checks passed
 in25.97seconds. This small quota correction is not yet in the running image.
 
-## Remaining whole-capability acceptance
-
 ## Receipt-only recovery after executor state loss
 
 The new private recovery operation requires an existing durable acceptance
@@ -204,10 +202,45 @@ The focused transport/server/owned-execution/failure/continuation checks passed
 acceptance still requires a rebuilt candidate; no real unknown outcome is
 claimed from these fixtures.
 
+## Real executor restart and unknown-outcome continuation on 44fc1293
+
+Canonical rebuild passed on backend image
+a30d96621dc9c19417c800011e70f2d3bb1ced9249b7bf272ce978281bd449cd;
+API/three workers shared it and scoped cache maintenance completed. Fresh
+Thread thr_b90cce0ca32a2d66d3fd saved draft.md and entered the long operation.
+A sole-active guard preceded restart of only capstone-general-pi-1, using the
+same executor image before and after restart.
+
+Attempt_745546cbb93f0a5e failed with native_execution_outcome_unknown. The
+existing receipt retained request hash
+f4b4d2ac98bafc7eb051802cefe2d574e063d025544a680d4fa78ae3cbd59ebe.
+The new executor had no old task in its memory (GET404), proving the recovery
+did not readmit it. Only one original native task identity was observed. Old
+UID12384 had no remaining processes. No completed final.md was invented.
+
+The240-byte draft retained artifact ID and hash
+fb14d9304c09bdc85140152c457f215e4843c463656bfbb82bf8feea00547156.
+Its existing terminal source_status isfailed, presented as“未完成”. Unlike an
+orphan reaper's incomplete seal, this normal failed-result projection is owned
+by native_artifact_projection.py. The probe's inherited incomplete-only
+assumption was corrected against that contract; neither restart nor the old
+task was repeated. Verification resumed from the saved failure checkpoint.
+
+Distinct attempt_4d6ccf5edf3ac082 read the original admitted historical bytes
+and completed recovery-check.md2944bytes, independently verified hash
+8698cf760097e0ed1d4a28f33df600ffaeb9ea6d49d62427782cba0afbb678f6.
+The input-delivery receipt exists and the report binds the exact old digest.
+Receipts/scripts: root runs/recoverable-long-task-executor-restart-20261116/,
+including terminal-projection-verification.json, recovered-receipt.json,
+no-readmission.json and download-verification.json.
+
 ## Remaining whole-capability acceptance
 
-Pending: actual executor restart, ambiguous admission/completion, safe
-uncertain-effect handling and long-context/resource bounds.
+Pending: final cancellation/cleanup audit, long-context/resource bounds,
+targeted review and approved focused CI/integration. Unknown completion and
+receipt-only no-replay now have real executor-restart evidence. Missing-receipt
+and lost-ack admission behavior also have deterministic contract tests; do not
+claim generic exactly-once effects for arbitrary external tools.
 Worker-loss stopping, exact historical continuation and conversation refresh
 now have real evidence, but do not close the other criteria. No new CI,
 cloud or demo deployment was started. Full goal stays active.
