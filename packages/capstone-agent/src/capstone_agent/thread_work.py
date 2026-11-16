@@ -399,7 +399,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -409,6 +409,17 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'goal_continuation' in work:
+            continuation = work['goal_continuation']
+            if (not isinstance(continuation, dict) or set(continuation) != {
+                    'predecessor_attempt_id', 'generation', 'next_instruction'}
+                    or 'goal_mode' not in work
+                    or type(continuation['generation']) is not int
+                    or continuation['generation'] != work['goal_mode'].get('generation')
+                    or any(not isinstance(continuation[key], str) or not continuation[key].strip()
+                           or len(continuation[key]) > limits.input_text_chars
+                           for key in ('predecessor_attempt_id', 'next_instruction'))):
+                raise ThreadProtocolError('invalid goal continuation')
         if 'pending_goal_control' in work:
             from .goal_mode import parse_goal_mode
             pending = work['pending_goal_control']

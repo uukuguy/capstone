@@ -1,6 +1,8 @@
 """Model proposals carry no execution identity or completion authority."""
 from copy import deepcopy
 from datetime import datetime, timedelta
+from datetime import timezone
+from dataclasses import replace
 
 from .goal_mode import parse_goal_mode
 
@@ -67,3 +69,21 @@ def settle_goal_proposal(value: object, proposal: object, *, objective_revision:
     else:
         goal.update(state='ready', reason=None)
     return parse_goal_mode(goal)
+
+
+def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
+                                 saved_product_refs, delivery_saved):
+    """Prepare Work goal state for the caller's terminal transaction."""
+    works = deepcopy(list(snapshot.works))
+    work = next(item for item in works if item['work_id'] == context.binding.work_id)
+    goal = work['goal_mode']
+    progress = parse_goal_proposal(proposal)
+    settled = settle_goal_proposal(goal, progress, objective_revision=context.goal_revision,
+        generation=goal['generation'], attempt_id=attempt_id, now=datetime.now(timezone.utc),
+        saved_product_refs=saved_product_refs, delivery_saved=delivery_saved)
+    work['goal_mode'] = settled
+    work.pop('goal_continuation', None)
+    if settled['state'] == 'ready':
+        work['goal_continuation'] = {'predecessor_attempt_id': attempt_id,
+            'generation': settled['generation'], 'next_instruction': progress['next_instruction']}
+    return replace(snapshot, works=tuple(works))

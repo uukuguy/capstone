@@ -221,6 +221,23 @@ def test_goal_attempt_admission_consumes_budget_once(goal):
         create_attempt(updated, work)
 
 
+def test_terminal_goal_proposal_is_saved_with_work_state(goal):
+    from capstone_agent.goal_receipts import apply_terminal_goal_proposal
+    from capstone_agent.enterprise_context import TaskContext
+    snapshot = saved_work()
+    work = {**snapshot.works[0], 'goal_mode': {**goal, 'state': 'running', 'attempts_admitted': 1}}
+    snapshot = replace(snapshot, works=(work,))
+    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Draft ready', 'next_instruction': 'Review draft',
+        'waiting_reason': None, 'product_refs': []}
+    updated = apply_terminal_goal_proposal(snapshot, TaskContext.from_document(work['task_context']),
+        'attempt_one', progress, saved_product_refs=(), delivery_saved=True)
+    assert updated.works[0]['goal_mode']['state'] == 'ready'
+    assert updated.works[0]['goal_continuation']['next_instruction'] == 'Review draft'
+    assert updated.works[0]['goal_continuation']['predecessor_attempt_id'] == 'attempt_one'
+    assert ThreadSnapshot.from_document(updated.to_document()) == updated
+
+
 def saved_work():
     class Store:
         def create_thread(self, snapshot):
