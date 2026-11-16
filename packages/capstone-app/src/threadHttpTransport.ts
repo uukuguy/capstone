@@ -331,6 +331,10 @@ export class HttpThreadTransport implements ThreadTransport {
     }))}catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;return new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName).archiveThread(threadId,archived,signal)}
   }
 
+  async readSessionPins(){return this.request('/api/v1/workspace/session-pins')}
+  async writeSessionPins(operation:{thread_id:string;pinned:boolean}|{import:string[]}){return this.request('/api/v1/workspace/session-pins',{method:'PUT',body:JSON.stringify(operation)})}
+  async cleanupThread(threadId:string){await this.request(`/api/v1/workspace/session-pins/cleanup/${encodeURIComponent(threadId)}`,{method:'DELETE'})}
+
   async deleteThread(threadId:string,signal?:AbortSignal):Promise<void> {
     try{await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}`,{method:'DELETE',signal})}
     catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;await new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName).deleteThread(threadId,signal)}

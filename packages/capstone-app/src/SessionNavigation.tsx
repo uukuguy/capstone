@@ -18,10 +18,10 @@ export function SessionAdjacentControls({items,currentId,storageKey}: {items:rea
   </span>
 }
 
-/** List preferences stay local. Mutations use the supplied host management ports. */
+/** Workspace preferences and mutations use the host management ports. */
 export default function SessionNavigation({items,currentId,storageKey='workspace',actions}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string;actions?:SessionManagementActions}) {
   const list=useRef<HTMLDivElement>(null),menuElement=useRef<HTMLDivElement>(null)
-  const {pins,toggle}=useSessionPins(storageKey)
+  const {pins,toggle,error:pinError,ready:pinsReady,retry:retryPins}=useSessionPins(storageKey)
   const [menu,setMenu]=useState<{item:SessionNavItem;x:number;y:number}>(),[editing,setEditing]=useState<string>()
   const [archiveView,setArchiveView]=useState(false),[archived,setArchived]=useState<ThreadListPage>(),[loading,setLoading]=useState(false)
   const archiveRequest=useRef(0)
@@ -148,8 +148,10 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
       {archiveView&&archived?.hasMore&&<button type="button" className="session-archive-entry" disabled={loading} onClick={()=>void loadArchive(archived.nextBeforeThreadId??undefined)}>读取更多归档会话</button>}
     </div>
     {error&&<p role="alert">{error}</p>}
+    {pinError&&<p role="alert">{pinError} <button type="button" onClick={retryPins}>重试</button></p>}
+    {!pinsReady&&!pinError&&<p role="status">正在恢复置顶会话…</p>}
     {actions&&<div className="session-navigation-actions"><button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>
-      <SessionCleanup key={archiveView?'archived':'recent'} items={displayed} currentId={currentId} storageKey={storageKey} scopeLabel={archiveView?'归档记录':'未归档记录'} remove={actions.remove} loadItems={actions.history?signal=>actions.history!(archiveView,signal):undefined} onRemoved={ids=>setRemoved(previous=>[...new Set([...previous,...ids])])}/>
+      <SessionCleanup key={archiveView?'archived':'recent'} items={displayed} currentId={currentId} storageKey={storageKey} scopeLabel={archiveView?'归档记录':'未归档记录'} remove={actions.cleanup??actions.remove} loadItems={actions.history?signal=>actions.history!(archiveView,signal):undefined} onRemoved={ids=>setRemoved(previous=>[...new Set([...previous,...ids])])}/>
     </div>}
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
