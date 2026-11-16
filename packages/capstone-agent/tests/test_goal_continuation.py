@@ -33,3 +33,31 @@ def test_drain_submits_only_ready_idle_work():
             return SimpleNamespace(status='accepted')
     assert drain_goal_continuations(Service()) == 1
     assert commands[0]['kind'] == 'continue_goal'
+
+
+def test_service_runs_two_attempts_without_another_user_instruction():
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    start = command(store, 'thr_work_exec', 'start_goal', 'start',
+        work_id=work['work_id'], revision=work['revision'], payload={
+        'objective': 'Inspect the model', 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'})
+    assert store.submit_command(start).status == 'accepted'
+    first = store.claim_attempt('worker', 30)
+    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Draft saved', 'next_instruction': 'Review draft',
+        'waiting_reason': None, 'product_refs': []}
+    store.finish_attempt(first, phase='completed', payload={'answer': 'Draft', 'goal_proposal': progress})
+    assert drain_goal_continuations(store) == 1
+    assert drain_goal_continuations(store) == 0
+    second = store.claim_attempt('worker', 30)
+    assert second is not None and second.attempt.attempt_id != first.attempt.attempt_id
+    assert 'Review draft' in second.instruction
+    store.finish_attempt(second, phase='completed', payload={'answer': 'Reviewed report',
+        'goal_proposal': {**progress, 'disposition': 'complete', 'next_instruction': None}})
+    assert drain_goal_continuations(store) == 0
+    goal = store.snapshot('thr_work_exec').works[0]['goal_mode']
+    assert goal['state'] == 'completed'
+    assert goal['attempts_admitted'] == 2
