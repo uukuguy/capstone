@@ -1265,6 +1265,15 @@ class NativeExecutionOwner(ThreadGatewayOwner):
 
 
 class InMemoryThreadService(NativeExecutionOwner):
+    def goal_continuation_candidates(self, limit=32):
+        from .goal_continuation import continuation_command
+        with self._lock:
+            snapshot = self._snapshot
+            if (self._archived or snapshot.current_attempt is not None
+                    or not any(continuation_command(snapshot.thread_id, work) for work in snapshot.works)):
+                return []
+            return [snapshot.thread_id][:limit]
+
     """Deterministic Thread store used by contract tests and local prototypes.
 
     It is intentionally not a replacement for the durable production adapter.
@@ -3017,6 +3026,18 @@ def _timestamp(value: Any) -> str:
 
 
 class PostgresThreadService(NativeExecutionOwner):
+    def goal_continuation_candidates(self, limit=32):
+        if type(limit) is not int or not 1 <= limit <= 128:
+            raise ValueError('invalid goal scan limit')
+        with self._connect() as connection:
+            rows = connection.execute("""SELECT thread_id FROM capstone_threads
+                WHERE current_attempt IS NULL AND EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(works) AS work
+                    WHERE work->'goal_mode'->>'state' = 'ready'
+                    AND work ? 'goal_continuation')
+                ORDER BY thread_id LIMIT %s""", (limit,)).fetchall()
+        return [row['thread_id'] for row in rows]
+
     def _submit_skill_preferences(self, connection, thread, snapshot, parsed, request_hash):
         from .session_skill_preferences import apply_preferences
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',

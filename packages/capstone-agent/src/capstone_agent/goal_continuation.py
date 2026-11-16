@@ -2,6 +2,21 @@
 from hashlib import sha256
 
 
+def drain_goal_continuations(service, limit: int = 32) -> int:
+    admitted = 0
+    for thread_id in service.goal_continuation_candidates(limit):
+        snapshot = service.snapshot(thread_id)
+        if snapshot.current_attempt is not None:
+            continue
+        for work in snapshot.works:
+            command = continuation_command(thread_id, work)
+            if command is not None:
+                receipt = service.submit_command(command)
+                admitted += receipt.status == 'accepted'
+                break
+    return admitted
+
+
 def continuation_command(thread_id: str, work: dict) -> dict | None:
     goal, pending = work.get('goal_mode'), work.get('goal_continuation')
     if (not goal or not pending or goal['state'] != 'ready'
