@@ -14,7 +14,8 @@ from test_thread_work_execution import command
 
 
 @pytest.mark.parametrize('end', ['expiry', 'explicit'])
-def test_interruption_seals_exact_captured_file_for_new_instruction(chat_store, end, monkeypatch):
+@pytest.mark.parametrize('follow_kind', ['send_message', 'start_goal'])
+def test_interruption_seals_exact_captured_file_for_new_instruction(chat_store, end, follow_kind, monkeypatch):
     store, tid = chat_store
     executor = native_executor();store.set_native_executor(executor)
     objects=MemoryObjectStore();store.set_material_store(objects)
@@ -78,8 +79,10 @@ def test_interruption_seals_exact_captured_file_for_new_instruction(chat_store, 
         store.finish_attempt(claim,phase='completed',payload={'answer':'Late answer must not commit'})
     assert store.interrupt_expired_attempts()==0
     work=snapshot.works[0]
-    receipt=store.submit_command(command(store,tid,'send_message','after_loss',work_id=work['work_id'],
-        revision=work['revision'],payload={'text':'Read only the saved draft'}))
+    payload=({'text':'Read only the saved draft'} if follow_kind=='send_message' else
+        {'objective':'Read only the saved draft','max_attempts':3,'deadline_at':'2099-01-01T00:00:00Z'})
+    receipt=store.submit_command(command(store,tid,follow_kind,'after_loss',work_id=work['work_id'],
+        revision=work['revision'],payload=payload))
     assert receipt.status=='accepted'
     following=store.claim_attempt('recovery-test',60)
     assert following.attempt.attempt_id!=claim.attempt.attempt_id

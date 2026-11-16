@@ -303,6 +303,7 @@ def _terminal_result_projections(
 
 def _prepare_terminal_transition(
     snapshot: ThreadSnapshot, claim: AttemptClaim, phase: str, payload: Mapping[str, Any],
+    *, saved_product_refs: tuple[str, ...] = (),
 ) -> tuple[ThreadSnapshot, dict[str, Any], tuple[dict[str, Any], ...]]:
     """Compute the shared terminal outcome without changing storage or inputs.
 
@@ -319,6 +320,32 @@ def _prepare_terminal_transition(
     updated, work_payload = work_event_payload(
         replace(snapshot, current_attempt=None), claim.task_context,
         claim.attempt.attempt_id, phase)
+    if phase == 'completed' and claim.task_context is not None and 'goal_proposal' in payload:
+        from .goal_receipts import apply_terminal_goal_proposal
+        original = next((work for work in snapshot.works
+            if work['work_id'] == claim.task_context.binding.work_id), None)
+        if original is None or 'goal_mode' not in original:
+            raise ThreadProtocolError('goal proposal outside goal execution')
+        if 'pending_goal_control' not in original:
+            # Qualify against the running version, then retain the terminal Work
+            # projection and message cursor prepared above in this transaction.
+            try:
+                qualified = apply_terminal_goal_proposal(snapshot, claim.task_context,
+                    claim.attempt.attempt_id, payload['goal_proposal'],
+                    saved_product_refs=saved_product_refs, delivery_saved=isinstance(payload.get('answer'), str)
+                    and bool(payload['answer'].strip()))
+            except ValueError as error:
+                raise ThreadProtocolError('invalid terminal goal proposal') from error
+            source = next(work for work in qualified.works if work['work_id'] == original['work_id'])
+            works = []
+            for work in updated.works:
+                if work['work_id'] == original['work_id']:
+                    work = {**work, 'goal_mode': source['goal_mode']}
+                    if 'goal_continuation' in source:
+                        work['goal_continuation'] = source['goal_continuation']
+                    work_payload['work'] = work
+                works.append(work)
+            updated = replace(updated, works=tuple(works))
     updated = _result_projection_window(updated, result_projections)
     return updated, {**event_payload, **work_payload}, projection_parts
 
@@ -1172,6 +1199,12 @@ class _StoredCommand:
 
 
 def _work_send_input(snapshot, parsed, provider, capability_catalog):
+    if parsed['kind'] in {'start_goal', 'resume_goal', 'continue_goal'}:
+        from .thread_work import work_instruction
+        work = next((item for item in snapshot.works if item['work_id'] == parsed['target']['id']), None)
+        if work is not None:
+            text = parsed['payload']['objective'] if parsed['kind'] == 'start_goal' else work_instruction(work)
+            parsed = {**parsed, 'kind': 'send_message', 'payload': {'text': text}}
     if parsed['kind'] == 'start_work':
         from .thread_work import work_instruction
         work = next((item for item in snapshot.works if item['work_id'] == parsed['target']['id']), None)
@@ -1200,6 +1233,18 @@ class NativeExecutionOwner(ThreadGatewayOwner):
     _native_binding = None
     _material_objects = None
     _product_index_service = None
+
+    def submit_goal_continuation(self, command):
+        saved = self.read_thread_gateway(command['thread_id'])
+        reader = getattr(getattr(self, '_native_executor', None), 'thread_gateway_publication', None)
+        if callable(reader):
+            publication = reader(saved, refresh=True)
+            return self.submit_gateway_command(command, publication)
+        if saved and saved.get('instance_id'):
+            # A worker without this gateway adapter must not admit a stale or
+            # different instance. The native worker will drain the same intent.
+            return None
+        return self.submit_command(command)
 
     def set_product_index_service(self, service) -> None:
         if service is not None and service.threads is not self:
@@ -1239,6 +1284,15 @@ class NativeExecutionOwner(ThreadGatewayOwner):
 
 
 class InMemoryThreadService(NativeExecutionOwner):
+    def goal_continuation_candidates(self, limit=32):
+        from .goal_continuation import continuation_command
+        with self._lock:
+            snapshot = self._snapshot
+            if (self._archived or snapshot.current_attempt is not None
+                    or not any(continuation_command(snapshot.thread_id, work) for work in snapshot.works)):
+                return []
+            return [snapshot.thread_id][:limit]
+
     """Deterministic Thread store used by contract tests and local prototypes.
 
     It is intentionally not a replacement for the durable production adapter.
@@ -1530,7 +1584,7 @@ class InMemoryThreadService(NativeExecutionOwner):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         prepared, submission, input_rejection = _work_send_input(
             self._snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
-        if input_rejection is None and parsed['kind'] == 'send_message':
+        if input_rejection is None and parsed['kind'] in {'send_message', 'start_goal', 'resume_goal', 'continue_goal'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission, work_id=parsed['target']['id'])
             if input_rejection is None:
@@ -1545,7 +1599,7 @@ class InMemoryThreadService(NativeExecutionOwner):
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
-        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message'}:
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self.read_thread_gateway(parsed['thread_id']))
         event_seq = None
         target = None
@@ -1561,7 +1615,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
-        if rejection is None and parsed['kind'] in {'start_work', 'send_message'}:
+        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
             if selected_model is not None and not self.is_family_available(selected_model.implementation_family):
@@ -1627,7 +1681,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     'work_id': work['work_id'], 'work': project_work(updated, work)})
                 self._snapshot = replace(self._snapshot, last_event_seq=accepted.event_seq)
                 target.update(turn_id=attempt.turn_id, attempt_id=attempt.attempt_id)
-            if parsed['kind'] == 'cancel_work':
+            if parsed['kind'] == 'cancel_work' or (work is not None and work.get('pending_goal_control') is not None):
                 current = updated.current_attempt
                 assert current is not None
                 self._cancel_requests.add(current.attempt_id)
@@ -2403,8 +2457,11 @@ class InMemoryThreadService(NativeExecutionOwner):
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
+            from .goal_receipts import published_goal_refs
+            refs = published_goal_refs([{'attempt_id': event.attempt_id, 'event_type': event.event_type,
+                'payload': event.payload} for event in self._events], claim.attempt.attempt_id)
             work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
-                self._snapshot, claim, phase, payload)
+                self._snapshot, claim, phase, payload, saved_product_refs=refs)
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
@@ -2991,6 +3048,18 @@ def _timestamp(value: Any) -> str:
 
 
 class PostgresThreadService(NativeExecutionOwner):
+    def goal_continuation_candidates(self, limit=32):
+        if type(limit) is not int or not 1 <= limit <= 128:
+            raise ValueError('invalid goal scan limit')
+        with self._connect() as connection:
+            rows = connection.execute("""SELECT thread_id FROM capstone_threads
+                WHERE current_attempt IS NULL AND EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(works) AS work
+                    WHERE work->'goal_mode'->>'state' = 'ready'
+                    AND work ? 'goal_continuation')
+                ORDER BY thread_id LIMIT %s""", (limit,)).fetchall()
+        return [row['thread_id'] for row in rows]
+
     def _submit_skill_preferences(self, connection, thread, snapshot, parsed, request_hash):
         from .session_skill_preferences import apply_preferences
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
@@ -3048,7 +3117,7 @@ class PostgresThreadService(NativeExecutionOwner):
             return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
         prepared, submission, input_rejection = _work_send_input(
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
-        if input_rejection is None and parsed['kind'] == 'send_message':
+        if input_rejection is None and parsed['kind'] in {'send_message', 'start_goal', 'resume_goal', 'continue_goal'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission, connection=connection, work_id=parsed['target']['id'])
             if input_rejection is None:
@@ -3063,7 +3132,7 @@ class PostgresThreadService(NativeExecutionOwner):
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
-        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message'}:
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self._thread_gateway_row(connection, thread))
         event_seq = None
         target = None
@@ -3080,7 +3149,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
-        if rejection is None and parsed['kind'] in {'start_work', 'send_message'}:
+        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
             if selected_model is not None and not self.is_family_available(selected_model.implementation_family):
@@ -3151,7 +3220,7 @@ class PostgresThreadService(NativeExecutionOwner):
                      None if submission is None else Jsonb(submission)))
                 last_event_seq = accepted.event_seq
                 target.update(turn_id=attempt.turn_id, attempt_id=attempt.attempt_id)
-            if parsed['kind'] == 'cancel_work':
+            if parsed['kind'] == 'cancel_work' or (work is not None and work.get('pending_goal_control') is not None):
                 current = updated.current_attempt
                 assert current is not None
                 requested = self._make_attempt_event(thread, current, event_seq=last_event_seq + 1,
@@ -3164,7 +3233,7 @@ class PostgresThreadService(NativeExecutionOwner):
             connection.execute('UPDATE capstone_threads SET minimum_protocol_version=2, works=%s, last_event_seq=%s, current_attempt=%s WHERE thread_id=%s',
                 (Jsonb(list(updated.works)), last_event_seq,
                  None if updated.current_attempt is None else Jsonb(updated.current_attempt.to_document()), snapshot.thread_id))
-            if parsed['kind'] == 'cancel_work':
+            if parsed['kind'] == 'cancel_work' or (work is not None and work.get('pending_goal_control') is not None):
                 self._cancel_waiting_attempt(connection, snapshot.thread_id)
         receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id}, status='rejected' if rejection else 'accepted', rejection=rejection,
             accepted_event_seq=event_seq, target=target)
@@ -4825,8 +4894,13 @@ class PostgresThreadService(NativeExecutionOwner):
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             terminal = AttemptSnapshot.from_document({**current, "phase": phase})
+            from .goal_receipts import published_goal_refs
+            products = connection.execute("SELECT attempt_id,event_type,payload FROM capstone_thread_events "
+                "WHERE thread_id=%s AND attempt_id=%s AND event_type='native_artifact_published'",
+                (claim.thread_id, claim.attempt.attempt_id)).fetchall()
             work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
-                self._snapshot_from_row(thread), claim, phase, payload)
+                self._snapshot_from_row(thread), claim, phase, payload,
+                saved_product_refs=published_goal_refs(products, claim.attempt.attempt_id))
             event_seq = thread["last_event_seq"]
             event_seq = self._seal_open_captures_postgres(
                 connection, thread, terminal, event_seq, context=claim.model_context)

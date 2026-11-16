@@ -1,5 +1,20 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Agent goal mode — locally accepted, dev PR pending, 2026-11-17
+
+Owner capstone-agent/capstone-harness, consumer capstone-app. Branch
+feat/agent-goal-mode-20261116 targets dev in the initialized historical-input-receipts
+worktree. [Approved design](../specs/2026-11-16-capstone-control-design.md) and
+[stage-A plan](2026-11-16-agent-goal-mode.md) define acceptance: explicit autonomous
+Work goals, bounded continuation, pause/revise/cancel, durable recovery and saved
+products verified with real models. Local acceptance covers controls, two-Attempt
+execution, exact historical bytes, API/worker restart, budget stop and saved products.
+[Evidence](../../reviews/2026-11-17-agent-goal-mode-local.md). PR125 targets dev;
+CI43905965730 passed an earlier head. User authorized direct focused macOS CI.
+Next: current-head checks and merge, then actualdev runtime/control verification.
+Cloud/demo unchanged. Control delegation,
+shared task boards and external triggers remain dependent future stages.
+
 ## Durable workspace pins — active, 2026-11-16
 
 Owner capstone-agent/capstone-app; branch fix/durable-session-pins-20261116,

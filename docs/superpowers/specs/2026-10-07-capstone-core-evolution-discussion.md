@@ -1,5 +1,58 @@
 # Capstone 核心能力演进讨论笔记
 
+## 2026-11-16：Agent、会话目标与跨会话控制层（研究提案，未接受实施）
+
+后续决定：用户已同意分层方向、独立 Agent 会话目标模式和两种协作模式，并明确
+确认组件名 **capstone-control**。早期 orchestrator/conductor 名称不再采用。
+详见[Control 与自主 Agent 设计](2026-11-16-capstone-control-design.md)。用户随后确认
+该书面设计；首期落实为[Agent 目标模式计划](../plans/2026-11-16-agent-goal-mode.md)。
+设计获同意不代表实现或验收完成。以下保留源码研究过程。
+
+用户澄清：capstone-agent/capstone-harness 对标 Codex/Claude Code，承担单条指令
+的长程推理执行和同一会话的多轮持续上下文；capstone-app 是最终应用，其下需要
+研究类似 LoopX 的跨会话目标接续与监控层。本节不改变活动交付清单。
+
+源码查阅基线：Capstone dev 4834ebe3；本地 `3th-party/loopx` cac86bb。
+这是静态源码结论，未运行 LoopX 验收：
+
+- `control_plane/turn_driver/driver.py` 分开会话身份与 Turn 结算身份，支持 fresh/resume
+  上下文策略；会话绑定可按 Goal/Agent 或 Goal/Agent/Todo 定域。
+- `control_plane/turn_driver/codex_cli.py::_codex_command` 直接构造 `codex exec`
+  或 `codex exec resume`，此适配路径不以原生 `/goal` 为前置条件。
+- `control_plane/turn_driver/loop_controller.ts` 校验前驱回执、当前目标待办状态、
+  身份与有界预算，再决定继续、等待、修复、重规划或人工处理。
+- `control_plane/goals/acceptance_authority.ts` 将验收变更及证明交给可信 owner/host，
+  拒绝 Agent 自行配置或证明验收；一次执行完成不能直接代替目标验收。
+- Capstone `harness.py::CapstoneHarness` 当前公开职责是执行一个已领取的 Attempt；
+  `thread_work.py` 保存会话内 Work 目标、修订与消息。名称中出现 goal、租约恢复或
+  多轮上下文，不足以证明已有完整的跨会话目标控制层。
+
+建议划分：最终 App 负责用户工作空间、业务绑定与交互；独立的目标编排服务
+（暂称 capstone-orchestrator，命名未定）负责持久目标、触发、预算、会话选择、
+接续及验收状态；capstone-agent 负责会话与执行能力，其会话内目标模式可选；
+capstone-harness 负责有界 Attempt 执行、事件及执行回执。
+编排服务应调用公开 Agent 接口，不接管推理工具循环，也不直接改写 Agent 内部状态。
+普通对话可直接使用 Agent，无须先创建长期 Goal。
+
+待讨论：会话内目标模式的完成契约、Goal 与 Thread 的显式绑定模型、跨会话上下文包、
+目标验收及用户最终接受的关系、控制租约与执行租约的职责、组件命名与首期范围。
+可共用 PostgreSQL 和部署进程，但必须分开状态所有权；不得增加另一份 Thread/Attempt
+权威账本。控制层不是电网事实 Authority；跨会话旧证据仍须按当前运行规则显式准入。
+既有 Application → Domain Pack → Kernel → registered Authority 所有权边界保持不变。
+
+本轮补充讨论（提案，未接受实施）：当前会话内目标实际是 Thread 快照中
+`works[].goal` 与 `goal_revision`；`TaskContext.goal_revision` 绑定执行上下文版本，
+并非独立长期 Goal。建议将新公开语义称为 Work objective，兼容迁移旧字段；长期
+Goal 使用独立身份与版本，委托显式绑定 Goal/Task/Work/Thread，禁止用目标文本关联。
+Agent 宜提供可独立使用的会话内目标模式（交互可为 `/goal`），在授权和预算内
+自主推进并报告进展、阻塞与最终成果。控制层管理委托、取消、验收和跨会话接续，
+不逐个指挥工具；不能把工具选择自主理解成不受权限、租约或预算约束。
+公共任务板与集中委托可共用一套 Task 状态：支持指定执行者或按授权原子领取，
+并保留依赖、租约代次、产物版本与验收记录。LoopX 的 `team_plan_authority.ts`
+通过同一 CAS 提交任务变更与操作回执；`task_lease_acquire_decision.ts` 定义领取及
+写入范围冲突检查。这表明其实现不只包含一个上级向下派发的模型。
+Capstone 的任务板应属于控制层，专业共享成果仍经资源引用和 Authority 契约传递。
+
 ## 2026-11-06：引用与执行过程原语（用户确认设计实现方向）
 
 数据绑定、计算和确定性分析留在内网网关，Capstone 通过引用组织任务。

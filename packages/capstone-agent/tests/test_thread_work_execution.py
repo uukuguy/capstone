@@ -457,7 +457,8 @@ def test_context_mismatch_interrupts_work_without_poisoning_new_start(execution_
     assert current.task_context.binding.research_id == work['task_context']['binding']['research_id']
 
 
-def test_http_start_wakes_existing_worker_but_work_save_does_not():
+@pytest.mark.parametrize('start_kind', ['start_work', 'start_goal'])
+def test_http_start_wakes_existing_worker_but_work_save_does_not(start_kind):
     from fastapi.testclient import TestClient
     from test_thread_http_api import _app, _auth
     calls = []
@@ -468,7 +469,9 @@ def test_http_start_wakes_existing_worker_but_work_save_does_not():
         assert client.post('/api/v1/threads/thr_work_exec/commands', json=save, headers=headers).status_code == 202
         assert calls == []
         work = store.snapshot('thr_work_exec').to_document()['works'][0]
-        start = command(store, 'thr_work_exec', 'start_work', 'start', work_id=work['work_id'], revision=work['revision'])
+        payload = ({'objective': work['goal'], 'max_attempts': 3,
+                    'deadline_at': '2099-01-01T00:00:00Z'} if start_kind == 'start_goal' else {})
+        start = command(store, 'thr_work_exec', start_kind, 'start', work_id=work['work_id'], revision=work['revision'], payload=payload)
         response = client.post('/api/v1/threads/thr_work_exec/commands', json=start, headers=headers)
         assert response.status_code == 202 and response.json()['status'] == 'accepted'
         assert calls == ['wake']

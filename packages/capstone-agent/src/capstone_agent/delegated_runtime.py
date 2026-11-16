@@ -161,6 +161,9 @@ class DelegatedRuntime:
         except Exception as error:
             raise GoalReceiptPersistenceError('goal receipt could not be saved') from error
 
+    def enable_goal_response(self):
+        self._goal_response_enabled = True
+
     def _general_task(self, goal, dependencies, control, on_event):
         resources = self._resources
         if self._direct:
@@ -176,6 +179,9 @@ class DelegatedRuntime:
             context_document = resources.get('business_contexts', {}).get(goal['goal_id'])
         if self._executor is None or frozen is None:
             raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
+        if getattr(self, '_goal_response_enabled', False):
+            from .goal_receipts import goal_response_instruction
+            instruction = goal_response_instruction(instruction)
         parent = frozen['original_attempt_id']
         task_id = 'pi-' + sha256((parent + '\0' + goal['goal_id']).encode()).hexdigest()
         # Historical text stays historical. No Authority resources or internal
