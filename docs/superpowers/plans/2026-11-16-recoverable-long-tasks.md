@@ -14,7 +14,7 @@ Keep recovery state and domain side effects explicit; no generic blind replay.
 
 ## Delivery and verification
 
-- [ ] Execution authority and bounded native termination. Add a small
+- [x] Execution authority and bounded native termination. Add a small
   `native_execution_authority.py` state machine, with deterministic fake-clock
   tests for expiry, generation mismatch, replay, delayed renewal and no revival.
   Extend `general_pi_server.py` and `pi_delegation.py` with protected admission
@@ -24,7 +24,7 @@ Keep recovery state and domain side effects explicit; no generic blind replay.
   guard; reads never renew. Derive timing bounds from the existing30-second
   worker lease and measured transport/cleanup bounds, without granting stale
   host work indefinite executor authority.
-- [ ] Durable recovery and safe continuation. Reuse accepted task receipt,
+- [x] Durable recovery and safe continuation. Reuse accepted task receipt,
   immutable product grants, interrupted seals and historical delivery receipts.
   Test ambiguous submission, missing completion, executor/API/worker restart,
   new generation isolation and uncertain-effect reporting. Persist any missing
@@ -40,3 +40,10 @@ Keep recovery state and domain side effects explicit; no generic blind replay.
 Each delivery uses failing regression tests before implementation, focused
 consumer tests afterward, an explicit owned-path commit and journal checkpoint.
 Do not claim end-to-end acceptance from the isolated state-machine tests.
+
+Local checkpoint40ddb637: worker/API/executor fault paths, exact retained-file
+continuation, real cancellation and bounded context/resource consumers recorded
+in the [evidence map](../../reviews/2026-11-16-recoverable-long-task-local.md).
+Whole-capability closure still requires dev integration, separately approved CI,
+review and latest control-graph browser inspection. Focused gate014e6733 was
+measured locally:583 passed,33 skipped,75.39seconds. Goal remains active.

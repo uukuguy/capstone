@@ -7837,3 +7837,8 @@ check passed. No CI, integration or remote deployment performed.
 - 27e6ed1b: Checkpointed four real fault trials and control records to preserve the verified recovery boundary.
 
 - 40ddb637: Pinned native cleanup and allowed terminal receipt reads;477 focused checks passed to guard isolation and recovery.
+
+- 014e6733: Added focused recoverable-task CI routing;583 local checks passed with33 skips to avoid a broad development gate.
+
+- Candidate40ddb637 rebuilt with matched API/three-worker image76da821f; real cancel cleared UID12392 four processes, retained exact draft and no final.
+- Local scoped PostgreSQL gate583 passed/33 skipped75.39s; context94 passed/1 skipped4.24s. CI not started; review dispatch/graph AX inspection unavailable.

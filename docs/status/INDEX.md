@@ -979,8 +979,10 @@ default and explicit selections, plus two real default-model checks.
 
 2026-11-16: PR120 merged as `44abf3c5`; approved macOS CI `43806396571` passed in 116 seconds. Native automatic stop remains open.
 
-Active recoverable long-task branch `feat/recoverable-long-tasks-20261116`, runtime source `44fc1293`; real worker/API/executor faults and short-outage continuation verified. Final cancellation/context/review/CI acceptance pending. [Evidence](../reviews/2026-11-16-recoverable-long-task-local.md).
+Active recoverable long-task branch `feat/recoverable-long-tasks-20261116`, runtime source `40ddb637`; real worker/API/executor faults, short-outage continuation and cancellation verified locally. Focused gate583 passed/33 skipped; review/CI/dev integration and graph browser inspection pending. [Evidence](../reviews/2026-11-16-recoverable-long-task-local.md).
 
 Recoverable execution candidate `f577d6f0`: real automatic native stop and idle ledger recovery passed; exact143-byte continuation/2340-byte report verified. Full restart/uncertain-result acceptance pending.
 
 Candidate chain through `44fc1293`: real worker fault, API restart, short transport outage and executor unknown-outcome continuation verified. Feature evidence HEAD `f62a241c`; final cancellation/context/review/CI acceptance pending.
+
+当前长任务候选40ddb637已完成本地多故障恢复、精确续作与取消清理核验；定向PG门禁583通过/33跳过，上下文94通过/1跳过。CI/合入dev与最新控制图浏览器复核待完成；无新CI批准。[证据](../reviews/2026-11-16-recoverable-long-task-local.md)。下文保留历史记录。

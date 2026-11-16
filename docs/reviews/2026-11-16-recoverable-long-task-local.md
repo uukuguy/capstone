@@ -1,6 +1,7 @@
 # Recoverable long-task execution: local evidence
 
-Status: implementation in progress; whole capability not accepted.
+Status: local capability evidence recorded; dev integration, CI and final control
+graph browser inspection remain pending. Whole goal remains active.
 Owner capstone-agent/capstone-harness; branch
 feat/recoverable-long-tasks-20261116 targets dev. Design approved2026-11-16.
 
@@ -244,3 +245,73 @@ claim generic exactly-once effects for arbitrary external tools.
 Worker-loss stopping, exact historical continuation and conversation refresh
 now have real evidence, but do not close the other criteria. No new CI,
 cloud or demo deployment was started. Full goal stays active.
+
+
+## Final isolation and terminal-read audit on 40ddb637
+
+A red regression caught numeric process-group signalling after the parent had
+been reaped. UID-owned native cleanup now uses only pinned, owner-checked pidfd
+signals, including the parent and descendants in separate sessions. Legacy
+UID-free cleanup stays unchanged. A network-free Linux container mounted the
+exact candidate module read-only; parent and separate-session child stopped
+while output stayed blocked, observed0.0473seconds. No candidate image build is
+inferred from that isolated check.
+
+Expanded direct-consumer checks exposed a second defect: terminal receipt reads
+used a new capability and were rejected as ownership changes. A completed,
+exact-request task may now return its existing result without changing its old
+authority. Running tasks and cleanup-unconfirmed failures still reject a new
+capability. The existing hosted retry regression failed before and passed after
+the fix; the test asserts the original action ran only once.
+
+477 direct-consumer checks passed with54 conditional skips in51.04seconds.
+The prepared recoverable-tasks gate then ran locally with disposable PostgreSQL:
+583 passed,33 skipped in75.39seconds. Classification/governance checks passed146
+in5.32seconds. Context-boundary consumers passed94, skipped1 in4.24seconds.
+These are overlapping scopes, not additive totals. Existing Starlette/httpx
+integration emits one deprecation warning. No CI ran.
+
+Canonical root rebuild passed with10 exact source overlays from40ddb637 over
+dev44abf3c5. API and all three workers share image
+76da821fd22bdb053b0933fafd5d302495146244dcbc23b2f93fefbbc1138452.
+Readiness/App reachability and scoped cache apply passed; receipt
+.capstone-agent/cache-maintenance-20261116-170234-24233.log. Source manifest:
+runs/recoverable-long-task-20261116/source-identity-40ddb637.json.
+
+## Real current-version cancellation
+
+Thread thr_81c0b4fc0f142e6456e1, attempt_589affb523f24fd5 saved a28-byte
+draft, then ran a separate-session child ignoring SIGTERM for a synthetic wait.
+Before cancellation the sole-active-task guard passed and task UID12392 had four
+live processes. One cancel_work command was accepted. The native receipt and
+Work becamecancelled; no live process remained for that UID and the task
+workspace was removed. The accepted request hash stayed unchanged. No final.md
+was admitted. Downloaded draft retained itscancelled source status and hash
+84b1d27e8b614ee4ddb67697d4345252320d4e7ce7ffce14e18b5a3e5d5596b6.
+
+The first observer failed after cancellation because it assumed the workspace
+survived successful cleanup. Verification resumed from the saved UID, command
+and durable receipt; no new task or cancel command was sent. Cleanup latency is
+not claimed from that observer. Bounded latency has the separate Linux process
+and worker-loss receipts. Scripts, original error and final download verification:
+runs/recoverable-long-task-cancel-20261116/.
+
+## Whole-design acceptance map
+
+| Accepted criterion | Local evidence and limit |
+| --- | --- |
+| Multi-stage preserved products and explicit later instruction | Real143-byte worker-loss and240-byte executor-restart continuation; independent downloads and report hashes agree. |
+| Worker loss and old generation fence | Automatic native stop29.083seconds, idle ledger interruption, stale renew/event/complete rejected; final isolated pidfd cleanup0.0473seconds. |
+| Short transport gap and terminal expiry | Real6.268second outage completed the same attempt once; deterministic authority tests cover delayed renewal, duplicate sequences and no revival. |
+| API/worker/executor restarts and uncertain outcome | All three real fault paths recorded; receipt-only recovery returns unknown completion and does not readmit work. Exact-request terminal retry action count is one. |
+| Actual cancellation including children | Current40ddb637 real cancellation: four processes to zero, cancelled receipt, no late final; separate Linux blocked-output test supplies measured process-stop bound. |
+| Visible uncertainty without blind replay | Typed unknown outcome and cleanup-unconfirmed failures; unsettled tools carry unknown outcome. Secondary cancellation errors preserve the original cause and cancellation_confirmed=false. Arbitrary external effects have no generic exactly-once guarantee. |
+| Refresh and independently readable evidence | Existing Vivaldi worker-loss Thread reload restored incomplete draft and continued report. Latest code changes have no App source change. Latest control graph visual review remains pending. |
+| Bounded context and large-resource references |94 context checks plus resource/continuation direct consumers; existing GB resource-range acceptance remains its own evidence. Recovery uses frozen versions, bounded references and on-demand reads. This does not claim recovery of arbitrary in-memory full-file processing. |
+
+Prepared focused macOS gate: recoverable-tasks, measured local test body75.39s;
+expected CI total3–5minutes including setup. Each run still needs explicit user
+approval before push/PR update. Independent reviewer dispatch remains unavailable
+with Unknown model gpt-6.1-luna; no independent-review pass is claimed. Vivaldi
+GUI inspection attempted twice: Orca reports blocked AX reads despite granted
+permissions; no unrelated tab was changed. Preserve that inspection as pending.

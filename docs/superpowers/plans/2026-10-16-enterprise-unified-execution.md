@@ -19,8 +19,12 @@ Candidate6c4c87d9 passed API restart and6.268s outage with the same attempt.
 Candidate44fc1293 passed executor restart to typed unknown outcome without
 readmission, then exact240-byte draft continuation and2944-byte report. Cleanup
 uncertainty keeps capacity reserved; expired tombstones remain expired.
-Next: final cancellation/cleanup and bounded-context audit, targeted review and
-focused CI/integration after explicit approval. Full capability remains active.
+Candidate40ddb637 fixes pinned UID cleanup and exact terminal receipt retries.
+Current real cancellation cleared four processes, retained the28-byte draft and
+admitted no final.583 scoped PostgreSQL checks passed/33 skipped;94 context
+checks passed/1 skipped. Focused macOS gate prepared at014e6733.
+Next: review, latest graph browser inspection and separately approved CI/dev
+integration. Full capability remains active.
 No new CI approval exists. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
 
 ## Worker interruption product recovery — integrated, 2026-11-16
