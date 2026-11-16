@@ -30,6 +30,7 @@
     "packages/capstone-agent/tests/test_goal_continuation.py",
     "packages/capstone-agent/tests/test_goal_mode.py",
     "packages/capstone-agent/tests/test_goal_receipts.py",
+    "packages/capstone-agent/tests/test_thread_work_execution.py",
     "packages/capstone-app/src/GoalControls.test.tsx",
     "packages/capstone-app/src/GoalControls.tsx",
     "packages/capstone-app/src/ThreadCommandMenu.tsx",
