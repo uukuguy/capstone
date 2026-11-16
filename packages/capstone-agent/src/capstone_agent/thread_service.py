@@ -1584,7 +1584,7 @@ class InMemoryThreadService(NativeExecutionOwner):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         prepared, submission, input_rejection = _work_send_input(
             self._snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
-        if input_rejection is None and parsed['kind'] == 'send_message':
+        if input_rejection is None and parsed['kind'] in {'send_message', 'start_goal', 'resume_goal', 'continue_goal'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission, work_id=parsed['target']['id'])
             if input_rejection is None:
@@ -3117,7 +3117,7 @@ class PostgresThreadService(NativeExecutionOwner):
             return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
         prepared, submission, input_rejection = _work_send_input(
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
-        if input_rejection is None and parsed['kind'] == 'send_message':
+        if input_rejection is None and parsed['kind'] in {'send_message', 'start_goal', 'resume_goal', 'continue_goal'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission, connection=connection, work_id=parsed['target']['id'])
             if input_rejection is None:
