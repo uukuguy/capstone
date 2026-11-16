@@ -4,7 +4,7 @@
 
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Active work package: recoverable long-task acceptance/control closeout, owned by capstone-agent/capstone-harness on docs/recoverable-long-task-closeout-20261116 targeting dev. PR121 integrated the implementation into dev00999b8a after approved focused macOS CI43839482466 passed240seconds. Actual dev rebuild, real cancelled-draft continuation, exact downloads, browser refresh and independent read-only review passed. No runtime overlays remain. Governed control-document integration remains open. Cloud/demo unchanged.
+- Delivery baseline: recoverable long-task execution is implemented and accepted locally on dev. PR121 integrated product source00999b8a after approved macOS CI43839482466; PR122 integrated acceptance/control documents as2cc689af after separately approved docs CI43845523515. Actual runtime source stays00999b8a, with verified rebuild, real retained-file continuation, downloads, refresh and independent review. Both delivery branches are closed; no runtime overlays remain. Cloud/demo unchanged. No successor implementation package is selected by this goal.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

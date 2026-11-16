@@ -1,4 +1,4 @@
-2026-11-16：PR121在获批macOS CI43839482466通过240秒后合入dev00999b8a（受检55687333）；定向583通过/33跳过，治理271通过/3跳过。实际dev重建、原文件续作/下载/刷新及独立只读review通过；云端/demo未变。控制收口由docs分支准备，第二次CI尚未批准。
+2026-11-16最终回执：PR121产品合入00999b8a，获批macOS CI43839482466通过240秒；PR122验收/控制文档合入2cc689af，单独获批docs CI43845523515通过62秒。实际dev HEAD2cc689af；已验证本地运行来源仍00999b8a。两条交付分支已关闭；重建、真实原文件续作/下载/刷新及独立审阅通过，云端/demo未变。
 
 2026-11-16 候选f577d6f0的真实故障恢复通过：native约29.08秒自动停止、空闲账本自动interrupted、旧租约三项写保护、143字节原稿续作与2340字节报告哈希通过；原任务UID无残留，无人工取消。未合并、无新CI批准；完整能力的重启/不确定结果等验收仍开放。
 
@@ -1239,7 +1239,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 当前HEAD由Git解析；PR121长任务执行链已合入00999b8a；发布基线1.1.0保留 | 获批macOS定向CI通过；实际dev规范重建、原取消初稿续作、下载哈希和浏览器刷新通过 |
+| dev | 共同基座与企业工作台集成 | 当前HEAD由Git解析；PR121产品来源00999b8a、PR122控制收口2cc689af已合入；发布基线1.1.0保留 | 两次单独获批macOS CI通过；实际dev规范重建、原取消初稿续作、下载哈希、浏览器刷新与独立审阅通过 |
 
 ## 功能包前沿
 
@@ -1459,7 +1459,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
-| dev-head | dev | main | dev · 当前研发位置 | 当前 Git HEAD，验收见对应里程碑 | 动态绑定实际 dev 并连接真实祖先；不将 HEAD 当作部署或业务接受。[当前状态](CURRENT-STATE.md) | shared-agent |
+| dev-head | dev | main | dev · 当前研发位置 | 控制快照与本机实时状态分离；CI/合并回执以Git/PR及忽略目录记录为准 | 动态绑定实际 dev 并连接真实祖先；产品/运行来源00999b8a，HEAD不等同于部署。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-active | ce185a14 | feature | Deep Research · 历史后端产品字节来源 | ready及清理通过，已随PR67合入 | 历史产品来源ce185a14，API/worker镜像180c53ffb617、native1b8533cf1b06；清理195305-28422，与dev32d72c28产品相同，当前运行另见ed0节点。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
 | gateway-failure-merge | f397fbef | main | dev · 网关目录与失败诊断 | PR66 已合入，固定里程碑 | 网关目录、范围约束与失败诊断修复。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-head | de648f58 | feature | 统一轻量循环 · 已合入来源 | PR67 已合入，必需 CI 通过 | de648f58 受检；统一入口及按需 Deep Research；历史间歇失败诊断保留。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
@@ -1555,7 +1555,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
 | worker-interruption-merge-20261116 | 当前dev接受基线 | dev | 中断时草稿原子封存；后续指令读取保留原稿 | PR120合入44abf3c5；批准的macOS CI43806396571通过116秒；新执行权候选尚未合并 |
-| recoverable-long-task-merge-20261116 | 当前dev接受基线 | dev | 执行权到期与自动停止；精确回执恢复、不确定结果和历史续作 | PR121合入00999b8a；批准的macOS CI43839482466通过240秒；实际dev续作与刷新通过 |
+| recoverable-long-task-merge-20261116 | 已接受的长任务产品基线 | dev | 执行权到期与自动停止；精确回执恢复、不确定结果和历史续作 | PR121合入00999b8a；批准的macOS CI43839482466通过240秒；实际dev续作与刷新通过 |
 | receipt-recovery-20261116 | 已合入的长任务来源 | feat/recoverable-long-tasks-20261116 | 有界执行与自动停止；回执恢复、不确定结果和历史续作 | 产品40ddb637；本地多故障路径已验证，取消/上下文检查通过，PR121已合入00999b8a，macOS CI通过；独立review未获结果 |
 | recoverable-long-task-20261116 | 已验证的worker故障恢复阶段 | feat/recoverable-long-tasks-20261116 | 执行权到期与进程独立停止；后台租约回收和历史续作 | f577d6f0；真实worker丢失与续作通过；重启/不确定结果待验收，无CI批准 |
 | worker-interruption-products-20261115 | 已合入的文件恢复来源 | fix/worker-interruption-products-20261115 | 原子封存未完成捕获；同Work历史恢复 | 产品f0976baf；PR120合入44abf3c5，macOS CI通过；native生命周期由PR121合入00999b8a |
@@ -1670,7 +1670,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | PR117历史输入交付回执已集成；保留范围读取、成果引用和发布基线 | 当前HEAD由Git解析；PR117受检6625c0bb，macOS CI通过149秒；实际dev重建及两回执/7下载恢复通过 |
+| dev-head | 当前研发位置 | dev | PR121可恢复长任务执行链已集成；版本化验收快照与忽略的本机实时状态分离 | HEAD由实际Git解析；运行来源00999b8a，真实续作/下载/刷新与独立审阅通过；本次控制交付状态以Git/PR及忽略回执核对 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1791,7 +1791,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
-| docs/recoverable-long-task-closeout-20261116 | 长任务验收/控制收口；目标dev | capstone-agent/harness；基于00999b8a，实际dev本地验证与CI/合并回执 | 准备文档及控制更新；不得在未获新批准时创建触发CI的PR | shared-agent |
+| docs/recoverable-long-task-closeout-20261116 | PR122已合入dev并关闭来源分支 | capstone-agent/harness；受检f7eb9f7b，控制合并2cc689af，运行来源00999b8a | 单独获批macOS docs CI43845523515通过62秒；验收/控制已合入，最后自身回执与图快照保留在实际dev | shared-agent |
+| fix/project-control-clean-closeout-20261116 | 控制工具干净收口交付；状态按实际Git/PR核对 | project-control tooling；目标dev；只含控制工具、测试与原9个文档，运行来源00999b8a不变 | 接受边界为获批PR合入、分支退役、两工作区干净、--live显示实际HEAD；最终自身回执在忽略目录，不再修改跟踪文件记录自身 | shared-agent |
 | fix/worker-interruption-products-20261115 | 文件恢复已合入dev；PR120 | capstone-agent所有；f0976baf；116定向/123分类；真实worker丢失后原字节恢复与刷新通过 | CI43806396571通过116秒；dev44abf3c5；自动native停止仍未解决 | shared-agent |
 | docs/harness-cancellation-acceptance-20261115 | PR119已合入并关闭 | shared-agent所有；受检0e1fb9f2、合并fffc881e；获批macOS docs CI43723280469通过111秒 | 实际dev同步；恢复bcde2615保留，工作树detached同步；worker崩溃验收仍独立 | shared-agent |
 | docs/historical-input-closeout-20261115 | PR118已合入并关闭 | 所有者shared-agent；受检1250ac71、合并d718050c；获批macOS docs CI43708007107通过125秒 | 实际dev已同步；来源分支关闭，恢复69739de9保留；最终图按实际HEAD刷新 | shared-agent |

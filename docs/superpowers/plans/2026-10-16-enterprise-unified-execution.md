@@ -1,6 +1,20 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Recoverable long-task capability — merged; acceptance/control closeout, 2026-11-16
+## Project-control clean closeout — approved, 2026-11-16
+
+Owner project-control tooling, branch fix/project-control-clean-closeout-20261116,
+destination dev. User approved the optional ignored live-state sidecar. Preserve
+the committed offline snapshot and all9 pending acceptance/control corrections;
+refresh current HEAD/Git graph through --live without changing tracked files.
+The [design](../specs/2026-11-16-project-control-clean-closeout-design.md) and
+[plan](2026-11-16-project-control-clean-closeout.md) define finite acceptance:
+merged through an approved scoped PR, both worktrees clean, source branch retired,
+existing browser graph current, final self-merge receipts in ignored runs only.
+No application/runtime/deployment behavior changes. The final delivery state is
+proved by Git/PR state and runs/project-overview/closeout-receipt.json; no further
+tracked edit is required merely to describe this package's own commit or merge.
+
+## Recoverable long-task capability — accepted locally and integrated, 2026-11-16
 
 User goal: 建立可恢复的长任务执行能力. Owner capstone-agent/capstone-harness;
 destination dev. [Proposed capability design](../specs/2026-11-16-recoverable-long-task-design.md)
@@ -28,9 +42,12 @@ passed240seconds (583 focused/271 governance checks passed; skips recorded).
 Actual dev rebuilt/image46c1b66d; new explicit attempt read the28-byte cancelled
 draft and wrote a verified1425-byte report, without old wait/final replay.
 Actual dev browser refresh retained the original source and new report;
-independent read-only review found no clear actionable defect. Next: control
-documentation integration through docs/recoverable-long-task-closeout-20261116.
-Goal closure remains open until that final governance step is integrated.
+independent read-only review found no clear actionable defect. Control-document
+PR122 merged as2cc689af after separately approved macOS docs CI43845523515
+passed62seconds. Actual dev is synchronized, both delivery branches closed, and
+runtime remains source00999b8a. No successor package or cloud/demo release is
+implicitly selected. Final own-merge receipt and graph snapshot are recovery
+metadata; do not open an endless CI cycle to record their own commit identity.
 The single approved CI run is consumed; any documentation PR that starts CI
 requires fresh explicit approval. No release/Linux scope. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
 

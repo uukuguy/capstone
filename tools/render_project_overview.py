@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 from urllib.request import urlopen
 from urllib.parse import urljoin, urlsplit
 
@@ -289,7 +290,8 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                              next=plain(row[3]) if row else "补充工作包与验收状态",
                              package=plain(row[4]) if row else None,
                              dirty=dirty_by_branch.get(branch, 0)))
-    return dict(schema="capstone-project-overview/1", updated=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),
+    return dict(schema="capstone-project-overview/1", generated_at=datetime.now().timestamp(),
+                updated=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),
                 main=main, packages=packages, environments=environments,
                 nodes=nodes, edges=edges, proposals=proposals, uncommitted=work,
                 package_details=package_details,
@@ -309,9 +311,25 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-probe", action="store_true", help="Use recorded local versions without localhost reads")
     parser.add_argument("--probe-cloud", action="store_true", help="Read public cloud App build identities; no Provider or backend execution")
+    parser.add_argument("--live", action="store_true", help="Refresh ignored local state without changing the committed HTML snapshot")
     args = parser.parse_args()
     data = snapshot(not args.no_probe, args.probe_cloud)
     payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace("&", "\\u0026")
+    if args.live:
+        target = ROOT / 'runs/project-overview/live-state.js'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=target.parent,
+                                             prefix='live-state-', suffix='.tmp', delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write('window.CAPSTONE_PROJECT_OVERVIEW_LIVE=' + payload + ';\n')
+            temporary.replace(target)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        print('Live project overview refreshed: ' + str(target.relative_to(ROOT)))
+        return
     template = (ASSETS / "template.html").read_text()
     css = (ASSETS / "tailwind.css").read_text()
     if template.count("__PROJECT_DATA__") != 1 or template.count("__TAILWIND_CSS__") != 1:

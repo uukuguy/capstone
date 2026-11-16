@@ -1,8 +1,9 @@
 # Recoverable long-task execution: local evidence
 
-Status: implementation merged into dev00999b8a; approved macOS CI, independent
-read-only review and actual dev entry verification passed. Control-document
-integration remains open. Whole goal is not marked complete.
+Status: local capability accepted. Implementation PR121 merged as00999b8a;
+acceptance/control PR122 merged as2cc689af after its separately approved docs CI.
+Independent read-only review and actual dev entry verification passed. Runtime
+source remains00999b8a; cloud/demo acceptance is separate.
 Owner capstone-agent/capstone-harness; branch
 feat/recoverable-long-tasks-20261116 targets dev. Design approved2026-11-16.
 
@@ -389,3 +390,28 @@ Final control-document integration is the remaining governance step. The one
 approved implementation CI was consumed; a documentation PR needs separate
 approval. Cloud/demo/main acceptance and arbitrary external-effect exactly-once
 execution remain outside this local capability claim.
+
+## Final documentation integration receipt
+
+PR122 checked exact sourcef7eb9f7b with the separately approved macOS docs
+run43845523515, which passed62seconds. It merged normally as2cc689af. The actual
+dev checkout and detached initialized worktree were synchronized. Both delivery
+branches were closed after exact ancestry, PR and dirty-file preservation checks.
+No runtime code changed in PR122, so the verified00999b8a image remains the local
+runtime; no redundant rebuild, model task, cloud/demo deployment or further CI
+was started. Final own-merge receipts and generated current-HEAD snapshot are
+preserved as explicit postmerge state to avoid a self-recording CI loop.
+
+## Clean-worktree correction
+
+The prior postmerge-state exception still left9 tracked files dirty. That was
+not full workspace closeout. User approved a fixed ignored live-state sidecar;
+the [control-tool design](../superpowers/specs/2026-11-16-project-control-clean-closeout-design.md)
+keeps the committed HTML as an offline acceptance snapshot. Subsequent --live
+refreshes and own CI/merge receipts write only ignored runs/project-overview/.
+The9 pending document corrections are included in that reviewed control-tool
+delivery. Runtime code/images and the eight capability proofs above are unchanged.
+Final acceptance of this correction is mechanical: actual PR merged, source
+branch retired, live current-HEAD graph visible and both Git worktrees clean.
+Its exact self-receipt is runs/project-overview/closeout-receipt.json, avoiding a
+further tracked status edit to record its own merge.
