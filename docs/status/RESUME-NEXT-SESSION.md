@@ -1,4 +1,24 @@
-# Clean Closeout Recovery Contract
+# Live Session Checkpoint
+
+> Updated: 2026-11-16 21:03. **Session remains active — not a final handoff.**
+
+Current correction: durable workspace pins. User explicitly requires persistence.
+Owner capstone-agent/capstone-app, branch fix/durable-session-pins-20261116,
+destination dev, initialized historical-input-receipts worktree. Source dbdb3202;
+retry and focused gate correction981ddc3d. All ten old-origin pins migrated through
+the App into PostgreSQL. Both localhost and127.0.0.1 show ten pin links. API restart
+preserved exact state; focused86 backend/83 App checks and272 governance checks
+passed (3 governance conditions skipped). Independent review found a write-retry
+defect; fixed with an intended-value replay regression. Second review passed;
+final canonical rebuild47cc7638 and source hashes passed, original pins retained.
+No CI approval, push, PR or merge yet.
+
+Immediate next action: request one focused macOS CI for dev integration after
+acceptance/control documentation is frozen. Preserve original browser
+records and ignored runs/session-pins-investigation-20261116 evidence. No cloud,
+demo or main update. Existing runtime authentication and user data remain intact.
+
+## Previous clean closeout recovery contract
 
 Recoverable long-task capability: accepted in PR121/00999b8a and acceptance/control PR122/2cc689af. Real fault, cancellation, versioned continuation, hash/download, refresh and independent review evidence remains in docs/reviews/2026-11-16-recoverable-long-task-local.md and runs/recoverable-long-task-20261116/. The product runtime source remains00999b8a; API/three workers use46c1b66d and native usesda6d74ad. Cloud/demo/main unchanged.
 

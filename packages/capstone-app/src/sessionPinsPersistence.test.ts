@@ -1,7 +1,13 @@
 import {afterEach,expect,it} from 'vitest'
-import {readSessionPins} from './sessionNavigationState'
+import {readSessionPins,readLegacySessionPins} from './sessionNavigationState'
 afterEach(()=>localStorage.clear())
 const origin='capstone.thread.http%3A%2F%2Flocalhost%3A5173.'
+it('imports legacy pins even when a newer empty canonical record exists',()=>{
+  localStorage.setItem(`capstone.session-pins:${origin}workspace.enterprise`,'[]')
+  localStorage.setItem(`capstone.session-pins:${origin}old-tab`,'["saved"]')
+  expect(readLegacySessionPins(`${origin}new-tab`)).toEqual(['saved'])
+  expect(localStorage.getItem(`capstone.session-pins:${origin}old-tab`)).toBe('["saved"]')
+})
 it('recovers pins from earlier tabs and keeps workspaces separate',()=>{
   localStorage.setItem(`capstone.session-pins:${origin}old-tab`,JSON.stringify(['a']))
   localStorage.setItem(`capstone.session-pins:${origin}other-tab`,JSON.stringify(['b']))

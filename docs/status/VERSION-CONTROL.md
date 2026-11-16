@@ -1,3 +1,5 @@
+2026-11-16 持久置顶本地接受：所有者capstone-agent/capstone-app，分支fix/durable-session-pins-20261116，目标dev，产品981ddc3d。原10个置顶已自动入PG；两个浏览器入口/API重启/最终规范重建后完全保留。86后端、83App、272治理检查及独立复核通过；API/三worker同镜像47cc7638，源文件摘要一致。无CI批准、未合dev，云端/demo不变。见[验证](../reviews/2026-11-16-durable-session-pins-local.md)。
+
 2026-11-16最终回执：PR121产品合入00999b8a，获批macOS CI43839482466通过240秒；PR122验收/控制文档合入2cc689af，单独获批docs CI43845523515通过62秒。实际dev HEAD2cc689af；已验证本地运行来源仍00999b8a。两条交付分支已关闭；重建、真实原文件续作/下载/刷新及独立审阅通过，云端/demo未变。
 
 2026-11-16 候选f577d6f0的真实故障恢复通过：native约29.08秒自动停止、空闲账本自动interrupted、旧租约三项写保护、143字节原稿续作与2340字节报告哈希通过；原任务UID无残留，无人工取消。未合并、无新CI批准；完整能力的重启/不确定结果等验收仍开放。
@@ -1361,6 +1363,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| durable-session-pins-20261116 | 981ddc3d | feature | 工作空间置顶持久化 | 本地检查及两个入口恢复通过；未合dev、无CI批准 | PostgreSQL持久化与并发更新、旧记录补导入/取消标记、失败状态保留和精确重试、清理保护。[设计](../superpowers/specs/2026-11-16-durable-session-pins-design.md) | shared-agent |
 | worker-interruption-merge-20261116 | 44abf3c5 | main | 中断文件恢复合入dev | PR120已合并，macOS CI43806396571通过116秒 | 中断捕获原子封存与历史准入；独立native停止另见未合并候选。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
 | recoverable-long-task-merge-20261116 | 00999b8a | main | 可恢复长任务执行链合入dev | PR121已合并，macOS CI43839482466通过240秒 | 有界执行权、自动进程清理与后台回收；回执恢复不重放，原文件续作和取消通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
 | receipt-recovery-20261116 | 40ddb637 | feature | 长任务恢复、隔离清理与续作 | 本地故障及取消验证；PR121已合入00999b8a，macOS CI通过 | 执行权、有界停止和后台回收；精确回执恢复不重放，重启/断连及原文件续作通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
@@ -1554,6 +1557,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| durable-session-pins-20261116 | 当前local-dev修正候选 | fix/durable-session-pins-20261116 | PostgreSQL持久置顶与旧记录迁移；失败保留、精确重试和清理保护 | 981ddc3d；原10个置顶在两个入口/API重启及最终重建后保留，86后端/83App及独立复核通过；未合dev，无CI批准 |
 | worker-interruption-merge-20261116 | 当前dev接受基线 | dev | 中断时草稿原子封存；后续指令读取保留原稿 | PR120合入44abf3c5；批准的macOS CI43806396571通过116秒；新执行权候选尚未合并 |
 | recoverable-long-task-merge-20261116 | 已接受的长任务产品基线 | dev | 执行权到期与自动停止；精确回执恢复、不确定结果和历史续作 | PR121合入00999b8a；批准的macOS CI43839482466通过240秒；实际dev续作与刷新通过 |
 | receipt-recovery-20261116 | 已合入的长任务来源 | feat/recoverable-long-tasks-20261116 | 有界执行与自动停止；回执恢复、不确定结果和历史续作 | 产品40ddb637；本地多故障路径已验证，取消/上下文检查通过，PR121已合入00999b8a，macOS CI通过；独立review未获结果 |
@@ -1790,6 +1794,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| fix/durable-session-pins-20261116 | 活动修正，所有者capstone-agent/capstone-app，目标dev | dbdb3202持久化、981ddc3d重试与定向门禁；旧入口10个置顶已入PG，两个浏览器入口及API重启恢复通过 | 最终源码重建/二次审阅后申请一次macOS session-pins CI，经PR合入；无CI批准，云端/demo不变 | shared-agent |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
 | docs/recoverable-long-task-closeout-20261116 | PR122已合入dev并关闭来源分支 | capstone-agent/harness；受检f7eb9f7b，控制合并2cc689af，运行来源00999b8a | 单独获批macOS docs CI43845523515通过62秒；验收/控制已合入，最后自身回执与图快照保留在实际dev | shared-agent |
 | fix/project-control-clean-closeout-20261116 | 控制工具干净收口交付；状态按实际Git/PR核对 | project-control tooling；目标dev；只含控制工具、测试与原9个文档，运行来源00999b8a不变 | 接受边界为获批PR合入、分支退役、两工作区干净、--live显示实际HEAD；最终自身回执在忽略目录，不再修改跟踪文件记录自身 | shared-agent |
@@ -2000,7 +2005,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 已合入dev `00999b8a`；App5173，无源码覆盖 | API/三worker同镜像46c1b66d1406cea965195e7df4301ee34bc4bd92e17ccd5921eb8abf7eeb9f97；ready及缓存apply通过 | PR121/获批macOS CI通过；实际dev原28字节取消初稿续作、1425字节报告与下载哈希通过，浏览器刷新保留；云端/demo未变。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) |
+| local-dev | 持久置顶候选 `981ddc3d`；App5173运行初始化工作树，未合dev | API/三worker同镜像47cc7638098bfc89648b1f58296f781fdecc8d60c4a51dd7ed91a9f0ff822bc8；ready/源码摘要及规范缓存维护通过 | 原10个置顶自动迁入PG、localhost/127.0.0.1/重启与重建恢复通过；86后端/83App，独立复核通过；无CI批准。[验证](../reviews/2026-11-16-durable-session-pins-local.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

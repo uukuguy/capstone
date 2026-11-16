@@ -6,8 +6,9 @@ import {forgetWorkspaceThread} from './workspaceEntry'
 import {storageNamespace} from './threadSessionState'
 import {restoreCatalogSession,removeCatalogSession} from './sessionCatalog'
 import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
+import {registerSessionPins} from './durableSessionPins'
 
-export type SessionManagementActions={rename:(id:string,text:string)=>Promise<void>;archive:(id:string,value:boolean)=>Promise<void>;remove:(id:string)=>Promise<void>;archived:(before?:string)=>Promise<ThreadListPage>;history?:(archived:boolean,signal:AbortSignal)=>Promise<ThreadListPage['threads']>}
+export type SessionManagementActions={rename:(id:string,text:string)=>Promise<void>;archive:(id:string,value:boolean)=>Promise<void>;remove:(id:string)=>Promise<void>;cleanup?:(id:string)=>Promise<void>;archived:(before?:string)=>Promise<ThreadListPage>;history?:(archived:boolean,signal:AbortSignal)=>Promise<ThreadListPage['threads']>}
 export async function readSessionHistory(transport:Pick<HttpThreadTransport,'listThreads'>,archived:boolean,signal:AbortSignal){
   const records=new Map<string,ThreadListPage['threads'][number]>(),cursors=new Set<string>()
   let before:string|undefined
@@ -24,6 +25,7 @@ export async function readSessionHistory(transport:Pick<HttpThreadTransport,'lis
 }
 export function sessionManagement(transport:HttpThreadTransport,onChanged:(change?:{remove:string})=>void):SessionManagementActions {
   const workspace=transport.workspaceName??currentWorkspaceName(),namespace=storageNamespace(import.meta.env.VITE_API_ORIGIN||'',workspace)
+  registerSessionPins(namespace,workspace,{read:()=>transport.readSessionPins(),write:operation=>transport.writeSessionPins(operation)})
   const released=(id:string)=>{if(isWorkspaceActive(workspace))window.dispatchEvent(new CustomEvent('capstone-session-released',{detail:id}))}
   return {
     async rename(id,text){
@@ -34,6 +36,7 @@ export function sessionManagement(transport:HttpThreadTransport,onChanged:(chang
     },
     async archive(id,value){const thread=await transport.archiveThread(id,value);if(value){removeCatalogSession(namespace,id);forgetWorkspaceThread(id,workspace);released(id)}else restoreCatalogSession(namespace,thread);if(isWorkspaceActive(workspace))onChanged(value?{remove:id}:undefined)},
     async remove(id){await transport.deleteThread(id);removeCatalogSession(namespace,id);forgetWorkspaceThread(id,workspace);released(id);if(isWorkspaceActive(workspace))onChanged({remove:id})},
+    async cleanup(id){await transport.cleanupThread(id);removeCatalogSession(namespace,id);forgetWorkspaceThread(id,workspace);released(id);if(isWorkspaceActive(workspace))onChanged({remove:id})},
     archived:before=>transport.listThreads(true,before),
     history:(archived,signal)=>readSessionHistory(transport,archived,signal),
   }

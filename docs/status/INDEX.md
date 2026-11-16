@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+持久置顶本地接受：分支fix/durable-session-pins-20261116目标dev，产品981ddc3d；原10个置顶已自动入PostgreSQL，localhost/127.0.0.1、API重启和最终规范重建恢复通过。86后端、83App、272治理检查及独立复核通过；API/三worker同镜像47cc7638。无CI批准、未合dev，云端/demo不变。[验证](../reviews/2026-11-16-durable-session-pins-local.md)。
+
 控制图干净收口修正：用户批准忽略目录中的实时状态旁文件。9个待提交文档一并交付；默认HTML保留验收快照，--live只刷新忽略状态。最终Git/PR回执保存在runs/project-overview，避免再次留下自身合并的待提交记录。见[设计](../superpowers/specs/2026-11-16-project-control-clean-closeout-design.md)。
 
 最终收口：PR122获批macOS docs CI43845523515通过62秒后合入实际dev2cc689af；PR121产品来源00999b8a及本地镜像不变。两条交付分支均已核对并关闭，原文件续作、下载、刷新及独立审阅通过。最后自身合并回执/图快照按恢复记录保存，不为记录自身哈希循环创建CI。

@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    pin_manifest = Path(__file__).resolve().parents[1] / 'configs/development/session-pins-gate.json'
+    if pin_manifest.is_file():
+        pins = json.loads(pin_manifest.read_text())
+        if set(pins['anchors']).issubset(paths) and all(
+                path in pins['paths'] or _control_path(path) for path in paths):
+            return 'session-pins'
     recovery_manifest = Path(__file__).resolve().parents[1] / 'configs/development/recoverable-tasks-gate.json'
     if recovery_manifest.is_file():
         recovery = json.loads(recovery_manifest.read_text())

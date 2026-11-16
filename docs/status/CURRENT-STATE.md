@@ -1,5 +1,19 @@
 # Current State
 
+## Active correction — durable workspace pins, 2026-11-16
+
+Owner capstone-agent/capstone-app; fix/durable-session-pins-20261116 targets dev.
+User approved backend persistence. Product dbdb3202/981ddc3d stores workspace
+preferences in PostgreSQL, preserves explicit unpins against stale migration,
+retains state on errors and retries the intended change. Ten old-origin pins
+automatically migrated; localhost and127.0.0.1 each show ten links. API restart
+preserved exact state. Focused86 backend/83 App and272 governance checks pass
+(3 governance conditions skipped); reviewed retry correction has no remaining
+actionable finding. Final canonical rebuild passed with same-image API/three
+workers47cc7638 and matching backend source hashes. Original pins survived.
+No CI approval or dev merge yet; cloud/demo/main unchanged.
+[Acceptance](../reviews/2026-11-16-durable-session-pins-local.md).
+
 ## Project snapshot
 
 - Project route: managed

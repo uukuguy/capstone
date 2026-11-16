@@ -164,6 +164,7 @@ def create_host_app(
         thread_resource = (request.url.path == '/api/v1/threads'
                            or request.url.path.startswith('/api/v1/threads/'))
         versioned_resource = (thread_resource or request.url.path == '/api/v1/workspace/connections'
+                              or request.url.path.startswith('/api/v1/workspace/session-pins')
                               or request.url.path.startswith('/api/v1/workspace/gateways')
                               or request.url.path.startswith('/api/v1/managed-resources'))
         thread_version = request.headers.get('Capstone-Thread-Version', '1')
@@ -220,7 +221,7 @@ def create_host_app(
                                 if upgrade else await call_next(request))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
-        if thread_resource:
+        if thread_resource or request.url.path.startswith('/api/v1/workspace/session-pins'):
             response.headers.append('Vary', WORKSPACE_HEADER)
             selected_workspace = getattr(request.state, 'workspace_name', None)
             if selected_workspace is not None:
@@ -236,7 +237,7 @@ def create_host_app(
             response.headers["Access-Control-Allow-Headers"] = (
                 "Authorization, Content-Type, Idempotency-Key, Capstone-Thread-Version, Capstone-Workspace"
             )
-            if thread_resource:
+            if thread_resource or request.url.path.startswith('/api/v1/workspace/session-pins'):
                 response.headers['Access-Control-Expose-Headers'] = 'Capstone-Thread-Version, Capstone-Workspace'
         return response
 
@@ -380,6 +381,9 @@ def create_host_app(
         def require_private_thread(request: Request) -> None:
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
+
+        from .session_pins import register_session_pin_routes
+        register_session_pin_routes(app, service=thread_service, authorize=require_private_thread)
 
         @app.get('/api/v1/workspace/connections')
         def workspace_connections(request: Request):
