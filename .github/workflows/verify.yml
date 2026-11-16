@@ -73,7 +73,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|app|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|presentation-library|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|app|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|presentation-library|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
