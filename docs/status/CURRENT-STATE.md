@@ -1,25 +1,18 @@
 # Current State
 
-## Active correction — durable workspace pins, 2026-11-16
+## Durable workspace preferences
 
-Owner capstone-agent/capstone-app; fix/durable-session-pins-20261116 targets dev.
-User approved backend persistence. Product dbdb3202/981ddc3d stores workspace
-preferences in PostgreSQL, preserves explicit unpins against stale migration,
-retains state on errors and retries the intended change. Ten old-origin pins
-automatically migrated; localhost and127.0.0.1 each show ten links. API restart
-preserved exact state. Focused86 backend/83 App and272 governance checks pass
-(3 governance conditions skipped); reviewed retry correction has no remaining
-actionable finding. Final canonical rebuild passed with same-image API/three
-workers47cc7638 and matching backend source hashes. Original pins survived.
-No CI approval or dev merge yet; cloud/demo/main unchanged.
+Workspace pins persist in PostgreSQL. Explicit unpins survive stale browser
+migration; request errors retain the accepted state and exact pending intent.
+Browser origin changes do not own or erase the canonical pin set.
 [Acceptance](../reviews/2026-11-16-durable-session-pins-local.md).
 
 ## Project snapshot
 
 - Project route: managed
-- Active work package: stageB Control delegation; capstone-control owns durable Goal/Task coordination, capstone-agent owns delegated Thread/Work execution. Plan: `docs/superpowers/plans/2026-11-17-control-delegation.md`.
+- Delivery package: stageB Control delegation; capstone-control owns durable Goal/Task coordination, capstone-agent owns delegated Thread/Work execution. Product is integrated and locally accepted in dev through PR126; control closeout follows `docs/superpowers/plans/2026-11-17-control-delegation.md`. No stageC/D implementation is selected.
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Delivery baseline: recoverable long-task execution is implemented and accepted locally on dev. PR121 integrated product source00999b8a after approved macOS CI43839482466; PR122 integrated acceptance/control documents as2cc689af after separately approved docs CI43845523515. Actual runtime source stays00999b8a, with verified rebuild, real retained-file continuation, downloads, refresh and independent review. Both delivery branches are closed; no runtime overlays remain. Cloud/demo unchanged. No successor implementation package is selected by this goal.
+- Delivery baseline: dev includes recoverable long-task execution, durable workspace pins, standalone Agent Work goals and independent Control delegation. Their owning acceptance records and exact deployment sources live in the canonical worklist and version register. Cloud/demo retain separate accepted sources.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

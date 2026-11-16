@@ -1,8 +1,9 @@
 # Stage B local verification
 
-Owner: capstone-control; consumers: capstone-agent and capstone-app. Branch
-feat/control-delegation-20261117 targets dev through draft PR126. This is a
-development record. Integration and final source verification remain open.
+Owner: capstone-control; consumers: capstone-agent and capstone-app. PR126 merged
+into dev87e780df after final-head0529e059 macOS CI43929754196 passed127seconds.
+The implementation branch is closed after verified ancestry and PR state. This
+is local development acceptance; cloud/demo and release baselines are unchanged.
 
 ## Ownership and contracts
 
@@ -88,5 +89,28 @@ will receive the same focused gate. Canonical rebuild8d292962 passed readiness,
 API/three-worker identity at imageca5031fdaef4f12f79c083e4e169691a9f4ffa9e6e0cc5d6624cc22dcddf2c9a
 and scoped cache maintenance. The accepted restartGoal restored after rebuild
 with actorworkspace:open and exact products. Active-deadline stop passed as
-recorded above. Current-head CI, dev merge, actualdev rebuild/5173 restoration
-and canonical dev control graph remain open.
+recorded above. Final-head CI43929754196 passed0529e059, and PR126 merged87e780df.
+
+## Actual dev restoration
+
+Actual dev87e780df completed make capstone-local-rebuild. API and all three
+workers use image2c105d56f4b2fdfa14bc632253d0d4bd82b3a119c6b15123d4b0ec86eab3e245;
+readiness and scoped cache maintenance passed. Both accepted Goals restored with
+identical exact acceptance descriptors; four original product downloads matched
+all hashes and lengths. Budget/deadline-paused and cancelled Goal states persist.
+PostgreSQL retained all10 original pins, also visible in the existing browser.
+
+The existing localhost:5173 tab restored the accepted restartGoal, navigated to
+its exact phase2 Thread/Work and displayed the completed answer and original
+restart-final.md through the existing conversation/product components. A full
+refresh preserved this state and10 pinned links. Runtime screenshots were
+inspected. The App source tree is actual dev87e780df; its product revision8d292962
+is the last runtime-input commit, distinct from repository HEAD. The temporary
+owned candidate Vite5174 was stopped after this verification. Root receipt:
+runs/control-delegation-20261117/actualdev-restoration-receipt.json.
+
+Canonical control records and the graph are being integrated through the
+documentation closeout branch. Final own merge/head/clean receipts belong in
+ignored runs, so reporting this document's own merge does not cause another
+documentation commit/CI cycle. No shared task board, event/timer or remote
+release acceptance is claimed.
