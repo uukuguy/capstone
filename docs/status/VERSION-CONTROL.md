@@ -1,3 +1,5 @@
+2026-11-17 Agent目标模式本地验收通过：产品9dd95faf，PR125待合并。真实两轮、原文件157字节及SHA-256、API/worker重启、暂停/修改/取消、预算停止和下载均有记录；221后端/44App通过。当前local-dev后端为功能候选，5173仍为dev App；候选5174已检查。云端/demo不变。
+
 2026-11-16 持久置顶本地接受：所有者capstone-agent/capstone-app，分支fix/durable-session-pins-20261116，目标dev，产品981ddc3d。原10个置顶已自动入PG；两个浏览器入口/API重启/最终规范重建后完全保留。86后端、83App、272治理检查及独立复核通过；API/三worker同镜像47cc7638，源文件摘要一致。无CI批准、未合dev，云端/demo不变。见[验证](../reviews/2026-11-16-durable-session-pins-local.md)。
 
 2026-11-16最终回执：PR121产品合入00999b8a，获批macOS CI43839482466通过240秒；PR122验收/控制文档合入2cc689af，单独获批docs CI43845523515通过62秒。实际dev HEAD2cc689af；已验证本地运行来源仍00999b8a。两条交付分支已关闭；重建、真实原文件续作/下载/刷新及独立审阅通过，云端/demo未变。
@@ -1332,7 +1334,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| agent-goal-mode-20261116 | 当前Agent目标模式实施来源；仅状态基础验证，不是自动接续验收 |
+| agent-goal-mode-20261116 | 当前开发焦点 | feat/agent-goal-mode-20261116 | 有界目标、控制与持久自动接续；原文件引用、保存成果和恢复 | 产品9dd95faf；221后端/44App及真实原字节复验通过，PR125待合并；云端/demo不变 |
 | worker-interruption-products-20261115 | 当前worker中断文件恢复修正；整链停止协议仍独立待设计 |
 | historical-input-delivery-20261115 | PR117已合入dev的历史输入交付来源 |
 | resource-range-implementation-20261115 | 已接受范围读取dev合并；更广资源需求未整体接受 |
@@ -1366,7 +1368,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| agent-goal-mode-20261116 | 4792b7d8 | feature | Agent目标状态基础 | 87本地通过/14数据库条件跳过；未合dev、未部署 | 目标预算与版本校验、旧Work快照兼容、旧命令绕过保护；控制命令和自动接续未实现。[计划](../superpowers/plans/2026-11-16-agent-goal-mode.md) | shared-agent |
+| agent-goal-mode-20261116 | 9dd95faf | feature | Agent会话目标与原文件自动接续 | 本地验收通过；PR125待最新CI及合并，未部署云端 | 有界目标与控制、持久自动接续、只读历史资源；真实模型/重启/预算/下载通过。[验收](../reviews/2026-11-17-agent-goal-mode-local.md) | shared-agent |
 | durable-session-pins-20261116 | 981ddc3d | feature | 工作空间置顶持久化 | 本地检查及两个入口恢复通过；未合dev、无CI批准 | PostgreSQL持久化与并发更新、旧记录补导入/取消标记、失败状态保留和精确重试、清理保护。[设计](../superpowers/specs/2026-11-16-durable-session-pins-design.md) | shared-agent |
 | worker-interruption-merge-20261116 | 44abf3c5 | main | 中断文件恢复合入dev | PR120已合并，macOS CI43806396571通过116秒 | 中断捕获原子封存与历史准入；独立native停止另见未合并候选。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
 | recoverable-long-task-merge-20261116 | 00999b8a | main | 可恢复长任务执行链合入dev | PR121已合并，macOS CI43839482466通过240秒 | 有界执行权、自动进程清理与后台回收；回执恢复不重放，原文件续作和取消通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
@@ -1561,7 +1563,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| agent-goal-mode-20261116 | 当前Agent能力实施 | feat/agent-goal-mode-20261116 | 目标状态校验与旧快照兼容；旧命令绕过保护 | 4792b7d8；87本地检查通过，14数据库条件跳过；控制命令及自动接续未实现，未合dev/未部署 |
+| agent-goal-mode-20261116 | 当前开发焦点 | feat/agent-goal-mode-20261116 | 有界目标、控制与持久自动接续；原文件引用、保存成果和恢复 | 产品9dd95faf；221后端/44App及真实原字节复验通过，PR125待合并；云端/demo不变 |
 | durable-session-pins-20261116 | 当前local-dev修正候选 | fix/durable-session-pins-20261116 | PostgreSQL持久置顶与旧记录迁移；失败保留、精确重试和清理保护 | 981ddc3d；原10个置顶在两个入口/API重启及最终重建后保留，86后端/83App及独立复核通过；未合dev，无CI批准 |
 | worker-interruption-merge-20261116 | 当前dev接受基线 | dev | 中断时草稿原子封存；后续指令读取保留原稿 | PR120合入44abf3c5；批准的macOS CI43806396571通过116秒；新执行权候选尚未合并 |
 | recoverable-long-task-merge-20261116 | 已接受的长任务产品基线 | dev | 执行权到期与自动停止；精确回执恢复、不确定结果和历史续作 | PR121合入00999b8a；批准的macOS CI43839482466通过240秒；实际dev续作与刷新通过 |
@@ -1799,7 +1801,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/agent-goal-mode-20261116 | 活动实施；capstone-agent/harness所有，目标dev | 4792b7d8目标状态与快照兼容；87本地通过/14数据库条件跳过 | 版本化控制命令、事务与自动接续；真实模型验收仍开放，无CI批准 | shared-agent |
+| feat/agent-goal-mode-20261116 | 活动实施；capstone-agent/harness所有，目标dev | 产品9dd95faf，PR125；本地221后端/44App与真实模型、原字节和重启通过 | 最新定向CI后合入dev，再校验实际dev入口；用户已授权直接CI | shared-agent |
 | fix/durable-session-pins-20261116 | 活动修正，所有者capstone-agent/capstone-app，目标dev | dbdb3202持久化、981ddc3d重试与定向门禁；旧入口10个置顶已入PG，两个浏览器入口及API重启恢复通过 | 最终源码重建/二次审阅后申请一次macOS session-pins CI，经PR合入；无CI批准，云端/demo不变 | shared-agent |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
 | docs/recoverable-long-task-closeout-20261116 | PR122已合入dev并关闭来源分支 | capstone-agent/harness；受检f7eb9f7b，控制合并2cc689af，运行来源00999b8a | 单独获批macOS docs CI43845523515通过62秒；验收/控制已合入，最后自身回执与图快照保留在实际dev | shared-agent |

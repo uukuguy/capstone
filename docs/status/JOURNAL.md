@@ -7952,3 +7952,9 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 3a24b058: Verified service terminal continuation accepts a product reference only after current Attempt publication.
 
 - 2026-11-17 261c22a1: Aligned goal JSON with required native answer envelope after real response split the two contracts.
+
+- 2026-11-17 4de7139b: Fixed CI scope allowlist after run43905462039 rejected the new focused gate before checks.
+
+- 2026-11-17 9dd95faf: Reused historical resource admission for goal starts and continuations after browser review exposed reconstructed draft.
+
+- 2026-11-17 4a912447: Verified goal admission freezes historical resource descriptors and reads exact saved bytes across storage adapters.

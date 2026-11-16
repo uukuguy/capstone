@@ -108,6 +108,28 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
+### Agent session goals
+
+On a build that includes Agent goal mode, enter `/goal <objective>` in the existing
+conversation composer. Review the maximum execution count and UTC deadline, then
+select **启用持续目标**. Ordinary messages retain their existing execution mode.
+The goal runs on the backend; closing the browser does not cancel it.
+
+The goal header shows its state and admitted Attempt count. Pause requests stop
+the current execution at a safe boundary. Revise keeps the old execution input
+and products, increments the objective version and leaves the new objective paused;
+resume explicitly starts the revised work. Cancel ends the goal and retains saved
+products. Failed executions count toward the budget; resume does not reset it.
+At the execution limit or deadline, the goal pauses. A completed Attempt is not
+by itself a completed goal: the host must accept a structured delivery receipt.
+
+Automatic continuation admits historical products as versioned, read-only resource
+references. New products receive their own versions. If the original resource is
+unavailable, report the gap rather than reconstructing it from conversation text.
+Professional results still require current-run Authority evidence admission.
+This session mode does not provide long-term Control Goals, a shared task board or
+scheduled external triggers; those belong to later delivery stages.
+
 ### Source-free local dev trial
 
 入口统一为`user-local`，管理命令为`capstone.sh`。不传参数安装最新已发布版本；命令末尾使用`sh -s -- b7e68dd`可指定Git提交号，错误或不唯一参数列出可安装版本。Docker按主机选择arm64/amd64。安装和启动仍是一条命令。不同版本共享用户数据；兼容性与启动配置检查先于停止当前服务，一个安装目录同时只运行一个版本。升级与回退兼容性由开发发布流程验证，格式变化缺少已验证迁移时拒绝切换并保留原服务。

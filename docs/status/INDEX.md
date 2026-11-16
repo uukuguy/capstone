@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-17 VERSION-CONTROL与控制图更新Agent目标模式本地接受、精确来源9dd95faf和PR125待合并；验收见docs/reviews/2026-11-17-agent-goal-mode-local.md。
+
 2026-11-16 Agent目标模式：VERSION-CONTROL/PROJECT-OVERVIEW登记实施分支
 feat/agent-goal-mode-20261116与来源4792b7d8；状态基础87本地通过/14数据库条件跳过，
 命令和接续未实现。图已本机检查，控制稿未通过PR合入dev；恢复入口见RESUME。
