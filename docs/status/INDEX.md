@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-17：阶段一PR125已合入dev4f511d46，最终回执在root忽略目录；阶段二Control委托闭环已启动，独立包契约15项检查通过，持久状态和真实路径尚未实现。当前恢复入口以RESUME顶部StageB检查点为准。
+2026-11-17：阶段一PR125已合入dev4f511d46，最终回执在root忽略目录；阶段二Control候选8ca05b19具备独立事务状态、Agent公开绑定与单Work跨Thread原文件授权，111项含PG检查通过，运行组装/App/真实验收尚未完成。候选控制图已更新，尚未合入dev。当前恢复入口以RESUME顶部StageB检查点为准。
 
 2026-11-17 VERSION-CONTROL与控制图更新Agent目标模式本地接受、精确来源9dd95faf和PR125待合并；验收见docs/reviews/2026-11-17-agent-goal-mode-local.md。
 

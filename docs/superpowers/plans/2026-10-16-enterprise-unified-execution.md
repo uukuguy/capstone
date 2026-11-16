@@ -11,8 +11,11 @@ live in root ignored runs/agent-goal-acceptance-20261116/closeout-receipt.json.
 [StageB plan](2026-11-17-control-delegation.md) implements the approved Control
 design: persistent Goal and ordered Tasks, public Agent delegation, fresh-Thread
 resource handoff, versioned revocation/idempotency and exact user acceptance.
-Contract tests15 pass. Persistence, adapter, runtime/App and real acceptance are
-not yet implemented. Next: transactional Control store and lifecycle tests.
+Candidate8ca05b19 implements transactional Control state, public Agent binding
+and explicit per-Work cross-Thread resource grants.111 checks with PostgreSQL
+pass, including original bytes in single/goal modes. Goal revision and complete
+pause/resume, runtime assembly, App and real acceptance remain open. Next:
+complete Control controls and assemble public delegation/runtime interfaces.
 Focused macOS CI is authorized directly by the user. Task board and external
 triggers remain later stages. Cloud/demo unchanged.
 

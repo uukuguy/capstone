@@ -16,8 +16,11 @@ memory/PostgreSQL stores. Public Agent port reconciliation and Agent-owned
 delegation registry now provide identity binding, sequenced progress and revoke
 intents.31 focused tests pass with disposable PostgreSQL, including eight
 concurrent replays, restart, rollback, workspace isolation and pre-admission cancel.
-Next implement cross-Thread explicit resource grants, complete objective revision
-and pause/resume controls, assemble host/worker interfaces, existing App UI and real
+Cross-Thread grants now freeze immutable published descriptors for one delegated
+Work. Single/goal modes read exact source bytes; forged refs/receipts, duplicate
+delivery and direct consumers passed111 checks with disposable PostgreSQL.
+Latest product8ca05b19; Control bindingaac9d49f, Agent registry1d2fd693.
+Next complete objective revision and pause/resume controls, assemble host/worker interfaces, existing App UI and real
 two-stage fresh-Thread acceptance. No StageB runtime is deployed or accepted.
 Command: PYTHONPATH=packages/capstone-control/src uv run --project
 packages/capstone-agent pytest packages/capstone-control/tests -q.

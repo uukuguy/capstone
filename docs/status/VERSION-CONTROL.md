@@ -1,4 +1,6 @@
-2026-11-17 Agent目标模式本地验收通过：产品9dd95faf，PR125待合并。真实两轮、原文件157字节及SHA-256、API/worker重启、暂停/修改/取消、预算停止和下载均有记录；221后端/44App通过。当前local-dev后端为功能候选，5173仍为dev App；候选5174已检查。云端/demo不变。
+2026-11-17 阶段二Control委托闭环实施：所有者capstone-control，消费者capstone-agent/capstone-app；feat/control-delegation-20261117目标dev。候选8ca05b19具备独立Goal/Task事务状态、Agent公开幂等绑定与单Work跨Thread原文件授权；111项含PostgreSQL检查通过。下一步完成目标修订/暂停恢复、host/worker组装、现有App入口及真实两阶段验收。尚未合入或部署；CI用户允许直接执行，范围限开发定向macOS。
+
+2026-11-17 阶段一已完成：PR125合入dev4f511d46，受检edd782b6，macOS CI43909552457通过。实际dev规范重建，API/三worker同镜像3bac22777b30、ready及5173刷新恢复原文件完成目标2/4通过；原10个置顶保留。来源分支已关闭。云端/demo不变。最终自身回执见root忽略目录runs/agent-goal-acceptance-20261116/closeout-receipt.json；下文旧段落保留过程记录。
 
 2026-11-16 持久置顶本地接受：所有者capstone-agent/capstone-app，分支fix/durable-session-pins-20261116，目标dev，产品981ddc3d。原10个置顶已自动入PG；两个浏览器入口/API重启/最终规范重建后完全保留。86后端、83App、272治理检查及独立复核通过；API/三worker同镜像47cc7638，源文件摘要一致。无CI批准、未合dev，云端/demo不变。见[验证](../reviews/2026-11-16-durable-session-pins-local.md)。
 
@@ -1245,7 +1247,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 当前HEAD由Git解析；PR121产品来源00999b8a、PR122控制收口2cc689af已合入；发布基线1.1.0保留 | 两次单独获批macOS CI通过；实际dev规范重建、原取消初稿续作、下载哈希、浏览器刷新与独立审阅通过 |
+| dev | 共同基座与企业工作台集成 | PR125阶段一已合入4f511d46，实际dev本机验收通过；发布基线1.1.0保留 | 阶段二在独立实施分支；Control运行组装与真实验收未完成，未部署 |
 
 ## 功能包前沿
 
@@ -1334,7 +1336,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| agent-goal-mode-20261116 | 当前开发焦点 | feat/agent-goal-mode-20261116 | 有界目标、控制与持久自动接续；原文件引用、保存成果和恢复 | 产品9dd95faf；221后端/44App及真实原字节复验通过，PR125待合并；云端/demo不变 |
+| control-delegation-20261117 | 当前阶段二实施来源，尚未合入或部署 |
+| agent-goal-mode-20261116 | 已接受阶段一产品来源；PR125已合入dev |
 | worker-interruption-products-20261115 | 当前worker中断文件恢复修正；整链停止协议仍独立待设计 |
 | historical-input-delivery-20261115 | PR117已合入dev的历史输入交付来源 |
 | resource-range-implementation-20261115 | 已接受范围读取dev合并；更广资源需求未整体接受 |
@@ -1368,8 +1371,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| agent-goal-mode-20261116 | 9dd95faf | feature | Agent会话目标与原文件自动接续 | 本地验收通过；PR125待最新CI及合并，未部署云端 | 有界目标与控制、持久自动接续、只读历史资源；真实模型/重启/预算/下载通过。[验收](../reviews/2026-11-17-agent-goal-mode-local.md) | shared-agent |
-| durable-session-pins-20261116 | 981ddc3d | feature | 工作空间置顶持久化 | 本地检查及两个入口恢复通过；未合dev、无CI批准 | PostgreSQL持久化与并发更新、旧记录补导入/取消标记、失败状态保留和精确重试、清理保护。[设计](../superpowers/specs/2026-11-16-durable-session-pins-design.md) | shared-agent |
+| control-delegation-20261117 | 8ca05b19 | feature | Control持久委托与原文件跨会话授权 | 实施中；111项含PG检查通过，未接通App或真实模型验收 | 独立Goal/Task状态、幂等Agent绑定、进度/撤销和原文件引用。[计划](../superpowers/plans/2026-11-17-control-delegation.md) | shared-agent |
+| agent-goal-mode-20261116 | 9dd95faf | feature | Agent会话目标与原文件自动接续 | PR125已合入4f511d46；CI43909552457及实际dev验收通过 | 有界目标与控制、持久自动接续、只读历史资源；真实模型/重启/预算/下载通过。[验收](../reviews/2026-11-17-agent-goal-mode-local.md) | shared-agent |
+| durable-session-pins-20261116 | 981ddc3d | feature | 工作空间置顶持久化 | PR124已合入4834ebe3，来源分支关闭 | PostgreSQL持久化与并发更新、旧记录补导入/取消标记、失败状态保留和精确重试、清理保护。[设计](../superpowers/specs/2026-11-16-durable-session-pins-design.md) | shared-agent |
 | worker-interruption-merge-20261116 | 44abf3c5 | main | 中断文件恢复合入dev | PR120已合并，macOS CI43806396571通过116秒 | 中断捕获原子封存与历史准入；独立native停止另见未合并候选。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md) | shared-agent |
 | recoverable-long-task-merge-20261116 | 00999b8a | main | 可恢复长任务执行链合入dev | PR121已合并，macOS CI43839482466通过240秒 | 有界执行权、自动进程清理与后台回收；回执恢复不重放，原文件续作和取消通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
 | receipt-recovery-20261116 | 40ddb637 | feature | 长任务恢复、隔离清理与续作 | 本地故障及取消验证；PR121已合入00999b8a，macOS CI通过 | 执行权、有界停止和后台回收；精确回执恢复不重放，重启/断连及原文件续作通过。[验证](../reviews/2026-11-16-recoverable-long-task-local.md) | shared-agent |
@@ -1468,7 +1472,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
-| dev-head | dev | main | dev · 当前研发位置 | 控制快照与本机实时状态分离；CI/合并回执以Git/PR及忽略目录记录为准 | 动态绑定实际 dev 并连接真实祖先；产品/运行来源00999b8a，HEAD不等同于部署。[当前状态](CURRENT-STATE.md) | shared-agent |
+| dev-head | dev | main | dev · 当前研发位置 | PR125阶段一已集成，macOS CI及实际dev本机验收通过 | 动态绑定实际dev并连接真实祖先；当前local-dev运行4f511d46，云端/demo不变。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-active | ce185a14 | feature | Deep Research · 历史后端产品字节来源 | ready及清理通过，已随PR67合入 | 历史产品来源ce185a14，API/worker镜像180c53ffb617、native1b8533cf1b06；清理195305-28422，与dev32d72c28产品相同，当前运行另见ed0节点。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
 | gateway-failure-merge | f397fbef | main | dev · 网关目录与失败诊断 | PR66 已合入，固定里程碑 | 网关目录、范围约束与失败诊断修复。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-head | de648f58 | feature | 统一轻量循环 · 已合入来源 | PR67 已合入，必需 CI 通过 | de648f58 受检；统一入口及按需 Deep Research；历史间歇失败诊断保留。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
@@ -1563,8 +1567,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| agent-goal-mode-20261116 | 当前开发焦点 | feat/agent-goal-mode-20261116 | 有界目标、控制与持久自动接续；原文件引用、保存成果和恢复 | 产品9dd95faf；221后端/44App及真实原字节复验通过，PR125待合并；云端/demo不变 |
-| durable-session-pins-20261116 | 当前local-dev修正候选 | fix/durable-session-pins-20261116 | PostgreSQL持久置顶与旧记录迁移；失败保留、精确重试和清理保护 | 981ddc3d；原10个置顶在两个入口/API重启及最终重建后保留，86后端/83App及独立复核通过；未合dev，无CI批准 |
+| control-delegation-20261117 | 当前阶段二实施 | feat/control-delegation-20261117 | 持久Goal/Task与幂等Agent绑定；原文件跨Thread授权 | 8ca05b19；111项含PG检查通过，App/真实验收未完成，未合入或部署 |
+| agent-goal-mode-20261116 | 已合入的阶段一来源 | dev（PR125来源分支已关闭） | 有界目标、控制与持久自动接续；原文件引用、保存成果和恢复 | 产品9dd95faf；CI43909552457通过，已合入4f511d46并在实际dev验收；云端/demo不变 |
+| durable-session-pins-20261116 | 已合入的持久置顶来源 | dev（PR124来源分支已关闭） | PostgreSQL持久置顶与旧记录迁移；失败保留、精确重试和清理保护 | PR124已合入4834ebe3；原10个置顶在实际dev重建后保留 |
 | worker-interruption-merge-20261116 | 当前dev接受基线 | dev | 中断时草稿原子封存；后续指令读取保留原稿 | PR120合入44abf3c5；批准的macOS CI43806396571通过116秒；新执行权候选尚未合并 |
 | recoverable-long-task-merge-20261116 | 已接受的长任务产品基线 | dev | 执行权到期与自动停止；精确回执恢复、不确定结果和历史续作 | PR121合入00999b8a；批准的macOS CI43839482466通过240秒；实际dev续作与刷新通过 |
 | receipt-recovery-20261116 | 已合入的长任务来源 | feat/recoverable-long-tasks-20261116 | 有界执行与自动停止；回执恢复、不确定结果和历史续作 | 产品40ddb637；本地多故障路径已验证，取消/上下文检查通过，PR121已合入00999b8a，macOS CI通过；独立review未获结果 |
@@ -1681,7 +1686,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | PR121可恢复长任务执行链已集成；版本化验收快照与忽略的本机实时状态分离 | HEAD由实际Git解析；运行来源00999b8a，真实续作/下载/刷新与独立审阅通过；本次控制交付状态以Git/PR及忽略回执核对 |
+| dev-head | 当前研发位置 | dev | Agent会话目标、持久置顶与可恢复执行链已集成；版本化快照与本机实时状态分离 | HEAD4f511d46；PR125及macOS CI43909552457通过；实际dev规范重建/5173恢复通过；阶段二未合入 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1801,8 +1806,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/agent-goal-mode-20261116 | 活动实施；capstone-agent/harness所有，目标dev | 产品9dd95faf，PR125；本地221后端/44App与真实模型、原字节和重启通过 | 最新定向CI后合入dev，再校验实际dev入口；用户已授权直接CI | shared-agent |
-| fix/durable-session-pins-20261116 | 活动修正，所有者capstone-agent/capstone-app，目标dev | dbdb3202持久化、981ddc3d重试与定向门禁；旧入口10个置顶已入PG，两个浏览器入口及API重启恢复通过 | 最终源码重建/二次审阅后申请一次macOS session-pins CI，经PR合入；无CI批准，云端/demo不变 | shared-agent |
+| feat/control-delegation-20261117 | 阶段二实施；capstone-control所有，目标dev | 8ca05b19；111项含PG检查通过，跨Thread原文件授权已验证 | 完成公开委托运行组装、控制、现有App和真实两阶段验收，再定向CI/PR合dev | shared-agent |
+| feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
+| fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
 | docs/recoverable-long-task-closeout-20261116 | PR122已合入dev并关闭来源分支 | capstone-agent/harness；受检f7eb9f7b，控制合并2cc689af，运行来源00999b8a | 单独获批macOS docs CI43845523515通过62秒；验收/控制已合入，最后自身回执与图快照保留在实际dev | shared-agent |
 | fix/project-control-clean-closeout-20261116 | 控制工具干净收口交付；状态按实际Git/PR核对 | project-control tooling；目标dev；只含控制工具、测试与原9个文档，运行来源00999b8a不变 | 接受边界为获批PR合入、分支退役、两工作区干净、--live显示实际HEAD；最终自身回执在忽略目录，不再修改跟踪文件记录自身 | shared-agent |
@@ -1851,7 +1857,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
 | feat/work-attempt-binding | 已归档，不再作为活动研发分支 | 原源c9e57152；archive/branch-ownership-20261114/feat/work-attempt-binding | 旧UI撤回、PR50已关闭；当前Work/native归dev；不得整体合并旧候选 | shared-agent |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 当前集成所有者 | 当前HEAD由Git解析；PR104/106已合入20b6cbc0 | PPT已集成，引用研究归档；新实现必须有具名工作包 | shared-agent |
+| dev | 当前集成所有者 | PR125阶段一已合入4f511d46并完成实际dev本机验收 | 阶段二归feat/control-delegation-20261117；当前dev运行不包含Control新代码 | shared-agent |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 已归档，不再作为活动研发分支 | 原源275dc00f；archive/branch-ownership-20261114/feat/research-model | 只有设计文档，R1未实现；归dev研究待办，实施时从当前dev新建切片 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
@@ -2013,7 +2019,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 持久置顶候选 `981ddc3d`；App5173运行初始化工作树，未合dev | API/三worker同镜像47cc7638098bfc89648b1f58296f781fdecc8d60c4a51dd7ed91a9f0ff822bc8；ready/源码摘要及规范缓存维护通过 | 原10个置顶自动迁入PG、localhost/127.0.0.1/重启与重建恢复通过；86后端/83App，独立复核通过；无CI批准。[验证](../reviews/2026-11-16-durable-session-pins-local.md) |
+| local-dev | 实际dev `4f511d46`；App5173同源 | API/三worker同镜像3bac22777b309f990e4cde3184f27af1d00fc2d4830f9ecfee1601284e3c3ff8；ready及规范缓存维护通过 | 已完成目标2/4、原157字节资源及哈希/成果刷新恢复通过；原10置顶保留。阶段二未部署。[验收](../reviews/2026-11-17-agent-goal-mode-local.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
