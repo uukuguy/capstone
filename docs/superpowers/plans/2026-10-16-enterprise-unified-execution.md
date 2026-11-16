@@ -25,7 +25,7 @@ admitted no final.583 scoped PostgreSQL checks passed/33 skipped;94 context
 checks passed/1 skipped. Focused macOS gate prepared at014e6733.
 Next: review, latest graph browser inspection and separately approved CI/dev
 integration. Full capability remains active.
-No new CI approval exists. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
+User approved one focused macOS recoverable-tasks CI run on2026-11-16; no release/Linux scope. [Evidence](../../reviews/2026-11-16-recoverable-long-task-local.md).
 
 ## Worker interruption product recovery — integrated, 2026-11-16
 

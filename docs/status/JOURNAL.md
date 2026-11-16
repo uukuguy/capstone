@@ -7846,3 +7846,9 @@ check passed. No CI, integration or remote deployment performed.
 - 913ee5a7: Recorded local capability acceptance and explicit remaining integration gates; preserves cancellation, context and scoped-check evidence.
 
 - 249346e6: Verified persisted cancellation uncertainty and unknown tool outcome without replay; two focused regressions passed.
+
+- 80158a40: Linked persisted-uncertainty regression evidence to the control register; runtime unchanged and CI approval remains pending.
+
+- Goal marked blocked after three turns awaiting explicit CI approval; implementation/evidence preserved, review and graph inspection still pending.
+
+- User explicitly approved one macOS recoverable-tasks CI run, expected3–5minutes; selected Clash proxy7897, remote dev44abf3c5 unchanged.

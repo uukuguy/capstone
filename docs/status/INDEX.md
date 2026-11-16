@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+用户已明确批准一次macOS recoverable-tasks定向CI（预计3–5分钟）；准备最终提交并创建面向dev的PR，不扩大至发布/Linux，也不自动触发第二次。
+
 249346e6补强未知工具结果回归：持久事件明确记录取消未确认、工具结果unknown且仅执行一次；两项定向检查通过0.99秒。运行源码仍40ddb637，CI批准待回复。
 
 worker中断文件恢复切片本地接受：候选f0976baf规范重建8952043d，真实incomplete封存、28字节读取/报告与Vivaldi刷新通过。整体worker丢失接受仍partial：native自动停止缺口未解决，实验清理是人工操作。116定向/123分类通过，待单独批准CI；见[验证](../reviews/2026-11-15-worker-loss-product-recovery.md)和[KNOWN-ISSUES](KNOWN-ISSUES.md)。以下为过程记录。
