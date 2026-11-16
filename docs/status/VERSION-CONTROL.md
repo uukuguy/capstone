@@ -1,4 +1,6 @@
-2026-11-17 阶段二Control已合入并通过实际dev本机验收：所有者capstone-control，消费者capstone-agent/capstone-app。受检0529e059、macOS CI43929754196通过127秒，PR126合入87e780df；来源分支已关闭。183后端/治理、71App及类型通过；真实跨Thread原字节/接受、重启、暂停/恢复/修改/撤销/重放、委派预算及活动期限停止通过。实际dev规范重建同镜像2c105d56，5173目标/原成果/刷新及10个置顶恢复通过。独立审查工具配置错误，不能声称独立审查通过；直接源码复核已修复期限缺口。当前只收口控制文档，最终自身回执保存在忽略目录，云端/demo不变。[验收记录](../reviews/2026-11-17-control-delegation-local.md)。
+2026-11-17 当前App修正：会话点选时左栏跳动由capstone-app所有，fix/session-sidebar-stability-20261117目标dev。原版可见置顶区短暂10→3；元数据随组件重挂载丢失。399f90f3复用同访问范围的完整置顶记录，并使目录变更前的请求失效，125App/类型与145治理通过。候选规范重建731d93bf通过，实际浏览器验收中；root5173仍7531bc1f，候选5174为实施工作树。未合dev，云端/demo不变。[计划](../superpowers/plans/2026-11-17-session-sidebar-stability.md)。
+
+2026-11-17 阶段二Control已完成：PR126代码合入87e780df，PR127控制收口合入7531bc1f；两项macOS CI及实际dev验收通过，精确最终回执见忽略目录runs/control-delegation-20261117/closeout-receipt.json。该工作包不再活动；云端/demo不变。[验收记录](../reviews/2026-11-17-control-delegation-local.md)。
 
 2026-11-17 阶段一已完成：PR125合入dev4f511d46，受检edd782b6，macOS CI43909552457通过。实际dev规范重建，API/三worker同镜像3bac22777b30、ready及5173刷新恢复原文件完成目标2/4通过；原10个置顶保留。来源分支已关闭。云端/demo不变。最终自身回执见root忽略目录runs/agent-goal-acceptance-20261116/closeout-receipt.json；下文旧段落保留过程记录。
 
@@ -1247,7 +1249,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR126阶段二已合入87e780df；183后端/71App、最终macOS CI及实际dev/5173验收通过；发布基线1.1.0保留 | 阶段二控制台账收口；不自动启动阶段三/四；云端/demo不变 |
+| dev | 共同基座与企业工作台集成 | 阶段二已完成PR126/127合入与本机验收；发布基线1.1.0保留 | 当前App会话列表跳动修正399f90f3本机通过，定向CI/dev集成待验；云端/demo不变 |
 
 ## 功能包前沿
 
@@ -1336,6 +1338,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| session-sidebar-stability-20261117 | 当前左栏跳动修正；完成验收后移入历史详情，不作为长期固定里程碑 |
 | control-delegation-20261117 | 阶段二产品来源，已通过PR126合入dev，未部署云端 |
 | control-delegation-merge-20261117 | 阶段二重要dev合并；精确受检来源与本地验证入口 |
 | agent-goal-mode-20261116 | 已接受阶段一产品来源；PR125已合入dev |
@@ -1372,6 +1375,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| session-sidebar-stability-20261117 | 399f90f3 | feature | 会话切换时左栏保持稳定 | 定向125App/类型、145治理及规范重建通过；5次真实切换通过，未合dev | 访问范围内复用完整置顶元数据，保留冷切换行和滚动；移除/恢复使旧历史响应失效。[验收](../reviews/2026-11-17-session-sidebar-stability-local.md) | shared-agent |
 | control-delegation-20261117 | 8d292962 | feature | Control后台委托与长期目标工作台 | 真实接续/接受/重启/控制/预算/期限通过；PR126已合入dev | 持久Goal/Task、公开Agent绑定与原文件授权；183后端/71App及类型、规范重建通过；受检0529e059，macOS CI43929754196通过。[验收](../reviews/2026-11-17-control-delegation-local.md) | shared-agent |
 | control-delegation-merge-20261117 | 87e780df | main | dev · Control委托闭环合并 | PR126/macOS定向CI与实际dev规范重建、5173恢复通过 | 独立Control包、跨Thread原文件授权、后台阶段接续与用户接受；同镜像2c105d56、四原成果下载、10置顶恢复通过。不启动任务板或持续事件阶段。[验收](../reviews/2026-11-17-control-delegation-local.md) | shared-agent |
 | agent-goal-mode-20261116 | 9dd95faf | feature | Agent会话目标与原文件自动接续 | PR125已合入4f511d46；CI43909552457及实际dev验收通过 | 有界目标与控制、持久自动接续、只读历史资源；真实模型/重启/预算/下载通过。[验收](../reviews/2026-11-17-agent-goal-mode-local.md) | shared-agent |
@@ -1569,6 +1573,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| session-sidebar-stability-20261117 | 当前App修正 | fix/session-sidebar-stability-20261117 | 冷切换复用完整置顶行；移除操作拒绝迟到历史响应 | 399f90f3；125App和类型、145范围治理及规范重建、5次真实切换通过；CI/dev集成待验 |
 | control-delegation-20261117 | 已合入的阶段二产品来源 | dev（PR126来源分支已关闭） | 后台委托与现有工作台；原文件跨Thread授权和显式接受 | 真实双阶段/下载/接受/重启/控制/预算/期限通过；183后端/71App；受检0529e059/macOS CI43929754196通过 |
 | control-delegation-merge-20261117 | 已合入阶段二 | dev | 独立Control目标委托与原文件接续；版本化成果验收与用户接受 | PR126合入87e780df；实际dev规范重建/5173恢复通过；云端/demo不变 |
 | agent-goal-mode-20261116 | 已合入的阶段一来源 | dev（PR125来源分支已关闭） | 有界目标、控制与持久自动接续；原文件引用、保存成果和恢复 | 产品9dd95faf；CI43909552457通过，已合入4f511d46并在实际dev验收；云端/demo不变 |
@@ -1809,6 +1814,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| fix/session-sidebar-stability-20261117 | capstone-app修正，目标dev | 可见置顶10→3→10；冷挂载及并发局部覆盖回归先失败；399f90f3/125App及145治理、规范重建通过 | 完成候选浏览器、定向macOS CI/dev PR和实际5173验收 | shared-agent |
 | docs/control-delegation-closeout-20261117 | project-control收口所有，目标dev | PR126已合87e780df；macOS CI43929754196、实际dev重建与5173恢复通过；产品源分支已关闭 | 一次docs范围macOS CI/PR将验收台账和控制图合dev；最终自身回执仅写忽略目录 | shared-agent |
 | feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
 | fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |
@@ -2022,7 +2028,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 实际dev API/三worker及App源码检出 `87e780df`；App产品里程碑8d292962，仓库HEAD与产品里程碑分开记录 | 同镜像2c105d56f4b2fdfa14bc632253d0d4bd82b3a119c6b15123d4b0ec86eab3e245；ready/规范缓存维护通过 | 5173已接受目标、四份原成果、阶段会话和刷新恢复通过；10个原置顶保留。临时5174已停止，云端/demo不变。[验收](../reviews/2026-11-17-control-delegation-local.md) |
+| local-dev | API/三worker候选 `399f90f3`；App5173源码仍dev `7531bc1f`，候选5174为实施工作树 | 同镜像731d93bf07ddcd054b3b704bb5a3adb6bcedb2ac0142429d8226723a331826e8；ready/规范缓存维护通过 | 125项导航直接消费者/类型和145治理通过；浏览器与dev集成验收中。原始置顶/数据保留，云端/demo不变。[计划](../superpowers/plans/2026-11-17-session-sidebar-stability.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

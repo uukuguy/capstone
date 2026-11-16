@@ -6,6 +6,25 @@ import {applicationCapacity} from './applicationCapacity'
 // Recovery never clears an already displayed catalog while fetching a new one.
 const catalogs=new Map<string,ThreadListPage>()
 const reopened=new Map<string,Map<string,ThreadDescriptor>>()
+type ResolvedHistory={revision:number;threads:ThreadDescriptor[]}
+const resolvedHistory=new Map<string,ResolvedHistory>()
+const emptyHistory:ResolvedHistory={revision:0,threads:[]}
+function historySnapshot(namespace:string){return resolvedHistory.get(namespace)??emptyHistory}
+export function useResolvedSessionHistory(namespace:string){
+  const [,refresh]=useState(0)
+  useEffect(()=>{
+    const changed=(event?:Event)=>{if(!event||(event as CustomEvent<string>).detail===namespace)refresh(value=>value+1)}
+    changed();window.addEventListener('capstone-session-catalog-changed',changed)
+    return()=>window.removeEventListener('capstone-session-catalog-changed',changed)
+  },[namespace])
+  return historySnapshot(namespace)
+}
+export function rememberResolvedSessionHistory(namespace:string,threads:ThreadDescriptor[],revision:number){
+  // An archive/delete/restore invalidates history requests already in flight.
+  if(historySnapshot(namespace).revision!==revision)return
+  resolvedHistory.set(namespace,{revision,threads:threads.filter(item=>!item.archived)})
+  window.dispatchEvent(new CustomEvent('capstone-session-catalog-changed',{detail:namespace}))
+}
 function includeReopened(namespace:string,page:ThreadListPage|null){
   const entries=reopened.get(namespace)
   if(!entries?.size)return page
@@ -13,6 +32,8 @@ function includeReopened(namespace:string,page:ThreadListPage|null){
   return {...(page??{hasMore:false,nextBeforeThreadId:null}),threads:[...[...entries.values()].reverse().map(item=>fresh.get(item.threadId)??item),...(page?.threads??[]).filter(item=>!entries.has(item.threadId))]}
 }
 export function restoreCatalogSession(namespace:string,thread:ThreadDescriptor){
+  const known=historySnapshot(namespace)
+  resolvedHistory.set(namespace,{revision:known.revision+1,threads:[...known.threads.filter(item=>item.threadId!==thread.threadId),thread]})
   const entries=reopened.get(namespace)??new Map<string,ThreadDescriptor>()
   entries.delete(thread.threadId);entries.set(thread.threadId,thread)
   while(entries.size>applicationCapacity('ui_session_page_items'))entries.delete(entries.keys().next().value!)
@@ -21,6 +42,8 @@ export function restoreCatalogSession(namespace:string,thread:ThreadDescriptor){
   window.dispatchEvent(new CustomEvent('capstone-session-catalog-changed',{detail:namespace}))
 }
 export function removeCatalogSession(namespace:string,id:string){
+  const known=historySnapshot(namespace)
+  resolvedHistory.set(namespace,{revision:known.revision+1,threads:known.threads.filter(item=>item.threadId!==id)})
   reopened.get(namespace)?.delete(id)
   const page=catalogs.get(namespace)
   if(page)catalogs.set(namespace,{...page,threads:page.threads.filter(item=>item.threadId!==id)})

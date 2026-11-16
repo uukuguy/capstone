@@ -7,6 +7,7 @@ import {navigateSession,sessionName,orderSessions,useSessionPins,type SessionNav
 import type {SessionManagementActions} from './sessionManagement'
 import type {ThreadListPage} from './threadManagement'
 import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
+import {rememberResolvedSessionHistory,useResolvedSessionHistory} from './sessionCatalog'
 export {navigateSession,sessionName,type SessionNavItem} from './sessionNavigationState'
 
 export function SessionAdjacentControls({items,currentId,storageKey}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string}) {
@@ -39,7 +40,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     return()=>window.removeEventListener('resize',place)
   },[deleting,deleteAnchor,error])
   const [reopened,setReopened]=useState<SessionNavItem[]>([])
-  const [olderPins,setOlderPins]=useState<SessionNavItem[]>([])
+  const resolved=useResolvedSessionHistory(storageKey),olderPins=resolved.threads
   const historyLoader=useRef(actions?.history);historyLoader.current=actions?.history
   const missingPins=JSON.stringify(pins.filter(id=>!items.some(item=>item.threadId===id)))
   useEffect(()=>{
@@ -47,10 +48,12 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     if(!wanted.length||!load)return
     const controller=new AbortController()
     void load(false,controller.signal).then(records=>{
-      if(!controller.signal.aborted&&mayUpdate())setOlderPins(records.filter(item=>wanted.includes(item.threadId)&&!item.archived))
+      // Retained views can have different recent pages. Share every pin, not
+      // only the subset missing from this view, or another view loses rows.
+      if(!controller.signal.aborted&&mayUpdate())rememberResolvedSessionHistory(storageKey,records.filter(item=>pins.includes(item.threadId)),resolved.revision)
     }).catch(()=>{if(!controller.signal.aborted&&mayUpdate())setError('置顶会话暂时无法读取，请刷新重试。')})
     return()=>controller.abort()
-  },[missingPins,storageKey,Boolean(actions?.history)])
+  },[missingPins,storageKey,Boolean(actions?.history),resolved.revision])
   useEffect(()=>{if(reopened.some(item=>items.some(existing=>existing.threadId===item.threadId)))setReopened(previous=>previous.filter(item=>!items.some(existing=>existing.threadId===item.threadId)))},[items,reopened])
   const recent=[...olderPins.filter(item=>pins.includes(item.threadId)&&!items.some(existing=>existing.threadId===item.threadId)&&!reopened.some(existing=>existing.threadId===item.threadId)),...reopened.filter(item=>!items.some(existing=>existing.threadId===item.threadId)),...items]
   const displayed=(archiveView?archived?.threads??[]:orderSessions(recent,pins)).filter(item=>!removed.includes(item.threadId)).map(item=>names[item.threadId]?{...item,sessionTitle:{text:names[item.threadId],source:'user' as const,revision:item.sessionTitle?.revision??0,source_ref:null}}:item)

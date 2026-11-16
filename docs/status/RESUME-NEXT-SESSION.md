@@ -1,68 +1,56 @@
 # Live Session Checkpoint
 
-Updated: 2026-11-17. Goal remains active until the control closeout PR is merged.
+Updated: 2026-11-17. Active task: fix the sidebar jumping on session selection.
 
-## Current boundary
+## Current state
 
-User goal: 完成阶段二. StageB code is integrated and accepted locally in actualdev
-87e780df through PR126; tested head0529e059/macOS CI43929754196 passed127s.
-183 backend/governance,71 App and types passed. Real two-Thread original-byte
-handoff, explicit user acceptance, browser creation/refresh, API/native-worker
-restart, live pause/resume/revise/cancel/exact replay, delegation budget and
-active-single deadline stop passed. StageA is already in dev via PR125.
+Owner capstone-app. Branch fix/session-sidebar-stability-20261117 in initialized
+.worktrees/historical-input-receipts targets dev. Rootdev remains clean7531bc1f.
+Prior stageB is complete through PR126/127; its final ignored receipt is
+runs/control-delegation-20261117/closeout-receipt.json. Do not reopen that goal.
 
-Actualdev canonical rebuild27362 completed0. API/three workers use image
-2c105d56f4b2fdfa14bc632253d0d4bd82b3a119c6b15123d4b0ec86eab3e245;
-ready and scoped cache maintenance passed. Existing localhost:5173 restored both
-accepted Goals/exact products, four original downloads, control/budget/deadline
-states, bound phase2 completed conversation/report after refresh and10 pins.
-Owned candidate Vite5174/PID78919 stopped after verification. No live build,
-model trial or observer remains. The real5173 Vite/API/workers remain available.
+Existing5173 reproduced10 pinned rows becoming3 immediately after switching,
+then returning to10. Pin IDs remain durable. SessionNavigation lost component-local
+older-row descriptors on remount. Source501c90fd moves resolved row metadata to
+the exact access-scoped session catalog and invalidates earlier history replies
+on archive/delete/restore. It does not change pin authority, permissions or UI design.
 
-Rootdev is clean at87e780df. Product source branch was checked as an ancestor,
-then closed locally/remotely; exact source/PR receipt is in root ignored
-runs/control-delegation-20261117/pr126-merged.json. No cloud/demo/main changes.
-No stageC task-board or stageD event/timer implementation is selected.
+Two regression tests failed first (cold-remount rows/position, stale removed-row
+reply), then a concurrent-page overwrite regression failed and was fixed in
+399f90f3.125 tests across10 direct App consumers and TypeScript pass;145
+scope/governance checks pass. New session-navigation gate
+runs only those consumers plus types and its scope test, on macOS. No solver or
+release gate. Independent reviewer dispatch failed Unknown model gpt-6.1-luna;
+direct source review performed; no independent pass exists.
 
-## Remaining work
+## Live operations
 
-Initialized worktree .worktrees/historical-input-receipts now owns
-docs/control-delegation-closeout-20261117, based ondev87e780df, destinationdev.
-Task-owned dirty files are acceptance review, canonical worklist, CURRENT-STATE,
-INDEX, JOURNAL, VERSION-CONTROL and this checkpoint. Generate PROJECT-OVERVIEW
-after these edits. This branch owns project-control closeout only.
+Canonical candidate rebuilds63980/5024 completed0. Latest399f90f3/image731d93bf
+passed readiness, API/three-worker identity and scoped cache maintenance;
+/tmp/capstone-sidebar-rebuild-2.log. Candidate Vite session74642 serves5174.
+Five real cold/warm switches retained10 pins/order and correct selected headings;
+intermediate screenshots inspected. Root5173 still uses dev7531bc1f App;
+record this temporary split accurately. No new tabs. No model trial is active.
+Root ignored operation pointer: runs/session-sidebar-stability-20261117/active-operations.json.
+Initial failing browser AX evidence is retained in the same directory.
 
-Use ui-ux-pro-max network-chart guidance, regenerate/re-layout and inspect the
-existing graph tab (actualdev node, important PR126 merge and exact deployment
-source edges). Run docs links/symlink/diff/doctor and focused graph checks.
-Commit exact owned paths, push once and create a dev PR; CI is directly approved
-by the user. Use only docs macOS scope. Merge after exact-head pass, fast-forward
-actualdev, refresh its ignored live graph and inspect that actualdev page.
-Close the verified docs branch; preserve initialized worktree, auth and user data.
-Final own commit/CI/PR/merge/head/clean receipts go to ignored runs only. Do not
-start an endless documentation commit cycle to describe this closeout's own hash.
+## Next actions
 
-Before completion, inspect the requirement audit in root ignored
-runs/control-delegation-20261117/stage-b-completion-audit.json and mark remaining
-integration rows verified only from actual remote/Git/runtime/browser evidence.
-Call update_goal complete only when this final control boundary is done.
+1. Candidate browser is accepted locally. Do not interpret transient missing AX
+   rows as visual failure: original root screenshot genuinely shows3; candidate
+   AX9/AX0 screenshots still showed10. Concurrent overwrite has red/green proof.
+2. Finish acceptance/control checkpoint, generate/re-layout and inspect graph via
+   ignored live observation, using ui-ux-pro-max. Current dirty paths are task-owned
+   status docs/graph/review/plan only. Verify links/symlink/diff/doctor and graph checks.
+3. Commit verification/control checkpoint, push one final head, create dev PR and
+   run authorized macOS session-navigation gate. CI requires no new user approval.
+   Integrate, rebuild actualdev, verify real5173, original10 exact pin IDs and
+   stable list. Stop only owned candidate Vite after5173 is accepted.
+4. Integrate canonical final control acceptance through a finite docs PR if needed,
+   refresh actualdev live graph, close verified task branches and keep both task
+   worktrees clean. Final own receipts stay ignored; preserve all other work/data.
 
-## Evidence and limitations
-
-Acceptance: docs/reviews/2026-11-17-control-delegation-local.md.
-Root ignored receipts: actualdev-restoration-receipt.json,
-actualdev-refreshed-stage2-browser.json, real-two-stage-byte-receipt-2.json,
-restart-byte-receipt-3.json, restart-accepted-goal-3.json, controls-result-3.json,
-budget-latest-goal-3.json, deadline-result-4.json. Full original snapshots and
-downloaded bytes remain beside them. Failed trials are retained.
-
-Independent reviewer dispatch failed Unknown model gpt-6.1-luna; no independent
-review pass exists. Direct source review found/fixed active delegation expiry.
-Preserve this limitation rather than inventing a review result.
-
-GitHub uses process-scoped Clash proxy127.0.0.1:7897. Read state before retrying
-writes. Preserve rootvar, all unrelated worktrees/stashes and ignored auth;
-recovery2eefdda714845605f7aef5c8a450aa982770ca4f must not be blindly reapplied.
-Reuse existing browser tabs. Vivaldi window355034, current tab actual5173 phase2;
-graph tab is the actual root file. GUI indexes are short-lived. Source graph
-and final receipts use actualdev; a feature snapshot alone is not acceptance.
+Plan: docs/superpowers/plans/2026-11-17-session-sidebar-stability.md.
+Canonical worklist: docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md.
+GitHub uses process-scoped Clash127.0.0.1:7897. Preserve rootvar, ignored auth,
+other worktrees and recovery2eefdda714845605f7aef5c8a450aa982770ca4f.

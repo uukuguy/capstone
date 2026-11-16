@@ -791,6 +791,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
                 path in goal['paths'] or _control_path(path) for path in paths):
             return 'agent-goal'
     pin_manifest = Path(__file__).resolve().parents[1] / 'configs/development/session-pins-gate.json'
+    navigation_manifest = pin_manifest.with_name('session-navigation-gate.json')
+    if navigation_manifest.is_file():
+        navigation = json.loads(navigation_manifest.read_text())
+        if set(navigation['anchors']).issubset(paths) and all(
+                path in navigation['paths'] or _control_path(path) for path in paths):
+            return 'session-navigation'
     if pin_manifest.is_file():
         pins = json.loads(pin_manifest.read_text())
         if set(pins['anchors']).issubset(paths) and all(
