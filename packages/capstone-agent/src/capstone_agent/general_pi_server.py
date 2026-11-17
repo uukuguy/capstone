@@ -1756,8 +1756,12 @@ class NativeTaskRunner:
             equipment = (request.native_context or {}).get('mission_equipment')
             if equipment is not None:
                 from .native_mission import equipment_tools
+                from .data_gateway_relay import gateway_discovery_tools
                 policy = sdk_config['applicationPolicy']
-                allowed = equipment_tools(policy['allowed_tools'], equipment, require_selected=False)
+                protocol = gateway_discovery_tools(request.native_context, gateway_publication,
+                    gateway_available=sdk_config.get('dataGateway') is not None)
+                allowed = equipment_tools(policy['allowed_tools'], equipment,
+                    require_selected=False, protocol_tools=protocol)
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': sorted(allowed)}
             timing.mark('resources_configured')
             if sdk_config.get('selectedResourceFiles'):
@@ -2365,7 +2369,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             except (ValueError, KeyError, PermissionError, ValidationError):
                 return self.send_json(409, {'error': 'mission_tool_request_rejected'})
             finally:
-                lease.close()
+                runner.relay.release(lease)
 
         def relay_domain_tools(self):
             parts = self.path.split('/')

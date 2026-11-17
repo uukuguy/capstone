@@ -85,14 +85,15 @@ test('unresolved publications load exact contracts before registration without p
  await c.tools[1].execute('load-again',{names:['selected']});assert.equal(reads,1);
 });
 
-for(const mode of ['parent','managed-child'])for(const source of ['gateway','domain'])test('actual pinned SDK '+mode+' loads exact contracts before calling '+source+' tools',async()=>{
+for(const mode of ['parent','managed-child'])for(const source of ['gateway','domain','mission-gateway'])test('actual pinned SDK '+mode+' loads exact contracts before calling '+source+' tools',async()=>{
  const sdk=await import('../../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js');
  const ai=await import('../../../../.grid-agent/runtime/pi/source/packages/ai/dist/index.js');
  const dir=await mkdtemp(join(mode==='parent'?tmpdir():process.cwd()+'/.grid-agent/runtime','progressive-sdk-'));
  const previousAgentDir=process.env.PI_CODING_AGENT_DIR;
  process.env.PI_CODING_AGENT_DIR=dir;
  const menus=[],requests=[],errors=[];let session;
- const toolName=source==='gateway'?'data_gateway_selected':'pack_selected';
+ const gateway=source!=='domain';
+ const toolName=gateway?'data_gateway_selected':'pack_selected';
  const metadata={name:'selected',description:'Selected action',
   _meta:{'data-gateway/capability':{summary_version:'capability-summary/1',declaration_basis:'provider_declared',
    semantics:{prerequisites:['Use a current issued reference.'],execution_choice:'Use only for the selected scope.'}}},
@@ -107,18 +108,30 @@ for(const mode of ['parent','managed-child'])for(const source of ['gateway','dom
     task_id:'task',tool_call_id:body.call_id,tool:body.name,catalog_revision:'pub',tool_schema_sha256:'rev'}}));
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
- const publication=source==='gateway'?metadata:{name:'selected',description:'Selected domain action',inputSchema};
+ const publication=gateway?metadata:{name:'selected',description:'Selected domain action',inputSchema};
  const config={model:'fixture',settings:{compaction:{enabled:false}},extensions:[],allowedSkills:[],contextFiles:[],toolResultCwd:dir,deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',toolName]},
-  [source==='gateway'?'dataGateway':'domainTools']:{onDemandTools:true,url:'http://127.0.0.1:'+server.address().port,grant:'fixture',taskId:'task',
+  [gateway?'dataGateway':'domainTools']:{onDemandTools:true,url:'http://127.0.0.1:'+server.address().port,grant:'fixture',taskId:'task',
    catalog:{revision:'pub',tools:{[toolName]:publication},entry_tools:[],tool_hashes:{[toolName]:'rev'}}}};
+ if(source==='mission-gateway'){
+  // This is the final host projection: the selected business tool plus
+  // bounded discovery helpers. Other published business tools stay denied.
+  config.dataGateway.catalog.tools.data_gateway_denied={name:'denied',description:'MissionDeniedSentinel',inputSchema};
+  config.dataGateway.catalog.tool_hashes.data_gateway_denied='denied-revision';
+ }
  const discovery=host.createApplicationToolDiscovery(config);
+ if(source==='mission-gateway'){
+  await assert.rejects(discovery.tools[1].execute('denied-load',{names:['data_gateway_denied']}),/No tools were activated/);
+  const search=JSON.parse((await discovery.tools[0].execute('denied-search',{query:'MissionDeniedSentinel'})).content[0].text);
+  assert.equal(search.total,0);
+ }
  const model={id:'fixture',name:'Fixture',provider:'capstone-general',api:'openai-completions',baseUrl:'http://127.0.0.1:1',
   reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}};
  let turn=0;
  const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,getAuth:async()=>({auth:{apiKey:'offline'}}),isUsingOAuth:()=>false,
   streamSimple(_model,context){
    menus.push(context.tools.map(t=>({name:t.name,parameters:t.parameters,description:t.description})));
-   if(turn===1&&source==='gateway')assert.ok(JSON.stringify(context.messages).includes('EXACT_USAGE_SENTINEL'));
+   assert(!context.tools.some(tool=>tool.name==='data_gateway_denied'));
+   if(turn===1&&gateway)assert.ok(JSON.stringify(context.messages).includes('EXACT_USAGE_SENTINEL'));
    const call=[{name:'agent_tool_load',arguments:{names:['selected']}},{name:toolName,arguments:{value:4}}][turn++];
    const message={role:'assistant',content:call?[{type:'toolCall',id:'call-'+turn,...call}]:[{type:'text',text:'Done'}],
     api:model.api,provider:model.provider,model:model.id,timestamp:Date.now(),stopReason:call?'toolUse':'stop',
@@ -141,11 +154,12 @@ for(const mode of ['parent','managed-child'])for(const source of ['gateway','dom
   await session.prompt('Use selected action');
   assert.deepEqual(errors,[]);assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
   assert.deepEqual(menus[1].find(t=>t.name===toolName)?.parameters,inputSchema);
-  if(source==='gateway'){
+  if(gateway){
    assert.ok(menus[1].find(t=>t.name===toolName)?.description.includes('Use a current issued reference.'));
    assert.equal(requests.length,2);assert.equal(requests[0].operation,'resolve_contracts');
   }else assert.equal(requests.length,1);
   assert.equal(requests.at(-1).name,toolName);assert.deepEqual(requests.at(-1).arguments,{value:4});
+  assert(requests.every(request=>request.name!=='data_gateway_denied'&&!request.names?.includes('data_gateway_denied')));
  }finally{session?.dispose();if(previousAgentDir===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=previousAgentDir;
   await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
 });

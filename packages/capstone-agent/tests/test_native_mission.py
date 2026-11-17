@@ -45,6 +45,18 @@ def test_equipment_narrows_current_grants_without_adding_tools():
         equipment_tools({'write'}, selection)
 
 
+def test_gateway_selection_keeps_only_already_admitted_discovery_protocol_tools():
+    from capstone_agent.native_mission import equipment_tools
+    current = {'selected_gateway_read', 'unselected_gateway_write', 'agent_tool_search', 'agent_tool_load'}
+    selection = dict(schema='capstone-mission-tool-selection/1',allowed_tools=['selected_gateway_read'],denied_tools=[])
+    assert equipment_tools(current,selection,require_selected=False,
+        protocol_tools={'agent_tool_search','agent_tool_load','unknown_helper'}) == {
+            'selected_gateway_read','agent_tool_search','agent_tool_load'}
+    selection['denied_tools'] = ['agent_tool_load']
+    assert 'agent_tool_load' not in equipment_tools(current,selection,require_selected=False,
+        protocol_tools={'agent_tool_search','agent_tool_load'})
+
+
 def test_worker_services_mission_requests_with_its_bound_control_callback(monkeypatch):
     import time
     from capstone_agent.pi_delegation import HttpGeneralPiExecutor, PiTaskRequest
@@ -113,3 +125,49 @@ def test_host_mission_channel_requires_the_current_task_attempt_and_authority():
     record['cancel'].set()
     with pytest.raises(PermissionError):
         host.mission_request('task_1',call)
+
+
+def test_http_mission_poll_releases_real_relay_capacity_between_pending_and_receipt(tmp_path):
+    import time
+    from types import SimpleNamespace
+    from threading import Event, Thread
+    import httpx
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from capstone_agent.general_pi_relay import ProviderRelay
+    from capstone_agent.native_execution_authority import ExecutionAuthority
+    from capstone_agent.native_mission import MissionTaskChannel
+    relay = ProviderRelay(gateway_per_task=1)
+    relay.register('task_1','task-grant',time.monotonic()+3)
+    host = GeneralPiHost(root=tmp_path,identity={},run_task=lambda *_:None)
+    host._tasks['task_1'] = dict(request=SimpleNamespace(parent_attempt_id='attempt_1',
+        native_context={'policy':{'allowed_tools':['agent_mission_read']}}),status='running',cancel=Event(),
+        execution_authority=ExecutionAuthority('a'*64,'b'*64,30),mission=MissionTaskChannel())
+    server = make_server(host,control_token='control-fixture',address=('127.0.0.1',0),runner=SimpleNamespace(relay=relay,gateway=None))
+    thread = Thread(target=server.serve_forever,daemon=True)
+    thread.start()
+    call = dict(call_id='call_1',name='agent_mission_read',arguments={})
+    url = 'http://127.0.0.1:'+str(server.server_address[1])+'/mission-tools/task_1'
+    try:
+        with httpx.Client(timeout=1) as client:
+            response = client.post(url,headers={'Authorization':'Bearer task-grant'},json=call)
+            assert response.status_code == 200 and response.json() == {'pending':True}
+            # A pending response is not a long-lived gateway invocation.
+            deadline = time.monotonic()+.5
+            while relay.active and time.monotonic()<deadline:
+                time.sleep(.01)
+            assert not relay.active, 'Mission poll leaked the per-task relay lease'
+            receipt = dict(call_id='call_1',result={'state':'planning'},is_error=False)
+            host._tasks['task_1']['mission'].acknowledge([receipt])
+            response = client.post(url,headers={'Authorization':'Bearer task-grant'},json=call)
+            assert response.status_code == 200 and response.json() == receipt
+            rejected = client.post(url,headers={'Authorization':'Bearer task-grant'},json={**call,'arguments':{'mission_id':'other'}})
+            assert rejected.status_code == 409
+            deadline = time.monotonic()+.5
+            while relay.active and time.monotonic()<deadline:
+                time.sleep(.01)
+            assert not relay.active, 'Completed and rejected Mission polls must release relay capacity'
+            unauthorized = client.post(url,headers={'Authorization':'Bearer wrong-fixture-grant'},json=call)
+            assert unauthorized.status_code == 401 and not relay.active
+    finally:
+        relay.revoke('task_1')
+        server.shutdown();server.server_close();thread.join(timeout=1)

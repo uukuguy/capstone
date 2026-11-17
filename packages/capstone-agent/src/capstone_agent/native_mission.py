@@ -85,14 +85,16 @@ def checked_equipment(value):
     return deepcopy(value)
 
 
-def equipment_tools(current, selection, *, require_selected=True):
+def equipment_tools(current, selection, *, require_selected=True, protocol_tools=()):
     checked_equipment(selection)
     available = set(current)
+    protocol = set(protocol_tools).intersection(available)
     selected = selection['allowed_tools']
     if selected is not None:
         if require_selected and not set(selected) <= available:
             raise ValueError('Mission equipment exceeds current admitted tools')
         available.intersection_update(selected)
+    available.update(protocol)
     available.difference_update(selection['denied_tools'])
     if not available:
         raise ValueError('Mission equipment leaves no executable tool')
