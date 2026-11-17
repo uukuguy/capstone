@@ -38,7 +38,8 @@ def test_intent_creation_and_goal_alias_share_identity_and_thread_link(chat_stor
         assert client.get(goal_path, headers=_auth()).json()['goal_id'] == mission['mission_id']
         event_path = '/api/v1/control/missions/' + mission['mission_id'] + '/events'
         assert client.get(event_path, headers=_auth()).json() == client.get(goal_path + '/events', headers=_auth()).json()
-        assert mission in client.get('/api/v1/control/missions', headers=_auth()).json()['missions']
+        assert client.get('/api/v1/control/missions', headers=_auth()).json()['schema'] == 'capstone-control-missions/1'
+        assert client.get('/api/v1/control/missions/' + mission['mission_id'], headers=_auth()).json() == mission
         bad = {**_auth(), 'Capstone-Workspace': 'other'}
         assert client.get('/api/v1/control/missions/' + mission['mission_id'], headers=bad).status_code == 404
         assert client.post('/api/v1/control/missions', headers=bad, json=request(thread_id, 'foreign')).status_code == 404
@@ -111,3 +112,32 @@ def test_postgres_origin_link_survives_new_service(postgres_thread_service):
     restarted = PostgresThreadService(threads.dsn)
     assert restarted.snapshot(thread_id).mission_refs == ({'mission_id': mission['mission_id']},)
     assert configure_control(restarted).read_mission('enterprise', mission['mission_id'])['goal_id'] == mission['goal_id']
+
+
+def test_legacy_goal_list_preserves_mixed_planning_mission_identity(chat_store):
+    from test_control_host import goal_request
+    threads, thread_id = chat_store
+    with TestClient(_app(threads), base_url='http://localhost') as client:
+        old_request = {**goal_request(), 'operation_id': 'legacy_' + thread_id}
+        legacy = client.post('/api/v1/control/goals', headers=_auth(), json=old_request).json()
+        mission = client.post('/api/v1/control/missions', headers=_auth(),
+            json=request(thread_id, 'mixed')).json()
+        found, cursor = {}, None
+        while True:
+            path = '/api/v1/control/goals?limit=64' + ('' if cursor is None else '&after=' + cursor)
+            page = client.get(path, headers=_auth()).json()
+            for row in page['goals']:
+                assert row['goal_id'] not in found
+                found[row['goal_id']] = row
+            cursor = page['next_cursor']
+            if cursor is None:
+                break
+        assert found[legacy['goal_id']] == legacy
+        projected = found[mission['mission_id']]
+        assert projected['schema'] == 'capstone-control-goal/1'
+        assert projected['application_kind'] == 'mission'
+        assert projected['mission_id'] == projected['goal_id'] == mission['mission_id']
+        assert projected['origin'] == {'thread_id': thread_id}
+        assert projected['state'] == 'planning' and projected['tasks'] == []
+        assert projected['plan_complete'] is False and projected['plan_revision'] == 1
+        assert 'application_kind' not in legacy

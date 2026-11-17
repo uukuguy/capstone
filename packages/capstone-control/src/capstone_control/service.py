@@ -22,7 +22,13 @@ def fingerprint(value):
 
 
 def public(goal):
-    return deepcopy({key: value for key, value in goal.items() if not key.startswith('_')})
+    result = deepcopy({key: value for key, value in goal.items() if not key.startswith('_')})
+    if '_mission' in goal:
+        metadata = goal['_mission']
+        result.update(application_kind='mission', mission_id=goal['goal_id'],
+            origin=deepcopy(metadata['origin']), plan_revision=metadata.get('plan_revision', 1),
+            plan_complete=bool(goal['tasks'] and goal['acceptance_criteria']))
+    return result
 
 
 class ControlService:
