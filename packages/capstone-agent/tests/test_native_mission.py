@@ -195,7 +195,7 @@ def test_host_mission_channel_requires_the_current_task_attempt_and_authority():
         host.mission_request('task_1',call)
 
 
-@pytest.mark.parametrize('setup_delay', [0, 4])
+@pytest.mark.parametrize('setup_delay', [0, 4, 35])
 def test_http_mission_poll_releases_real_relay_capacity_between_pending_and_receipt(tmp_path, monkeypatch, setup_delay):
     import time
     from types import SimpleNamespace
@@ -210,14 +210,14 @@ def test_http_mission_poll_releases_real_relay_capacity_between_pending_and_rece
     monkeypatch.setattr(relay_module, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
     relay = ProviderRelay(gateway_per_task=1)
     host = GeneralPiHost(root=tmp_path,identity={},run_task=lambda *_:None)
-    host._tasks['task_1'] = dict(request=SimpleNamespace(parent_attempt_id='attempt_1',
-        native_context={'policy':{'allowed_tools':['agent_mission_read']}}),status='running',cancel=Event(),
-        execution_authority=ExecutionAuthority('a'*64,'b'*64,30),mission=MissionTaskChannel())
     server = make_server(host,control_token='control-fixture',address=('127.0.0.1',0),runner=SimpleNamespace(relay=relay,gateway=None))
     thread = Thread(target=server.serve_forever,daemon=True)
     thread.start()
     clock[0] += setup_delay
     # Host setup is outside the grant lifetime; only authorized requests consume it.
+    host._tasks['task_1'] = dict(request=SimpleNamespace(parent_attempt_id='attempt_1',
+        native_context={'policy':{'allowed_tools':['agent_mission_read']}}),status='running',cancel=Event(),
+        execution_authority=ExecutionAuthority('a'*64,'b'*64,30,clock=lambda: clock[0]),mission=MissionTaskChannel())
     relay.register('task_1','task-grant',clock[0]+3)
     call = dict(call_id='call_1',name='agent_mission_read',arguments={})
     url = 'http://127.0.0.1:'+str(server.server_address[1])+'/mission-tools/task_1'
@@ -245,6 +245,10 @@ def test_http_mission_poll_releases_real_relay_capacity_between_pending_and_rece
             clock[0] += 4
             expired = client.post(url,headers={'Authorization':'Bearer task-grant'},json=call)
             assert expired.status_code == 401 and not relay.active
+            relay.register('task_1','task-grant',clock[0]+60)
+            clock[0] += 31
+            expired_authority = client.post(url,headers={'Authorization':'Bearer task-grant'},json=call)
+            assert expired_authority.status_code == 409 and not relay.active
     finally:
         relay.revoke('task_1')
         server.shutdown();server.server_close();thread.join(timeout=1)

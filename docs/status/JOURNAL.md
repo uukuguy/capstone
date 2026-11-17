@@ -8100,3 +8100,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: Mission acceptance graph passes46-card browser layout and verified source ancestry; bilingual usage, runbook and local report align.
 - 2026-11-18: 17c8aeb4 commits the verified Mission snapshot; PR141 CI44177998939 exposes a setup-expired three-second test grant.
 - 2026-11-18: Controlled-clock reproduction fails before repair; post-setup grant and explicit expiry assertions pass16 native Mission checks, without runtime changes.
+- 2026-11-18: c5ce1975 fixes relay timing; CI44178954115 reveals the separate execution-authority clock also starts before cold server setup.
+- 2026-11-18: Simulated35-second setup reproduces409; post-setup authorities share an injected clock, and both expiry guards pass17 Mission checks.
