@@ -7,6 +7,7 @@ import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
 import {createDomainTools} from './general-domain-tools.mjs';
+import {createMissionTools} from './mission-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createManagedResourceTools} from './managed-resource-tools.mjs';
 import {createPresentationTools} from './presentation-templates.mjs';
@@ -361,7 +362,7 @@ export function applicationToolAdmission(config, toolName) {
   if(config.researchRuntime?.deepResearch===false&&toolName.startsWith('agent_research_'))
     return {accepted:false,reason:'Deep Research is off for this instruction. Use the ordinary agent loop.'};
   const policy = config.applicationPolicy;
-  return { accepted: (config.researchRuntime?.adaptiveAgentLoop===true||!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
+  return { accepted: (config.researchRuntime?.adaptiveAgentLoop===true||!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||Object.hasOwn(config.missionTools?.catalog??{},toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
       (!policy || policy.allowed_tools.includes(toolName)),
     reason: "This application did not authorize the requested tool. Select a registered resource or continue without it." };
 }
@@ -414,7 +415,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   const wrap=tool => {
     const guarded = guardToolExecution(dispatcher.wrap(tool), async call => applicationToolAdmission(config, call.toolName));
     // Foundation records do not open a native graph action or produce business evidence.
-    if (!config.researchChannelPath||diagnosisTools.includes(tool.name)) return guarded;
+    if (!config.researchChannelPath||diagnosisTools.includes(tool.name)||tool.name.startsWith('agent_mission_')) return guarded;
     return {...guarded, async execute(callId, ...args) {
       args[1]?.throwIfAborted();
       const controller=research(),token=await controller?.beginTool({toolCallId:callId,toolName:tool.name,signal:args[1]});
@@ -442,7 +443,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   discovery?.setLoadedWrapper(wrap);
   const skillTools=config.applicationPolicy.allowed_tools.includes('agent_skill')&&config.taskSkills?.length
     ?[createSkillRecordTool(config.taskSkills)]:[];
-  const customTools=[...nativeTools,...externalTools,...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...createPresentationTools(config),...skillTools].map(wrap);
+  const customTools=[...nativeTools,...externalTools,...createMissionTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...createPresentationTools(config),...skillTools].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){

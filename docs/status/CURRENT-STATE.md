@@ -23,9 +23,9 @@ invalidate prior history reads; this cache does not own the persistent pin set.
 ## Project snapshot
 
 - Project route: managed
-- Delivery package: stageB Control delegation; capstone-control owns durable Goal/Task coordination, capstone-agent owns delegated Thread/Work execution. Product is integrated and locally accepted in dev through PR126; control closeout follows `docs/superpowers/plans/2026-11-17-control-delegation.md`. No stageC/D implementation is selected.
+- Active work package: Mission conversation delivery. capstone-control owns durable Mission/Task coordination and bounded organizer review intents; capstone-agent owns the originating conversation, delegated execution and explicit result-resource grants; capstone-app owns slash-command presentation and the existing workspace. See `docs/superpowers/plans/2026-11-18-mission-conversation.md` for the acceptance boundary. Runtime and integration facts belong to the version register and session checkpoint.
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
-- Delivery baseline: dev includes recoverable long-task execution, durable workspace pins, standalone Agent Work goals and independent Control delegation. Their owning acceptance records and exact deployment sources live in the canonical worklist and version register. Cloud/demo retain separate accepted sources.
+- Delivery baseline: dev includes recoverable long-task execution, durable workspace pins, standalone Agent Work goals, independent Control delegation and durable instruction intervention with a shared execution reader. Their owning acceptance records and exact deployment sources live in the canonical worklist and version register. Cloud/demo retain separate accepted sources.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
 - Branch ownership: paragraph indexing and selection belong to capstone-agent and capstone-app. The Kernel and Authority contracts remain unchanged. Old PPT and reference
   research heads are exact archived recovery sources, not active delivery branches.

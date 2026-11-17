@@ -11,6 +11,18 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('opts into Mission records only on compatible Control collection and single-record reads',async()=>{
+    const mission={schema:'capstone-control-goal/1',application_kind:'mission',workspace:'enterprise',goal_id:'goal_mission',mission_id:'goal_mission',revision:1,objective_revision:1,objective:'Rough intent',acceptance_criteria:[],max_delegations:8,delegations_admitted:0,deadline_at:'2099-01-01T00:00:00Z',state:'planning',reason:null,acceptance:null,tasks:[],origin:{thread_id:'thr_origin'},plan_revision:1,plan_complete:false,plan_concluded:false}
+    const fetcher=vi.fn<typeof fetch>().mockImplementation(async(url)=>new Response(JSON.stringify(new URL(String(url)).pathname.endsWith('/control/goals')?{schema:'capstone-control-goals/1',goals:[mission],next_cursor:null}:mission)))
+    const transport=new HttpThreadTransport('https://api.example','operator',fetcher)
+    expect((await transport.controlGoals()).goals[0].mission?.missionId).toBe('goal_mission')
+    await transport.controlGoals('goal_after')
+    await transport.controlGoal('goal_mission')
+    const urls=fetcher.mock.calls.map(call=>new URL(String(call[0])))
+    expect(urls.map(url=>url.searchParams.get('include_missions'))).toEqual(['true','true','true'])
+    expect(urls[1].searchParams.get('after')).toBe('goal_after')
+    expect(urls[2].pathname).toBe('/api/v1/control/goals/goal_mission')
+  })
   it('reads a fixed Control event prefix with workspace authorization',async()=>{
     const body={schema:'capstone-control-events/1',workspace:'enterprise',goal_id:'goal_a',events:[],
       after_sequence:0,through_sequence:0,next_sequence:0,has_more:false,history_complete:false,first_recorded_goal_revision:null}

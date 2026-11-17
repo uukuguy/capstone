@@ -93,6 +93,7 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/conversation_context.py \
      packages/capstone-agent/src/capstone_agent/request_intent.py \
      packages/capstone-agent/src/capstone_agent/native_task_context.py \
+     packages/capstone-agent/src/capstone_agent/native_mission.py \
      packages/capstone-agent/src/capstone_agent/native_diagnosis.py \
      packages/capstone-agent/src/capstone_agent/native_tool_composition.py \
      packages/capstone-agent/src/capstone_agent/task_planning_policy.py \
@@ -127,6 +128,7 @@ COPY configs/runtime/application-capacity.json \
      packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json \
      packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs \
      packages/capstone-agent/src/capstone_agent/resources/general-domain-tools.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/mission-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/presentation-templates.mjs \

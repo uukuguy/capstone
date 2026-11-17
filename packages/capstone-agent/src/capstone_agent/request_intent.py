@@ -135,14 +135,25 @@ class IntentRequest:
         value = _fields(json.loads(serialized), {
             "schema", "thread_id", "turn_id", "attempt_id", "instruction", "history_cutoff",
             "messages", "objects", "capabilities", "mode_hint",
-        }, {"history_truncated", "instruction_message_id", "context_selection", "selected_skill"})
+        }, {"history_truncated", "instruction_message_id", "instruction_source", "context_selection", "selected_skill"})
         if value["schema"] != REQUEST_SCHEMA:
             raise ValueError("unsupported intent request schema")
         for key in ("thread_id", "turn_id", "attempt_id"):
             _text(value[key], key, limit=256)
+        source = value.get('instruction_source')
+        suffix = ':user'
+        if source is not None:
+            _fields(source, {'schema', 'mission_id', 'review_id', 'boundary_digest'})
+            if source['schema'] != 'capstone-mission-review-source/1':
+                raise ValueError('unsupported instruction source')
+            for key in ('mission_id', 'review_id', 'boundary_digest'):
+                _text(source[key], 'instruction_source.' + key, limit=256)
+            suffix = ':mission_review'
         if 'instruction_message_id' in value:
-            if value['instruction_message_id'] != value['attempt_id'] + ':user':
+            if value['instruction_message_id'] != value['attempt_id'] + suffix:
                 raise ValueError('instruction message identity does not match its Attempt')
+        elif source is not None:
+            raise ValueError('typed instruction source needs its message identity')
         _text(value["instruction"], "instruction")
         _integer(value["history_cutoff"], "history_cutoff")
         if "history_truncated" in value and type(value["history_truncated"]) is not bool:
@@ -375,6 +386,7 @@ class NodeControl:
     instructions: Callable[[], tuple[dict, ...]] | None = None
     reserve_instruction: Callable[[str], dict | None] | None = None
     acknowledge_instruction: Callable[[str], dict | None] | None = None
+    mission_operation: Callable[[str, dict, str], dict] | None = None
 
     def __post_init__(self) -> None:
         if not callable(self.check):

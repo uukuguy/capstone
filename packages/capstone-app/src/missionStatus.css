@@ -1,0 +1,5 @@
+.mission-status { min-width:0; max-width:100%; font-size:12px; color:inherit; }
+.mission-status summary { min-height:44px; align-content:center; cursor:pointer; }
+.mission-status summary:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+.mission-status p { margin:4px 0; overflow-wrap:anywhere; white-space:pre-wrap; }
+.mission-status small { display:block; line-height:1.5; }

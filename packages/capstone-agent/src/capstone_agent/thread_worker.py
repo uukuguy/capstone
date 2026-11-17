@@ -316,6 +316,9 @@ def serve_thread_attempts(
             control = getattr(service, 'control_host', None)
             if control is not None:
                 control.tick()
+                from .mission_continuation import drain_mission_reviews
+                if drain_mission_reviews(service) and wake_event is not None:
+                    wake_event.set()
             if callable(getattr(service, 'goal_continuation_candidates', None)):
                 from .goal_continuation import drain_goal_continuations
                 if drain_goal_continuations(service) and wake_event is not None:

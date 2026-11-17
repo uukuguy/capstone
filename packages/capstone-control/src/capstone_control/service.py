@@ -22,13 +22,78 @@ def fingerprint(value):
 
 
 def public(goal):
-    return deepcopy({key: value for key, value in goal.items() if not key.startswith('_')})
+    result = deepcopy({key: value for key, value in goal.items() if not key.startswith('_')})
+    if '_mission' in goal:
+        metadata = goal['_mission']
+        result.update(application_kind='mission', mission_id=goal['goal_id'],
+            origin=deepcopy(metadata['origin']), plan_revision=metadata.get('plan_revision', 1),
+            plan_complete=bool(goal['tasks'] and goal['acceptance_criteria']))
+        conclusion=metadata.get('plan_conclusion')
+        from .mission import conclusion_satisfied
+        satisfied = conclusion_satisfied(goal)
+        conclusion_status = None if not conclusion else ('legacy_unverified' if 'criteria_verdicts' not in conclusion
+            else 'stale' if conclusion.get('plan_revision') != metadata.get('plan_revision',1) else 'satisfied' if satisfied else 'incomplete')
+        result.update(plan_concluded=satisfied, plan_conclusion_status=conclusion_status,
+                      plan_conclusion=deepcopy(conclusion))
+        review=metadata.get('organizer',{})
+        current=next((r for r in review.get('records',[]) if r['intent']['review_id']==review.get('current_review_id')),None)
+        result['organizer']=dict(max_reviews=review.get('max_reviews',8),reviews_admitted=review.get('reviews_admitted',0),
+            state=current['state'] if current else 'idle',reason=(current or {}).get('reason'),
+            suspended=review.get('suspended',False))
+        if review.get('disposition') and (current is None or current['state'] not in {'pending','reserved','running'}):
+            result['organizer'].update(state='waiting',reason=review['disposition']['reason'])
+    return result
 
 
 class ControlService:
-    def __init__(self, store, *, now=None):
+    def __init__(self, store, *, now=None, admit_mission_reference=None, mission_execution_adapter=False,
+                 admit_mission_task=None):
         self.store = store
         self.now = now or (lambda: datetime.now(timezone.utc))
+        self.admit_mission_reference = admit_mission_reference
+        self.mission_execution_adapter = mission_execution_adapter
+        self.admit_mission_task = admit_mission_task
+
+    def create_mission(self, workspace, request):
+        from .mission import create
+        return create(self, workspace, request)
+
+    def read_mission(self, workspace, mission_id):
+        from .mission import projection
+        return projection(self, self.store.read(workspace, mission_id))
+
+    def command_mission(self, workspace, command, *, actor='application:trusted',
+                        validate_task_equipment=False):
+        from .mission import command as apply
+        return apply(self, workspace, command, actor, validate_task_equipment=validate_task_equipment)
+
+    def pending_mission_reviews(self, workspace=None, limit=32):
+        from .mission_reviews import pending
+        return pending(self,workspace,limit)
+
+    def reserve_mission_review(self,workspace,mission_id,review_id):
+        from .mission_reviews import reserve
+        return reserve(self,workspace,mission_id,review_id)
+
+    def read_mission_review(self,workspace,mission_id,review_id):
+        from .mission_reviews import read
+        return read(self,workspace,mission_id,review_id)
+
+    def acknowledge_mission_review(self,workspace,mission_id,review_id,binding):
+        from .mission_reviews import acknowledge
+        return acknowledge(self,workspace,mission_id,review_id,binding)
+
+    def finish_mission_review(self,workspace,mission_id,review_id,*,attempt_id,phase):
+        from .mission_reviews import finish
+        return finish(self,workspace,mission_id,review_id,attempt_id,phase)
+
+    def block_mission_review(self,workspace,mission_id,review_id,reason):
+        from .mission_reviews import block
+        return block(self,workspace,mission_id,review_id,reason)
+
+    def release_mission_review(self,workspace,mission_id,review_id,reason='origin_paused_before_admission'):
+        from .mission_reviews import release
+        return release(self,workspace,mission_id,review_id,reason)
 
     def _event(self, kind, **references):
         return dict(kind=kind, recorded_at=self.now().isoformat(), **references)
@@ -80,7 +145,7 @@ class ControlService:
     def delegation_request(self, workspace, goal_id, delegation_id):
         goal = self.read(workspace, goal_id)
         task = self._delegated_task(goal, delegation_id)
-        return {**deepcopy(task['delegation']), 'objective': task['objective'],
+        result = {**deepcopy(task['delegation']), 'objective': task['objective'],
                 'delivery_requirements': deepcopy(task['delivery_requirements']),
                 'required_products': deepcopy(task.get('required_products', [])),
                 'mode': task['mode'], 'max_attempts': task['max_attempts'],
@@ -88,6 +153,11 @@ class ControlService:
                 'context_products': [deepcopy(product) for previous in goal['tasks']
                     if previous['task_id'] in task['depends_on'] and previous['state'] == 'verified'
                     for product in previous['delivery']['products']]}
+        if '_mission' in self.store.read(workspace, goal_id):
+            metadata = self.store.read(workspace, goal_id)['_mission']
+            result.update(schema='capstone-agent-delegation/2', equipment=deepcopy(task.get('equipment', [])),
+                restrictions=deepcopy(task.get('restrictions', [])), mission_origin=deepcopy(metadata['origin']))
+        return result
 
     def expire_pending(self, workspace, goal_id, delegation_id):
         """Revoke the exact operation: a lost admission acknowledgement may exist."""
@@ -189,6 +259,9 @@ class ControlService:
                 task['state'] = 'running'
                 task['delegation']['requested_control'] = None
                 goal.update(state='running', reason=None)
+            if state in {'completed','failed','unknown','cancelled','paused'} and '_mission' in goal:
+                from .mission_reviews import queue_boundary
+                queue_boundary(goal)
             goal['revision'] += 1
             return goal, public(goal)
         return self.store.transact(workspace, goal_id, change,
@@ -257,6 +330,11 @@ class ControlService:
                 'cancelled' if kind == 'cancel' else 'paused')
             goal['reason'] = 'user_' + kind
         elif kind == 'resume':
+            if '_mission' in goal:
+                if not goal['_mission'].get('activated'):
+                    raise InvalidTransition('Mission requires explicit readiness before execution')
+                from .mission import dispatch_ready
+                dispatch_ready(self, goal)
             if goal['state'] not in {'paused', 'waiting'}:
                 raise InvalidTransition('only a paused or waiting Goal can resume')
             if goal['reason'] in {'delegation_unknown', 'delegation_failed', 'delegation_cancelled'}:
@@ -275,10 +353,18 @@ class ControlService:
         elif kind == 'revise':
             self._revise(goal, payload)
         elif kind == 'verify_task':
-            self._verify(goal, payload)
-            next(t for t in goal['tasks'] if t['task_id'] == payload['task_id'])['verification']['actor'] = actor
+            self._verify(goal, payload, actor=actor)
+        elif kind == 'defer_verification':
+            object_fields(payload,{'task_id','reason'})
+            if payload['reason']!='delivery_verification_unavailable' or not any(t['task_id']==payload['task_id'] and t['state']=='delivered' for t in goal['tasks']):
+                raise InvalidTransition('no saved Task delivery awaits verification')
+            goal.update(state='waiting_review' if '_mission' in goal else 'waiting',reason=payload['reason'])
         elif kind == 'accept':
             object_fields(payload, {'products'})
+            if '_mission' in goal:
+                from .mission import conclusion_satisfied
+                if not conclusion_satisfied(goal):
+                    raise InvalidTransition('Mission acceptance requires current satisfied criteria verdicts with saved evidence')
             if goal['state'] != 'delivered' or not all(t['state'] == 'verified' for t in goal['tasks']):
                 raise InvalidTransition('all Tasks must be verified before acceptance')
             products = [p for t in goal['tasks'] for p in t['delivery']['products']]
@@ -291,6 +377,14 @@ class ControlService:
             raise ContractError('unsupported Control command kind')
 
     def _delegate(self, goal):
+        if '_mission' in goal:
+            if not goal['_mission'].get('activated'):
+                raise InvalidTransition('Mission requires explicit readiness before execution')
+            from .mission import dispatch_ready
+            dispatch_ready(self, goal)
+            if (any(task.get('equipment') or task.get('restrictions') for task in goal['tasks'])
+                    and not self.mission_execution_adapter):
+                raise InvalidTransition('Mission equipment needs a registered Agent execution adapter before dispatch')
         if goal['state'] not in {'ready', 'running'}:
             raise InvalidTransition('Goal is not dispatchable')
         if any(t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'} for t in goal['tasks']):
@@ -320,6 +414,8 @@ class ControlService:
         goal.update(state='running', reason=None)
 
     def _revise(self, goal, payload):
+        if '_mission' in goal:
+            raise InvalidTransition('Mission plans use incremental Mission commands')
         object_fields(payload, {'objective', 'acceptance_criteria', 'tasks'})
         if goal['state'] in {'accepted', 'cancelled', 'cancelling', 'revising'}:
             raise InvalidTransition('Goal cannot revise from this state')
@@ -355,7 +451,7 @@ class ControlService:
                          for task in goal.pop('_pending_tasks')]
         goal.update(state='ready', reason=None)
 
-    def _verify(self, goal, payload):
+    def _verify(self, goal, payload, *, actor='application:trusted'):
         object_fields(payload, {'task_id', 'delivery_revision', 'checks'})
         identity(payload['task_id'])
         positive_integer(payload['delivery_revision'])
@@ -373,9 +469,12 @@ class ControlService:
             text(check['name'])
             if check['passed'] is not True:
                 raise InvalidTransition('all verification checks must pass')
-        task.update(state='verified', verification=deepcopy(payload))
+        task.update(state='verified', verification={**deepcopy(payload),'actor':actor})
         if all(t['state'] == 'verified' for t in goal['tasks']):
-            goal['state'] = 'delivered'
+            goal['state'] = 'waiting_review' if '_mission' in goal else 'delivered'
+        if '_mission' in goal:
+            from .mission_reviews import queue_boundary
+            queue_boundary(goal)
 
     def deliver(self, workspace, goal_id, delegation_id, binding, delivery):
         """Trusted adapter call, never an unqualified model proposal."""
@@ -406,6 +505,9 @@ class ControlService:
                 return goal, public(goal)
             d['binding'] = deepcopy(binding)
             task.update(state='delivered', delivery=content)
+            if '_mission' in goal:
+                from .mission_reviews import queue_boundary
+                queue_boundary(goal)
             goal['revision'] += 1
             return goal, public(goal)
         return self.store.transact(workspace, goal_id, change,

@@ -14,10 +14,17 @@
 
 # 多线版本控制
 
-2026-11-18 当前实施：feat/durable-instruction-admission-20261118，所有者capstone-agent/App，目标dev c8de9924。
-产品0298f557与范围门禁34686054；服务端租约队列、SDK实际上下文回执、输入区状态与跨轮次约束保留已实现。
-401后端/123范围/194App通过，真实改向制品及窄屏修正通过；停止与继续复验中，未CI/合并。
-Mission基础独立在feat/mission-foundation-20261118，依赖当前队列候选；尚未接通模型桥接与入口，不属验收。
+2026-11-18 主会话持续掌控已接受：PR140受检c2526df3，合入实际dev38a9e77f；macOS instruction-admission CI44156164744通过266秒。
+持久指令队列、安全边界接纳、独立停止/发送、右栏执行详情与跨轮次约束均经真实模型、制品、刷新及停止后继续验证。
+416后端、123范围、198App、8Node检查通过；实际dev规范重建镜像8d935da7通过。来源分支已关闭，云端/demo不变。
+最终有限回执在本机runs/durable-instruction-admission-20261118/closeout.json；不为嵌入自身HEAD反复提交。
+当前实施为feat/mission-foundation-20261118，所有者capstone-control/agent/App，目标dev38a9e77f。
+粗略意图创建、主会话入口、同一记录兼容投影、注册工具配备已接通；事件驱动组织者接续与真实子任务制品授权正在联测。
+默认5173前端仍是接受基线38a9e77f；本机后端为Mission候选941afaee，候选前端5174。API/三worker同镜像ca3c0409，规范重建/缓存维护通过。
+同一指令真实验收已通过：一次提交、先一任务、两次自动复盘及两次委派，第二任务实际读取同一源版本并保存实测报告。
+原文36字节/hash19b133e4，报告3644字节/hash2ffc9338；三项typed条件全met，Mission delivered但acceptance仍null。
+91Control/485后端/200范围/94App与Node/类型通过；尚待轻量CI/dev PR集成。旧失败试验保留，不算通过。[验证](../reviews/2026-11-18-mission-conversation-local.md)。
+最终自身合并、实际dev重建与5173复验写入本机runs/mission-conversation-20261118/closeout.json及实时旁文件，不为快照自身HEAD重复提交。
 PR138执行详情与PR139轻量CI规则均已合入dev c8de9924，旧候选段落保留历史。
 
 当前工作：feat/execution-details-20261117，capstone-app，目标dev4e81c5f6。
@@ -1270,7 +1277,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR137已合入4e81c5f6；实际本机三视角验收通过；发布基线1.1.0保留 | 活动后继为执行详情与持续介入；f1c4dc57本地候选，未CI/PR，云端/demo不变 |
+| dev | 共同基座与企业工作台集成 | PR140已合入38a9e77f；主会话持续掌控与右栏执行详情接受；发布基线1.1.0保留 | Mission941afaee真实闭环已通过，待定向CI集成；云端/demo不变 |
 
 ## 功能包前沿
 
@@ -1359,7 +1366,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| instruction-admission-20261118 | 当前执行中指令接纳候选，真实复验中 |
+| mission-conversation-20261118 | Mission真实渐进组织闭环验收来源，待dev集成 |
+| instruction-admission-20261118 | PR140已接受主会话持续控制来源 |
 | execution-details-20261117 | PR138已合入并实际5173验收 |
 | control-runtime-views-20261117 | PR137已合dev4e81c5f6，实际本机验收通过 |
 | control-events-20261117 | 已接受Control事件来源，PR136合dev并本机验证 |
@@ -1400,7 +1408,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| instruction-admission-20261118 | 34686054 | feature | 主会话持续指令接纳 | 产品0298f557；401后端/194App与真实改向通过；停止继续复验中 | 持久队列、安全边界接纳、状态条与窄屏来源定位。[计划](../superpowers/plans/2026-11-18-durable-instruction-admission.md) | shared-agent |
+| mission-conversation-20261118 | 941afaee | feature | Mission意图与结果驱动组织 | 同一指令真实闭环、91Control/485后端/200范围/94App通过；待定向CI/dev集成 | 主会话意图创建与注册任务配备；持久结果复盘与逐项验收门禁。[验证](../reviews/2026-11-18-mission-conversation-local.md) | shared-agent |
+| instruction-admission-20261118 | c2526df3 | feature | 主会话持续指令接纳 | PR140合38a9e77f；CI44156164744与实际5173验收通过 | 持久队列、安全边界接纳、状态条与窄屏来源定位。[计划](../superpowers/plans/2026-11-18-durable-instruction-admission.md) | shared-agent |
 | execution-details-20261117 | f1c4dc57 | feature | 会话右栏执行详情 | PR138定向CI与实际5173通过 | 复用执行记录与正式回答，保留历史阅读；指令队列未实现。[计划](../superpowers/plans/2026-11-17-conversation-intervention.md) | shared-agent |
 | control-runtime-views-20261117 | 71f6ef6e | feature | Control运行观察与事件诊断 | PR137/CI44100341776通过，已合4e81c5f6 | 三视角、固定读取边界、原执行关联与位置恢复。[计划](../superpowers/plans/2026-11-17-control-runtime-views.md) | shared-agent |
 | control-events-20261117 | 4db1fb1a | feature | Control持久事件 | PR136/CI通过，已合dc6ada7b | 原子事件、有界读取、旧历史缺口；实际本机只读接口通过。[计划](../superpowers/plans/2026-11-17-control-events.md) | shared-agent |
@@ -1511,7 +1520,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
-| dev-head | dev | main | dev · 当前研发位置 | PR136事件层已合入dc6ada7b，CI44080297410及实际本机接口通过 | 动态绑定实际dev并连接真实祖先；看板、历史恢复与原会话入口通过，云端/demo不变。[当前状态](CURRENT-STATE.md) | shared-agent |
+| dev-head | dev | main | dev · 当前研发位置 | PR140合入38a9e77f，CI44156164744及实际本机真实改向/停止恢复通过 | 动态绑定实际dev并连接真实祖先；持续指令控制、执行详情与历史阅读接受，Mission另行验收。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-active | ce185a14 | feature | Deep Research · 历史后端产品字节来源 | ready及清理通过，已随PR67合入 | 历史产品来源ce185a14，API/worker镜像180c53ffb617、native1b8533cf1b06；清理195305-28422，与dev32d72c28产品相同，当前运行另见ed0节点。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
 | gateway-failure-merge | f397fbef | main | dev · 网关目录与失败诊断 | PR66 已合入，固定里程碑 | 网关目录、范围约束与失败诊断修复。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-head | de648f58 | feature | 统一轻量循环 · 已合入来源 | PR67 已合入，必需 CI 通过 | de648f58 受检；统一入口及按需 Deep Research；历史间歇失败诊断保留。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
@@ -1606,8 +1615,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| instruction-admission-20261118 | 当前执行候选 | feat/durable-instruction-admission-20261118 | 主会话执行中提交与边界接纳；状态条与停止恢复 | 本地真实复验通过，未CI/合并 |
-| execution-details-20261117 | 已接受App | dev · PR138 | 右栏执行过程与正式回答；制品独立 | 189App/类型与143范围检查通过；未CI/合并 |
+| mission-conversation-20261118 | 已验证组织闭环 | feat/mission-foundation-20261118 | 粗略意图与渐进规划；真实制品授权及逐项验收 | 一次提交/两任务/两复盘/原字节实测通过；待定向CI/dev集成 |
+| instruction-admission-20261118 | 已接受会话控制 | dev · PR140 | 主会话执行中提交与边界接纳；状态条与停止恢复 | CI与实际5173真实验收通过 |
+| execution-details-20261117 | 已接受App | dev · PR138 | 右栏执行过程与正式回答；制品独立 | 定向CI与实际5173验收通过 |
 | control-runtime-views-20261117 | 已接受App | dev · PR137 | 运行泳道与来源事件诊断；原绑定定位与阅读位置保留 | CI与实际5173验收通过 |
 | control-events-20261117 | 已接受事件层 | dev · PR136 | 持久Control事件与有界读取；来源定位与旧历史缺口 | CI与实际本机接口通过 |
 | control-task-board-20261117 | 已接受App | PR135已合dev | 持久任务状态与交付看板；原会话定位及请求恢复 | CI与实际5173验收通过 |
@@ -1735,7 +1745,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | Control持久事件与真实任务看板已集成；历史恢复、常驻导航与持久置顶保留 | PR136合入dc6ada7b；macOS CI44080297410与实际本机规范重建/只读接口通过 |
+| dev-head | 当前研发位置 | dev | 主会话持续指令控制与右栏执行详情已集成；任务看板、历史阅读与持久置顶保留 | PR140合入38a9e77f；macOS CI44156164744与实际5173真实验收通过 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1855,8 +1865,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/durable-instruction-admission-20261118 | capstone-agent/App，目标dev c8de9924 | 0298f557产品，34686054定向门禁 | 完成真实停止继续验收与dev集成，再接Mission | shared-agent |
-| feat/mission-foundation-20261118 | capstone-control，目标dev，依赖指令队列 | 意图创建与渐进计划基础2a74299b；桥接与装备执行尚未接通 | 完成模型桥接、主会话入口与授权配备验证 | shared-agent |
+| feat/durable-instruction-admission-20261118 | PR140已合dev并关闭来源分支 | 受检c2526df3，合并38a9e77f；定向CI与实际本机通过 | 保留有限回执；Mission由独立工作包接续 | shared-agent |
+| feat/mission-foundation-20261118 | capstone-control/agent/App，目标dev38a9e77f | 941afaee及同一指令真实闭环通过；91Control/485后端/94App通过 | 定向CI/PR集成后验证实际5173；最终自身回执由忽略目录结算 | shared-agent |
 | feat/execution-details-20261117 | PR138已合入并关闭 | f1c4dc57；189App/类型与143范围通过；最终规范重建及5174复验通过 | 完成本机复验与定向集成门禁；后续为持久指令接纳 | shared-agent |
 | docs/conversation-intervention-20261117 | capstone-app设计依赖，目标dev | 2fbcd9e8，已包含于实施分支 | 随实施分支集成，保留根工作区恢复草稿 | shared-agent |
 | feat/control-runtime-views-20261117 | PR137已合并并关闭来源分支 | 受检9e39bb85，合并4e81c5f6，CI44100341776通过 | 实际5173重建及原会话/文件验收通过 | shared-agent |
@@ -2075,7 +2085,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API/三worker/App5173规范重建来源 `6714d223`；后续控制提交不改变产品源码 | 同镜像b002e4451a77aafef59e26c5982640e65a314d44325b3cd318cbcdaa934d5484；ready/规范缓存维护通过 | 产品受检567d2638；PR133/macOS CI、137App/类型和实际5173三类历史自动恢复通过，原指令可见、快照与置顶不变，执行命令0。云端/demo不变。[验收](../reviews/2026-11-17-compatible-session-restoration.md) |
+| local-dev | API/三worker临时Mission候选 `941afaee`；默认App5173为接受基线 `38a9e77f`，候选App5174为 `941afaee` | API/三worker同镜像ca3c0409；ready/规范缓存维护通过；前后端来源暂不同 | 主会话控制已接受PR140；Mission同一指令真实闭环已通过，待dev集成。云端/demo不变。[验证](../reviews/2026-11-18-mission-conversation-local.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

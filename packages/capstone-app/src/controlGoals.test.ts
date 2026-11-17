@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest'
-import {buildControlGoal,parseControlGoal,controlGoalCommand} from './controlGoals'
+import {buildControlGoal,parseControlGoal,parseControlGoals,controlGoalCommand} from './controlGoals'
 
 export const goalDocument=()=>({schema:'capstone-control-goal/1',workspace:'enterprise',goal_id:'goal_one',revision:3,
   objective_revision:1,objective:'Produce a report',acceptance_criteria:['Review the report'],state:'running',reason:null,
@@ -9,6 +9,15 @@ export const goalDocument=()=>({schema:'capstone-control-goal/1',workspace:'ente
       delegation:{delegation_id:'delegation_one',binding:{thread_id:'thr_one',work_id:'work_one'}},delivery:null,verification:null}]})
 
 describe('Control Goal contracts',()=>{
+  it('keeps an empty planning Mission beside existing Goals without accepting malformed legacy Goals',()=>{
+    const mission={...goalDocument(),application_kind:'mission',mission_id:'goal_mission',goal_id:'goal_mission',origin:{thread_id:'thr_origin'},plan_revision:1,plan_complete:false,state:'planning',tasks:[]}
+    const page=parseControlGoals({schema:'capstone-control-goals/1',goals:[goalDocument(),mission],next_cursor:null})
+    expect(page.goals.map(row=>row.goal_id)).toEqual(['goal_one','goal_mission'])
+    expect(page.goals[1].mission?.origin.thread_id).toBe('thr_origin')
+    expect(parseControlGoal({...mission,state:'paused'}).tasks).toEqual([])
+    expect(()=>parseControlGoal({...goalDocument(),state:'planning',tasks:[]})).toThrow()
+    expect(()=>parseControlGoal({...mission,mission_id:'goal_mismatch'})).toThrow()
+  })
   it('builds explicit ordered phases and separate finite budgets',()=>{
     const body=buildControlGoal({objective:'Report',criteria:'Review files',maxDelegations:4,deadline:'2099-01-01T00:00:00Z',
       stages:[{objective:'Draft',files:'draft.txt',mode:'single',maxAttempts:1},

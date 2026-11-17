@@ -140,6 +140,25 @@ def create_attempt(snapshot, work, *, turn_id=None):
     return replace(snapshot, current_attempt=attempt), attempt, context, instruction
 
 
+def prepare_mission_review(snapshot, work_id, *, attempt_id, turn_id):
+    """Resume an idle organizer without changing any admitted user input."""
+    from .thread_protocol import AttemptSnapshot
+    if snapshot.current_attempt is not None or snapshot.active_model_context is not None:
+        return None
+    works = deepcopy(list(snapshot.works))
+    work = next((item for item in works if item['work_id'] == work_id), None)
+    if (work is None or work.get('status') != 'completed' or work.get('cancel_requested')
+            or not work.get('conversation_mode') or 'goal_mode' in work
+            or snapshot.pending_model_switch is not None or snapshot.pending_selection is not None):
+        return None
+    context = replace(TaskContext.from_document(work['task_context']),
+                      snapshot_id='task_' + secrets.token_hex(10))
+    work.update(status='queued', blocked_reason=None, latest_attempt_id=attempt_id,
+                revision=work['revision'] + 1, task_context=context.to_document())
+    attempt = AttemptSnapshot(turn_id, attempt_id, 'accepted', None, snapshot.runtime_mode)
+    return replace(snapshot, works=tuple(works), current_attempt=attempt), work, attempt, context
+
+
 def work_instruction(work):
     """Keep every unconsumed supplement; a closed conversation retries its saved text."""
     if 'goal_continuation' in work:
@@ -435,8 +454,8 @@ def parse_snapshot(document):
     if context is None:
         from .thread_protocol import RunSnapshot, _identifier, _sequence
         allowed = {'schema', 'runtime_mode', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id',
-                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state', 'session_title', 'session_type', 'session_skills'}
-        required = allowed - {'runtime_mode', 'application_state', 'session_title', 'session_type', 'session_skills'}
+                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state', 'session_title', 'session_type', 'session_skills', 'mission_refs'}
+        required = allowed - {'runtime_mode', 'application_state', 'session_title', 'session_type', 'session_skills', 'mission_refs'}
         if (set(base) - allowed or not required <= set(base)
                 or base.get('active_grid_page_id') is not None):
             raise ThreadProtocolError('invalid model-free snapshot')
@@ -445,6 +464,7 @@ def parse_snapshot(document):
                                   None, None, None if current is None else AttemptSnapshot.from_document(base['current_attempt']), _sequence(base['last_event_seq'], name='last_event_seq'),
                                   _sequence(base['base_event_seq'], name='base_event_seq'),
                                   application_state=base.get('application_state'), runtime_mode=base.get('runtime_mode', 'capstone'),
+                                  mission_refs=tuple(base.get('mission_refs', ())),
                                   minimum_protocol_version=2,
                                   session_type=base.get('session_type'),
                                   session_skills=base.get('session_skills'),
@@ -455,7 +475,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'instruction_queue', 'instruction_queue_available'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -465,6 +485,16 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'mission_equipment' in work:
+            import re
+            if (not isinstance(work.get('mission_equipment_binding_revision'), str)
+                    or re.fullmatch(r'[0-9a-f]{64}', work['mission_equipment_binding_revision']) is None):
+                raise ThreadProtocolError('invalid Mission equipment registry revision')
+            from .native_mission import checked_equipment
+            try:
+                checked_equipment(work['mission_equipment'])
+            except ValueError as error:
+                raise ThreadProtocolError('invalid Mission equipment selection') from error
         if 'instruction_queue_available' in work and type(work['instruction_queue_available']) is not bool:
             raise ThreadProtocolError('invalid instruction availability')
         if 'instruction_queue' in work:

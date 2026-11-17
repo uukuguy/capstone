@@ -1,3 +1,4 @@
+import {parseMissionRefs,type MissionRef} from './missions'
 import {assertCapacity,exceedsCapacity} from './applicationCapacity'
 import { parseContext, parseThreadSnapshot, ThreadProtocolError, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
 import { parseSessionTitle, type SessionTitle } from './sessionTitle'
@@ -23,6 +24,7 @@ export type WorkRecord = {
 export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPhase;
   targetModelContextId: string | null; runtimeMode: RuntimeMode; workId: string | null }
 export type WorkSnapshot = {
+  missionRefs?:MissionRef[]
   sessionTitle?: SessionTitle
   sessionSkills?: SessionSkills
   sessionType?: 'general-chat' | 'enterprise-research' | 'grid-analysis'
@@ -131,11 +133,11 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
   let professionalSnapshot: ThreadSnapshot | undefined
   if (modelContext) {
     const inherited = Object.fromEntries(Object.entries(body).filter(([key]) =>
-      !['minimum_protocol_version', 'selected_model_context_id', 'task_context', 'works', 'native_execution'].includes(key)))
+      !['minimum_protocol_version', 'selected_model_context_id', 'task_context', 'works', 'native_execution', 'mission_refs'].includes(key)))
     if (body.current_attempt !== null) inherited.current_attempt = Object.fromEntries(Object.entries(object(body.current_attempt)).filter(([key]) => key !== 'work_id'))
     professionalSnapshot = parseThreadSnapshot({ ...inherited, schema: 'capstone-thread-snapshot/1' })
   }
-  return { threadId, runId, modelContext, selectedModelContextId, lastEventSeq, baseEventSeq, works, professionalSnapshot,
+  return { missionRefs:parseMissionRefs(body.mission_refs), threadId, runId, modelContext, selectedModelContextId, lastEventSeq, baseEventSeq, works, professionalSnapshot,
     currentAttempt, runtimeMode, ...(nativeExecution ? {nativeExecution} : {}),
     ...(body.session_type == null ? {} : {sessionType: body.session_type as WorkSnapshot['sessionType']}),
     ...(body.session_title == null ? {} : {sessionTitle: parseSessionTitle(body.session_title)}),

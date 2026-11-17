@@ -1,13 +1,30 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Durable instruction admission — active, 2026-11-18
+## Mission conversation — local acceptance complete, 2026-11-18
 
-Owner capstone-agent; branch feat/durable-instruction-admission-20261118 targets
-dev c8de9924. [Implementation boundary](2026-11-18-durable-instruction-admission.md)
+Owner capstone-control with agent/App adapters. Branch feat/mission-foundation-20261118
+targets dev38a9e77f. [Delivery boundary](2026-11-18-mission-conversation.md): rough
+intent creation, progressive Task planning, bounded organizer reviews and registered
+task equipment. Actual child-product content must drive the next planning decision.
+Source941afaee passed same-input real model acceptance: one submission, two Tasks,
+two automatic reviews, unchanged source identity and actual measured products.
+All three current criteria are met; final user acceptance remains separate.
+91 Control/485 backend/200 scope/94 App checks pass. Scoped macOS CI and actualdev
+integration are the remaining closeout steps; their final receipt is
+`runs/mission-conversation-20261118/closeout.json`. Skill/resource equipment
+adapters are deferred and reject unsupported grants. Existing material grants stay
+under their current contracts. No cloud/demo release is requested.
+
+## Durable instruction admission — accepted, 2026-11-18
+
+Owner capstone-agent; accepted PR140 merged into dev38a9e77f.
+[Implementation boundary](2026-11-18-durable-instruction-admission.md)
 maps Thread command transactions, Harness lease/cancel checks and native stdin
-transport. Next implement durable pending/admitted receipts before enabling App send.
-PR138/139 are accepted; final runtime/control facts are in
-runs/execution-details-20261117/closeout.json. Queue/status controls remain pending.
+transport.416 backend,123 scope,198 App and8 Node checks passed. Real model/product
+tests covered direction changes, refresh, delivery uncertainty on stop and constraints
+retained in later turns. Scoped CI44156164744 passed266seconds. Actual dev rebuilt
+and verified; final receipt runs/durable-instruction-admission-20261118/closeout.json.
+PR138/139 are also accepted; the candidate entries below are historical records.
 
 ## Conversation intervention — combined reader local candidate
 

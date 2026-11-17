@@ -1,5 +1,12 @@
 # Journal — append-only event log
 
+- 2026-11-18: Corrected Mission relay returned real model tool receipts; minimal-write child exposed immutable request normalization failure before LLM.
+- 2026-11-18: Added event-driven organizer review requirement; child completion alone cannot imply final Mission delivery from a partial plan.
+
+- 2026-11-18: ea24f485 adds rough-intent Mission entry;3fe12842 preserves mixed legacy lists;bbfc87b9 restores editing after active-Mission conflict.
+- 2026-11-18: f14f66cf orders origin locks consistently;bf7df0d9 fixes real Mission relay permit leak and selected-gateway discovery.
+- 2026-11-18: Real Mission creation/refresh/mixed-list passed; first model tool stalled, execution stopped, relay fix awaiting rebuilt retry.
+
 - 2026-11-18: Real intervention redirected saved product, restored receipts, retained stop uncertainty and recalled exact admitted constraint;390px source navigation passed.
 - 2026-11-18: 34686054 adds focused instruction-admission gate;401backend/123scope/194App checks pass before final integration.
 
@@ -8060,6 +8067,38 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: f1c4dc57 resumes live following when the pane becomes visible; manual history position remains protected.
 - 2026-11-17: Final canonical rebuild passed imagef25c7f8a and scoped cleanup;5174 saved-record refresh, tabs, product access and narrow layout passed.
 - 2026-11-18: 78ba3ff1 persists fenced instruction reservation and admission;43 focused memory/PostgreSQL checks verify ordering, withdrawal races, stop, resume and restart.
+- 2026-11-18: Mission foundation preserves identity, progressive planning and registered-reference boundaries; 64 Control checks passed, including PostgreSQL.
+- 2026-11-18: 2a74299b adds progressive Mission planning on existing identities; later bridge work must enforce actual task equipment.
+- 2026-11-18: 018c29ad links Missions to verified origin Threads with retry repair and fenced model commands;41 focused checks pass.
+- 2026-11-18: Mission native tools use a leased Control channel; selected equipment narrows runtime tool grants without adding permissions.
+- 2026-11-18: 64d1cc76 connects registered Mission tools to leased Control calls; runtime grants stay bounded by admitted equipment.
+- 2026-11-18: 7328a157 blocks native Mission relay calls outside frozen tool grants; five focused native checks pass.
+- 2026-11-18: b9febd28 admits registered Mission tool selections into native tasks;99 focused checks pass;skill/resource adapters remain blocked.
+- 2026-11-18: ea24f485 starts Missions from the existing composer; actual model, product and browser acceptance remains pending.
 - 2026-11-18: f5535b58 marks unfinished delivery unknown at terminal boundaries;39 memory/PostgreSQL execution checks pass.
 - 2026-11-18: 9e97e566 rejects unsupported frozen native queue grants;50 focused memory/PostgreSQL checks pass with native fixtures.
 - 2026-11-18: c1a53f2d adds native instruction transport; 0b188a75 cleans whitespace. SDK consumption receipts prevent false admission acknowledgements.
+- 2026-11-18: b810d2b4 records the committed Mission candidate; accepted dev38a9e77f synchronization preserves strict queue parsing and equipment fields.
+- 2026-11-18: Mission/dev merge preserves queue validation and registered equipment;157 focused PostgreSQL/runtime checks and App types pass.
+- 2026-11-18: 2b325a30 merges accepted dev38a9e77f into Mission source; queue parser and equipment contracts remain intact.
+- 2026-11-18: 9a0e2cf4 marks Missions in shared Goal projections;74 focused checks preserve mixed lists, source identity and pagination.
+- 2026-11-18: 7baaa562 guides registered equipment selection; three Node checks confirm denied tools stay excluded from discovery and runtime.
+- 2026-11-18: eb4b765e serializes Mission creation and preserves delegated origin gateway identity;108 focused checks pass, including concurrency and recovery.
+- 2026-11-18: b2fab05b makes Mission reads explicit and removes legacy creation forms;31 App checks preserve old-record controls.
+- 2026-11-18: de6c7860 adds the focused Mission gate;73 Control,405 backend,200 scope,94 App checks pass locally.
+- 2026-11-18: 347c1ee8 resumes Mission planning from durable Task results;131 focused checks pass on fresh disposable PostgreSQL.
+- 2026-11-18: Mission gate at347c1ee8 passes77 Control,441 backend,200 scope,94 App and Node checks; real model acceptance remains pending.
+- 2026-11-18: Candidate347c1ee8 rebuilt with API/three-worker image4ee535cf; readiness and scoped cache cleanup pass before real Mission testing.
+- 2026-11-18: Real Mission auto-continued twice, but a scoped child lacked resource_open; persisted report stayed unverified. Acceptance failed.
+- 2026-11-18: 7942706a distinguishes safe Mission conflict types and revision fields;13 focused bridge/schema checks pass.
+- 2026-11-18: 0ec823fa preserves source identity across delegated grants;37 checks verify original bytes, legacy replay and access denial.
+- 2026-11-18: 11f48524 retains granted resource readers and requires criterion-backed delivery;91 Control,459 backend,200 scope,94 App checks pass.
+- 2026-11-18: Same-input real review prepared Task2 but unsupported resource equipment blocked readiness; schema must publish only implemented adapters.
+- 2026-11-18: 941afaee validates model equipment before plan mutation, after idempotent replay;160 related checks preserve accepted receipts and drafts.
+- 2026-11-18: 941afaee gate passes91 Control/485 backend/200 scope/94 App; canonical imageca3c0409 is ready for same-input real acceptance.
+- 2026-11-18: 941afaee real single-submission Mission passes two Tasks/reviews, exact source bytes, measured report, typed all-met, refresh and narrow UI.
+- 2026-11-18: Mission acceptance graph passes46-card browser layout and verified source ancestry; bilingual usage, runbook and local report align.
+- 2026-11-18: 17c8aeb4 commits the verified Mission snapshot; PR141 CI44177998939 exposes a setup-expired three-second test grant.
+- 2026-11-18: Controlled-clock reproduction fails before repair; post-setup grant and explicit expiry assertions pass16 native Mission checks, without runtime changes.
+- 2026-11-18: c5ce1975 fixes relay timing; CI44178954115 reveals the separate execution-authority clock also starts before cold server setup.
+- 2026-11-18: Simulated35-second setup reproduces409; post-setup authorities share an injected clock, and both expiry guards pass17 Mission checks.

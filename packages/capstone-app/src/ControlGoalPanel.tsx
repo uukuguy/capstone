@@ -6,10 +6,12 @@ import {commandKey} from './commandKey'
 import {buildControlGoal,controlGoalCommand,type ControlCommand,type ControlDraft,type ControlGoal,type ControlGoalCreate} from './controlGoals'
 import type {HttpThreadTransport} from './threadHttpTransport'
 import './ControlGoalPanel.css'
+import {missionStateLabel} from './missions'
+import {navigateSession} from './SessionNavigation'
 
 type Transport=Pick<HttpThreadTransport,'workspaceName'|'controlGoals'|'controlGoal'|'createControlGoal'|'controlGoalCommand'|'controlEvents'>
 type Pending={kind:'create';body:ControlGoalCreate}|{kind:'command';body:ControlCommand}
-const names:Record<string,string>={ready:'待执行',running:'推进中',waiting:'等待处理',paused:'已暂停',pausing:'暂停中',
+const names:Record<string,string>={planning:'规划中',ready:'待执行',running:'推进中',waiting:'等待处理',paused:'已暂停',pausing:'暂停中',
   cancelling:'撤销中',cancelled:'已撤销',revising:'等待旧阶段停止',delivered:'待最终接受',accepted:'已接受',
   pending:'待前置阶段',dispatching:'正在委托',delivered_task:'待阶段核验',verified:'阶段核验通过',
   revoke_requested:'等待停止确认',resume_requested:'正在恢复',blocked:'需处理',failed:'执行失败',completed:'执行已完成'}
@@ -42,7 +44,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
   const scope=`capstone.control.${transport.workspaceName}`
   const [open,setOpen]=useState(false),[goals,setGoals]=useState<ControlGoal[]>([]),[selected,setSelected]=useState(()=>read(scope+'.selected',''))
   const [goal,setGoal]=useState<ControlGoal|null>(null),[draft,setDraft]=useState<ControlDraft>(()=>draftFromStorage(scope+'.draft'))
-  const [form,setForm]=useState<'create'|'revise'|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
+  const [form,setForm]=useState<'revise'|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const [pending,setPending]=useState<Pending|null>(()=>pendingFromStorage(scope+'.pending')),[cursor,setCursor]=useState<string|null>(null)
   const readEpoch=useRef(0)
   const readEvents=useCallback((id:string,after?:number,through?:number)=>transport.controlEvents(id,after,through),[transport])
@@ -90,25 +92,24 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
     try{
       const body=buildControlGoal(draft,'create_'+commandKey())
       if(form==='revise')control('revise',{objective:body.objective,acceptance_criteria:body.acceptance_criteria,tasks:body.tasks})
-      else void perform({kind:'create',body})
     }catch(e){setError(e instanceof Error?e.message:'请检查目标设置')}
   }
   const disabled=busy||!!pending
   const products=goal?.tasks.flatMap(t=>t.delivery?.products||[])||[]
-  return <><button type="button" className="thread-control-button" onClick={()=>setOpen(true)}><Target size={16} aria-hidden="true"/>长期目标</button>
-    {open&&<AnswerDetailSheet title="长期目标" answerLabel="" showAnswerLabel={false} onClose={()=>setOpen(false)} className="control-goal-sheet">
-      <p>组织多个阶段。每个阶段有独立会话；原成果按授权引用接续，最终成果由你接受。</p>
-      <div className="control-goal-actions"><button onClick={()=>{setForm('create');setError('')}} disabled={disabled}>新建长期目标</button>
+  return <><button type="button" className="thread-control-button" onClick={()=>setOpen(true)}><Target size={16} aria-hidden="true"/>任务执行</button>
+    {open&&<AnswerDetailSheet title="任务执行" answerLabel="" showAnswerLabel={false} onClose={()=>setOpen(false)} className="control-goal-sheet">
+      <p>在主会话输入 /mission 开始。这里查看 Mission 与已有阶段任务；最终成果由你接受。</p>
+      <div className="control-goal-actions">
         <button onClick={()=>void refresh().catch(e=>setError(String(e)))} disabled={busy}>刷新状态</button></div>
       {error&&<p role="alert">{error}</p>}
       {pending&&<section aria-label="待确认的目标请求"><p>原请求结果尚未确认。重试会使用同一请求身份和版本。</p>
         <button disabled={busy} onClick={()=>void perform(pending)}>重试原请求</button>
         <button disabled={busy} onClick={()=>rememberPending(null)}>清除本机待确认记录</button><p>清除此记录不会撤销服务端已接收的目标，请先刷新列表核对。</p></section>}
       {goals.length>0&&<label>选择长期目标<select aria-label="选择长期目标" value={selected} onChange={e=>choose(e.target.value)} disabled={disabled}>
-        {goals.map(g=><option key={g.goal_id} value={g.goal_id}>{g.objective} · {names[g.state]||g.state} · {g.goal_id.slice(-6)}</option>)}</select></label>}
+        {goals.map(g=><option key={g.goal_id} value={g.goal_id}>{g.objective} · {g.mission?missionStateLabel(g.mission):names[g.state]||g.state} · {g.goal_id.slice(-6)}</option>)}</select></label>}
       {cursor&&<button onClick={()=>void transport.controlGoals(cursor).then(page=>{setGoals(previous=>[...previous,...page.goals]);setCursor(page.nextCursor)}).catch(e=>setError(String(e)))}>更多目标</button>}
       {form?<form onSubmit={e=>{e.preventDefault();submit()}} className="control-goal-form">
-        <h3>{form==='revise'?'修改长期目标':'新建长期目标'}</h3>
+        <h3>修改已有目标与阶段</h3>
         <label>长期目标内容<textarea required aria-label="长期目标内容" value={draft.objective} disabled={disabled} onChange={e=>saveDraft({...draft,objective:e.target.value})}/></label>
         <label>最终验收条件<textarea required aria-label="最终验收条件" value={draft.criteria} disabled={disabled} onChange={e=>saveDraft({...draft,criteria:e.target.value})}/></label>
         <div className="control-goal-budget"><label>委托次数上限<input type="number" min="1" max="64" value={draft.maxDelegations} disabled={disabled||form==='revise'} onChange={e=>saveDraft({...draft,maxDelegations:Number(e.target.value)})}/></label>
@@ -122,30 +123,31 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
           {draft.stages.length>1&&<button type="button" onClick={()=>saveDraft({...draft,stages:draft.stages.filter((_,i)=>i!==index)})}>移除此阶段</button>}
         </fieldset>)}
         <div className="control-goal-actions"><button type="button" disabled={disabled||draft.stages.length>=64} onClick={()=>saveDraft({...draft,stages:[...draft.stages,{objective:'',files:'',mode:'single',maxAttempts:1}]})}>增加阶段</button>
-          <button type="submit" disabled={disabled}>{form==='revise'?'保存修改并撤销旧阶段':'创建并开始'}</button><button type="button" onClick={()=>setForm(null)}>返回目标状态</button></div>
+          <button type="submit" disabled={disabled}>保存修改并撤销旧阶段</button><button type="button" onClick={()=>setForm(null)}>返回目标状态</button></div>
       </form>:goal?<section aria-label="长期目标状态">
-        <h3>{goal.objective}</h3><p>{names[goal.state]||goal.state} · 目标版本 {goal.objective_revision} · 已委托 {goal.delegations_admitted}/{goal.max_delegations} 次</p>
+        <h3>{goal.objective}</h3><p>{goal.mission?missionStateLabel(goal.mission):names[goal.state]||goal.state} · 目标版本 {goal.objective_revision} · 已委托 {goal.delegations_admitted}/{goal.max_delegations} 次</p>
         {goal.reason&&<p>状态原因：{reason(goal.reason)}</p>}
         <p>期限：{new Date(goal.deadline_at).toLocaleString()}</p>
         <ControlWorkspaceViews goal={goal} disabled={disabled} readEvents={readEvents}
           taskControls={<>
 <h4>最终验收条件</h4><ul>{goal.acceptance_criteria.map((c,i)=><li key={i}>{c}</li>)}</ul>
         <div className="control-goal-actions">
+          {goal.mission&&<button disabled={disabled} onClick={()=>{navigateSession(goal.mission!.origin.thread_id);setOpen(false)}}>返回 Mission 来源会话</button>}
           {['ready','running','waiting'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('pause')}>暂停目标</button>}
           {['paused','waiting'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('resume')}>恢复目标</button>}
           {!['accepted','cancelled','cancelling'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('cancel')}>撤销目标</button>}
-          {!['accepted','cancelled','cancelling','revising'].includes(goal.state)&&<button disabled={disabled} onClick={()=>{
+          {!goal.mission&&!['accepted','cancelled','cancelling','revising'].includes(goal.state)&&<button disabled={disabled} onClick={()=>{
             saveDraft({objective:goal.objective,criteria:goal.acceptance_criteria.join('\n'),maxDelegations:goal.max_delegations,deadline:goal.deadline_at,
               stages:goal.tasks.map(t=>({objective:t.objective,files:t.required_products.join(', '),mode:t.mode,maxAttempts:t.max_attempts}))});setForm('revise')
           }}>修改目标与阶段</button>}
-          {goal.state==='delivered'&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
+          {goal.state==='delivered'&&(!goal.mission||goal.mission.planConcluded===true&&goal.mission.allTasksVerified)&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
         </div>
         {goal.acceptance&&<p role="status">已接受此目标版本及所列成果版本。</p>}
           </>}
           onOpenThread={(thread,work)=>{onOpenThread(thread,work);setOpen(false)}}
           onVerify={(taskId,deliveryRevision)=>control('verify_task',{task_id:taskId,delivery_revision:deliveryRevision,checks:[{name:'用户核验阶段交付',passed:true}]})}/>
 
-      </section>:<p>{selected?'正在读取目标状态…':'还没有长期目标。新建后，各阶段会在后台执行。'}</p>}
+      </section>:<p>{selected?'正在读取目标状态…':'还没有任务记录。'}</p>}
     </AnswerDetailSheet>}
   </>
 }

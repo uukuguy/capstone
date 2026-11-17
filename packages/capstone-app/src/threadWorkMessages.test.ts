@@ -40,3 +40,19 @@ it('reconstructs native conversation turns from the ledger after pending message
     ['user', '继续说明'], ['assistant', [{type: 'text', text: '完整答复1'}]],
   ])
 })
+
+it('projects an autonomous Mission review as system progress and an exact assistant Attempt without a user instruction',()=>{
+ const selected={...work('work_a','attempt_review'),conversationMode:true,messages:[]}
+ const requested:EventEnvelope={...delta('attempt_review'),eventId:'evt_review',eventSeq:1,eventType:'mission_review_requested',payload:{mission_id:'goal_one',review_id:'review_one',work_id:'work_a',boundary:{digest:'a'.repeat(64),plan_revision:2,tasks:[]},source_origin:{thread_id:'thr_work'}}}
+ const started={...requested,eventId:'evt_started',eventSeq:2,eventType:'attempt_started',payload:{work_id:'work_a'}}
+ const rows=projectWorkConversation([requested,started],selected,[selected]).messages
+ expect(rows.filter(row=>row.role==='user')).toEqual([])
+ const notice=rows.find(row=>row.metadata?.custom?.systemNotice)
+ expect(notice?.content).toBe('正在根据任务结果调整计划')
+ expect(notice?.metadata?.custom?.eventId).toBe('evt_review')
+ expect(rows.find(row=>row.id==='assistant-attempt_review')?.metadata?.custom).toMatchObject({attemptId:'attempt_review',missionReview:{missionId:'goal_one',reviewId:'review_one',eventId:'evt_review'}})
+ const completed={...started,eventId:'evt_completed',eventSeq:3,eventType:'attempt_completed',payload:{work_id:'work_a',answer:'已评估任务结果'}}
+ const restored=projectWorkConversation([requested,started,completed],selected,[selected]).messages
+ expect(restored.find(row=>row.metadata?.custom?.systemNotice)?.content).toBe('任务结果复盘已结束')
+ expect(restored.filter(row=>row.role==='user')).toEqual([])
+})

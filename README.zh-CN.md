@@ -111,6 +111,10 @@ Thread 空闲时可切换模式；会话历史、草稿和模型选择保留。
 详见[共享执行器设计](docs/superpowers/specs/2026-10-09-capstone-pi-delegation-design.md)。
 真实模型的回答质量需单独验收，离线检查不能代替这一验收。
 
+在包含目标控制能力的本地开发版本中，使用 `/goal <目标>` 让一个 Agent 在会话内持续推进；
+使用 `/mission <大致目标>` 由控制层逐步组织任务与执行 Agent。无需先填完整任务表，
+可继续在主会话补充方向。工具按任务配备，最终成果由用户验收。见[使用说明](docs/RUNBOOK.md#mission-coordination)。
+
 在 CLI 中使用 `/skills` 查看可用技能及执行角色，使用 `/skill:<name> <任务>` 选择本轮技能，
 使用 `/context` 包含或排除公共背景。当前模型背景提供身份、版本与历史，不提供完整模型表。
 托管的 PowerSkills/PowerMCP 资源分别使用原生 Pi 与专业适配器。

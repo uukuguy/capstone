@@ -29,6 +29,19 @@ _DOMAIN_GAPS = frozenset({
 })
 _BUSINESS = frozenset({'business_read', 'business_execute'})
 
+
+def _instruction_identity(claim):
+    return claim.attempt.attempt_id + (':mission_review' if (claim.submission or {}).get('_mission_review') else ':user')
+
+
+def _instruction_source(claim):
+    review = (claim.submission or {}).get('_mission_review')
+    if not review:
+        return {}
+    return {'instruction_source': {'schema': 'capstone-mission-review-source/1',
+        'mission_id': review['mission_id'], 'review_id': review['review_id'],
+        'boundary_digest': review['boundary']['digest']}}
+
 if TYPE_CHECKING:
     from .pi_intent import NativeConversationPiSessionBuilder
     from .thread_application import ThreadApplicationAssembly
@@ -86,7 +99,7 @@ def intent_request_for_claim(claim: AttemptClaim, general_capability: Mapping | 
     return IntentRequest.from_document({
         'schema': 'capstone-intent-request/1', 'thread_id': claim.thread_id,
         'turn_id': claim.attempt.turn_id, 'attempt_id': claim.attempt.attempt_id,
-        'instruction_message_id': claim.attempt.attempt_id + ':user',
+        'instruction_message_id': _instruction_identity(claim), **_instruction_source(claim),
         'instruction': claim.instruction, 'history_cutoff': history['history_cutoff'],
         'history_truncated': history['truncated'],
         'messages': messages,
@@ -472,7 +485,7 @@ class IntentRuntimeFactory:
         request_doc = dict(frozen['request'])
         request_doc['attempt_id'] = claim.attempt.attempt_id
         if 'instruction_message_id' in request_doc:
-            request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
+            request_doc['instruction_message_id'] = _instruction_identity(claim)
         request = IntentRequest.from_document(request_doc)
         saved = None if freeze_decision is None else freeze_decision(claim, None)
         if saved is None:
@@ -570,7 +583,7 @@ class IntentRuntimeFactory:
         request = IntentRequest.from_document({
             'schema': 'capstone-intent-request/1', 'thread_id': claim.thread_id,
             'turn_id': claim.attempt.turn_id, 'attempt_id': claim.attempt.attempt_id,
-            'instruction_message_id': claim.attempt.attempt_id + ':user',
+            'instruction_message_id': _instruction_identity(claim), **_instruction_source(claim),
             'instruction': claim.instruction, 'history_cutoff': history['history_cutoff'],
             'history_truncated': history['truncated'], 'messages': history['messages'],
             'objects': submission.get('objects', []), 'capabilities': [{
@@ -607,7 +620,7 @@ class IntentRuntimeFactory:
             raise HarnessRuntimeConfigurationError('native conversation configuration changed')
         request_doc = dict(frozen['request'])
         request_doc['attempt_id'] = claim.attempt.attempt_id
-        request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
+        request_doc['instruction_message_id'] = _instruction_identity(claim)
         request = IntentRequest.from_document(request_doc)
         source_document = request.to_document()
         object_refs = list(source_document.get('context_selection', {}).get('include_refs', []))
@@ -660,7 +673,7 @@ class IntentRuntimeFactory:
         request = IntentRequest.from_document({
             'schema': 'capstone-intent-request/1', 'thread_id': claim.thread_id,
             'turn_id': claim.attempt.turn_id, 'attempt_id': claim.attempt.attempt_id,
-            'instruction_message_id': claim.attempt.attempt_id + ':user',
+            'instruction_message_id': _instruction_identity(claim), **_instruction_source(claim),
             'instruction': claim.instruction, 'history_cutoff': history['history_cutoff'],
             'history_truncated': history['truncated'], 'messages': history['messages'],
             'objects': _published_model_objects(claim, submission.get('objects', [])),
@@ -688,7 +701,7 @@ class IntentRuntimeFactory:
         request_doc = dict(frozen['request'])
         request_doc['attempt_id'] = claim.attempt.attempt_id
         if 'instruction_message_id' in request_doc:
-            request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
+            request_doc['instruction_message_id'] = _instruction_identity(claim)
         request = IntentRequest.from_document(request_doc)
         saved = None if freeze_decision is None else freeze_decision(claim, None)
         if saved is None:
@@ -769,7 +782,7 @@ class IntentRuntimeFactory:
         request_doc = dict(frozen['request'])
         request_doc['attempt_id'] = claim.attempt.attempt_id
         if 'instruction_message_id' in request_doc:
-            request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
+            request_doc['instruction_message_id'] = _instruction_identity(claim)
         request = IntentRequest.from_document(request_doc)
         saved = None if freeze_decision is None else freeze_decision(claim, None)
         if not isinstance(saved, Mapping):
@@ -818,7 +831,7 @@ class IntentRuntimeFactory:
         request_doc = dict(frozen['request'])
         request_doc['attempt_id'] = claim.attempt.attempt_id
         if 'instruction_message_id' in request_doc:
-            request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
+            request_doc['instruction_message_id'] = _instruction_identity(claim)
         request = IntentRequest.from_document(request_doc)
         saved = None if freeze_decision is None else freeze_decision(claim, None)
         if not isinstance(saved, Mapping):

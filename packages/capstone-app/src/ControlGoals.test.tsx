@@ -1,7 +1,7 @@
 import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 import ControlGoals from './ControlGoalPanel'
-import {parseControlGoal} from './controlGoals'
+import {parseControlGoal,buildControlGoal} from './controlGoals'
 
 beforeEach(()=>localStorage.clear())
 afterEach(cleanup)
@@ -14,26 +14,51 @@ const goal=()=>parseControlGoal({schema:'capstone-control-goal/1',workspace:'ent
 function transport(goals=[goal()]){return {workspaceName:'enterprise',controlGoals:vi.fn().mockResolvedValue({goals,nextCursor:null}),
   controlGoal:vi.fn().mockResolvedValue(goals[0]??goal()),createControlGoal:vi.fn(),controlGoalCommand:vi.fn(),controlEvents:vi.fn()}}
 
+it('keeps a planning Mission visible alongside legacy Goals and directs changes to its source conversation',async()=>{
+  const legacy=goal(),mission=parseControlGoal({...legacy,application_kind:'mission',mission_id:'goal_mission',goal_id:'goal_mission',objective:'Rough intent',origin:{thread_id:'thr_origin'},plan_revision:1,plan_complete:false,state:'planning',tasks:[]})
+  const api=transport([mission,legacy]);api.controlGoal.mockImplementation(async(id:string)=>id===legacy.goal_id?legacy:mission)
+  render(<ControlGoals transport={api} onOpenThread={vi.fn()}/>)
+  fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
+  await screen.findByRole('heading',{name:'Rough intent'})
+  expect(screen.getByRole('status').textContent).toContain('尚无执行任务')
+  expect(screen.getByRole('button',{name:'返回 Mission 来源会话'})).toBeTruthy()
+  expect(screen.queryByRole('button',{name:'修改目标与阶段'})).toBeNull()
+  fireEvent.change(screen.getByRole('combobox',{name:'选择长期目标'}),{target:{value:'goal_one'}})
+  await screen.findByRole('button',{name:'打开阶段 1 会话'})
+  expect(screen.getByRole('button',{name:'修改目标与阶段'})).toBeTruthy()
+})
+it('offers Mission final acceptance only after a concluded plan and verified tasks',async()=>{
+  const legacy=goal(),base={...legacy,application_kind:'mission',mission_id:'goal_review',goal_id:'goal_review',origin:{thread_id:'thr_origin'},plan_revision:2,plan_complete:true,state:'delivered',tasks:legacy.tasks.map(task=>({...task,state:'verified',delivery:{revision:1,answer_ref:'answer_one',products:[]},verification:{delivery_revision:1}}))}
+  const pending=parseControlGoal({...base,plan_concluded:true,plan_conclusion:{plan_revision:2,summary:'Old opaque done'}}),concluded=parseControlGoal({...base,revision:base.revision+1,plan_concluded:true,plan_conclusion:{plan_revision:2,summary:'Inspected current answer',criteria_verdicts:[{criterion_index:0,status:'met',explanation:'Inspected the saved answer',evidence:[{kind:'answer',task_id:'stage_1',answer_ref:'answer_one'}]}]}})
+  const api=transport([pending]);render(<ControlGoals transport={api} onOpenThread={vi.fn()}/>)
+  fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
+  await screen.findByRole('heading',{name:'Produce a report'})
+  expect(screen.queryByRole('button',{name:'接受当前成果版本'})).toBeNull()
+  api.controlGoal.mockResolvedValue(concluded)
+  fireEvent.click(screen.getByRole('button',{name:'刷新状态'}))
+  await screen.findByRole('button',{name:'接受当前成果版本'})
+  expect(api.controlGoalCommand).not.toHaveBeenCalled()
+})
+
 it('opens the existing delegated Thread instead of building another chat',async()=>{
   const api=transport(),open=vi.fn()
   render(<ControlGoals transport={api} onOpenThread={open}/> )
-  fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
+  fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
   await screen.findByRole('heading',{name:'Produce a report'})
   fireEvent.click(screen.getByRole('button',{name:'打开阶段 1 会话'}))
   expect(open).toHaveBeenCalledWith('thr_one','work_one')
 })
 
-it('retains an uncertain creation request and retries the exact operation',async()=>{
+it('directs new creation to the conversation while preserving an existing pending legacy operation',async()=>{
+  const body=buildControlGoal({objective:'Produce report',criteria:'Review final file',maxDelegations:4,deadline:'2099-01-01T00:00:00Z',stages:[{objective:'Save a draft',files:'draft.md',mode:'single',maxAttempts:1}]},'create_original')
+  localStorage.setItem('capstone.control.enterprise.pending',JSON.stringify({kind:'create',body}))
   const api=transport([])
   api.createControlGoal.mockRejectedValueOnce(new Error('连接中断')).mockResolvedValue(goal())
   render(<ControlGoals transport={api} onOpenThread={()=>{}}/> )
-  fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
-  fireEvent.click(await screen.findByRole('button',{name:'新建长期目标'}))
-  fireEvent.change(screen.getByLabelText('长期目标内容'),{target:{value:'Produce report'}})
-  fireEvent.change(screen.getByLabelText('最终验收条件'),{target:{value:'Review final file'}})
-  fireEvent.change(screen.getByLabelText('阶段 1 目标'),{target:{value:'Save a draft'}})
-  fireEvent.change(screen.getByLabelText('阶段 2 目标'),{target:{value:'Read draft and save report'}})
-  fireEvent.click(screen.getByRole('button',{name:'创建并开始'}))
+  fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
+  expect(screen.queryByRole('button',{name:'新建长期目标'})).toBeNull()
+  expect(screen.getByText(/主会话输入 \/mission/)).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button',{name:'重试原请求'}))
   await screen.findByText('连接中断')
   fireEvent.click(screen.getByRole('button',{name:'重试原请求'}))
   await waitFor(()=>expect(api.createControlGoal).toHaveBeenCalledTimes(2))
@@ -46,18 +71,18 @@ it('restores a pending operation after remount without creating a new identity',
   const api=transport()
   api.controlGoalCommand.mockResolvedValue({goal:goal()})
   render(<ControlGoals transport={api} onOpenThread={()=>{}}/> )
-  fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
+  fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
   fireEvent.click(await screen.findByRole('button',{name:'重试原请求'}))
   await waitFor(()=>expect(api.controlGoalCommand).toHaveBeenCalledWith(body))
 })
 
 it('recovers an invalid local draft without changing server Goal state',async()=>{
   localStorage.setItem('capstone.control.enterprise.draft',JSON.stringify({stages:null}))
-  const api=transport([])
+  const api=transport()
   render(<ControlGoals transport={api} onOpenThread={()=>{}}/> )
-  fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
-  fireEvent.click(await screen.findByRole('button',{name:'新建长期目标'}))
-  expect(screen.getByLabelText('阶段 1 目标')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
+  fireEvent.click(await screen.findByRole('button',{name:'修改目标与阶段'}))
+  expect((screen.getByLabelText('阶段 1 目标') as HTMLTextAreaElement).value).toBe('Prepare draft')
   expect(api.createControlGoal).not.toHaveBeenCalled()
 })
 
@@ -67,7 +92,7 @@ it('ignores an old goal read that finishes after selecting another goal',async()
  const api=transport([first,second])
  api.controlGoal.mockImplementation((id:string)=>id==='goal_one'?new Promise(resolve=>{finish=resolve}):Promise.resolve(second))
  render(<ControlGoals transport={api} onOpenThread={()=>{}}/>)
- fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
+ fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
  await waitFor(()=>expect(api.controlGoal).toHaveBeenCalledWith('goal_one'))
  fireEvent.change(screen.getByLabelText('选择长期目标'),{target:{value:'goal_two'}})
  await screen.findByRole('heading',{name:'Second report'})

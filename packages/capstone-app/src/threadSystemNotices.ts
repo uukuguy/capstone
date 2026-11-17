@@ -19,6 +19,8 @@ export type ThreadSystemNotice = {
   tone: 'info' | 'error'
   instruction?: string
   action?: 'reconnect' | 'resync'
+  eventId?:string
+  attemptId?:string
 }
 
 export function upsertSystemNotice(items: readonly ThreadSystemNotice[], notice: ThreadSystemNotice): ThreadSystemNotice[] {
@@ -47,6 +49,11 @@ export function projectSystemNotices(messages: readonly ThreadMessageLike[], eve
   })
   const workspaceCommands = new Set(events.filter((event) => event.eventType === 'model_workspace_changed').map((event) => event.payload.command_id))
   const durable = events.flatMap((event): ThreadSystemNotice[] => {
+    if(event.eventType==='mission_review_requested'&&event.visibility==='public'&&event.attemptId&&typeof event.payload.mission_id==='string'&&typeof event.payload.review_id==='string'){
+      const terminal=events.reduce<EventEnvelope|undefined>((latest,row)=>row.attemptId===event.attemptId&&['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(row.eventType)?row:latest,undefined)
+      const text=terminal?.eventType==='attempt_completed'?'任务结果复盘已结束':terminal?.eventType==='attempt_failed'?'任务结果复盘未完成':terminal?'任务结果复盘已停止':'正在根据任务结果调整计划'
+      return [{id:event.eventId,eventId:event.eventId,attemptId:event.attemptId,afterEventSeq:event.eventSeq,text,tone:terminal?.eventType==='attempt_failed'?'error':'info'}]
+    }
     if (event.eventType === 'model_workspace_changed') {
       const current = typeof event.payload.current_model_name === 'string' ? event.payload.current_model_name : ''
       const closed = typeof event.payload.closed_model_name === 'string' ? event.payload.closed_model_name : ''
@@ -68,7 +75,7 @@ export function projectSystemNotices(messages: readonly ThreadMessageLike[], eve
     if (events.length && (notice.afterEventSeq < first - 1 || (!historyAtLatest && notice.afterEventSeq > last))) continue
     rows.push({ seq: notice.afterEventSeq, order: messages.length + rows.length,
       message: { id: `system-${notice.id}`, role: 'assistant', content: notice.text,
-        status: { type: 'complete', reason: 'stop' }, metadata: { custom: { systemNotice: notice } } } })
+        status: { type: 'complete', reason: 'stop' }, metadata: { custom: { systemNotice: notice,...(notice.eventId?{eventId:notice.eventId,attemptId:notice.attemptId}:{}) } } } })
   }
   return rows.sort((a, b) => a.seq - b.seq || a.order - b.order).map((row) => row.message)
 }

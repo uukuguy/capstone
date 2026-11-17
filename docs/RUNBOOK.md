@@ -127,8 +127,27 @@ Automatic continuation admits historical products as versioned, read-only resour
 references. New products receive their own versions. If the original resource is
 unavailable, report the gap rather than reconstructing it from conversation text.
 Professional results still require current-run Authority evidence admission.
-This session mode does not provide long-term Control Goals, a shared task board or
-scheduled external triggers; those belong to later delivery stages.
+Mission coordination is a separate Control-layer capability. Scheduled external
+triggers are outside this session mode.
+
+### Mission coordination
+
+On a development build that includes Mission Control, enter `/mission <rough intent>`
+in the existing composer. A complete task list is not required. Continue in the same
+conversation to clarify the objective, change direction or request pause and resume.
+The **任务执行** view shows the main plan, child tasks and their saved products.
+
+`/goal` assigns one Agent an in-session objective. `/mission` lets Control organize
+Tasks and Agents progressively. Registered tools are selected for each task within
+the original grants. Required readers for admitted inputs remain available; this
+does not grant arbitrary files, tools or business-system access.
+
+Actual task results resume the organizer without another user instruction. Paused
+work does not silently restart. A saved file proves persistence; the Mission must
+also assess every acceptance condition. Unmet or unknown conditions wait for user
+direction. All-met delivery is ready for user review, not automatic user acceptance.
+Old records retain their source identity and reading path; an older opaque Mission
+conclusion does not prove the current acceptance conditions were met.
 
 ### Source-free local dev trial
 
