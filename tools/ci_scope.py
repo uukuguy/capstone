@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    details_manifest = Path(__file__).resolve().parents[1] / 'configs/development/execution-details-gate.json'
+    if details_manifest.is_file():
+        details = json.loads(details_manifest.read_text())
+        if set(details['anchors']).issubset(paths) and all(
+                path in details['paths'] or _control_path(path) for path in paths):
+            return 'execution-details'
     events_manifest = Path(__file__).resolve().parents[1] / 'configs/development/control-events-gate.json'
     if events_manifest.is_file():
         events = json.loads(events_manifest.read_text())

@@ -1,5 +1,11 @@
 # docs/status INDEX
 
+2026-11-17 执行详情候选f1c4dc57：capstone-app，目标dev4e81c5f6；
+189App/类型、143范围检查通过，规范重建及最终浏览器复验通过。VERSION-CONTROL登记实施分支
+feat/execution-details-20261117与设计依赖；PROJECT-OVERVIEW同步候选节点。
+PR137已合并/实际本机通过，旧候选段落为历史。见
+[实施边界](../superpowers/plans/2026-11-17-conversation-intervention.md)。
+
 2026-11-17 运行观察/诊断候选71f6ef6e，capstone-app，目标dev dc6ada7b。
 86项App/类型及123项范围通过；5174真实六事件、原文件摘要及原会话定位通过。
 [计划](../superpowers/plans/2026-11-17-control-runtime-views.md)。尚未CI或合入dev。

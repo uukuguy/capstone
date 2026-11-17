@@ -14,6 +14,12 @@
 
 # 多线版本控制
 
+当前工作：feat/execution-details-20261117，capstone-app，目标dev4e81c5f6。
+候选f1c4dc57复用过程/回答至右栏，主会话保留制品入口；189App/类型、143范围检查通过。
+真实历史记录、分页、刷新和窄屏已检查；最终规范重建及5174复验通过。
+独立审阅工具因模型配置不可用，未取得独立结论。未CI、未合dev，云端/demo不变。
+下方运行观察候选段落属于已通过PR137收口的历史记录。
+
 2026-11-17 活动工作：feat/control-runtime-views-20261117，所有者capstone-app，
 目标dev dc6ada7b；候选71f6ef6e。三视角切换、控制事件泳道、诊断原绑定与阅读位置保留。
 86项App/类型、123项范围检查通过；真实单阶段保存124字节文件，6事件及原会话定位通过。
@@ -955,7 +961,7 @@ native fixtures。40200263790的后端2,069项通过、146项跳过（216.79秒�
 
 2026-10-18 磁盘恢复：项目原占185GiB，已校验保留7份正式离线包并移除52.94GiB重复镜像tar；清理8个闲置干净worktree的虚拟环境目录31.57GiB（硬链接不等于实际释放量），保留全部源码、会话和上传/成果数据。项目占用已降至约100GiB，系统可用约77GiB。两份零字节技能快照已隔离保留并重建；API ready、三个worker及原生执行器均healthy。重建前新增可配置20GiB空间预检，低空间拒绝验证通过。研究应用预算/失败提示/事件确认分页已改源码，尚未重建部署。详见[磁盘恢复记录](../reviews/2026-10-18-local-disk-recovery.md)。
 
-2026-10-18 13:31：新研究24d61c76因固定600秒预算失败；28个文件（含105618字节HTML）已保留但未完成交付。发现进度128条累计封顶造成后续工具不可见；任务寿命和持续记录协议仍待修复。可信服务连接mark网络修复再增14项通过，最终规范重建进行中；不能将局部传输修复标为研究链路验收通过。
+2026-10-18 13:31：新研究24d61c76因固定600秒预算失败；28个文件（含105618字节HTML）已保留但未完成交付。发现进度128条累计封顶造成后续工具不可见；任务寿命和持续记录协议仍待修复。可信服务连接mark网络修复再增14项通过，最终规范重建及5174复验通过；不能将局部传输修复标为研究链路验收通过。
 
 2026-10-18 13:19：本地最终规范重建ready，镜像6ba8c13658797164299430a774e4b540fbd44d325ca7b3a31b6b656e323dba23；160项检查通过。四文件实际上传研究24d61c76正在执行，交付尚待验收。修复控制回复网络规则、同任务与同成果传输重试，保留取消后过程文件。外网关闭。磁盘满导致OrbStack退出后已恢复，仅清理可再生成缓存；其他环境源码未改。
 
@@ -1258,7 +1264,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 事件层PR136已合入dc6ada7b，本机只读接口通过；发布基线1.1.0保留 | 活动后继为运行观察与事件诊断；候选71f6ef6e本地通过，待CI/PR，云端/demo不变 |
+| dev | 共同基座与企业工作台集成 | PR137已合入4e81c5f6；实际本机三视角验收通过；发布基线1.1.0保留 | 活动后继为执行详情与持续介入；f1c4dc57本地候选，未CI/PR，云端/demo不变 |
 
 ## 功能包前沿
 
@@ -1347,7 +1353,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| control-runtime-views-20261117 | 当前三视角App候选，5174本地验收，未合dev |
+| execution-details-20261117 | 当前执行详情App候选，未合dev |
+| control-runtime-views-20261117 | PR137已合dev4e81c5f6，实际本机验收通过 |
 | control-events-20261117 | 已接受Control事件来源，PR136合dev并本机验证 |
 | control-task-board-20261117 | 已接受任务看板产品来源，PR135合入dev |
 | control-delegation-20261117 | 阶段二产品来源，已通过PR126合入dev，未部署云端 |
@@ -1386,7 +1393,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| control-runtime-views-20261117 | 71f6ef6e | feature | Control运行观察与事件诊断 | 86App/类型与真实文件/六事件通过，待CI/PR | 三视角、固定读取边界、原执行关联与位置恢复。[计划](../superpowers/plans/2026-11-17-control-runtime-views.md) | shared-agent |
+| execution-details-20261117 | f1c4dc57 | feature | 会话右栏执行详情 | 189App/类型与143范围检查通过；本机复验通过 | 复用执行记录与正式回答，保留历史阅读；指令队列未实现。[计划](../superpowers/plans/2026-11-17-conversation-intervention.md) | shared-agent |
+| control-runtime-views-20261117 | 71f6ef6e | feature | Control运行观察与事件诊断 | PR137/CI44100341776通过，已合4e81c5f6 | 三视角、固定读取边界、原执行关联与位置恢复。[计划](../superpowers/plans/2026-11-17-control-runtime-views.md) | shared-agent |
 | control-events-20261117 | 4db1fb1a | feature | Control持久事件 | PR136/CI通过，已合dc6ada7b | 原子事件、有界读取、旧历史缺口；实际本机只读接口通过。[计划](../superpowers/plans/2026-11-17-control-events.md) | shared-agent |
 | control-task-board-20261117 | 3ff3f515 | feature | Control真实任务看板 | PR135/CI通过，已合a7fb27d4 | 四列看板与原会话入口；实际5173重建验收通过，零执行命令。[计划](../superpowers/plans/2026-11-17-control-task-board.md) | shared-agent |
 | session-sidebar-stability-20261117 | 399f90f3 | feature | 较旧置顶元数据跨挂载保留 | PR128元数据回归通过；用户纠正整栏仍重建，完整契约由PR131接管 | 访问范围内复用完整置顶元数据，移除/恢复使旧历史响应失效；旧行数验收不证明导航常驻。[旧验证](../reviews/2026-11-17-session-sidebar-stability-local.md) | shared-agent |
@@ -1590,7 +1598,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| control-runtime-views-20261117 | 当前App候选 | feat/control-runtime-views-20261117 | 运行泳道与来源事件诊断；原绑定定位与阅读位置保留 | 5174真实六事件/原文件通过；待CI/PR |
+| execution-details-20261117 | 当前App候选 | feat/execution-details-20261117 | 右栏执行过程与正式回答；制品独立 | 189App/类型与143范围检查通过；未CI/合并 |
+| control-runtime-views-20261117 | 已接受App | dev · PR137 | 运行泳道与来源事件诊断；原绑定定位与阅读位置保留 | CI与实际5173验收通过 |
 | control-events-20261117 | 已接受事件层 | dev · PR136 | 持久Control事件与有界读取；来源定位与旧历史缺口 | CI与实际本机接口通过 |
 | control-task-board-20261117 | 已接受App | PR135已合dev | 持久任务状态与交付看板；原会话定位及请求恢复 | CI与实际5173验收通过 |
 | session-sidebar-stability-20261117 | 旧元数据症状修正 | PR128来源，已关闭 | 冷切换复用完整置顶行；移除操作拒绝迟到历史响应 | 行数验证不等于导航常驻；完整契约由PR131重新验收 |
@@ -1837,7 +1846,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/control-runtime-views-20261117 | capstone-app三视角，目标dev dc6ada7b | 候选71f6ef6e；86App/类型、123范围；真实六事件/124字节原文件和诊断会话通过 | 待单次macOS control-task-board CI及dev PR；5173旧界面保留 | shared-agent |
+| feat/execution-details-20261117 | capstone-app，目标dev4e81c5f6 | f1c4dc57；189App/类型与143范围通过；最终规范重建及5174复验通过 | 完成本机复验与定向集成门禁；后续为持久指令接纳 | shared-agent |
+| docs/conversation-intervention-20261117 | capstone-app设计依赖，目标dev | 2fbcd9e8，已包含于实施分支 | 随实施分支集成，保留根工作区恢复草稿 | shared-agent |
+| feat/control-runtime-views-20261117 | PR137已合并并关闭来源分支 | 受检9e39bb85，合并4e81c5f6，CI44100341776通过 | 实际5173重建及原会话/文件验收通过 | shared-agent |
 | feat/control-events-20261117 | PR136已合并并关闭来源分支 | 受检41db18f5，合并dc6ada7b；CI44080297410通过135秒 | 实际dev重建/六旧目标只读接口通过；云端/demo不变 | shared-agent |
 | feat/control-task-board-20261117 | PR135已合入并关闭来源分支 | 产品3ff3f515、受检5ad60982、合并a7fb27d4；macOS CI通过 | 实际5173重建/真实目标及原会话验收通过；云端/demo不变 | shared-agent |
 | docs/compatible-session-closeout-20261117 | capstone-app兼容恢复验收收口，目标dev6714d223 | PR133/macOS CI通过；实际5173自动恢复历史，快照与置顶不变 | 仅完成验收/台账/图的聚焦文档PR；最终自身合并回执放忽略目录，不再启动产品变更 | shared-agent |
@@ -1891,7 +1902,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
 | feat/work-attempt-binding | 已归档，不再作为活动研发分支 | 原源c9e57152；archive/branch-ownership-20261114/feat/work-attempt-binding | 旧UI撤回、PR50已关闭；当前Work/native归dev；不得整体合并旧候选 | shared-agent |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 当前集成所有者 | PR136事件层已集成dc6ada7b；实际dev规范重建与只读接口通过 | 活动后继feat/control-runtime-views-20261117；运行观察/诊断本地通过，待CI/PR | shared-agent |
+| dev | 当前集成所有者 | PR137已集成4e81c5f6；实际dev规范重建与三视角通过 | 活动后继feat/execution-details-20261117；本地候选，未CI/PR | shared-agent |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 已归档，不再作为活动研发分支 | 原源275dc00f；archive/branch-ownership-20261114/feat/research-model | 只有设计文档，R1未实现；归dev研究待办，实施时从当前dev新建切片 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |

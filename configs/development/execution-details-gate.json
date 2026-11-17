@@ -1,0 +1,18 @@
+{
+  "schema": "capstone-development-gate/1",
+  "gate": "execution-details",
+  "anchors": ["packages/capstone-app/src/ExecutionDetails.tsx"],
+  "paths": [
+    "packages/capstone-app/src/ExecutionDetails.tsx",
+    "packages/capstone-app/src/ExecutionDetails.test.tsx",
+    "packages/capstone-app/src/executionDetails.css",
+    "packages/capstone-app/src/CapstoneAssistantThread.tsx",
+    "packages/capstone-app/src/ThreadWorkAdapter.tsx",
+    "packages/capstone-app/src/ThreadWorkExecution.test.tsx",
+    "configs/development/execution-details-gate.json",
+    "tools/test_execution_details.sh",
+    "tools/tests/test_ci_execution_details.py",
+    "tools/ci_scope.py",
+    ".github/workflows/verify.yml"
+  ]
+}

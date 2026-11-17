@@ -1,5 +1,25 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Conversation intervention — combined reader local candidate
+
+Implementation branch feat/execution-details-20261117 (capstone-app, destination dev)
+reuses the process/answer components in one right-panel tab. 158 focused App checks
+and typecheck pass; canonical rebuild/final browser checks are in progress.
+Next finish local reader acceptance; durable instruction admission is still pending.
+No CI, integration or cloud acceptance is claimed.
+
+Owner capstone-app with capstone-agent/harness admission dependencies; destination dev.
+Design branch docs/conversation-intervention-20261117 starts from accepted PR137
+merge4e81c5f6. [Design](../specs/2026-11-17-conversation-intervention-design.md)
+and [delivery boundary](2026-11-17-conversation-intervention.md) record user decisions:
+reuse main conversation, combined right-panel execution/answer reader plus products,
+compact composer status strip, durable boundary-admitted instructions and distinct
+Goal/Mission ownership. Planning only; no runtime or CI acceptance claimed.
+Next: extract/reuse current execution reader and verify manual history retention;
+enable concurrent send only after durable admission and cancellation tests pass.
+PR137 final acceptance is retained in runs/control-runtime-views-20261117/closeout.json;
+the following candidate entries are historical, not outstanding PR137 integration.
+
 ## Control runtime views — active, 2026-11-17
 
 Owner capstone-app. feat/control-runtime-views-20261117 targets dev dc6ada7b.

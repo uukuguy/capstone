@@ -8040,3 +8040,11 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: 71f6ef6e restores diagnostic return focus and scroll, and distinguishes final Goal acceptance from task verification.
 
 - 2026-11-17: Candidate control graph shows verified dc6ada7b-to71f6ef6e ancestry;21 graph/scope checks,doctor,new links and symlink pass. No CI started.
+
+- 2026-11-17: User accepted Goal/Mission distinction, dynamic task equipment, boundary-admitted intervention and combined right-panel execution/answer view. Recorded design and delivery boundary on docs/conversation-intervention-20261117 from accepted dev4e81c5f6. No runtime changes; doctor, whitespace and CLAUDE symlink checks pass. Reader relocation is the next implementation unit; concurrent send remains gated by durable admission.
+- 2026-11-17: Combined execution reader reuses existing components through portals;158 App checks/types pass. Real historical answer and tab switching checked on5174; canonical rebuild/final browser acceptance in progress. Backend intervention is not implemented.
+- 2026-11-17: a521f020 relocates process and answers through portals while preserving their existing components.
+- 2026-11-17: 2ac777f9 restores mainline product access and adds a bounded integration gate;189 App and143 scope checks pass.
+- 2026-11-17: Independent review could not start because configured gpt-6.1-luna is unavailable; no independent verdict claimed.
+- 2026-11-17: f1c4dc57 resumes live following when the pane becomes visible; manual history position remains protected.
+- 2026-11-17: Final canonical rebuild passed imagef25c7f8a and scoped cleanup;5174 saved-record refresh, tabs, product access and narrow layout passed.
