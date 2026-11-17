@@ -21,7 +21,7 @@ import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAss
 import { commandKey } from './commandKey'
 import { commandRejectionCopy } from './threadFeedback'
 import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
-import { HttpThreadTransport } from './threadHttpTransport'
+import { HttpThreadTransport,ThreadTransportError } from './threadHttpTransport'
 import type { ThreadListPage } from './threadManagement'
 import { CapstoneThreadClient } from './threadClient'
 import { ThreadProjectionStore } from './threadProjectionStore'
@@ -445,7 +445,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     try{
       rememberMission(operation)
       writing.current=true;setBusy(true);setError(null)
-      const mission=await transport.createMission(operation.body)
+      const mission=await transport.createMission(operation.body).catch(cause=>{
+        const detail=cause instanceof ThreadTransportError&&cause.status===409&&cause.body&&typeof cause.body==='object'&&'detail' in cause.body?cause.body.detail:undefined
+        if(detail&&typeof detail==='object'&&'code' in detail&&detail.code==='mission_already_active'){
+          rememberMission(undefined)
+          throw new Error('当前对话已有进行中的 Mission，请继续当前任务或新建对话。')
+        }
+        throw cause
+      })
       await store.refreshWorkSnapshot()
       const fresh=store.state.workSnapshot
       if(!fresh?.missionRefs?.some(ref=>ref.missionId===mission.missionId))throw new Error('Mission 已创建，来源关联尚待确认。请重试原请求。')

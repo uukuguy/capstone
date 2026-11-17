@@ -14,7 +14,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, lostMission=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, lostMission=false, activeMissionConflict=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -23,7 +23,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
     instruction_queue_available:false,instruction_queue:[] as {id:string;text:string;attempt_id:string;sequence:number;state:string}[],
     context_product_refs:[] as ContextProductRef[],cancel_requested: false, messages: native&&!legacySaved?[]:['测试目标'], task_context: context, ...(native?{conversation_mode:!legacySaved}:{}) }
   const missionRequests:Record<string,unknown>[]=[]
-  let mission:Record<string,unknown>|undefined
+  let mission:Record<string,unknown>|undefined=activeMissionConflict?{schema:'capstone-control-mission/1',mission_id:'goal_mission',goal_id:'goal_mission',workspace:'enterprise',objective:'当前 Mission',state:'planning',revision:1,origin:{thread_id:'thr_work'},plan_complete:false}:undefined
   let missionResponseLost=false
   let upgraded = modelFree || existingWork || native
   let saved = modelFree || existingWork
@@ -95,6 +95,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
     const parsed = new URL(String(url), 'http://localhost')
     if(parsed.pathname==='/api/v1/control/missions'&&init?.method==='POST'){
       const body=JSON.parse(String(init.body));missionRequests.push(body)
+      if(activeMissionConflict)return new Response(JSON.stringify({detail:{code:'mission_already_active',message:'This Thread already has an active Mission. Continue or end it before creating another.',mission_id:'goal_mission'}}),{status:409,headers:{'Capstone-Thread-Version':'2'}})
       if(!mission){mission={schema:'capstone-control-mission/1',mission_id:'goal_mission',goal_id:'goal_mission',workspace:'enterprise',objective:body.objective,state:'planning',revision:1,origin:body.origin,plan_complete:false};append('mission_associated',{mission_id:'goal_mission',origin:body.origin})}
       if(lostMission&&!missionResponseLost){missionResponseLost=true;throw new TypeError('Mission create response lost')}
       return response(mission)
@@ -258,6 +259,27 @@ it('retries an uncertain supplement with its original identity and no duplicate 
   await waitFor(()=>expect(server.commands).toHaveLength(3))
   expect(server.commands[2]).toEqual(server.commands[1])
   expect(server.work.instruction_queue).toHaveLength(1)
+})
+
+it('keeps a definitively rejected second Mission editable so the current Mission can continue',async()=>{
+  const server=authority({native:true,activeMissionConflict:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="mission-existing" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'}) as HTMLTextAreaElement
+  fireEvent.change(input,{target:{value:'/mission 另一个想法'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await screen.findByText('当前对话已有进行中的 Mission，请继续当前任务或新建对话。')
+  expect(input.value).toBe('/mission 另一个想法')
+  expect(input.disabled).toBe(false)
+  expect(screen.queryByRole('button',{name:'重试 Mission 请求'})).toBeNull()
+  fireEvent.change(input,{target:{value:'继续当前 Mission，先缩小研究范围'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  expect(server.missionRequests).toHaveLength(1)
+  expect(server.commands[0].thread_id).toBe('thr_work')
+  expect(server.commands[0].payload.text).toBe('继续当前 Mission，先缩小研究范围')
 })
 
 it('creates a real Thread before accepting a Mission from the new conversation entry',async()=>{
