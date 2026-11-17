@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import asyncio
 from concurrent.futures import CancelledError
 import json
+import re
 import math
 import os
 from pathlib import Path
@@ -196,6 +197,7 @@ class GeneralPiHost:
             'executor_identity': self.identity}
         self.capability['native_context_schemas'] = ['capstone-native-context/1']
         self.capability['execution_authority_schemas'] = ['capstone-execution-authority/1']
+        self.capability['instruction_schemas'] = ['capstone-native-instruction/1']
         self.capability['task_recovery_schemas'] = ['capstone-pi-task-recovery/1']
         self.capability['research_bridge_schemas'] = ['capstone-research-bridge/1']
         self.capability['research_graph_schemas'] = ['capstone-enterprise-graph/2']
@@ -662,6 +664,14 @@ class GeneralPiHost:
             except ModuleNotFoundError:
                 from capability_agent.runtime.step_events import project_runtime_action
             payload = project_runtime_action(event)
+            if kind == 'general_pi_instruction_consumed':
+                instruction_id = event.get('instruction_id')
+                with self._lock:
+                    entry = record.get('instructions', {}).get(instruction_id)
+                    if entry is None or not entry['sent']:
+                        raise ValueError('Native instruction receipt is not task-bound')
+                    entry['state'] = 'consumed'
+                payload = {'type': kind, 'instruction_id': instruction_id}
             if payload is not None and payload.get('type') == 'runtime_phase':
                 if kind == 'compaction_start':
                     compaction_started = time.monotonic()
@@ -961,8 +971,9 @@ class GeneralPiHost:
                     if cancelled():
                         raise InterruptedError('research bootstrap was not confirmed')
             try:
-                answer, usage = self._run(request, cancelled,
-                    IdleFlushCallback(emit, thinking_buffer.flush_due))
+                callback = IdleFlushCallback(emit, thinking_buffer.flush_due)
+                callback.poll_instructions = lambda: self.take_instructions(request.task_id)
+                answer, usage = self._run(request, cancelled, callback)
             finally:
                 if not cancelled():
                     text_buffer.flush()
@@ -1154,6 +1165,49 @@ class GeneralPiHost:
             if after is not None:
                 document['event_cursor'] = item.get('event_sequence', 0)
             return json.loads(json.dumps(document))
+
+    def submit_instruction(self, task_id: str, document) -> dict:
+        from .native_execution_authority import checked_grant
+        if (not isinstance(document, dict) or set(document) != {
+                'parent_attempt_id', 'instruction_id', 'text', 'execution_authority'}):
+            raise ValueError('Invalid native instruction fields')
+        grant = checked_grant(document['execution_authority'])
+        instruction_id, text = document['instruction_id'], document['text']
+        if (not isinstance(instruction_id, str) or re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', instruction_id) is None
+                or not isinstance(text, str) or not text.strip()):
+            raise ValueError('Invalid native instruction')
+        from .application_capacity import require_capacity
+        require_capacity('input_text_chars', len(text), 'native_instruction')
+        with self._lock:
+            record = self._tasks[task_id]
+            authority = record.get('execution_authority')
+            if (authority is None or not authority.active() or not authority.matches(grant['generation'], grant['capability'])
+                    or record['request'].parent_attempt_id != document['parent_attempt_id']
+                    or record['status'] not in {'queued', 'running'} or record['cancel'].is_set()):
+                raise PermissionError('Native instruction owner rejected')
+            entries = record.setdefault('instructions', {})
+            old = entries.get(instruction_id)
+            if old is not None:
+                if old['text'] != text:
+                    raise ValueError('Native instruction identity conflict')
+                return {'instruction_id': instruction_id, 'state': old['state']}
+            if len(entries) >= 128:
+                raise ValueError('Native instruction queue exceeds bounds')
+            entries[instruction_id] = {'text': text, 'state': 'queued', 'sent': False}
+            return {'instruction_id': instruction_id, 'state': 'queued'}
+
+    def take_instructions(self, task_id: str) -> list[dict]:
+        with self._lock:
+            record = self._tasks[task_id]
+            authority = record.get('execution_authority')
+            if record['cancel'].is_set() or authority is None or not authority.active():
+                return []
+            pending = []
+            for instruction_id, entry in record.get('instructions', {}).items():
+                if not entry['sent']:
+                    entry['sent'] = True
+                    pending.append({'type': 'steer', 'instruction_id': instruction_id, 'text': entry['text']})
+            return pending
 
     def renew_execution(self, task_id: str, document) -> None:
         from .native_execution_authority import checked_grant
@@ -1974,6 +2028,14 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 parts = self.path.split('/')
+                if len(parts) == 4 and parts[1] == 'tasks' and parts[3] == 'instructions':
+                    if not 0 < length <= limits.rpc_frame_bytes:
+                        raise ValueError('Native instruction exceeds bounds')
+                    try:
+                        receipt = host.submit_instruction(parts[2], json.loads(self.rfile.read(length)))
+                    except (PermissionError, KeyError):
+                        return self.send_json(409, {'error': 'instruction_owner_rejected'})
+                    return self.send_json(200, receipt)
                 if len(parts) == 4 and parts[1] == 'tasks' and parts[3] == 'authority':
                     if not 0 < length <= 1024:
                         raise ValueError('execution authority exceeds bounds')

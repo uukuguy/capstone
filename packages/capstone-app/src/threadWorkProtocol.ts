@@ -8,7 +8,10 @@ import {parseContextProductRefs} from './threadProducts'
 import {parseGoalMode,goalCommand,type GoalMode,type GoalControl} from './goalMode'
 import type { AttemptPhase, RuntimeMode } from './threadProtocol'
 
+export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;state:'pending'|'delivering'|'admitted'|'withdrawn'}
 export type WorkRecord = {
+  instructionQueue?:QueuedInstruction[]
+  instructionQueueAvailable?:boolean
   workId: string; goal: string; goalRevision: number; revision: number; status: string
   blockedReason: string | null; messages: string[]
   latestAttemptId: string | null; startAvailable: boolean; startUnavailableReason: string | null
@@ -34,7 +37,7 @@ export type WorkSnapshot = {
 }
 export type WorkCommand = {
   schema: 'capstone-command/2'; thread_id: string; run_id: string
-  command_id: string; idempotency_key: string; kind: 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'open_model' | 'activate_model' | 'close_model' | GoalControl
+  command_id: string; idempotency_key: string; kind: 'queue_instruction' | 'withdraw_instruction' | 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'open_model' | 'activate_model' | 'close_model' | GoalControl
   target: { kind: 'work' | 'model_workspace'; id: string; expected_revision: number }
   payload: ({ text: string; source_attempt_id?: string } & Partial<InputSubmission>) | Record<string, string|number>
 }
@@ -103,7 +106,19 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
     if ((work.start_available !== undefined && typeof work.start_available !== 'boolean')
         || (work.cancel_requested !== undefined && typeof work.cancel_requested !== 'boolean')
         || (work.start_unavailable_reason != null && (typeof work.start_unavailable_reason !== 'string' || work.start_unavailable_reason.length > 200))) throw new ThreadProtocolError('工作操作状态无效')
-    return { ...(work.context_product_refs===undefined?{}:{contextProductRefs:parseContextProductRefs(work.context_product_refs,threadId)}),workId, goal: work.goal, goalRevision: revision(work.goal_revision, 1),
+    if(work.instruction_queue_available!==undefined&&typeof work.instruction_queue_available!=='boolean')throw new ThreadProtocolError('指令队列能力无效')
+    let instructionQueue:QueuedInstruction[]|undefined
+    if(work.instruction_queue!==undefined){
+      if(!Array.isArray(work.instruction_queue))throw new ThreadProtocolError('指令队列无效')
+      instructionQueue=work.instruction_queue.map(raw=>{
+        const entry=object(raw)
+        if(typeof entry.text!=='string'||!entry.text.trim()||!['pending','delivering','admitted','withdrawn'].includes(String(entry.state)))throw new ThreadProtocolError('队列指令无效')
+        return {id:id(entry.id),text:entry.text,attemptId:id(entry.attempt_id),sequence:revision(entry.sequence,1),state:entry.state as QueuedInstruction['state']}
+      })
+      if(new Set(instructionQueue.map(entry=>entry.id)).size!==instructionQueue.length)throw new ThreadProtocolError('队列指令身份重复')
+      instructionQueue.sort((a,b)=>a.sequence-b.sequence)
+    }
+    return {instructionQueue,instructionQueueAvailable:work.instruction_queue_available===true, ...(work.context_product_refs===undefined?{}:{contextProductRefs:parseContextProductRefs(work.context_product_refs,threadId)}),workId, goal: work.goal, goalRevision: revision(work.goal_revision, 1),
       revision: revision(work.revision, 1), status: work.status as string,
       latestAttemptId: work.latest_attempt_id == null ? null : id(work.latest_attempt_id),
       startAvailable: typeof work.start_available === 'boolean' ? work.start_available : false,
@@ -186,6 +201,11 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
     return buildModelWorkspaceCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),revision(target.expected_revision),command.kind as 'open_model'|'activate_model'|'close_model',payload)
   }
   if (target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
+  if(command.kind==='queue_instruction'||command.kind==='withdraw_instruction'){
+    const field=command.kind==='queue_instruction'?'text':'instruction_id'
+    if(Object.keys(payload).length!==1||typeof payload[field]!=='string'||!(payload[field] as string).trim()||(field==='text'&&exceedsCapacity((payload[field] as string).length,'input_text_chars')))throw new ThreadProtocolError('队列命令无效')
+    return {schema:'capstone-command/2',thread_id:threadId,run_id:id(command.run_id),command_id:id(command.command_id),idempotency_key:id(command.idempotency_key),kind:command.kind,target:{kind:'work',id:id(target.id),expected_revision:revision(target.expected_revision,1)},payload:{[field]:field==='instruction_id'?id(payload[field]):payload[field] as string}}
+  }
   if (['start_goal','pause_goal','resume_goal','cancel_goal','revise_goal_objective'].includes(String(command.kind))) {
     if(!Object.values(payload).every(value=>typeof value==='string'||typeof value==='number'))throw new ThreadProtocolError('目标命令无效')
     return goalCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),

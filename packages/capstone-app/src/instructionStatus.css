@@ -1,0 +1,14 @@
+.instruction-status { border-top:1px solid var(--border-color,#dde1d9); font-size:12px; }
+.instruction-status-strip { height:44px; display:flex; justify-content:space-between; align-items:center; }
+.instruction-status-strip > span,.instruction-status-strip > div { display:flex; align-items:center; gap:6px; }
+.instruction-status button { min-height:44px; min-width:44px; border:0; background:transparent; color:inherit; cursor:pointer; }
+.instruction-status button:disabled { opacity:.45; cursor:default; }
+.instruction-status button:focus-visible { outline:2px solid currentColor; outline-offset:-3px; }
+.instruction-status-strip button { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:4px; }
+.instruction-status-strip button:focus-visible::after { content:attr(title); position:absolute; bottom:100%; right:0; padding:4px 8px; border:1px solid currentColor; border-radius:4px; white-space:nowrap; background:var(--surface,#fff); color:var(--text-color,#22352e); z-index:2; }
+.instruction-status svg { width:16px; height:16px; }
+.instruction-queue { max-height:180px; overflow:auto; }
+.instruction-queue article { border-bottom:1px solid var(--border-color,#dde1d9); }
+.instruction-queue p { margin:6px 0; overflow-wrap:anywhere; white-space:pre-wrap; }
+.instruction-mainline { display:flex; flex-direction:column; gap:12px; }
+.instruction-mainline-text { margin:0 0 4px auto; max-width:85%; padding:10px 14px; border-radius:12px; background:var(--user-message-background,#edf3ed); white-space:pre-wrap; overflow-wrap:anywhere; }

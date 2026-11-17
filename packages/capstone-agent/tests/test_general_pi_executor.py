@@ -6,6 +6,32 @@ import time
 import pytest
 
 
+def test_process_delivers_supplement_while_tool_is_active(tmp_path, single_child_cleanup):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    script = tmp_path / 'steering.py'
+    script.write_text('''import sys,json
+json.loads(sys.stdin.readline())
+print(json.dumps({'type':'tool_execution_start','toolName':'bash','toolCallId':'work'}),flush=True)
+frame=json.loads(sys.stdin.readline())
+assert frame == {'type':'steer','instruction_id':'instruction-1','text':'Use saved result'}
+print(json.dumps({'type':'general_pi_instruction_consumed','instruction_id':frame['instruction_id']}),flush=True)
+print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','stopReason':'stop','content':[{'type':'text','text':'Done'}]}]}),flush=True)
+''')
+    events = []
+    class Callback:
+        sent = False
+        def __call__(self, event):
+            events.append(event)
+        def poll_instructions(self):
+            if self.sent or not events:
+                return []
+            self.sent = True
+            return [{'type': 'steer', 'instruction_id': 'instruction-1', 'text': 'Use saved result'}]
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    assert process.run('Work', timeout=5, cancelled=lambda: False, on_event=Callback()) == 'Done'
+    assert any(event['type'] == 'general_pi_instruction_consumed' for event in events)
+
+
 @pytest.fixture(autouse=True)
 def single_child_cleanup(monkeypatch):
     # This module's RPC fixtures create one child and no descendants. The macOS test

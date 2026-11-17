@@ -1,4 +1,5 @@
 import GoalControls from './GoalControls'
+import InstructionStatus from './InstructionStatus'
 import {ExecutionDetailsContext,ExecutionDetailsSurface} from './ExecutionDetails'
 import ControlGoalPanel from './ControlGoalPanel'
 import {goalCommand,goalObjectiveFromInput} from './goalMode'
@@ -198,7 +199,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [acceptedDraft,setAcceptedDraft]=useState<{text:string;commandId:string;submission?:InputSubmission}>()
   const pendingCommand = projection.pendingCommands.find(item => !item.receipt)?.command
   const pending = pendingCommand?.schema === 'capstone-command/2' ? pendingCommand : undefined
-  const pendingMessage = pending?.kind === 'work_message' || pending?.kind === 'revise_goal' || pending?.kind === 'send_message' ? pending : undefined
+  const pendingMessage = pending?.kind === 'work_message' || pending?.kind === 'revise_goal' || pending?.kind === 'send_message' || pending?.kind==='queue_instruction' ? pending : undefined
   const drafts = useRef<Record<string, string>>({})
   const explicitNew=useRef(false)
   const [sessionError, setSessionError] = useState(false)
@@ -211,7 +212,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     catch (cause) { rethrowDebugCapacity(cause); /* Keep the current session draft in memory. */ }
   }, [key])
   const onDraftChange = useCallback((text: string) => {
-    if (!mounted.current || store.state.pendingCommands.some(item => !item.receipt && ['work_message', 'revise_goal','send_message'].includes(item.command.kind))) return
+    if (!mounted.current || store.state.pendingCommands.some(item => !item.receipt && ['work_message', 'revise_goal','send_message','queue_instruction'].includes(item.command.kind))) return
     drafts.current[selected] = text
     persist(selected)
   }, [selected, persist, store])
@@ -267,7 +268,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       const command = readPendingCommands(commandStorageKey, currentId)[0]
       if (command?.schema === 'capstone-command/2') {
         target = command.target.id
-        if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message') drafts.current[target] = String(command.payload.text)
+        if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message'||command.kind==='queue_instruction') drafts.current[target] = String(command.payload.text)
       }
     } catch { /* Invalid local state cannot create or submit a command. */ }
     setSelected(target); setInitialText(drafts.current[target] || ''); setRestoredKey(key)
@@ -373,6 +374,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const active = selectedWork?.status === 'queued' || selectedWork?.status === 'running'
   const currentAttempt=snapshot?.currentAttempt||professional?.currentAttempt
   const canStop = active && selectedWork.latestAttemptId === currentAttempt?.attemptId
+  const queueAvailable=liveConversation&&selectedWork?.instructionQueueAvailable===true
+  const concurrentSend=queueAvailable&&active&&!selectedWork?.cancelRequested
   async function dispatch(command: WorkCommand) {
     if ((recovery||viewingLegacy) && !(pending && JSON.stringify(command) === JSON.stringify(pending)) && !(command.kind === 'cancel_work' && canStop && !pending)) throw new Error('此入口只可确认原请求或停止已有执行。')
     if (writing.current) throw new Error('请等待当前操作完成。')
@@ -385,6 +388,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         throw new CommandRejectedError(receipt.rejection === 'product_context_unavailable' ? '引用的成果暂时无法加入本轮资料。指令未执行，请检查引用后重试。' : commandRejectionCopy(receipt.rejection))
       }
       if (receipt.status !== 'accepted') throw new Error('操作结果待确认，请重试原请求。')
+      if(command.kind==='queue_instruction')setAcceptedDraft({text:String(command.payload.text),commandId:command.command_id})
       if(command.kind==='send_message'){
         const payload=command.payload as {text:string}&Partial<InputSubmission>
         setAttachments(files=>files.filter(file=>!payload.attachment_refs?.includes(file.resource_id)))
@@ -392,8 +396,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const submission=composerSubmission(payload)
         setAcceptedDraft({text:payload.text,commandId:command.command_id,submission})
       }
-      if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message') { drafts.current[selected] = ''; persist(selected) }
-      setNotice(command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
+      if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message'||command.kind==='queue_instruction') { drafts.current[selected] = ''; persist(selected) }
+      setNotice(command.kind==='queue_instruction'?'补充指令已保存，等待执行接纳。':command.kind==='withdraw_instruction'?'撤回已确认。':command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
       await store.refreshWorkSnapshot().catch(cause => { if (mounted.current) setError(cause.message) })
       if (!mounted.current) return
       if (command.target.kind==='work' && selected === 'new' && typeof receipt.target?.id === 'string' && receipt.target.id !== 'new') {
@@ -418,6 +422,18 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     catch{/* dispatch retains the error and exact request for recovery. */}
   }
   async function send(text: string,submission?:InputSubmission) {
+    if(pendingMessage?.kind==='queue_instruction'){
+      try{await dispatch(pendingMessage);return}catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'发送结果待确认。')}
+    }
+    if(concurrentSend&&selectedWork&&snapshot){
+      if(attachments.length||attachmentsLoading||processReference||submission?.input.kind==='skill_invocation'||submission?.resource_profile||submission?.context_selection.include_refs.length||submission?.context_selection.exclude_refs.length||submission?.context_product_refs?.length||submission?.material_refs?.length||submission?.excluded_session_skills?.length){
+        throw new MessageNotSentError('执行中仅支持补充文字。请移除新选资料、引用或技能，或等待执行结束后发送；草稿保留。')
+      }
+      try{
+        await dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'queue_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{text}})
+        return
+      }catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'发送结果待确认。')}
+    }
     const objective=goalObjectiveFromInput(text)
     if(objective!==null){
       setGoalDraft(objective||selectedWork?.goal||'')
@@ -635,6 +651,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       modelBusy={busy||active||!!currentAttempt||projection.connection!=='live'}
       onOpenHistoricalModel={(modelId,revision)=>void changeModel('open_model',{model_id:modelId,model_revision:revision})}/>
   </>:null
+  function locateQueuedInstruction(attemptId:string){
+    selectResourceView('execution')
+    requestAnimationFrame(()=>{const record=Array.from(executionTarget?.querySelectorAll<HTMLElement>('[data-execution-id]')||[]).find(node=>node.dataset.executionId===attemptId);if(record){executionTarget?.dispatchEvent(new Event('execution-browse'));record.scrollIntoView?.({block:'start'});record.focus({preventScroll:true})}else setError('来源执行暂不可用，请加载原始记录后重试。')})
+  }
   const executionViews=nativeChat&&client.supportsProductIndex?[{id:'execution',label:'执行详情',content:<ExecutionDetailsSurface onTarget={setExecutionTarget}/>,description:'执行过程与正式回答，保留原始指令及成果来源。'}]:[]
   return <ExecutionDetailsContext.Provider value={executionViews.length?{target:executionTarget,open:()=>selectResourceView('execution')}:null}><ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
@@ -679,7 +699,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         window.dispatchEvent(new Event('capstone-session-renamed'))
       }:undefined} />
       <div className="thread-chat-heading-meta">
-        {nativeChat&&pending?.kind==='send_message'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
+        {nativeChat&&(pending?.kind==='send_message'||pending?.kind==='queue_instruction')&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
         {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}
         {pendingCommand?.schema === 'capstone-command/1' && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void recoverLegacyCommand()}>重试原对话请求</button>}
         {selectedWork && ((!recovery&&!nativeChat) || pending?.kind === 'start_work') && <button type="button" className="thread-primary-button" disabled={busy || (!!pending && pending.kind !== 'start_work') || (!selectedWork.startAvailable && pending?.kind !== 'start_work') || projection.connection !== 'live'}
@@ -690,6 +710,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。{canResumeProfessional&&<button type="button" disabled={busy||!!pending} onClick={()=>{const target=snapshot!.works.filter(work=>!work.conversationMode).find(work=>work.contextProductRefs?.length)??snapshot!.works.filter(work=>!work.conversationMode).at(-1);if(target){selectWork(target.workId);setProfessionalEdit(true)}}}>继续编辑此专业任务</button>}</p>}
       {viewingLegacy&&<p role="status">正在查看历史保存记录，可保留草稿、确认原请求及停止已有执行。返回当前对话后可继续发送。</p>}
       {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
+      {pending?.kind==='withdraw_instruction'&&<button type="button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试撤回请求</button>}
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
@@ -735,7 +756,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||uploadBusy}
       welcomeGateway={sharedNavigation?sharedNavigation.gateway:welcomeGateway}
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?pendingMessage?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={initialText} onDraftChange={onDraftChange}
-      storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage}
+      storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&!concurrentSend&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage}
+      instructionReceipts={liveConversation&&selectedWork?.instructionQueue?.length?<section className="instruction-mainline" aria-label="补充指令与接纳回执">{selectedWork.instructionQueue.map(item=><article key={item.id}>
+        <p className="instruction-mainline-text">{item.text}</p><div className="execution-receipt"><span>{item.state==='pending'?'待接纳':item.state==='delivering'?'正在送达，尚未确认接纳':item.state==='admitted'?'已接纳 · 已进入执行上下文，尚不表示完成':'已撤回'}</span><button type="button" onClick={()=>locateQueuedInstruction(item.attemptId)}>查看来源执行</button></div>
+      </article>)}</section>:undefined}
+      allowConcurrentSend={queueAvailable}
+      composerStatus={queueAvailable?<InstructionStatus active={active} stopping={!!selectedWork?.cancelRequested} stopped={selectedWork?.status==='cancelled'||selectedWork?.status==='interrupted'} waiting={currentAttempt?.phase==='waiting'} queue={selectedWork?.instructionQueue||[]} disabled={busy||!!pending||projection.connection!=='live'} canStop={canStop} onStop={()=>void cancel()} onWithdraw={instructionId=>{if(snapshot&&selectedWork)void dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'withdraw_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{instruction_id:instructionId}}).catch(()=>{})}} onLocate={attemptId=>{
+        locateQueuedInstruction(attemptId)
+      }}/>:undefined}
       isRunning={active} canCancel={canStop}
       cancelLabel={pending?.kind === 'cancel_work' ? '重试停止请求' : selectedWork?.cancelRequested ? '停止请求中' : '停止任务'}
       cancelDisabled={busy || projection.connection !== 'live' || (!!pending && pending.kind !== 'cancel_work') || (selectedWork?.cancelRequested === true && pending?.kind !== 'cancel_work')}
