@@ -1,6 +1,6 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Session sidebar stability — active correction, 2026-11-17
+## Session sidebar stability — accepted in dev, 2026-11-17
 
 Owner capstone-app; fix/session-sidebar-stability-20261117 targets dev in the
 initialized historical-input-receipts worktree. Existing5173 reproduces10→3→10
@@ -9,9 +9,13 @@ older-row metadata is lost on remount. [Plan](2026-11-17-session-sidebar-stabili
 Acceptance: cold/warm switching preserves resolved rows/order and shared scroll,
 namespace isolation and removed-row invalidation; real existing-browser trial,
 focused macOS CI and actualdev integration.399f90f3 passes125 App/types,145
-governance and canonical rebuild. Five cold/warm browser switches retain10 pins
-and order with correct headings; screenshots inspected. Next focused macOS CI,
-dev PR and actual5173 verification. No backend or Authority behavior change.
+governance and canonical rebuild. Five candidate cold/warm browser switches retain10
+pins and order with correct headings; screenshots inspected. PR128/head4ff09235
+passed macOS CI43941305783 and merged into actualdev f818d2e9. Actualdev canonical
+rebuild/readiness/identity/cache maintenance and repeated5173 switches passed;
+original10 exact pin IDs remain equal. Only docs/session-sidebar-closeout-20261117
+control acceptance targets dev. Final own CI/merge/HEAD receipts stay ignored.
+No backend or Authority behavior change.
 
 ## Control delegation — accepted in dev, control closeout, 2026-11-17
 

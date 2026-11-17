@@ -1,7 +1,8 @@
 # Session sidebar stability — local verification
 
 Owner capstone-app. Branch fix/session-sidebar-stability-20261117 targets dev.
-Rootdev baseline7531bc1f. Product source399f90f3. Integration remains pending.
+Rootdev baseline7531bc1f. Product source399f90f3, reviewed head4ff09235.
+PR128 is merged into actualdev f818d2e9. macOS CI43941305783 passed.
 
 ## Reproduction and cause
 
@@ -48,5 +49,16 @@ other worktrees and user data are unchanged.
 
 Independent review dispatch failed Unknown model gpt-6.1-luna. Direct source
 review checked namespace ownership, mutation invalidation and retained-view
-updates; no independent review pass is claimed. Final-head macOS CI, dev merge,
-actual5173 rebuild/verification and canonical control closeout remain pending.
+updates; no independent review pass is claimed.
+
+## Actual dev acceptance
+
+Canonical rebuild from actualdev f818d2e9 completed0. API and all three workers
+run imagefaf6c85ab950ee516c33754d367516d773f6799f6d1274297b67eea4912b738e;
+readiness and scoped cache maintenance passed. Existing localhost5173 serves the
+fix. Repeated switches preserve10 pinned records, order, scroll position and
+the correct selected conversation. Saved conversations/products remain usable.
+Original10 exact pin IDs still match the durable baseline. Browser snapshots,
+screenshots and final identity receipts remain in the ignored evidence directory.
+The final control-only PR records this acceptance; its own merge/HEAD receipts
+stay ignored to avoid a self-referencing documentation commit cycle.

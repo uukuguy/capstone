@@ -1,56 +1,50 @@
 # Live Session Checkpoint
 
-Updated: 2026-11-17. Active task: fix the sidebar jumping on session selection.
+Updated: 2026-11-17. Sidebar correction is accepted in actualdev.
 
-## Current state
+## Accepted boundary
 
-Owner capstone-app. Branch fix/session-sidebar-stability-20261117 in initialized
-.worktrees/historical-input-receipts targets dev. Rootdev remains clean7531bc1f.
-Prior stageB is complete through PR126/127; its final ignored receipt is
-runs/control-delegation-20261117/closeout-receipt.json. Do not reopen that goal.
+Owner capstone-app. PR128 tested head4ff09235/macOS CI43941305783 passed and
+merged into dev f818d2e9. Source399f90f3 fixes older pinned metadata disappearing
+on remount and concurrent-view subset overwrites; stale pre-mutation replies
+cannot restore removed rows.125 App/types and145 governance checks passed.
 
-Existing5173 reproduced10 pinned rows becoming3 immediately after switching,
-then returning to10. Pin IDs remain durable. SessionNavigation lost component-local
-older-row descriptors on remount. Source501c90fd moves resolved row metadata to
-the exact access-scoped session catalog and invalidates earlier history replies
-on archive/delete/restore. It does not change pin authority, permissions or UI design.
+Rootdev canonical rebuild28526 completed0 atf818d2e9. API/three workers use
+imagefaf6c85ab950ee516c33754d367516d773f6799f6d1274297b67eea4912b738e;
+readiness and scoped cache maintenance passed. Existing localhost5173 repeated
+switches keep10 pin records/order/scroll position and correct conversations.
+Original10 exact pin IDs still match. Candidate Vite74642/5174 stopped after
+actual5173 acceptance. Real5173/API/workers remain available. No model task,
+cloud/demo/main change or data deletion. Prior stageB remains complete.
 
-Two regression tests failed first (cold-remount rows/position, stale removed-row
-reply), then a concurrent-page overwrite regression failed and was fixed in
-399f90f3.125 tests across10 direct App consumers and TypeScript pass;145
-scope/governance checks pass. New session-navigation gate
-runs only those consumers plus types and its scope test, on macOS. No solver or
-release gate. Independent reviewer dispatch failed Unknown model gpt-6.1-luna;
-direct source review performed; no independent pass exists.
+## Finite control closeout
 
-## Live operations
+Initialized .worktrees/historical-input-receipts owns
+docs/session-sidebar-closeout-20261117, based onf818d2e9 and targeting dev.
+Only acceptance docs, canonical worklist/register/graph and this checkpoint
+belong to it. Run focused docs/graph/doctor/link/symlink/diff checks, inspect the
+graph, commit and create a dev docs PR. CI is directly authorized. Merge after
+exact-head macOS docs pass, then fast-forward actualdev and refresh
+`python3 tools/render_project_overview.py --live --no-probe`. Inspect actualdev
+graph and its current HEAD node/exact local source edge. Close verified task
+branches; preserve initialized worktree, ignored auth, rootvar and user data.
 
-Canonical candidate rebuilds63980/5024 completed0. Latest399f90f3/image731d93bf
-passed readiness, API/three-worker identity and scoped cache maintenance;
-/tmp/capstone-sidebar-rebuild-2.log. Candidate Vite session74642 serves5174.
-Five real cold/warm switches retained10 pins/order and correct selected headings;
-intermediate screenshots inspected. Root5173 still uses dev7531bc1f App;
-record this temporary split accurately. No new tabs. No model trial is active.
-Root ignored operation pointer: runs/session-sidebar-stability-20261117/active-operations.json.
-Initial failing browser AX evidence is retained in the same directory.
+Final own PR/CI/merge/HEAD/clean receipts go only into ignored
+runs/session-sidebar-stability-20261117/closeout-receipt.json and the graph's
+ignored receipt. Once that receipt proves closure, do not start another control
+commit to record its own hash. No new feature or goal is selected.
 
-## Next actions
+## Evidence and limitations
 
-1. Candidate browser is accepted locally. Do not interpret transient missing AX
-   rows as visual failure: original root screenshot genuinely shows3; candidate
-   AX9/AX0 screenshots still showed10. Concurrent overwrite has red/green proof.
-2. Finish acceptance/control checkpoint, generate/re-layout and inspect graph via
-   ignored live observation, using ui-ux-pro-max. Current dirty paths are task-owned
-   status docs/graph/review/plan only. Verify links/symlink/diff/doctor and graph checks.
-3. Commit verification/control checkpoint, push one final head, create dev PR and
-   run authorized macOS session-navigation gate. CI requires no new user approval.
-   Integrate, rebuild actualdev, verify real5173, original10 exact pin IDs and
-   stable list. Stop only owned candidate Vite after5173 is accepted.
-4. Integrate canonical final control acceptance through a finite docs PR if needed,
-   refresh actualdev live graph, close verified task branches and keep both task
-   worktrees clean. Final own receipts stay ignored; preserve all other work/data.
+Review: docs/reviews/2026-11-17-session-sidebar-stability-local.md.
+Ignored evidence: runs/session-sidebar-stability-20261117 includes actualdev
+browser results/snapshots, pin identity, PR merge and rebuild operation pointers.
+Original root screenshot truly shows10→3 collapse. Candidate AX9/AX0 screenshots
+still show10; these were accessibility omissions, not visible collapse. Preserve
+the correction and red/green concurrent-cache test, without claiming otherwise.
+Independent reviewer dispatch failed Unknown model gpt-6.1-luna; direct review
+was performed, no independent review pass exists.
 
-Plan: docs/superpowers/plans/2026-11-17-session-sidebar-stability.md.
-Canonical worklist: docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md.
-GitHub uses process-scoped Clash127.0.0.1:7897. Preserve rootvar, ignored auth,
-other worktrees and recovery2eefdda714845605f7aef5c8a450aa982770ca4f.
+GitHub uses process-scoped Clash127.0.0.1:7897. Reuse existing Vivaldi tabs,
+window355034; indexes are short-lived and the user may change the active tab.
+Preserve unrelated worktrees/stashes and recovery2eefdda714845605f7aef5c8a450aa982770ca4f.
