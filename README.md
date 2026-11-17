@@ -125,6 +125,12 @@ Live news or weather still needs an accessible source. See the
 Actual model response quality requires separate acceptance; offline checks alone do
 not establish it.
 
+On local development builds with goal control, use `/goal <objective>` for one Agent
+to continue within a session, or `/mission <rough intent>` for Control to organize
+Tasks and Agents progressively. No complete task form is required; continue in the
+main conversation to adjust direction. Tools are selected per task, and the user
+accepts the final result. See the [usage guide](docs/RUNBOOK.md#mission-coordination).
+
 In the CLI, use `/skills` to inspect available skills and their execution role,
 `/skill:<name> <task>` to select one, and `/context` to include or exclude public background.
 The current model background includes identity, version and history; it does not

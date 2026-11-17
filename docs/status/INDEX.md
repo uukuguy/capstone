@@ -1,9 +1,11 @@
 # docs/status INDEX
 
-2026-11-18 持续指令接纳实施：feat/durable-instruction-admission-20261118，目标dev c8de9924。
-401后端/123范围/194App通过，真实排队改向与制品检查通过，停止/继续复验中。
-Mission基础独立工作树依赖此候选，桥接与入口尚未验收。见
-[计划](../superpowers/plans/2026-11-18-durable-instruction-admission.md)。
+2026-11-18 持续指令接纳已接受：PR140合入实际dev38a9e77f，定向CI及真实模型/制品/停止后继续通过。
+当前为Mission渐进组织交付：feat/mission-foundation-20261118，目标dev。
+941afaee已通过一次提交/两任务/两自动复盘/原字节实测与逐项验收；待定向CI及dev集成。
+见[实施边界](../superpowers/plans/2026-11-18-mission-conversation.md)及
+[真实验证记录](../reviews/2026-11-18-mission-conversation-local.md)；
+运行差异与控制状态以VERSION-CONTROL及本机实时旁文件为准。下方候选段落保留历史。
 
 2026-11-17 执行详情候选f1c4dc57：capstone-app，目标dev4e81c5f6；
 189App/类型、143范围检查通过，规范重建及最终浏览器复验通过。VERSION-CONTROL登记实施分支
