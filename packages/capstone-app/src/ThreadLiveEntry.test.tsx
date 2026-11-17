@@ -58,7 +58,10 @@ describe('ThreadLiveEntry', () => {
     const firstRow=await screen.findByRole('link',{name:/^会话甲/})
     const secondRow=screen.getByRole('link',{name:/^会话乙/})
     const listScroll=navigation.querySelector('.session-navigation-scroll') as HTMLElement
+    Object.defineProperty(listScroll,'clientHeight',{configurable:true,value:400})
+    Object.defineProperty(listScroll,'scrollHeight',{configurable:true,value:2000})
     listScroll.scrollTop=87
+    fireEvent.wheel(listScroll,{deltaY:12})
     const catalogReads=()=>fetcher.mock.calls.filter(([url])=>String(url).includes('/threads?')).length
     // Rendering the composer does not mean history replay and SSE startup finished.
     await waitFor(()=>expect(streams.find(stream=>stream.id==='thr_demo_39')).toBeDefined())
@@ -78,7 +81,9 @@ describe('ThreadLiveEntry', () => {
     expect(screen.getByRole('link',{name:/^会话乙/})).toBe(secondRow)
     expect(firstRow.getAttribute('aria-current')).toBeNull()
     expect(secondRow.getAttribute('aria-current')).toBe('page')
-    expect(listScroll.scrollTop).toBe(87)
+    // A compositor scroll can arrive after the route event in the same gesture.
+    listScroll.scrollTop=99;fireEvent.scroll(listScroll)
+    expect(listScroll.scrollTop).toBe(99)
     expect(screen.getByText('正在准备会话…')).toBeTruthy()
     expect(catalogReads()).toBe(initialCatalogReads)
     await act(async()=>releaseOther())

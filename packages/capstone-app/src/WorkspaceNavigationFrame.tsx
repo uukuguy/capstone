@@ -81,7 +81,7 @@ export default function WorkspaceNavigationFrame({namespace,currentId,children}:
           }}/>}
           <SessionNewPopover onCreated={navigateSession}/>
           {error&&<p className="workspace-catalog-status" role="status">会话列表暂不可用，当前会话仍可使用。</p>}
-          <SessionNavigation items={sessions?.threads??[]} currentId={currentId} storageKey={namespace} actions={actions}/>
+          <SessionNavigation persistent items={sessions?.threads??[]} currentId={currentId} storageKey={namespace} actions={actions}/>
         </nav>
         <footer className="workspace-navfoot"><div className="workspace-navigation-gateway">{transport&&<WorkspaceGatewayStatus transport={transport} threadId={currentId==='new'?undefined:currentId} onConnection={connectionChanged}/>}</div><WorkspaceBuildStatus/></footer>
       </aside>

@@ -21,7 +21,7 @@ export function SessionAdjacentControls({items,currentId,storageKey}: {items:rea
 
 /** Workspace preferences and mutations use the host management ports. */
 export default memo(SessionNavigation)
-function SessionNavigation({items,currentId,storageKey='workspace',actions}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string;actions?:SessionManagementActions}) {
+function SessionNavigation({items,currentId,storageKey='workspace',actions,persistent=false}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string;actions?:SessionManagementActions;persistent?:boolean}) {
   const list=useRef<HTMLDivElement>(null),menuElement=useRef<HTMLDivElement>(null)
   const {pins,toggle,error:pinError,ready:pinsReady,retry:retryPins}=useSessionPins(storageKey)
   const [menu,setMenu]=useState<{item:SessionNavItem;x:number;y:number}>(),[editing,setEditing]=useState<string>()
@@ -92,7 +92,10 @@ function SessionNavigation({items,currentId,storageKey='workspace',actions}: {it
     const checkpoint=()=>{if(userScrolling)save();userScrolling=false}
     container.addEventListener('scroll',save,{passive:true})
     container.addEventListener('wheel',cancel,{passive:true});container.addEventListener('touchstart',cancel,{passive:true});container.addEventListener('keydown',key);container.addEventListener('pointerdown',pointer)
-    window.addEventListener('popstate',checkpoint,true);window.addEventListener('pagehide',checkpoint)
+    // A workspace-owned list stays live through routing. Late wheel events
+    // still belong to its current gesture; routing must not lock them out.
+    if(!persistent)window.addEventListener('popstate',checkpoint,true)
+    window.addEventListener('pagehide',checkpoint)
     const observer=new MutationObserver(restore);observer.observe(container,{childList:true,subtree:true})
     const resize=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(restore)
     resize?.observe(container);if(container.firstElementChild)resize?.observe(container.firstElementChild)
@@ -104,7 +107,7 @@ function SessionNavigation({items,currentId,storageKey='workspace',actions}: {it
       container.removeEventListener('wheel',cancel);container.removeEventListener('touchstart',cancel);container.removeEventListener('keydown',key);container.removeEventListener('pointerdown',pointer)
       window.removeEventListener('popstate',checkpoint,true);window.removeEventListener('pagehide',checkpoint)
     }
-  },[scrollKey])
+  },[scrollKey,persistent])
   useEffect(()=>{
     if(!menu)return
     menuElement.current?.querySelector<HTMLButtonElement>('button')?.focus()

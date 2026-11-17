@@ -8009,3 +8009,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 b0dfa1cc: Merged sidebar acceptance; live refresh exposed missing fixed deployment source. Add explicit f818d2e9 source node.
 - 2026-11-17 correction: User rejected metadata-only sidebar acceptance; move navigation lifetime to workspace, leaving Activities to own conversation/products.
 - 2026-11-17: Cold-switch DOM and post-auth catalog regressions failed first; persistent frame passes127 App/types and190 scope checks. Reviewer unavailable.
+- 2026-11-17 6a607d7f: Lifted navigation into workspace lifetime so selection changes highlight without remounting sidebar or awaiting catalog.
+- 2026-11-17: Browser proved stationary nodes; queued wheel after routing exposed legacy scroll locking. Added failing99→87 regression.
+- 2026-11-17: Persistent navigation skips route checkpoints;132 App/types passed, including gateway and Control consumers.
+- 2026-11-17: New-entry trial created empty thr_7f864f18c01f505b3268; verified zero events/works, deleted only owned test session, preserved10 pins.
