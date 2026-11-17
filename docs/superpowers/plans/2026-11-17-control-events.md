@@ -18,17 +18,23 @@ coverage and receive no invented past events. Existing Goal responses are unchan
 
 ## Execution and acceptance
 
-- [ ] Add `packages/capstone-control/tests/test_events.py`: retry/stale suppression,
+- [x] Add `packages/capstone-control/tests/test_events.py`: retry/stale suppression,
   pagination under append, legacy coverage, version/binding identity and rollback.
   Run `uv run --project packages/capstone-agent pytest packages/capstone-control/tests/test_events.py -q`
   and confirm missing-event API failures before implementation.
-- [ ] Add `capstone_control/events.py`; extend MemoryStore and PostgresStore atomic
+- [x] Add `capstone_control/events.py`; extend MemoryStore and PostgresStore atomic
   writes and indexed reads. Attach explicit event kinds at all service mutations.
-- [ ] Add authorized GET `/api/v1/control/goals/{goal_id}/events` in control_host.py.
+- [x] Add authorized GET `/api/v1/control/goals/{goal_id}/events` in control_host.py.
   Verify scope, bounded queries, and no execution wake on reads.
-- [ ] Test real disposable PostgreSQL persistence, concurrency and rollback.
-- [ ] Run focused Control/adapter checks; record results, commit owned paths and
+- [x] Test real disposable PostgreSQL persistence, concurrency and rollback.
+- [x] Run focused Control/adapter checks; record results, commit owned paths and
   prepare a focused development CI route. CI needs new explicit approval.
 
 The next UI slice connects runtime lanes and diagnostic links to this source.
 This backend slice does not claim runtime-view, cloud or release acceptance.
+
+Local candidate: 4db1fb1a. Focused gate: 65 passed, no skips, 1.91 seconds;
+scope/graph: 143 passed, 4.10 seconds. Doctor, links and symlink pass.
+Existing Starlette TestClient deprecation warning remains. No CI has run.
+Next integration requires one explicitly approved macOS control-events gate,
+dev PR, canonical actualdev rebuild and a read-only endpoint smoke.

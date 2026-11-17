@@ -8025,3 +8025,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 3ff3f515: Connected persisted Goal tasks to a stable board while preserving commands, delivery review and original sessions.
 
 - 2026-11-17: Control events implementation on feat/control-events-20261117 from dev a7fb27d4. Atomic owned event table, stable sequence/IDs, bounded scoped HTTP reads, legacy and old-writer coverage gaps. Real disposable PostgreSQL plus Control/adapter: 64 passed, no skips (1.73s); focused scope: 125 passed (3.92s). No CI, merge or deployment for this package. Prior board PR135/CI44073188596 accepted in actual dev; final receipts remain in ignored runs/control-workspace-design-20261117.
+
+- 2026-11-17: 4db1fb1a persists atomic Control events and bounded history reads for runtime observation and diagnostic links.
