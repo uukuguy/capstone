@@ -26,10 +26,13 @@ def public(goal):
 
 
 class ControlService:
-    def __init__(self, store, *, now=None, admit_mission_reference=None):
+    def __init__(self, store, *, now=None, admit_mission_reference=None, mission_execution_adapter=False,
+                 admit_mission_task=None):
         self.store = store
         self.now = now or (lambda: datetime.now(timezone.utc))
         self.admit_mission_reference = admit_mission_reference
+        self.mission_execution_adapter = mission_execution_adapter
+        self.admit_mission_task = admit_mission_task
 
     def create_mission(self, workspace, request):
         from .mission import create
@@ -93,7 +96,7 @@ class ControlService:
     def delegation_request(self, workspace, goal_id, delegation_id):
         goal = self.read(workspace, goal_id)
         task = self._delegated_task(goal, delegation_id)
-        return {**deepcopy(task['delegation']), 'objective': task['objective'],
+        result = {**deepcopy(task['delegation']), 'objective': task['objective'],
                 'delivery_requirements': deepcopy(task['delivery_requirements']),
                 'required_products': deepcopy(task.get('required_products', [])),
                 'mode': task['mode'], 'max_attempts': task['max_attempts'],
@@ -101,6 +104,11 @@ class ControlService:
                 'context_products': [deepcopy(product) for previous in goal['tasks']
                     if previous['task_id'] in task['depends_on'] and previous['state'] == 'verified'
                     for product in previous['delivery']['products']]}
+        if task.get('equipment') or task.get('restrictions'):
+            metadata = self.store.read(workspace, goal_id)['_mission']
+            result.update(schema='capstone-agent-delegation/2', equipment=deepcopy(task.get('equipment', [])),
+                restrictions=deepcopy(task.get('restrictions', [])), mission_origin=deepcopy(metadata['origin']))
+        return result
 
     def expire_pending(self, workspace, goal_id, delegation_id):
         """Revoke the exact operation: a lost admission acknowledgement may exist."""
@@ -314,7 +322,8 @@ class ControlService:
                 raise InvalidTransition('Mission requires explicit readiness before execution')
             from .mission import dispatch_ready
             dispatch_ready(self, goal)
-            if any(task.get('equipment') or task.get('restrictions') for task in goal['tasks']):
+            if (any(task.get('equipment') or task.get('restrictions') for task in goal['tasks'])
+                    and not self.mission_execution_adapter):
                 raise InvalidTransition('Mission equipment needs a registered Agent execution adapter before dispatch')
         if goal['state'] not in {'ready', 'running'}:
             raise InvalidTransition('Goal is not dispatchable')

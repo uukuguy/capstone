@@ -88,6 +88,14 @@ def test_native_binding_origin_lease_cas_and_frozen_selection(chat_store):
         host.mission_operation(replace(claim, lease_token='stale'), 'agent_mission_read', {}, operation_id='old_lease')
     with pytest.raises((ThreadExecutionError, KeyError)):
         host.mission_operation(replace(claim, workspace_name='other'), 'agent_mission_read', {}, operation_id='other_workspace')
+    paused = host.mission_operation(claim, 'agent_mission_control',
+        {'expected_revision': 2, 'action': 'pause'}, operation_id='model_pause')
+    assert paused['mission']['state'] == 'paused'
+    work = threads.snapshot(thread_id).works[0]
+    assert threads.submit_command(command(threads, thread_id, 'cancel_work', 'stop_planner',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    with pytest.raises(ThreadExecutionError):
+        host.mission_operation(claim, 'agent_mission_read', {}, operation_id='stopping')
     threads.finish_attempt(claim, phase='completed', payload={'answer': 'Initial options need refinement.'})
     with pytest.raises(ThreadExecutionError):
         host.mission_operation(claim, 'agent_mission_read', {}, operation_id='terminal')

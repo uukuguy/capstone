@@ -54,6 +54,9 @@ def dispatch_ready(service, goal):
     if not goal['tasks'] or not goal['acceptance_criteria']:
         raise InvalidTransition('Mission needs Tasks and acceptance criteria before readiness')
     for task in goal['tasks']:
+        if (service.admit_mission_task is not None
+                and service.admit_mission_task(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(task)) is not True):
+            raise InvalidTransition('Mission Task is not admitted by the registered application')
         for ref in task.get('equipment', []) + task.get('restrictions', []):
             admit = service.admit_mission_reference
             if admit is None or admit(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(ref)) is not True:
@@ -131,13 +134,19 @@ def update_tasks(goal, proposed):
         if spec is None:
             combined.append(deepcopy(previous))
             continue
-        if previous['state'] != 'pending' or previous['delegation'] is not None:
+        confirmed_pause = (goal['state'] == 'paused' and previous['state'] == 'paused'
+            and previous['delegation'] is not None and previous['delegation'].get('requested_control') == 'pause')
+        if not confirmed_pause and (previous['state'] != 'pending' or previous['delegation'] is not None):
             raise InvalidTransition('active or completed Task cannot be replaced by a planning command')
         denied = {fingerprint(ref) for ref in previous.get('restrictions', [])}
         if not denied <= {fingerprint(ref) for ref in spec.get('restrictions', [])}:
             raise InvalidTransition('planning cannot relax saved Task restrictions')
+        history = deepcopy(previous.get('delegation_history', []))
+        if confirmed_pause:
+            history.append(deepcopy(previous['delegation']))
         combined.append({**deepcopy(spec), 'revision': previous['revision'] + 1, 'state': 'pending',
-                         'generation': previous['generation'], 'delegation': None, 'delivery': None, 'verification': None})
+                         'generation': previous['generation'], 'delegation': None, 'delivery': None, 'verification': None,
+                         **({'delegation_history': history} if history else {})})
     for spec in changes.values():
         combined.append({**deepcopy(spec), 'revision': 1, 'state': 'pending',
                          'generation': 0, 'delegation': None, 'delivery': None, 'verification': None})
@@ -187,7 +196,10 @@ def command(service, workspace, document, actor):
                     proposed = [payload['task']]
                 else:
                     object_fields(payload, {'acceptance_criteria', 'tasks'})
-                    text_list(payload['acceptance_criteria'])
+                    if payload['acceptance_criteria']:
+                        text_list(payload['acceptance_criteria'])
+                    elif not isinstance(payload['acceptance_criteria'], list):
+                        raise ContractError('acceptance criteria must be a list')
                     goal['acceptance_criteria'] = deepcopy(payload['acceptance_criteria'])
                     proposed = payload['tasks']
                 # Validate each proposal against the complete merged order below.

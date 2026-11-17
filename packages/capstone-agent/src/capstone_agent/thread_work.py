@@ -456,7 +456,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'instruction_queue_available', 'instruction_queue'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -466,6 +466,16 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'mission_equipment' in work:
+            import re
+            if (not isinstance(work.get('mission_equipment_binding_revision'), str)
+                    or re.fullmatch(r'[0-9a-f]{64}', work['mission_equipment_binding_revision']) is None):
+                raise ThreadProtocolError('invalid Mission equipment registry revision')
+            from .native_mission import checked_equipment
+            try:
+                checked_equipment(work['mission_equipment'])
+            except ValueError as error:
+                raise ThreadProtocolError('invalid Mission equipment selection') from error
         if 'instruction_queue_available' in work and type(work['instruction_queue_available']) is not bool:
             raise ThreadProtocolError('invalid instruction availability')
         if 'instruction_queue' in work:

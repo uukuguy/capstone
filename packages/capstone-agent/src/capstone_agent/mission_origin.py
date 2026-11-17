@@ -53,6 +53,8 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
             service.require_workspace(origin['thread_id'], workspace)
             if claim is not None:
                 service._require_claim(claim)
+                if claim.attempt.attempt_id in service._cancel_requests:
+                    raise ThreadExecutionError('Mission execution is stopping')
             snapshot = service._snapshot
             _check(snapshot, service._archived, origin, claim)
             if operation is not None:
@@ -77,6 +79,11 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
                 (claim.thread_id, claim.attempt.attempt_id, claim.lease_token)).fetchone()
             if leased is None:
                 raise ThreadExecutionError('attempt lease is unavailable')
+            stopped = connection.execute("""SELECT 1 FROM capstone_thread_events WHERE thread_id=%s
+                AND attempt_id=%s AND event_type='attempt_cancel_requested' LIMIT 1""",
+                (claim.thread_id, claim.attempt.attempt_id)).fetchone()
+            if stopped is not None:
+                raise ThreadExecutionError('Mission execution is stopping')
         _check(snapshot, row['archived'], origin, claim)
         if operation is not None:
             return operation()
@@ -94,6 +101,10 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
 
 def bind_submission(snapshot, work_id, submission):
     """Freeze the latest explicit Mission association for this Work or Thread."""
+    work = next((item for item in snapshot.works if item['work_id'] == work_id), {})
+    if work.get('mission_equipment') is not None:
+        submission = {**(submission or {}), '_mission_equipment': deepcopy(work['mission_equipment']),
+                      '_mission_equipment_binding_revision': work['mission_equipment_binding_revision']}
     reference = next((ref for ref in reversed(snapshot.mission_refs)
                       if ref.get('work_id', work_id) == work_id), None)
     if reference is None:

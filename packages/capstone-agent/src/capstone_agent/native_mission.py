@@ -17,7 +17,13 @@ SCHEMA = 'capstone-native-mission/1'
 
 
 def registry_revision(binding):
-    return sha256(json.dumps({'identity': binding.get('identity'), 'capability': binding.get('capability')},
+    capability = deepcopy(binding.get('capability', {}))
+    gateway = capability.get('data_gateway')
+    if isinstance(gateway, dict):
+        gateway.pop('session_binding', None)
+        if not gateway:
+            capability.pop('data_gateway')
+    return sha256(json.dumps({'identity': binding.get('identity'), 'capability': capability},
         sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode()).hexdigest()
 
 

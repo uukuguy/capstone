@@ -34,6 +34,9 @@ def test_intent_only_mission_uses_same_identity_and_needs_explicit_readiness():
     assert control.read('team', mission['mission_id'])['schema'] == 'capstone-control-goal/1'
     assert control.read_mission('team', mission['mission_id']) == mission
     assert create(control) == mission
+    partial = command(control, mission, 'update_plan', {'acceptance_criteria': [], 'tasks': []}, 'partial')
+    assert partial['state'] == 'planning' and not partial['plan_complete']
+    mission = partial
     with pytest.raises(KeyError):
         control.read_mission('other', mission['mission_id'])
     with pytest.raises(InvalidTransition):
@@ -178,3 +181,28 @@ def test_mission_postgres_recovery_preserves_origin_plan_and_receipts():
     finally:
         with store.connect() as connection:
             connection.execute('DELETE FROM capstone_control_goals WHERE workspace=%s', (workspace,))
+
+
+def test_task_replanning_requires_confirmed_pause_and_preserves_prior_delegation():
+    control = service()
+    mission = create(control, acceptance_criteria=['Saved'])
+    mission = command(control, mission, 'prepare_task', {'task': task()})
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']
+    control.bind('team',mission['mission_id'],delegation['delegation_id'],{'thread_id':'task_thread','work_id':'task_work'})
+    mission = control.read_mission('team',mission['mission_id'])
+    mission = command(control,mission,'pause',{},'pause')
+    assert mission['state'] == 'pausing'
+    with pytest.raises(InvalidTransition):
+        command(control,mission,'prepare_task',{'task':task()},'too_early')
+    control.observe('team',mission['mission_id'],delegation['delegation_id'],
+        dict(sequence=1,state='paused',summary='',delivery=None))
+    mission = control.read_mission('team',mission['mission_id'])
+    assert mission['state'] == 'paused'
+    revised = task()
+    revised['objective'] = 'Inspect only the saved inputs'
+    mission = command(control,mission,'prepare_task',{'task':revised},'replan')
+    assert mission['tasks'][0]['state'] == 'pending'
+    assert mission['tasks'][0]['delegation'] is None
+    assert mission['tasks'][0]['delegation_history'][0]['delegation_id'] == delegation['delegation_id']

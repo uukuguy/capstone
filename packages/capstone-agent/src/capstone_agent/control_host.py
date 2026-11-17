@@ -30,6 +30,11 @@ class ControlHost:
         mission = self.service.read_mission(workspace, mission_id)
         if mission.get('origin') is not None:
             self.agent.threads.validate_mission_origin(workspace, mission['origin'], claim=claim)
+        if claim is not None and mission.get('origin') is not None:
+            from .mission_equipment import catalog
+            mission['available_equipment'] = catalog(self.agent.threads, workspace, mission['origin'])
+            from .agent_delegation import REGISTERED_AGENTS
+            mission['registered_agents'] = sorted(REGISTERED_AGENTS)
         return mission
 
     def command_mission(self, workspace, command, *, actor='application:trusted', claim=None):
@@ -54,6 +59,14 @@ class ControlHost:
             if arguments:
                 raise ValueError('Mission read takes no arguments')
             return mission
+        if name == 'agent_mission_control':
+            if set(arguments) != {'expected_revision', 'action'} or arguments['action'] not in {'pause', 'resume', 'cancel'}:
+                raise ValueError('unsupported Mission control')
+            return self.command_mission(workspace, {
+                'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
+                'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
+                'kind': arguments['action'], 'payload': {}},
+                actor='agent:' + claim.attempt.attempt_id, claim=claim)
         kinds = {'agent_mission_update_plan': 'update_plan', 'agent_mission_prepare_task': 'prepare_task',
                  'agent_mission_ready': 'ready'}
         if name not in kinds or 'expected_revision' not in arguments:
@@ -127,7 +140,21 @@ def configure_control(threads, *, wake=None):
         threads.require_workspace(product['thread_id'], workspace)
         read_native_artifact(threads, getattr(threads, '_native_executor', None),
             product['thread_id'], product['attempt_id'], product['artifact_id'], expected_descriptor=product)
-    host = ControlHost(ControlService(store), AgentDelegations(threads, registry, wake=wake), verify_product=verify)
+    from .mission_equipment import admitted
+    def admit_task(workspace, origin, task):
+        from .agent_delegation import REGISTERED_AGENTS
+        from .mission_equipment import resolve
+        if task['agent_id'] not in REGISTERED_AGENTS:
+            return False
+        try:
+            resolve(threads, workspace, origin, task.get('equipment', []), task.get('restrictions', []))
+        except (ValueError, KeyError):
+            return False
+        return True
+    service = ControlService(store, mission_execution_adapter=True,
+        admit_mission_task=admit_task,
+        admit_mission_reference=lambda workspace, origin, ref: admitted(threads, workspace, origin, ref))
+    host = ControlHost(service, AgentDelegations(threads, registry, wake=wake), verify_product=verify)
     threads.control_host = host
     return host
 

@@ -9,6 +9,8 @@ from .thread_protocol import ThreadSnapshot, RunSnapshot
 from .thread_service import ThreadNotFound
 from .workspace_scope import workspace_name as normalize_workspace_name
 
+REGISTERED_AGENTS = frozenset({'capstone'})
+
 
 class DelegationConflict(ValueError):
     pass
@@ -26,17 +28,26 @@ def _request(value):
     fields = {'schema', 'delegation_id', 'operation_id', 'goal_id', 'goal_revision',
               'task_id', 'task_revision', 'generation', 'agent_id', 'binding', 'requested_control',
               'objective', 'delivery_requirements', 'mode', 'max_attempts', 'deadline_at', 'context_products'}
+    v2 = isinstance(value, dict) and value.get('schema') == 'capstone-agent-delegation/2'
+    if v2:
+        fields |= {'equipment', 'restrictions', 'mission_origin'}
     if (not isinstance(value, dict) or not fields <= set(value)
             or set(value) - fields - {'control_revision', 'required_products'}
-            or value['schema'] != 'capstone-agent-delegation/1'):
+            or value['schema'] not in {'capstone-agent-delegation/1', 'capstone-agent-delegation/2'}):
         raise ValueError('invalid Agent delegation contract')
+    if v2:
+        from capstone_control.mission import references
+        from .mission_origin import checked_origin
+        references(value['equipment'])
+        references(value['restrictions'])
+        checked_origin(value['mission_origin'])
     for key in ['delegation_id', 'operation_id', 'goal_id', 'task_id', 'agent_id']:
         if not isinstance(value[key], str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', value[key]):
             raise ValueError('invalid delegation identity')
     for key in ['goal_revision', 'task_revision', 'generation', 'max_attempts']:
         if type(value[key]) is not int or value[key] < 1:
             raise ValueError('invalid delegation version or budget')
-    if (value['agent_id'] != 'capstone' or not isinstance(value['mode'], str) or value['mode'] not in {'single', 'goal'}
+    if (value['agent_id'] not in REGISTERED_AGENTS or not isinstance(value['mode'], str) or value['mode'] not in {'single', 'goal'}
             or value['mode'] == 'single' and value['max_attempts'] != 1):
         raise ValueError('unregistered Agent or execution mode')
     if not isinstance(value['objective'], str) or not value['objective'].strip() or len(value['objective']) > 16384:
@@ -96,6 +107,14 @@ class AgentDelegations:
             if current['binding'] is not None:
                 return current, current['binding']
             request, thread = current['request'], current['thread_id']
+            selection = None
+            equipment_binding_revision = None
+            if request['schema'] == 'capstone-agent-delegation/2':
+                from .mission_equipment import resolve
+                selection = resolve(self.threads, workspace, request['mission_origin'],
+                    request['equipment'], request['restrictions'])
+                from .mission_equipment import registry_revision
+                equipment_binding_revision = registry_revision(self.threads._native_binding)
             if datetime.fromisoformat(request['deadline_at']) <= datetime.now(timezone.utc):
                 raise DelegationRevoked('delegation deadline expired')
             try:
@@ -114,6 +133,11 @@ class AgentDelegations:
                     text += '\n必须保存的成果文件：' + json.dumps(request['required_products'], ensure_ascii=False)
                 self._command(thread, None, 'work_message', 'create-work', {'text': text})
             work = self.threads.snapshot(thread).to_document()['works'][0]
+            if selection is not None:
+                from .mission_equipment import bind_work
+                bind_work(self.threads, workspace, thread, work['work_id'], selection,
+                    binding_revision=equipment_binding_revision)
+                work = self.threads.snapshot(thread).to_document()['works'][0]
             if request['context_products']:
                 from .delegation_resources import grant_resources
                 grant_resources(self.threads, workspace, thread, work['work_id'],
