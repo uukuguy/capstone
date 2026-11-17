@@ -23,15 +23,26 @@ Implements the approved three-perspective design in the existing Control sheet.
 
 ## Implementation and verification
 
-- [ ] Add bounded typed Control-event parsing and scoped transport; test wrong
+- [x] Add bounded typed Control-event parsing and scoped transport; test wrong
   identity, nonmonotonic sequences, invalid bounds and exact query cursors.
-- [ ] Add ControlWorkspaceViews, runtime lanes and diagnostic event details; test
+- [x] Add ControlWorkspaceViews, runtime lanes and diagnostic event details; test
   history gaps, exact binding links, fixed pagination, late response protection,
   same-event return and board selection preservation.
-- [ ] Integrate ControlGoalPanel with three perspective controls; preserve existing
+- [x] Integrate ControlGoalPanel with three perspective controls; preserve existing
   commands, drafts, uncertain retries and original Thread navigation.
-- [ ] Run App types and focused consumers; inspect desktop/narrow candidate in
+- [x] Run App types and focused consumers; inspect desktop/narrow candidate in
   the existing browser tab against the accepted design. Real existing Goal reads
   prove legacy compatibility; real recorded events prove event navigation.
 - [ ] Record candidate, add a focused macOS gate, update control overview, commit
   verified owned paths. Integrate through dev PR only after new CI approval.
+
+Local candidate71f6ef6e:86 App tests/types,123 scope checks pass. Existing board
+gate now includes runtime-view and event-parser tests. Real one-stage Goal
+goal_eaed24d1e8bd9b2e9a7518c7cd2112ef produced six durable events and a124-byte
+file whose original hash matches its admitted descriptor. Candidate5174 verified
+diagnostic binding, source event DOM/focus on return, and900/1440 layouts.
+Goal remains delivered pending final acceptance; Task is verified.
+Root accepted backend dc6ada7b was canonically rebuilt (imagef99d6129), with
+readiness/role identity/cache cleanup passing. Actual5173 UI is not this candidate.
+Independent review dispatch failed because the configured model was unavailable;
+manual boundary review completed. No CI or cloud/demo update for this candidate.

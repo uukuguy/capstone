@@ -8036,3 +8036,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: Real Goal goal_eaed24d1e8bd9b2e9a7518c7cd2112ef delivered six events and a verified124-byte file; candidate5174 diagnostic/return/original Thread checks passed.
 - 2026-11-17: Keyboard return regression failed first, then passed with ancestor scroll restoration and tab fallback;86 App/types and123 scope checks pass.
 - 2026-11-17: Independent review dispatch failed twice because configured model gpt-6.1-luna is unavailable; manual boundary review completed, no independent verdict claimed.
+
+- 2026-11-17: 71f6ef6e restores diagnostic return focus and scroll, and distinguishes final Goal acceptance from task verification.
+
+- 2026-11-17: Candidate control graph shows verified dc6ada7b-to71f6ef6e ancestry;21 graph/scope checks,doctor,new links and symlink pass. No CI started.
