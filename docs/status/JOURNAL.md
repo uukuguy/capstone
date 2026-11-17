@@ -8016,3 +8016,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17 6eb7c637: Removed route-time scroll locking from persistent navigation so queued wheel events retain their position.
 - 2026-11-17 8d5fa71d: Merged PR131 after exact-head macOS CI44026102168;132 App/types and strict candidate DOM/scroll proofs passed.
 - 2026-11-17: Actualdev rebuild11444/imagef3bb77d2 passed readiness, same-image and cache maintenance;5173 strict identity/coordinates/100px scrolling, Vivaldi and10 original pins pass.
+- 2026-11-17: Recent saved tasks show welcome until Work selection; default restoration regression failed, then137 App/types and191 governance checks passed.
+- 2026-11-17: New entry uses v2; user accepts future important-record conversion before obsolete compatibility retirement. Shared task Work remains supported.

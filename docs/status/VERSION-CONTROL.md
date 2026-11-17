@@ -1,4 +1,4 @@
-2026-11-17 常驻左栏修正已在实际dev验收：PR131受检6eb7c637/macOS CI44026102168通过并合入8d5fa71d。132App/类型、190治理及规范重建f3bb77d2通过；实际5173冷/热与100px滚动切换保持同一DOM/行坐标/滚动位置，节点增删0、目录GET0，原始10个置顶ID一致。仅docs/persistent-navigation-closeout-20261117记录验收，目标dev；最终自身回执忽略保存。[验收](../reviews/2026-11-17-persistent-workspace-navigation.md)。PR128仅是旧元数据症状修正，不能代表完整左栏验收；云端/demo保留。
+2026-11-17 当前兼容恢复修正：新旧内容共存时，v2旧式Work被默认new选择遮住；不是空数据。fix/compatible-session-restoration-20261117归capstone-app，目标dev58782e03，137App/类型与191治理通过，真实候选/实际入口待验。[计划](../superpowers/plans/2026-11-17-compatible-session-restoration.md)。新建已走v2连续对话，重要旧记录后续显式转换、核对后再退役兼容；本轮不迁移数据。此前常驻左栏PR131/132已完成，实际5173与原始10个置顶保留；云端/demo不变。
 
 2026-11-17 阶段二Control已完成：PR126代码合入87e780df，PR127控制收口合入7531bc1f；两项macOS CI及实际dev验收通过，精确最终回执见忽略目录runs/control-delegation-20261117/closeout-receipt.json。该工作包不再活动；云端/demo不变。[验收记录](../reviews/2026-11-17-control-delegation-local.md)。
 
@@ -1817,7 +1817,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| docs/persistent-navigation-closeout-20261117 | capstone-app验收与控制收口，目标dev | PR131已合8d5fa71d；132App、macOS CI、规范重建及实际5173严格证明通过 | 文档检查后合dev，刷新实际dev实时图并检查；最终自身回执忽略保存，关闭已合任务分支 | shared-agent |
+| fix/compatible-session-restoration-20261117 | capstone-app混合记录恢复，目标dev | 旧任务有指令但未选中，137App/类型和191治理通过 | 规范候选重建/真实旧记录与草稿检查，聚焦macOS PR/dev集成；不转换或删除旧数据 | shared-agent |
 | feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
 | fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
