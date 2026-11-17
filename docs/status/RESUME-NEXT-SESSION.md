@@ -19,9 +19,13 @@ cloud/demo/main change or data deletion. Prior stageB remains complete.
 
 ## Finite control closeout
 
-Initialized .worktrees/historical-input-receipts owns
-docs/session-sidebar-closeout-20261117, based onf818d2e9 and targeting dev.
-Only acceptance docs, canonical worklist/register/graph and this checkpoint
+PR129 is merged into b0dfa1cc and its macOS docs CI44019768904 passed.
+Actualdev live refresh then failed: deployment sourcef818d2e9 had only been a
+dynamic dev-head node, so it disappeared when HEAD advanced. Product acceptance
+is unchanged. Initialized .worktrees/historical-input-receipts now owns
+docs/sidebar-source-node-20261117, based onb0dfa1cc and targeting dev. Add an
+explicit key-commit and presentation row for the exact local sourcef818d2e9.
+Only source-node control docs, register/graph and this checkpoint
 belong to it. Run focused docs/graph/doctor/link/symlink/diff checks, inspect the
 graph, commit and create a dev docs PR. CI is directly authorized. Merge after
 exact-head macOS docs pass, then fast-forward actualdev and refresh
