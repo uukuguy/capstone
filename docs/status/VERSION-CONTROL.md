@@ -1,4 +1,4 @@
-2026-11-17 当前兼容恢复修正：新旧内容共存时，v2旧式Work被默认new选择遮住；不是空数据。fix/compatible-session-restoration-20261117归capstone-app，目标dev58782e03，137App/类型与191治理通过，真实候选/实际入口待验。[计划](../superpowers/plans/2026-11-17-compatible-session-restoration.md)。新建已走v2连续对话，重要旧记录后续显式转换、核对后再退役兼容；本轮不迁移数据。此前常驻左栏PR131/132已完成，实际5173与原始10个置顶保留；云端/demo不变。
+2026-11-17 兼容恢复修正已合入dev6714d223：PR133受检567d2638/macOS CI44034580886通过；137App/类型、191治理（1既有跳过），真实完成/取消任务与连续对话自动恢复正文。实际5173规范重建与验收见[记录](../reviews/2026-11-17-compatible-session-restoration.md)。新建已走v2连续对话；重要旧记录后续显式转换、核对后再退役废弃入口。本轮不迁移数据，任务式Work仍为现行能力；云端/demo不变。
 
 2026-11-17 阶段二Control已完成：PR126代码合入87e780df，PR127控制收口合入7531bc1f；两项macOS CI及实际dev验收通过，精确最终回执见忽略目录runs/control-delegation-20261117/closeout-receipt.json。该工作包不再活动；云端/demo不变。[验收记录](../reviews/2026-11-17-control-delegation-local.md)。
 
@@ -1376,6 +1376,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | --- | --- | --- | --- | --- | --- | --- |
 | session-sidebar-stability-20261117 | 399f90f3 | feature | 较旧置顶元数据跨挂载保留 | PR128元数据回归通过；用户纠正整栏仍重建，完整契约由PR131接管 | 访问范围内复用完整置顶元数据，移除/恢复使旧历史响应失效；旧行数验收不证明导航常驻。[旧验证](../reviews/2026-11-17-session-sidebar-stability-local.md) | shared-agent |
 | persistent-navigation-merge-20261117 | 8d5fa71d | main | dev · 工作空间常驻导航合入 | PR131/macOS CI44026102168、132App/类型与实际5173严格DOM/几何/滚动证明通过 | 工作空间持有导航与后台目录，切换只变更高亮；排队滚动不再受路由锁定，既有会话/产品保留。[验收](../reviews/2026-11-17-persistent-workspace-navigation.md) | shared-agent |
+| compatible-session-merge-20261117 | 6714d223 | main | dev · 历史任务正文恢复合入 | PR133/macOS CI44034580886、137App/类型、191治理与真实历史阅读验证通过 | 自动恢复保存的阅读位置，缺省显示连续对话或最新任务；保留草稿、新建意图、未决命令与原始记录。[验收](../reviews/2026-11-17-compatible-session-restoration.md) | shared-agent |
 | session-sidebar-merge-20261117 | f818d2e9 | main | dev · 会话列表稳定修正合入 | PR128/macOS CI43941305783与实际5173规范重建通过 | 完整置顶记录跨会话复用，移除前历史请求失效；原始10个置顶ID与顺序保留。此节点是本机实际重建来源。[验收](../reviews/2026-11-17-session-sidebar-stability-local.md) | shared-agent |
 | control-delegation-20261117 | 8d292962 | feature | Control后台委托与长期目标工作台 | 真实接续/接受/重启/控制/预算/期限通过；PR126已合入dev | 持久Goal/Task、公开Agent绑定与原文件授权；183后端/71App及类型、规范重建通过；受检0529e059，macOS CI43929754196通过。[验收](../reviews/2026-11-17-control-delegation-local.md) | shared-agent |
 | control-delegation-merge-20261117 | 87e780df | main | dev · Control委托闭环合并 | PR126/macOS定向CI与实际dev规范重建、5173恢复通过 | 独立Control包、跨Thread原文件授权、后台阶段接续与用户接受；同镜像2c105d56、四原成果下载、10置顶恢复通过。不启动任务板或持续事件阶段。[验收](../reviews/2026-11-17-control-delegation-local.md) | shared-agent |
@@ -1479,7 +1480,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
-| dev-head | dev | main | dev · 当前研发位置 | PR126阶段二已集成，macOS CI及实际dev/5173验收通过 | 动态绑定实际dev并连接真实祖先；Control闭环、原成果和置顶持久恢复通过，云端/demo不变。[当前状态](CURRENT-STATE.md) | shared-agent |
+| dev-head | dev | main | dev · 当前研发位置 | PR133历史恢复与PR131常驻导航已集成，macOS CI及实际dev/5173验收通过 | 动态绑定实际dev并连接真实祖先；新旧内容恢复、草稿隔离与原成果/置顶保留通过，云端/demo不变。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-active | ce185a14 | feature | Deep Research · 历史后端产品字节来源 | ready及清理通过，已随PR67合入 | 历史产品来源ce185a14，API/worker镜像180c53ffb617、native1b8533cf1b06；清理195305-28422，与dev32d72c28产品相同，当前运行另见ed0节点。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
 | gateway-failure-merge | f397fbef | main | dev · 网关目录与失败诊断 | PR66 已合入，固定里程碑 | 网关目录、范围约束与失败诊断修复。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-head | de648f58 | feature | 统一轻量循环 · 已合入来源 | PR67 已合入，必需 CI 通过 | de648f58 受检；统一入口及按需 Deep Research；历史间歇失败诊断保留。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
@@ -1576,6 +1577,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | --- | --- | --- | --- | --- |
 | session-sidebar-stability-20261117 | 旧元数据症状修正 | PR128来源，已关闭 | 冷切换复用完整置顶行；移除操作拒绝迟到历史响应 | 行数验证不等于导航常驻；完整契约由PR131重新验收 |
 | persistent-navigation-merge-20261117 | 本机实际部署来源 | dev | 左栏与目录属于工作空间；选中高亮与会话内容独立切换 | PR131合入8d5fa71d，受检6eb7c637/macOS CI44026102168，规范重建f3bb77d2与实际5173严格证明通过 |
+| compatible-session-merge-20261117 | 本机历史会话恢复 | dev | 已保存任务自动呈现正文；新旧混合、草稿与执行状态保持原归属 | PR133合入6714d223，受检567d2638/macOS CI44034580886，137App/类型与真实历史恢复通过 |
 | session-sidebar-merge-20261117 | 本机实际部署来源 | dev | 完整置顶元数据跨重挂载保留；列表顺序和滚动位置稳定 | f818d2e9规范重建、同镜像faf6c85a、ready及5173通过，原始10个置顶ID一致 |
 | control-delegation-20261117 | 已合入的阶段二产品来源 | dev（PR126来源分支已关闭） | 后台委托与现有工作台；原文件跨Thread授权和显式接受 | 真实双阶段/下载/接受/重启/控制/预算/期限通过；183后端/71App；受检0529e059/macOS CI43929754196通过 |
 | control-delegation-merge-20261117 | 已合入阶段二 | dev | 独立Control目标委托与原文件接续；版本化成果验收与用户接受 | PR126合入87e780df；实际dev规范重建/5173恢复通过；云端/demo不变 |
@@ -1697,7 +1699,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | Agent/Control与持久置顶已集成，PR131令左栏属于工作空间；选择只更新高亮，目录后台同步，保留队列滚动 | PR131合入8d5fa71d；受检6eb7c637/macOS CI44026102168、132App/类型及实际5173严格DOM/坐标/滚动证明通过 |
+| dev-head | 当前研发位置 | dev | Agent/Control、常驻导航与持久置顶已集成；PR133恢复任务历史正文，新建仍用v2连续对话 | PR133合入6714d223；受检567d2638/macOS CI44034580886、137App/类型及实际5173完成/取消任务与连续对话恢复通过；旧记录不迁移 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1817,7 +1819,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| fix/compatible-session-restoration-20261117 | capstone-app混合记录恢复，目标dev | 旧任务有指令但未选中，137App/类型和191治理通过 | 规范候选重建/真实旧记录与草稿检查，聚焦macOS PR/dev集成；不转换或删除旧数据 | shared-agent |
+| docs/compatible-session-closeout-20261117 | capstone-app兼容恢复验收收口，目标dev6714d223 | PR133/macOS CI通过；实际5173自动恢复历史，快照与置顶不变 | 仅完成验收/台账/图的聚焦文档PR；最终自身合并回执放忽略目录，不再启动产品变更 | shared-agent |
 | feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
 | fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |
@@ -2030,7 +2032,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API/三worker/App5173规范重建来源 `8d5fa71d`；后续控制提交不改变产品源码 | 同镜像f3bb77d2bf23689a742818fa046f54eba1e189acda62a492fbc99ffedaa6d31b；ready/规范缓存维护通过 | 产品受检6eb7c637；PR131/macOS CI、132App/类型和实际5173严格DOM/坐标/100px滚动证明通过，目录GET0、节点增删0，原始10个置顶ID一致。云端/demo不变。[验收](../reviews/2026-11-17-persistent-workspace-navigation.md) |
+| local-dev | API/三worker/App5173规范重建来源 `6714d223`；后续控制提交不改变产品源码 | 同镜像b002e4451a77aafef59e26c5982640e65a314d44325b3cd318cbcdaa934d5484；ready/规范缓存维护通过 | 产品受检567d2638；PR133/macOS CI、137App/类型和实际5173三类历史自动恢复通过，原指令可见、快照与置顶不变，执行命令0。云端/demo不变。[验收](../reviews/2026-11-17-compatible-session-restoration.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

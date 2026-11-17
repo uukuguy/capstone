@@ -1,41 +1,46 @@
 # Live Session Checkpoint
 
-Updated: 2026-11-17. Compatible historical session restoration is in progress.
+Updated: 2026-11-17. Compatible history restoration is accepted in actual dev.
 
-Owner capstone-app; fix/compatible-session-restoration-20261117 targets dev58782e03.
-Initialized worktree .worktrees/historical-input-receipts owns the implementation,
-focused gate/tests and current plan/status/notebook changes. No migration is run.
+Owner capstone-app. PR133 tested567d2638/macOS CI44034580886 passed (2m18s),
+merged6714d223.137 App/types across12 direct consumers and191 governance checks
+passed (one existing skip); default restoration regression failed first.
 
-Recent32 audit:16 task-style v2 Threads have saved messages; newest15 all have
-Works. Sample thr_5448b730e561c324dbe0191158a18fa0 shows welcome until its saved
-Work is manually selected. This is default reading selection, not lost data.
-New entry already creates v2 enterprise-research and sends send_message.
-Task-style Work remains supported by Control and shared execution; mode alone
-is not a protocol retirement criterion. Future important-record conversion and
-obsolete entrypoint retirement are accepted backlog, not this fix's scope.
+Newest15 audited Threads all had task-style Works; selected=new hid retained
+history. Restore valid local reading first, preserve new draft/explicit new intent
+and pending commands, otherwise prefer continuous conversation/latest task Work.
+Optional local explicit_new marker admits old reading state; no backend migration.
+New entry creates v2 enterprise-research and sends send_message. Task-style Work
+remains supported by Control/shared execution. Future important-record conversion
+then obsolete writer/reader retirement is accepted backlog, not active work.
 
-Default selection regression failed first. Current137 App/types checks across12
-consumers and191 governance checks pass (1 existing skip). Doctor and diff pass.
-Implementation preserves valid saved reading, new drafts, explicit new intent,
-pending commands and protocol1/professional behavior. No backend schema change.
+Candidate rebuild61990 completed0/image6eb44977. Actualdev canonical rebuild42371
+completed0 at6714d223/imageb002e4451a77aafef59e26c5982640e65a314d44325b3cd318cbcdaa934d5484;
+readiness, API/three-worker identity and scoped cache maintenance passed. Actual5173
+three old-format blank-selection cases restore completed/cancelled task and native
+conversation. Original instructions visible, snapshot hashes/pins unchanged and
+execution commands0. Product projection POSTs are read operations, not execution.
+Existing Vivaldi5173 also shows original cancelled instruction/state/process file.
 
-Next commit exact task-owned paths, canonical candidate rebuild with root ignored
-local.env and PyPSA asset paths; CAPSTONE_START_APP=0. Start candidate5174 only
-for testing. Reuse existing browser tabs. Verify automatically visible historical
-instruction with old-format blank selection, real conversation and unchanged
-backend snapshots/pins. Then exact-head focused macOS CI, dev PR integration,
-canonical actual5173 rebuild and verification. CI is directly user-authorized.
+Only finite docs closeout remains. Initialized .worktrees/historical-input-receipts
+owns docs/compatible-session-closeout-20261117 targeting dev6714d223. Exact source
+6714d223 has fixed key/presentation rows in canonical register, separate from later
+control-only HEAD. Generate/inspect graph with ui-ux-pro-max and run focused docs,
+links/symlink/doctor/diff plus22 Python/3Node graph checks. Commit exact owned docs,
+one authorized macOS docs CI/PR, merge, fast-forward actualdev, render --live
+--no-probe in root and inspect actual HEAD/deployed source/ancestry. Final own
+CI/merge/clean receipts stay ignored; do not create a self-hash commit cycle.
 
-Actual rootdev remains58782e03; current API/three workers run source8d5fa71d,
-imagef3bb77d2bf23689a742818fa046f54eba1e189acda62a492fbc99ffedaa6d31b.
-No candidate service/build currently runs. Original10 pins and user data preserved.
-Previous persistent-navigation acceptance is complete; do not reopen its task.
+Candidate Vite76275 may be stopped after actual acceptance; actual5173/API/workers
+must remain. Preserve10 original pins, rootvar, ignored auth, unrelated worktrees
+and stash2eefdda7. No main/cloud/demo/source migration or new goal is selected.
+Previous persistent-navigation acceptance remains complete.
 
-Evidence: runs/recent-session-empty-investigation-20261117; latest local gate
-/tmp/compatible-session-gate.log, governance/doctor matching prefix. Existing
-Playwright capstone-unified tab uses cached CLI1.64; primary Vivaldi355034 has
-actual5173, candidate5174 and file graph tabs. Do not enable Apple Events JS.
-
-Final closeout must retain explicit exact local-deployment source node in register,
-refresh/inspect actualdev graph and keep final own CI/merge receipts ignored.
-Preserve rootvar, authentication, unrelated worktrees and stash2eefdda7.
+Review docs/reviews/2026-11-17-compatible-session-restoration.md; ignored evidence
+runs/recent-session-empty-investigation-20261117 contains candidate/actual browser
+proofs, snapshot baseline, actual runtime image and Vivaldi capture. Logs are
+/tmp/compatible-session-{candidate,actualdev}-rebuild.log. Independent review tool
+failed Unknown model gpt-6.1-luna; direct source review only, no independent pass.
+Reuse existing capstone-unified Playwright tab (cached CLI1.64); Vivaldi355034 has
+actual5173/candidate5174/file graph tabs. Keep Apple Events JS disabled. Restore
+viewport1200x825 and root graph tab after inspection; don't create another tab.

@@ -8018,3 +8018,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: Actualdev rebuild11444/imagef3bb77d2 passed readiness, same-image and cache maintenance;5173 strict identity/coordinates/100px scrolling, Vivaldi and10 original pins pass.
 - 2026-11-17: Recent saved tasks show welcome until Work selection; default restoration regression failed, then137 App/types and191 governance checks passed.
 - 2026-11-17: New entry uses v2; user accepts future important-record conversion before obsolete compatibility retirement. Shared task Work remains supported.
+- 2026-11-17 567d2638: Restore saved task history by default while preserving drafts, explicit new intent and pending commands.
+- 2026-11-17 6714d223: Merged PR133 after macOS CI44034580886; actualdev rebuildb002e445 and5173 historical restoration passed without data changes.
+- 2026-11-17: Candidate Vite76275 stopped after actual5173 acceptance; preserve supported task Work, record future important-history migration separately.
