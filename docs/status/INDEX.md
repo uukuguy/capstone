@@ -1,5 +1,10 @@
 # docs/status INDEX
 
+2026-11-18 持续指令接纳实施：feat/durable-instruction-admission-20261118，目标dev c8de9924。
+401后端/123范围/194App通过，真实排队改向与制品检查通过，停止/继续复验中。
+Mission基础独立工作树依赖此候选，桥接与入口尚未验收。见
+[计划](../superpowers/plans/2026-11-18-durable-instruction-admission.md)。
+
 2026-11-17 执行详情候选f1c4dc57：capstone-app，目标dev4e81c5f6；
 189App/类型、143范围检查通过，规范重建及最终浏览器复验通过。VERSION-CONTROL登记实施分支
 feat/execution-details-20261117与设计依赖；PROJECT-OVERVIEW同步候选节点。

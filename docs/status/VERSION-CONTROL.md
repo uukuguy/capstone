@@ -14,6 +14,12 @@
 
 # 多线版本控制
 
+2026-11-18 当前实施：feat/durable-instruction-admission-20261118，所有者capstone-agent/App，目标dev c8de9924。
+产品0298f557与范围门禁34686054；服务端租约队列、SDK实际上下文回执、输入区状态与跨轮次约束保留已实现。
+401后端/123范围/194App通过，真实改向制品及窄屏修正通过；停止与继续复验中，未CI/合并。
+Mission基础独立在feat/mission-foundation-20261118，依赖当前队列候选；尚未接通模型桥接与入口，不属验收。
+PR138执行详情与PR139轻量CI规则均已合入dev c8de9924，旧候选段落保留历史。
+
 当前工作：feat/execution-details-20261117，capstone-app，目标dev4e81c5f6。
 候选f1c4dc57复用过程/回答至右栏，主会话保留制品入口；189App/类型、143范围检查通过。
 真实历史记录、分页、刷新和窄屏已检查；最终规范重建及5174复验通过。
@@ -1353,7 +1359,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
-| execution-details-20261117 | 当前执行详情App候选，未合dev |
+| instruction-admission-20261118 | 当前执行中指令接纳候选，真实复验中 |
+| execution-details-20261117 | PR138已合入并实际5173验收 |
 | control-runtime-views-20261117 | PR137已合dev4e81c5f6，实际本机验收通过 |
 | control-events-20261117 | 已接受Control事件来源，PR136合dev并本机验证 |
 | control-task-board-20261117 | 已接受任务看板产品来源，PR135合入dev |
@@ -1393,7 +1400,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| execution-details-20261117 | f1c4dc57 | feature | 会话右栏执行详情 | 189App/类型与143范围检查通过；本机复验通过 | 复用执行记录与正式回答，保留历史阅读；指令队列未实现。[计划](../superpowers/plans/2026-11-17-conversation-intervention.md) | shared-agent |
+| instruction-admission-20261118 | 34686054 | feature | 主会话持续指令接纳 | 产品0298f557；401后端/194App与真实改向通过；停止继续复验中 | 持久队列、安全边界接纳、状态条与窄屏来源定位。[计划](../superpowers/plans/2026-11-18-durable-instruction-admission.md) | shared-agent |
+| execution-details-20261117 | f1c4dc57 | feature | 会话右栏执行详情 | PR138定向CI与实际5173通过 | 复用执行记录与正式回答，保留历史阅读；指令队列未实现。[计划](../superpowers/plans/2026-11-17-conversation-intervention.md) | shared-agent |
 | control-runtime-views-20261117 | 71f6ef6e | feature | Control运行观察与事件诊断 | PR137/CI44100341776通过，已合4e81c5f6 | 三视角、固定读取边界、原执行关联与位置恢复。[计划](../superpowers/plans/2026-11-17-control-runtime-views.md) | shared-agent |
 | control-events-20261117 | 4db1fb1a | feature | Control持久事件 | PR136/CI通过，已合dc6ada7b | 原子事件、有界读取、旧历史缺口；实际本机只读接口通过。[计划](../superpowers/plans/2026-11-17-control-events.md) | shared-agent |
 | control-task-board-20261117 | 3ff3f515 | feature | Control真实任务看板 | PR135/CI通过，已合a7fb27d4 | 四列看板与原会话入口；实际5173重建验收通过，零执行命令。[计划](../superpowers/plans/2026-11-17-control-task-board.md) | shared-agent |
@@ -1598,7 +1606,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| execution-details-20261117 | 当前App候选 | feat/execution-details-20261117 | 右栏执行过程与正式回答；制品独立 | 189App/类型与143范围检查通过；未CI/合并 |
+| instruction-admission-20261118 | 当前执行候选 | feat/durable-instruction-admission-20261118 | 主会话执行中提交与边界接纳；状态条与停止恢复 | 本地真实复验通过，未CI/合并 |
+| execution-details-20261117 | 已接受App | dev · PR138 | 右栏执行过程与正式回答；制品独立 | 189App/类型与143范围检查通过；未CI/合并 |
 | control-runtime-views-20261117 | 已接受App | dev · PR137 | 运行泳道与来源事件诊断；原绑定定位与阅读位置保留 | CI与实际5173验收通过 |
 | control-events-20261117 | 已接受事件层 | dev · PR136 | 持久Control事件与有界读取；来源定位与旧历史缺口 | CI与实际本机接口通过 |
 | control-task-board-20261117 | 已接受App | PR135已合dev | 持久任务状态与交付看板；原会话定位及请求恢复 | CI与实际5173验收通过 |
@@ -1846,7 +1855,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/execution-details-20261117 | capstone-app，目标dev4e81c5f6 | f1c4dc57；189App/类型与143范围通过；最终规范重建及5174复验通过 | 完成本机复验与定向集成门禁；后续为持久指令接纳 | shared-agent |
+| feat/durable-instruction-admission-20261118 | capstone-agent/App，目标dev c8de9924 | 0298f557产品，34686054定向门禁 | 完成真实停止继续验收与dev集成，再接Mission | shared-agent |
+| feat/mission-foundation-20261118 | capstone-control，目标dev，依赖指令队列 | 意图创建与渐进计划基础2a74299b；桥接与装备执行尚未接通 | 完成模型桥接、主会话入口与授权配备验证 | shared-agent |
+| feat/execution-details-20261117 | PR138已合入并关闭 | f1c4dc57；189App/类型与143范围通过；最终规范重建及5174复验通过 | 完成本机复验与定向集成门禁；后续为持久指令接纳 | shared-agent |
 | docs/conversation-intervention-20261117 | capstone-app设计依赖，目标dev | 2fbcd9e8，已包含于实施分支 | 随实施分支集成，保留根工作区恢复草稿 | shared-agent |
 | feat/control-runtime-views-20261117 | PR137已合并并关闭来源分支 | 受检9e39bb85，合并4e81c5f6，CI44100341776通过 | 实际5173重建及原会话/文件验收通过 | shared-agent |
 | feat/control-events-20261117 | PR136已合并并关闭来源分支 | 受检41db18f5，合并dc6ada7b；CI44080297410通过135秒 | 实际dev重建/六旧目标只读接口通过；云端/demo不变 | shared-agent |

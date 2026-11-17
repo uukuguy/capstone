@@ -1,5 +1,13 @@
 # Journal — append-only event log
 
+- 2026-11-18: Real intervention redirected saved product, restored receipts, retained stop uncertainty and recalled exact admitted constraint;390px source navigation passed.
+- 2026-11-18: 34686054 adds focused instruction-admission gate;401backend/123scope/194App checks pass before final integration.
+
+- 2026-11-18: b5b42460 certifies SDK context consumption and frozen queue capacity; bc3d065b retains admitted directions across turns.
+- 2026-11-18: 0298f557 confines execution-source scrolling to the reader, fixing390px composer clipping; real browser verified.
+
+- 2026-11-18: 10051518 connects leased instruction delivery to actual SDK consumption; terminal races preserve saved results.
+
 - 2026-11-18: Mapped durable intervention boundaries: active send rejects and native stdin blocks during prompt; server queue and consumption receipts required.
 - 2026-11-18: Added active-Work supplementary instruction storage/withdraw transitions;4 focused tests pass, runtime consumption and PostgreSQL validation pending.
 
@@ -8060,3 +8068,8 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 7328a157 blocks native Mission relay calls outside frozen tool grants; five focused native checks pass.
 - 2026-11-18: b9febd28 admits registered Mission tool selections into native tasks;99 focused checks pass;skill/resource adapters remain blocked.
 - 2026-11-18: ea24f485 starts Missions from the existing composer; actual model, product and browser acceptance remains pending.
+- 2026-11-18: f5535b58 marks unfinished delivery unknown at terminal boundaries;39 memory/PostgreSQL execution checks pass.
+- 2026-11-18: 9e97e566 rejects unsupported frozen native queue grants;50 focused memory/PostgreSQL checks pass with native fixtures.
+- 2026-11-18: c1a53f2d adds native instruction transport; 0b188a75 cleans whitespace. SDK consumption receipts prevent false admission acknowledgements.
+- 2026-11-18: b810d2b4 records the committed Mission candidate; accepted dev38a9e77f synchronization preserves strict queue parsing and equipment fields.
+- 2026-11-18: Mission/dev merge preserves queue validation and registered equipment;157 focused PostgreSQL/runtime checks and App types pass.

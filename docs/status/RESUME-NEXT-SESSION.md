@@ -7,8 +7,8 @@ This is an active-session recovery checkpoint, not a final handoff. Worktree
 based on `bc3d065b`, with destination `dev`. Foundation `2a74299b`, origin association
 `018c29ad`, native bridge `64d1cc76`, equipment `b9febd28`, host grant guard
 `7328a157` and composer UI `ea24f485` are committed. Durable intervention PR140
-merged into `dev` at `38a9e77f`. Merge that accepted development source into this
-branch before the Mission candidate build. Do not rebase shared work.
+merged into `dev` at `38a9e77f`. The current source merges that accepted development
+source before the Mission candidate build. Do not rebase shared work.
 
 The equipment and Mission UI changes are committed. Native tools are registered
 and unit-tested, but actual Provider execution, local rebuild,
@@ -26,6 +26,36 @@ focused verification before acceptance. Root deployment and source remain separa
 
 The entries below describe the earlier execution-details task. They are recovery
 references, not the active Mission worklist or current verification receipt.
+## Earlier intervention checkpoint, before PR140 merge
+
+This preserved root checkpoint predates accepted `dev` revision `38a9e77f`.
+Its execution instructions are historical; use the active Mission section above.
+
+User explicitly requires continuous progress through main-conversation intervention
+closure and then Mission intent/planning/equipment; do not stop at intermediate commits.
+Root branch feat/durable-instruction-admission-20261118 from dev c8de9924. Product
+queue78ba3ff1/f5535b58, frozen capability9e97e566, native+Appc1a53f2d,
+transport10051518, SDK/capacityb5b42460, continuationbc3d065b, narrow0298f557,
+focused gate34686054.401backend/123scope/194App checks pass. No CI yet.
+
+Real browser owner intervention_ui: active queue changed final artifact successfully,
+refresh retained admission; stop during delivery correctly reports delivery_unknown,
+pending unaffected tests covered by PG. Final explicit continuation verification ongoing.
+Evidence runs/durable-instruction-admission-20261118. Do not rebuild during its task.
+Latest canonical build /tmp/durable-intervention-context-rebuild.log passed image4f71d588;
+an earlier source copy may include uncommitted Mission foundation while it was relocated.
+Need final clean-source rebuild after browser task before claiming exact runtime source.
+Dedicated disposable PG capstone-intervention-tests-20261118 on25440, trust localhost,
+database capstone_intervention_tests; preserve application data. Remove test container
+only after acceptance ends. Native source tests242passed32platform skipped/8Node passed.
+
+Mission work isolated .worktrees/historical-input-receipts branch
+feat/mission-foundation-20261118, foundation2a74299b. native_steering owns Control
+foundation and native model bridge; backend_queue owns Mission HTTP/origin association
+and equipment delegation. Shared index: parent serializes root commits; Mission agents
+coordinate commits in their worktree. Do not mix unverified Mission source into root.
+Root control register/HTML are candidate drafts, need final graph/browser verification.
+Lightweight CI needs no separate approval; heavy tens-of-minutes CI still does.
 
 Final local acceptance: f1c4dc57 plus focused gate;189App/types and143scope checks
 pass. Final canonical rebuild exited0, API/workers imagef25c7f8a, cleanup completed.
