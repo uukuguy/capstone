@@ -3,14 +3,16 @@ import SessionEntry,{type SessionCreation} from './SessionEntry'
 import SessionNavigation,{navigateSession} from './SessionNavigation'
 import {sessionManagement} from './sessionManagement'
 import {useSessionCatalog,mergeSessionPage} from './sessionCatalog'
-import {storageNamespace} from './threadSessionState'
+import {storageNamespace,rotateStorageNamespace} from './threadSessionState'
 import ThreadWorkspace from './ThreadWorkspace'
 import {HttpThreadTransport,ThreadTransportError} from './threadHttpTransport'
 import {readThreadAccess} from './threadAccess'
 import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
 import {readLastWorkspaceThread,forgetWorkspaceThread} from './workspaceEntry'
+import {useWorkspaceNavigation} from './workspaceNavigationContext'
 
 export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreated:(id:string)=>void;compact?:boolean}) {
+  const sharedNavigation=useWorkspaceNavigation()
   const [error,setError]=useState('')
   const [retry,setRetry]=useState(0)
   const [ready,setReady]=useState(false)
@@ -49,7 +51,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
           if(!next||seen.has(next))throw new Error('会话目录未完整读取，请重试。')
           seen.add(next);before=next
         }
-      } else if(!compact) {
+      } else if(!compact&&!sharedNavigation) {
         void sessionTransport.listThreads(false,undefined,controller.signal).then(page=>{
           if(!controller.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))
         }).catch(()=>{/* Existing history remains available if refresh fails. */})
@@ -73,9 +75,9 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
       throw cause
     }
     if(!body||body.schema!==`capstone-thread-snapshot/${version}`||typeof body.thread_id!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(body.thread_id))throw new Error('会话创建响应无效，请重新读取会话列表。')
-    if(mounted.current&&isWorkspaceActive(workspaceName))onCreated(body.thread_id)
+    if(mounted.current&&isWorkspaceActive(workspaceName)){window.dispatchEvent(new Event('capstone-session-created'));onCreated(body.thread_id)}
   }
-  const content=needsToken&&!token?<form className="session-entry" onSubmit={event=>{event.preventDefault();const value=new FormData(event.currentTarget).get('token');if(typeof value==='string'&&value.trim()){sessionStorage.setItem('capstone.thread.operatorToken',value.trim());setToken(value.trim())}}}><label>Operator token<input name="token" type="password" autoComplete="off" required /></label><button type="submit">连接</button></form>
+  const content=needsToken&&!token?<form className="session-entry" onSubmit={event=>{event.preventDefault();const value=new FormData(event.currentTarget).get('token');if(typeof value==='string'&&value.trim()){sessionStorage.setItem('capstone.thread.operatorToken',value.trim());setToken(value.trim());rotateStorageNamespace()}}}><label>Operator token<input name="token" type="password" autoComplete="off" required /></label><button type="submit">连接</button></form>
       :error?<div className="session-entry" role="alert"><p>{error}</p><button type="button" onClick={()=>setRetry(value=>value+1)}>重试连接</button></div>
       :ready?<SessionEntry compact={compact} onCreate={create} />:<p role="status">正在连接会话服务…</p>
   if(compact)return content

@@ -1,4 +1,4 @@
-2026-11-17 App左栏跳动修正已验收：PR128合入dev f818d2e9，受检头4ff09235/macOS CI43941305783通过；125App/类型、145治理、实际dev规范重建faf6c85a及5173通过，原始10个置顶ID完全一致。PR129控制收口已合b0dfa1cc；当前docs/sidebar-source-node-20261117仅补正合并后实时图的固定部署来源节点，目标dev。最终自身回执忽略保存，云端/demo不变。[验收](../reviews/2026-11-17-session-sidebar-stability-local.md)。
+2026-11-17 用户纠正：PR128只处理元数据收缩，未达到“切换会话只变更高亮、左栏常驻”的验收。当前capstone-app修正fix/persistent-workspace-navigation-20261117目标dev，基线3ef7d5b2。工作空间统一持有导航/目录/页脚，Activity仅保留会话内容；127App/类型与190治理通过，真实浏览器/dev集成待验。[实施计划](../superpowers/plans/2026-11-17-persistent-workspace-navigation.md)。此前原始10个置顶ID保留，云端/demo不变。
 
 2026-11-17 阶段二Control已完成：PR126代码合入87e780df，PR127控制收口合入7531bc1f；两项macOS CI及实际dev验收通过，精确最终回执见忽略目录runs/control-delegation-20261117/closeout-receipt.json。该工作包不再活动；云端/demo不变。[验收记录](../reviews/2026-11-17-control-delegation-local.md)。
 
@@ -1815,7 +1815,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| docs/sidebar-source-node-20261117 | capstone-app控制图来源补正，目标dev | PR129已合入b0dfa1cc；实时刷新发现f818d2e9原动态HEAD未固定，部署来源解析失败 | 显式保留精确部署来源节点和展示记录，经文档检查合dev后实时刷新；最终自身回执忽略保存 | shared-agent |
+| fix/persistent-workspace-navigation-20261117 | capstone-app常驻左栏修正，目标dev | 用户明确要求左栏不随会话重建；DOM身份回归先失败，常驻框架后通过 | 真实浏览器验证左栏/行DOM和几何位置，再定向macOS PR/dev集成；保留原置顶和产品 | shared-agent |
 | feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
 | fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |
 | feat/recoverable-long-tasks-20261116 | PR121已合入dev并关闭来源分支 | capstone-agent/harness；受检55687333，合并00999b8a，产品40ddb637 | CI43839482466通过240秒；恢复引用及脏文件已保存，实际dev续作与刷新通过 | shared-agent |

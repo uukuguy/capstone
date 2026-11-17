@@ -794,7 +794,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     navigation_manifest = pin_manifest.with_name('session-navigation-gate.json')
     if navigation_manifest.is_file():
         navigation = json.loads(navigation_manifest.read_text())
-        if set(navigation['anchors']).issubset(paths) and all(
+        if any(set(anchors).issubset(paths) for anchors in navigation.get('anchor_sets', [navigation['anchors']])) and all(
                 path in navigation['paths'] or _control_path(path) for path in paths):
             return 'session-navigation'
     if pin_manifest.is_file():

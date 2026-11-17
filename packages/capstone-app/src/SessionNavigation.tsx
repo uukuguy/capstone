@@ -1,4 +1,4 @@
-import {useEffect,useLayoutEffect,useRef,useState} from 'react'
+import {memo,useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Archive,ChevronLeft,ChevronRight,History,Pin,Pencil,Trash2,X} from 'lucide-react'
 import SessionRow from './SessionRow'
@@ -20,7 +20,8 @@ export function SessionAdjacentControls({items,currentId,storageKey}: {items:rea
 }
 
 /** Workspace preferences and mutations use the host management ports. */
-export default function SessionNavigation({items,currentId,storageKey='workspace',actions}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string;actions?:SessionManagementActions}) {
+export default memo(SessionNavigation)
+function SessionNavigation({items,currentId,storageKey='workspace',actions}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string;actions?:SessionManagementActions}) {
   const list=useRef<HTMLDivElement>(null),menuElement=useRef<HTMLDivElement>(null)
   const {pins,toggle,error:pinError,ready:pinsReady,retry:retryPins}=useSessionPins(storageKey)
   const [menu,setMenu]=useState<{item:SessionNavItem;x:number;y:number}>(),[editing,setEditing]=useState<string>()

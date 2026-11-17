@@ -23,6 +23,8 @@ import {useSessionCatalog,mergeSessionPage} from './sessionCatalog'
 import WorkspaceSessionEntry from './WorkspaceSessionEntry'
 import SessionNewPopover from './SessionNewPopover'
 import {memorySessionLimit,isMemorySessionLimit,readSessionVisits,recordSessionVisit,retainSessions,SessionReadingProvider,type SessionVisits} from './workspaceSessionCache'
+import WorkspaceNavigationFrame from './WorkspaceNavigationFrame'
+import {useWorkspaceNavigation} from './workspaceNavigationContext'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
 const initialPreparation: PreparationUpdate[] = [
@@ -100,13 +102,14 @@ function WorkspaceRouteEntry({ threadId }: { threadId: string }) {
     window.addEventListener('capstone-thread-access-changed',reset)
     return () => {window.removeEventListener('popstate', navigate);window.removeEventListener('capstone-session-released',release);window.removeEventListener('capstone-session-cache-limit',resize);window.removeEventListener('capstone-thread-access-changed',reset)}
   }, [currentId,limit,namespace])
-  return <>{visited.map(id=><SessionReadingProvider key={`${namespace}.${id}`} namespace={namespace} threadId={id}><Activity mode={id===currentId?'visible':'hidden'}>
+  return <WorkspaceNavigationFrame key={namespace} namespace={namespace} currentId={currentId}>{visited.map(id=><SessionReadingProvider key={`${namespace}.${id}`} namespace={namespace} threadId={id}><Activity mode={id===currentId?'visible':'hidden'}>
     {id==='new'?<WorkspaceSessionEntry onCreated={navigateSession}/>:<WorkspaceLiveEntry threadId={id}/>}
-  </Activity></SessionReadingProvider>)}</>
+  </Activity></SessionReadingProvider>)}</WorkspaceNavigationFrame>
 }
 
 /** Read the host version before choosing a compatible presentation; reads never migrate a Thread. */
 function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
+  const sharedNavigation=useWorkspaceNavigation()
   const workspaceName=currentWorkspaceName()
   const [token, setToken] = useState(readToken)
   const [resolved, setResolved] = useState<{threadId:string;version:1|2;access:ThreadAccessMode;store:ThreadProjectionStore}|null>(null)
@@ -130,7 +133,7 @@ function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
       setAccess(access)
       if (access === 'operator' && !token) { if (!controller.signal.aborted) setNeedsToken(true); return }
       const transport=new HttpThreadTransport(origin,access==='open'?'':token,fetch,'/api/v1/threads','2',workspaceName)
-      try{const page=await transport.listThreads(false,undefined,controller.signal);if(!controller.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))}catch{if(controller.signal.aborted)return}
+      if(!sharedNavigation)void transport.listThreads(false,undefined,controller.signal).then(page=>{if(!controller.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))}).catch(()=>{/* The catalog cannot block opening a Thread. */})
       const readVersion = (version: '1' | '2') => new HttpThreadTransport(origin, access === 'open' ? '' : token, fetch, '/api/v1/threads', version,workspaceName).getSnapshot(threadId, controller.signal)
       let representation: unknown
       try { representation = await readVersion('1') }
@@ -160,15 +163,16 @@ function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
 }
 
 function UnavailableWorkspace({message,missing,token,onRetry}:{message:string;missing:boolean;token:string;onRetry:()=>void}){
+  const sharedNavigation=useWorkspaceNavigation()
   const workspaceName=currentWorkspaceName()
   const origin=import.meta.env.VITE_API_ORIGIN||'',namespace=storageNamespace(origin)
   const [sessions,setSessions]=useSessionCatalog(namespace),[revision,setRevision]=useState(0)
   const transport=useMemo(()=>new HttpThreadTransport(origin,token,fetch,'/api/v1/threads','2',workspaceName),[origin,token])
-  useEffect(()=>{const abort=new AbortController();void transport.listThreads(false,undefined,abort.signal).then(page=>{if(!abort.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))}).catch(()=>{});return()=>abort.abort()},[transport,revision])
+  useEffect(()=>{if(sharedNavigation)return;const abort=new AbortController();void transport.listThreads(false,undefined,abort.signal).then(page=>{if(!abort.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))}).catch(()=>{});return()=>abort.abort()},[transport,revision,!!sharedNavigation])
   return <ThreadWorkspace conversationOnly heading={<div className="thread-chat-heading"><h2>工作空间</h2></div>}
     sidebar={<nav className="thread-session-navigation" aria-label="任务会话"><SessionNewPopover onCreated={navigateSession}/><SessionNavigation items={sessions?.threads??[]} storageKey={namespace} actions={sessionManagement(transport,()=>setRevision(value=>value+1))}/></nav>}>
     <section className="session-entry" role="alert"><h2>会话暂不可用</h2><p>{missing?'此会话不存在或已删除。请从左侧选择其他会话，或新建会话。':message}</p>
-      <button type="button" onClick={()=>navigateSession('new')}>进入新建会话</button><button type="button" onClick={()=>setRevision(value=>value+1)}>刷新会话列表</button>{!missing&&<button type="button" onClick={onRetry}>重新读取会话</button>}
+      <button type="button" onClick={()=>navigateSession('new')}>进入新建会话</button><button type="button" onClick={()=>sharedNavigation?sharedNavigation.refreshCatalog():setRevision(value=>value+1)}>刷新会话列表</button>{!missing&&<button type="button" onClick={onRetry}>重新读取会话</button>}
     </section>
   </ThreadWorkspace>
 }
@@ -204,6 +208,7 @@ function WorkLiveEntry({ threadId, recoveryOnly = false,initialAccess,preparedSt
 }
 
 function LegacyThreadLiveEntry({ threadId, workspace = false,initialAccess,preparedStore }: { threadId: string; workspace?: boolean;initialAccess?:ThreadAccessMode;preparedStore?:ThreadProjectionStore }) {
+  const sharedNavigation=useWorkspaceNavigation()
   const workspaceName=currentWorkspaceName()
   const [token, setToken] = useState(readToken)
   const [accessMode, setAccessMode] = useState<ThreadAccessMode | null>(initialAccess??null)
@@ -232,7 +237,8 @@ function LegacyThreadLiveEntry({ threadId, workspace = false,initialAccess,prepa
   const creation = useRef<{ client: CapstoneThreadClient; request: ReturnType<CapstoneThreadClient['create']> } | null>(null)
   const authorityClient = useMemo(() => hasAccess ? new CapstoneClient(apiOrigin, effectiveToken) : null, [apiOrigin, effectiveToken, hasAccess])
   const namespace = useMemo(() => hasAccess ? storageNamespace(apiOrigin) : '', [apiOrigin, hasAccess])
-  const [sessions,setSessions]=useSessionCatalog(namespace)
+  const [localSessions,setSessions]=useSessionCatalog(namespace)
+  const sessions=sharedNavigation?.catalog??localSessions
 
   useEffect(() => {
     const refresh=()=>setListReload(value=>value+1)
@@ -240,12 +246,12 @@ function LegacyThreadLiveEntry({ threadId, workspace = false,initialAccess,prepa
     return()=>window.removeEventListener('capstone-session-renamed',refresh)
   },[])
   useEffect(() => {
-    if (!workspace || !transport) return
+    if (!workspace || !transport || sharedNavigation) return
     const abort = new AbortController()
     void transport.listThreads(false, undefined, abort.signal).then(page => { if (!abort.signal.aborted) { setSessions(previous=>mergeSessionPage(previous,page)); setSessionError(false) } })
       .catch(() => { if (!abort.signal.aborted) setSessionError(true) })
     return () => abort.abort()
-  }, [transport, createdThreadId, workspace,listReload])
+  }, [transport, createdThreadId, workspace,listReload,!!sharedNavigation])
 
   useEffect(() => {
     const abort = new AbortController()

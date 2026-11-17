@@ -12,3 +12,13 @@ def test_navigation_gate_covers_shared_catalog_consumers_without_solver_scope():
     assert classify(paths, target='main') == 'release'
     assert classify(paths + ['packages/capstone-agent/src/capstone_agent/thread_service.py']) != 'session-navigation'
     assert classify(paths + ['packages/capstone-app/src/OtherPanel.tsx']) != 'session-navigation'
+
+
+def test_persistent_workspace_frame_uses_only_navigation_direct_consumers():
+    paths = ['packages/capstone-app/src/' + name for name in [
+        'WorkspaceNavigationFrame.tsx', 'workspaceNavigationContext.ts',
+        'workspaceNavigation.css', 'ThreadWorkspace.tsx', 'ThreadLiveEntry.tsx',
+        'ThreadLiveEntry.test.tsx', 'ThreadWorkAdapter.tsx', 'WorkspaceSessionEntry.tsx']]
+    assert classify(paths) == 'session-navigation'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths + ['packages/capstone-app/src/OtherPanel.tsx']) != 'session-navigation'

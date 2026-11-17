@@ -1,5 +1,10 @@
 # Current State
 
+Workspace route navigation has one application-owned lifetime. Retained Thread
+Activities own only conversation/products. Catalog synchronization and durable
+pins are workspace-scoped; changing the selected Thread does not reload catalog
+or replace navigation DOM. Standalone legacy/task entry keeps its own frame.
+
 ## Durable workspace preferences
 
 Workspace pins persist in PostgreSQL. Explicit unpins survive stale browser

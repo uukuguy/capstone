@@ -7,10 +7,11 @@ import {readWorkspacePanels,saveWorkspacePanels} from './workspaceEntry'
 import {useSessionViewState,useSessionReadingPositions} from './workspaceSessionCache'
 import {ResourceFullscreenContext} from './resourceFullscreen'
 import {currentWorkspaceName} from './workspaceName'
+import {useWorkspaceNavigation} from './workspaceNavigationContext'
 
 /** Shared application frame. Controllers supply public state and capabilities. */
 export default function ThreadWorkspace({ preparation, sidebar, heading, children, loading = false,
-  ready = true, subtitle, headerActions, navigationFooter, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey }: {
+  ready = true, subtitle, headerActions, navigationFooter, navigationExtras, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey }: {
   preparation?: ReactNode; sidebar?: ReactNode; heading?: ReactNode; children?: ReactNode; navigationFooter?: ReactNode
   loading?: boolean; ready?: boolean; subtitle?: string; headerActions?: ReactNode; conversationOnly?: boolean
   resourcePanel?: ReactNode; resourcePanelOpen?: boolean; onResourcePanelOpenChange?: (open: boolean) => void
@@ -19,7 +20,9 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   workspaceActions?: ReactNode
   hideResourceToggle?: boolean; resourceToggleRef?: RefObject<HTMLButtonElement | null>
   sessionKey?:string
+  navigationExtras?:ReactNode
 }) {
+  const sharedNavigation=useWorkspaceNavigation()
   const resourcePanelId=sessionKey?`thread-resource-panel-${sessionKey}`:'thread-resource-panel'
   const navigationPanelId=useId()
   const [navigationOpen, updateNavigationOpen] = useState(()=>{
@@ -73,7 +76,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
       aria-label={conversationOnly ? (resourcePanelOpen ? '收起展示区' : '打开展示区') : `查看${resourceLabel}`} title={conversationOnly ? (resourcePanelOpen ? '收起展示区' : '打开展示区') : resourceLabel} aria-controls={resourcePanelId} onClick={() => { setExpanded(false); onResourcePanelOpenChange?.(!resourcePanelOpen) }}><PanelRight size={16} aria-hidden="true"/>{!conversationOnly && <span>{resourceLabel==='成果'?'任务成果':resourceLabel}</span>}</button>}
     </div>
   </div>
-  const conversation=<section className="thread-chat-pane" aria-label="Thread 对话区">{!conversationOnly && headingBar}{children}</section>
+  const conversation=<section className="thread-chat-pane" aria-label="Thread 对话区">{!conversationOnly && headingBar}{sharedNavigation&&navigationExtras&&<nav className="workspace-session-records" aria-label="当前会话记录">{navigationExtras}</nav>}{children}</section>
   const body=loading && !ready ? <div className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</div>
     : ready ? <div ref={columns} className="thread-app-columns" style={{'--conversation-share':`${effectiveShare}%`} as CSSProperties}>
       {!conversationOnly && sidebar}
@@ -98,9 +101,10 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
           </>} /></ResourceFullscreenContext.Provider>
       </aside>}
     </div> : null
-  return <div ref={shell} style={{'--navigation-width':`${navigationWidth}px`}as CSSProperties} className={`thread-app-shell${conversationOnly ? ' thread-conversation-workspace' : ''}${navigationOpen ? ' is-navigation-open' : ''}${resourcePanel && resourcePanelOpen ? ' has-resource-panel' : ''}${expanded ? ' is-resource-expanded' : ''}`}>
+  return <div ref={shell} style={{'--navigation-width':`${navigationWidth}px`}as CSSProperties} className={`thread-app-shell${conversationOnly ? ' thread-conversation-workspace' : ''}${navigationOpen&&!sharedNavigation ? ' is-navigation-open' : ''}${resourcePanel && resourcePanelOpen ? ' has-resource-panel' : ''}${expanded ? ' is-resource-expanded' : ''}`}>
     {preparation}
     {conversationOnly ? <>
+      {!sharedNavigation&&<>
       {navigationOpen && <button className="workspace-navigation-backdrop" aria-label="关闭会话导航遮罩" tabIndex={-1} onClick={closeNavigation} />}
       <aside id={navigationPanelId} className="workspace-navigation" hidden={!navigationOpen} aria-label="工作空间导航">
         {navigationOpen && <button type="button" className="workspace-navigation-close" aria-label="收起会话导航" onClick={closeNavigation}><X size={18} aria-hidden="true" /></button>}
@@ -115,9 +119,10 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();navigationDragging.current=true;event.currentTarget.setPointerCapture?.(event.pointerId)}}
         onPointerMove={event=>{if(navigationDragging.current)resizeNavigation(event.clientX-(shell.current?.getBoundingClientRect().left??0))}}
         onPointerUp={event=>{navigationDragging.current=false;event.currentTarget.releasePointerCapture?.(event.pointerId)}} onPointerCancel={()=>{navigationDragging.current=false}}/>}
+      </>}
       <main className="workspace-shell">
         <header className="workspace-topbar" aria-label="工作空间">
-          <button ref={navigationToggle} type="button" className="thread-navigation-toggle" aria-label="会话导航" aria-expanded={navigationOpen} aria-controls={navigationPanelId} onClick={()=>setNavigationOpen(value=>!value)}><Menu aria-hidden="true" /></button>
+          <button ref={sharedNavigation?.toggleRef??navigationToggle} type="button" className="thread-navigation-toggle" aria-label="会话导航" aria-expanded={sharedNavigation?.open??navigationOpen} aria-controls={sharedNavigation?.panelId??navigationPanelId} onClick={()=>sharedNavigation?sharedNavigation.toggle():setNavigationOpen(value=>!value)}><Menu aria-hidden="true" /></button>
           {headingBar}
           <div className="workspace-top-actions">{headerActions}</div>
         </header>
