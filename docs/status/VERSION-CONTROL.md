@@ -14,6 +14,12 @@
 
 # 多线版本控制
 
+2026-11-17 活动工作：feat/control-task-board-20261117，所有者 capstone-app，
+目标 dev5c8fe6d1；真实任务看板与既有会话/成果入口，保留命令恢复和版本边界。
+验收为定向 App/类型与真实浏览器；尚未验证、合并或部署。
+下一步实现状态映射、稳定选择与迟到响应防护。
+计划：../superpowers/plans/2026-11-17-control-task-board.md。
+
 2026-11-16 Agent目标模式实施已开始：所有者capstone-agent/capstone-harness，消费者capstone-app；feat/agent-goal-mode-20261116目标dev，工作区为historical-input-receipts。验收边界是显式目标、有界自动接续、暂停/修改/取消、持久恢复和真实模型成果交付。当前仅状态契约与Work快照兼容通过87项本地检查，14项数据库条件检查跳过；控制命令和自动接续尚未接通。下一步实现版本化控制命令与事务验证。未合dev、无CI批准、未部署；控制图对齐随本实施检查点更新，不把此记录当作能力验收。
 
 2026-11-15 worker中断文件恢复候选f0976baf本地复验通过：规范重建8952043d同镜像，旧租约三项写入保护、running→incomplete→interrupted顺序、28字节原稿读取/恢复报告及Vivaldi刷新通过。native任务在父worker丢失后仍运行，实验做了显式人工取消；此生命周期缺口未解决，整链worker丢失接受仍为partial。116定向/123分类检查通过；PR120已合入dev 44abf3c5；明确批准的macOS CI43806396571通过116秒。[验证](../reviews/2026-11-15-worker-loss-product-recovery.md)。下段保留实施过程。
@@ -1819,6 +1825,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| feat/control-task-board-20261117 | capstone-app任务看板，目标dev5c8fe6d1 | 真实Goal投影与既有会话入口；34项App/类型通过；迟到目标读响应回归先失败后通过 | 真实浏览器复验、聚焦门禁和PR集成；无云端/demo更新 | shared-agent |
 | docs/compatible-session-closeout-20261117 | capstone-app兼容恢复验收收口，目标dev6714d223 | PR133/macOS CI通过；实际5173自动恢复历史，快照与置顶不变 | 仅完成验收/台账/图的聚焦文档PR；最终自身合并回执放忽略目录，不再启动产品变更 | shared-agent |
 | feat/agent-goal-mode-20261116 | PR125已合入，来源分支已关闭 | 产品9dd95faf、受检edd782b6、合并4f511d46；macOS CI43909552457通过 | 实际dev规范重建和5173恢复通过；后续阶段二归独立工作包 | shared-agent |
 | fix/durable-session-pins-20261116 | PR124已合入，来源分支已关闭 | 产品981ddc3d，合并4834ebe3；原10个置顶在后续重建保留 | 保留恢复引用，不作为活动分支 | shared-agent |

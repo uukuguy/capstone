@@ -1,5 +1,15 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Control task board — active, 2026-11-17
+
+Owner capstone-app; feat/control-task-board-20261117 targets dev5c8fe6d1.
+User accepted task board, runtime lanes and diagnostic trace perspectives.
+[Plan](2026-11-17-control-task-board.md): first connect real Goal/Task data and
+existing session/product navigation. Keep uncertain commands and version boundaries.
+Acceptance requires focused tests, types and real browser verification. Next:
+implement status projection, stable task selection and late-response protection.
+Control event persistence and the full workspace shell remain later work.
+
 ## Compatible session restoration — accepted correction, 2026-11-17
 
 Owner capstone-app, fix/compatible-session-restoration-20261117 targets dev58782e03.

@@ -73,7 +73,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|app|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|presentation-library|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|app|control-task-board|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|presentation-library|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -85,7 +85,7 @@ jobs:
         with:
           node-version: "22.19.0"
       - name: Set up standard dependencies
-        if: steps.scope.outputs.gate != 'gateway-bindings' && steps.scope.outputs.gate != 'gateway-capabilities' && steps.scope.outputs.gate != 'execution-lifecycle' && steps.scope.outputs.gate != 'architecture-retirement' && steps.scope.outputs.gate != 'presentation-library' && steps.scope.outputs.gate != 'product-references' && steps.scope.outputs.gate != 'product-adoption' && steps.scope.outputs.gate != 'result-rows' && steps.scope.outputs.gate != 'resource-ranges' && steps.scope.outputs.gate != 'historical-inputs' && steps.scope.outputs.gate != 'worker-interruption' && steps.scope.outputs.gate != 'recoverable-tasks' && steps.scope.outputs.gate != 'session-pins' && steps.scope.outputs.gate != 'agent-goal' && steps.scope.outputs.gate != 'control-delegation'
+        if: steps.scope.outputs.gate != 'gateway-bindings' && steps.scope.outputs.gate != 'gateway-capabilities' && steps.scope.outputs.gate != 'execution-lifecycle' && steps.scope.outputs.gate != 'architecture-retirement' && steps.scope.outputs.gate != 'presentation-library' && steps.scope.outputs.gate != 'product-references' && steps.scope.outputs.gate != 'product-adoption' && steps.scope.outputs.gate != 'result-rows' && steps.scope.outputs.gate != 'resource-ranges' && steps.scope.outputs.gate != 'historical-inputs' && steps.scope.outputs.gate != 'worker-interruption' && steps.scope.outputs.gate != 'recoverable-tasks' && steps.scope.outputs.gate != 'session-pins' && steps.scope.outputs.gate != 'agent-goal' && steps.scope.outputs.gate != 'control-delegation' && steps.scope.outputs.gate != 'control-task-board'
         run: make setup
       - name: Set up product reference consumers
         if: steps.scope.outputs.gate == 'product-references' || steps.scope.outputs.gate == 'product-adoption' || steps.scope.outputs.gate == 'result-rows' || steps.scope.outputs.gate == 'resource-ranges' || steps.scope.outputs.gate == 'historical-inputs' || steps.scope.outputs.gate == 'worker-interruption' || steps.scope.outputs.gate == 'recoverable-tasks'
@@ -95,7 +95,7 @@ jobs:
           uv sync --project packages/grid-simulator
           npm ci --prefix packages/capstone-app
       - name: Set up session pin consumers
-        if: steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation'
+        if: steps.scope.outputs.gate == 'control-task-board' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation'
         run: |
           uv sync --project packages/capstone-agent
           uv sync --project packages/pandapower-application
@@ -207,6 +207,10 @@ jobs:
         if: steps.scope.outputs.gate == 'app'
         timeout-minutes: 5
         run: make test-capstone-app build-capstone-app
+      - name: Verify Control task board
+        if: steps.scope.outputs.gate == 'control-task-board'
+        timeout-minutes: 5
+        run: bash tools/test_control_task_board.sh
       - name: Verify session navigation consumers
         if: steps.scope.outputs.gate == 'session-navigation'
         timeout-minutes: 4
