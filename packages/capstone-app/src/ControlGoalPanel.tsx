@@ -1,13 +1,13 @@
 import {useCallback,useEffect,useRef,useState} from 'react'
 import {Target} from 'lucide-react'
 import AnswerDetailSheet from './AnswerDetailSheet'
-import ControlTaskBoard from './ControlTaskBoard'
+import ControlWorkspaceViews from './ControlWorkspaceViews'
 import {commandKey} from './commandKey'
 import {buildControlGoal,controlGoalCommand,type ControlCommand,type ControlDraft,type ControlGoal,type ControlGoalCreate} from './controlGoals'
 import type {HttpThreadTransport} from './threadHttpTransport'
 import './ControlGoalPanel.css'
 
-type Transport=Pick<HttpThreadTransport,'workspaceName'|'controlGoals'|'controlGoal'|'createControlGoal'|'controlGoalCommand'>
+type Transport=Pick<HttpThreadTransport,'workspaceName'|'controlGoals'|'controlGoal'|'createControlGoal'|'controlGoalCommand'|'controlEvents'>
 type Pending={kind:'create';body:ControlGoalCreate}|{kind:'command';body:ControlCommand}
 const names:Record<string,string>={ready:'待执行',running:'推进中',waiting:'等待处理',paused:'已暂停',pausing:'暂停中',
   cancelling:'撤销中',cancelled:'已撤销',revising:'等待旧阶段停止',delivered:'待最终接受',accepted:'已接受',
@@ -45,6 +45,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
   const [form,setForm]=useState<'create'|'revise'|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const [pending,setPending]=useState<Pending|null>(()=>pendingFromStorage(scope+'.pending')),[cursor,setCursor]=useState<string|null>(null)
   const readEpoch=useRef(0)
+  const readEvents=useCallback((id:string,after?:number,through?:number)=>transport.controlEvents(id,after,through),[transport])
   const saveDraft=(value:ControlDraft)=>{setDraft(value);write(scope+'.draft',value)}
   const rememberPending=(value:Pending|null)=>{setPending(value);write(scope+'.pending',value)}
   const choose=(id:string)=>{readEpoch.current++;setGoal(null);setSelected(id);write(scope+'.selected',id);setForm(null)}
@@ -126,7 +127,9 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
         <h3>{goal.objective}</h3><p>{names[goal.state]||goal.state} · 目标版本 {goal.objective_revision} · 已委托 {goal.delegations_admitted}/{goal.max_delegations} 次</p>
         {goal.reason&&<p>状态原因：{reason(goal.reason)}</p>}
         <p>期限：{new Date(goal.deadline_at).toLocaleString()}</p>
-        <h4>最终验收条件</h4><ul>{goal.acceptance_criteria.map((c,i)=><li key={i}>{c}</li>)}</ul>
+        <ControlWorkspaceViews goal={goal} disabled={disabled} readEvents={readEvents}
+          taskControls={<>
+<h4>最终验收条件</h4><ul>{goal.acceptance_criteria.map((c,i)=><li key={i}>{c}</li>)}</ul>
         <div className="control-goal-actions">
           {['ready','running','waiting'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('pause')}>暂停目标</button>}
           {['paused','waiting'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('resume')}>恢复目标</button>}
@@ -138,7 +141,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
           {goal.state==='delivered'&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
         </div>
         {goal.acceptance&&<p role="status">已接受此目标版本及所列成果版本。</p>}
-        <ControlTaskBoard key={JSON.stringify([goal.workspace,goal.goal_id,goal.objective_revision])} goal={goal} disabled={disabled}
+          </>}
           onOpenThread={(thread,work)=>{onOpenThread(thread,work);setOpen(false)}}
           onVerify={(taskId,deliveryRevision)=>control('verify_task',{task_id:taskId,delivery_revision:deliveryRevision,checks:[{name:'用户核验阶段交付',passed:true}]})}/>
 

@@ -13,10 +13,13 @@ const labels:Record<string,string>={pending:'待开始',dispatching:'派发中',
 export function taskColumn(state:string):Column{return stateColumns[state]??'unknown'}
 export function taskIdentity(goal:ControlGoal,task:ControlTask){return JSON.stringify([goal.workspace,goal.goal_id,goal.objective_revision,task.task_id,task.revision])}
 
-export default function ControlTaskBoard({goal,disabled,onOpenThread,onVerify}:{
-  goal:ControlGoal;disabled:boolean;onOpenThread:(thread:string,work:string)=>void;onVerify:(taskId:string,deliveryRevision:number)=>void
+export default function ControlTaskBoard({goal,disabled,onOpenThread,onVerify,selection:controlledSelection,onSelect}:{
+  goal:ControlGoal;disabled:boolean;onOpenThread:(thread:string,work:string)=>void;onVerify:(taskId:string,deliveryRevision:number)=>void;
+  selection?:string|null;onSelect?:(identity:string)=>void
 }){
- const [selection,setSelection]=useState<string|null>(null)
+ const [localSelection,setLocalSelection]=useState<string|null>(null)
+ const selection=controlledSelection===undefined?localSelection:controlledSelection
+ const setSelection=(identity:string)=>{setLocalSelection(identity);onSelect?.(identity)}
  const selected=goal.tasks.find(t=>taskIdentity(goal,t)===selection)
    ??goal.tasks.find(t=>['active','review'].includes(taskColumn(t.state)))??goal.tasks[0]
  const index=goal.tasks.indexOf(selected),binding=selected?.delegation?.binding

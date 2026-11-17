@@ -1,9 +1,9 @@
 # docs/status INDEX
 
-2026-11-17 Control事件候选4db1fb1a：capstone-control / capstone-agent，
-feat/control-events-20261117目标dev a7fb27d4。65项含真实PG定向检查通过，
-未CI、合并或部署。[计划](../superpowers/plans/2026-11-17-control-events.md)。
-任务看板PR135/CI44073188596已合入a7fb27d4，实际5173重建与浏览器通过。
+2026-11-17 运行观察/诊断候选71f6ef6e，capstone-app，目标dev dc6ada7b。
+86项App/类型及123项范围通过；5174真实六事件、原文件摘要及原会话定位通过。
+[计划](../superpowers/plans/2026-11-17-control-runtime-views.md)。尚未CI或合入dev。
+事件层PR136/CI44080297410已合dc6ada7b，本机规范重建及六旧目标只读接口通过。
 
 2026-11-17 兼容恢复已验收：PR133合入dev6714d223，受检567d2638/macOS CI44034580886、137App/类型与191治理通过；实际5173规范重建、完成/取消任务及连续对话自动恢复通过，快照与置顶不变。[验收](../reviews/2026-11-17-compatible-session-restoration.md)。新建已走v2连续对话；重要旧记录显式转换后退役废弃兼容属于后续方向，见[计划](../superpowers/plans/2026-11-17-compatible-session-restoration.md)和[演进记录](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)。
 
