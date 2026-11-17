@@ -1,4 +1,5 @@
 import {parseNativeArtifact,type NativeArtifact} from './nativeArtifacts'
+import {parseMission,type Mission} from './missions'
 
 export type ControlDraft={objective:string;criteria:string;maxDelegations:number;deadline:string;
   stages:{objective:string;files:string;mode:'single'|'goal';maxAttempts:number}[]}
@@ -8,6 +9,7 @@ export type ControlTask={task_id:string;revision:number;objective:string;state:s
   observation?:{sequence:number;state:string;summary:string};
   delivery:{revision:number;answer_ref:string;products:NativeArtifact[]}|null;verification:Record<string,unknown>|null}
 export type ControlGoal={schema:'capstone-control-goal/1';workspace:string;goal_id:string;revision:number;objective_revision:number;
+  mission?:Mission
   objective:string;acceptance_criteria:string[];max_delegations:number;delegations_admitted:number;deadline_at:string;
   state:string;reason:string|null;acceptance:Record<string,unknown>|null;tasks:ControlTask[]}
 export type ControlCommand={schema:'capstone-control-command/1';operation_id:string;goal_id:string;expected_revision:number;kind:string;payload:Record<string,unknown>}
@@ -20,8 +22,9 @@ function integer(value:unknown,minimum=1):number{if(typeof value!=='number'||!Nu
 function strings(value:unknown):string[]{if(!Array.isArray(value)||value.length>64)throw new Error('长期目标列表无效');return value.map(item=>text(item))}
 export function parseControlGoal(value:unknown):ControlGoal{
   const g=object(value)
-  if(g.schema!=='capstone-control-goal/1'||!states.has(String(g.state)))throw new Error('长期目标协议无效')
-  if(!Array.isArray(g.tasks)||!g.tasks.length||g.tasks.length>64)throw new Error('长期目标阶段无效')
+  const mission=g.application_kind==='mission'?parseMission({...g,schema:'capstone-control-mission/1'},text(g.workspace,128),text(object(g.origin).thread_id,128)):undefined
+  if(g.schema!=='capstone-control-goal/1'||(!states.has(String(g.state))&&!(mission&&g.state==='planning')))throw new Error('长期目标协议无效')
+  if(!Array.isArray(g.tasks)||(!g.tasks.length&&!(mission&&['planning','paused','cancelled'].includes(String(g.state))))||g.tasks.length>64)throw new Error('长期目标阶段无效')
   const tasks=g.tasks.map(value=>{
     const t=object(value),d=t.delegation===null?null:object(t.delegation)
     const binding=d?.binding===null||!d?null:object(d.binding)
@@ -50,7 +53,7 @@ export function parseControlGoal(value:unknown):ControlGoal{
       ...(observation?{observation:{sequence:integer(observation.sequence,0),state:text(observation.state,128),summary:typeof observation.summary==='string'?observation.summary.slice(0,4096):''}}:{})}
   })
   if(!Number.isFinite(Date.parse(String(g.deadline_at))))throw new Error('长期目标期限无效')
-  return {schema:'capstone-control-goal/1',workspace:text(g.workspace,128),goal_id:text(g.goal_id,128),revision:integer(g.revision),
+  return {...(mission?{mission}:{}),schema:'capstone-control-goal/1',workspace:text(g.workspace,128),goal_id:text(g.goal_id,128),revision:integer(g.revision),
     objective_revision:integer(g.objective_revision),objective:text(g.objective),acceptance_criteria:strings(g.acceptance_criteria),
     max_delegations:integer(g.max_delegations),delegations_admitted:integer(g.delegations_admitted,0),deadline_at:String(g.deadline_at),
     state:String(g.state),reason:g.reason===null?null:text(g.reason,512),acceptance:g.acceptance===null?null:object(g.acceptance),tasks}

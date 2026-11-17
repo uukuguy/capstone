@@ -27,7 +27,7 @@ export default function ControlTaskBoard({goal,disabled,onOpenThread,onVerify,se
  const dependency=(task:ControlTask)=>waiting(task).map(id=>goal.tasks.find(t=>t.task_id===id)?.objective??id).join('、')
  const pendingReview=goal.tasks.filter(t=>t.state==='delivered').length
  return <div className="control-task-workspace">
-  <div className="control-task-notice" role="status">{pendingReview
+  <div className="control-task-notice" role="status">{goal.mission&&!goal.tasks.length?'尚无执行任务。请在 Mission 来源会话继续规划；准备完成后才会执行。':pendingReview
    ?`需要核验：${pendingReview} 项阶段交付。核验通过后才能解除后续依赖。`
    :goal.state==='revising'?'目标要求已修改；下方仍为待停止的旧执行，新任务尚未启用。'
    :'任务状态来自执行记录；阶段完成与最终接受分别记录。'}</div>

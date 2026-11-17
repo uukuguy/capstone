@@ -14,6 +14,20 @@ const goal=()=>parseControlGoal({schema:'capstone-control-goal/1',workspace:'ent
 function transport(goals=[goal()]){return {workspaceName:'enterprise',controlGoals:vi.fn().mockResolvedValue({goals,nextCursor:null}),
   controlGoal:vi.fn().mockResolvedValue(goals[0]??goal()),createControlGoal:vi.fn(),controlGoalCommand:vi.fn(),controlEvents:vi.fn()}}
 
+it('keeps a planning Mission visible alongside legacy Goals and directs changes to its source conversation',async()=>{
+  const legacy=goal(),mission=parseControlGoal({...legacy,application_kind:'mission',mission_id:'goal_mission',goal_id:'goal_mission',objective:'Rough intent',origin:{thread_id:'thr_origin'},plan_revision:1,plan_complete:false,state:'planning',tasks:[]})
+  const api=transport([mission,legacy]);api.controlGoal.mockImplementation(async(id:string)=>id===legacy.goal_id?legacy:mission)
+  render(<ControlGoals transport={api} onOpenThread={vi.fn()}/>)
+  fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
+  await screen.findByRole('heading',{name:'Rough intent'})
+  expect(screen.getByRole('status').textContent).toContain('尚无执行任务')
+  expect(screen.getByRole('button',{name:'返回 Mission 来源会话'})).toBeTruthy()
+  expect(screen.queryByRole('button',{name:'修改目标与阶段'})).toBeNull()
+  fireEvent.change(screen.getByRole('combobox',{name:'选择长期目标'}),{target:{value:'goal_one'}})
+  await screen.findByRole('button',{name:'打开阶段 1 会话'})
+  expect(screen.getByRole('button',{name:'修改目标与阶段'})).toBeTruthy()
+})
+
 it('opens the existing delegated Thread instead of building another chat',async()=>{
   const api=transport(),open=vi.fn()
   render(<ControlGoals transport={api} onOpenThread={open}/> )

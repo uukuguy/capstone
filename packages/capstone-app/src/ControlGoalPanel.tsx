@@ -6,10 +6,11 @@ import {commandKey} from './commandKey'
 import {buildControlGoal,controlGoalCommand,type ControlCommand,type ControlDraft,type ControlGoal,type ControlGoalCreate} from './controlGoals'
 import type {HttpThreadTransport} from './threadHttpTransport'
 import './ControlGoalPanel.css'
+import {navigateSession} from './SessionNavigation'
 
 type Transport=Pick<HttpThreadTransport,'workspaceName'|'controlGoals'|'controlGoal'|'createControlGoal'|'controlGoalCommand'|'controlEvents'>
 type Pending={kind:'create';body:ControlGoalCreate}|{kind:'command';body:ControlCommand}
-const names:Record<string,string>={ready:'待执行',running:'推进中',waiting:'等待处理',paused:'已暂停',pausing:'暂停中',
+const names:Record<string,string>={planning:'规划中',ready:'待执行',running:'推进中',waiting:'等待处理',paused:'已暂停',pausing:'暂停中',
   cancelling:'撤销中',cancelled:'已撤销',revising:'等待旧阶段停止',delivered:'待最终接受',accepted:'已接受',
   pending:'待前置阶段',dispatching:'正在委托',delivered_task:'待阶段核验',verified:'阶段核验通过',
   revoke_requested:'等待停止确认',resume_requested:'正在恢复',blocked:'需处理',failed:'执行失败',completed:'执行已完成'}
@@ -131,10 +132,11 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
           taskControls={<>
 <h4>最终验收条件</h4><ul>{goal.acceptance_criteria.map((c,i)=><li key={i}>{c}</li>)}</ul>
         <div className="control-goal-actions">
+          {goal.mission&&<button disabled={disabled} onClick={()=>{navigateSession(goal.mission!.origin.thread_id);setOpen(false)}}>返回 Mission 来源会话</button>}
           {['ready','running','waiting'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('pause')}>暂停目标</button>}
           {['paused','waiting'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('resume')}>恢复目标</button>}
           {!['accepted','cancelled','cancelling'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('cancel')}>撤销目标</button>}
-          {!['accepted','cancelled','cancelling','revising'].includes(goal.state)&&<button disabled={disabled} onClick={()=>{
+          {!goal.mission&&!['accepted','cancelled','cancelling','revising'].includes(goal.state)&&<button disabled={disabled} onClick={()=>{
             saveDraft({objective:goal.objective,criteria:goal.acceptance_criteria.join('\n'),maxDelegations:goal.max_delegations,deadline:goal.deadline_at,
               stages:goal.tasks.map(t=>({objective:t.objective,files:t.required_products.join(', '),mode:t.mode,maxAttempts:t.max_attempts}))});setForm('revise')
           }}>修改目标与阶段</button>}

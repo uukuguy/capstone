@@ -8,7 +8,7 @@ import './ControlWorkspaceViews.css'
 type Perspective='tasks'|'runtime'|'diagnosis'
 type Props={goal:ControlGoal;disabled:boolean;onOpenThread:(thread:string,work:string)=>void;
  onVerify:(task:string,revision:number)=>void;readEvents:(goal:string,after?:number,through?:number)=>Promise<ControlEventPage>;taskControls?:ReactNode}
-const states:Record<string,string>={ready:'待执行',running:'执行中',waiting:'等待处理',paused:'已暂停',pausing:'暂停请求待确认',
+const states:Record<string,string>={planning:'规划中',ready:'待执行',running:'执行中',waiting:'等待处理',paused:'已暂停',pausing:'暂停请求待确认',
  cancelling:'撤销请求待确认',cancelled:'已终止',revising:'等待旧执行停止',delivered:'待核验',accepted:'已接受',
  pending:'待开始',dispatching:'派发中',resume_requested:'恢复请求待确认',revoke_requested:'停止请求待确认',
  blocked:'受阻',failed:'执行失败',verified:'已核验',completed:'执行已完成',unknown:'状态待确认'}

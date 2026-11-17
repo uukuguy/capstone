@@ -15,6 +15,15 @@ it('maps every published task state without treating stopped or failed work as s
   for(const [state,column] of Object.entries(cases))expect(taskColumn(state)).toBe(column)
   expect(taskColumn('future_state')).toBe('unknown')
 })
+it('shows planning without a fabricated execution and renders admitted tasks when the plan is ready',()=>{
+ const planning={...goal([]),state:'planning',mission:{missionId:'goal_test',objective:'Report',state:'planning',revision:1,planComplete:false,origin:{thread_id:'thr_origin'}}}
+ const props={disabled:false,onOpenThread:vi.fn(),onVerify:vi.fn()}
+ const view=render(<ControlTaskBoard {...props} goal={planning}/>)
+ expect(screen.getByRole('status').textContent).toContain('尚无执行任务')
+ expect(screen.queryByRole('button',{name:/打开阶段/})).toBeNull()
+ view.rerender(<ControlTaskBoard {...props} goal={{...planning,state:'ready',tasks:[task('first','pending')]}}/>)
+ expect(screen.getByRole('button',{name:'查看任务：first'})).toBeTruthy()
+})
 it('keeps card DOM, selection and focus during same-task state refresh',()=>{
  const first=task('first','running'),second=task('second','pending'),g=goal([first,second])
  const props={goal:g,disabled:false,onOpenThread:vi.fn(),onVerify:vi.fn()}
