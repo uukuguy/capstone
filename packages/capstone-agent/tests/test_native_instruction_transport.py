@@ -27,3 +27,15 @@ def test_native_instruction_owner_retry_and_cancellation():
     record['cancel'].set()
     with pytest.raises(PermissionError):
         host.submit_instruction('task-1', document)
+
+
+def test_instruction_capability_requires_runner_transport_support(tmp_path):
+    from capstone_agent.application_capacity import limits
+    def unsupported(*args):
+        raise AssertionError('not executed')
+    host = GeneralPiHost(root=tmp_path / 'unsupported', identity={}, run_task=unsupported)
+    assert 'instruction_schemas' not in host.capability
+    unsupported.instruction_transport = True
+    host = GeneralPiHost(root=tmp_path / 'supported', identity={}, run_task=unsupported)
+    assert host.capability['instruction_schemas'] == ['capstone-native-instruction/1']
+    assert host.capability['instruction_limit'] == limits.native_instruction_count

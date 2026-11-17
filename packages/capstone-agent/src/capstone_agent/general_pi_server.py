@@ -197,7 +197,9 @@ class GeneralPiHost:
             'executor_identity': self.identity}
         self.capability['native_context_schemas'] = ['capstone-native-context/1']
         self.capability['execution_authority_schemas'] = ['capstone-execution-authority/1']
-        self.capability['instruction_schemas'] = ['capstone-native-instruction/1']
+        if getattr(run_task, 'instruction_transport', False) is True:
+            self.capability['instruction_schemas'] = ['capstone-native-instruction/1']
+            self.capability['instruction_limit'] = limits.native_instruction_count
         self.capability['task_recovery_schemas'] = ['capstone-pi-task-recovery/1']
         self.capability['research_bridge_schemas'] = ['capstone-research-bridge/1']
         self.capability['research_graph_schemas'] = ['capstone-enterprise-graph/2']
@@ -1191,7 +1193,7 @@ class GeneralPiHost:
                 if old['text'] != text:
                     raise ValueError('Native instruction identity conflict')
                 return {'instruction_id': instruction_id, 'state': old['state']}
-            if len(entries) >= 128:
+            if len(entries) >= limits.native_instruction_count:
                 raise ValueError('Native instruction queue exceeds bounds')
             entries[instruction_id] = {'text': text, 'state': 'queued', 'sent': False}
             return {'instruction_id': instruction_id, 'state': 'queued'}
@@ -1233,6 +1235,7 @@ class GeneralPiHost:
 
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
+    instruction_transport = True
     from .managed_resource_service import ManagedResourceService
     managed_resource_service: ManagedResourceService | None = None
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
@@ -1331,7 +1334,7 @@ class NativeTaskRunner:
             sdk_config = {'sdk': str(Path(self.command[1]).with_name('index.js')),
                           'input': task_input, 'taskId': request.task_id, 'skillName': None, 'settings': {}, 'allowedSkills': [],
                           'contextFiles': [], 'mcp': None, 'inventoryOnly': inventory_only,
-                          'context': context,
+                          'context': context, 'instructionLimit': limits.native_instruction_count,
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
                           'adapter_sha256': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                               for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest()}

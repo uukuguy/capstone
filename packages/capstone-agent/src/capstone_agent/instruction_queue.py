@@ -5,7 +5,22 @@ from copy import deepcopy
 def supported(binding):
     capability = (binding or {}).get('capability', {})
     return ('capstone-native-instruction/1' in capability.get('instruction_schemas', ())
-            and 'capstone-execution-authority/1' in capability.get('execution_authority_schemas', ()))
+            and 'capstone-execution-authority/1' in capability.get('execution_authority_schemas', ())
+            and type(capability.get('instruction_limit')) is int and capability['instruction_limit'] > 0)
+
+
+def enqueue_rejection(binding, snapshot, work_id):
+    if not supported(binding):
+        return 'instruction_queue_unavailable'
+    attempt = snapshot.current_attempt
+    work = next((item for item in snapshot.works if item['work_id'] == work_id), None)
+    if attempt is None or work is None:
+        return None
+    # Count withdrawn entries too. A single accepted attempt never exceeds
+    # the host's frozen idempotency ledger capacity.
+    count = sum(item['attempt_id'] == attempt.attempt_id
+                for item in work.get('instruction_queue', []))
+    return 'instruction_queue_capacity_reached' if count >= binding['capability']['instruction_limit'] else None
 
 
 def submit(queue, identity, text, attempt_id):

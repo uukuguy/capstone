@@ -593,9 +593,13 @@ export function createInstructionSteering(session,config,emit) {
   const defaults=JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits;
   const capacities=resolveLimits({...defaults,...config.runtimeLimits},{mode:config.runtimeLimitMode});
   const entries=new Map();
+  const instructionLimit=config.instructionLimit??capacities.native_instruction_count;
+  if(!Number.isSafeInteger(instructionLimit)||instructionLimit<1)throw new TypeError('Invalid native instruction limit');
   let closed=false;
   const unsubscribe=session.subscribe(event=>{
-    if(event.type!=='message_start'||event.message?.role!=='user')return;
+    // The pinned SDK appends user context on message_end. message_start only
+    // sets streamingMessage, so it cannot certify durable context admission.
+    if(event.type!=='message_end'||event.message?.role!=='user')return;
     const content=event.message.content;
     const text=typeof content==='string'?content:Array.isArray(content)?content.filter(p=>p.type==='text').map(p=>p.text).join(''):'';
     for(const [id,entry] of entries)if(!entry.consumed&&text===entry.message){
@@ -615,7 +619,7 @@ export function createInstructionSteering(session,config,emit) {
       checkCapacity(capacities,'input_text_chars',Array.from(frame.text).length,'characters','native_steering');
       const old=entries.get(frame.instruction_id);
       if(old){if(old.text!==frame.text)throw new Error('Native instruction identity conflict');return;}
-      if(entries.size>=128)throw new Error('Native instruction queue exceeds bounds');
+      if(entries.size>=instructionLimit)throw new Error('Native instruction queue exceeds bounds');
       // The prefix binds duplicate text to its durable identity and prevents
       // slash-command expansion from changing an ordinary user supplement.
       const message=`User instruction (${frame.instruction_id}):\n${frame.text}`;

@@ -31,6 +31,7 @@ def queue_store(request):
     executor = native_executor()
     executor.capability['instruction_schemas'] = ['capstone-native-instruction/1']
     executor.capability['execution_authority_schemas'] = ['capstone-execution-authority/1']
+    executor.capability['instruction_limit'] = 128
     store.set_native_executor(executor)
     return store, thread_id
 
@@ -116,6 +117,32 @@ def test_instruction_withdraw_reserve_race_has_one_winner(queue_store):
     store.finish_attempt(claim, phase='interrupted', payload={})
     final = store.snapshot(thread_id).works[0]['instruction_queue'][0]['state']
     assert final == ('delivery_unknown' if reserved is not None else 'withdrawn')
+    work = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'start_work', 'uncertain_resume',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    resumed = store.claim_attempt('uncertain_resume_worker', 30)
+    assert store.peek_instructions(resumed) == ()
+    assert store.snapshot(thread_id).works[0]['instruction_queue'][0]['attempt_id'] == claim.attempt.attempt_id
+
+
+def test_queue_enforces_frozen_host_capacity_including_withdrawn(queue_store):
+    store, thread_id = queue_store
+    store._native_binding['capability']['instruction_limit'] = 2
+    work = save_work(store, thread_id)
+    assert store.submit_command(command(store, thread_id, 'start_work', 'capacity_start',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    claim = store.claim_attempt('capacity_worker', 30)
+    store._native_binding['capability']['instruction_limit'] = 128
+    def submit(kind, name, payload):
+        current = store.snapshot(thread_id).works[0]
+        return store.submit_command(command(store, thread_id, kind, name,
+            work_id=current['work_id'], revision=current['revision'], payload=payload))
+    assert submit('queue_instruction', 'capacity_one', {'text': 'One'}).status == 'accepted'
+    assert submit('withdraw_instruction', 'capacity_withdraw', {'instruction_id': 'cmd_capacity_one'}).status == 'accepted'
+    assert submit('queue_instruction', 'capacity_two', {'text': 'Two'}).status == 'accepted'
+    assert submit('queue_instruction', 'capacity_three', {'text': 'Three'}).rejection == 'instruction_queue_capacity_reached'
+    assert len(store.snapshot(thread_id).works[0]['instruction_queue']) == 2
+    assert [item['id'] for item in store.peek_instructions(claim)] == ['cmd_capacity_two']
 
 
 def test_instruction_delivery_survives_store_restart(queue_store):
@@ -134,7 +161,7 @@ def test_instruction_delivery_survives_store_restart(queue_store):
     assert restored.acknowledge_instruction(claim, 'cmd_restart_input')['state'] == 'admitted'
 
 
-@pytest.mark.parametrize('missing', ['instruction_schemas', 'execution_authority_schemas'])
+@pytest.mark.parametrize('missing', ['instruction_schemas', 'execution_authority_schemas', 'instruction_limit'])
 def test_queue_requires_frozen_native_capability(queue_store, missing):
     from copy import deepcopy
     store, thread_id = queue_store
