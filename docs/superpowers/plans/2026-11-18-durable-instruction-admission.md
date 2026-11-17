@@ -2,7 +2,8 @@
 
 Owner: capstone-agent, with capstone-app consumer and native runtime adapter.
 Branch: feat/durable-instruction-admission-20261118. Destination: dev c8de9924.
-Status: source mapping complete; protocol implementation pending.
+Status: queue, native transport and App integration implemented; real local browser
+acceptance passed. Final clean-source rebuild and dev integration remain pending.
 Parent: [accepted intervention design](../specs/2026-11-17-conversation-intervention-design.md).
 
 ## Confirmed implementation seams
@@ -37,5 +38,23 @@ Only then enable execution-time sending in the App and add the compact status st
 Real acceptance requires a changed next action during a running task and recovery
 after browser refresh. Existing product bytes and prior process records must survive.
 
-Next: define the exact versioned instruction command and receipt against both
-thread_service transaction implementations, then write failing admission tests.
+Current implementation: durable pending/delivering/admitted/withdrawn states, explicit
+delivery_unknown at uncertain terminal boundaries, leased reservation and consumption
+events, supported-runtime gating, text-only supplements under existing grants, compact
+status strip and independent send/stop. Existing old/professional executors retain
+their prior submission path. Real dedicated PostgreSQL tests cover reservation races,
+restart, stop/resume and stale leases. Native transport uses owned-task authority.
+
+SDK message_end consumption and negotiated-capacity corrections are implemented.
+Real thread thr_6587521a9aa46fe3f111 changed the saved artifact after a supplement
+arrived during a slow tool. Refresh restored the receipt. Cancellation raced delivery
+and retained delivery_unknown without auto replay; a later execution admitted a new
+instruction and recalled an exact unique prior constraint.390px reader-source navigation
+kept the composer within viewport. Evidence runs/durable-instruction-admission-20261118/
+browser-validation.json. File marker matched; terminal newline means it was not a
+byte-exact compliance proof. Pending-before-reservation stop is covered by real PG tests.
+
+401 backend,123 scope and194 App checks passed; review-driven followups add context
+and capacity coverage. Next finish clean-source rebuild, scoped CI and realdev entry.
+Do not report the overall goal complete from unit tests alone. After this gate, integrate
+through scoped macOS CI and continue intent-only Mission planning and equipment.

@@ -1,5 +1,33 @@
 # Live Session Checkpoint
 
+## Active sustained delivery, 2026-11-18
+
+User explicitly requires continuous progress through main-conversation intervention
+closure and then Mission intent/planning/equipment; do not stop at intermediate commits.
+Root branch feat/durable-instruction-admission-20261118 from dev c8de9924. Product
+queue78ba3ff1/f5535b58, frozen capability9e97e566, native+Appc1a53f2d,
+transport10051518, SDK/capacityb5b42460, continuationbc3d065b, narrow0298f557,
+focused gate34686054.401backend/123scope/194App checks pass. No CI yet.
+
+Real browser owner intervention_ui: active queue changed final artifact successfully,
+refresh retained admission; stop during delivery correctly reports delivery_unknown,
+pending unaffected tests covered by PG. Final explicit continuation verification ongoing.
+Evidence runs/durable-instruction-admission-20261118. Do not rebuild during its task.
+Latest canonical build /tmp/durable-intervention-context-rebuild.log passed image4f71d588;
+an earlier source copy may include uncommitted Mission foundation while it was relocated.
+Need final clean-source rebuild after browser task before claiming exact runtime source.
+Dedicated disposable PG capstone-intervention-tests-20261118 on25440, trust localhost,
+database capstone_intervention_tests; preserve application data. Remove test container
+only after acceptance ends. Native source tests242passed32platform skipped/8Node passed.
+
+Mission work isolated .worktrees/historical-input-receipts branch
+feat/mission-foundation-20261118, foundation2a74299b. native_steering owns Control
+foundation and native model bridge; backend_queue owns Mission HTTP/origin association
+and equipment delegation. Shared index: parent serializes root commits; Mission agents
+coordinate commits in their worktree. Do not mix unverified Mission source into root.
+Root control register/HTML are candidate drafts, need final graph/browser verification.
+Lightweight CI needs no separate approval; heavy tens-of-minutes CI still does.
+
 Final local acceptance: f1c4dc57 plus focused gate;189App/types and143scope checks
 pass. Final canonical rebuild exited0, API/workers imagef25c7f8a, cleanup completed.
 Post-rebuild5174 original record, product entry, tab navigation and narrow screenshots
