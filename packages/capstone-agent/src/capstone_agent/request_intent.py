@@ -372,6 +372,9 @@ class NodeControl:
     check: Callable[[], None]
     deadline: float
     notice: Callable[[Mapping[str, object]], None] | None = None
+    instructions: Callable[[], tuple[dict, ...]] | None = None
+    reserve_instruction: Callable[[str], dict | None] | None = None
+    acknowledge_instruction: Callable[[str], dict | None] | None = None
 
     def __post_init__(self) -> None:
         if not callable(self.check):

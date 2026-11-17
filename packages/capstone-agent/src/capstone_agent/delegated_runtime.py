@@ -534,6 +534,10 @@ class DelegatedRuntime:
     def bind_artifact_store(self, objects):
         self._artifact_store = objects
 
+    def bind_instruction_service(self, service, claim):
+        self._instruction_service = service
+        self._instruction_claim = claim
+
     def _publish_artifacts(self, result, request, on_event, control=None):
         from .native_artifact_projection import project_native_artifacts
         if control is not None:
@@ -755,6 +759,13 @@ class DelegatedRuntime:
         general = frozen['resources']['general_executor'] if self._direct else frozen.get('general_executor')
         timeout = limits.delegation_task_seconds if general is None else general['timeout_seconds']
         control = NodeControl(heartbeat, time.monotonic() + timeout)
+        instruction_service = getattr(self, '_instruction_service', None)
+        if instruction_service is not None:
+            claim = self._instruction_claim
+            control = NodeControl(heartbeat, control.deadline,
+                instructions=lambda: instruction_service.peek_instructions(claim),
+                reserve_instruction=lambda identity: instruction_service.reserve_instruction(claim, identity),
+                acknowledge_instruction=lambda identity: instruction_service.acknowledge_instruction(claim, identity))
         goals: list[dict] = ([dict(goal_id='direct', operation='answer', depends_on=[], missing_requirements=[])]
             if self._direct else cast(IntentDecision, self._decision).to_document()['goals'])
         if self._direct and frozen.get('decision', {}).get('clarification_required') is True:

@@ -14,7 +14,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -155,6 +155,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       if (command.kind === 'start_work' && lostStart) throw new TypeError('start response lost')
       if (command.kind === 'cancel_work' && lostCancel) throw new TypeError('cancel response lost')
       if(command.kind==='send_message'&&lostMessage)throw new TypeError('message response lost')
+      if(command.kind==='queue_instruction'&&lostQueue)throw new TypeError('queue response lost')
       return response(receipt)
     }
     if (parsed.pathname.endsWith('/thr_work')) { snapshots += 1; return response(snapshot()) }
@@ -225,6 +226,27 @@ it('sends and withdraws a durable supplement while the original native attempt c
   await waitFor(()=>expect(server.commands[2]?.kind).toBe('withdraw_instruction'))
   await screen.findByText('已撤回')
   expect(server.work.cancel_requested).toBe(false)
+})
+
+it('retries an uncertain supplement with its original identity and no duplicate queue entry',async()=>{
+  const server=authority({native:true,lostQueue:true});server.work.instruction_queue_available=true
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="native-queue-uncertain" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'开始检查'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  fireEvent.change(input,{target:{value:'请先核对来源'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  const retry=await screen.findByRole('button',{name:'重试发送请求'})
+  expect((input as HTMLTextAreaElement).value).toBe('请先核对来源')
+  await waitFor(()=>expect((retry as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(retry)
+  await waitFor(()=>expect(server.commands).toHaveLength(3))
+  expect(server.commands[2]).toEqual(server.commands[1])
+  expect(server.work.instruction_queue).toHaveLength(1)
 })
 
 it('sends a native instruction directly through the shared composer and resumes the same Work after completion',async()=>{

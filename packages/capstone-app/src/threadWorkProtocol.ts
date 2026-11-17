@@ -8,7 +8,7 @@ import {parseContextProductRefs} from './threadProducts'
 import {parseGoalMode,goalCommand,type GoalMode,type GoalControl} from './goalMode'
 import type { AttemptPhase, RuntimeMode } from './threadProtocol'
 
-export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;state:'pending'|'delivering'|'admitted'|'withdrawn'}
+export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;state:'pending'|'delivering'|'delivery_unknown'|'admitted'|'withdrawn'}
 export type WorkRecord = {
   instructionQueue?:QueuedInstruction[]
   instructionQueueAvailable?:boolean
@@ -112,7 +112,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       if(!Array.isArray(work.instruction_queue))throw new ThreadProtocolError('指令队列无效')
       instructionQueue=work.instruction_queue.map(raw=>{
         const entry=object(raw)
-        if(typeof entry.text!=='string'||!entry.text.trim()||!['pending','delivering','admitted','withdrawn'].includes(String(entry.state)))throw new ThreadProtocolError('队列指令无效')
+        if(typeof entry.text!=='string'||!entry.text.trim()||!['pending','delivering','delivery_unknown','admitted','withdrawn'].includes(String(entry.state)))throw new ThreadProtocolError('队列指令无效')
         return {id:id(entry.id),text:entry.text,attemptId:id(entry.attempt_id),sequence:revision(entry.sequence,1),state:entry.state as QueuedInstruction['state']}
       })
       if(new Set(instructionQueue.map(entry=>entry.id)).size!==instructionQueue.length)throw new ThreadProtocolError('队列指令身份重复')
