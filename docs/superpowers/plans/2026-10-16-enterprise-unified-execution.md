@@ -1,5 +1,14 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Durable instruction admission — active, 2026-11-18
+
+Owner capstone-agent; branch feat/durable-instruction-admission-20261118 targets
+dev c8de9924. [Implementation boundary](2026-11-18-durable-instruction-admission.md)
+maps Thread command transactions, Harness lease/cancel checks and native stdin
+transport. Next implement durable pending/admitted receipts before enabling App send.
+PR138/139 are accepted; final runtime/control facts are in
+runs/execution-details-20261117/closeout.json. Queue/status controls remain pending.
+
 ## Conversation intervention — combined reader local candidate
 
 Implementation branch feat/execution-details-20261117 (capstone-app, destination dev)

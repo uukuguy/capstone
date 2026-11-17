@@ -1,5 +1,7 @@
 # Journal — append-only event log
 
+- 2026-11-18: Mapped durable intervention boundaries: active send rejects and native stdin blocks during prompt; server queue and consumption receipts required.
+
 > One line per commit / verified result / dropped path. Never edit past lines.
 > Format: `## YYYY-MM-DD` date headers, then `- HH:MM <fact> [commit hash if any]`
 
