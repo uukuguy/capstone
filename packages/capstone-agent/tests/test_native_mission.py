@@ -57,7 +57,8 @@ def test_gateway_selection_keeps_only_already_admitted_discovery_protocol_tools(
         protocol_tools={'agent_tool_search','agent_tool_load'})
 
 
-def test_worker_services_mission_requests_with_its_bound_control_callback(monkeypatch):
+@pytest.mark.parametrize('rejection',[None,'conflict','contract','transition'])
+def test_worker_services_mission_requests_with_its_bound_control_callback(monkeypatch,rejection):
     import time
     from capstone_agent.pi_delegation import HttpGeneralPiExecutor, PiTaskRequest
     from capstone_agent.request_intent import NodeControl
@@ -91,11 +92,34 @@ def test_worker_services_mission_requests_with_its_bound_control_callback(monkey
     monkeypatch.setattr(executor, '_call', call)
     def operation(name, args, identity):
         operations.append((name,args,identity))
+        if rejection:
+            from capstone_control.contracts import ContractError
+            from capstone_control.service import Conflict,InvalidTransition
+            raise {'conflict':Conflict,'contract':ContractError,'transition':InvalidTransition}[rejection]('PRIVATE_REJECTION_DETAIL')
         return {'mission_id':'goal_1','state':'planning'}
     executor.execute(request,NodeControl(lambda:None,time.monotonic()+2,mission_operation=operation),lambda _:None)
     assert len(operations) == 1
     assert operations[0][:2] == ('agent_mission_read',{})
-    assert acknowledged == [dict(call_id='call-1',result={'mission_id':'goal_1','state':'planning'},is_error=False)]
+    if rejection:
+        assert len(acknowledged)==1 and acknowledged[0]['is_error'] is True
+        expected={'conflict':'mission_revision_conflict','contract':'mission_contract_invalid','transition':'mission_transition_invalid'}
+        assert acknowledged[0]['result']['error']==expected[rejection]
+        assert 'PRIVATE_REJECTION_DETAIL' not in str(acknowledged)
+        if rejection=='conflict':
+            assert 'expected_revision' in acknowledged[0]['result']['message']
+            assert 'revision' in acknowledged[0]['result']['message'] and 'plan_revision' in acknowledged[0]['result']['message']
+    else:
+        assert acknowledged == [dict(call_id='call-1',result={'mission_id':'goal_1','state':'planning'},is_error=False)]
+
+
+def test_mission_tool_schemas_distinguish_current_object_revision_from_plan_revision():
+    from capstone_agent.native_mission import CATALOG
+    for schema in CATALOG.values():
+        expected=schema['inputSchema']['properties'].get('expected_revision')
+        if expected:
+            assert 'Mission.revision' in expected['description']
+            assert 'plan_revision' in expected['description']
+    assert 'Mission.plan_revision' in CATALOG['agent_mission_conclude']['inputSchema']['properties']['plan_revision']['description']
 
 
 def test_host_mission_channel_requires_the_current_task_attempt_and_authority():

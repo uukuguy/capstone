@@ -45,7 +45,10 @@ TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     required_products=dict(type='array', items=dict(type='string', minLength=1, maxLength=255), uniqueItems=True, maxItems=64),
     equipment=dict(type='array', items=REF, maxItems=64), restrictions=dict(type='array', items=REF, maxItems=64)),
     ['task_id', 'objective', 'delivery_requirements', 'depends_on', 'agent_id', 'mode', 'max_attempts'])
-REVISION = dict(type='integer', minimum=1)
+REVISION = dict(type='integer', minimum=1,
+    description='Exact Mission.revision from the latest returned Mission object (read or command receipt). Never use Mission.plan_revision as expected_revision.')
+PLAN_REVISION = dict(type='integer', minimum=1,
+    description='Exact Mission.plan_revision of the inspected plan being concluded. This is separate from Mission.revision used for expected_revision.')
 CATALOG = {
     'agent_mission_read': dict(description='Read the Mission associated with this conversation and its currently registered equipment references and agents. Use their exact identities and revisions; availability does not require initialization or selection. Planning is not execution or acceptance.', inputSchema=obj({})),
     'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve unrelated Tasks; planning does not dispatch work.',
@@ -60,7 +63,7 @@ CATALOG = {
     'agent_mission_control': dict(description='Request pause, resume or cancellation of the associated Mission. A request does not confirm a running Task has stopped. Read actual state before replanning; organizer text never broadcasts to Tasks.',
         inputSchema=obj(dict(expected_revision=REVISION, action={'enum':['pause','resume','cancel']}))),
     'agent_mission_conclude': dict(description='Conclude the current Mission plan only after inspecting actual saved results. Requires exact plan_revision, nonempty verified Tasks and no unfinished work. This marks delivery for user review, never final user acceptance.',
-        inputSchema=obj(dict(expected_revision=REVISION,plan_revision=REVISION,summary=dict(type='string',minLength=1,maxLength=4096)))),
+        inputSchema=obj(dict(expected_revision=REVISION,plan_revision=PLAN_REVISION,summary=dict(type='string',minLength=1,maxLength=4096)))),
     'agent_mission_wait': dict(description='Record a deliberate wait for an admitted Task boundary or for user input, then finish this organizer turn. Actual Task boundary events resume organization; do not poll state in a read loop. Waiting never concludes the plan; user waits suspend automatic organizer continuation.',
         inputSchema=obj(dict(expected_revision=REVISION,until={'enum':['task_boundary','user']},reason=dict(type='string',minLength=1,maxLength=4096)))),
 }
