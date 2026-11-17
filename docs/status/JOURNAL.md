@@ -8040,3 +8040,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: 71f6ef6e restores diagnostic return focus and scroll, and distinguishes final Goal acceptance from task verification.
 
 - 2026-11-17: Candidate control graph shows verified dc6ada7b-to71f6ef6e ancestry;21 graph/scope checks,doctor,new links and symlink pass. No CI started.
+
+- 2026-11-17: User accepted Goal/Mission distinction, dynamic task equipment, boundary-admitted intervention and combined right-panel execution/answer view. Recorded design and delivery boundary on docs/conversation-intervention-20261117 from accepted dev4e81c5f6. No runtime changes; doctor, whitespace and CLAUDE symlink checks pass. Reader relocation is the next implementation unit; concurrent send remains gated by durable admission.
