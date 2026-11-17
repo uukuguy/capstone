@@ -27,4 +27,3 @@ test('steering rejects grant fields and invalid or unbounded text',async()=>{
  }
  steering.close();
 });
-
