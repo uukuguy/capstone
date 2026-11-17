@@ -60,3 +60,20 @@ it('recovers an invalid local draft without changing server Goal state',async()=
   expect(screen.getByLabelText('阶段 1 目标')).toBeTruthy()
   expect(api.createControlGoal).not.toHaveBeenCalled()
 })
+
+it('ignores an old goal read that finishes after selecting another goal',async()=>{
+ const first=goal(),second={...goal(),goal_id:'goal_two',objective:'Second report'}
+ let finish!:(value:ReturnType<typeof goal>)=>void
+ const api=transport([first,second])
+ api.controlGoal.mockImplementation((id:string)=>id==='goal_one'?new Promise(resolve=>{finish=resolve}):Promise.resolve(second))
+ render(<ControlGoals transport={api} onOpenThread={()=>{}}/>)
+ fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
+ await waitFor(()=>expect(api.controlGoal).toHaveBeenCalledWith('goal_one'))
+ fireEvent.change(screen.getByLabelText('选择长期目标'),{target:{value:'goal_two'}})
+ await screen.findByRole('heading',{name:'Second report'})
+ finish(first)
+ await waitFor(()=>expect(api.controlGoal).toHaveBeenCalledWith('goal_two'))
+ await new Promise(resolve=>setTimeout(resolve,0))
+ expect(screen.queryByRole('heading',{name:'Produce a report'})).toBeNull()
+ expect(screen.getByRole('heading',{name:'Second report'})).toBeTruthy()
+})

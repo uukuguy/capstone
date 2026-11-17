@@ -1,0 +1,18 @@
+{
+  "schema": "capstone-development-gate/1",
+  "gate": "control-task-board",
+  "anchors": ["packages/capstone-app/src/ControlTaskBoard.tsx", "packages/capstone-app/src/ControlGoalPanel.tsx"],
+  "paths": [
+    "configs/development/control-task-board-gate.json",
+    "tools/test_control_task_board.sh",
+    "tools/tests/test_ci_control_task_board.py",
+    "tools/ci_scope.py",
+    ".github/workflows/verify.yml",
+    "packages/capstone-app/src/ControlTaskBoard.tsx",
+    "packages/capstone-app/src/ControlTaskBoard.css",
+    "packages/capstone-app/src/ControlTaskBoard.test.tsx",
+    "packages/capstone-app/src/ControlGoalPanel.tsx",
+    "packages/capstone-app/src/ControlGoalPanel.css",
+    "packages/capstone-app/src/ControlGoals.test.tsx"
+  ]
+}

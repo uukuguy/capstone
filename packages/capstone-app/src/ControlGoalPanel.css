@@ -1,4 +1,4 @@
-.control-goal-sheet .answer-detail-sheet{width:min(820px,94vw)}
+.control-goal-sheet .answer-detail-sheet{width:min(1420px,96vw)}
 .control-goal-sheet .answer-detail-content{font-size:13px;line-height:1.6}
 .control-goal-sheet p,.control-goal-sheet h3,.control-goal-sheet h4{overflow-wrap:anywhere}
 .control-goal-sheet label{display:flex;flex-direction:column;gap:6px;margin:12px 0}

@@ -1,5 +1,31 @@
 # Live Session Checkpoint
 
+## Current active candidate: Control task board, 2026-11-17
+
+Owner capstone-app. Initialized historical-input-receipts now owns
+feat/control-task-board-20261117 from actualdev5c8fe6d1. Destination dev.
+Accepted three views: task board, runtime lanes, linked diagnostic trace.
+First real slice replaces only Control stage list and preserves existing commands,
+uncertain-request identity and delegated conversation/product entry.
+
+74 App tests/types, 143 scope/graph tests, links/symlink/doctor pass.
+Candidate Vite5174 session28073 reads six actual Goals; accepted two-stage Goal
+goal_b600ce4290e3d95cdb4dfae171f40925 opens original delegated session.
+Real check sends zero execution commands and preserves card DOM on refresh.
+Root unchanged-backend canonical rebuild session64058 completed successfully:
+API/three-worker image d68d26ab; scoped cleanup receipt under root ignored state.
+Actualdev5173 App source remains unchanged. No cloud/demo change.
+
+Candidate product commit is 3ff3f515. Next: scoped macOS PR approval/run, integrate to dev,
+canonical actualdev rebuild and verify its entry. No CI has run for this candidate.
+The user's latest supplied AGENTS.md requires per-run approval; prepare all local
+work before asking. Current gate is control-task-board: six App suites/types and
+scope tests, no solver suites or disposable database. Design/plan are checked in.
+Root ignored runs/control-workspace-design-20261117 holds prototype and screenshots.
+Candidate and root source refs must remain distinct until integration.
+
+## Prior accepted session restoration (historical baton)
+
 Updated: 2026-11-17. Compatible history restoration is accepted in actual dev.
 
 Owner capstone-app. PR133 tested567d2638/macOS CI44034580886 passed (2m18s),

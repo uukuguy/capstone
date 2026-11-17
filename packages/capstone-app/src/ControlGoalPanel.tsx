@@ -1,6 +1,7 @@
-import {useCallback,useEffect,useState} from 'react'
+import {useCallback,useEffect,useRef,useState} from 'react'
 import {Target} from 'lucide-react'
 import AnswerDetailSheet from './AnswerDetailSheet'
+import ControlTaskBoard from './ControlTaskBoard'
 import {commandKey} from './commandKey'
 import {buildControlGoal,controlGoalCommand,type ControlCommand,type ControlDraft,type ControlGoal,type ControlGoalCreate} from './controlGoals'
 import type {HttpThreadTransport} from './threadHttpTransport'
@@ -43,17 +44,20 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
   const [goal,setGoal]=useState<ControlGoal|null>(null),[draft,setDraft]=useState<ControlDraft>(()=>draftFromStorage(scope+'.draft'))
   const [form,setForm]=useState<'create'|'revise'|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const [pending,setPending]=useState<Pending|null>(()=>pendingFromStorage(scope+'.pending')),[cursor,setCursor]=useState<string|null>(null)
+  const readEpoch=useRef(0)
   const saveDraft=(value:ControlDraft)=>{setDraft(value);write(scope+'.draft',value)}
   const rememberPending=(value:Pending|null)=>{setPending(value);write(scope+'.pending',value)}
-  const choose=(id:string)=>{setSelected(id);write(scope+'.selected',id);setForm(null)}
+  const choose=(id:string)=>{readEpoch.current++;setGoal(null);setSelected(id);write(scope+'.selected',id);setForm(null)}
   const refresh=useCallback(async(id=selected)=>{
+    const epoch=++readEpoch.current
     const page=await transport.controlGoals()
+    if(epoch!==readEpoch.current)return
     setGoals(previous=>{
       const next=[...page.goals,...previous.filter(g=>!page.goals.some(item=>item.goal_id===g.goal_id))]
       return next.length===previous.length&&next.every((g,i)=>g.goal_id===previous[i].goal_id&&g.revision===previous[i].revision)?previous:next
     });setCursor(page.nextCursor)
     const target=id||page.goals[0]?.goal_id
-    if(target){const next=await transport.controlGoal(target);setGoal(previous=>previous?.goal_id===next.goal_id&&previous.revision===next.revision?previous:next);if(!id){setSelected(target);write(scope+'.selected',target)}}
+    if(target){const next=await transport.controlGoal(target);if(epoch!==readEpoch.current)return;setGoal(previous=>previous?.goal_id===next.goal_id&&previous.revision===next.revision?previous:next);if(!id){setSelected(target);write(scope+'.selected',target)}}
     else setGoal(null)
   },[transport,selected,scope])
   useEffect(()=>{
@@ -64,7 +68,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
       if(['SELECT','INPUT','TEXTAREA'].includes(document.activeElement?.tagName||''))return
       load()
     },3000)
-    return ()=>{active=false;window.clearInterval(timer)}
+    return ()=>{active=false;readEpoch.current++;window.clearInterval(timer)}
   },[open,refresh])
   async function perform(operation:Pending){
     if(busy)return
@@ -134,15 +138,11 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
           {goal.state==='delivered'&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
         </div>
         {goal.acceptance&&<p role="status">已接受此目标版本及所列成果版本。</p>}
-        <ol className="control-goal-stages">{goal.tasks.map((task,index)=><li key={task.task_id}>
-          <h4>阶段 {index+1} · {task.objective}</h4><p>{names[task.state==='delivered'?'delivered_task':task.state]||task.state}</p>
-          {task.observation?.summary&&<p>{/^[a-z_]+$/.test(task.observation.summary)?names[task.observation.summary]||reason(task.observation.summary):task.observation.summary}</p>}
-          {task.required_products.length>0&&<p>预期成果：{task.required_products.join('、')}</p>}
-          {task.delivery&&<ul>{task.delivery.products.map(file=><li key={file.artifact_id}>{file.file_name} · {file.size_bytes} 字节 · SHA-256 {file.sha256.slice(0,12)}…</li>)}</ul>}
-          {task.delegation?.binding&&<button onClick={()=>{const b=task.delegation!.binding!;onOpenThread(b.thread_id,b.work_id);setOpen(false)}}>打开阶段 {index+1} 会话</button>}
-          {task.state==='delivered'&&task.delivery&&<button disabled={disabled} onClick={()=>control('verify_task',{task_id:task.task_id,delivery_revision:task.delivery!.revision,checks:[{name:'用户核验阶段交付',passed:true}]})}>确认阶段交付</button>}
-        </li>)}</ol>
-      </section>:<p>还没有长期目标。新建后，各阶段会在后台执行。</p>}
+        <ControlTaskBoard key={JSON.stringify([goal.workspace,goal.goal_id,goal.objective_revision])} goal={goal} disabled={disabled}
+          onOpenThread={(thread,work)=>{onOpenThread(thread,work);setOpen(false)}}
+          onVerify={(taskId,deliveryRevision)=>control('verify_task',{task_id:taskId,delivery_revision:deliveryRevision,checks:[{name:'用户核验阶段交付',passed:true}]})}/>
+
+      </section>:<p>{selected?'正在读取目标状态…':'还没有长期目标。新建后，各阶段会在后台执行。'}</p>}
     </AnswerDetailSheet>}
   </>
 }

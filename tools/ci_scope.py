@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    board_manifest = Path(__file__).resolve().parents[1] / 'configs/development/control-task-board-gate.json'
+    if board_manifest.is_file():
+        board = json.loads(board_manifest.read_text())
+        if set(board['anchors']).issubset(paths) and all(
+                path in board['paths'] or _control_path(path) for path in paths):
+            return 'control-task-board'
     control_manifest = Path(__file__).resolve().parents[1] / 'configs/development/control-delegation-gate.json'
     if control_manifest.is_file():
         control = json.loads(control_manifest.read_text())

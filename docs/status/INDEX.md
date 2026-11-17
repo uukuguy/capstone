@@ -1,5 +1,11 @@
 # docs/status INDEX
 
+2026-11-17 任务看板候选：capstone-app，feat/control-task-board-20261117 目标 dev。
+74 项 App 与类型、123 项门禁检查通过；5174 读取真实目标及原会话，无执行命令。
+详见[计划](../superpowers/plans/2026-11-17-control-task-board.md)、
+[设计](../superpowers/specs/2026-11-17-control-workspace-views.md)及 VERSION-CONTROL。
+尚未合并或部署候选到实际 dev。
+
 2026-11-17 兼容恢复已验收：PR133合入dev6714d223，受检567d2638/macOS CI44034580886、137App/类型与191治理通过；实际5173规范重建、完成/取消任务及连续对话自动恢复通过，快照与置顶不变。[验收](../reviews/2026-11-17-compatible-session-restoration.md)。新建已走v2连续对话；重要旧记录显式转换后退役废弃兼容属于后续方向，见[计划](../superpowers/plans/2026-11-17-compatible-session-restoration.md)和[演进记录](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)。
 
 2026-11-17 常驻左栏实际dev验收通过：PR131/受检6eb7c637/macOS CI44026102168合入8d5fa71d；132App/类型、190治理、规范重建与实际5173严格DOM/坐标/100px滚动证明通过，节点增删0、目录GET0，原始10个置顶ID一致。当前仅docs/persistent-navigation-closeout-20261117目标dev记录收口，最终自身回执忽略保存。[验收](../reviews/2026-11-17-persistent-workspace-navigation.md)。
