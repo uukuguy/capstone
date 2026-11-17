@@ -27,3 +27,10 @@ No replacement conversation UI, backend mutation or pin migration.
 5. Integrate via focused macOS dev PR, verify actual5173 and update canonical
    control/register/graph with an explicit exact deployed-source node before
    any control-only HEAD advances. Final own receipts remain ignored.
+
+Accepted source6eb7c637 through PR131/dev8d5fa71d and macOS CI44026102168.
+132 App/types,190 governance, actualdev canonical rebuild and real5173 strict
+DOM/geometry/100px scroll checks pass. Exact source8d5fa71d is a fixed deployment
+node. [Verification](../../reviews/2026-11-17-persistent-workspace-navigation.md).
+Only the control acceptance PR and its ignored final receipt remain; no successor
+feature is selected.

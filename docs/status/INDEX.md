@@ -1,10 +1,10 @@
 # docs/status INDEX
 
-2026-11-17 用户再次纠正左栏验收：旧修正未保持同一导航DOM。当前fix/persistent-workspace-navigation-20261117归capstone-app，目标dev，常驻工作空间导航、后台目录与独立会话内容；127App/类型和190治理通过，实际浏览器待验。[计划](../superpowers/plans/2026-11-17-persistent-workspace-navigation.md)。
+2026-11-17 常驻左栏实际dev验收通过：PR131/受检6eb7c637/macOS CI44026102168合入8d5fa71d；132App/类型、190治理、规范重建与实际5173严格DOM/坐标/100px滚动证明通过，节点增删0、目录GET0，原始10个置顶ID一致。当前仅docs/persistent-navigation-closeout-20261117目标dev记录收口，最终自身回执忽略保存。[验收](../reviews/2026-11-17-persistent-workspace-navigation.md)。
 
-2026-11-17：PR129已合dev b0dfa1cc。实时刷新暴露local-dev来源f818d2e9缺少固定节点；docs/sidebar-source-node-20261117仅补正来源节点，目标dev，产品验收保持有效。
+历史来源补正：PR129已合b0dfa1cc，PR130已合3ef7d5b2，补齐旧local-dev来源f818d2e9固定节点；两项分支均已关闭。当前精确本机来源为上方8d5fa71d。
 
-2026-11-17：会话切换左栏跳动修正已通过PR128合入dev f818d2e9；125App/类型、145治理、macOS CI43941305783通过。实际dev规范重建和5173重复切换保持10项、顺序与滚动位置，原始置顶ID完全一致。当前仅控制收口docs/session-sidebar-closeout-20261117目标dev；最终回执忽略保存。[验收](../reviews/2026-11-17-session-sidebar-stability-local.md)。
+历史元数据修正：PR128合入f818d2e9，通过125App/类型、145治理与macOS CI，但旧行数检查未证明左栏常驻，用户已纠正；完整契约由PR131重新验收。[旧验证](../reviews/2026-11-17-session-sidebar-stability-local.md)。
 
 2026-11-17：阶段二PR126已合入dev87e780df；最终macOS CI43929754196、183后端/71App及类型通过。真实双会话/原字节/接受、重启、控制重放、预算及期限停止通过。实际dev规范重建、5173目标/四原成果/刷新与10置顶恢复通过，临时5174已停止。独立审查工具不可用。只剩控制文档PR合入和最终忽略回执，见[验收](../reviews/2026-11-17-control-delegation-local.md)。
 

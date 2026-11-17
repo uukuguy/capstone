@@ -1,5 +1,10 @@
 # Session sidebar stability — local verification
 
+Acceptance correction: the user rejected this row-count-only verification. It
+did not prove the same navigation DOM remained mounted. The full contract is
+retested in [persistent workspace navigation](2026-11-17-persistent-workspace-navigation.md).
+Keep these historical measurements; do not treat them as final sidebar acceptance.
+
 Owner capstone-app. Branch fix/session-sidebar-stability-20261117 targets dev.
 Rootdev baseline7531bc1f. Product source399f90f3, reviewed head4ff09235.
 PR128 is merged into actualdev f818d2e9. macOS CI43941305783 passed.

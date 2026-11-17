@@ -1,17 +1,22 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Persistent workspace navigation — active correction, 2026-11-17
+## Persistent workspace navigation — accepted in actual dev, 2026-11-17
 
 The user rejects the prior symptom-only acceptance. Selection must update only
 sidebar highlight; the navigation DOM/list/scroll remain mounted while content
 switches. Owner capstone-app, fix/persistent-workspace-navigation-20261117 targets
 dev from3ef7d5b2. [Plan](2026-11-17-persistent-workspace-navigation.md).
 Cold-preparation DOM identity and post-auth catalog regressions failed first;
-127 direct App checks/types and190 scope checks pass. Next real browser geometry/
-identity verification, focused macOS PR and actualdev5173 acceptance. Preserve
-original pins/products. No cloud/demo or backend behavior change.
+Queued wheel/route99→87 also failed before persistent scroll handling.132 direct
+App checks/types and190 scope checks pass. PR131/head6eb7c637 passed macOS
+CI44026102168 and merged into8d5fa71d. Actualdev canonical rebuild/imagef3bb77d2,
+readiness/identity/cache maintenance and real5173 strict DOM/coordinates/100px
+scroll probes pass: row mutations0, catalog GET0. Vivaldi passes four switches;
+original10 pin IDs and saved products remain. Only docs/persistent-navigation-
+closeout-20261117 records final control acceptance; final own receipts stay ignored.
+No cloud/demo or backend behavior change. This supersedes metadata-only acceptance.
 
-## Session sidebar stability — accepted in dev, 2026-11-17
+## Session sidebar stability — earlier metadata-only correction, 2026-11-17
 
 Owner capstone-app; fix/session-sidebar-stability-20261117 targets dev in the
 initialized historical-input-receipts worktree. Existing5173 reproduces10→3→10

@@ -1,42 +1,67 @@
 # Live Session Checkpoint
 
-Updated: 2026-11-17. Active correction: persistent workspace navigation.
+Updated: 2026-11-17. Persistent navigation is accepted in actual dev.
 
-User explicitly rejected the earlier symptom-only fix. Sidebar must stay mounted;
-selection only changes highlight while conversation/products switch. PR128 fixed
-metadata shrinkage, not this lifetime contract. Prior acceptance is insufficient.
+## Accepted boundary
 
-Owner capstone-app. Branch fix/persistent-workspace-navigation-20261117 in initialized
-.worktrees/historical-input-receipts targets dev3ef7d5b2. All dirty paths belong to
-this one correction: route/navigation/frame/context/styles, focused gate manifest/
-classifier/test, implementation plan and status/control docs. Preserve rootvar,
-ignored auth, other worktrees/stashes and original10 pin IDs/products.
+User required a stationary sidebar: only selection highlight changes while
+conversation/products switch, and catalog work stays in the background. Prior
+PR128 row-count acceptance was insufficient and is explicitly corrected.
 
-Cold-switch sidebar DOM identity regression failed first. Workspace-owned frame
-now holds catalog, navigation, Control entry/new button and fixed gateway footer;
-Activities contain conversation/products only. Selection starts no list request.
-Legacy per-session work controls stay with conversation content. Background list
-can be pending while conversation opens. Post-auth catalog test failed and then
-passed with access namespace rotation.127 App/types and190 governance passed.
-Reviewer dispatch failed Unknown model gpt-6.1-luna; no independent pass exists.
+Owner capstone-app. PR131 tested head6eb7c637/macOS CI44026102168 passed and merged
+into dev8d5fa71d.132 App/types across12 consumers and190 governance checks passed
+(1 existing skip). Cold DOM identity, delayed catalog, authentication namespace
+rotation, retained content/eviction and queued wheel99→87 regressions are covered.
 
-Next: commit this coherent implementation after docs/graph checks; canonical
-candidate rebuild using root deploy/local.env and existing root PyPSA asset path,
-CAPSTONE_START_APP=0 (never copy auth). Start owned candidate Vite5174 in this
-initialized tree. Reuse existing candidate browser tab; verify constant sidebar/
-row geometry and selection during cold/warm switches, new entry and originals.
-Do not settle for counts alone. Then focused macOS session-navigation PR, merge,
-actualdev rebuild and5173 acceptance. CI is directly authorized.
+Actualdev canonical rebuild11444 completed0. API/three workers use
+imagef3bb77d2bf23689a742818fa046f54eba1e189acda62a492fbc99ffedaa6d31b;
+readiness and scoped cache maintenance passed. Actual localhost5173 strict real
+browser probes pass three cold/one warm switches, then three switches at100px:
+same navigation/list/scroll/footer/row DOM, identical row/viewport geometry and
+scroll offsets, row child-list mutations0, catalog requests0. Highlight changes
+during cold preparation before content arrives. Existing Vivaldi5173 also passes
+four switches. Original10 exact pin IDs match and saved PPT preview remains.
 
-Update canonical worklist/register/graph after real acceptance. Add a fixed key
-commit/presentation row for exact actualdev rebuild source before any later control
-HEAD advances. Last task exposed a missing-source refresh failure when only a
-dynamic dev-head represented deployed source. Final own PR/CI/merge/head receipts
-stay ignored, without a self-referencing control commit loop.
+Owned candidate Vite78131/5174 is stopped. Real5173/API/workers remain available.
+No model instruction, cloud/demo/main change or original data removal. New-entry
+trial auto-created empty thr_7f864f18c01f505b3268; zero events/works verified and
+only that owned empty trial was deleted. Its receipt remains ignored.
 
-Plan: docs/superpowers/plans/2026-11-17-persistent-workspace-navigation.md.
-Evidence root ignored runs/persistent-navigation-20261117; local test logs in/tmp.
-Existing local5173/API/workers sourcef818d2e9/imagefaf6c85a remain available until
-candidate rebuild; record role split honestly. No model task or cloud/demo change.
-Vivaldi window355034; user may change active tabs, so use fresh snapshots. Reuse
-existing5173/5174/control tabs. GitHub process-scoped Clash127.0.0.1:7897.
+## Finite remaining control boundary
+
+Initialized .worktrees/historical-input-receipts owns
+docs/persistent-navigation-closeout-20261117, based on8d5fa71d and targeting dev.
+Only review/plan/status/control docs belong to it. Product is already integrated.
+Canonical register now includes explicit key-commit/presentation rows for exact
+actualdev source8d5fa71d, so future control-only HEADs cannot remove that source.
+
+Generate/re-layout and inspect the graph with ui-ux-pro-max; run focused docs/
+graph/doctor/link/symlink/diff checks. Commit exact paths, push one docs PR,
+run directly authorized macOS docs gate and merge after exact-head pass. Then
+fast-forward actualdev, refresh `python3 tools/render_project_overview.py --live
+--no-probe`, inspect actual HEAD/source/ancestry edges and close verified branches.
+Preserve initialized worktree, rootvar, ignored auth and unrelated work/stashes.
+Final own PR/CI/merge/HEAD/clean receipts go only into ignored
+runs/persistent-navigation-20261117/closeout-receipt.json and the graph receipt.
+Once that receipt proves completion, do not start another control commit to
+record its own hash. No new goal or successor feature is selected.
+
+## Evidence and browser restoration
+
+Review: docs/reviews/2026-11-17-persistent-workspace-navigation.md.
+Root ignored evidence: runs/persistent-navigation-20261117, especially
+actualdev-browser-proof.json, actualdev-scroll-proof.json, actualdev-runtime-identity.json
+and actualdev-vivaldi-browser-results.json. Failed/overbroad probes are retained.
+A1200px probe timed out on an existing hidden heading; accepted desktop is1920px.
+Creating a Thread legitimately refreshes catalog; selection must not do so.
+
+Independent reviewer dispatch failed Unknown model gpt-6.1-luna; direct source
+review was performed, no independent pass exists. Vivaldi Apple Events JS remains
+disabled. Existing automation tab capstone-unified is reused via matching cached
+CLI1.64 at /Users/sujiangwen/.npm/_npx/9833c18b2d85bc59/node_modules/playwright/cli.js cli.
+Its original graph server18744 is no longer available and CLI file URLs are
+blocked; restore the original URL/viewport1200x825 without changing that policy.
+Inspect actual root file graph through the existing Vivaldi graph tab instead.
+Existing Vivaldi window355034 should end
+on actual5173; reuse tabs and fresh indexes. GitHub uses process-scoped
+Clash127.0.0.1:7897. Preserve recovery2eefdda714845605f7aef5c8a450aa982770ca4f.
