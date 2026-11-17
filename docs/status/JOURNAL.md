@@ -8073,3 +8073,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: c1a53f2d adds native instruction transport; 0b188a75 cleans whitespace. SDK consumption receipts prevent false admission acknowledgements.
 - 2026-11-18: b810d2b4 records the committed Mission candidate; accepted dev38a9e77f synchronization preserves strict queue parsing and equipment fields.
 - 2026-11-18: Mission/dev merge preserves queue validation and registered equipment;157 focused PostgreSQL/runtime checks and App types pass.
+- 2026-11-18: 2b325a30 merges accepted dev38a9e77f into Mission source; queue parser and equipment contracts remain intact.
+- 2026-11-18: 9a0e2cf4 marks Missions in shared Goal projections;74 focused checks preserve mixed lists, source identity and pagination.

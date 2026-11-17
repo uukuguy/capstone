@@ -46,11 +46,11 @@ TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     ['task_id', 'objective', 'delivery_requirements', 'depends_on', 'agent_id', 'mode', 'max_attempts'])
 REVISION = dict(type='integer', minimum=1)
 CATALOG = {
-    'agent_mission_read': dict(description='Read the Mission associated with this conversation. Planning is not execution or acceptance.', inputSchema=obj({})),
+    'agent_mission_read': dict(description='Read the Mission associated with this conversation and its currently registered equipment references and agents. Use their exact identities and revisions; availability does not require initialization or selection. Planning is not execution or acceptance.', inputSchema=obj({})),
     'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve unrelated Tasks; planning does not dispatch work.',
         inputSchema=obj(dict(expected_revision=REVISION, acceptance_criteria=dict(type='array', items=TEXT, maxItems=64),
                              tasks=dict(type='array', items=TASK, maxItems=64)))),
-    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with registered equipment references. Active Tasks cannot be rewritten.',
+    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered equipment references from the current Mission publication. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
     'agent_mission_ready': dict(description='Make the current Mission plan ready only when Tasks, acceptance criteria and equipment are admitted. This is not product acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION))),
