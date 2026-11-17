@@ -534,6 +534,7 @@ class ThreadSnapshot:
     session_title: SessionTitle | None = None
     session_type: str | None = None
     session_skills: Mapping[str, Any] | None = None
+    mission_refs: tuple[Mapping[str, str], ...] = ()
 
     @property
     def professional_context(self) -> ModelContextSnapshot:
@@ -544,6 +545,21 @@ class ThreadSnapshot:
 
     def __post_init__(self) -> None:
         from .session_skill_preferences import checked_preferences
+        if not isinstance(self.mission_refs, (tuple, list)) or len(self.mission_refs) > limits.work_count:
+            raise ThreadProtocolError('invalid Mission references')
+        refs = []
+        seen = set()
+        for ref in self.mission_refs:
+            if (not isinstance(ref, Mapping) or 'mission_id' not in ref
+                    or set(ref) - {'mission_id', 'work_id'}):
+                raise ThreadProtocolError('invalid Mission reference')
+            for key, value in ref.items():
+                _identifier(value, name='mission_ref.' + key)
+            if ref['mission_id'] in seen:
+                raise ThreadProtocolError('duplicate Mission reference')
+            seen.add(ref['mission_id'])
+            refs.append(dict(ref))
+        object.__setattr__(self, 'mission_refs', tuple(refs))
         object.__setattr__(self, 'session_skills', checked_preferences(self.session_skills))
         if self.session_type not in {None, 'grid-analysis', 'enterprise-research', 'general-chat'}:
             raise ThreadProtocolError('invalid session type')
@@ -580,12 +596,12 @@ class ThreadSnapshot:
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
             "current_attempt", "last_event_seq", "base_event_seq", "pending_selection", "session_title", "session_type",
-            "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_skills",
+            "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_skills", "mission_refs",
         })
         _fields(document, allowed, name="snapshot")
         _required(
             document,
-            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_title", "session_type", "session_skills"},
+            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_title", "session_type", "session_skills", "mission_refs"},
             name="snapshot",
         )
         if document["schema"] != _SNAPSHOT_SCHEMA:
@@ -657,6 +673,7 @@ class ThreadSnapshot:
             application_state=application_state,
             session_title=None if document.get('session_title') is None else SessionTitle.from_document(document['session_title']),
             session_type=document.get('session_type'),
+            mission_refs=tuple(document.get('mission_refs', ())),
             session_skills=document.get('session_skills'),
             runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
         )
@@ -679,6 +696,8 @@ class ThreadSnapshot:
             document['session_title'] = self.session_title.to_document()
         if self.session_type is not None:
             document['session_type'] = self.session_type
+        if self.mission_refs:
+            document['mission_refs'] = [dict(ref) for ref in self.mission_refs]
         if self.session_skills and self.session_skills['revision']:
             document['session_skills'] = dict(self.session_skills)
         if self.pending_model_switch is not None:

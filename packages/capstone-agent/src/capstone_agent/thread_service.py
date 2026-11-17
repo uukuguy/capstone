@@ -1245,6 +1245,14 @@ from .thread_gateway import ThreadGatewayOwner, historical_binding
 
 
 class NativeExecutionOwner(ThreadGatewayOwner):
+    def validate_mission_origin(self, workspace, origin, *, claim=None):
+        from .mission_origin import access
+        return access(self, workspace, origin, claim=claim)
+
+    def attach_mission(self, workspace, mission_id, origin, *, claim=None):
+        from .mission_origin import access
+        return access(self, workspace, origin, mission_id=mission_id, claim=claim)
+
     _native_binding = None
     _material_objects = None
     _product_index_service = None
@@ -1687,6 +1695,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                         published = _published_application_catalog(self)
                         if published is not None and '_application_catalog' not in stored_submission:
                             stored_submission['_application_catalog'] = published
+                from .mission_origin import bind_submission
+                stored_submission = bind_submission(updated, work['work_id'], stored_submission)
                 self._attempts[attempt.attempt_id] = {
                     'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
                     'lease_token': None, 'lease_deadline': None, 'model_context': updated.active_model_context,
@@ -2997,6 +3007,7 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_selection jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS mission_refs jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_title jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_type text;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
@@ -3246,6 +3257,8 @@ class PostgresThreadService(NativeExecutionOwner):
                         published = _published_application_catalog(self)
                         if published is not None and '_application_catalog' not in submission:
                             submission['_application_catalog'] = published
+                from .mission_origin import bind_submission
+                submission = bind_submission(updated, work['work_id'], submission)
                 connection.execute("""INSERT INTO capstone_thread_attempts
                     (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
                      selection_revision,model_context_snapshot,conversation_context_snapshot,
@@ -5318,6 +5331,7 @@ class PostgresThreadService(NativeExecutionOwner):
             session_title=None if row.get('session_title') is None else SessionTitle.from_document(row['session_title']),
             session_type=row.get('session_type'),
             session_skills=row.get('session_skills'),
+            mission_refs=tuple(row.get('mission_refs') or []),
         )
 
     @staticmethod

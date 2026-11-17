@@ -16,6 +16,54 @@ class ControlHost:
         self.service, self.agent, self.verify_product = service, agent, verify_product
         self.cursor = None
 
+    def create_mission(self, workspace, request, *, claim=None):
+        from .mission_origin import checked_origin
+        origin = checked_origin(request.get('origin'))
+        self.agent.threads.validate_mission_origin(workspace, origin, claim=claim)
+        # Control and Agent own different ledgers. Creation is idempotent;
+        # retry repairs the association if the second durable write fails.
+        mission = self.service.create_mission(workspace, request)
+        self.agent.threads.attach_mission(workspace, mission['mission_id'], origin, claim=claim)
+        return mission
+
+    def read_mission(self, workspace, mission_id, *, claim=None):
+        mission = self.service.read_mission(workspace, mission_id)
+        if mission.get('origin') is not None:
+            self.agent.threads.validate_mission_origin(workspace, mission['origin'], claim=claim)
+        return mission
+
+    def command_mission(self, workspace, command, *, actor='application:trusted', claim=None):
+        from .mission_origin import access
+        mission = self.read_mission(workspace, command['mission_id'], claim=claim)
+        apply = lambda: self.service.command_mission(workspace, command, actor=actor)
+        if mission.get('origin') is None:
+            return apply()
+        return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply)
+
+    def mission_operation(self, claim, name, arguments, *, operation_id):
+        from .thread_service import ThreadExecutionError
+        binding = (claim.submission or {}).get('_mission')
+        if (not isinstance(binding, dict) or binding.get('schema') != 'capstone-native-mission/1'
+                or not isinstance(arguments, dict)):
+            raise ThreadExecutionError('Mission binding is unavailable')
+        workspace, mission_id = claim.workspace_name, binding['mission_id']
+        mission = self.read_mission(workspace, mission_id, claim=claim)
+        if mission.get('origin') != binding.get('origin'):
+            raise ThreadExecutionError('Mission origin binding changed')
+        if name == 'agent_mission_read':
+            if arguments:
+                raise ValueError('Mission read takes no arguments')
+            return mission
+        kinds = {'agent_mission_update_plan': 'update_plan', 'agent_mission_prepare_task': 'prepare_task',
+                 'agent_mission_ready': 'ready'}
+        if name not in kinds or 'expected_revision' not in arguments:
+            raise ValueError('unsupported Mission operation')
+        payload = {key: value for key, value in arguments.items() if key != 'expected_revision'}
+        return self.command_mission(workspace, {
+            'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
+            'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
+            'kind': kinds[name], 'payload': payload}, actor='agent:' + claim.attempt.attempt_id, claim=claim)
+
     def tick(self, limit=32):
         """One bounded maintenance pass; no model calls or browser dependency."""
         goals = self.service.store.list(limit=limit, after=self.cursor, active_only=True)
@@ -103,6 +151,46 @@ def register_control_routes(app, *, threads, authorize, wake=None):
         rows = host.service.store.list(request.state.workspace_name, limit + 1, after=after)
         return {'schema': 'capstone-control-goals/1', 'goals': [public(row) for row in rows[:limit]],
                 'next_cursor': rows[limit - 1]['goal_id'] if len(rows) > limit else None}
+
+    @app.get('/api/v1/control/missions')
+    def list_missions(request: Request, limit: int = Query(32, ge=1, le=64), after: str | None = None):
+        authorize(request)
+        from capstone_control.mission import projection
+        rows = host.service.store.list(request.state.workspace_name, limit + 1, after=after)
+        return {'schema': 'capstone-control-missions/1',
+                'missions': [projection(host.service, row) for row in rows[:limit]],
+                'next_cursor': rows[limit - 1]['goal_id'] if len(rows) > limit else None}
+
+    @app.post('/api/v1/control/missions', status_code=201)
+    def create_mission(body: dict, request: Request):
+        authorize(request)
+        mission = run(host.create_mission, request.state.workspace_name, body)
+        if wake:
+            wake(mission['mission_id'])
+        return mission
+
+    @app.get('/api/v1/control/missions/{mission_id}')
+    def read_mission(mission_id: str, request: Request):
+        authorize(request)
+        return run(host.read_mission, request.state.workspace_name, mission_id)
+
+    @app.post('/api/v1/control/missions/{mission_id}/commands')
+    def mission_command(mission_id: str, body: dict, request: Request):
+        authorize(request)
+        if body.get('mission_id') != mission_id:
+            raise HTTPException(422, 'command Mission does not match route')
+        receipt = run(host.command_mission, request.state.workspace_name, body,
+                      actor=request.state.product_actor)
+        if wake:
+            wake(mission_id)
+        return receipt
+
+    @app.get('/api/v1/control/missions/{mission_id}/events')
+    def mission_events(mission_id: str, request: Request, after: int = Query(0, ge=0),
+                       limit: int = Query(50, ge=1, le=100), through: int | None = Query(None, ge=0)):
+        authorize(request)
+        return run(host.service.read_events, request.state.workspace_name, mission_id,
+                   after=after, limit=limit, through=through)
 
     @app.post('/api/v1/control/goals', status_code=201)
     def create_goal(body: dict, request: Request):

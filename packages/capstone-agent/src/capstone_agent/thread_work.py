@@ -435,8 +435,8 @@ def parse_snapshot(document):
     if context is None:
         from .thread_protocol import RunSnapshot, _identifier, _sequence
         allowed = {'schema', 'runtime_mode', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id',
-                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state', 'session_title', 'session_type', 'session_skills'}
-        required = allowed - {'runtime_mode', 'application_state', 'session_title', 'session_type', 'session_skills'}
+                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state', 'session_title', 'session_type', 'session_skills', 'mission_refs'}
+        required = allowed - {'runtime_mode', 'application_state', 'session_title', 'session_type', 'session_skills', 'mission_refs'}
         if (set(base) - allowed or not required <= set(base)
                 or base.get('active_grid_page_id') is not None):
             raise ThreadProtocolError('invalid model-free snapshot')
@@ -445,6 +445,7 @@ def parse_snapshot(document):
                                   None, None, None if current is None else AttemptSnapshot.from_document(base['current_attempt']), _sequence(base['last_event_seq'], name='last_event_seq'),
                                   _sequence(base['base_event_seq'], name='base_event_seq'),
                                   application_state=base.get('application_state'), runtime_mode=base.get('runtime_mode', 'capstone'),
+                                  mission_refs=tuple(base.get('mission_refs', ())),
                                   minimum_protocol_version=2,
                                   session_type=base.get('session_type'),
                                   session_skills=base.get('session_skills'),
@@ -455,7 +456,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'instruction_queue_available', 'instruction_queue'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -465,6 +466,29 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'instruction_queue_available' in work and type(work['instruction_queue_available']) is not bool:
+            raise ThreadProtocolError('invalid instruction availability')
+        if 'instruction_queue' in work:
+            queue = work['instruction_queue']
+            if not isinstance(queue, list) or len(queue) > limits.work_message_count:
+                raise ThreadProtocolError('invalid instruction queue bounds')
+            from .thread_protocol import _identifier
+            seen_instructions, previous_sequence = set(), 0
+            for item in queue:
+                if (not isinstance(item, dict)
+                        or set(item) != {'id', 'text', 'attempt_id', 'sequence', 'state'}
+                        or not isinstance(item['text'], str) or not item['text'].strip()
+                        or len(item['text']) > limits.input_text_chars
+                        or type(item['sequence']) is not int or item['sequence'] <= previous_sequence
+                        or not isinstance(item['state'], str)
+                        or item['state'] not in {'pending', 'withdrawn', 'delivering', 'admitted', 'delivery_unknown'}):
+                    raise ThreadProtocolError('invalid instruction queue entry')
+                _identifier(item['id'], name='instruction.id')
+                _identifier(item['attempt_id'], name='instruction.attempt_id')
+                if item['id'] in seen_instructions:
+                    raise ThreadProtocolError('duplicate instruction identity')
+                seen_instructions.add(item['id'])
+                previous_sequence = item['sequence']
         if 'goal_continuation' in work:
             continuation = work['goal_continuation']
             if (not isinstance(continuation, dict) or set(continuation) != {
@@ -515,5 +539,5 @@ def parse_snapshot(document):
             or len(json.dumps(document['works'], ensure_ascii=False).encode()) > limits.work_state_bytes):
         raise ThreadProtocolError('invalid Work snapshot identity or bounds')
     stored = tuple({key: deepcopy(value) for key, value in work.items()
-                    if key not in {'start_available', 'start_unavailable_reason'}} for work in document['works'])
+                    if key not in {'start_available', 'start_unavailable_reason', 'instruction_queue_available'}} for work in document['works'])
     return replace(snapshot, minimum_protocol_version=2, works=stored)
