@@ -23,7 +23,7 @@ def withdraw(queue, identity):
     item = next((item for item in result if item['id'] == identity), None)
     if item is None:
         raise ValueError('Instruction not found')
-    if item['state'] in {'admitted', 'delivering'}:
+    if item['state'] in {'admitted', 'delivering', 'delivery_unknown'}:
         raise ValueError('Instruction already in execution')
     item['state'] = 'withdrawn'
     return result

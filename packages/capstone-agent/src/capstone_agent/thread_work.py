@@ -83,6 +83,9 @@ def transition_work(snapshot, task_context, attempt_id, status):
         else:
             work['consumed_message_count'] = len(work['messages'])
     if status in {'completed', 'failed', 'cancelled', 'interrupted'}:
+        for item in work.get('instruction_queue', []):
+            if item['attempt_id'] == attempt_id and item['state'] == 'delivering':
+                item['state'] = 'delivery_unknown'
         work['cancel_requested'] = False
         pending = work.pop('pending_goal_control', None)
         if pending is not None:

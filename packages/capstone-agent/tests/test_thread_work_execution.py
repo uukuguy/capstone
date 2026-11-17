@@ -95,6 +95,9 @@ def test_instruction_withdraw_reserve_race_has_one_winner(execution_store):
     state = store.snapshot(thread_id).works[0]['instruction_queue'][0]['state']
     assert (reserved is None and withdrawn.status == 'accepted' and state == 'withdrawn') or (
         reserved is not None and withdrawn.status == 'rejected' and state == 'delivering')
+    store.finish_attempt(claim, phase='interrupted', payload={})
+    final = store.snapshot(thread_id).works[0]['instruction_queue'][0]['state']
+    assert final == ('delivery_unknown' if reserved is not None else 'withdrawn')
 
 
 def test_postgres_instruction_delivery_survives_store_restart(postgres_thread_service):
