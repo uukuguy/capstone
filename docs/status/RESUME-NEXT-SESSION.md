@@ -16,7 +16,7 @@ Root unchanged-backend canonical rebuild session64058 completed successfully:
 API/three-worker image d68d26ab; scoped cleanup receipt under root ignored state.
 Actualdev5173 App source remains unchanged. No cloud/demo change.
 
-Next: exact candidate commit, scoped macOS PR approval/run, integrate to dev,
+Candidate product commit is 3ff3f515. Next: scoped macOS PR approval/run, integrate to dev,
 canonical actualdev rebuild and verify its entry. No CI has run for this candidate.
 The user's latest supplied AGENTS.md requires per-run approval; prepare all local
 work before asking. Current gate is control-task-board: six App suites/types and
