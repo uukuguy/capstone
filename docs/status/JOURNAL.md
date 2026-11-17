@@ -8098,3 +8098,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 941afaee gate passes91 Control/485 backend/200 scope/94 App; canonical imageca3c0409 is ready for same-input real acceptance.
 - 2026-11-18: 941afaee real single-submission Mission passes two Tasks/reviews, exact source bytes, measured report, typed all-met, refresh and narrow UI.
 - 2026-11-18: Mission acceptance graph passes46-card browser layout and verified source ancestry; bilingual usage, runbook and local report align.
+- 2026-11-18: 17c8aeb4 commits the verified Mission snapshot; PR141 CI44177998939 exposes a setup-expired three-second test grant.
+- 2026-11-18: Controlled-clock reproduction fails before repair; post-setup grant and explicit expiry assertions pass16 native Mission checks, without runtime changes.
