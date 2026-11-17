@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     import json
+    mission_manifest = Path(__file__).resolve().parents[1] / 'configs/development/mission-conversation-gate.json'
+    if mission_manifest.is_file():
+        mission = json.loads(mission_manifest.read_text())
+        if set(mission['anchors']).issubset(paths) and all(
+                path in mission['paths'] or _control_path(path) for path in paths):
+            return 'mission-conversation'
     instruction_manifest = Path(__file__).resolve().parents[1] / 'configs/development/instruction-admission-gate.json'
     if instruction_manifest.is_file():
         instruction = json.loads(instruction_manifest.read_text())

@@ -1,0 +1,11 @@
+from tools.ci_scope import classify
+
+
+def test_mission_gate_covers_only_organization_and_direct_consumers():
+    paths = ['packages/capstone-control/src/capstone_control/mission.py',
+             'packages/capstone-agent/src/capstone_agent/native_mission.py',
+             'packages/capstone-app/src/missions.ts']
+    assert classify(paths) == 'mission-conversation'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths + ['packages/grid-simulator/src/new.py']) != 'mission-conversation'
+    assert classify(paths + ['packages/capstone-app/src/Unrelated.tsx']) != 'mission-conversation'
