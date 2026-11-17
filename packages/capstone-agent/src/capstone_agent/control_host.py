@@ -52,6 +52,17 @@ class ControlHost:
         return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply,
                       required_mission_id=command['mission_id'])
 
+    def command_goal(self, workspace, command, *, actor='application:trusted'):
+        """Keep the legacy receipt while using Thread-before-Control lock order."""
+        from .mission_origin import access
+        goal = self.service.read(workspace, command['goal_id'])
+        apply = lambda: self.service.command(workspace, command, actor=actor)
+        origin = goal.get('origin') if goal.get('application_kind') == 'mission' else None
+        if origin is None:
+            return apply()
+        return access(self.agent.threads, workspace, origin, operation=apply,
+                      required_mission_id=command['goal_id'])
+
     def mission_operation(self, claim, name, arguments, *, operation_id):
         from .thread_service import ThreadExecutionError
         binding = (claim.submission or {}).get('_mission')
@@ -126,7 +137,7 @@ class ControlHost:
 
     def _command(self, goal, kind, payload):
         operation = 'host_' + fingerprint([goal['goal_id'], goal['revision'], kind, payload])[:32]
-        return self.service.command(goal['workspace'], {
+        return self.command_goal(goal['workspace'], {
             'schema': 'capstone-control-command/1', 'operation_id': operation,
             'goal_id': goal['goal_id'], 'expected_revision': goal['revision'],
             'kind': kind, 'payload': payload}, actor='application:saved-products')['goal']
@@ -247,7 +258,7 @@ def register_control_routes(app, *, threads, authorize, wake=None):
         authorize(request)
         if body.get('goal_id') != goal_id:
             raise HTTPException(422, 'command Goal does not match route')
-        receipt = run(host.service.command, request.state.workspace_name, body,
+        receipt = run(host.command_goal, request.state.workspace_name, body,
                       actor=request.state.product_actor)
         if wake:
             wake(goal_id)

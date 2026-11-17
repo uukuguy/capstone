@@ -192,3 +192,52 @@ def test_conflicting_create_retains_same_operation_retry(chat_store):
         assert conflict.json()['detail']['code'] == 'mission_already_active'
         assert conflict.json()['detail']['mission_id'] == mission['mission_id']
         assert client.post('/api/v1/control/missions', headers=_auth(), json=original).json() == mission
+
+
+def test_memory_tick_and_api_commands_take_thread_lock_before_control_transaction(monkeypatch):
+    """Assert ordering before either worker can enter an inverted lock wait."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, current_thread
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_control.service import Conflict
+    from test_thread_postgres import _snapshot
+    threads = InMemoryThreadService(replace(_snapshot('thr_lock_order'), active_model_context=None,
+        active_grid_page_id=None, minimum_protocol_version=2))
+    threads.set_native_executor(native_executor())
+    host = configure_control(threads)
+    mission = host.create_mission('enterprise', request('thr_lock_order', 'lock_order'))
+    task = dict(task_id='inspect', objective='Read the available text', delivery_requirements=['Return findings'],
+        depends_on=[], agent_id='capstone', mode='single', max_attempts=1)
+    for kind, revision, payload in [('update_plan', 1, {'acceptance_criteria': ['Review findings'], 'tasks': [task]}),
+                                    ('ready', 2, {})]:
+        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+            operation_id='lock_' + kind, mission_id=mission['mission_id'],
+            expected_revision=revision, kind=kind, payload=payload))
+    goal = host.service.read('enterprise', mission['mission_id'])
+    transact = host.service.store.transact
+    visited = []
+    def checked_transaction(*args, **kwargs):
+        assert threads._lock._is_owned(), 'Mission Control transaction entered before the Thread lock'
+        visited.append(current_thread().name)
+        return transact(*args, **kwargs)
+    monkeypatch.setattr(host.service.store, 'transact', checked_transaction)
+    gate = Barrier(2)
+    def background():
+        gate.wait()
+        try:
+            return host._command(goal, 'delegate_next', {})
+        except Conflict:
+            return None
+    def foreground():
+        gate.wait()
+        try:
+            return host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+                operation_id='api_pause', mission_id=mission['mission_id'], expected_revision=3,
+                kind='pause', payload={}))
+        except Conflict:
+            return None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        one, two = pool.submit(background), pool.submit(foreground)
+        one.result()
+        two.result()
+    assert len(visited) == 2 and len(set(visited)) == 2
