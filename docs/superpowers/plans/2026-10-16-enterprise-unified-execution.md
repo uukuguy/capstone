@@ -1,13 +1,16 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Compatible session restoration — active correction, 2026-11-17
+## Compatible session restoration — accepted correction, 2026-11-17
 
 Owner capstone-app, fix/compatible-session-restoration-20261117 targets dev58782e03.
 Newest15 inspected Threads contain task-style history; selected=new hid it behind
 the welcome view. [Plan](2026-11-17-compatible-session-restoration.md). Default
 restore now respects scoped reading/drafts/pending requests, then prefers continuous
-conversation or latest task history.137 App/types and191 governance pass. Next
-canonical candidate/browser validation and focused macOS/dev integration. Never
+conversation or latest task history.137 App/types and191 governance pass. PR133
+merged6714d223 after exact-head macOS CI44034580886; canonical actualdev rebuild
+and5173/Vivaldi historical restoration pass, original snapshots/pins unchanged.
+[Acceptance](../../reviews/2026-11-17-compatible-session-restoration.md). Only
+docs/compatible-session-closeout-20261117 remains for control closeout. Never
 convert records or start execution while reading.
 
 Accepted future backlog, not active implementation: inventory important old records,
