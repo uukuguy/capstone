@@ -44,10 +44,12 @@ class ControlHost:
             mission['registered_agents'] = sorted(REGISTERED_AGENTS)
         return mission
 
-    def command_mission(self, workspace, command, *, actor='application:trusted', claim=None):
+    def command_mission(self, workspace, command, *, actor='application:trusted', claim=None,
+                        validate_task_equipment=False):
         from .mission_origin import access
         mission = self.read_mission(workspace, command['mission_id'], claim=claim)
-        apply = lambda: self.service.command_mission(workspace, command, actor=actor)
+        apply = lambda: self.service.command_mission(workspace, command, actor=actor,
+                                                     validate_task_equipment=validate_task_equipment)
         if mission.get('origin') is None:
             return apply()
         return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply,
@@ -95,7 +97,8 @@ class ControlHost:
         return self.command_mission(workspace, {
             'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
             'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
-            'kind': kinds[name], 'payload': payload}, actor='agent:' + claim.attempt.attempt_id, claim=claim)
+            'kind': kinds[name], 'payload': payload}, actor='agent:' + claim.attempt.attempt_id, claim=claim,
+            validate_task_equipment=True)
 
     def tick(self, limit=32):
         """One bounded maintenance pass; no model calls or browser dependency."""

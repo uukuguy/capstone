@@ -116,12 +116,13 @@ def test_worker_services_mission_requests_with_its_bound_control_callback(monkey
     assert operations[0][:2] == ('agent_mission_read',{})
     if rejection:
         assert len(acknowledged)==1 and acknowledged[0]['is_error'] is True
-        expected={'conflict':'mission_revision_conflict','contract':'mission_contract_invalid','transition':'mission_transition_invalid'}
+        expected={'conflict':'mission_operation_conflict','contract':'mission_contract_invalid','transition':'mission_transition_invalid'}
         assert acknowledged[0]['result']['error']==expected[rejection]
         assert 'PRIVATE_REJECTION_DETAIL' not in str(acknowledged)
         if rejection=='conflict':
             assert 'expected_revision' in acknowledged[0]['result']['message']
             assert 'revision' in acknowledged[0]['result']['message'] and 'plan_revision' in acknowledged[0]['result']['message']
+            assert 'saved' in acknowledged[0]['result']['message'] and 'references' in acknowledged[0]['result']['message']
     else:
         assert acknowledged == [dict(call_id='call-1',result={'mission_id':'goal_1','state':'planning'},is_error=False)]
 
@@ -134,6 +135,19 @@ def test_mission_tool_schemas_distinguish_current_object_revision_from_plan_revi
             assert 'Mission.revision' in expected['description']
             assert 'plan_revision' in expected['description']
     assert 'Mission.plan_revision' in CATALOG['agent_mission_conclude']['inputSchema']['properties']['plan_revision']['description']
+
+
+@pytest.mark.parametrize('kind',['resource','skill'])
+def test_task_model_schema_excludes_unimplemented_equipment_kinds(kind):
+    from capstone_agent.native_mission import CATALOG
+    from jsonschema import Draft202012Validator
+    task=dict(task_id='task_2',objective='Use the authorized predecessor result',delivery_requirements=['Save a report'],
+        depends_on=['task_1'],agent_id='capstone',mode='single',max_attempts=1,
+        equipment=[dict(schema='capstone-mission-equipment-reference/1',kind=kind,id='source_input',revision='1')])
+    for name,args in [('agent_mission_prepare_task',{'expected_revision':2,'task':task}),
+                      ('agent_mission_update_plan',{'expected_revision':2,'acceptance_criteria':['Inspect report'],'tasks':[task]})]:
+        with pytest.raises(ValidationError):
+            Draft202012Validator(CATALOG[name]['inputSchema']).validate(args)
 
 
 def test_mission_conclusion_schema_requires_typed_per_criterion_current_result_references():

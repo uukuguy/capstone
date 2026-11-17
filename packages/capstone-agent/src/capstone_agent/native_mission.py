@@ -36,7 +36,7 @@ def obj(properties, required=None):
 IDENTITY = dict(type='string', pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
 TEXT = dict(type='string', minLength=1, maxLength=16384)
 REF = obj(dict(schema={'const': 'capstone-mission-equipment-reference/1'},
-    kind={'enum': ['capability', 'resource_profile', 'skill', 'resource']}, id=IDENTITY,
+    kind={'enum': ['capability', 'resource_profile']}, id=IDENTITY,
     revision=dict(type='string', minLength=1, maxLength=256)))
 TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     delivery_requirements=dict(type='array', items=TEXT, minItems=1, maxItems=64),
@@ -63,13 +63,13 @@ CATALOG = {
                              tasks=dict(type='array', items=TASK, maxItems=64),
                              removed_task_ids=dict(type='array',items=IDENTITY,maxItems=64,uniqueItems=True)),
                         ['expected_revision','acceptance_criteria','tasks'])),
-    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered equipment references from the current Mission publication. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
+    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered capability or resource_profile equipment from the current Mission publication. Skill/resource equipment adapters are not published. Use depends_on to carry authorized saved products from verified predecessor Tasks; resource_id is an input reference, not equipment. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
     'agent_mission_ready': dict(description='Make an executable Mission plan ready only when Tasks, acceptance criteria and equipment are admitted. Then finish this organizer turn: a real Task boundary resumes organization automatically. Do not loop over state reads while waiting. If no dependency-ready Task remains, inspect actual results and conclude or wait. This is not product acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION))),
     'agent_mission_control': dict(description='Request pause, resume or cancellation of the associated Mission. A request does not confirm a running Task has stopped. Read actual state before replanning; organizer text never broadcasts to Tasks.',
         inputSchema=obj(dict(expected_revision=REVISION, action={'enum':['pause','resume','cancel']}))),
-    'agent_mission_conclude': dict(description='Assess every current acceptance criterion once against actual verified saved results. Include exact product artifact/hash or saved answer references for every met verdict; report not_met or unknown honestly. Requires exact plan_revision, nonempty verified Tasks and no unfinished work. Delivery requires all criteria met and remains subject to user acceptance.',
+    'agent_mission_conclude': dict(description='Assess every current acceptance criterion once against actual saved results. Include exact verified product artifact/hash or saved answer references for every met verdict; report not_met or unknown honestly. Requires current plan revision and no active execution; all-met delivery additionally requires all Tasks verified. Any not_met/unknown records partial findings and waits for user direction. Delivery remains subject to user acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION,plan_revision=PLAN_REVISION,summary=dict(type='string',minLength=1,maxLength=4096),
             criteria_verdicts=dict(type='array',items=CRITERION_VERDICT,minItems=1,maxItems=64)))),
     'agent_mission_wait': dict(description='Record a deliberate wait for an admitted Task boundary or for user input, then finish this organizer turn. Actual Task boundary events resume organization; do not poll state in a read loop. Waiting never concludes the plan; user waits suspend automatic organizer continuation.',

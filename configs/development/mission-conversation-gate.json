@@ -6,6 +6,7 @@
     "packages/capstone-agent/src/capstone_agent/native_mission.py"
   ],
   "paths": [
+    "packages/capstone-agent/tests/test_mission_model_admission.py",
     "packages/capstone-control/tests/test_mission_acceptance.py",
     "packages/capstone-agent/tests/fixtures/mission-resource-registration.mjs",
     "packages/capstone-agent/tests/test_delegation_resource_alias.py",

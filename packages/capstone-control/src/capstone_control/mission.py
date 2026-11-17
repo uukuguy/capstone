@@ -220,7 +220,7 @@ def update_tasks(goal, proposed):
     goal['tasks'] = combined
 
 
-def command(service, workspace, document, actor):
+def command(service, workspace, document, actor, *, validate_task_equipment=False):
     object_fields(document, {'schema', 'operation_id', 'mission_id', 'expected_revision', 'kind', 'payload'})
     if document['schema'] != 'capstone-control-mission-command/1':
         raise ContractError('unsupported Mission command schema')
@@ -247,6 +247,16 @@ def command(service, workspace, document, actor):
                 raise InvalidTransition('Mission cannot plan from this state')
             if '_mission' not in goal:
                 raise InvalidTransition('legacy Goal needs explicit Mission origin association before planning')
+            if validate_task_equipment and kind in {'prepare_task', 'update_plan'}:
+                tasks = [payload.get('task')] if kind == 'prepare_task' else payload.get('tasks')
+                if not isinstance(tasks, list) or any(not isinstance(task, dict) for task in tasks):
+                    raise ContractError('Mission planning requires typed Task proposals')
+                admit = service.admit_mission_reference
+                for task in tasks:
+                    for field in ('equipment', 'restrictions'):
+                        for ref in references(task.get(field, [])):
+                            if admit is None or admit(workspace, goal['_mission']['origin'], ref) is not True:
+                                raise ContractError('Mission Task equipment must use exact currently registered references')
             if kind == 'ready':
                 object_fields(payload, set())
                 if goal['state'] not in {'planning','waiting_review'} and not (goal['state'] == 'paused' and not goal['_mission'].get('activated')):

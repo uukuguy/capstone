@@ -905,8 +905,8 @@ class HttpGeneralPiExecutor:
                     result = control.mission_operation(call['name'], call['arguments'], operation_id)
                     receipt = dict(call_id=call['call_id'], result=result, is_error=False)
                 except Conflict:
-                    receipt = dict(call_id=call['call_id'],result={'error':'mission_revision_conflict',
-                        'message':'Read the current Mission and set expected_revision to Mission.revision, not Mission.plan_revision; then repair the intended operation.'},is_error=True)
+                    receipt = dict(call_id=call['call_id'],result={'error':'mission_operation_conflict',
+                        'message':'Read the current Mission, check expected_revision against Mission.revision (not plan_revision), and check the exact current saved-result references before repairing this operation.'},is_error=True)
                 except ContractError:
                     receipt = dict(call_id=call['call_id'],result={'error':'mission_contract_invalid',
                         'message':'Repair the arguments using the published Mission tool schema and registered references.'},is_error=True)
