@@ -1,8 +1,7 @@
 import {useEffect,useState} from 'react'
 import type {HttpThreadTransport} from './threadHttpTransport'
-import type {Mission} from './missions'
+import {missionStateLabel,type Mission} from './missions'
 import './missionStatus.css'
-const labels:Record<string,string>={planning:'规划中',ready:'待执行',running:'执行中',waiting:'待你回复',paused:'已暂停',pausing:'正在暂停',accepted:'已接受',delivered:'待验收',cancelled:'已撤销',cancelling:'正在撤销',failed:'需处理',blocked:'需处理',revising:'正在调整'}
 export default function MissionStatus({transport,threadId,missionId}:{transport:HttpThreadTransport;threadId:string;missionId:string}){
   const [mission,setMission]=useState<Mission>(),[error,setError]=useState('')
   useEffect(()=>{
@@ -11,5 +10,5 @@ export default function MissionStatus({transport,threadId,missionId}:{transport:
     setMission(undefined);read();const timer=window.setInterval(read,4000)
     return()=>{active=false;window.clearInterval(timer)}
   },[transport,threadId,missionId])
-  return <details className="mission-status"><summary>Mission · {error||(!mission?'正在读取':labels[mission.state]||'状态待确认')}</summary><p>{mission?.objective||missionId}</p><small>当前会话的 Mission。继续在对话中调整目标、条件和任务安排。</small></details>
+  return <details className="mission-status"><summary>Mission · {error||(!mission?'正在读取':missionStateLabel(mission))}</summary><p>{mission?.objective||missionId}</p><small>当前会话的 Mission。继续在对话中调整目标、条件和任务安排。</small></details>
 }

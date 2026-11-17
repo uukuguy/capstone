@@ -27,6 +27,18 @@ it('keeps a planning Mission visible alongside legacy Goals and directs changes 
   await screen.findByRole('button',{name:'打开阶段 1 会话'})
   expect(screen.getByRole('button',{name:'修改目标与阶段'})).toBeTruthy()
 })
+it('offers Mission final acceptance only after a concluded plan and verified tasks',async()=>{
+  const legacy=goal(),base={...legacy,application_kind:'mission',mission_id:'goal_review',goal_id:'goal_review',origin:{thread_id:'thr_origin'},plan_revision:2,plan_complete:true,state:'delivered',tasks:legacy.tasks.map(task=>({...task,state:'verified'}))}
+  const pending=parseControlGoal({...base,plan_concluded:false}),concluded=parseControlGoal({...base,revision:base.revision+1,plan_concluded:true})
+  const api=transport([pending]);render(<ControlGoals transport={api} onOpenThread={vi.fn()}/>)
+  fireEvent.click(screen.getByRole('button',{name:'长期目标'}))
+  await screen.findByRole('heading',{name:'Produce a report'})
+  expect(screen.queryByRole('button',{name:'接受当前成果版本'})).toBeNull()
+  api.controlGoal.mockResolvedValue(concluded)
+  fireEvent.click(screen.getByRole('button',{name:'刷新状态'}))
+  await screen.findByRole('button',{name:'接受当前成果版本'})
+  expect(api.controlGoalCommand).not.toHaveBeenCalled()
+})
 
 it('opens the existing delegated Thread instead of building another chat',async()=>{
   const api=transport(),open=vi.fn()

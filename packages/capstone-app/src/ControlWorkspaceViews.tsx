@@ -1,4 +1,5 @@
 import {useCallback,useEffect,useId,useRef,useState,type ReactNode} from 'react'
+import {missionStateLabel} from './missions'
 import {Columns3,Activity,ScanSearch,ArrowLeft,RefreshCw} from 'lucide-react'
 import ControlTaskBoard,{taskIdentity} from './ControlTaskBoard'
 import type {ControlGoal} from './controlGoals'
@@ -8,12 +9,12 @@ import './ControlWorkspaceViews.css'
 type Perspective='tasks'|'runtime'|'diagnosis'
 type Props={goal:ControlGoal;disabled:boolean;onOpenThread:(thread:string,work:string)=>void;
  onVerify:(task:string,revision:number)=>void;readEvents:(goal:string,after?:number,through?:number)=>Promise<ControlEventPage>;taskControls?:ReactNode}
-const states:Record<string,string>={planning:'规划中',ready:'待执行',running:'执行中',waiting:'等待处理',paused:'已暂停',pausing:'暂停请求待确认',
+const states:Record<string,string>={planning:'规划中',waiting_review:'等待任务结果复盘',ready:'待执行',running:'执行中',waiting:'等待处理',paused:'已暂停',pausing:'暂停请求待确认',
  cancelling:'撤销请求待确认',cancelled:'已终止',revising:'等待旧执行停止',delivered:'待核验',accepted:'已接受',
  pending:'待开始',dispatching:'派发中',resume_requested:'恢复请求待确认',revoke_requested:'停止请求待确认',
  blocked:'受阻',failed:'执行失败',verified:'已核验',completed:'执行已完成',unknown:'状态待确认'}
 const stateLabel=(state:string)=>states[state]??state
-const goalStateLabel=(state:string)=>state==='delivered'?'待最终接受':stateLabel(state)
+const goalStateLabel=(state:string,isMission=false)=>state==='delivered'?(isMission?'已记录交付':'待最终接受'):stateLabel(state)
 const tabs=[{id:'tasks' as const,label:'任务执行',Icon:Columns3},{id:'runtime' as const,label:'运行观察',Icon:Activity},
  {id:'diagnosis' as const,label:'研发诊断',Icon:ScanSearch}]
 const LIMIT=500
@@ -95,7 +96,7 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
   </div>}
   <div role="tabpanel" id={id+'-panel-runtime'} aria-labelledby={id+'-runtime'} hidden={view!=='runtime'}>
    <div className="control-runtime-summary">
-    <span><small>当前控制面</small><strong>{goalStateLabel(goal.state)}</strong></span>
+    <span><small>当前控制面</small><strong>{goal.mission?missionStateLabel(goal.mission):goalStateLabel(goal.state)}</strong></span>
     <span><small>目标要求版本 / 状态版本</small><strong>{goal.objective_revision} / {goal.revision}</strong></span>
     <span><small>已委托 / 预算</small><strong>{goal.delegations_admitted} / {goal.max_delegations}</strong></span>
    </div>
@@ -105,7 +106,7 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
       aria-label={`诊断控制事件 #${event.sequence}`} aria-pressed={selected===event.event_id}
       className="control-event-node" onClick={e=>diagnose(event,e.currentTarget)}>
       <small>#{event.sequence} · {new Date(event.recorded_at).toLocaleTimeString()}</small>
-      <strong>{controlEventLabel(event.kind)}</strong><span>控制面：{goalStateLabel(event.after.state)}</span>
+      <strong>{controlEventLabel(event.kind)}</strong><span>控制面：{goalStateLabel(event.after.state,!!goal.mission)}</span>
       {event.observed_state&&<span>执行观察：{stateLabel(event.observed_state)}</span>}
      </button>):<p className="control-lane-empty">尚无可显示的持久事件。下方为当前状态，不代表历史轨迹。</p>}</div>
     </section>
@@ -138,7 +139,7 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
       <p>这里展示该事件的记录；不代表当前完整现场，也不执行重放。</p>
       <dl><dt>事件身份</dt><dd>{selectedEvent.event_id}</dd><dt>来源 / 序号</dt><dd>capstone-control / #{selectedEvent.sequence}</dd>
        <dt>记录时间</dt><dd>{new Date(selectedEvent.recorded_at).toLocaleString()}</dd>
-       <dt>记录的状态变化</dt><dd>{selectedEvent.before?goalStateLabel(selectedEvent.before.state):'无前态'} → {goalStateLabel(selectedEvent.after.state)}</dd>
+       <dt>记录的状态变化</dt><dd>{selectedEvent.before?goalStateLabel(selectedEvent.before.state,!!goal.mission):'无前态'} → {goalStateLabel(selectedEvent.after.state,!!goal.mission)}</dd>
        <dt>状态版本</dt><dd>{selectedEvent.before?.revision??'无'} → {selectedEvent.after.revision}</dd>
        {selectedEvent.observation_sequence!==undefined&&<><dt>接收的观察序号</dt><dd>{selectedEvent.observation_sequence}（不是 Thread 事件序号）</dd></>}
        {selectedEvent.observed_state&&<><dt>来源观察状态</dt><dd>{stateLabel(selectedEvent.observed_state)}</dd></>}

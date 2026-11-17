@@ -3,6 +3,7 @@ import { projectAssistantMessages } from './CapstoneAssistantThread'
 import type { EventEnvelope } from './threadProtocol'
 import type { WorkRecord } from './threadWorkProtocol'
 import type {ThinkingPreview} from './thinkingPreview'
+import {projectSystemNotices} from './threadSystemNotices'
 
 /** Presentation filtering follows admission of the full Thread sequence. */
 export function projectWorkConversation(events: readonly EventEnvelope[], work?: WorkRecord, allWorks: readonly WorkRecord[] = [], legacyOnly = false, previews:readonly ThinkingPreview[]=[]) {
@@ -45,5 +46,6 @@ export function projectWorkConversation(events: readonly EventEnvelope[], work?:
       metadata: { custom: { workId: work!.workId, ...(source ? { sentAt: source.occurredAt } : {}) } } },
       seq: source?.eventSeq ?? 0, order: rows.length })
   }
-  return { events: selected, hasUnattributedHistory, messages: rows.sort((a, b) => a.seq - b.seq || a.order - b.order).map(item => item.message) as ThreadMessageLike[] }
+  const messages=rows.sort((a,b)=>a.seq-b.seq||a.order-b.order).map(item=>item.message) as ThreadMessageLike[]
+  return { events: selected, hasUnattributedHistory, messages:projectSystemNotices(messages,selected,[]) }
 }

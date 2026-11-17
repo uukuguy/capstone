@@ -440,6 +440,11 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         selectionRevision: event.selectionRevision || previous?.selectionRevision,
       })
     }
+    if(event.eventType==='mission_review_requested'&&event.visibility==='public'&&event.attemptId&&typeof event.payload.mission_id==='string'&&typeof event.payload.review_id==='string'){
+      const message=ensureAssistant(event.attemptId,event.occurredAt)
+      ;(message as unknown as {metadata:unknown}).metadata={custom:{...message.metadata?.custom,instruction:'根据任务结果调整计划',missionReview:{missionId:event.payload.mission_id,reviewId:event.payload.review_id,eventId:event.eventId,boundary:event.payload.boundary,sourceOrigin:event.payload.source_origin}}}
+      continue
+    }
     if (event.eventType === 'command_accepted' && (event.payload.kind === 'send_auto' || event.payload.kind === 'send_ordinary' || event.payload.kind === 'send_professional')) {
       const text = payloadText(event, true)
       if (text) {
@@ -505,7 +510,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             toolCount: relatedTools,
             modelContextId: event.modelContextId || (key ? contextByAttempt.get(key)?.modelContextId : undefined),
             selectionRevision: event.selectionRevision || (key ? contextByAttempt.get(key)?.selectionRevision : undefined),
-            instruction: instruction?.text,
+            instruction: instruction?.text??custom.instruction,
             instructionMessageId: instruction?.messageId,
             terminalPhase: event.eventType.replace(/^attempt_/, ''),
             ...(capacityNotice?{terminalNotice:capacityNotice,partialText:delivered?answer:partialText}:!delivered ? { terminalNotice: terminalAnswer, partialText } : {}),

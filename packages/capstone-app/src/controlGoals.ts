@@ -23,7 +23,7 @@ function strings(value:unknown):string[]{if(!Array.isArray(value)||value.length>
 export function parseControlGoal(value:unknown):ControlGoal{
   const g=object(value)
   const mission=g.application_kind==='mission'?parseMission({...g,schema:'capstone-control-mission/1'},text(g.workspace,128),text(object(g.origin).thread_id,128)):undefined
-  if(g.schema!=='capstone-control-goal/1'||(!states.has(String(g.state))&&!(mission&&g.state==='planning')))throw new Error('长期目标协议无效')
+  if(g.schema!=='capstone-control-goal/1'||(!states.has(String(g.state))&&!(mission&&['planning','waiting_review'].includes(String(g.state)))))throw new Error('长期目标协议无效')
   if(!Array.isArray(g.tasks)||(!g.tasks.length&&!(mission&&['planning','paused','cancelled'].includes(String(g.state))))||g.tasks.length>64)throw new Error('长期目标阶段无效')
   const tasks=g.tasks.map(value=>{
     const t=object(value),d=t.delegation===null?null:object(t.delegation)

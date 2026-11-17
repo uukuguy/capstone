@@ -995,7 +995,7 @@ export class ThreadProjectionStore {
       if (event.eventType === 'session_skills_changed') document.session_skills = payload.session_skills
       if (event.eventType === 'runtime_mode_changed') document.runtime_mode = payload.runtime_mode
       const current = record(document.current_attempt)
-      if (['command_accepted', 'attempt_started'].includes(event.eventType) && event.attemptId && event.turnId) {
+      if (['command_accepted', 'mission_review_requested', 'attempt_started'].includes(event.eventType) && event.attemptId && event.turnId) {
         document.current_attempt = {attempt_id: event.attemptId, turn_id: event.turnId,
           phase: event.eventType === 'attempt_started' ? 'running' : 'accepted',
           target_model_context_id: event.modelContextId ?? null,

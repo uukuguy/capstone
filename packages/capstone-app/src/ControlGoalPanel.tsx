@@ -6,6 +6,7 @@ import {commandKey} from './commandKey'
 import {buildControlGoal,controlGoalCommand,type ControlCommand,type ControlDraft,type ControlGoal,type ControlGoalCreate} from './controlGoals'
 import type {HttpThreadTransport} from './threadHttpTransport'
 import './ControlGoalPanel.css'
+import {missionStateLabel} from './missions'
 import {navigateSession} from './SessionNavigation'
 
 type Transport=Pick<HttpThreadTransport,'workspaceName'|'controlGoals'|'controlGoal'|'createControlGoal'|'controlGoalCommand'|'controlEvents'>
@@ -106,7 +107,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
         <button disabled={busy} onClick={()=>void perform(pending)}>重试原请求</button>
         <button disabled={busy} onClick={()=>rememberPending(null)}>清除本机待确认记录</button><p>清除此记录不会撤销服务端已接收的目标，请先刷新列表核对。</p></section>}
       {goals.length>0&&<label>选择长期目标<select aria-label="选择长期目标" value={selected} onChange={e=>choose(e.target.value)} disabled={disabled}>
-        {goals.map(g=><option key={g.goal_id} value={g.goal_id}>{g.objective} · {names[g.state]||g.state} · {g.goal_id.slice(-6)}</option>)}</select></label>}
+        {goals.map(g=><option key={g.goal_id} value={g.goal_id}>{g.objective} · {g.mission?missionStateLabel(g.mission):names[g.state]||g.state} · {g.goal_id.slice(-6)}</option>)}</select></label>}
       {cursor&&<button onClick={()=>void transport.controlGoals(cursor).then(page=>{setGoals(previous=>[...previous,...page.goals]);setCursor(page.nextCursor)}).catch(e=>setError(String(e)))}>更多目标</button>}
       {form?<form onSubmit={e=>{e.preventDefault();submit()}} className="control-goal-form">
         <h3>{form==='revise'?'修改长期目标':'新建长期目标'}</h3>
@@ -125,7 +126,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
         <div className="control-goal-actions"><button type="button" disabled={disabled||draft.stages.length>=64} onClick={()=>saveDraft({...draft,stages:[...draft.stages,{objective:'',files:'',mode:'single',maxAttempts:1}]})}>增加阶段</button>
           <button type="submit" disabled={disabled}>{form==='revise'?'保存修改并撤销旧阶段':'创建并开始'}</button><button type="button" onClick={()=>setForm(null)}>返回目标状态</button></div>
       </form>:goal?<section aria-label="长期目标状态">
-        <h3>{goal.objective}</h3><p>{names[goal.state]||goal.state} · 目标版本 {goal.objective_revision} · 已委托 {goal.delegations_admitted}/{goal.max_delegations} 次</p>
+        <h3>{goal.objective}</h3><p>{goal.mission?missionStateLabel(goal.mission):names[goal.state]||goal.state} · 目标版本 {goal.objective_revision} · 已委托 {goal.delegations_admitted}/{goal.max_delegations} 次</p>
         {goal.reason&&<p>状态原因：{reason(goal.reason)}</p>}
         <p>期限：{new Date(goal.deadline_at).toLocaleString()}</p>
         <ControlWorkspaceViews goal={goal} disabled={disabled} readEvents={readEvents}
@@ -140,7 +141,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
             saveDraft({objective:goal.objective,criteria:goal.acceptance_criteria.join('\n'),maxDelegations:goal.max_delegations,deadline:goal.deadline_at,
               stages:goal.tasks.map(t=>({objective:t.objective,files:t.required_products.join(', '),mode:t.mode,maxAttempts:t.max_attempts}))});setForm('revise')
           }}>修改目标与阶段</button>}
-          {goal.state==='delivered'&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
+          {goal.state==='delivered'&&(!goal.mission||goal.mission.planConcluded===true&&goal.mission.allTasksVerified)&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
         </div>
         {goal.acceptance&&<p role="status">已接受此目标版本及所列成果版本。</p>}
           </>}
