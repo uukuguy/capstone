@@ -1,4 +1,5 @@
 import ResultRowTable,{type RowSelectionControls} from './ResultRowTable'
+import {ExecutionDetailEntry,ExecutionDetailsContext} from './ExecutionDetails'
 import { receiptDuration, parseToolBatch, parseToolDispatchReceipt, parseToolExecutionReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
 import {parseServiceBusCalls,serviceBusSummary,type ServiceBusCalls} from './serviceBusCalls'
 import ServiceBusCallDetails from './ServiceBusCallDetails'
@@ -1024,6 +1025,7 @@ function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolea
 
 function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, modelSummary, showActivity = true, resultProjections, onFocusElement, onOpenTaskResults, nativeArtifacts = [], onOpenNativeArtifact, readInstructionFile, saveInstructionFile }: { nativeArtifacts?:readonly NativeArtifact[]; onOpenNativeArtifact?:(artifact:NativeArtifact)=>void; readInstructionFile?:InstructionFileReader; saveInstructionFile?:InstructionFileSaver; onOpenTaskResults?: (product: TaskResultCollection) => void; onOpenResultProduct?: (result: ResultProjection) => void; selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onFollowup?: (attemptId: string) => void; canRerunCompleted: boolean; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
+  const executionDock = useContext(ExecutionDetailsContext)
   const readRecords = useContext(AttemptRecordsContext)
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
@@ -1093,7 +1095,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const terminalWithoutText = role === 'assistant' && !hasText && status?.type !== 'running'
   const toggleActivity = () => togglePanel('process')
   useEffect(()=>{
-    if(role==='assistant'&&finishedAttempt?.id===attemptId){
+    if(!executionDock&&role==='assistant'&&finishedAttempt?.id===attemptId){
       try { localStorage.setItem(processStorageKey, 'false') } catch { /* Retain state in this page. */ }
       setActivityOpen(false);setProcessPanel(null)
       if(activityRef.current)activityRef.current.open=false
@@ -1110,7 +1112,17 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   </MessagePrimitive.Root>
   const terminalNotice = typeof custom?.terminalNotice === 'string' ? custom.terminalNotice : undefined
   const completedAnswer = !terminalNotice && hasText && role === 'assistant' && status?.type === 'complete'
+  const processContent = <>
+    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} compactions={Array.isArray(custom?.compactions) ? custom.compactions as ProcessCompaction[] : []} modelRequests={Array.isArray(custom?.modelRequests) ? custom.modelRequests as ProcessModelCall[] : []} initialThinking={custom?.initialThinking as InitialThinking|undefined} nativeGraphFocus={custom?.nativeGraphFocus === 'tools' || custom?.nativeGraphFocus === 'tasks' ? custom.nativeGraphFocus : undefined} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
+      <AcceptedContextDetails value={custom?.acceptedContext} />
+      {readRecords && <AttemptRecordPanel key={attemptId} attemptId={attemptId} read={readRecords} />}
+      <ResearchEvidence snapshot={parseResearchSnapshot(custom?.researchSnapshot)} />
+      {(failureResults.length > 0 || Array.isArray(custom?.toolExecutions) && custom.toolExecutions.length > 0) && <InferenceEvidencePanel title="执行记录" attemptId={attemptId} admitted={false} resultRefs={[]} evidenceRefs={[]} projections={[]} failures={failureResults} executions={(custom?.toolExecutions || []) as ToolExecutionRecord[]} />}
+    </>} />}
+  </>
   return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
+    <ExecutionDetailEntry enabled={role==='assistant'} id={attemptId} label={instruction||'本次执行'} status={status?.type==='running'?'执行中':custom?.terminalPhase==='cancelled'?'已停止':custom?.terminalPhase==='failed'?'执行失败':custom?.terminalPhase==='interrupted'?'执行中断':'执行已结束'}>
+    {executionDock && processContent}
     <div className="capstone-chat-body">
       {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]} readFile={readInstructionFile} saveFile={saveInstructionFile}/>}
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
@@ -1142,12 +1154,9 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} compactions={Array.isArray(custom?.compactions) ? custom.compactions as ProcessCompaction[] : []} modelRequests={Array.isArray(custom?.modelRequests) ? custom.modelRequests as ProcessModelCall[] : []} initialThinking={custom?.initialThinking as InitialThinking|undefined} nativeGraphFocus={custom?.nativeGraphFocus === 'tools' || custom?.nativeGraphFocus === 'tasks' ? custom.nativeGraphFocus : undefined} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
-      <AcceptedContextDetails value={custom?.acceptedContext} />
-      {readRecords && <AttemptRecordPanel key={attemptId} attemptId={attemptId} read={readRecords} />}
-      <ResearchEvidence snapshot={parseResearchSnapshot(custom?.researchSnapshot)} />
-      {(failureResults.length > 0 || Array.isArray(custom?.toolExecutions) && custom.toolExecutions.length > 0) && <InferenceEvidencePanel title="执行记录" attemptId={attemptId} admitted={false} resultRefs={[]} evidenceRefs={[]} projections={[]} failures={failureResults} executions={(custom?.toolExecutions || []) as ToolExecutionRecord[]} />}
-    </>} />}
+
+    {!executionDock && processContent}
+    </ExecutionDetailEntry>
   </MessagePrimitive.Root>
 }
 

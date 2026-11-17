@@ -1,4 +1,5 @@
 import GoalControls from './GoalControls'
+import {ExecutionDetailsContext,ExecutionDetailsSurface} from './ExecutionDetails'
 import ControlGoalPanel from './ControlGoalPanel'
 import {goalCommand,goalObjectiveFromInput} from './goalMode'
 import ProductReferenceChips from './ProductReferenceChips'
@@ -168,6 +169,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [attachmentReload,setAttachmentReload]=useState(0)
   useEffect(()=>setUploadBusy(false),[currentId])
   const [productsOpen,setProductsOpen]=useSessionViewState('resource.open',()=>readWorkspacePanels(currentId).resource??false)
+  const [executionTarget,setExecutionTarget]=useState<HTMLDivElement|null>(null)
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
   const instructionViewRef=useRef(instructionView);instructionViewRef.current=instructionView
@@ -494,7 +496,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   }
   function setResourcePanelOpen(open:boolean){markManualView();setProductsOpen(open)}
   useEffect(()=>{
-    if(!liveConversation||!latestInstructionAttempt)return
+    if(!liveConversation||!latestInstructionAttempt||resourceView==='execution')return
     let state=instructionViewRef.current
     if(state.attemptId!==latestInstructionAttempt){
       // Refresh can first replay an older history page. It is not a new instruction.
@@ -579,7 +581,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     followAvailable={!(resourceView!=='products'&&instructionView.manual&&instructionView.attemptId===latestInstructionAttempt)}
     onPrimaryReady={entry=>{
       const attempt=entry.ref.attempt_id
-      if(!attempt||resourceView!=='products'&&instructionViewRef.current.manual&&instructionViewRef.current.attemptId===latestInstructionAttempt)return
+      if(resourceView==='execution'||!attempt||resourceView!=='products'&&instructionViewRef.current.manual&&instructionViewRef.current.attemptId===latestInstructionAttempt)return
       artifactOpened.current=true
       if(requestedProduct&&(requestedProduct.ref?.attempt_id??requestedProduct.attemptId)===attempt)setRequestedProduct(undefined)
       setResourceView('products');setProductsOpen(true)
@@ -633,7 +635,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       modelBusy={busy||active||!!currentAttempt||projection.connection!=='live'}
       onOpenHistoricalModel={(modelId,revision)=>void changeModel('open_model',{model_id:modelId,model_revision:revision})}/>
   </>:null
-  return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
+  const executionViews=nativeChat&&client.supportsProductIndex?[{id:'execution',label:'执行详情',content:<ExecutionDetailsSurface onTarget={setExecutionTarget}/>,description:'执行过程与正式回答，保留原始指令及成果来源。'}]:[]
+  return <ExecutionDetailsContext.Provider value={executionViews.length?{target:executionTarget,open:()=>selectResourceView('execution')}:null}><ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
       {viewingLegacy&&<button type="button" disabled={busy||!!pending} onClick={()=>selectWork(snapshot?.works.find(work=>work.conversationMode)?.workId||'new')}>返回当前对话</button>}
@@ -643,11 +646,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError||projection.synchronizationError} recovering={connectionRecovering} pending={!!pending}/>}
     navigationFooter={<WorkspaceGatewayStatus transport={transport} threadId={currentId} onConnection={setWelcomeGateway} locked={Boolean(snapshot?.works.some(work=>work.messages.length>0))}/>}
     resourcePanel={client.supportsProductIndex?productsPanel:nativeChat&&client.supportsProcessProducts?processPanel:undefined}
-    resourceViews={client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'Artifacts',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:nativeChat?[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
+    resourceViews={client.supportsProductIndex?[...executionViews,...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'制品',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:nativeChat?[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedArtifact(undefined)}} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
       {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:undefined}
     selectedResourceView={resourceView} onResourceViewChange={selectResourceView}
-    resourceLabel={resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'Artifacts':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
+    resourceLabel={resourceView==='execution'?'执行详情':resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'Artifacts':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
     sidebar={<nav className="thread-session-navigation" aria-label="任务与会话">
       <ControlGoalPanel transport={transport} onOpenThread={(thread,work)=>{
         const storageKey=`${namespace}.${thread}.work-draft`
@@ -718,7 +721,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       readInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined)return Promise.reject(new Error('附件信息暂不可用。'));return transport.readThreadResource(currentId,{resource_id:file.resource_id,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
       saveInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined||!file.file_name)return Promise.reject(new Error('附件信息暂不可用。'));return transport.saveThreadResource(currentId,{resource_id:file.resource_id,file_name:file.file_name,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
-      onOpenAnswerDetail={nativeChat?()=>setResourcePanelOpen(false):undefined}
+      onOpenAnswerDetail={nativeChat?()=>selectResourceView('execution'):undefined}
       runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation}
       networkAttemptIds={[...instructionViews.keys()]} onShowNetwork={showInstructionNetwork}
       acceptedDraft={nativeChat?acceptedDraft:undefined}
@@ -744,5 +747,5 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       resultProjections={professional?.resultProjections}
       caseExecution={professional?.applicationState?.caseExecution}
       onReadAttemptRecords={client.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(currentId, attemptId, after) : undefined} />}
-  </ThreadWorkspace>
+  </ThreadWorkspace></ExecutionDetailsContext.Provider>
 }

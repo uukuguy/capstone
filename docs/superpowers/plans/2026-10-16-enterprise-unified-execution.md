@@ -1,6 +1,12 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Conversation intervention — accepted design, implementation pending
+## Conversation intervention — combined reader local candidate
+
+Implementation branch feat/execution-details-20261117 (capstone-app, destination dev)
+reuses the process/answer components in one right-panel tab. 158 focused App checks
+and typecheck pass; canonical rebuild/final browser checks are in progress.
+Next finish local reader acceptance; durable instruction admission is still pending.
+No CI, integration or cloud acceptance is claimed.
 
 Owner capstone-app with capstone-agent/harness admission dependencies; destination dev.
 Design branch docs/conversation-intervention-20261117 starts from accepted PR137
