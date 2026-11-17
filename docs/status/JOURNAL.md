@@ -8030,3 +8030,9 @@ check passed. No CI, integration or remote deployment performed.
 
 - 2026-11-17: PR136/CI44080297410 accepted at dev dc6ada7b; actual local rebuild and six legacy Goal read checks passed.
 - 2026-11-17: Runtime-view candidate adds bounded Control event reading, stable three-view navigation and exact recorded execution links;85 App/types and123 scope checks pass.
+
+- 2026-11-17: a85c870c connects runtime lanes and event diagnosis while preserving task selection and exact historical execution references.
+
+- 2026-11-17: Real Goal goal_eaed24d1e8bd9b2e9a7518c7cd2112ef delivered six events and a verified124-byte file; candidate5174 diagnostic/return/original Thread checks passed.
+- 2026-11-17: Keyboard return regression failed first, then passed with ancestor scroll restoration and tab fallback;86 App/types and123 scope checks pass.
+- 2026-11-17: Independent review dispatch failed twice because configured model gpt-6.1-luna is unavailable; manual boundary review completed, no independent verdict claimed.

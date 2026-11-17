@@ -18,6 +18,12 @@ function page():ControlEventPage{return {schema:'capstone-control-events/1',work
  task_changes:[{task_id:'t1',after:null,before:{task_id:'t1',task_revision:1,objective_revision:1,generation:1,state:'running',
  delegation_id:'old_d',binding:{thread_id:'thr_old',work_id:'work_old'},requested_control:null,control_revision:0,delivery_revision:null}}]}]}}
 function props(){return {goal,disabled:false,onOpenThread:vi.fn(),onVerify:vi.fn(),readEvents:vi.fn().mockResolvedValue(page())}}
+it('returns keyboard focus to the runtime tab when diagnosis has no source node',async()=>{
+ render(<ControlWorkspaceViews {...props()}/>)
+ fireEvent.click(screen.getByRole('tab',{name:'研发诊断'}))
+ const back=screen.getByRole('button',{name:'返回运行观察'});back.focus();fireEvent.click(back)
+ await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole('tab',{name:'运行观察'})))
+})
 it('loads on observation entry and returns to the same source event without remounting the board',async()=>{
  const p=props();render(<ControlWorkspaceViews {...p}/>)
  const card=screen.getByRole('button',{name:'查看任务：任务一'});fireEvent.click(card)

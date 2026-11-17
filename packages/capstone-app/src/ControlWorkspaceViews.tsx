@@ -13,6 +13,7 @@ const states:Record<string,string>={ready:'待执行',running:'执行中',waitin
  pending:'待开始',dispatching:'派发中',resume_requested:'恢复请求待确认',revoke_requested:'停止请求待确认',
  blocked:'受阻',failed:'执行失败',verified:'已核验',completed:'执行已完成',unknown:'状态待确认'}
 const stateLabel=(state:string)=>states[state]??state
+const goalStateLabel=(state:string)=>state==='delivered'?'待最终接受':stateLabel(state)
 const tabs=[{id:'tasks' as const,label:'任务执行',Icon:Columns3},{id:'runtime' as const,label:'运行观察',Icon:Activity},
  {id:'diagnosis' as const,label:'研发诊断',Icon:ScanSearch}]
 const LIMIT=500
@@ -26,6 +27,7 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
  const [selected,setSelected]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('')
  const [selectedTask,setSelectedTask]=useState<string|null>(null)
  const epoch=useRef(0),inflight=useRef(false),returnFocus=useRef<HTMLButtonElement|null>(null)
+ const returnScroll=useRef<{node:HTMLElement;top:number;left:number}[]>([])
  const detail=useRef<HTMLElement|null>(null)
  useEffect(()=>()=>{epoch.current++;inflight.current=false},[])
  const load=useCallback(async(more=false)=>{
@@ -44,6 +46,9 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
  const selectedEvent=events.find(e=>e.event_id===selected)
  const diagnose=(event:ControlEvent,button:HTMLButtonElement)=>{
   setSelected(event.event_id);returnFocus.current=button
+  returnScroll.current=[]
+  for(let node:HTMLElement|null=button.parentElement;node;node=node.parentElement)
+   returnScroll.current.push({node,top:node.scrollTop,left:node.scrollLeft})
   const source=event.task_changes.length===1?event.task_changes[0]:null
   const task=source&&goal.tasks.find(t=>t.task_id===source.task_id&&[source.before,source.after].some(
    s=>s?.task_revision===t.revision&&s.objective_revision===goal.objective_revision))
@@ -51,7 +56,11 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
   setView('diagnosis')
  }
  useEffect(()=>{if(view==='diagnosis'&&selected)detail.current?.focus({preventScroll:true})},[view,selected])
- const back=()=>{setView('runtime');requestAnimationFrame(()=>returnFocus.current?.focus({preventScroll:true}))}
+ const back=()=>{setView('runtime');requestAnimationFrame(()=>{
+  for(const {node,top,left} of returnScroll.current)if(node.isConnected){node.scrollTop=top;node.scrollLeft=left}
+  const target=returnFocus.current?.isConnected?returnFocus.current:document.getElementById(id+'-runtime')
+  target?.focus({preventScroll:true})
+ })}
  const links=(event:ControlEvent)=>{
   const found=new Map<string,ControlTaskEventState>()
   for(const change of event.task_changes)for(const task of [change.before,change.after]){
@@ -86,7 +95,7 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
   </div>}
   <div role="tabpanel" id={id+'-panel-runtime'} aria-labelledby={id+'-runtime'} hidden={view!=='runtime'}>
    <div className="control-runtime-summary">
-    <span><small>当前控制面</small><strong>{stateLabel(goal.state)}</strong></span>
+    <span><small>当前控制面</small><strong>{goalStateLabel(goal.state)}</strong></span>
     <span><small>目标要求版本 / 状态版本</small><strong>{goal.objective_revision} / {goal.revision}</strong></span>
     <span><small>已委托 / 预算</small><strong>{goal.delegations_admitted} / {goal.max_delegations}</strong></span>
    </div>
@@ -96,7 +105,8 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
       aria-label={`诊断控制事件 #${event.sequence}`} aria-pressed={selected===event.event_id}
       className="control-event-node" onClick={e=>diagnose(event,e.currentTarget)}>
       <small>#{event.sequence} · {new Date(event.recorded_at).toLocaleTimeString()}</small>
-      <strong>{controlEventLabel(event.kind)}</strong><span>{stateLabel(event.after.state)}</span>
+      <strong>{controlEventLabel(event.kind)}</strong><span>控制面：{goalStateLabel(event.after.state)}</span>
+      {event.observed_state&&<span>执行观察：{stateLabel(event.observed_state)}</span>}
      </button>):<p className="control-lane-empty">尚无可显示的持久事件。下方为当前状态，不代表历史轨迹。</p>}</div>
     </section>
     {goal.tasks.map((task,index)=><section className="control-runtime-lane" key={JSON.stringify([goal.objective_revision,task.task_id,task.revision])}>
@@ -128,9 +138,10 @@ function Workspace({goal,disabled,onOpenThread,onVerify,readEvents,taskControls}
       <p>这里展示该事件的记录；不代表当前完整现场，也不执行重放。</p>
       <dl><dt>事件身份</dt><dd>{selectedEvent.event_id}</dd><dt>来源 / 序号</dt><dd>capstone-control / #{selectedEvent.sequence}</dd>
        <dt>记录时间</dt><dd>{new Date(selectedEvent.recorded_at).toLocaleString()}</dd>
-       <dt>记录的状态变化</dt><dd>{selectedEvent.before?stateLabel(selectedEvent.before.state):'无前态'} → {stateLabel(selectedEvent.after.state)}</dd>
+       <dt>记录的状态变化</dt><dd>{selectedEvent.before?goalStateLabel(selectedEvent.before.state):'无前态'} → {goalStateLabel(selectedEvent.after.state)}</dd>
        <dt>状态版本</dt><dd>{selectedEvent.before?.revision??'无'} → {selectedEvent.after.revision}</dd>
        {selectedEvent.observation_sequence!==undefined&&<><dt>接收的观察序号</dt><dd>{selectedEvent.observation_sequence}（不是 Thread 事件序号）</dd></>}
+       {selectedEvent.observed_state&&<><dt>来源观察状态</dt><dd>{stateLabel(selectedEvent.observed_state)}</dd></>}
        {selectedEvent.operation_id&&<><dt>操作身份</dt><dd>{selectedEvent.operation_id}</dd></>}
       </dl>
       {selectedEvent.missing_goal_revisions&&<p className="control-attention">缺少状态版本 {selectedEvent.missing_goal_revisions.from}–{selectedEvent.missing_goal_revisions.through} 的事件。</p>}
