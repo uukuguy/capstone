@@ -853,3 +853,13 @@ unit. It does not close IG1 or the full template-library/PDF requirements.
   polish. The text-reader pool is explicitly enabled only in the local candidate;
   production defaults, full library/persistence and report-led acquisition remain
   separate. Local results do not imply dev integration or release acceptance.
+
+## CI approval policy — user-directed correction, 2026-11-18
+
+Owner: repository agent contract. Branch docs/ci-approval-policy-20261118 targets dev.
+AGENTS.md now permits focused CI expected to take a few minutes without separate
+approval, including necessary reruns after fixes. Heavy CI expected to take tens of
+minutes or longer still requires explicit approval for each run. Runner queue time
+is separate from execution time. Scope and release constraints remain unchanged.
+Local AGENTS links, CLAUDE symlink, whitespace and doctor checks pass. Next: integrate
+through the lightweight macOS docs gate. This does not alter PR138's tested source.

@@ -207,18 +207,20 @@ counts, prices, limits, versions, or deployment state here.
 - Browser verification reuses an existing Capstone tab. Do not create a new tab
   for each test; preserve other open tabs and the user's browser context.
 
-- **CI requires explicit user approval before every run.** Before starting CI,
-  state why it is needed, its check scope and its expected duration, then wait
-  for the user's explicit agreement. Without that agreement, CI is prohibited.
-  Instructions to continue, test, fix, commit, push or merge do not grant CI
-  approval. Do not dispatch a workflow or perform a push, PR update or merge
-  that will automatically start CI until this approval is given. Prepare the
-  change and run focused local checks first. Ordinary development, debugging,
-  validation, browser trials and documentation updates use local checks, not CI.
-  An approved branch-merge CI run must be lightweight and cover only the changed
-  behavior and direct consumers. Full suites and dual-platform CI are reserved
-  for an explicitly approved version release. Do not expand an approved scope
-  or start another CI run without new approval.
+- **Lightweight CI that takes a few minutes does not require separate approval.**
+  Run focused local checks first, then start the required scoped CI, including
+  through a push or PR update, without asking again. A needed lightweight rerun
+  after a fix also does not require separate approval. Avoid duplicate runs.
+  **Heavy CI expected to take tens of minutes or longer requires explicit user
+  approval before each run.** State its purpose, scope and expected execution
+  duration, then wait for agreement before dispatching it or taking an action
+  that triggers it. Do not expand that approved scope without new agreement.
+  Estimate execution time separately from runner queue time: a long queue does
+  not turn a lightweight check into a heavy check. Investigate overruns instead
+  of treating unfinished checks as passed or repeatedly restarting them.
+  Ordinary development and debugging use local checks first; branch integration
+  CI covers only changed behavior and direct consumers. Full suites and
+  dual-platform CI remain reserved for an explicitly approved version release.
 - Current project control and canonical worklists live on dev. Main copies are
   release snapshots. Both permanent branches require PRs, with zero mandatory
   approvals and no force push or deletion. Dev and ordinary feature PRs use
@@ -234,7 +236,7 @@ counts, prices, limits, versions, or deployment state here.
   documentation and control-state updates, run only focused checks for the
   changed behavior and its direct consumers. Do not default to full workbench,
   full repository, professional solver, or dual-platform suites for these
-  operations. Approved CI must select this focused scope; a change that
+  operations. Development CI must select this focused scope; a change that
   lacks a focused route needs a scoped route, not an automatic release-sized
   gate. Broader development checks need a concrete cross-boundary risk and a
   recorded reason. Keep ordinary development CI on macOS; reserve full macOS
@@ -400,9 +402,10 @@ be refreshed or reset before starting a new case.
 
 - Before retrying a failed write, read the actual remote PR/ref state through
   the working connection. A timeout or 502 does not prove the write failed.
-  Retry only the still-needed approved action, with the expected source SHA.
-  Do not repeat a push, workflow dispatch or PR update that can start another CI.
-  Existing per-run CI approval requirements still apply.
+  Retry only the still-needed authorized action, with the expected source SHA.
+  Do not repeat a push, workflow dispatch or PR update merely because its response
+  was lost; check remote state first to avoid duplicate CI runs. Lightweight CI
+  needs no separate approval; heavy CI follows the approval rule above.
 - Compare bounded read-only requests with and without the explicit proxy when
   diagnosing a connection problem. Do not print proxy credentials, auth tokens,
   subscription URLs or complete private proxy configuration. Record the result
