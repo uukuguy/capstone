@@ -1,5 +1,32 @@
 # Live Session Checkpoint
 
+Final local acceptance: f1c4dc57 plus focused gate;189App/types and143scope checks
+pass. Final canonical rebuild exited0, API/workers imagef25c7f8a, cleanup completed.
+Post-rebuild5174 original record, product entry, tab navigation and narrow screenshots
+passed. No CI or merge. Next request one macOS execution-details CI (3–5 minutes)
+before push/PR; do not use release/full solver gates. The root recovery files and
+runs/execution-details-20261117 preserve evidence. Temporary8878 graph server can stop;
+5174 remains the candidate preview. Status strip and backend admission remain pending.
+
+## Current: execution details candidate, 2026-11-17
+
+Implementation branch feat/execution-details-20261117 in initialized worktree
+.worktrees/historical-input-receipts, target dev4e81c5f6. Product a521f020 plus
+2ac777f9 mainline product-access fix and focused execution-details gate.
+189 App tests/typecheck and143 scope/graph checks pass. Real saved record on5174
+shows process and answer in one right tab; files stay accessible in mainline.
+Refresh, tab switching, desktop/narrow screenshots checked. First canonical rebuild
+passed image28239bbf; final candidate rebuild log /tmp/execution-details-final-rebuild.log.
+Do not call it accepted until that command and post-rebuild read complete.
+Candidate Vite session62217 on5174 and temporary graph server95959 on8878 are active.
+Default5173 App retains prior product UI. Cloud/demo untouched; no new CI approval.
+Independent reviewer unavailable (configured model gpt-6.1-luna); manual review only.
+Next: finish rebuild/read verification, commit control records, request one macOS
+execution-details CI before push/PR; integrate through dev if approved.
+Durable intervention, status strip and Mission runtime work remain unimplemented.
+Root docs/conversation-intervention-20261117 has preserved JOURNAL/RESUME drafts.
+Earlier PR137 candidate notes below are historical: it was accepted at dev4e81c5f6.
+
 ## Control runtime views — local candidate, 2026-11-17
 
 Owner capstone-app. feat/control-runtime-views-20261117 in initialized worktree

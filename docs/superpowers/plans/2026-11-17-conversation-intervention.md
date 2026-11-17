@@ -3,8 +3,8 @@
 Owner: capstone-app for readers and controls; capstone-agent/harness for admission.
 Destination: dev. Design: [accepted contract](../specs/2026-11-17-conversation-intervention-design.md).
 Status: combined execution reader implemented on feat/execution-details-20261117;
-158 focused App checks and typecheck pass. Canonical rebuild and final browser
-acceptance are in progress. Durable intervention remains unimplemented.
+189 focused App checks, typecheck and143 scope checks pass. Canonical rebuild
+and saved-record browser acceptance on5174 pass. Durable intervention remains unimplemented.
 Design branch: docs/conversation-intervention-20261117, based on dev 4e81c5f6.
 
 ## A. Combined execution reader
