@@ -375,6 +375,7 @@ class NodeControl:
     instructions: Callable[[], tuple[dict, ...]] | None = None
     reserve_instruction: Callable[[str], dict | None] | None = None
     acknowledge_instruction: Callable[[str], dict | None] | None = None
+    mission_operation: Callable[[str, dict, str], dict] | None = None
 
     def __post_init__(self) -> None:
         if not callable(self.check):

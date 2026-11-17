@@ -437,7 +437,7 @@ class GeneralPiProcess:
             raise ValueError('General Pi task privilege is invalid')
         self.uid = uid
         self.required_tools, self.forbidden_tools = frozenset(required_tools), frozenset(forbidden_tools)
-        if (not self.required_tools or self.required_tools & self.forbidden_tools
+        if (self.required_tools & self.forbidden_tools
                 or any(not isinstance(name, str) or not name for name in (*required_tools, *forbidden_tools))):
             raise ValueError('General Pi tool role is invalid')
         self.process: subprocess.Popen | None = None

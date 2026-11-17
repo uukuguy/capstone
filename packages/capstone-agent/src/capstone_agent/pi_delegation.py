@@ -66,7 +66,7 @@ _TASK_V1_FIELDS = ('task_id', 'parent_attempt_id', 'entrypoint', 'instruction',
                    'messages', 'dependency_results', 'executor_identity', 'timeout_seconds')
 _TASK_V2_FIELDS = ('business_context', 'resource_profile', 'input')
 
-from .application_capacity import limits, current_capacity
+from .application_capacity import limits, current_capacity, require_capacity
 
 
 def _json_document(value: object, *, native_events: bool = False) -> dict:
@@ -868,6 +868,48 @@ class HttpGeneralPiExecutor:
         research_ready = False
         transport_sequence = 0
         sent_instructions = set()
+        mission_receipts = []
+        last_mission_service = 0.0
+
+        def service_mission():
+            nonlocal mission_receipts, last_mission_service
+            if (request.native_context or {}).get('mission_binding') is None:
+                return
+            if renewal is None or control.mission_operation is None:
+                raise ValueError('Mission tools require the leased application bridge')
+            if time.monotonic() - last_mission_service < .1:
+                return
+            last_mission_service = time.monotonic()
+            try:
+                response = exchange('POST', '/tasks/' + request.task_id + '/mission', operation='mission_control',
+                    document={'parent_attempt_id': request.parent_attempt_id, 'execution_authority': renewal.grant,
+                              'receipts': mission_receipts}, timeout=self._exchange_timeout)
+            except PiHTTPFailure as error:
+                if error.diagnostic['http_status'] == 409:
+                    return  # The final result read decides a completion race.
+                raise
+            if not isinstance(response, dict) or set(response) != {'requests'} or not isinstance(response['requests'], list):
+                raise ValueError('Mission exchange is invalid')
+            from .native_mission import MissionTaskChannel
+            from hashlib import sha256
+            from capstone_control.contracts import ContractError
+            from capstone_control.service import Conflict, InvalidTransition
+            require_capacity('rpc_batch_requests', len(response['requests']), 'mission_control')
+            checked = MissionTaskChannel()
+            receipts = []
+            for call in response['requests']:
+                checked.request(call)
+                checkpoint()
+                operation_id = 'mission_' + sha256(json.dumps([request.task_id, request.parent_attempt_id, call['call_id'], call['name']]).encode()).hexdigest()[:48]
+                try:
+                    result = control.mission_operation(call['name'], call['arguments'], operation_id)
+                    receipt = dict(call_id=call['call_id'], result=result, is_error=False)
+                except (ContractError, Conflict, InvalidTransition):
+                    receipt = dict(call_id=call['call_id'], result={'error':'mission_operation_rejected',
+                        'message':'Read the current Mission and repair the requested operation.'}, is_error=True)
+                checkpoint()
+                receipts.append(receipt)
+            mission_receipts = receipts
 
         def forward_instructions():
             if (renewal is None or control.instructions is None
@@ -987,6 +1029,7 @@ class HttpGeneralPiExecutor:
             while True:
                 checkpoint()
                 forward_instructions()
+                service_mission()
                 try:
                     response = exchange("GET", "/tasks/" + request.task_id + '?after=' + str(event_cursor), operation='task_status',
                                       # Scheduling and receipt I/O can exceed one poll interval.

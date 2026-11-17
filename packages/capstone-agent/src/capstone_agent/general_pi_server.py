@@ -21,6 +21,7 @@ import time
 from urllib.parse import urlsplit, parse_qs
 from typing import cast
 import httpx
+from jsonschema.exceptions import ValidationError
 
 from .general_pi_executor import GeneralPiProcess, native_pi_launch, task_workspace, collect_artifacts
 from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES, MAX_TASK_DOCUMENT_BYTES
@@ -200,6 +201,9 @@ class GeneralPiHost:
         if getattr(run_task, 'instruction_transport', False) is True:
             self.capability['instruction_schemas'] = ['capstone-native-instruction/1']
             self.capability['instruction_limit'] = limits.native_instruction_count
+        if getattr(run_task, 'mission_transport', False) is True:
+            from .native_mission import SCHEMA
+            self.capability['mission_schemas'] = [SCHEMA]
         self.capability['task_recovery_schemas'] = ['capstone-pi-task-recovery/1']
         self.capability['research_bridge_schemas'] = ['capstone-research-bridge/1']
         self.capability['research_graph_schemas'] = ['capstone-enterprise-graph/2']
@@ -344,6 +348,10 @@ class GeneralPiHost:
                     and registered_llm_call_pool(self.capability.get('llm_call_pool'))):
                 published.update(LLM_CALL_POOL_TOOLS)
             if not set(native['policy']['allowed_tools']) <= published:
+                from .native_mission import CATALOG, SCHEMA
+                if native.get('mission_binding') is not None and SCHEMA in self.capability.get('mission_schemas', ()):
+                    published.update(CATALOG)
+            if not set(native['policy']['allowed_tools']) <= published:
                 raise ValueError('native application requested an unpublished tool')
         with self._lock:
             self.sweep()
@@ -373,6 +381,9 @@ class GeneralPiHost:
                                        'native_task_admission', mode=current_capacity().mode)
             record = {'request': request, 'status': 'running', 'events': [], 'result': None,
                       'cancel': threading.Event(), 'research_sources': [], 'research_call_hashes': {}}
+            if (request.native_context or {}).get('mission_binding') is not None:
+                from .native_mission import MissionTaskChannel
+                record['mission'] = MissionTaskChannel()
             if execution_authority is not None:
                 record['execution_authority'] = ExecutionAuthority(
                     execution_authority['generation'], execution_authority['capability'], AUTHORITY_SECONDS)
@@ -1211,6 +1222,31 @@ class GeneralPiHost:
                     pending.append({'type': 'steer', 'instruction_id': instruction_id, 'text': entry['text']})
             return pending
 
+    def mission_exchange(self, task_id: str, document):
+        from .native_execution_authority import checked_grant
+        if not isinstance(document, dict) or set(document) != {'parent_attempt_id', 'execution_authority', 'receipts'}:
+            raise ValueError('invalid Mission exchange')
+        grant = checked_grant(document['execution_authority'])
+        with self._lock:
+            record = self._tasks[task_id]
+            authority = record.get('execution_authority')
+            if (authority is None or not authority.active() or not authority.matches(grant['generation'], grant['capability'])
+                    or record['request'].parent_attempt_id != document['parent_attempt_id']
+                    or record['cancel'].is_set() or record['status'] not in {'queued', 'running'}):
+                raise PermissionError('Mission execution owner rejected')
+            channel = record['mission']
+            channel.acknowledge(document['receipts'])
+            return {'requests': channel.pending()}
+
+    def mission_request(self, task_id: str, document):
+        with self._lock:
+            record = self._tasks[task_id]
+            authority = record.get('execution_authority')
+            if (authority is None or not authority.active() or record['cancel'].is_set()
+                    or record['status'] not in {'queued', 'running'}):
+                raise PermissionError('Mission execution is not active')
+            return record['mission'].request(document)
+
     def renew_execution(self, task_id: str, document) -> None:
         from .native_execution_authority import checked_grant
         checked_grant(document, renewal=True)
@@ -1236,6 +1272,7 @@ class GeneralPiHost:
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
     instruction_transport = True
+    mission_transport = True
     from .managed_resource_service import ManagedResourceService
     managed_resource_service: ManagedResourceService | None = None
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
@@ -1337,7 +1374,11 @@ class NativeTaskRunner:
                           'context': context, 'instructionLimit': limits.native_instruction_count,
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
                           'adapter_sha256': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                              for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest()}
+                              for name in ('bounded_mcp.py', 'native_mission.py', 'resources/mission-tools.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest()}
+            if (request.native_context or {}).get('mission_binding') is not None:
+                from .native_mission import CATALOG
+                sdk_config['missionTools'] = {'url': self.relay_origin + '/mission-tools/' + request.task_id,
+                    'grant': grant, 'catalog': CATALOG}
             if self.resources is not None:
                 accepted = document.get('resource_profile', {
                     'profile_id': role, 'revision': self.resources.profiles[role].revision})
@@ -1709,6 +1750,12 @@ class NativeTaskRunner:
                     context_host = self._graph_context_provider(request, workspace, uid)
                     sdk_config['graphContextPath'] = str(context_host.root)
             launch_options = {'input_directory':inputs} if request.managed_workspace is not None else {}
+            equipment = (request.native_context or {}).get('mission_equipment')
+            if equipment is not None:
+                from .native_mission import equipment_tools
+                policy = sdk_config['applicationPolicy']
+                allowed = equipment_tools(policy['allowed_tools'], equipment, require_selected=False)
+                sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': sorted(allowed)}
             timing.mark('resources_configured')
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
@@ -1745,6 +1792,11 @@ class NativeTaskRunner:
                 'forbidden_tools': ('read', 'bash', 'write', 'edit', 'agent_delegate')}
                 if (sdk_config.get('researchRuntime', {}).get('isolatedTaskExecution')
                     and not sdk_config.get('researchRuntime', {}).get('adaptiveAgentLoop')) else {})
+            if equipment is not None:
+                active = set(sdk_config['applicationPolicy']['allowed_tools'])
+                builtin = {'bash', 'read', 'write', 'edit', 'grep', 'find', 'ls'}
+                role_options = {'required_tools': tuple(sorted(active & builtin)),
+                                'forbidden_tools': tuple(sorted(builtin - active))}
             process = GeneralPiProcess(argv, environment, workspace, uid=uid, **role_options)
             timing.mark('process_launch_requested')
             def process_started() -> None:
@@ -1816,7 +1868,7 @@ class NativeTaskRunner:
             try:
                 inventory = self(request, lambda: False, lambda _: None, inventory_only=True)[1]['inventory']
                 if inventory['adapter_sha256'] != sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                        for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest():
+                        for name in ('bounded_mcp.py', 'native_mission.py', 'resources/mission-tools.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest():
                     raise ValueError('native adapter publication changed')
                 profile = self.resources.confirm_loaded(role, inventory)
                 result[role] = {**profile.to_document(),
@@ -2016,6 +2068,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if self.path.startswith('/mission-tools/'):
+                return self.relay_mission_tools()
             if self.path.startswith('/presentation-template-tasks/'):
                 return self.relay_presentation_templates()
             if self.path.startswith('/managed-resource-tasks/'):
@@ -2031,6 +2085,14 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 parts = self.path.split('/')
+                if len(parts) == 4 and parts[1] == 'tasks' and parts[3] == 'mission':
+                    if not 0 < length <= limits.control_document_bytes:
+                        raise ValueError('Mission exchange exceeds bounds')
+                    try:
+                        result = host.mission_exchange(parts[2], json.loads(self.rfile.read(length)))
+                    except (PermissionError, KeyError):
+                        return self.send_json(409, {'error': 'mission_owner_rejected'})
+                    return self.send_json(200, result)
                 if len(parts) == 4 and parts[1] == 'tasks' and parts[3] == 'instructions':
                     if not 0 < length <= limits.rpc_frame_bytes:
                         raise ValueError('Native instruction exceeds bounds')
@@ -2279,6 +2341,29 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             finally:
                 if lease is not None:runner.relay.release(lease)
 
+        def relay_mission_tools(self):
+            parts = self.path.split('/')
+            if runner is None or len(parts) != 3 or not parts[2]:
+                return self.send_json(404, {'error': 'mission_tool_unavailable'})
+            task_id = parts[2]
+            grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
+            try:
+                lease = runner.relay.acquire(task_id, grant, self.connection, channel='gateway')
+            except PermissionError:
+                return self.send_json(401, {'error': 'unauthorized'})
+            except CapacityExceeded:
+                return self.send_json(503, {'error': 'mission_tool_capacity'})
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= limits.control_document_bytes:
+                    return self.send_json(413, {'error': 'mission_tool_request_invalid'})
+                receipt = host.mission_request(task_id, json.loads(self.rfile.read(length)))
+                return self.send_json(200, receipt if receipt is not None else {'pending': True})
+            except (ValueError, KeyError, PermissionError, ValidationError):
+                return self.send_json(409, {'error': 'mission_tool_request_rejected'})
+            finally:
+                lease.close()
+
         def relay_domain_tools(self):
             parts = self.path.split('/')
             if runner is None or len(parts) != 3 or not parts[2]:
@@ -2513,7 +2598,7 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'structural_context.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'managed_resource_contract.py', 'managed_resource_dependencies.py', 'managed_resource_secrets.py', 'managed_resource_bundle.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
-                                 'presentation_template_contract.py', 'native_presentation_tasks.py', 'resources/presentation-templates.mjs',
+                                 'native_mission.py', 'resources/mission-tools.mjs', 'presentation_template_contract.py', 'native_presentation_tasks.py', 'resources/presentation-templates.mjs',
                                  'native_resources.py', 'session_skill_preferences.py', 'tool_execution_receipt.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'resources/investigation-skills.mjs', 'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'native_timing.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py', 'native_resource_ranges.py', 'resource_range_contract.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',

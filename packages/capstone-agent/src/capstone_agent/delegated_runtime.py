@@ -762,10 +762,17 @@ class DelegatedRuntime:
         instruction_service = getattr(self, '_instruction_service', None)
         if instruction_service is not None:
             claim = self._instruction_claim
+            mission_operation = None
+            if (claim.submission or {}).get('_mission') is not None:
+                from .control_host import configure_control
+                mission_host = configure_control(instruction_service)
+                mission_operation = lambda name, args, operation_id: mission_host.mission_operation(
+                    claim, name, args, operation_id=operation_id)
             control = NodeControl(heartbeat, control.deadline,
                 instructions=lambda: instruction_service.peek_instructions(claim),
                 reserve_instruction=lambda identity: instruction_service.reserve_instruction(claim, identity),
-                acknowledge_instruction=lambda identity: instruction_service.acknowledge_instruction(claim, identity))
+                acknowledge_instruction=lambda identity: instruction_service.acknowledge_instruction(claim, identity),
+                mission_operation=mission_operation)
         goals: list[dict] = ([dict(goal_id='direct', operation='answer', depends_on=[], missing_requirements=[])]
             if self._direct else cast(IntentDecision, self._decision).to_document()['goals'])
         if self._direct and frozen.get('decision', {}).get('clarification_required') is True:
