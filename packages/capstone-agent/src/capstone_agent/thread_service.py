@@ -736,6 +736,10 @@ def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str
         rows.append({"turn_id": event.turn_id, "attempt_id": event.attempt_id,
                      "model_context_id": event.model_context_id, "status": event.event_type.removeprefix("attempt_"),
                      "instruction": (record.get('submission') or {}).get('input', {}).get('text', record["instruction"]), "answer": answer,
+                     "admitted_instructions": [dict(item.payload) for item in events
+                         if item.thread_id == thread_id and item.attempt_id == event.attempt_id
+                         and item.visibility == 'public' and item.event_seq <= event.event_seq
+                         and item.event_type == 'instruction_admitted'],
                      "object": _conversation_model_object(record.get("model_context"), event.model_context_id)})
     return project_conversation(rows, cutoff)
 
@@ -753,6 +757,10 @@ def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], 
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
         ORDER BY e.event_seq DESC LIMIT %s""", (thread_id, cutoff, work_id, work_id, limits.history_turn_count + 1)).fetchall()
     for row in rows:
+        row['admitted_instructions'] = [item['payload'] for item in connection.execute("""SELECT payload
+            FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s
+            AND event_seq <= %s AND visibility='public' AND event_type='instruction_admitted'
+            ORDER BY event_seq""", (thread_id, row['attempt_id'], row['event_seq'])).fetchall()]
         row["object"] = _conversation_model_object(row["model_context_snapshot"], row["model_context_id"])
         if row["status"] == "completed" and row["answer"] is None:
             deltas = connection.execute("""SELECT payload->>'text' AS text FROM capstone_thread_events
@@ -859,6 +867,12 @@ class ThreadExecutionService(ThreadService, Protocol):
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool: ...
 
     def cancel_requested(self, claim: AttemptClaim) -> bool: ...
+
+    def peek_instructions(self, claim: AttemptClaim) -> tuple[dict, ...]: ...
+
+    def reserve_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None: ...
+
+    def acknowledge_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None: ...
 
     def rollback_selection_if_preparation_failed(
         self, claim: AttemptClaim, *, error_code: str,
@@ -1598,6 +1612,10 @@ class InMemoryThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission)
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
+        if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
+            from .instruction_queue import enqueue_rejection
+            frozen = self._attempts.get(prepared.current_attempt.attempt_id, {}).get('submission') or {}
+            input_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id']) or input_rejection
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
@@ -2293,6 +2311,18 @@ class InMemoryThreadService(NativeExecutionOwner):
                 raise ThreadExecutionError("attempt is not running")
             record["lease_deadline"] = time.monotonic() + lease_seconds
             return True
+
+    def peek_instructions(self, claim: AttemptClaim) -> tuple[dict, ...]:
+        from .instruction_queue import access
+        return access(self, claim, 'peek')
+
+    def reserve_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'reserve', instruction_id)
+
+    def acknowledge_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'acknowledge', instruction_id)
 
     def cancel_requested(self, claim: AttemptClaim) -> bool:
         with self._lock:
@@ -3134,6 +3164,12 @@ class PostgresThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission, connection=connection)
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
+        if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
+            from .instruction_queue import enqueue_rejection
+            saved = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s',
+                (snapshot.thread_id, prepared.current_attempt.attempt_id)).fetchone()
+            frozen = {} if saved is None else saved['submission_snapshot'] or {}
+            input_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id']) or input_rejection
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
@@ -4623,6 +4659,18 @@ class PostgresThreadService(NativeExecutionOwner):
                 (lease_seconds, claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
             return updated is not None
+
+    def peek_instructions(self, claim: AttemptClaim) -> tuple[dict, ...]:
+        from .instruction_queue import access
+        return access(self, claim, 'peek')
+
+    def reserve_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'reserve', instruction_id)
+
+    def acknowledge_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'acknowledge', instruction_id)
 
     def cancel_requested(self, claim: AttemptClaim) -> bool:
         with self._connect() as connection:

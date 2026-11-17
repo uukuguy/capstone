@@ -14,12 +14,13 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
   const work = { work_id: 'work_one', goal: '测试目标', goal_revision: 1, revision: 1, status: modelFree ? 'blocked' : 'ready',
     blocked_reason: modelFree ? 'execution_unavailable' : null, latest_attempt_id: null as string | null,
+    instruction_queue_available:false,instruction_queue:[] as {id:string;text:string;attempt_id:string;sequence:number;state:string}[],
     context_product_refs:[] as ContextProductRef[],cancel_requested: false, messages: native&&!legacySaved?[]:['测试目标'], task_context: context, ...(native?{conversation_mode:!legacySaved}:{}) }
   let upgraded = modelFree || existingWork || native
   let saved = modelFree || existingWork
@@ -137,6 +138,8 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       if (command.kind === 'send_message' && rejectMessage) return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',run_id:'run_work',status:'rejected',rejection:rejectionCode})
       if (command.kind === 'work_message') { upgraded = true; saved = true;if(command.payload.context_product_refs)work.context_product_refs=command.payload.context_product_refs as ContextProductRef[] }
       if (command.kind === 'send_message') {saved=true;work.messages.push(String(command.payload.text));work.goal=String(command.payload.text)}
+      if(command.kind==='queue_instruction'){work.instruction_queue.push({id:'ins_one',text:String(command.payload.text),attempt_id:'attempt_one',sequence:1,state:'pending'});work.revision+=1}
+      if(command.kind==='withdraw_instruction'){work.instruction_queue[0].state='withdrawn';work.revision+=1}
       if (command.kind === 'start_work'||command.kind === 'send_message') {
         attemptsCreated += 1; work.status = 'queued'; work.revision += 1; work.latest_attempt_id = 'attempt_one'
         attempt = { attempt_id: 'attempt_one', turn_id: 'turn_one', target_model_context_id: native&&!openedModel?null:model.id, phase: 'accepted', runtime_mode: 'capstone',...(native?{work_id:'work_one'}:{}) }
@@ -152,6 +155,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       if (command.kind === 'start_work' && lostStart) throw new TypeError('start response lost')
       if (command.kind === 'cancel_work' && lostCancel) throw new TypeError('cancel response lost')
       if(command.kind==='send_message'&&lostMessage)throw new TypeError('message response lost')
+      if(command.kind==='queue_instruction'&&lostQueue)throw new TypeError('queue response lost')
       return response(receipt)
     }
     if (parsed.pathname.endsWith('/thr_work')) { snapshots += 1; return response(snapshot()) }
@@ -200,6 +204,49 @@ it('retains the instruction and reports that a revision-conflicting request did 
   expect((screen.getByRole('textbox',{name:'Thread 指令'}) as HTMLTextAreaElement).value).toBe('保留这条指令')
   expect(server.commands).toHaveLength(1)
   expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+})
+
+it('sends and withdraws a durable supplement while the original native attempt continues',async()=>{
+  const server=authority({native:true});server.work.instruction_queue_available=true
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="native-queue" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'开始检查'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  fireEvent.change(input,{target:{value:'请先核对来源'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands[1]?.kind).toBe('queue_instruction'))
+  expect(server.commands[1].payload).toEqual({text:'请先核对来源'})
+  expect(server.attemptsCreated).toBe(1)
+  fireEvent.click(await screen.findByRole('button',{name:'待接纳指令 1'}))
+  fireEvent.click(screen.getByRole('button',{name:'撤回'}))
+  await waitFor(()=>expect(server.commands[2]?.kind).toBe('withdraw_instruction'))
+  await screen.findByText('已撤回')
+  expect(server.work.cancel_requested).toBe(false)
+})
+
+it('retries an uncertain supplement with its original identity and no duplicate queue entry',async()=>{
+  const server=authority({native:true,lostQueue:true});server.work.instruction_queue_available=true
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="native-queue-uncertain" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'开始检查'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  fireEvent.change(input,{target:{value:'请先核对来源'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  const retry=await screen.findByRole('button',{name:'重试发送请求'})
+  expect((input as HTMLTextAreaElement).value).toBe('请先核对来源')
+  await waitFor(()=>expect((retry as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(retry)
+  await waitFor(()=>expect(server.commands).toHaveLength(3))
+  expect(server.commands[2]).toEqual(server.commands[1])
+  expect(server.work.instruction_queue).toHaveLength(1)
 })
 
 it('sends a native instruction directly through the shared composer and resumes the same Work after completion',async()=>{

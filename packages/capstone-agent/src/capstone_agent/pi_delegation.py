@@ -867,6 +867,39 @@ class HttpGeneralPiExecutor:
         seen_events = {}
         research_ready = False
         transport_sequence = 0
+        sent_instructions = set()
+
+        def forward_instructions():
+            if (renewal is None or control.instructions is None
+                    or control.reserve_instruction is None
+                    or 'capstone-native-instruction/1' not in self.capability.get('instruction_schemas', ())):
+                return
+            for pending in control.instructions():
+                identity = pending['id']
+                if identity in sent_instructions:
+                    continue
+                reserved = control.reserve_instruction(identity)
+                if reserved is None:
+                    continue
+                try:
+                    response = exchange('POST', '/tasks/' + request.task_id + '/instructions',
+                        operation='instruction_delivery', document={
+                            'parent_attempt_id': request.parent_attempt_id,
+                            'instruction_id': identity, 'text': reserved['text'],
+                            'execution_authority': renewal.grant}, timeout=self._exchange_timeout)
+                except PiHTTPFailure as error:
+                    if error.diagnostic['http_status'] == 409:
+                        # Completion can win the admission race. Read the saved
+                        # task result; do not replace it with a steering failure.
+                        sent_instructions.add(identity)
+                        continue
+                    raise
+                if (not isinstance(response, dict) or response.get('instruction_id') != identity
+                        or response.get('state') not in {'queued', 'consumed'}):
+                    raise ValueError('Native instruction receipt is invalid')
+                sent_instructions.add(identity)
+                if response['state'] == 'consumed' and control.acknowledge_instruction is not None:
+                    control.acknowledge_instruction(identity)
 
         def exchange(method, path, *, operation, **kwargs):
             # Every call here is replay-safe: task admission uses the same task
@@ -953,6 +986,7 @@ class HttpGeneralPiExecutor:
             event_cursor = 0
             while True:
                 checkpoint()
+                forward_instructions()
                 try:
                     response = exchange("GET", "/tasks/" + request.task_id + '?after=' + str(event_cursor), operation='task_status',
                                       # Scheduling and receipt I/O can exceed one poll interval.
@@ -1052,6 +1086,11 @@ class HttpGeneralPiExecutor:
                         if len(seen_events) >= limits.event_buffer_count and not paged:
                             raise ValueError("Pi event history exceeds bounds")
                         seen_events[event_id] = event
+                        if event.get('type') == 'general_pi_instruction_consumed':
+                            identity = event.get('instruction_id')
+                            if identity not in sent_instructions or control.acknowledge_instruction is None:
+                                raise ValueError('Unexpected native instruction consumption')
+                            control.acknowledge_instruction(identity)
                         on_event(_json_document(event, native_events=True))
                         checkpoint()
                         # Durable event publication must not starve control receipts.

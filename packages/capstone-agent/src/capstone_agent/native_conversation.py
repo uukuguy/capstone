@@ -174,6 +174,9 @@ def validate_binding(value: object) -> dict:
 
 class NativeResearchRuntime:
     """Bind the existing ordinary runtime to the same durable Work research."""
+    def bind_instruction_service(self, service, claim):
+        self._runtime.bind_instruction_service(service, claim)
+
     def enable_goal_response(self):
         self._runtime.enable_goal_response()
 

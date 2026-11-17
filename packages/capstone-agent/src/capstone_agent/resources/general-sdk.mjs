@@ -589,6 +589,47 @@ export class ManagedContinuationStalledError extends Error {
   }
 }
 
+export function createInstructionSteering(session,config,emit) {
+  const defaults=JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits;
+  const capacities=resolveLimits({...defaults,...config.runtimeLimits},{mode:config.runtimeLimitMode});
+  const entries=new Map();
+  const instructionLimit=config.instructionLimit??capacities.native_instruction_count;
+  if(!Number.isSafeInteger(instructionLimit)||instructionLimit<1)throw new TypeError('Invalid native instruction limit');
+  let closed=false;
+  const unsubscribe=session.subscribe(event=>{
+    // The pinned SDK appends user context on message_end. message_start only
+    // sets streamingMessage, so it cannot certify durable context admission.
+    if(event.type!=='message_end'||event.message?.role!=='user')return;
+    const content=event.message.content;
+    const text=typeof content==='string'?content:Array.isArray(content)?content.filter(p=>p.type==='text').map(p=>p.text).join(''):'';
+    for(const [id,entry] of entries)if(!entry.consumed&&text===entry.message){
+      entry.consumed=true;
+      emit({type:'general_pi_instruction_consumed',instruction_id:id});
+      break;
+    }
+  });
+  return {
+    async accept(line){
+      if(closed)throw new Error('Native steering is closed');
+      checkCapacity(capacities,'rpc_frame_bytes',Buffer.byteLength(line),'bytes','native_steering');
+      const frame=JSON.parse(line);
+      if(!frame||Object.keys(frame).sort().join(',')!=='instruction_id,text,type'||frame.type!=='steer'||
+        typeof frame.instruction_id!=='string'||!(/^[A-Za-z0-9_.:-]{1,128}$/).test(frame.instruction_id)||
+        typeof frame.text!=='string'||!frame.text.trim())throw new TypeError('Invalid native steering frame');
+      checkCapacity(capacities,'input_text_chars',Array.from(frame.text).length,'characters','native_steering');
+      const old=entries.get(frame.instruction_id);
+      if(old){if(old.text!==frame.text)throw new Error('Native instruction identity conflict');return;}
+      if(entries.size>=instructionLimit)throw new Error('Native instruction queue exceeds bounds');
+      // The prefix binds duplicate text to its durable identity and prevents
+      // slash-command expansion from changing an ordinary user supplement.
+      const message=`User instruction (${frame.instruction_id}):\n${frame.text}`;
+      entries.set(frame.instruction_id,{text:frame.text,message,consumed:false});
+      await session.steer(message);
+    },
+    close(){closed=true;unsubscribe();}
+  };
+}
+
 export async function runSettledPrompt(session, input, skillName, emit, continuation,control={}) {
   let terminal,completedTools=0,previousPending;
   const observedAssistants=[];
@@ -1529,15 +1570,26 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       tool_schema_hashes: toolHashes, adapter_sha256: config.adapter_sha256 }) + "\n");
     if (config.inventoryOnly) return;
     const lines = createInterface({ input: process.stdin });
-    for await (const line of lines) {
-      validatePromptFrame(line, config);
-      await runSettledPrompt(session, config.input, config.skillName,
-        event => process.stdout.write(JSON.stringify(event) + "\n"),
-        async()=>await llmPool?.continuation()??await researchController?.continuationState(),
-        {taskId:config.taskId,failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()});
-      break;
-    }
-    lines.close();
+    const emit=event=>process.stdout.write(JSON.stringify(event)+'\n');
+    const steering=createInstructionSteering(session,config,emit);
+    try {
+      await new Promise((resolve,reject)=>{
+        let started=false,settled=false;
+        const fail=error=>{if(!settled){settled=true;reject(error);}};
+        lines.on('line',line=>{
+          if(settled)return;
+          if(started){steering.accept(line).catch(fail);return;}
+          try{validatePromptFrame(line,config);}catch(error){fail(error);return;}
+          started=true;
+          runSettledPrompt(session,config.input,config.skillName,emit,
+            async()=>await llmPool?.continuation()??await researchController?.continuationState(),
+            {taskId:config.taskId,failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()})
+            .then(()=>{settled=true;resolve();},fail);
+        });
+        lines.on('close',()=>{if(!started)fail(new Error('Native prompt is missing'));});
+        lines.on('error',fail);
+      });
+    } finally {steering.close();lines.close();}
   } finally {
     stopModelTurn();
     stopPoolConsumption();

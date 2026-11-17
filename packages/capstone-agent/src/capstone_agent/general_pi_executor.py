@@ -532,11 +532,27 @@ class GeneralPiProcess:
             if not inventory_only:
                 process.stdin.write((json.dumps({'type': 'prompt', 'message': instruction}) + '\n').encode())
                 process.stdin.flush()
+            last_instruction_poll = 0.0
             while True:
                 if revoked.is_set() or cancelled():
                     raise InterruptedError('General Pi task cancelled')
                 if time.monotonic() >= deadline:
                     raise TimeoutError('General Pi task deadline exceeded')
+                poll = getattr(on_event, 'poll_instructions', None)
+                if callable(poll) and time.monotonic() - last_instruction_poll >= .1:
+                    last_instruction_poll = time.monotonic()
+                    for supplement in poll():
+                        if (not isinstance(supplement, dict) or set(supplement) != {'type', 'instruction_id', 'text'}
+                                or supplement.get('type') != 'steer'
+                                or not isinstance(supplement.get('instruction_id'), str)
+                                or re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', supplement['instruction_id']) is None
+                                or not isinstance(supplement.get('text'), str) or not supplement['text'].strip()):
+                            raise ValueError('General Pi instruction frame is invalid')
+                        require_capacity('input_text_chars', len(supplement['text']), 'native_instruction')
+                        encoded = (json.dumps(supplement) + '\n').encode()
+                        require_capacity('rpc_frame_bytes', len(encoded), 'native_instruction')
+                        process.stdin.write(encoded)
+                        process.stdin.flush()
                 try:
                     frame = frames.get(timeout=0.05)
                 except Empty:
@@ -643,7 +659,7 @@ class GeneralPiProcess:
                         raise ValueError('General Pi answer is invalid')
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')
                     return answer
-                if event.get('type') in {'turn_start', 'turn_end', 'message_end', 'auto_retry_start', 'auto_retry_end',
+                if event.get('type') in {'general_pi_instruction_consumed', 'turn_start', 'turn_end', 'message_end', 'auto_retry_start', 'auto_retry_end',
                                          'compaction_start', 'compaction_end',
                                          'tool_dispatch', 'tool_batch',
                                          'tool_execution_start', 'tool_execution_end', 'message_update',

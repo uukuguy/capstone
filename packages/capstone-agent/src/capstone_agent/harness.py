@@ -688,6 +688,9 @@ class HarnessAttemptRunner:
         self._stages = ExecutionStages()
 
     def run(self, claim: AttemptClaim) -> HarnessAttemptResult:
+        bind_instructions = getattr(self._runtime, 'bind_instruction_service', None)
+        if callable(bind_instructions):
+            bind_instructions(self._service, claim)
         if self._lease is not None:
             return self._run(claim, self._lease)
         with AttemptLeaseRenewal(self._service, claim, self._lease_seconds) as lease:

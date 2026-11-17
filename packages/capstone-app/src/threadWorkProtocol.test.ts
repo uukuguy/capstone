@@ -14,6 +14,13 @@ export function workSnapshot() {
 }
 
 describe('Work protocol', () => {
+  it('recovers queued instruction and withdrawal commands with their original retry identity', () => {
+    for (const [kind,payload] of [['queue_instruction',{text:'请先检查来源'}],['withdraw_instruction',{instruction_id:'ins_one'}]] as const) {
+      const command={schema:'capstone-command/2',thread_id:'thr_work',run_id:'run_work',command_id:'cmd_queue',idempotency_key:'idem_queue',kind,target:{kind:'work',id:'work_one',expected_revision:2},payload}
+      expect(parseStoredWorkCommand(command,'thr_work')).toEqual(command)
+      expect(()=>parseStoredWorkCommand({...command,payload:{...payload,unexpected:true}},'thr_work')).toThrow()
+    }
+  })
   it('recovers the frozen LLM profile on a pending command',()=>{
     const submission={input:{kind:'text' as const,text:'分析'},context_selection:{include_refs:[],exclude_refs:[]},llm_profile_id:'selected-profile'}
     const command=buildSendMessageCommand('thr_work','run_work','cmd_send','idem_send','new',0,'分析',submission)

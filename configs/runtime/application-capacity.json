@@ -10,6 +10,7 @@
     "native_task_bytes": 67108864,
     "rpc_frame_bytes": 8388608,
     "rpc_batch_requests": 128,
+    "native_instruction_count": 128,
     "provider_request_bytes": 67108864,
     "provider_response_bytes": 67108864,
     "provider_stream_bytes": 0,
