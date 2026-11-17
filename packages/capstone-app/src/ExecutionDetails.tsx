@@ -21,7 +21,7 @@ export function ExecutionDetailEntry({id,label,status,children,enabled=true}:{id
   return <>
     <div className="execution-receipt"><span>{status}</span><button type="button" onClick={locate}><ListTree aria-hidden="true"/>查看执行详情</button></div>
     {createPortal(<section ref={record} tabIndex={-1} className="execution-detail-entry" data-execution-id={id} aria-label={label||'执行记录'}>
-      <header className="execution-detail-heading"><strong title={label}>{label||'本次执行'}</strong><span>{status}</span></header>
+      <header className="execution-detail-heading"><strong title={label}>执行 · {label||'本次执行'}</strong><span>{status}</span></header>
       <div className="execution-detail-content">{children}</div>
     </section>,dock.target,id)}
   </>
