@@ -990,6 +990,7 @@ export class ThreadProjectionStore {
     if (workSnapshot) {
       const document = workSnapshot.toDocument()
       const payload = record(event.payload)
+      if(event.eventType==='mission_associated'){const refs=(document.mission_refs||[]) as Record<string,unknown>[];if(!refs.some(ref=>ref.mission_id===payload.mission_id)){const origin=record(payload.origin);document.mission_refs=[...refs,{mission_id:payload.mission_id,...(origin.work_id===undefined?{}:{work_id:origin.work_id})}]}}
       if (event.eventType === 'session_title_changed') document.session_title = payload.session_title
       if (event.eventType === 'session_skills_changed') document.session_skills = payload.session_skills
       if (event.eventType === 'runtime_mode_changed') document.runtime_mode = payload.runtime_mode

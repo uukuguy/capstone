@@ -14,7 +14,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, lostMission=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -22,6 +22,9 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
     blocked_reason: modelFree ? 'execution_unavailable' : null, latest_attempt_id: null as string | null,
     instruction_queue_available:false,instruction_queue:[] as {id:string;text:string;attempt_id:string;sequence:number;state:string}[],
     context_product_refs:[] as ContextProductRef[],cancel_requested: false, messages: native&&!legacySaved?[]:['测试目标'], task_context: context, ...(native?{conversation_mode:!legacySaved}:{}) }
+  const missionRequests:Record<string,unknown>[]=[]
+  let mission:Record<string,unknown>|undefined
+  let missionResponseLost=false
   let upgraded = modelFree || existingWork || native
   let saved = modelFree || existingWork
   let attempt: Record<string, unknown> | null = null
@@ -40,7 +43,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
     return { ...work, start_available: reason === null, start_unavailable_reason: reason }
   }
   function snapshot() {
-    const base = { schema: 'capstone-thread-snapshot/1', thread_id: 'thr_work', run: { run_id: 'run_work', state: 'open' },
+    const base = { ...(mission?{mission_refs:[{mission_id:'goal_mission'}]}:{}),schema: 'capstone-thread-snapshot/1', thread_id: 'thr_work', run: { run_id: 'run_work', state: 'open' },
       active_model_context: modelFree||(native&&!openedModel) ? null : model, active_grid_page_id: modelFree||(native&&!openedModel) ? null : 'page_one', current_attempt: attempt,
       last_event_seq: events.length, base_event_seq: 0, result_projections: projections }
     return upgraded ? { ...base, schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
@@ -90,6 +93,13 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
   })}
   const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const parsed = new URL(String(url), 'http://localhost')
+    if(parsed.pathname==='/api/v1/control/missions'&&init?.method==='POST'){
+      const body=JSON.parse(String(init.body));missionRequests.push(body)
+      if(!mission){mission={schema:'capstone-control-mission/1',mission_id:'goal_mission',goal_id:'goal_mission',workspace:'enterprise',objective:body.objective,state:'planning',revision:1,origin:body.origin,plan_complete:false};append('mission_associated',{mission_id:'goal_mission',origin:body.origin})}
+      if(lostMission&&!missionResponseLost){missionResponseLost=true;throw new TypeError('Mission create response lost')}
+      return response(mission)
+    }
+    if(parsed.pathname==='/api/v1/control/missions/goal_mission')return response(mission)
     if(parsed.pathname.endsWith('/workspace/session-pins'))return response({schema:'capstone-session-pins/1',workspace:'enterprise',revision:0,pins:[]})
     if (parsed.pathname.endsWith('/thread-access')) return response({ schema: 'capstone-thread-access/1', mode: 'open' })
     if(parsed.pathname.endsWith('/resources'))return response({schema:'capstone-resources/1',resources:[]})
@@ -110,6 +120,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
       return response({schema:'capstone-product-resolution/1',entry,content_base64:entry?.ref.origin==='native_file'?'aGVsbG8=':null,projection:null,record:entry?.ref.origin==='process_record'?entry.source:null})
     }
     if(parsed.pathname.includes('/artifacts/'))return new Response('hello',{headers:{'Content-Type':'text/markdown'}})
+    if (parsed.pathname.endsWith('/threads') && init?.method === 'POST') return response(snapshot())
     if (parsed.pathname.endsWith('/threads') && init?.method !== 'POST') return response({ schema: 'capstone-thread-list/1', threads: [], has_more: false, next_before_thread_id: null })
     if(parsed.pathname.endsWith('/products'))return response({schema:'capstone-process-products/1',thread_id:'thr_work',has_more:false,next_before_event_seq:1,
       products:events.filter(event=>['attempt_completed','attempt_cancelled'].includes(String(event.event_type))).map(event=>({product_id:'process_attempt_one',scope:'instruction',thread_id:'thr_work',attempt_id:'attempt_one',work_id:'work_one',historical_only:true,instruction:'已完成的原指令',status:'completed',event_seq:event.event_seq,occurred_at:'2026-10-17T00:00:00Z',failure_code:null,model_context:native?null:model}))})
@@ -163,7 +174,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
     if (parsed.pathname.endsWith('/catalog')) return response({ schema: 'capstone-thread-catalog/1', models: modelControls?[{model_id:'ieee39',implementation_family:'pandapower',authority_model_ref:'gridctl:ieee39',display_name:'IEEE-39',diagram_provider_id:'gridctl'}]:[], profiles: [] })
     throw new Error(`Unexpected test request: ${parsed.pathname}`)
   })
-  return { fetcher, commands, started, finish, snapshot, work, publishFile,
+  return { fetcher, commands, missionRequests, setMessageRejected(value:boolean){rejectMessage=value}, started, finish, snapshot, work, publishFile,
     projectPrimary(name:string){const index=files.findIndex(file=>file.file_name===name);files[index]={...files[index],presentation_role:'primary',delivery_status:'limited',delivery_limitations:['图表尚未完成独立核验']}},get upgraded() { return upgraded },
     get attemptsCreated() { return attemptsCreated }, get snapshots() { return snapshots }, get streamReady() { return stream !== undefined },
     disconnect() { stream?.error(new TypeError('stream disconnected')) } }
@@ -247,6 +258,84 @@ it('retries an uncertain supplement with its original identity and no duplicate 
   await waitFor(()=>expect(server.commands).toHaveLength(3))
   expect(server.commands[2]).toEqual(server.commands[1])
   expect(server.work.instruction_queue).toHaveLength(1)
+})
+
+it('creates a real Thread before accepting a Mission from the new conversation entry',async()=>{
+  const server=authority({native:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  window.history.replaceState({},'','/?workspace=enterprise&thread=new')
+  render(<ThreadLiveEntry threadId="new" presentation="workspace"/>)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'/mission 从一个初步想法开始'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  expect(server.missionRequests[0].origin).toEqual({thread_id:'thr_work'})
+  expect(server.commands[0].thread_id).toBe('thr_work')
+  expect(screen.queryByRole('dialog',{name:'未知命令'})).toBeNull()
+})
+
+it('restores a partial Mission creation and plans once through the existing composer',async()=>{
+  const server=authority({native:true,lostMission:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  const mount=()=>render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="mission-partial" recoveryOnly />)
+  mount()
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'/mission 帮我准备一份研究报告'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await screen.findByRole('button',{name:'重试 Mission 请求'})
+  expect(server.commands).toHaveLength(0)
+  cleanup();mount()
+  const retry=await screen.findByRole('button',{name:'重试 Mission 请求'})
+  await waitFor(()=>expect((retry as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(retry)
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  expect(server.missionRequests).toHaveLength(2)
+  expect(server.missionRequests[1]).toEqual(server.missionRequests[0])
+  expect(server.commands[0].payload.text).toBe('/mission 帮我准备一份研究报告')
+  expect(server.commands[0].kind).toBe('send_message')
+  expect(screen.queryByRole('button',{name:'启用持续目标'})).toBeNull()
+  await act(async()=>server.finish())
+  fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'请把报告范围缩小到本地数据'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(2))
+  expect(server.missionRequests).toHaveLength(2)
+})
+
+it('retries uncertain Mission planning without creating another Mission or execution',async()=>{
+  const server=authority({native:true,lostMessage:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="mission-planning" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'/mission 初步研究想法'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  const retry=await screen.findByRole('button',{name:'重试 Mission 请求'})
+  await waitFor(()=>expect((retry as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(retry)
+  await waitFor(()=>expect(server.commands).toHaveLength(2))
+  expect(server.commands[1]).toEqual(server.commands[0])
+  expect(server.missionRequests[1]).toEqual(server.missionRequests[0])
+  expect(server.attemptsCreated).toBe(1)
+})
+
+it('rebuilds only a rejected planning command while preserving the existing Mission operation',async()=>{
+  const server=authority({native:true,rejectMessage:true,rejectionCode:'revision_conflict'})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="mission-conflict" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'/mission 初步研究想法'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await screen.findByText(/任务已更新，本次请求未执行/)
+  server.setMessageRejected(false)
+  fireEvent.click(screen.getByRole('button',{name:'重试 Mission 请求'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(2))
+  expect(server.commands[1].command_id).not.toBe(server.commands[0].command_id)
+  expect(server.missionRequests[1]).toEqual(server.missionRequests[0])
+  expect(server.attemptsCreated).toBe(1)
 })
 
 it('sends a native instruction directly through the shared composer and resumes the same Work after completion',async()=>{

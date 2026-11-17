@@ -1,4 +1,6 @@
 import GoalControls from './GoalControls'
+import MissionStatus from './MissionStatus'
+import {missionObjectiveFromInput,type MissionCreate} from './missions'
 import InstructionStatus from './InstructionStatus'
 import {ExecutionDetailsContext,ExecutionDetailsSurface} from './ExecutionDetails'
 import ControlGoalPanel from './ControlGoalPanel'
@@ -206,6 +208,15 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [listReload,setListReload]=useState(0)
   const writing = useRef(false)
   const key = `${namespace}.${currentId}.work-draft`
+  type MissionSubmission={body:MissionCreate;text:string;submission?:InputSubmission;command?:WorkCommand}
+  const missionStorageKey=`${namespace}.${currentId}.mission-submission`
+  const [missionPending,setMissionPending]=useState<MissionSubmission|undefined>(()=>{
+    try{const saved=JSON.parse(sessionStorage.getItem(missionStorageKey)||'null');if(saved?.body?.schema!=='capstone-control-mission-create/1'||saved.body.origin?.thread_id!==currentId||typeof saved.text!=='string'||missionObjectiveFromInput(saved.text)!==saved.body.objective)return;return {...saved,...(saved.command?{command:parseStoredWorkCommand(saved.command,currentId)}:{})}}catch{return undefined}
+  })
+  function rememberMission(value:MissionSubmission|undefined){
+    if(value)sessionStorage.setItem(missionStorageKey,JSON.stringify(value));else sessionStorage.removeItem(missionStorageKey)
+    setMissionPending(value)
+  }
   const persist = useCallback((target: string) => {
     if (!mounted.current) return
     try { sessionStorage.setItem(key, JSON.stringify({ selected: target, drafts: drafts.current,explicit_new:explicitNew.current })) }
@@ -421,7 +432,34 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     }
     catch{/* dispatch retains the error and exact request for recovery. */}
   }
+  async function submitMission(text:string,submission?:InputSubmission){
+    if(!liveConversation||((active||currentAttempt)&&!missionPending?.command)||recovery)throw new MessageNotSentError('请在当前执行结束后，使用 /mission 创建 Mission。草稿保留。')
+    if(attachmentsLoading)throw new MessageNotSentError('正在确认附件，请稍后发送。')
+    if(writing.current)throw new MessageNotSentError('请等待当前请求完成。')
+    let operation=missionPending
+    if(!operation){
+      const objective=missionObjectiveFromInput(text)
+      if(!objective)throw new MessageNotSentError('请在 /mission 后描述你想完成的事情；暂时不需要任务清单。')
+      operation={text,body:{schema:'capstone-control-mission-create/1',operation_id:`op_${commandKey()}`,objective,origin:{thread_id:currentId,...(selectedWork?{work_id:selectedWork.workId}:{})}},submission:{...(submission||{input:{kind:'text',text},context_selection:{include_refs:[],exclude_refs:[]}}),attachment_refs:attachments.map(file=>file.resource_id)}}
+    }
+    try{
+      rememberMission(operation)
+      writing.current=true;setBusy(true);setError(null)
+      const mission=await transport.createMission(operation.body)
+      await store.refreshWorkSnapshot()
+      const fresh=store.state.workSnapshot
+      if(!fresh?.missionRefs?.some(ref=>ref.missionId===mission.missionId))throw new Error('Mission 已创建，来源关联尚待确认。请重试原请求。')
+      if(!operation.command){
+        operation={...operation,command:buildSendMessageCommand(currentId,fresh.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,selected, fresh.works.find(work=>work.workId===selected)?.revision||0,operation.text,operation.submission)}
+        rememberMission(operation)
+      }
+    }catch(cause){setError(cause instanceof Error?cause.message:'Mission 创建结果待确认。');throw new MessageNotSentError(cause instanceof Error?cause.message:'Mission 创建结果待确认。')}
+    finally{writing.current=false;setBusy(false)}
+    try{await dispatch(operation.command!);rememberMission(undefined)}catch(cause){if(cause instanceof CommandRejectedError)rememberMission({...operation,command:undefined});throw new MessageNotSentError(cause instanceof Error?cause.message:'规划请求结果待确认。请重试原请求。')}
+  }
   async function send(text: string,submission?:InputSubmission) {
+    if((missionPending||missionObjectiveFromInput(text)!==null)&&(!pendingMessage||missionPending))return submitMission(text,submission)
+
     if(pendingMessage?.kind==='queue_instruction'){
       try{await dispatch(pendingMessage);return}catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'发送结果待确认。')}
     }
@@ -712,10 +750,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
       {pending?.kind==='withdraw_instruction'&&<button type="button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试撤回请求</button>}
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
+      {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
+      {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}/>)}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
-      {(selectedWork||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} objective={goalDraft??selectedWork?.goal??''}
+      {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} objective={goalDraft??selectedWork?.goal??''}
         disabled={busy||!!pending||projection.connection!=='live'} onControl={(kind,payload)=>{
           if(snapshot)void (async()=>{
             let work=selectedWork
@@ -755,8 +795,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||uploadBusy}
       welcomeGateway={sharedNavigation?sharedNavigation.gateway:welcomeGateway}
-      sendLabel={viewingLegacy?'确认原保存请求':nativeChat?pendingMessage?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={initialText} onDraftChange={onDraftChange}
-      storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&!concurrentSend&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage}
+      sendLabel={viewingLegacy?'确认原保存请求':nativeChat?(pendingMessage||missionPending)?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={missionPending?.text??initialText} onDraftChange={onDraftChange}
+      storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&!concurrentSend&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage||!!missionPending}
       instructionReceipts={liveConversation&&selectedWork?.instructionQueue?.length?<section className="instruction-mainline" aria-label="补充指令与接纳回执">{selectedWork.instructionQueue.map(item=><article key={item.id}>
         <p className="instruction-mainline-text">{item.text}</p><div className="execution-receipt"><span>{item.state==='pending'?'待接纳':item.state==='delivering'?'正在送达，尚未确认接纳':item.state==='delivery_unknown'?'接纳结果待核实 · 不会自动重发，请先查看来源执行':item.state==='admitted'?'已接纳 · 已进入执行上下文，尚不表示完成':'已撤回'}</span><button type="button" onClick={()=>locateQueuedInstruction(item.attemptId)}>查看来源执行</button></div>
       </article>)}</section>:undefined}

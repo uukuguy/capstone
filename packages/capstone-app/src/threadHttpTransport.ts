@@ -24,6 +24,7 @@ import type {GatewayConnectionInput} from './gatewayConnectionTypes'
 import {parseGatewayConnections,parseGatewayProbe} from './gatewayConnectionProtocol'
 import {currentWorkspaceName,normalizeWorkspaceName} from './workspaceName'
 import {parseControlGoal,parseControlGoals,type ControlCommand,type ControlGoalCreate} from './controlGoals'
+import {parseMission,type MissionCreate} from './missions'
 import {parseControlEvents} from './controlEvents'
 
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
@@ -130,6 +131,8 @@ async function writeVerifiedStream(response:Response,size:number,digest:string,w
 
 /** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
 export class HttpThreadTransport implements ThreadTransport {
+  async createMission(body:MissionCreate){return parseMission(await this.request('/api/v1/control/missions',{method:'POST',headers:{'Idempotency-Key':body.operation_id},body:JSON.stringify(body),signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))}),this.workspaceName,body.origin.thread_id)}
+  async mission(missionId:string,threadId:string){const mission=parseMission(await this.request('/api/v1/control/missions/'+encodeURIComponent(missionId),{signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))}),this.workspaceName,threadId);if(mission.missionId!==missionId)throw new Error('Mission 身份不匹配。');return mission}
   private controlDocument(value:unknown){const goal=parseControlGoal(value);if(goal.workspace!==this.workspaceName)throw new Error('长期目标不属于当前工作空间。');return goal}
   private controlRequest(path:string,init:RequestInit={}){return this.request('/api/v1/control/goals'+path,{...init,signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))})}
   async controlGoals(after?:string){
