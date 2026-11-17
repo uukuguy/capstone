@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-17 当前兼容恢复修正：最近15个被查会话均有旧式Work，默认new造成正文空态。fix/compatible-session-restoration-20261117由capstone-app所有，目标dev，137App/类型与191治理通过；候选/实际浏览器待验。新建已走v2连续对话；重要旧记录显式转换后退役兼容属于后续方向，见[计划](../superpowers/plans/2026-11-17-compatible-session-restoration.md)和[演进记录](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)。
+
 2026-11-17 常驻左栏实际dev验收通过：PR131/受检6eb7c637/macOS CI44026102168合入8d5fa71d；132App/类型、190治理、规范重建与实际5173严格DOM/坐标/100px滚动证明通过，节点增删0、目录GET0，原始10个置顶ID一致。当前仅docs/persistent-navigation-closeout-20261117目标dev记录收口，最终自身回执忽略保存。[验收](../reviews/2026-11-17-persistent-workspace-navigation.md)。
 
 历史来源补正：PR129已合b0dfa1cc，PR130已合3ef7d5b2，补齐旧local-dev来源f818d2e9固定节点；两项分支均已关闭。当前精确本机来源为上方8d5fa71d。

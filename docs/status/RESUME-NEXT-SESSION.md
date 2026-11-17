@@ -1,67 +1,41 @@
 # Live Session Checkpoint
 
-Updated: 2026-11-17. Persistent navigation is accepted in actual dev.
+Updated: 2026-11-17. Compatible historical session restoration is in progress.
 
-## Accepted boundary
+Owner capstone-app; fix/compatible-session-restoration-20261117 targets dev58782e03.
+Initialized worktree .worktrees/historical-input-receipts owns the implementation,
+focused gate/tests and current plan/status/notebook changes. No migration is run.
 
-User required a stationary sidebar: only selection highlight changes while
-conversation/products switch, and catalog work stays in the background. Prior
-PR128 row-count acceptance was insufficient and is explicitly corrected.
+Recent32 audit:16 task-style v2 Threads have saved messages; newest15 all have
+Works. Sample thr_5448b730e561c324dbe0191158a18fa0 shows welcome until its saved
+Work is manually selected. This is default reading selection, not lost data.
+New entry already creates v2 enterprise-research and sends send_message.
+Task-style Work remains supported by Control and shared execution; mode alone
+is not a protocol retirement criterion. Future important-record conversion and
+obsolete entrypoint retirement are accepted backlog, not this fix's scope.
 
-Owner capstone-app. PR131 tested head6eb7c637/macOS CI44026102168 passed and merged
-into dev8d5fa71d.132 App/types across12 consumers and190 governance checks passed
-(1 existing skip). Cold DOM identity, delayed catalog, authentication namespace
-rotation, retained content/eviction and queued wheel99→87 regressions are covered.
+Default selection regression failed first. Current137 App/types checks across12
+consumers and191 governance checks pass (1 existing skip). Doctor and diff pass.
+Implementation preserves valid saved reading, new drafts, explicit new intent,
+pending commands and protocol1/professional behavior. No backend schema change.
 
-Actualdev canonical rebuild11444 completed0. API/three workers use
-imagef3bb77d2bf23689a742818fa046f54eba1e189acda62a492fbc99ffedaa6d31b;
-readiness and scoped cache maintenance passed. Actual localhost5173 strict real
-browser probes pass three cold/one warm switches, then three switches at100px:
-same navigation/list/scroll/footer/row DOM, identical row/viewport geometry and
-scroll offsets, row child-list mutations0, catalog requests0. Highlight changes
-during cold preparation before content arrives. Existing Vivaldi5173 also passes
-four switches. Original10 exact pin IDs match and saved PPT preview remains.
+Next commit exact task-owned paths, canonical candidate rebuild with root ignored
+local.env and PyPSA asset paths; CAPSTONE_START_APP=0. Start candidate5174 only
+for testing. Reuse existing browser tabs. Verify automatically visible historical
+instruction with old-format blank selection, real conversation and unchanged
+backend snapshots/pins. Then exact-head focused macOS CI, dev PR integration,
+canonical actual5173 rebuild and verification. CI is directly user-authorized.
 
-Owned candidate Vite78131/5174 is stopped. Real5173/API/workers remain available.
-No model instruction, cloud/demo/main change or original data removal. New-entry
-trial auto-created empty thr_7f864f18c01f505b3268; zero events/works verified and
-only that owned empty trial was deleted. Its receipt remains ignored.
+Actual rootdev remains58782e03; current API/three workers run source8d5fa71d,
+imagef3bb77d2bf23689a742818fa046f54eba1e189acda62a492fbc99ffedaa6d31b.
+No candidate service/build currently runs. Original10 pins and user data preserved.
+Previous persistent-navigation acceptance is complete; do not reopen its task.
 
-## Finite remaining control boundary
+Evidence: runs/recent-session-empty-investigation-20261117; latest local gate
+/tmp/compatible-session-gate.log, governance/doctor matching prefix. Existing
+Playwright capstone-unified tab uses cached CLI1.64; primary Vivaldi355034 has
+actual5173, candidate5174 and file graph tabs. Do not enable Apple Events JS.
 
-Initialized .worktrees/historical-input-receipts owns
-docs/persistent-navigation-closeout-20261117, based on8d5fa71d and targeting dev.
-Only review/plan/status/control docs belong to it. Product is already integrated.
-Canonical register now includes explicit key-commit/presentation rows for exact
-actualdev source8d5fa71d, so future control-only HEADs cannot remove that source.
-
-Generate/re-layout and inspect the graph with ui-ux-pro-max; run focused docs/
-graph/doctor/link/symlink/diff checks. Commit exact paths, push one docs PR,
-run directly authorized macOS docs gate and merge after exact-head pass. Then
-fast-forward actualdev, refresh `python3 tools/render_project_overview.py --live
---no-probe`, inspect actual HEAD/source/ancestry edges and close verified branches.
-Preserve initialized worktree, rootvar, ignored auth and unrelated work/stashes.
-Final own PR/CI/merge/HEAD/clean receipts go only into ignored
-runs/persistent-navigation-20261117/closeout-receipt.json and the graph receipt.
-Once that receipt proves completion, do not start another control commit to
-record its own hash. No new goal or successor feature is selected.
-
-## Evidence and browser restoration
-
-Review: docs/reviews/2026-11-17-persistent-workspace-navigation.md.
-Root ignored evidence: runs/persistent-navigation-20261117, especially
-actualdev-browser-proof.json, actualdev-scroll-proof.json, actualdev-runtime-identity.json
-and actualdev-vivaldi-browser-results.json. Failed/overbroad probes are retained.
-A1200px probe timed out on an existing hidden heading; accepted desktop is1920px.
-Creating a Thread legitimately refreshes catalog; selection must not do so.
-
-Independent reviewer dispatch failed Unknown model gpt-6.1-luna; direct source
-review was performed, no independent pass exists. Vivaldi Apple Events JS remains
-disabled. Existing automation tab capstone-unified is reused via matching cached
-CLI1.64 at /Users/sujiangwen/.npm/_npx/9833c18b2d85bc59/node_modules/playwright/cli.js cli.
-Its original graph server18744 is no longer available and CLI file URLs are
-blocked; restore the original URL/viewport1200x825 without changing that policy.
-Inspect actual root file graph through the existing Vivaldi graph tab instead.
-Existing Vivaldi window355034 should end
-on actual5173; reuse tabs and fresh indexes. GitHub uses process-scoped
-Clash127.0.0.1:7897. Preserve recovery2eefdda714845605f7aef5c8a450aa982770ca4f.
+Final closeout must retain explicit exact local-deployment source node in register,
+refresh/inspect actualdev graph and keep final own CI/merge receipts ignored.
+Preserve rootvar, authentication, unrelated worktrees and stash2eefdda7.

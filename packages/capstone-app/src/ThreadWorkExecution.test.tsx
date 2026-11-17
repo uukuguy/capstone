@@ -5,6 +5,8 @@ import ThreadWorkAdapter from './ThreadWorkAdapter'
 import { HttpThreadTransport } from './threadHttpTransport'
 import { writePendingCommands } from './threadSessionState'
 import { buildStartWorkCommand } from './threadWorkProtocol'
+import {ThreadProjectionStore} from './threadProjectionStore'
+import {CapstoneThreadClient} from './threadClient'
 import {webcrypto} from 'node:crypto'
 import type {ContextProductRef} from './threadProducts'
 import type { WorkCommand } from './threadWorkProtocol'
@@ -12,7 +14,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false,professionalTyped=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -41,7 +43,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       active_model_context: modelFree||(native&&!openedModel) ? null : model, active_grid_page_id: modelFree||(native&&!openedModel) ? null : 'page_one', current_attempt: attempt,
       last_event_seq: events.length, base_event_seq: 0, result_projections: projections }
     return upgraded ? { ...base, schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
-      selected_model_context_id: modelFree||(native&&!openedModel) ? null : model.id, works: saved ? [projection()] : [], task_context: saved ? context : null,
+      selected_model_context_id: modelFree||(native&&!openedModel) ? null : model.id, works: saved ? [projection(),...(mixedConversation?[{...projection(),work_id:'work_conversation',goal:'连续对话',conversation_mode:true,messages:[],task_context:{...context,binding:{...context.binding,work_id:'work_conversation'}}}]:[])] : [], task_context: saved ? context : null,
       ...(professionalTyped?{session_type:'grid-analysis'}:{}),...(native?{session_type:'general-chat',native_execution:{available:nativeAvailable&&!openedModel,unavailable_reason:nativeAvailable&&!openedModel?null:'native_executor_unavailable'}}:{}) } : base
   }
   function append(type: string, payload: Record<string, unknown>, withAttempt = false) {
@@ -440,8 +442,6 @@ it('retains older saved Work records and their isolated drafts when native conve
   const server=authority({native:true,existingWork:true,legacySaved:true})
   vi.stubGlobal('fetch',server.fetcher)
   render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="legacy-native" recoveryOnly />)
-  await screen.findByRole('textbox',{name:'Thread 指令'})
-  fireEvent.click(screen.getByRole('button',{name:'01 · 测试目标'}))
   const oldDraft=await screen.findByRole('textbox',{name:'历史记录草稿'})
   fireEvent.change(oldDraft,{target:{value:'保留在旧记录中的草稿'}})
   expect((screen.getByRole('button',{name:'确认原保存请求'}) as HTMLButtonElement).disabled).toBe(true)
@@ -452,6 +452,45 @@ it('retains older saved Work records and their isolated drafts when native conve
   fireEvent.click(screen.getByRole('button',{name:'01 · 测试目标'}))
   expect((await screen.findByRole('textbox',{name:'历史记录草稿'}) as HTMLTextAreaElement).value).toBe('保留在旧记录中的草稿')
   expect(server.commands).toHaveLength(0)
+})
+
+it('preserves a new-conversation draft instead of replacing it with a task-style history record',async()=>{
+  const server=authority({native:true,existingWork:true,legacySaved:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  sessionStorage.setItem('legacy-new-draft.thr_work.work-draft',JSON.stringify({selected:'new',drafts:{new:'新对话尚未发送的草稿'}}))
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="legacy-new-draft" recoveryOnly/>)
+  await waitFor(()=>expect((screen.getByRole('textbox',{name:'Thread 指令'}) as HTMLTextAreaElement).value).toBe('新对话尚未发送的草稿'))
+  expect(server.commands).toHaveLength(0)
+})
+
+it('keeps an explicit empty new-conversation selection across a remount of a legacy-only Thread',async()=>{
+  const server=authority({native:true,existingWork:true,legacySaved:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  const transport=new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')
+  const first=render(<ThreadWorkAdapter transport={transport} threadId="thr_work" namespace="explicit-new" recoveryOnly/>)
+  await screen.findByRole('textbox',{name:'历史记录草稿'})
+  fireEvent.click(screen.getByRole('button',{name:'返回当前对话'}))
+  await screen.findByRole('textbox',{name:'Thread 指令'})
+  first.unmount()
+  render(<ThreadWorkAdapter transport={transport} threadId="thr_work" namespace="explicit-new" recoveryOnly/>)
+  await screen.findByRole('textbox',{name:'Thread 指令'})
+  expect(server.commands).toHaveLength(0)
+})
+
+it.each([undefined,'work_one','work_missing'])('restores a prepared mixed Thread with saved selection %s without rewriting either record',async(saved)=>{
+  const server=authority({native:true,existingWork:true,legacySaved:true,mixedConversation:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  const namespace='mixed-'+(saved??'default'),transport=new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')
+  if(saved)sessionStorage.setItem(`${namespace}.thr_work.work-draft`,JSON.stringify({selected:saved,drafts:{[saved]:'旧任务草稿'}}))
+  const store=new ThreadProjectionStore(new CapstoneThreadClient(transport),`${namespace}.thr_work`,{protocolVersion:'2'})
+  await store.load('thr_work')
+  render(<ThreadWorkAdapter transport={transport} threadId="thr_work" namespace={namespace} recoveryOnly preparedStore={store}/>)
+  if(saved==='work_one')await waitFor(()=>expect((screen.getByRole('textbox',{name:'历史记录草稿'}) as HTMLTextAreaElement).value).toBe('旧任务草稿'))
+  else await screen.findByRole('textbox',{name:'Thread 指令'})
+  if(saved==='work_missing')expect(JSON.parse(sessionStorage.getItem(`${namespace}.thr_work.work-draft`)!).drafts[saved]).toBe('旧任务草稿')
+  expect(server.commands).toHaveLength(0)
+  const stored=server.snapshot()
+  expect('works' in stored&&stored.works.length).toBe(2)
 })
 
 it('keeps an executable legacy Work recovery-only without admitting a new start or cancel', async () => {

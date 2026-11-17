@@ -1,5 +1,10 @@
 # Current State
 
+Thread protocol version and Work content mode are distinct. A v2 Thread can
+contain task-style history, continuous conversation, or both. Application reading
+restoration respects valid scoped selections, drafts and pending commands; reading
+history never converts its representation or starts an Attempt.
+
 Workspace route navigation has one application-owned lifetime. Retained Thread
 Activities own only conversation/products. Catalog synchronization and durable
 pins are workspace-scoped; changing the selected Thread does not reload catalog

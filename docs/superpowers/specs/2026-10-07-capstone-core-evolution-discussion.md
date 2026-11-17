@@ -697,3 +697,24 @@ The canonical worklist owns delivery; this notebook records design feedback.
 旧分支改为 `archive/branch-ownership-20261114/uukuguy/reference-execution-research`，
 精确来源和远端恢复标签保留，工作树及三个未提交文档未变。
 详见[PPT 集成与引用研究收口](../../reports/2026-11-14-presentation-integration.md)。
+
+## 2026-11-17：会话过渡兼容与旧版退役方向（用户接受，迁移尚未实施）
+
+新建会话使用v2创建接口、默认enterprise-research，首次发送采用send_message并生成
+conversation_mode记录。v2协议容器也可能存有旧式任务Work；协议号和内容结构是两条轴，
+不能凭Thread版本判定旧内容已转换。本机最近15个记录均有旧式任务，默认选中new导致
+正文空态；本轮仅修复阅读恢复，保留新旧混合、有效阅读位置、草稿和未决请求，不改写历史。
+
+任务式Work也不等于废弃版本：现行Control委派可以使用它，send_message内部仍复用
+apply_work核心后设置conversation_mode。退役必须按入口、协议版本和真实调用方判断，
+不能仅凭conversation_mode=false删除共享Work能力。
+
+用户接受后续在合适节点清点并显式转换重要旧记录，再退出废弃版本的兼容。迁移应记录
+Thread/Work/Attempt和资源/产物引用映射，保留原始指令、文件字节、模型修订、来源与
+Authority证据；不得仅翻转conversation_mode、重新执行任务或把历史事实当作当前运行结果。
+有运行任务、未决请求或未知执行结果的旧记录先完成收敛，不在迁移中猜测其状态。
+
+退役条件：重要记录转换与回放/下载核对通过；其他旧记录有明确保留或归档处置；旧写入
+入口及其调用方已停用，剩余旧读者已处理，再移除运行兼容层。冻结的恢复来源仍需可追溯。
+退役对象是废弃会话路径，不把仍受支持的专业Domain Pack或Authority能力一并撤掉。
+这是后续迁移/退役方向，不是本轮阅读修复的额外实施任务；交付排期仍由规范工作清单所有。

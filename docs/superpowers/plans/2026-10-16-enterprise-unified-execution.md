@@ -1,5 +1,21 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Compatible session restoration — active correction, 2026-11-17
+
+Owner capstone-app, fix/compatible-session-restoration-20261117 targets dev58782e03.
+Newest15 inspected Threads contain task-style history; selected=new hid it behind
+the welcome view. [Plan](2026-11-17-compatible-session-restoration.md). Default
+restore now respects scoped reading/drafts/pending requests, then prefers continuous
+conversation or latest task history.137 App/types and191 governance pass. Next
+canonical candidate/browser validation and focused macOS/dev integration. Never
+convert records or start execution while reading.
+
+Accepted future backlog, not active implementation: inventory important old records,
+explicit conversion preserving lineage/products/evidence and byte-level replay,
+settle in-flight/uncertain requests, retire old writers, account for remaining
+archives/readers, then remove deprecated compatibility. New-session v2 and content
+mode are separate axes. See the shared evolution notebook for the accepted direction.
+
 ## Persistent workspace navigation — accepted in actual dev, 2026-11-17
 
 The user rejects the prior symptom-only acceptance. Selection must update only

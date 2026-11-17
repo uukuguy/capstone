@@ -198,13 +198,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const pending = pendingCommand?.schema === 'capstone-command/2' ? pendingCommand : undefined
   const pendingMessage = pending?.kind === 'work_message' || pending?.kind === 'revise_goal' || pending?.kind === 'send_message' ? pending : undefined
   const drafts = useRef<Record<string, string>>({})
+  const explicitNew=useRef(false)
   const [sessionError, setSessionError] = useState(false)
   const [listReload,setListReload]=useState(0)
   const writing = useRef(false)
   const key = `${namespace}.${currentId}.work-draft`
   const persist = useCallback((target: string) => {
     if (!mounted.current) return
-    try { sessionStorage.setItem(key, JSON.stringify({ selected: target, drafts: drafts.current })) }
+    try { sessionStorage.setItem(key, JSON.stringify({ selected: target, drafts: drafts.current,explicit_new:explicitNew.current })) }
     catch (cause) { rethrowDebugCapacity(cause); /* Keep the current session draft in memory. */ }
   }, [key])
   const onDraftChange = useCallback((text: string) => {
@@ -222,12 +223,15 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     return()=>controller.abort()
   },[transport,currentId,nativeChat,attachmentReload])
   useEffect(()=>{
-    if(!nativeChat)return
-    const conversationWork=snapshot?.works.find(work=>work.conversationMode)
-    if(conversationWork&&selected==='new'&&!pending){
-      setSelected(conversationWork.workId);setInitialText(drafts.current[conversationWork.workId]||drafts.current.new||'');persist(conversationWork.workId)
-    }
-  },[nativeChat,snapshot,selected,pending,persist])
+    if(!nativeChat||!snapshot||restoredKey!==key||pending||readPendingCommands(commandStorageKey,currentId).length)return
+    if(snapshot.works.some(work=>work.workId===selected))return
+    if(selected==='new'&&explicitNew.current)return
+    const target=snapshot.works.find(work=>work.conversationMode)??snapshot.works.at(-1)
+    if(!target||selected==='new'&&!target.conversationMode&&drafts.current.new)return
+    setSelected(target.workId)
+    setInitialText(drafts.current[target.workId]||(target.conversationMode?drafts.current.new:'')||'')
+    persist(target.workId)
+  },[nativeChat,snapshot,selected,pending,persist,restoredKey,key,commandStorageKey,currentId,projection.pendingCommands])
   useEffect(()=>{
     if(!nativeChat)return
     let live=true
@@ -249,12 +253,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     const controller = new AbortController()
     let target = 'new'
     drafts.current = {}
+    explicitNew.current=false
     try {
       const saved = JSON.parse(sessionStorage.getItem(key) || 'null')
       if (saved?.drafts && typeof saved.drafts === 'object') {
         drafts.current = Object.fromEntries(Object.entries(saved.drafts).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
       }
       if (typeof saved?.selected === 'string') target = saved.selected
+      explicitNew.current=target==='new'&&saved?.explicit_new===true
       if (saved?.pending && !readPendingCommands(commandStorageKey, currentId).length) writePendingCommands(commandStorageKey, [parseStoredWorkCommand(saved.pending, currentId)])
       const command = readPendingCommands(commandStorageKey, currentId)[0]
       if (command?.schema === 'capstone-command/2') {
@@ -306,6 +312,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   }, [store, currentId, reload,pageVisible])
   function selectWork(target: string) {
     if (pending || writing.current) return
+    explicitNew.current=target==='new'
     persist(target); setSelected(target); setInitialText(drafts.current[target] || '')
   }
   const selectWorkRef=useRef(selectWork);selectWorkRef.current=selectWork
