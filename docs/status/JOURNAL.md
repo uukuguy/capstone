@@ -8056,3 +8056,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 2a74299b adds progressive Mission planning on existing identities; later bridge work must enforce actual task equipment.
 - 2026-11-18: 018c29ad links Missions to verified origin Threads with retry repair and fenced model commands;41 focused checks pass.
 - 2026-11-18: Mission native tools use a leased Control channel; selected equipment narrows runtime tool grants without adding permissions.
+- 2026-11-18: 64d1cc76 connects registered Mission tools to leased Control calls; runtime grants stay bounded by admitted equipment.
+- 2026-11-18: 7328a157 blocks native Mission relay calls outside frozen tool grants; five focused native checks pass.
+- 2026-11-18: b9febd28 admits registered Mission tool selections into native tasks;99 focused checks pass;skill/resource adapters remain blocked.
+- 2026-11-18: ea24f485 starts Missions from the existing composer; actual model, product and browser acceptance remains pending.

@@ -1,5 +1,32 @@
 # Live Session Checkpoint
 
+## Active Mission workstream, 2026-11-18
+
+This is an active-session recovery checkpoint, not a final handoff. Worktree
+`.worktrees/historical-input-receipts` now uses `feat/mission-foundation-20261118`,
+based on `bc3d065b`, with destination `dev`. Foundation `2a74299b`, origin association
+`018c29ad`, native bridge `64d1cc76`, equipment `b9febd28`, host grant guard
+`7328a157` and composer UI `ea24f485` are committed. Durable intervention PR140
+merged into `dev` at `38a9e77f`. Merge that accepted development source into this
+branch before the Mission candidate build. Do not rebase shared work.
+
+The equipment and Mission UI changes are committed. Native tools are registered
+and unit-tested, but actual Provider execution, local rebuild,
+browser acceptance and scoped CI remain pending. Equipment must narrow current
+grants; unsupported equipment must fail closed. Model Mission control permits
+pause/resume/cancel, not final verification or acceptance.
+
+Native transport verification: 225 Python checks passed with 36 platform/database
+skips; the focused Control/origin/native set passed 76 checks with PostgreSQL.
+Two Node transport checks passed. The equipment/origin/native set passed 99 checks
+with PostgreSQL after integration. Later implementation changes need their own
+focused verification before acceptance. Root deployment and source remain separate.
+
+## Historical recovery notes
+
+The entries below describe the earlier execution-details task. They are recovery
+references, not the active Mission worklist or current verification receipt.
+
 Final local acceptance: f1c4dc57 plus focused gate;189App/types and143scope checks
 pass. Final canonical rebuild exited0, API/workers imagef25c7f8a, cleanup completed.
 Post-rebuild5174 original record, product entry, tab navigation and narrow screenshots
