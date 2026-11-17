@@ -6,6 +6,7 @@ Control, which owns all Mission state and registered resource admission.
 from copy import deepcopy
 import json
 import re
+from datetime import datetime,timedelta
 from hashlib import sha256
 from threading import RLock
 
@@ -49,13 +50,19 @@ CATALOG = {
     'agent_mission_read': dict(description='Read the Mission associated with this conversation and its currently registered equipment references and agents. Use their exact identities and revisions; availability does not require initialization or selection. Planning is not execution or acceptance.', inputSchema=obj({})),
     'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve unrelated Tasks; planning does not dispatch work.',
         inputSchema=obj(dict(expected_revision=REVISION, acceptance_criteria=dict(type='array', items=TEXT, maxItems=64),
-                             tasks=dict(type='array', items=TASK, maxItems=64)))),
+                             tasks=dict(type='array', items=TASK, maxItems=64),
+                             removed_task_ids=dict(type='array',items=IDENTITY,maxItems=64,uniqueItems=True)),
+                        ['expected_revision','acceptance_criteria','tasks'])),
     'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered equipment references from the current Mission publication. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
-    'agent_mission_ready': dict(description='Make the current Mission plan ready only when Tasks, acceptance criteria and equipment are admitted. This is not product acceptance.',
+    'agent_mission_ready': dict(description='Make an executable Mission plan ready only when Tasks, acceptance criteria and equipment are admitted. Then finish this organizer turn: a real Task boundary resumes organization automatically. Do not loop over state reads while waiting. If no dependency-ready Task remains, inspect actual results and conclude or wait. This is not product acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION))),
     'agent_mission_control': dict(description='Request pause, resume or cancellation of the associated Mission. A request does not confirm a running Task has stopped. Read actual state before replanning; organizer text never broadcasts to Tasks.',
         inputSchema=obj(dict(expected_revision=REVISION, action={'enum':['pause','resume','cancel']}))),
+    'agent_mission_conclude': dict(description='Conclude the current Mission plan only after inspecting actual saved results. Requires exact plan_revision, nonempty verified Tasks and no unfinished work. This marks delivery for user review, never final user acceptance.',
+        inputSchema=obj(dict(expected_revision=REVISION,plan_revision=REVISION,summary=dict(type='string',minLength=1,maxLength=4096)))),
+    'agent_mission_wait': dict(description='Record a deliberate wait for an admitted Task boundary or for user input, then finish this organizer turn. Actual Task boundary events resume organization; do not poll state in a read loop. Waiting never concludes the plan; user waits suspend automatic organizer continuation.',
+        inputSchema=obj(dict(expected_revision=REVISION,until={'enum':['task_boundary','user']},reason=dict(type='string',minLength=1,maxLength=4096)))),
 }
 
 
@@ -67,6 +74,36 @@ def checked_binding(value):
     if (not isinstance(origin, dict) or 'thread_id' not in origin or set(origin) - {'thread_id', 'work_id'}
             or any(not isinstance(item, str) or re.fullmatch(IDENTITY['pattern'], item) is None for item in origin.values())):
         raise ValueError('invalid native Mission origin')
+    return deepcopy(value)
+
+
+def checked_review(value):
+    fields={'schema','workspace','mission_id','review_id','origin','objective','deadline_at','boundary','revision'}
+    if (not isinstance(value,dict) or set(value)!=fields or value['schema']!='capstone-mission-review-intent/1'
+            or not isinstance(value['workspace'],str) or not 1<=len(value['workspace'])<=128
+            or not isinstance(value['objective'],str) or not 1<=len(value['objective'])<=16384
+            or type(value['revision']) is not int or value['revision']<1):
+        raise ValueError('invalid admitted Mission review')
+    try:
+        if not isinstance(value['deadline_at'],str) or len(value['deadline_at'])>64 or datetime.fromisoformat(value['deadline_at'].replace('Z','+00:00')).utcoffset()!=timedelta(0):
+            raise ValueError('invalid Mission review UTC deadline')
+    except (TypeError,ValueError):
+        raise ValueError('invalid Mission review UTC deadline') from None
+    checked_binding(dict(schema=SCHEMA,mission_id=value['mission_id'],origin=value['origin']))
+    if not isinstance(value['review_id'],str) or re.fullmatch(IDENTITY['pattern'],value['review_id']) is None:
+        raise ValueError('invalid Mission review identity')
+    source=value['boundary']
+    if (not isinstance(source,dict) or set(source)!={'digest','plan_revision','tasks'}
+            or not isinstance(source['digest'],str) or re.fullmatch(r'[0-9a-f]{64}',source['digest']) is None
+            or type(source['plan_revision']) is not int or source['plan_revision']<1
+            or not isinstance(source['tasks'],list) or not 1<=len(source['tasks'])<=64):
+        raise ValueError('invalid Mission review boundary')
+    if any(not isinstance(task,dict) for task in source['tasks']):
+        raise ValueError('invalid Mission review Task projection')
+    original={key:source[key] for key in ('plan_revision','tasks')}
+    if sha256(json.dumps(original,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()).hexdigest()!=source['digest']:
+        raise ValueError('Mission review boundary digest changed')
+    require_capacity('native_context_bytes',len(json.dumps(value).encode()),'mission_review_context')
     return deepcopy(value)
 
 

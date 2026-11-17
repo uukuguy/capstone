@@ -7,6 +7,7 @@ from .application_capacity import limits, require_capacity
 from .resource_manifest import checked_resource
 
 GRANT_EVENT = 'delegation_resources_granted'
+MISSION_REVIEW_GRANT_EVENT = 'mission_review_resources_granted'
 DELIVERY_EVENT = 'delegation_input_delivered'
 
 
@@ -18,26 +19,30 @@ def granted_manifest(thread_id, work_id, delegation_id, source):
         **{key: source[key] for key in ['file_name', 'size_bytes', 'sha256']}))
 
 
-def frozen_grants(service, thread_id, work_id, connection=None):
+def frozen_grants(service, thread_id, work_id, connection=None, *, review_id=None):
     if work_id in {None, 'new'}:
         return []
     if connection is not None:
         rows = connection.execute('''SELECT payload FROM capstone_thread_events
             WHERE thread_id=%s AND event_type=%s AND payload->>'work_id'=%s
-            ORDER BY event_seq LIMIT 2''', (thread_id, GRANT_EVENT, work_id)).fetchall()
+            AND (%s::text IS NULL OR payload->>'delegation_id'=%s)
+            ORDER BY event_seq LIMIT 2''', (thread_id,
+                GRANT_EVENT if review_id is None else MISSION_REVIEW_GRANT_EVENT, work_id, review_id, review_id)).fetchall()
         records = [row['payload'] for row in rows]
     elif hasattr(service, '_lock'):
         records = [e.payload for e in service._events if e.thread_id == thread_id
-                   and e.event_type == GRANT_EVENT and e.payload['work_id'] == work_id]
+                   and e.event_type == (GRANT_EVENT if review_id is None else MISSION_REVIEW_GRANT_EVENT)
+                   and e.payload['work_id'] == work_id
+                   and (review_id is None or e.payload['delegation_id'] == review_id)]
     else:
         with service._connect() as opened:
-            return frozen_grants(service, thread_id, work_id, opened)
+            return frozen_grants(service, thread_id, work_id, opened, review_id=review_id)
     if len(records) > 1:
         raise ValueError('delegation Work has conflicting resource grants')
     return deepcopy(records[0]['resources']) if records else []
 
 
-def grant_resources(service, workspace, thread_id, work_id, delegation_id, products):
+def grant_resources(service, workspace, thread_id, work_id, delegation_id, products, *, mission_review=False):
     """Host-selected immutable descriptors, never caller file paths or bodies."""
     from .native_artifact_projection import native_artifact_page, _matches_frozen_descriptor
     from .thread_materials import _mutate, _write_event
@@ -68,12 +73,13 @@ def grant_resources(service, workspace, thread_id, work_id, delegation_id, produ
     def save(snapshot, connection):
         if not any(w['work_id'] == work_id for w in snapshot.works):
             raise ValueError('delegation Work not found')
-        previous = frozen_grants(service, thread_id, work_id, connection)
+        previous = frozen_grants(service, thread_id, work_id, connection,
+                                 review_id=delegation_id if mission_review else None)
         if previous:
             if previous != grants:
                 raise ValueError('delegation resource grant conflict')
             return previous
-        _write_event(service, snapshot, GRANT_EVENT,
+        _write_event(service, snapshot, MISSION_REVIEW_GRANT_EVENT if mission_review else GRANT_EVENT,
                      {'work_id': work_id, 'delegation_id': delegation_id, 'resources': grants}, connection)
         return grants
     return _mutate(service, thread_id, save)

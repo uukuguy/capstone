@@ -177,7 +177,7 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
-    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'llm_call_pool', 'deep_research', 'llm_selection', 'gateway_binding', 'mission_binding', 'mission_equipment'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'llm_call_pool', 'deep_research', 'llm_selection', 'gateway_binding', 'mission_binding', 'mission_equipment', 'mission_review'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
         raise ValueError('native task context is invalid')
@@ -186,6 +186,12 @@ def checked_native_context(value):
         checked_binding(value['mission_binding'])
     elif isinstance(value['policy'], dict) and set(value['policy'].get('allowed_tools', ())) & set(CATALOG):
         raise ValueError('Mission tools need an application-owned binding')
+    if 'mission_review' in value:
+        from .native_mission import checked_review
+        review=checked_review(value['mission_review'])
+        binding=value.get('mission_binding')
+        if binding is None or binding['mission_id']!=review['mission_id'] or binding['origin']!=review['origin']:
+            raise ValueError('Mission review does not match its organizer binding')
     if 'mission_equipment' in value:
         from .native_mission import checked_equipment
         selection = checked_equipment(value['mission_equipment'])
@@ -346,6 +352,7 @@ def native_context_for(claim, binding):
     submission = claim.submission or {}
     from .native_mission import CATALOG, SCHEMA, checked_binding
     mission = submission.get('_mission')
+    review = None
     if mission is not None:
         mission = checked_binding(mission)
         origin = mission['origin']
@@ -355,6 +362,9 @@ def native_context_for(claim, binding):
         if SCHEMA not in binding['capability'].get('mission_schemas', ()):
             raise ValueError('selected native executor does not support Mission tools')
         tools.update(CATALOG)
+        if submission.get('_mission_review') is not None:
+            from .native_mission import checked_review
+            review=checked_review(public_document(submission['_mission_review']))
     from .native_llm_pool import LLM_CALL_POOL_POLICY, LLM_CALL_POOL_TOOLS, registered_llm_call_pool
     llm_pool = (binding['application_profile']['profile_id'] == 'enterprise-research'
                 and submission.get('deep_research') is False
@@ -420,6 +430,7 @@ def native_context_for(claim, binding):
         'external_lookup_enabled': False}, 'selected_task_records': pages,
         'selected_task_source': source, 'records_truncated': truncated, **work,
         **({'mission_binding': mission} if mission is not None else {}),
+        **({'mission_review': review} if review is not None else {}),
         **({'mission_equipment': selection} if selection is not None else {}),
         **({'gateway_binding': frozen_gateway} if gateway.get('session_binding') is not None or frozen_gateway['instance_id'] else {}),
         **({'deep_research': submission['deep_research']} if 'deep_research' in submission else {}),

@@ -1448,6 +1448,9 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if native.get('mission_review') is not None:
+                    sdk_config.setdefault('contextFiles',[]).append({'path':'admitted-mission-review',
+                        'content':'Application-admitted Mission Task-boundary observation. This is Control state, not a new user message or Authority evidence. Inspect actual saved results and decide whether to extend the plan, wait, or conclude it. After making work ready or recording a wait, finish this organizer turn. A real Task boundary resumes it; do not poll state in a read loop.\n'+json.dumps(native['mission_review'],ensure_ascii=False)})
                 if sdk_config['allowedSkills']:
                     sdk_config['applicationPolicy'] = {**sdk_config['applicationPolicy'], 'allowed_tools': sorted({
                         *sdk_config['applicationPolicy']['allowed_tools'], 'agent_skill'})}

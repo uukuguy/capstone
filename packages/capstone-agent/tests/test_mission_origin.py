@@ -35,7 +35,8 @@ def test_intent_creation_and_goal_alias_share_identity_and_thread_link(chat_stor
         assert len([event for event in threads.read_events(thread_id, 0, protocol_version=2).events
                     if event.event_type == 'mission_associated']) == 1
         goal_path = '/api/v1/control/goals/' + mission['goal_id']
-        assert client.get(goal_path, headers=_auth()).json()['goal_id'] == mission['mission_id']
+        assert client.get(goal_path + '?include_missions=true', headers=_auth()).json()['goal_id'] == mission['mission_id']
+        assert client.get(goal_path, headers=_auth()).status_code == 409
         event_path = '/api/v1/control/missions/' + mission['mission_id'] + '/events'
         assert client.get(event_path, headers=_auth()).json() == client.get(goal_path + '/events', headers=_auth()).json()
         assert client.get('/api/v1/control/missions', headers=_auth()).json()['schema'] == 'capstone-control-missions/1'
@@ -132,7 +133,7 @@ def test_legacy_goal_list_preserves_mixed_planning_mission_identity(chat_store):
             json=request(thread_id, 'mixed')).json()
         found, cursor = {}, None
         while True:
-            path = '/api/v1/control/goals?limit=64' + ('' if cursor is None else '&after=' + cursor)
+            path = '/api/v1/control/goals?include_missions=true&limit=64' + ('' if cursor is None else '&after=' + cursor)
             page = client.get(path, headers=_auth()).json()
             for row in page['goals']:
                 assert row['goal_id'] not in found
@@ -149,6 +150,22 @@ def test_legacy_goal_list_preserves_mixed_planning_mission_identity(chat_store):
         assert projected['state'] == 'planning' and projected['tasks'] == []
         assert projected['plan_complete'] is False and projected['plan_revision'] == 1
         assert 'application_kind' not in legacy
+        # The released client has no Mission parser. Filtering precedes LIMIT,
+        # so every legacy record remains reachable without empty page gaps.
+        legacy_ids, cursor = [], None
+        while True:
+            path = '/api/v1/control/goals?limit=1' + ('' if cursor is None else '&after=' + cursor)
+            page = client.get(path, headers=_auth()).json()
+            assert all('application_kind' not in goal for goal in page['goals'])
+            legacy_ids.extend(goal['goal_id'] for goal in page['goals'])
+            cursor = page['next_cursor']
+            if cursor is None:
+                break
+            assert len(page['goals']) == 1
+        assert legacy['goal_id'] in legacy_ids and mission['mission_id'] not in legacy_ids
+        assert len(legacy_ids) == len(set(legacy_ids))
+        denied = client.get('/api/v1/control/goals/' + mission['mission_id'], headers=_auth())
+        assert denied.status_code == 409 and denied.json()['detail']['code'] == 'protocol_required'
 
 
 def test_concurrent_creates_admit_one_active_mission_per_thread(chat_store):

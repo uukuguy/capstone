@@ -140,6 +140,25 @@ def create_attempt(snapshot, work, *, turn_id=None):
     return replace(snapshot, current_attempt=attempt), attempt, context, instruction
 
 
+def prepare_mission_review(snapshot, work_id, *, attempt_id, turn_id):
+    """Resume an idle organizer without changing any admitted user input."""
+    from .thread_protocol import AttemptSnapshot
+    if snapshot.current_attempt is not None or snapshot.active_model_context is not None:
+        return None
+    works = deepcopy(list(snapshot.works))
+    work = next((item for item in works if item['work_id'] == work_id), None)
+    if (work is None or work.get('status') != 'completed' or work.get('cancel_requested')
+            or not work.get('conversation_mode') or 'goal_mode' in work
+            or snapshot.pending_model_switch is not None or snapshot.pending_selection is not None):
+        return None
+    context = replace(TaskContext.from_document(work['task_context']),
+                      snapshot_id='task_' + secrets.token_hex(10))
+    work.update(status='queued', blocked_reason=None, latest_attempt_id=attempt_id,
+                revision=work['revision'] + 1, task_context=context.to_document())
+    attempt = AttemptSnapshot(turn_id, attempt_id, 'accepted', None, snapshot.runtime_mode)
+    return replace(snapshot, works=tuple(works), current_attempt=attempt), work, attempt, context
+
+
 def work_instruction(work):
     """Keep every unconsumed supplement; a closed conversation retries its saved text."""
     if 'goal_continuation' in work:

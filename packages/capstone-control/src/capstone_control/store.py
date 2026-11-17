@@ -44,12 +44,13 @@ class MemoryStore:
                 if owner == workspace and goal.get('_mission', {}).get('origin', {}).get('thread_id') == thread_id
                 and goal['state'] not in {'accepted', 'cancelled'})[:2]
 
-    def list(self, workspace=None, limit=128, *, after=None, active_only=False):
+    def list(self, workspace=None, limit=128, *, after=None, active_only=False, include_missions=True):
         with self._lock:
             return deepcopy([value for (owner, goal_id), value in sorted(self._values.items(),
                 key=lambda item: (item[0][1], item[0][0]))
                 if (workspace is None or workspace == owner)
                 and (after is None or goal_id > after)
+                and (include_missions or '_mission' not in value)
                 and (not active_only or value['state'] in ACTIVE_STATES)][:limit])
 
 
@@ -122,14 +123,15 @@ class PostgresStore:
                 raise KeyError(goal_id)
             return row['document']
 
-    def list(self, workspace=None, limit=128, *, after=None, active_only=False):
+    def list(self, workspace=None, limit=128, *, after=None, active_only=False, include_missions=True):
         with self.connect() as connection:
             rows = connection.execute('''SELECT document FROM capstone_control_goals
                 WHERE (%s::text IS NULL OR workspace=%s)
                 AND (%s::text IS NULL OR goal_id>%s)
                 AND (NOT %s OR document->>'state'=ANY(%s))
+                AND (%s OR NOT (document ? '_mission'))
                 ORDER BY goal_id,workspace LIMIT %s''',
-                (workspace, workspace, after, after, active_only, sorted(ACTIVE_STATES), limit)).fetchall()
+                (workspace, workspace, after, after, active_only, sorted(ACTIVE_STATES), include_missions, limit)).fetchall()
             return [row['document'] for row in rows]
 
     def active_missions_for_thread(self, workspace, thread_id):
@@ -141,4 +143,4 @@ class PostgresStore:
             return [row['goal_id'] for row in rows]
 
 
-ACTIVE_STATES = {'planning', 'ready', 'running', 'waiting', 'pausing', 'cancelling', 'revising'}
+ACTIVE_STATES = {'planning', 'waiting_review', 'ready', 'running', 'waiting', 'pausing', 'cancelling', 'revising'}

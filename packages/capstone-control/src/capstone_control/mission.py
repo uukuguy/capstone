@@ -22,7 +22,7 @@ def references(values):
     for ref in values:
         object_fields(ref, {'schema', 'kind', 'id', 'revision'})
         if (ref['schema'] != 'capstone-mission-equipment-reference/1'
-                or ref['kind'] not in {'capability', 'resource_profile', 'skill', 'resource'}):
+                or not isinstance(ref['kind'],str) or ref['kind'] not in {'capability', 'resource_profile', 'skill', 'resource'}):
             raise ContractError('unsupported registered equipment reference')
         identity(ref['id'])
         text(ref['revision'], limit=256)
@@ -75,7 +75,7 @@ def projection(service, goal):
 
 def create(service, workspace, request):
     required = {'schema', 'operation_id', 'objective', 'origin'}
-    optional = {'acceptance_criteria', 'max_delegations', 'deadline_at'}
+    optional = {'acceptance_criteria', 'max_delegations', 'deadline_at', 'max_organizer_reviews'}
     if not isinstance(request, dict) or not required <= request.keys() or set(request) - required - optional:
         raise ContractError('invalid Mission creation fields')
     if request['schema'] != 'capstone-control-mission-create/1':
@@ -94,6 +94,7 @@ def create(service, workspace, request):
     elif not isinstance(criteria, list):
         raise ContractError('acceptance criteria must be a list')
     budget = positive_integer(request.get('max_delegations', 8))
+    review_budget = positive_integer(request.get('max_organizer_reviews',8))
     explicit_deadline = request.get('deadline_at')
     if explicit_deadline is not None:
         utc_deadline(explicit_deadline)
@@ -113,7 +114,9 @@ def create(service, workspace, request):
             objective=request['objective'], acceptance_criteria=deepcopy(criteria), max_delegations=budget,
             deadline_at=deadline, revision=1, objective_revision=1, state='planning', reason=None,
             delegations_admitted=0, acceptance=None, history=[], tasks=[],
-            _mission={'origin': deepcopy(origin), 'plan_revision': 1, 'activated': False})
+            _mission={'origin': deepcopy(origin), 'plan_revision': 1, 'activated': False,
+                      'organizer':dict(max_reviews=review_budget,reviews_admitted=0,records=[],current_review_id=None,
+                                       next_boundary=None,suspended=False)})
         receipt = projection(service, goal)
         goal['_operations'] = {request['operation_id']: {'digest': digest, 'receipt': receipt}}
         return goal, receipt
@@ -148,6 +151,8 @@ def update_tasks(goal, proposed):
                          'generation': previous['generation'], 'delegation': None, 'delivery': None, 'verification': None,
                          **({'delegation_history': history} if history else {})})
     for spec in changes.values():
+        if any(old.get('kind')=='tasks_removed' and any(task['task_id']==spec['task_id'] for task in old['tasks']) for old in goal['history']):
+            raise InvalidTransition('removed Task identities remain historical; prepare a new Task identity')
         combined.append({**deepcopy(spec), 'revision': 1, 'state': 'pending',
                          'generation': 0, 'delegation': None, 'delivery': None, 'verification': None})
     # Revalidate the complete dependency order, including retained Tasks.
@@ -179,15 +184,18 @@ def command(service, workspace, document, actor):
         if goal['revision'] != document['expected_revision']:
             raise Conflict('stale Mission revision')
         if kind in {'prepare_task', 'update_plan', 'ready'}:
-            if goal['state'] not in {'planning', 'ready', 'running', 'paused', 'waiting'}:
+            if goal['state'] not in {'planning', 'waiting_review', 'ready', 'running', 'paused', 'waiting'}:
                 raise InvalidTransition('Mission cannot plan from this state')
             if '_mission' not in goal:
                 raise InvalidTransition('legacy Goal needs explicit Mission origin association before planning')
             if kind == 'ready':
                 object_fields(payload, set())
-                if goal['state'] != 'planning' and not (goal['state'] == 'paused' and not goal['_mission'].get('activated')):
+                if goal['state'] not in {'planning','waiting_review'} and not (goal['state'] == 'paused' and not goal['_mission'].get('activated')):
                     raise InvalidTransition('only a planning Mission can become ready')
                 dispatch_ready(service, goal)
+                verified={t['task_id'] for t in goal['tasks'] if t['state']=='verified'}
+                if not any(t['state']=='pending' and set(t['depends_on'])<=verified for t in goal['tasks']):
+                    raise InvalidTransition('no dependency-ready Task; inspect results and conclude the plan or wait for required input')
                 goal['_mission']['activated'] = True
                 goal.update(state='ready', reason=None)
             else:
@@ -195,13 +203,30 @@ def command(service, workspace, document, actor):
                     object_fields(payload, {'task'})
                     proposed = [payload['task']]
                 else:
-                    object_fields(payload, {'acceptance_criteria', 'tasks'})
+                    if not {'acceptance_criteria','tasks'}<=payload.keys() or set(payload)-{'acceptance_criteria','tasks','removed_task_ids'}:
+                        raise ContractError('invalid Mission plan update fields')
                     if payload['acceptance_criteria']:
                         text_list(payload['acceptance_criteria'])
                     elif not isinstance(payload['acceptance_criteria'], list):
                         raise ContractError('acceptance criteria must be a list')
                     goal['acceptance_criteria'] = deepcopy(payload['acceptance_criteria'])
                     proposed = payload['tasks']
+                    removed=payload.get('removed_task_ids',[])
+                    if not isinstance(removed,list) or len(removed)>64 or any(not isinstance(item,str) for item in removed) or len(set(removed))!=len(removed):
+                        raise ContractError('distinct removed Task identities required')
+                    removed_tasks=[]
+                    for task_id in removed:
+                        identity(task_id)
+                        previous=next((t for t in goal['tasks'] if t['task_id']==task_id),None)
+                        confirmed_pause=previous and goal['state']=='paused' and previous['state']=='paused' and (previous.get('delegation') or {}).get('requested_control')=='pause'
+                        if previous is None or previous['state'] not in {'pending','failed'} and not confirmed_pause:
+                            raise InvalidTransition('only unstarted, failed or confirmed paused Tasks can be removed')
+                        removed_tasks.append(deepcopy(previous))
+                    if removed_tasks:
+                        goal['history'].append(dict(kind='tasks_removed',plan_revision=goal['_mission']['plan_revision'],tasks=removed_tasks))
+                        goal['tasks']=[t for t in goal['tasks'] if t['task_id'] not in removed]
+                        if any(isinstance(t,dict) and t.get('task_id') in removed for t in proposed):
+                            raise ContractError('one update cannot remove and recreate the same Task')
                 # Validate each proposal against the complete merged order below.
                 if not isinstance(proposed, list) or len(proposed) > 64:
                     raise ContractError('bounded Mission Task plan required')
@@ -210,10 +235,53 @@ def command(service, workspace, document, actor):
                         raise ContractError('Mission Task identity required')
                 update_tasks(goal, proposed)
                 goal['_mission']['plan_revision'] += 1
+                goal['_mission']['plan_conclusion']=None
+                if goal['state']=='ready' and (not goal['tasks'] or not goal['acceptance_criteria']):
+                    goal.update(state='planning',reason='plan_incomplete')
+            from .mission_reviews import organizer
+            organizer(goal)['suspended']=False
+            organizer(goal)['disposition']=None
+        elif kind == 'conclude_plan':
+            object_fields(payload,{'plan_revision','summary'})
+            positive_integer(payload['plan_revision'])
+            text(payload['summary'],limit=4096)
+            if (goal['state'] not in {'planning','waiting_review','ready','running'} or not goal['tasks'] or not goal['acceptance_criteria']
+                    or not all(t['state']=='verified' for t in goal['tasks'])):
+                raise InvalidTransition('Mission plan conclusion requires nonempty verified saved Task results')
+            if payload['plan_revision']!=goal['_mission']['plan_revision']:
+                raise Conflict('stale Mission plan conclusion')
+            goal['_mission']['plan_conclusion']=dict(plan_revision=payload['plan_revision'],summary=payload['summary'],actor=actor)
+            goal.update(state='delivered',reason=None)
+        elif kind == 'wait':
+            object_fields(payload,{'until','reason'})
+            text(payload['reason'],limit=4096)
+            if not isinstance(payload['until'],str) or payload['until'] not in {'task_boundary','user'} or goal['state'] in {'paused','pausing','cancelled','cancelling','accepted','delivered'}:
+                raise InvalidTransition('Mission cannot wait from this state')
+            if payload['until']=='task_boundary' and (goal['state'] not in {'ready','running'} or not any(
+                    t['state'] in {'pending','dispatching','running','waiting','resume_requested'} for t in goal['tasks'])):
+                raise InvalidTransition('waiting for a Task boundary requires admitted pending or active work')
+            from .mission_reviews import organizer
+            state=organizer(goal)
+            state['disposition']=dict(kind='wait',until=payload['until'],reason=payload['reason'],revision=goal['revision']+1)
+            if payload['until']=='user':
+                state['suspended']=True
+                goal.update(state='waiting',reason='organizer_waiting_user')
         elif kind in {'pause', 'cancel', 'resume', 'delegate_next'}:
-            if kind == 'resume' and '_mission' in goal:
-                dispatch_ready(service, goal)
-            service._apply(goal, kind, payload, actor=actor)
+            if kind=='resume' and '_mission' in goal and goal['state']=='waiting_review':
+                object_fields(payload,set())
+                from .mission_reviews import explicit_resume
+                explicit_resume(service,goal,document['operation_id'])
+            else:
+                if kind=='resume' and '_mission' in goal:
+                    dispatch_ready(service,goal)
+                service._apply(goal, kind, payload, actor=actor)
+                if kind=='resume' and '_mission' in goal and not any(t['state'] in {'pending','dispatching','running','waiting','resume_requested'} for t in goal['tasks']):
+                    from .mission_reviews import explicit_resume
+                    explicit_resume(service,goal,document['operation_id'])
+            if kind=='resume' and '_mission' in goal:
+                from .mission_reviews import organizer
+                organizer(goal)['suspended']=False
+                organizer(goal)['disposition']=None
         else:
             raise ContractError('unsupported Mission command kind')
         goal['revision'] += 1

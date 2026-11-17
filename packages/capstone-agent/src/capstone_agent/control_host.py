@@ -12,8 +12,9 @@ from .agent_delegation_store import MemoryDelegations, PostgresDelegations
 
 
 class ControlHost:
-    def __init__(self, service, agent, *, verify_product):
+    def __init__(self, service, agent, *, verify_product, verify_answer=None):
         self.service, self.agent, self.verify_product = service, agent, verify_product
+        self.verify_answer = verify_answer
         self.cursor = None
 
     def create_mission(self, workspace, request, *, claim=None):
@@ -86,7 +87,8 @@ class ControlHost:
                 'kind': arguments['action'], 'payload': {}},
                 actor='agent:' + claim.attempt.attempt_id, claim=claim)
         kinds = {'agent_mission_update_plan': 'update_plan', 'agent_mission_prepare_task': 'prepare_task',
-                 'agent_mission_ready': 'ready'}
+                 'agent_mission_ready': 'ready', 'agent_mission_conclude': 'conclude_plan',
+                 'agent_mission_wait': 'wait'}
         if name not in kinds or 'expected_revision' not in arguments:
             raise ValueError('unsupported Mission operation')
         payload = {key: value for key, value in arguments.items() if key != 'expected_revision'}
@@ -107,20 +109,27 @@ class ControlHost:
             try:
                 reconcile(self.service, self.agent, workspace=workspace, goal_id=goal_id)
                 goal = self.service.read(workspace, goal_id)
-                if goal['state'] not in {'ready', 'running'}:
+                if goal['state'] not in {'ready', 'running','waiting_review'}:
                     continue
                 for task in goal['tasks']:
                     names = task.get('required_products', [])
-                    if task['state'] != 'delivered' or not names:
+                    if task['state'] != 'delivered':
                         continue
                     products = {p['file_name']: p for p in task['delivery']['products']}
                     if any(name not in products for name in names):
                         continue
                     checks = []
-                    for name in names:
-                        product = products[name]
+                    selected = [products[name] for name in names] if names else task['delivery']['products']
+                    for product in selected:
                         self.verify_product(workspace, product)
-                        checks.append({'name': name + ' · saved SHA-256 ' + product['sha256'], 'passed': True})
+                        checks.append({'name': product['file_name'] + ' · saved SHA-256 ' + product['sha256'], 'passed': True})
+                    if not checks and self.verify_answer is not None:
+                        self.verify_answer(workspace, task['delegation']['binding'],task['delivery']['answer_ref'])
+                        checks.append({'name':'Saved answer reference '+task['delivery']['answer_ref'],'passed':True})
+                    if not checks:
+                        if goal.get('reason')!='delivery_verification_unavailable':
+                            goal=self._command(goal,'defer_verification',{'task_id':task['task_id'],'reason':'delivery_verification_unavailable'})
+                        continue
                     goal = self._command(goal, 'verify_task', {
                         'task_id': task['task_id'], 'delivery_revision': task['delivery']['revision'], 'checks': checks})
                 if goal['state'] not in {'ready', 'running'}:
@@ -158,6 +167,23 @@ def configure_control(threads, *, wake=None):
         threads.require_workspace(product['thread_id'], workspace)
         read_native_artifact(threads, getattr(threads, '_native_executor', None),
             product['thread_id'], product['attempt_id'], product['artifact_id'], expected_descriptor=product)
+    def verify_answer(workspace,binding,answer_ref):
+        threads.require_workspace(binding['thread_id'],workspace)
+        snapshot=threads.snapshot(binding['thread_id'])
+        work=next(work for work in snapshot.works if work['work_id']==binding['work_id'])
+        cursor=0
+        for _ in range(128):
+            page=threads.read_attempt_records(binding['thread_id'],work['latest_attempt_id'],after=cursor,limit=128)
+            for event in page['events']:
+                if (event['event_id']==answer_ref and event['event_type']=='attempt_completed'
+                        and str(event['payload'].get('answer','')).strip()):
+                    return
+            if not page['has_more']:
+                break
+            if page['next_after']<=cursor:
+                raise ValueError('saved answer cursor did not advance')
+            cursor=page['next_after']
+        raise ValueError('saved answer reference is not admitted for this Task')
     from .mission_equipment import admitted
     def admit_task(workspace, origin, task):
         from .agent_delegation import REGISTERED_AGENTS
@@ -172,7 +198,7 @@ def configure_control(threads, *, wake=None):
     service = ControlService(store, mission_execution_adapter=True,
         admit_mission_task=admit_task,
         admit_mission_reference=lambda workspace, origin, ref: admitted(threads, workspace, origin, ref))
-    host = ControlHost(service, AgentDelegations(threads, registry, wake=wake), verify_product=verify)
+    host = ControlHost(service, AgentDelegations(threads, registry, wake=wake), verify_product=verify,verify_answer=verify_answer)
     threads.control_host = host
     return host
 
@@ -194,9 +220,11 @@ def register_control_routes(app, *, threads, authorize, wake=None):
             raise HTTPException(422, str(error)) from None
 
     @app.get('/api/v1/control/goals')
-    def list_goals(request: Request, limit: int = Query(32, ge=1, le=64), after: str | None = None):
+    def list_goals(request: Request, limit: int = Query(32, ge=1, le=64), after: str | None = None,
+                   include_missions: bool = Query(False)):
         authorize(request)
-        rows = host.service.store.list(request.state.workspace_name, limit + 1, after=after)
+        rows = host.service.store.list(request.state.workspace_name, limit + 1, after=after,
+                                      include_missions=include_missions)
         return {'schema': 'capstone-control-goals/1', 'goals': [public(row) for row in rows[:limit]],
                 'next_cursor': rows[limit - 1]['goal_id'] if len(rows) > limit else None}
 
@@ -249,9 +277,13 @@ def register_control_routes(app, *, threads, authorize, wake=None):
         return goal
 
     @app.get('/api/v1/control/goals/{goal_id}')
-    def read_goal(goal_id: str, request: Request):
+    def read_goal(goal_id: str, request: Request, include_missions: bool = Query(False)):
         authorize(request)
-        return run(host.service.read, request.state.workspace_name, goal_id)
+        goal = run(host.service.read, request.state.workspace_name, goal_id)
+        if goal.get('application_kind') == 'mission' and not include_missions:
+            raise HTTPException(409, {'code': 'protocol_required', 'protocol': 'capstone-control-mission/1',
+                                     'message': 'This Mission requires an updated client.'})
+        return goal
 
     @app.post('/api/v1/control/goals/{goal_id}/commands')
     def command(goal_id: str, body: dict, request: Request):

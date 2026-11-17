@@ -697,9 +697,9 @@ def _previous_instruction_from_postgres(connection: psycopg.Connection[dict[str,
 
 def _selected_task_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
                                  attempt_id: str) -> str | None:
-    row = connection.execute("""SELECT payload->'payload'->>'source_attempt_id' AS source
+    row = connection.execute("""SELECT COALESCE(payload->>'source_attempt_id', payload->'payload'->>'source_attempt_id') AS source
         FROM capstone_thread_events WHERE thread_id = %s AND attempt_id = %s
-        AND event_type = 'command_accepted' ORDER BY event_seq LIMIT 1""", (thread_id, attempt_id)).fetchone()
+        AND event_type IN ('command_accepted', 'mission_review_requested') ORDER BY event_seq LIMIT 1""", (thread_id, attempt_id)).fetchone()
     return row["source"] if row else None
 
 
@@ -735,7 +735,8 @@ def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str
                 and item.event_type == "assistant_text_delta")
         rows.append({"turn_id": event.turn_id, "attempt_id": event.attempt_id,
                      "model_context_id": event.model_context_id, "status": event.event_type.removeprefix("attempt_"),
-                     "instruction": (record.get('submission') or {}).get('input', {}).get('text', record["instruction"]), "answer": answer,
+                     "instruction": (None if (record.get('submission') or {}).get('_mission_review') else
+                         (record.get('submission') or {}).get('input', {}).get('text', record["instruction"])), "answer": answer,
                      "admitted_instructions": [dict(item.payload) for item in events
                          if item.thread_id == thread_id and item.attempt_id == event.attempt_id
                          and item.visibility == 'public' and item.event_seq <= event.event_seq
@@ -748,7 +749,8 @@ def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], 
                                 cutoff: int, *, work_id: str | None = None) -> ConversationContext:
     rows = connection.execute("""SELECT e.turn_id, e.attempt_id, e.model_context_id,
         replace(e.event_type, 'attempt_', '') AS status,
-        COALESCE(a.submission_snapshot->'input'->>'text', a.instruction) AS instruction,
+        CASE WHEN a.submission_snapshot ? '_mission_review' THEN NULL
+            ELSE COALESCE(a.submission_snapshot->'input'->>'text', a.instruction) END AS instruction,
         e.payload->>'answer' AS answer,
         e.event_seq, a.model_context_snapshot FROM capstone_thread_events e JOIN capstone_thread_attempts a
         ON a.thread_id = e.thread_id AND a.attempt_id = e.attempt_id
@@ -1245,6 +1247,10 @@ from .thread_gateway import ThreadGatewayOwner, historical_binding
 
 
 class NativeExecutionOwner(ThreadGatewayOwner):
+    def submit_mission_review(self, intent):
+        from .mission_continuation import admit_review
+        return admit_review(self, intent)
+
     def validate_mission_origin(self, workspace, origin, *, claim=None):
         from .mission_origin import access
         return access(self, workspace, origin, claim=claim)
@@ -2244,6 +2250,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                             else _previous_instruction_from_events(self._events, self._attempts, context, record.get('source_attempt_id')))
                 return AttemptClaim(
                     thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
+                    workspace_name=self._workspace_name,
                     attempt=running, kind=record["kind"], instruction=record["instruction"],
                     model_context_id=None if context is None else context.id,
                     selection_revision=None if context is None else context.selection_revision,
@@ -2337,7 +2344,8 @@ class InMemoryThreadService(NativeExecutionOwner):
     def cancel_requested(self, claim: AttemptClaim) -> bool:
         with self._lock:
             self._require_claim(claim)
-            return claim.attempt.attempt_id in self._cancel_requests
+            from .mission_continuation import review_cancel_requested
+            return claim.attempt.attempt_id in self._cancel_requests or review_cancel_requested(self, claim)
 
     def rollback_context_if_preparation_failed(
         self, claim: AttemptClaim, *, error_code: str,
@@ -4701,7 +4709,8 @@ class PostgresThreadService(NativeExecutionOwner):
                      AND event_type = 'attempt_cancel_requested' LIMIT 1""",
                 (claim.thread_id, claim.attempt.attempt_id),
             ).fetchone()
-            return requested is not None
+            from .mission_continuation import review_cancel_requested
+            return requested is not None or review_cancel_requested(self, claim)
 
     def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
                                workspace_name: str) -> None:

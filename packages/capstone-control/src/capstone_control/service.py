@@ -28,6 +28,16 @@ def public(goal):
         result.update(application_kind='mission', mission_id=goal['goal_id'],
             origin=deepcopy(metadata['origin']), plan_revision=metadata.get('plan_revision', 1),
             plan_complete=bool(goal['tasks'] and goal['acceptance_criteria']))
+        conclusion=metadata.get('plan_conclusion')
+        result.update(plan_concluded=bool(conclusion and conclusion['plan_revision']==metadata.get('plan_revision',1)),
+                      plan_conclusion=deepcopy(conclusion))
+        review=metadata.get('organizer',{})
+        current=next((r for r in review.get('records',[]) if r['intent']['review_id']==review.get('current_review_id')),None)
+        result['organizer']=dict(max_reviews=review.get('max_reviews',8),reviews_admitted=review.get('reviews_admitted',0),
+            state=current['state'] if current else 'idle',reason=(current or {}).get('reason'),
+            suspended=review.get('suspended',False))
+        if review.get('disposition') and (current is None or current['state'] not in {'pending','reserved','running'}):
+            result['organizer'].update(state='waiting',reason=review['disposition']['reason'])
     return result
 
 
@@ -51,6 +61,34 @@ class ControlService:
     def command_mission(self, workspace, command, *, actor='application:trusted'):
         from .mission import command as apply
         return apply(self, workspace, command, actor)
+
+    def pending_mission_reviews(self, workspace=None, limit=32):
+        from .mission_reviews import pending
+        return pending(self,workspace,limit)
+
+    def reserve_mission_review(self,workspace,mission_id,review_id):
+        from .mission_reviews import reserve
+        return reserve(self,workspace,mission_id,review_id)
+
+    def read_mission_review(self,workspace,mission_id,review_id):
+        from .mission_reviews import read
+        return read(self,workspace,mission_id,review_id)
+
+    def acknowledge_mission_review(self,workspace,mission_id,review_id,binding):
+        from .mission_reviews import acknowledge
+        return acknowledge(self,workspace,mission_id,review_id,binding)
+
+    def finish_mission_review(self,workspace,mission_id,review_id,*,attempt_id,phase):
+        from .mission_reviews import finish
+        return finish(self,workspace,mission_id,review_id,attempt_id,phase)
+
+    def block_mission_review(self,workspace,mission_id,review_id,reason):
+        from .mission_reviews import block
+        return block(self,workspace,mission_id,review_id,reason)
+
+    def release_mission_review(self,workspace,mission_id,review_id,reason='origin_paused_before_admission'):
+        from .mission_reviews import release
+        return release(self,workspace,mission_id,review_id,reason)
 
     def _event(self, kind, **references):
         return dict(kind=kind, recorded_at=self.now().isoformat(), **references)
@@ -216,6 +254,9 @@ class ControlService:
                 task['state'] = 'running'
                 task['delegation']['requested_control'] = None
                 goal.update(state='running', reason=None)
+            if state in {'completed','failed','unknown','cancelled','paused'} and '_mission' in goal:
+                from .mission_reviews import queue_boundary
+                queue_boundary(goal)
             goal['revision'] += 1
             return goal, public(goal)
         return self.store.transact(workspace, goal_id, change,
@@ -307,8 +348,12 @@ class ControlService:
         elif kind == 'revise':
             self._revise(goal, payload)
         elif kind == 'verify_task':
-            self._verify(goal, payload)
-            next(t for t in goal['tasks'] if t['task_id'] == payload['task_id'])['verification']['actor'] = actor
+            self._verify(goal, payload, actor=actor)
+        elif kind == 'defer_verification':
+            object_fields(payload,{'task_id','reason'})
+            if payload['reason']!='delivery_verification_unavailable' or not any(t['task_id']==payload['task_id'] and t['state']=='delivered' for t in goal['tasks']):
+                raise InvalidTransition('no saved Task delivery awaits verification')
+            goal.update(state='waiting_review' if '_mission' in goal else 'waiting',reason=payload['reason'])
         elif kind == 'accept':
             object_fields(payload, {'products'})
             if goal['state'] != 'delivered' or not all(t['state'] == 'verified' for t in goal['tasks']):
@@ -397,7 +442,7 @@ class ControlService:
                          for task in goal.pop('_pending_tasks')]
         goal.update(state='ready', reason=None)
 
-    def _verify(self, goal, payload):
+    def _verify(self, goal, payload, *, actor='application:trusted'):
         object_fields(payload, {'task_id', 'delivery_revision', 'checks'})
         identity(payload['task_id'])
         positive_integer(payload['delivery_revision'])
@@ -415,9 +460,12 @@ class ControlService:
             text(check['name'])
             if check['passed'] is not True:
                 raise InvalidTransition('all verification checks must pass')
-        task.update(state='verified', verification=deepcopy(payload))
+        task.update(state='verified', verification={**deepcopy(payload),'actor':actor})
         if all(t['state'] == 'verified' for t in goal['tasks']):
-            goal['state'] = 'delivered'
+            goal['state'] = 'waiting_review' if '_mission' in goal else 'delivered'
+        if '_mission' in goal:
+            from .mission_reviews import queue_boundary
+            queue_boundary(goal)
 
     def deliver(self, workspace, goal_id, delegation_id, binding, delivery):
         """Trusted adapter call, never an unqualified model proposal."""
@@ -448,6 +496,9 @@ class ControlService:
                 return goal, public(goal)
             d['binding'] = deepcopy(binding)
             task.update(state='delivered', delivery=content)
+            if '_mission' in goal:
+                from .mission_reviews import queue_boundary
+                queue_boundary(goal)
             goal['revision'] += 1
             return goal, public(goal)
         return self.store.transact(workspace, goal_id, change,
