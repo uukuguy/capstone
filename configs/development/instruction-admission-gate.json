@@ -12,6 +12,7 @@
     "packages/capstone-agent/tests/test_task_record_reader.py",
     "packages/capstone-app/src/ExecutionDetails.tsx",
     "packages/capstone-app/src/ExecutionDetails.test.tsx",
+    "packages/capstone-agent/tests/test_instruction_queue_roundtrip.py",
     "packages/capstone-agent/src/capstone_agent/delegated_runtime.py",
     "packages/capstone-agent/src/capstone_agent/general_pi_executor.py",
     "packages/capstone-agent/src/capstone_agent/general_pi_server.py",
