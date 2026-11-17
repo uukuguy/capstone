@@ -1,6 +1,6 @@
 import GoalControls from './GoalControls'
 import InstructionStatus from './InstructionStatus'
-import {ExecutionDetailsContext,ExecutionDetailsSurface} from './ExecutionDetails'
+import {ExecutionDetailsContext,ExecutionDetailsSurface,locateExecutionRecord} from './ExecutionDetails'
 import ControlGoalPanel from './ControlGoalPanel'
 import {goalCommand,goalObjectiveFromInput} from './goalMode'
 import ProductReferenceChips from './ProductReferenceChips'
@@ -653,7 +653,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   </>:null
   function locateQueuedInstruction(attemptId:string){
     selectResourceView('execution')
-    requestAnimationFrame(()=>{const record=Array.from(executionTarget?.querySelectorAll<HTMLElement>('[data-execution-id]')||[]).find(node=>node.dataset.executionId===attemptId);if(record){executionTarget?.dispatchEvent(new Event('execution-browse'));record.scrollIntoView?.({block:'start'});record.focus({preventScroll:true})}else setError('来源执行暂不可用，请加载原始记录后重试。')})
+    requestAnimationFrame(()=>{const record=Array.from(executionTarget?.querySelectorAll<HTMLElement>('[data-execution-id]')||[]).find(node=>node.dataset.executionId===attemptId);if(record){if(executionTarget)locateExecutionRecord(executionTarget,record)}else setError('来源执行暂不可用，请加载原始记录后重试。')})
   }
   const executionViews=nativeChat&&client.supportsProductIndex?[{id:'execution',label:'执行详情',content:<ExecutionDetailsSurface onTarget={setExecutionTarget}/>,description:'执行过程与正式回答，保留原始指令及成果来源。'}]:[]
   return <ExecutionDetailsContext.Provider value={executionViews.length?{target:executionTarget,open:()=>selectResourceView('execution')}:null}><ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
@@ -715,7 +715,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
-      {(selectedWork||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} objective={goalDraft??selectedWork?.goal??''}
+      {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} objective={goalDraft??selectedWork?.goal??''}
         disabled={busy||!!pending||projection.connection!=='live'} onControl={(kind,payload)=>{
           if(snapshot)void (async()=>{
             let work=selectedWork

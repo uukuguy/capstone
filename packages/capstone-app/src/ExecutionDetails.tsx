@@ -5,6 +5,13 @@ import './executionDetails.css'
 
 export const ExecutionDetailsContext=createContext<{target:HTMLDivElement|null;open:()=>void}|null>(null)
 
+/** Locate within the reader without scrolling hidden workspace ancestors. */
+export function locateExecutionRecord(reader:HTMLElement,record:HTMLElement){
+  reader.dispatchEvent(new Event('execution-browse'))
+  reader.scrollTop+=record.getBoundingClientRect().top-reader.getBoundingClientRect().top
+  record.focus({preventScroll:true})
+}
+
 /** A portal retains the original message runtime and its tool/answer components. */
 export function ExecutionDetailEntry({id,label,status,children,enabled=true}:{id:string;label:string;status:string;children:ReactNode;enabled?:boolean}){
   const dock=useContext(ExecutionDetailsContext)
@@ -14,8 +21,7 @@ export function ExecutionDetailEntry({id,label,status,children,enabled=true}:{id
     dock.target!.dispatchEvent(new Event('execution-browse'))
     dock.open()
     requestAnimationFrame(()=>{
-      record.current?.scrollIntoView?.({block:'start'})
-      record.current?.focus({preventScroll:true})
+      if(record.current)locateExecutionRecord(dock.target!,record.current)
     })
   }
   return <>
