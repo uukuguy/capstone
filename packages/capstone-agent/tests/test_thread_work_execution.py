@@ -36,6 +36,84 @@ def save_work(store, thread_id, name='save'):
     return store.snapshot(thread_id).to_document()['works'][-1]
 
 
+def test_durable_instruction_reservation_and_admission(execution_store):
+    from capstone_agent.thread_service import ThreadExecutionError
+    store, thread_id = execution_store
+    work = save_work(store, thread_id)
+    assert store.submit_command(command(store, thread_id, 'start_work', 'queue_start',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    claim = store.claim_attempt('queue_worker', 30)
+    def submit(kind, name, payload):
+        current = store.snapshot(thread_id).works[0]
+        return store.submit_command(command(store, thread_id, kind, name,
+            work_id=work['work_id'], revision=current['revision'], payload=payload))
+    assert submit('queue_instruction', 'input_one', {'text': 'First input'}).status == 'accepted'
+    assert submit('queue_instruction', 'input_two', {'text': 'Second input'}).status == 'accepted'
+    assert [item['id'] for item in store.peek_instructions(claim)] == ['cmd_input_one', 'cmd_input_two']
+    assert store.reserve_instruction(claim, 'cmd_input_two') is None
+    assert store.reserve_instruction(claim, 'cmd_input_one')['state'] == 'delivering'
+    assert submit('withdraw_instruction', 'withdraw_busy', {'instruction_id': 'cmd_input_one'}).rejection == 'instruction_unavailable'
+    assert store.acknowledge_instruction(claim, 'cmd_input_one')['state'] == 'admitted'
+    assert store.acknowledge_instruction(claim, 'cmd_input_one')['state'] == 'admitted'
+    events = store.read_events(thread_id, 0).events
+    assert len([event for event in events if event.event_type == 'instruction_admitted']) == 1
+    assert submit('cancel_work', 'stop_queue', {}).status == 'accepted'
+    assert store.peek_instructions(claim) == ()
+    assert store.reserve_instruction(claim, 'cmd_input_two') is None
+    store.finish_attempt(claim, phase='cancelled', payload={})
+    assert store.snapshot(thread_id).works[0]['instruction_queue'][1]['state'] == 'pending'
+    with pytest.raises(ThreadExecutionError):
+        store.reserve_instruction(claim, 'cmd_input_two')
+    assert submit('start_work', 'explicit_resume', {}).status == 'accepted'
+    resumed = store.claim_attempt('resumed_worker', 30)
+    assert store.peek_instructions(resumed)[0]['id'] == 'cmd_input_two'
+
+
+def test_instruction_withdraw_reserve_race_has_one_winner(execution_store):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    store, thread_id = execution_store
+    work = save_work(store, thread_id)
+    store.submit_command(command(store, thread_id, 'start_work', 'race_start',
+        work_id=work['work_id'], revision=work['revision']))
+    claim = store.claim_attempt('race_worker', 30)
+    work = store.snapshot(thread_id).works[0]
+    store.submit_command(command(store, thread_id, 'queue_instruction', 'race_input',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Race input'}))
+    work = store.snapshot(thread_id).works[0]
+    gate = Barrier(2)
+    def reserve():
+        gate.wait()
+        return store.reserve_instruction(claim, 'cmd_race_input')
+    def withdraw():
+        gate.wait()
+        return store.submit_command(command(store, thread_id, 'withdraw_instruction', 'race_withdraw',
+            work_id=work['work_id'], revision=work['revision'], payload={'instruction_id': 'cmd_race_input'}))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        reserved, withdrawn = pool.submit(reserve), pool.submit(withdraw)
+        reserved, withdrawn = reserved.result(), withdrawn.result()
+    state = store.snapshot(thread_id).works[0]['instruction_queue'][0]['state']
+    assert (reserved is None and withdrawn.status == 'accepted' and state == 'withdrawn') or (
+        reserved is not None and withdrawn.status == 'rejected' and state == 'delivering')
+
+
+def test_postgres_instruction_delivery_survives_store_restart(postgres_thread_service):
+    from capstone_agent.thread_service import PostgresThreadService
+    store, thread_id = postgres_thread_service
+    store.create_thread(professional_snapshot(thread_id))
+    work = save_work(store, thread_id)
+    store.submit_command(command(store, thread_id, 'start_work', 'restart_start',
+        work_id=work['work_id'], revision=work['revision']))
+    claim = store.claim_attempt('restart_worker', 30)
+    work = store.snapshot(thread_id).works[0]
+    store.submit_command(command(store, thread_id, 'queue_instruction', 'restart_input',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Keep me'}))
+    store.reserve_instruction(claim, 'cmd_restart_input')
+    restored = PostgresThreadService(store.dsn)
+    assert restored.snapshot(thread_id).works[0]['instruction_queue'][0]['state'] == 'delivering'
+    assert restored.acknowledge_instruction(claim, 'cmd_restart_input')['state'] == 'admitted'
+
+
 def test_start_work_claim_and_terminal_share_one_ledger():
     store = InMemoryThreadService(professional_snapshot())
     work = save_work(store, 'thr_work_exec')

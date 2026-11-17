@@ -54,6 +54,9 @@ def project_work(snapshot, work):
     return {**deepcopy(work), 'latest_attempt_id': work.get('latest_attempt_id'),
             'consumed_message_count': work.get('consumed_message_count', 0),
             'cancel_requested': work.get('cancel_requested', False),
+            'instruction_queue_available': (snapshot.active_model_context is None
+                and snapshot.native_execution is not None and 'capstone-native-instruction/1'
+                in snapshot.native_execution.get('capability', {}).get('instruction_schemas', ())),
             'start_available': reason is None, 'start_unavailable_reason': reason}
 
 
@@ -126,6 +129,11 @@ def create_attempt(snapshot, work, *, turn_id=None):
     attempt = AttemptSnapshot(turn_id or 'turn_' + token, 'attempt_' + token, 'accepted',
                               None if model is None else model.id, snapshot.runtime_mode)
     instruction = work_instruction(work)
+    # Only an explicit new execution rebinds untouched inputs. In-flight
+    # delivery remains bound to its old attempt for recovery inspection.
+    for item in work.get('instruction_queue', []):
+        if item['state'] == 'pending':
+            item['attempt_id'] = attempt.attempt_id
     work['latest_attempt_id'] = attempt.attempt_id
     return replace(snapshot, current_attempt=attempt), attempt, context, instruction
 

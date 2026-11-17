@@ -860,6 +860,12 @@ class ThreadExecutionService(ThreadService, Protocol):
 
     def cancel_requested(self, claim: AttemptClaim) -> bool: ...
 
+    def peek_instructions(self, claim: AttemptClaim) -> tuple[dict, ...]: ...
+
+    def reserve_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None: ...
+
+    def acknowledge_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None: ...
+
     def rollback_selection_if_preparation_failed(
         self, claim: AttemptClaim, *, error_code: str,
     ) -> bool: ...
@@ -2293,6 +2299,18 @@ class InMemoryThreadService(NativeExecutionOwner):
                 raise ThreadExecutionError("attempt is not running")
             record["lease_deadline"] = time.monotonic() + lease_seconds
             return True
+
+    def peek_instructions(self, claim: AttemptClaim) -> tuple[dict, ...]:
+        from .instruction_queue import access
+        return access(self, claim, 'peek')
+
+    def reserve_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'reserve', instruction_id)
+
+    def acknowledge_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'acknowledge', instruction_id)
 
     def cancel_requested(self, claim: AttemptClaim) -> bool:
         with self._lock:
@@ -4623,6 +4641,18 @@ class PostgresThreadService(NativeExecutionOwner):
                 (lease_seconds, claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
             return updated is not None
+
+    def peek_instructions(self, claim: AttemptClaim) -> tuple[dict, ...]:
+        from .instruction_queue import access
+        return access(self, claim, 'peek')
+
+    def reserve_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'reserve', instruction_id)
+
+    def acknowledge_instruction(self, claim: AttemptClaim, instruction_id: str) -> dict | None:
+        from .instruction_queue import access
+        return access(self, claim, 'acknowledge', instruction_id)
 
     def cancel_requested(self, claim: AttemptClaim) -> bool:
         with self._connect() as connection:
