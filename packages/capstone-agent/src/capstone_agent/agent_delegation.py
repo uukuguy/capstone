@@ -109,12 +109,11 @@ class AgentDelegations:
             request, thread = current['request'], current['thread_id']
             selection = None
             equipment_binding_revision = None
+            source_binding = None
             if request['schema'] == 'capstone-agent-delegation/2':
-                from .mission_equipment import resolve
-                selection = resolve(self.threads, workspace, request['mission_origin'],
+                from .mission_equipment import resolve_admission
+                selection, equipment_binding_revision, source_binding = resolve_admission(self.threads, workspace, request['mission_origin'],
                     request['equipment'], request['restrictions'])
-                from .mission_equipment import registry_revision
-                equipment_binding_revision = registry_revision(self.threads._native_binding)
             if datetime.fromisoformat(request['deadline_at']) <= datetime.now(timezone.utc):
                 raise DelegationRevoked('delegation deadline expired')
             try:
@@ -127,6 +126,8 @@ class AgentDelegations:
                 except ValueError:
                     self.threads.require_workspace(thread, workspace)
             snapshot = self.threads.snapshot(thread)
+            if source_binding is not None and not snapshot.works:
+                self.threads.select_thread_gateway(thread, source_binding)
             if not snapshot.works:
                 text = request['objective'] + '\n\n交付要求：\n' + '\n'.join(request['delivery_requirements'])
                 if request.get('required_products'):

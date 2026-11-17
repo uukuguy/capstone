@@ -3,9 +3,18 @@ from copy import deepcopy
 from dataclasses import replace
 
 from psycopg.types.json import Jsonb
+from capstone_control.service import Conflict
 
 from .thread_protocol import ThreadProtocolError, _identifier
 from .workspace_scope import workspace_name
+
+
+class ActiveMissionConflict(Conflict):
+    code = 'mission_already_active'
+
+    def __init__(self, mission_id):
+        super().__init__('This Thread already has an active Mission. Continue or end it before creating another.')
+        self.mission_id = mission_id
 
 
 def checked_origin(origin):
@@ -40,7 +49,26 @@ def _reference(snapshot, mission_id, origin):
     return replace(snapshot, mission_refs=(*snapshot.mission_refs, ref)), True
 
 
-def access(service, workspace, origin, *, mission_id=None, claim=None, operation=None):
+def _creation(snapshot, mission_id, create, read_state, active_missions):
+    if not any(ref['mission_id'] == mission_id for ref in snapshot.mission_refs):
+        for identity in active_missions():
+            if identity != mission_id:
+                raise ActiveMissionConflict(identity)
+        for ref in snapshot.mission_refs:
+            if read_state(ref['mission_id']) not in {'accepted', 'cancelled'}:
+                raise ActiveMissionConflict(ref['mission_id'])
+    return create()
+
+
+def _require_association(snapshot, mission_id, origin):
+    from capstone_control.service import Conflict
+    expected = {'mission_id': mission_id, **({'work_id': origin['work_id']} if 'work_id' in origin else {})}
+    if expected not in snapshot.mission_refs:
+        raise Conflict('Mission origin association is incomplete. Retry the original creation request.')
+
+
+def access(service, workspace, origin, *, mission_id=None, claim=None, operation=None,
+           create=None, read_state=None, active_missions=None, required_mission_id=None):
     """The Thread is the authorization source; caller metadata cannot grant access."""
     from .thread_service import ThreadExecutionError, ThreadNotFound
     origin, workspace = checked_origin(origin), workspace_name(workspace)
@@ -57,15 +85,18 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
                     raise ThreadExecutionError('Mission execution is stopping')
             snapshot = service._snapshot
             _check(snapshot, service._archived, origin, claim)
+            if required_mission_id is not None:
+                _require_association(snapshot, required_mission_id, origin)
             if operation is not None:
                 return operation()
+            created = None if create is None else _creation(snapshot, mission_id, create, read_state, active_missions)
             if mission_id is not None:
                 updated, changed = _reference(snapshot, mission_id, origin)
                 if changed:
                     event = service._append_control_event(event_type='mission_associated',
                         payload={'mission_id': mission_id, 'origin': origin})
                     service._snapshot = replace(updated, last_event_seq=event.event_seq)
-            return deepcopy(origin)
+            return deepcopy(origin) if create is None else created
     with service._connect() as connection:
         row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s AND workspace_name=%s FOR UPDATE',
             (origin['thread_id'], workspace)).fetchone()
@@ -85,8 +116,11 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
             if stopped is not None:
                 raise ThreadExecutionError('Mission execution is stopping')
         _check(snapshot, row['archived'], origin, claim)
+        if required_mission_id is not None:
+            _require_association(snapshot, required_mission_id, origin)
         if operation is not None:
             return operation()
+        created = None if create is None else _creation(snapshot, mission_id, create, read_state, active_missions)
         if mission_id is not None:
             updated, changed = _reference(snapshot, mission_id, origin)
             if changed:
@@ -96,7 +130,7 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
                 service._insert_event(connection, event)
                 connection.execute('UPDATE capstone_threads SET mission_refs=%s,last_event_seq=%s WHERE thread_id=%s',
                     (Jsonb([dict(ref) for ref in updated.mission_refs]), event.event_seq, origin['thread_id']))
-        return deepcopy(origin)
+        return deepcopy(origin) if create is None else created
 
 
 def bind_submission(snapshot, work_id, submission):

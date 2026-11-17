@@ -121,3 +121,78 @@ def test_postgres_control_dispatch_freezes_equipment_into_child_attempt(postgres
     finally:
         with threads._connect() as connection:
             connection.execute('DELETE FROM capstone_threads WHERE thread_id=%s', (binding['thread_id'],))
+
+
+def test_custom_origin_gateway_without_adapter_blocks_readiness(chat_store):
+    threads, thread_id = chat_store
+    threads.set_native_executor(native_executor())
+    threads.select_thread_gateway(thread_id, {'connection_id': 'custom_connection',
+        'instance_id': 'custom_instance', 'identity': {}})
+    host = configure_control(threads)
+    mission = host.create_mission('enterprise', request(thread_id, 'custom_source'))
+    task = dict(task_id='inspect', objective='Use the selected source', delivery_requirements=['Return findings'],
+        depends_on=[], agent_id='capstone', mode='single', max_attempts=1)
+    host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+        operation_id='custom_plan', mission_id=mission['mission_id'], expected_revision=1,
+        kind='update_plan', payload={'acceptance_criteria': ['Review findings'], 'tasks': [task]}))
+    with pytest.raises(ValueError):
+        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+            operation_id='custom_ready', mission_id=mission['mission_id'], expected_revision=2,
+            kind='ready', payload={}))
+    assert host.service.read_mission('enterprise', mission['mission_id'])['state'] == 'planning'
+
+
+    threads._native_executor.thread_gateway_publication = lambda binding=None, refresh=False: {
+        'available': True, 'connection_id': 'wrong_connection', 'identity': {'instance_id': 'wrong_instance'}}
+    with pytest.raises(ValueError, match='identity changed'):
+        catalog(threads, 'enterprise', mission['origin'])
+
+
+def test_postgres_child_inherits_registered_origin_gateway_not_global_default(postgres_thread_service):
+    from capstone_agent.thread_gateway import publication_binding
+    threads, thread_id = postgres_thread_service
+    threads.create_thread(replace(_snapshot(thread_id), active_model_context=None,
+        active_grid_page_id=None, minimum_protocol_version=2))
+    def publication(name):
+        return {'available': True, 'connection_id': 'connection_' + name,
+            'identity': {'instance_id': 'instance_' + name}, 'catalog': {
+                'revision': 'catalog_' + name, 'tools': {'source_' + name: {
+                    'description': 'Inspect selected registered source',
+                    'inputSchema': {'type': 'object', 'properties': {}}}}}}
+    default, selected = publication('default'), publication('origin')
+    executor = native_executor()
+    executor.capability['data_gateway'] = default
+    executor.thread_gateway_publication = lambda binding=None, refresh=False: deepcopy(
+        selected if (binding or {}).get('connection_id') == selected['connection_id'] else default)
+    threads.set_native_executor(executor)
+    threads.select_thread_gateway(thread_id, publication_binding(selected, locked=True))
+    host = configure_control(threads)
+    mission = host.create_mission('enterprise', request(thread_id, 'inherit_source'))
+    entries = catalog(threads, 'enterprise', mission['origin'])
+    assert any(ref['id'] == 'source_origin' for ref in entries)
+    assert not any(ref['id'] == 'source_default' for ref in entries)
+    task = dict(task_id='inspect', objective='Use the originating registered source',
+        delivery_requirements=['Return source-backed findings'], depends_on=[], agent_id='capstone',
+        mode='single', max_attempts=1)
+    for kind, revision, payload in [
+        ('update_plan', 1, {'acceptance_criteria': ['Review findings'], 'tasks': [task]}),
+        ('ready', 2, {}), ('delegate_next', 3, {})]:
+        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+            operation_id='origin_' + kind, mission_id=mission['mission_id'], expected_revision=revision,
+            kind=kind, payload=payload))
+    goal = host.service.read('enterprise', mission['goal_id'])
+    delegated = host.service.delegation_request('enterprise', mission['goal_id'],
+        goal['tasks'][0]['delegation']['delegation_id'])
+    assert delegated['schema'] == 'capstone-agent-delegation/2'
+    binding = host.agent.delegate('enterprise', delegated)
+    try:
+        assert threads.read_thread_gateway(binding['thread_id'])['instance_id'] == 'instance_origin'
+        child = threads.snapshot(binding['thread_id'])
+        with threads._connect() as connection:
+            saved = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE attempt_id=%s',
+                (child.current_attempt.attempt_id,)).fetchone()['submission_snapshot']
+        assert saved['_native_execution']['capability']['data_gateway']['identity']['instance_id'] == 'instance_origin'
+        assert saved['_native_execution']['capability']['data_gateway']['catalog']['revision'] == 'catalog_origin'
+    finally:
+        with threads._connect() as connection:
+            connection.execute('DELETE FROM capstone_threads WHERE thread_id=%s', (binding['thread_id'],))

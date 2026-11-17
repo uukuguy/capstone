@@ -13,8 +13,34 @@ def registry_revision(binding):
 
 
 def catalog(threads, workspace, origin):
+    binding, _ = origin_binding(threads, workspace, origin)
+    return _catalog(binding)
+
+
+def origin_binding(threads, workspace, origin):
+    from .thread_gateway import publication_binding
     threads.require_workspace(origin['thread_id'], workspace)
-    binding = threads._native_binding or {}
+    binding = deepcopy(threads._native_binding or {})
+    saved = threads.read_thread_gateway(origin['thread_id'])
+    published = binding.get('capability', {}).get('data_gateway', {})
+    reader = getattr(getattr(threads, '_native_executor', None), 'thread_gateway_publication', None)
+    if callable(reader):
+        published = reader(saved, refresh=False)
+    elif saved is not None:
+        default = publication_binding(published)
+        if any(saved.get(key) != default.get(key) for key in ('instance_id', 'connection_id')):
+            raise ValueError('Mission origin gateway cannot be delegated without its registered source adapter.')
+    selected = publication_binding(published, locked=True)
+    if saved is not None and any(
+            (saved.get(key) is not None or saved.get('locked')) and saved.get(key) != selected.get(key)
+            for key in ('instance_id', 'connection_id')):
+        raise ValueError('Mission origin gateway identity changed before delegation.')
+    if binding:
+        binding['capability']['data_gateway'] = deepcopy(published)
+    return binding, selected
+
+
+def _catalog(binding):
     capability = binding.get('capability', {})
     entries = []
     for name in sorted(capability.get('native_builtin_tools', ())):
@@ -41,8 +67,13 @@ def admitted(threads, workspace, origin, ref):
 
 
 def resolve(threads, workspace, origin, equipment, restrictions):
+    return resolve_admission(threads, workspace, origin, equipment, restrictions)[0]
+
+
+def resolve_admission(threads, workspace, origin, equipment, restrictions):
     equipment, restrictions = references(equipment), references(restrictions)
-    published = catalog(threads, workspace, origin)
+    binding, source = origin_binding(threads, workspace, origin)
+    published = _catalog(binding)
     if any(ref not in published for ref in equipment + restrictions):
         raise ValueError('Mission equipment revision is unavailable')
     if any(ref['kind'] == 'resource_profile' for ref in restrictions):
@@ -51,8 +82,9 @@ def resolve(threads, workspace, origin, equipment, restrictions):
     denied = [ref['id'] for ref in restrictions if ref['kind'] == 'capability']
     if set(selected) & set(denied):
         raise ValueError('Mission equipment cannot select a restricted capability')
-    return {'schema': 'capstone-mission-tool-selection/1',
-            'allowed_tools': sorted(selected) if selected else None, 'denied_tools': sorted(denied)}
+    return ({'schema': 'capstone-mission-tool-selection/1',
+             'allowed_tools': sorted(selected) if selected else None, 'denied_tools': sorted(denied)},
+            registry_revision(binding), source)
 
 
 def bind_work(threads, workspace, thread_id, work_id, selection, *, binding_revision=None):

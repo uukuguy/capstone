@@ -49,17 +49,25 @@ def test_intent_creation_and_goal_alias_share_identity_and_thread_link(chat_stor
 def test_partial_cross_store_creation_retries_repair_association(chat_store, monkeypatch):
     threads, thread_id = chat_store
     host = configure_control(threads)
-    original = threads.attach_mission
+    import capstone_agent.mission_origin as origins
+    original = origins._reference
     def failed(*args, **kwargs):
         raise OSError('association write interrupted')
-    monkeypatch.setattr(threads, 'attach_mission', failed)
+    monkeypatch.setattr(origins, '_reference', failed)
     with pytest.raises(OSError):
         host.create_mission('enterprise', request(thread_id))
     records = host.service.store.list('enterprise')
     records = [row for row in records if row.get('_mission', {}).get('origin', {}).get('thread_id') == thread_id]
     assert len(records) == 1 and records[0]['state'] == 'planning'
     assert not threads.snapshot(thread_id).mission_refs
-    monkeypatch.setattr(threads, 'attach_mission', original)
+    from capstone_agent.mission_origin import ActiveMissionConflict
+    with pytest.raises(ActiveMissionConflict):
+        host.create_mission('enterprise', request(thread_id, 'cannot_bypass_partial_create'))
+    with pytest.raises(ValueError):
+        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+            operation_id='orphan_cannot_run', mission_id=records[0]['goal_id'], expected_revision=1,
+            kind='update_plan', payload={'acceptance_criteria': ['No orphan execution'], 'tasks': []}))
+    monkeypatch.setattr(origins, '_reference', original)
     repaired = host.create_mission('enterprise', request(thread_id))
     assert repaired['mission_id'] == records[0]['goal_id']
     assert len([row for row in host.service.store.list('enterprise')
@@ -141,3 +149,46 @@ def test_legacy_goal_list_preserves_mixed_planning_mission_identity(chat_store):
         assert projected['state'] == 'planning' and projected['tasks'] == []
         assert projected['plan_complete'] is False and projected['plan_revision'] == 1
         assert 'application_kind' not in legacy
+
+
+def test_concurrent_creates_admit_one_active_mission_per_thread(chat_store):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from capstone_control.service import Conflict
+    threads, thread_id = chat_store
+    host = configure_control(threads)
+    gate = Barrier(2)
+    def create(name):
+        gate.wait()
+        try:
+            return host.create_mission('enterprise', request(thread_id, name))
+        except Conflict as error:
+            return str(error)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(create, ('first_concurrent', 'second_concurrent')))
+    accepted = [result for result in results if isinstance(result, dict)]
+    assert len(accepted) == 1
+    assert any(isinstance(result, str) and 'already has an active Mission' in result for result in results)
+    assert len(threads.snapshot(thread_id).mission_refs) == 1
+    missions = [goal for goal in host.service.store.list('enterprise', limit=10000)
+                if goal.get('_mission', {}).get('origin', {}).get('thread_id') == thread_id]
+    assert len(missions) == 1
+    first = accepted[0]
+    host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+        operation_id='end_previous', mission_id=first['mission_id'], expected_revision=1,
+        kind='cancel', payload={}))
+    following = host.create_mission('enterprise', request(thread_id, 'following_terminal'))
+    assert following['mission_id'] != first['mission_id']
+    assert len(threads.snapshot(thread_id).mission_refs) == 2
+
+
+def test_conflicting_create_retains_same_operation_retry(chat_store):
+    threads, thread_id = chat_store
+    with TestClient(_app(threads), base_url='http://localhost') as client:
+        original = request(thread_id, 'active')
+        mission = client.post('/api/v1/control/missions', headers=_auth(), json=original).json()
+        conflict = client.post('/api/v1/control/missions', headers=_auth(), json=request(thread_id, 'second'))
+        assert conflict.status_code == 409
+        assert conflict.json()['detail']['code'] == 'mission_already_active'
+        assert conflict.json()['detail']['mission_id'] == mission['mission_id']
+        assert client.post('/api/v1/control/missions', headers=_auth(), json=original).json() == mission

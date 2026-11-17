@@ -110,7 +110,7 @@ class ControlService:
                 'context_products': [deepcopy(product) for previous in goal['tasks']
                     if previous['task_id'] in task['depends_on'] and previous['state'] == 'verified'
                     for product in previous['delivery']['products']]}
-        if task.get('equipment') or task.get('restrictions'):
+        if '_mission' in self.store.read(workspace, goal_id):
             metadata = self.store.read(workspace, goal_id)['_mission']
             result.update(schema='capstone-agent-delegation/2', equipment=deepcopy(task.get('equipment', [])),
                 restrictions=deepcopy(task.get('restrictions', [])), mission_origin=deepcopy(metadata['origin']))

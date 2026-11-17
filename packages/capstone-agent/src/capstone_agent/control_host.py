@@ -17,14 +17,15 @@ class ControlHost:
         self.cursor = None
 
     def create_mission(self, workspace, request, *, claim=None):
-        from .mission_origin import checked_origin
+        from .mission_origin import checked_origin, access
         origin = checked_origin(request.get('origin'))
-        self.agent.threads.validate_mission_origin(workspace, origin, claim=claim)
         # Control and Agent own different ledgers. Creation is idempotent;
-        # retry repairs the association if the second durable write fails.
-        mission = self.service.create_mission(workspace, request)
-        self.agent.threads.attach_mission(workspace, mission['mission_id'], origin, claim=claim)
-        return mission
+        # the origin lock serializes creation, and retry repairs partial writes.
+        mission_id = 'goal_' + fingerprint([workspace, request.get('operation_id')])[:32]
+        return access(self.agent.threads, workspace, origin, mission_id=mission_id, claim=claim,
+            create=lambda: self.service.create_mission(workspace, request),
+            active_missions=lambda: self.service.store.active_missions_for_thread(workspace, origin['thread_id']),
+            read_state=lambda identity: self.service.read(workspace, identity)['state'])
 
     def read_mission(self, workspace, mission_id, *, claim=None):
         mission = self.service.read_mission(workspace, mission_id)
@@ -32,7 +33,12 @@ class ControlHost:
             self.agent.threads.validate_mission_origin(workspace, mission['origin'], claim=claim)
         if claim is not None and mission.get('origin') is not None:
             from .mission_equipment import catalog
-            mission['available_equipment'] = catalog(self.agent.threads, workspace, mission['origin'])
+            try:
+                mission['available_equipment'] = catalog(self.agent.threads, workspace, mission['origin'])
+            except ValueError:
+                mission['available_equipment'] = []
+                mission['equipment_status'] = {'available': False,
+                    'reason': 'Origin gateway requires its registered source adapter before delegation.'}
             from .agent_delegation import REGISTERED_AGENTS
             mission['registered_agents'] = sorted(REGISTERED_AGENTS)
         return mission
@@ -43,7 +49,8 @@ class ControlHost:
         apply = lambda: self.service.command_mission(workspace, command, actor=actor)
         if mission.get('origin') is None:
             return apply()
-        return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply)
+        return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply,
+                      required_mission_id=command['mission_id'])
 
     def mission_operation(self, claim, name, arguments, *, operation_id):
         from .thread_service import ThreadExecutionError
@@ -168,6 +175,9 @@ def register_control_routes(app, *, threads, authorize, wake=None):
         except KeyError:
             raise HTTPException(404, 'control resource not found') from None
         except (Conflict, InvalidTransition) as error:
+            if getattr(error, 'code', None) == 'mission_already_active':
+                raise HTTPException(409, {'code': error.code, 'message': str(error),
+                                          'mission_id': error.mission_id}) from None
             raise HTTPException(409, str(error)) from None
         except ValueError as error:
             raise HTTPException(422, str(error)) from None

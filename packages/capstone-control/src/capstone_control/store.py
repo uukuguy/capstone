@@ -38,6 +38,12 @@ class MemoryStore:
         with self._lock:
             return deepcopy(self._values[(workspace, goal_id)])
 
+    def active_missions_for_thread(self, workspace, thread_id):
+        with self._lock:
+            return sorted(goal_id for (owner, goal_id), goal in self._values.items()
+                if owner == workspace and goal.get('_mission', {}).get('origin', {}).get('thread_id') == thread_id
+                and goal['state'] not in {'accepted', 'cancelled'})[:2]
+
     def list(self, workspace=None, limit=128, *, after=None, active_only=False):
         with self._lock:
             return deepcopy([value for (owner, goal_id), value in sorted(self._values.items(),
@@ -125,6 +131,14 @@ class PostgresStore:
                 ORDER BY goal_id,workspace LIMIT %s''',
                 (workspace, workspace, after, after, active_only, sorted(ACTIVE_STATES), limit)).fetchall()
             return [row['document'] for row in rows]
+
+    def active_missions_for_thread(self, workspace, thread_id):
+        with self.connect() as connection:
+            rows = connection.execute("""SELECT goal_id FROM capstone_control_goals
+                WHERE workspace=%s AND document#>>'{_mission,origin,thread_id}'=%s
+                AND document->>'state' NOT IN ('accepted','cancelled')
+                ORDER BY goal_id LIMIT 2""", (workspace, thread_id)).fetchall()
+            return [row['goal_id'] for row in rows]
 
 
 ACTIVE_STATES = {'planning', 'ready', 'running', 'waiting', 'pausing', 'cancelling', 'revising'}
