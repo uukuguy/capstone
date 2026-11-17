@@ -120,6 +120,8 @@ def access(service, claim, operation, identity=None):
         saved['revision'] += 1
         payload = dict(work_id=work['work_id'], instruction_id=item['id'],
                        sequence=item['sequence'], state=item['state'])
+        if operation == 'acknowledge':
+            payload['text'] = item['text']
         return replace(snapshot, works=tuple(works)), item, payload
 
     event_type = 'instruction_delivery_started' if operation == 'reserve' else 'instruction_admitted'

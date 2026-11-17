@@ -736,6 +736,10 @@ def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str
         rows.append({"turn_id": event.turn_id, "attempt_id": event.attempt_id,
                      "model_context_id": event.model_context_id, "status": event.event_type.removeprefix("attempt_"),
                      "instruction": (record.get('submission') or {}).get('input', {}).get('text', record["instruction"]), "answer": answer,
+                     "admitted_instructions": [dict(item.payload) for item in events
+                         if item.thread_id == thread_id and item.attempt_id == event.attempt_id
+                         and item.visibility == 'public' and item.event_seq <= event.event_seq
+                         and item.event_type == 'instruction_admitted'],
                      "object": _conversation_model_object(record.get("model_context"), event.model_context_id)})
     return project_conversation(rows, cutoff)
 
@@ -753,6 +757,10 @@ def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], 
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
         ORDER BY e.event_seq DESC LIMIT %s""", (thread_id, cutoff, work_id, work_id, limits.history_turn_count + 1)).fetchall()
     for row in rows:
+        row['admitted_instructions'] = [item['payload'] for item in connection.execute("""SELECT payload
+            FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s
+            AND event_seq <= %s AND visibility='public' AND event_type='instruction_admitted'
+            ORDER BY event_seq""", (thread_id, row['attempt_id'], row['event_seq'])).fetchall()]
         row["object"] = _conversation_model_object(row["model_context_snapshot"], row["model_context_id"])
         if row["status"] == "completed" and row["answer"] is None:
             deltas = connection.execute("""SELECT payload->>'text' AS text FROM capstone_thread_events

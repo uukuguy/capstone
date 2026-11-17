@@ -193,6 +193,54 @@ def test_professional_execution_rejects_instruction_queue(execution_store):
     assert receipt.rejection == 'instruction_queue_unavailable'
 
 
+def test_followup_history_retains_only_consumed_instruction_directions(queue_store):
+    from capstone_agent.task_record_reader import SelectedTaskRecordReader
+    store, thread_id = queue_store
+    store.submit_command(command(store, thread_id, 'send_message', 'history_start',
+        payload={'text': 'Inspect the model'}))
+    work = store.snapshot(thread_id).works[0]
+    original = store.claim_attempt('history_worker', 30)
+    directions = [('admitted', 'Keep the result in Chinese and use only saved files.'),
+                  ('unknown', 'This uncertain direction must not be replayed.')]
+    for name, text in directions:
+        work = store.snapshot(thread_id).works[0]
+        store.submit_command(command(store, thread_id, 'queue_instruction', 'history_' + name,
+            work_id=work['work_id'], revision=work['revision'], payload={'text': text}))
+        store.reserve_instruction(original, 'cmd_history_' + name)
+        if name == 'admitted':
+            store.acknowledge_instruction(original, 'cmd_history_' + name)
+    store.finish_attempt(original, phase='interrupted', payload={})
+    work = store.snapshot(thread_id).works[0]
+    store.submit_command(command(store, thread_id, 'send_message', 'history_followup',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Continue with the accepted direction.'}))
+    followup = store.claim_attempt('history_followup_worker', 30)
+    assert followup.instruction == 'Continue with the accepted direction.'
+    admitted_messages = [item for item in followup.conversation_context.messages
+        if item['message_id'] == original.attempt.attempt_id + ':instruction:cmd_history_admitted']
+    assert len(admitted_messages) == 1
+    assert admitted_messages[0]['role'] == 'user'
+    assert admitted_messages[0]['content'] == directions[0][1]
+    assert admitted_messages[0]['attempt_id'] == original.attempt.attempt_id
+    assert [item['message_id'] for item in followup.conversation_context.messages] == [
+        original.attempt.attempt_id + ':user', original.attempt.attempt_id + ':instruction:cmd_history_admitted']
+    assert all(directions[1][1] not in item['content'] for item in followup.conversation_context.messages)
+    reader = SelectedTaskRecordReader(store, thread_id, original.attempt.attempt_id)
+    page = reader.read(limit=1)
+    observed = list(page['events'])
+    while page['has_more']:
+        page = reader.read(after=page['next_after'], limit=1)
+        observed.extend(page['events'])
+    receipts = [event for event in observed if event['event_type'] == 'instruction_admitted']
+    assert len(receipts) == 1
+    assert receipts[0]['attempt_id'] == original.attempt.attempt_id
+    assert receipts[0]['payload'] == {
+        'work_id': work['work_id'], 'instruction_id': 'cmd_history_admitted',
+        'sequence': 1, 'state': 'admitted', 'text': directions[0][1]}
+    assert directions[1][1] not in str(observed)
+    assert page['instruction'] == original.instruction
+    assert sum(item['content'].count('Inspect the model') for item in followup.conversation_context.messages) == 1
+
+
 def test_start_work_claim_and_terminal_share_one_ledger():
     store = InMemoryThreadService(professional_snapshot())
     work = save_work(store, 'thr_work_exec')

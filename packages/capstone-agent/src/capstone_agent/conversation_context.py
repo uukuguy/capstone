@@ -77,7 +77,13 @@ def project_conversation(rows: Sequence[Mapping[str, object]], cutoff: int, *, t
     for row in rows[-limits.history_turn_count:]:
         status = row["status"]
         group = []
-        for role, text in (("user", row["instruction"]), ("assistant", row.get("answer"))):
+        inputs = [('user', row['instruction'], str(row['attempt_id']) + ':user')]
+        inputs.extend(('user', item['text'], str(row['attempt_id']) + ':instruction:' + item['instruction_id'])
+                      for item in row.get('admitted_instructions', ())
+                      if item.get('state') == 'admitted' and isinstance(item.get('text'), str)
+                      and isinstance(item.get('instruction_id'), str))
+        inputs.append(('assistant', row.get('answer'), str(row['attempt_id']) + ':assistant'))
+        for role, text, message_id in inputs:
             if role == "assistant" and (status != "completed" or not isinstance(text, str) or not text):
                 continue
             if not isinstance(text, str):
@@ -86,7 +92,7 @@ def project_conversation(rows: Sequence[Mapping[str, object]], cutoff: int, *, t
             if len(encoded) > limits.history_message_bytes:
                 text = encoded[:limits.history_message_bytes].decode("utf-8", errors="ignore")
                 truncated = True
-            group.append({"message_id": str(row["attempt_id"]) + ":" + role, "role": role, "content": text,
+            group.append({"message_id": message_id, "role": role, "content": text,
                           "turn_id": row["turn_id"], "attempt_id": row["attempt_id"],
                           "model_context_id": row["model_context_id"], "status": status})
         groups.append(group)
@@ -95,6 +101,9 @@ def project_conversation(rows: Sequence[Mapping[str, object]], cutoff: int, *, t
         total -= sum(len(m["content"].encode()) for m in groups.pop(0))
         truncated = True
     messages = tuple(m for group in groups for m in group)
+    if len(messages) > limits.history_turn_count * 2:
+        messages = messages[-limits.history_turn_count * 2:]
+        truncated = True
     included = {message["model_context_id"] for message in messages}
     objects = {}
     for row in rows[-limits.history_turn_count:]:

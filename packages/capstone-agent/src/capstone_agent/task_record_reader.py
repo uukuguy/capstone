@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 
 from capability_agent._safe_files import ensure_bound_directory, write_bound_text
@@ -24,7 +25,18 @@ PUBLIC_TASK_OBSERVATION_TYPES = frozenset({
     "tool_started", "tool_completed", "validation_observation",
     "research_state_updated", "answer_committed", "attempt_completed",
     "attempt_failed", "attempt_interrupted", "attempt_cancelled",
+    "instruction_admitted",
 })
+
+
+def _historical_observation(event):
+    projected = deepcopy(event)
+    work = projected.get('payload', {}).get('work')
+    if isinstance(work, dict):
+        # Queue state is a presentation projection. Only the separate consumed
+        # receipt admits user directions to historical execution context.
+        work.pop('instruction_queue', None)
+    return projected
 
 
 class SelectedTaskRecordReader:
@@ -72,7 +84,7 @@ class SelectedTaskRecordReader:
             "thread_id": self._thread_id, "attempt_id": self._attempt_id,
             "historical_only": True,
             "instruction": page["instruction"], "model_context": page["model_context"],
-            "events": [event for event in page["events"]
+            "events": [_historical_observation(event) for event in page["events"]
                        if event.get("visibility") == "public"
                        and event.get("event_type") in PUBLIC_TASK_OBSERVATION_TYPES],
             # Advance over excluded events as well. An empty page can have more.
