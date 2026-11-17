@@ -8013,3 +8013,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: Browser proved stationary nodes; queued wheel after routing exposed legacy scroll locking. Added failing99→87 regression.
 - 2026-11-17: Persistent navigation skips route checkpoints;132 App/types passed, including gateway and Control consumers.
 - 2026-11-17: New-entry trial created empty thr_7f864f18c01f505b3268; verified zero events/works, deleted only owned test session, preserved10 pins.
+- 2026-11-17 6eb7c637: Removed route-time scroll locking from persistent navigation so queued wheel events retain their position.
+- 2026-11-17 8d5fa71d: Merged PR131 after exact-head macOS CI44026102168;132 App/types and strict candidate DOM/scroll proofs passed.
+- 2026-11-17: Actualdev rebuild11444/imagef3bb77d2 passed readiness, same-image and cache maintenance;5173 strict identity/coordinates/100px scrolling, Vivaldi and10 original pins pass.
