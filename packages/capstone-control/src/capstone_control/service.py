@@ -26,9 +26,22 @@ def public(goal):
 
 
 class ControlService:
-    def __init__(self, store, *, now=None):
+    def __init__(self, store, *, now=None, admit_mission_reference=None):
         self.store = store
         self.now = now or (lambda: datetime.now(timezone.utc))
+        self.admit_mission_reference = admit_mission_reference
+
+    def create_mission(self, workspace, request):
+        from .mission import create
+        return create(self, workspace, request)
+
+    def read_mission(self, workspace, mission_id):
+        from .mission import projection
+        return projection(self, self.store.read(workspace, mission_id))
+
+    def command_mission(self, workspace, command, *, actor='application:trusted'):
+        from .mission import command as apply
+        return apply(self, workspace, command, actor)
 
     def _event(self, kind, **references):
         return dict(kind=kind, recorded_at=self.now().isoformat(), **references)
@@ -257,6 +270,11 @@ class ControlService:
                 'cancelled' if kind == 'cancel' else 'paused')
             goal['reason'] = 'user_' + kind
         elif kind == 'resume':
+            if '_mission' in goal:
+                if not goal['_mission'].get('activated'):
+                    raise InvalidTransition('Mission requires explicit readiness before execution')
+                from .mission import dispatch_ready
+                dispatch_ready(self, goal)
             if goal['state'] not in {'paused', 'waiting'}:
                 raise InvalidTransition('only a paused or waiting Goal can resume')
             if goal['reason'] in {'delegation_unknown', 'delegation_failed', 'delegation_cancelled'}:
@@ -291,6 +309,13 @@ class ControlService:
             raise ContractError('unsupported Control command kind')
 
     def _delegate(self, goal):
+        if '_mission' in goal:
+            if not goal['_mission'].get('activated'):
+                raise InvalidTransition('Mission requires explicit readiness before execution')
+            from .mission import dispatch_ready
+            dispatch_ready(self, goal)
+            if any(task.get('equipment') or task.get('restrictions') for task in goal['tasks']):
+                raise InvalidTransition('Mission equipment needs a registered Agent execution adapter before dispatch')
         if goal['state'] not in {'ready', 'running'}:
             raise InvalidTransition('Goal is not dispatchable')
         if any(t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'} for t in goal['tasks']):
@@ -320,6 +345,8 @@ class ControlService:
         goal.update(state='running', reason=None)
 
     def _revise(self, goal, payload):
+        if '_mission' in goal:
+            raise InvalidTransition('Mission plans use incremental Mission commands')
         object_fields(payload, {'objective', 'acceptance_criteria', 'tasks'})
         if goal['state'] in {'accepted', 'cancelled', 'cancelling', 'revising'}:
             raise InvalidTransition('Goal cannot revise from this state')

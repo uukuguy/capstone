@@ -127,4 +127,4 @@ class PostgresStore:
             return [row['document'] for row in rows]
 
 
-ACTIVE_STATES = {'ready', 'running', 'waiting', 'pausing', 'cancelling', 'revising'}
+ACTIVE_STATES = {'planning', 'ready', 'running', 'waiting', 'pausing', 'cancelling', 'revising'}

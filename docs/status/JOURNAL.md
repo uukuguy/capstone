@@ -8052,3 +8052,4 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: f1c4dc57 resumes live following when the pane becomes visible; manual history position remains protected.
 - 2026-11-17: Final canonical rebuild passed imagef25c7f8a and scoped cleanup;5174 saved-record refresh, tabs, product access and narrow layout passed.
 - 2026-11-18: 78ba3ff1 persists fenced instruction reservation and admission;43 focused memory/PostgreSQL checks verify ordering, withdrawal races, stop, resume and restart.
+- 2026-11-18: Mission foundation preserves identity, progressive planning and registered-reference boundaries; 64 Control checks passed, including PostgreSQL.
