@@ -42,7 +42,11 @@ export function ExecutionDetailsSurface({onTarget}:{onTarget:(node:HTMLDivElemen
       else setUpdated(true)
     })
     observer.observe(node,{childList:true,subtree:true,characterData:true})
-    return()=>{observer.disconnect();node.removeEventListener('execution-browse',browse)}
+    const resize=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(()=>{
+      if(following.current&&node.clientHeight)node.scrollTop=node.scrollHeight
+    })
+    resize?.observe(node)
+    return()=>{observer.disconnect();resize?.disconnect();node.removeEventListener('execution-browse',browse)}
   },[node])
   return <div className="execution-details-surface">
     <div className="execution-details-toolbar">{manual&&<button type="button" onClick={()=>{
