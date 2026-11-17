@@ -30,6 +30,12 @@ class ControlService:
         self.store = store
         self.now = now or (lambda: datetime.now(timezone.utc))
 
+    def _event(self, kind, **references):
+        return dict(kind=kind, recorded_at=self.now().isoformat(), **references)
+
+    def read_events(self, workspace, goal_id, *, after=0, limit=50, through=None):
+        return self.store.read_events(workspace, goal_id, after=after, limit=limit, through=through)
+
     def create(self, workspace, request):
         from .contracts import text
         text(workspace, limit=128)
@@ -58,7 +64,8 @@ class ControlService:
             receipt = public(goal)
             goal['_operations'] = {request['operation_id']: {'digest': digest, 'receipt': receipt}}
             return goal, receipt
-        return self.store.transact(workspace, goal_id, create)
+        return self.store.transact(workspace, goal_id, create,
+            event=self._event('goal.created', operation_id=request['operation_id']))
 
     def read(self, workspace, goal_id):
         return public(self.store.read(workspace, goal_id))
@@ -96,7 +103,8 @@ class ControlService:
             task['delegation']['control_revision'] += 1
             goal.update(state='pausing', reason='deadline_exhausted', revision=goal['revision'] + 1)
             return goal, public(goal)
-        return self.store.transact(workspace, goal_id, change)
+        return self.store.transact(workspace, goal_id, change,
+            event=self._event('deadline.expired', delegation_id=delegation_id))
 
     @staticmethod
     def _delegated_task(goal, delegation_id):
@@ -126,7 +134,8 @@ class ControlService:
                 task['state'] = 'running'
             goal['revision'] += 1
             return goal, public(goal)
-        return self.store.transact(workspace, goal_id, change)
+        return self.store.transact(workspace, goal_id, change,
+            event=self._event('delegation.bound', delegation_id=delegation_id))
 
     def observe(self, workspace, goal_id, delegation_id, observation):
         from .contracts import text
@@ -182,7 +191,9 @@ class ControlService:
                 goal.update(state='running', reason=None)
             goal['revision'] += 1
             return goal, public(goal)
-        return self.store.transact(workspace, goal_id, change)
+        return self.store.transact(workspace, goal_id, change,
+            event=self._event('execution.observed', delegation_id=delegation_id,
+                              observation_sequence=observation['sequence'], observed_state=observation['state']))
 
     @staticmethod
     def _settle_delivery(task, delivery):
@@ -225,7 +236,8 @@ class ControlService:
                        'operation_id': command['operation_id'], 'goal': public(goal)}
             goal['_operations'][command['operation_id']] = {'digest': digest, 'receipt': receipt}
             return goal, receipt
-        return self.store.transact(workspace, command['goal_id'], change)
+        return self.store.transact(workspace, command['goal_id'], change,
+            event=self._event('command.' + command['kind'], operation_id=command['operation_id']))
 
     def _apply(self, goal, kind, payload, *, actor):
         if kind in {'pause', 'cancel', 'resume', 'delegate_next'}:
@@ -396,4 +408,5 @@ class ControlService:
             task.update(state='delivered', delivery=content)
             goal['revision'] += 1
             return goal, public(goal)
-        return self.store.transact(workspace, goal_id, change)
+        return self.store.transact(workspace, goal_id, change,
+            event=self._event('delivery.recorded', delegation_id=delegation_id))

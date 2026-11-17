@@ -1,0 +1,19 @@
+{
+  "schema": "capstone-development-gate/1",
+  "gate": "control-events",
+  "anchors": ["packages/capstone-control/src/capstone_control/events.py", "packages/capstone-control/src/capstone_control/store.py"],
+  "paths": [
+    "configs/development/control-events-gate.json",
+    "tools/test_control_events.sh",
+    "tools/tests/test_ci_control_events.py",
+    "tools/ci_scope.py",
+    ".github/workflows/verify.yml",
+    "packages/capstone-control/src/capstone_control/events.py",
+    "packages/capstone-control/src/capstone_control/store.py",
+    "packages/capstone-control/src/capstone_control/service.py",
+    "packages/capstone-control/tests/test_events.py",
+    "packages/capstone-control/tests/test_postgres.py",
+    "packages/capstone-agent/src/capstone_agent/control_host.py",
+    "packages/capstone-agent/tests/test_control_host.py"
+  ]
+}

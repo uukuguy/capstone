@@ -1,14 +1,25 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Control task board — active, 2026-11-17
+## Control persistent events — active, 2026-11-17
 
-Owner capstone-app; feat/control-task-board-20261117 targets dev5c8fe6d1.
+Owner capstone-control; capstone-agent owns the HTTP adapter.
+feat/control-events-20261117 targets dev a7fb27d4.
+[Plan](2026-11-17-control-events.md): atomic events and bounded scoped reads,
+stable source identities and explicit incomplete legacy coverage. This is the
+backend foundation for runtime lanes and linked diagnostics. Local PostgreSQL,
+Control and adapter tests pass; next complete focused gate and review before PR.
+No new CI approval, merge or deployment. UI consumption remains a later slice.
+
+## Control task board — accepted, 2026-11-17
+
+Owner capstone-app; PR135 merged into dev a7fb27d4, product 3ff3f515.
 User accepted task board, runtime lanes and diagnostic trace perspectives.
 [Plan](2026-11-17-control-task-board.md): first connect real Goal/Task data and
 existing session/product navigation. Keep uncertain commands and version boundaries.
-Acceptance requires focused tests, types and real browser verification. Next:
-implement status projection, stable task selection and late-response protection.
-Control event persistence and the full workspace shell remain later work.
+74 App/types and 143 scope/graph tests passed; macOS CI44073188596 passed.
+Actualdev canonical rebuild and 5173 real Goal/Thread navigation passed, with
+zero execution commands. Source branch closed; cloud/demo unchanged.
+The full workspace shell remains later work.
 
 ## Compatible session restoration — accepted correction, 2026-11-17
 

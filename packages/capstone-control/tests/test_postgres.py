@@ -43,6 +43,15 @@ def test_restart_and_concurrent_dispatch_are_durable(stored):
     assert restarted.read(workspace, goal['goal_id'])['delegations_admitted'] == 1
     assert len(restarted.pending(workspace)) == 1
     assert restarted.pending('other_workspace') == []
+    page = restarted.read_events(workspace, goal['goal_id'], limit=1)
+    assert page['through_sequence'] == 2
+    assert page['has_more']
+    assert page['history_complete']
+    second = restarted.read_events(workspace, goal['goal_id'], after=page['next_sequence'], through=2)
+    assert [e['kind'] for e in second['events']] == ['command.delegate_next']
+    assert not second['has_more']
+    with pytest.raises(KeyError):
+        restarted.read_events('other_workspace', goal['goal_id'])
 
 
 def test_failed_transition_rolls_back_without_operation_receipt(stored):
@@ -56,3 +65,26 @@ def test_failed_transition_rolls_back_without_operation_receipt(stored):
     # The rejected operation has not consumed its key or modified the revision.
     paused = service.command(workspace, command(goal, 'pause', 'too-early'))['goal']
     assert paused['state'] == 'paused'
+    assert [e['kind'] for e in service.read_events(workspace, goal['goal_id'])['events']] == [
+        'goal.created', 'command.pause']
+
+
+def test_event_insert_failure_rolls_back_aggregate_and_receipt(stored):
+    from psycopg import errors
+    from psycopg.types.json import Jsonb
+    store, workspace = stored
+    service = ControlService(store, now=lambda: NOW)
+    goal = service.create(workspace, request())
+    # A conflicting stored row forces the event INSERT to fail in the real transaction.
+    with store.connect() as connection:
+        connection.execute('''INSERT INTO capstone_control_events
+            (workspace, goal_id, sequence, document) VALUES (%s,%s,2,%s)''',
+            (workspace, goal['goal_id'], Jsonb({'sentinel': True})))
+    cmd = command(goal, 'pause', 'pause-after-failure')
+    with pytest.raises(errors.UniqueViolation):
+        service.command(workspace, cmd)
+    assert service.read(workspace, goal['goal_id']) == goal
+    with store.connect() as connection:
+        connection.execute('DELETE FROM capstone_control_events WHERE workspace=%s AND sequence=2', (workspace,))
+    assert service.command(workspace, cmd)['goal']['state'] == 'paused'
+    assert service.read_events(workspace, goal['goal_id'])['through_sequence'] == 2
