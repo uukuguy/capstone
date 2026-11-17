@@ -1753,7 +1753,7 @@ class NativeTaskRunner:
                     context_host = self._graph_context_provider(request, workspace, uid)
                     sdk_config['graphContextPath'] = str(context_host.root)
             launch_options = {'input_directory':inputs} if request.managed_workspace is not None else {}
-            equipment = (request.native_context or {}).get('mission_equipment')
+            equipment = document.get('native_context', {}).get('mission_equipment')
             if equipment is not None:
                 from .native_mission import equipment_tools
                 from .data_gateway_relay import gateway_discovery_tools

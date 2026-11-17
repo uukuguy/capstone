@@ -177,6 +177,12 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
         assert observation['metadata']['source_ref'] in cache.records
 
 
+@pytest.mark.parametrize('equipment_name',['write','data_gateway_discover_network_models'])
+def test_frozen_mission_equipment_reaches_actual_native_sdk_launch(tmp_path,monkeypatch,equipment_name):
+    test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
+        tmp_path,monkeypatch,'1.20.0',False,False,equipment_name=equipment_name)
+
+
 def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_path, monkeypatch):
     test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
         tmp_path, monkeypatch, '1.20.0', False, False, domain_available=True)
@@ -185,7 +191,7 @@ def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_pat
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 @pytest.mark.parametrize('choice', [None, False, True])
 @pytest.mark.parametrize('experimental_llm_pool', [False, True])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False):
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False, equipment_name=None):
     if choice is not None and version != '1.20.0':
         pytest.skip('Explicit UI control is verified against the current publication')
     import json
@@ -227,6 +233,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         from capstone_agent.native_llm_pool import LLM_CALL_POOL_POLICY, LLM_CALL_POOL_TOOLS
         native['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
         native['policy']['allowed_tools'].extend(LLM_CALL_POOL_TOOLS)
+    if equipment_name is not None:
+        native['mission_equipment'] = dict(schema='capstone-mission-tool-selection/1',allowed_tools=[equipment_name],denied_tools=[])
+        native['policy']['allowed_tools'] = [equipment_name]
     binding, task, _, _ = graph_fixture()
     binding['graph_work_edition'] = 'capstone-graph-work/1'
     captured = []
@@ -282,6 +291,16 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         runner(request, lambda: False, lambda _: None)
     assert task not in runner.task_llm_profiles
     assert runner.relay.timings == {}
+    if equipment_name is not None:
+        from collections.abc import Mapping
+        assert isinstance(request.native_context['mission_equipment'], Mapping)
+        assert not isinstance(request.native_context['mission_equipment'], dict)
+        expected = {equipment_name}
+        if equipment_name.startswith('data_gateway_'):
+            expected.update({'agent_tool_search','agent_tool_load'})
+        assert set(captured[0]['applicationPolicy']['allowed_tools']) == expected
+        assert 'bash' not in expected and 'read' not in expected and 'edit' not in expected
+        return
     actual = captured[0]['researchRuntime']
     if domain_available:
         assert captured[0]['domainTools']['onDemandTools'] is True
