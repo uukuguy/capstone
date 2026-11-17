@@ -4,7 +4,7 @@ export type ControlDraft={objective:string;criteria:string;maxDelegations:number
   stages:{objective:string;files:string;mode:'single'|'goal';maxAttempts:number}[]}
 export type ControlTask={task_id:string;revision:number;objective:string;state:string;mode:'single'|'goal';max_attempts:number;
   delivery_requirements:string[];required_products:string[];depends_on:string[];
-  delegation:{delegation_id:string;binding:{thread_id:string;work_id:string}|null}|null;
+  delegation:{delegation_id:string;binding:{thread_id:string;work_id:string}|null;goal_revision?:number;generation?:number;agent_id?:string}|null;
   observation?:{sequence:number;state:string;summary:string};
   delivery:{revision:number;answer_ref:string;products:NativeArtifact[]}|null;verification:Record<string,unknown>|null}
 export type ControlGoal={schema:'capstone-control-goal/1';workspace:string;goal_id:string;revision:number;objective_revision:number;
@@ -41,7 +41,10 @@ export function parseControlGoal(value:unknown):ControlGoal{
     return {task_id:text(t.task_id,128),revision:integer(t.revision),objective:text(t.objective),state:String(t.state),
       mode:t.mode as 'single'|'goal',max_attempts:integer(t.max_attempts),delivery_requirements:strings(t.delivery_requirements),
       required_products:strings(t.required_products??[]),depends_on:strings(t.depends_on),
-      delegation:d?{delegation_id:text(d.delegation_id,128),binding:bound}:null,
+      delegation:d?{delegation_id:text(d.delegation_id,128),binding:bound,
+        ...(d.goal_revision!==undefined?{goal_revision:integer(d.goal_revision)}:{}),
+        ...(d.generation!==undefined?{generation:integer(d.generation)}:{}),
+        ...(d.agent_id!==undefined?{agent_id:text(d.agent_id,128)}:{})}:null,
       delivery:delivery?{revision:integer(delivery.revision),answer_ref:text(delivery.answer_ref,128),products}:null,
       verification:t.verification===null?null:object(t.verification),
       ...(observation?{observation:{sequence:integer(observation.sequence,0),state:text(observation.state,128),summary:typeof observation.summary==='string'?observation.summary.slice(0,4096):''}}:{})}

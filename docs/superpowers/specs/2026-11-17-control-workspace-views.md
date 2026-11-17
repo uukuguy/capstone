@@ -41,3 +41,23 @@ under 3th-party/loopx/apps/presentation/dashboard/src/data/.
 
 First delivery and focused acceptance:
 [task-board plan](../plans/2026-11-17-control-task-board.md).
+
+## Incremental implementation, 2026-11-17
+
+Task board PR135 and Control-event PR136 are accepted in actual local-dev.
+The next App candidate implements three perspective controls in the existing
+sheet. Runtime lanes combine current task observations with a fixed prefix of
+Control events; they do not combine Agent Thread events or claim as-of state.
+Diagnosis locates the exact Control event and the bindings recorded in that event.
+Current Goal revisions can advance while the reading boundary remains fixed.
+Refresh is explicit; pages use the server's fixed through-sequence. At most500
+events are held in one reading window; arbitrary historical-window navigation is
+not yet available. Empty legacy coverage is not treated as stopped execution.
+
+The task board remains mounted while perspectives change. Runtime scroll, selected
+event and return focus remain attached to their source node. Workspace/Goal changes
+reset isolated reading state; late requests cannot populate the new Goal.
+Actions that change the task remain in the task perspective. Original conversation
+components own execution/products. Full workspace shell, Agent trace correlation
+and reproduction execution remain unimplemented.
+[Current plan](../plans/2026-11-17-control-runtime-views.md).

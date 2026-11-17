@@ -24,6 +24,7 @@ import type {GatewayConnectionInput} from './gatewayConnectionTypes'
 import {parseGatewayConnections,parseGatewayProbe} from './gatewayConnectionProtocol'
 import {currentWorkspaceName,normalizeWorkspaceName} from './workspaceName'
 import {parseControlGoal,parseControlGoals,type ControlCommand,type ControlGoalCreate} from './controlGoals'
+import {parseControlEvents} from './controlEvents'
 
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
 const THREAD_VERSION = '1'
@@ -137,6 +138,12 @@ export class HttpThreadTransport implements ThreadTransport {
     return page
   }
   async controlGoal(id:string){const goal=this.controlDocument(await this.controlRequest('/'+encodeURIComponent(id)));if(goal.goal_id!==id)throw new Error('目标身份不匹配。');return goal}
+  async controlEvents(id:string,after=0,through?:number){
+    if(!Number.isSafeInteger(after)||after<0||(through!==undefined&&(!Number.isSafeInteger(through)||through<after)))throw new Error('控制事件读取边界无效')
+    const query=new URLSearchParams({after:String(after),limit:'50'})
+    if(through!==undefined)query.set('through',String(through))
+    return parseControlEvents(await this.controlRequest('/'+encodeURIComponent(id)+'/events?'+query),this.workspaceName,id,after,through)
+  }
   async createControlGoal(body:ControlGoalCreate){return this.controlDocument(await this.controlRequest('',{method:'POST',body:JSON.stringify(body)}))}
   async controlGoalCommand(body:ControlCommand){
     const result=await this.controlRequest('/'+encodeURIComponent(body.goal_id)+'/commands',{method:'POST',body:JSON.stringify(body)})

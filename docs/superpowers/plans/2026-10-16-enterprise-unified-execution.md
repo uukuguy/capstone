@@ -1,14 +1,25 @@
 # Unified Enterprise Execution Implementation Plan
 
-## Control persistent events — active, 2026-11-17
+## Control runtime views — active, 2026-11-17
+
+Owner capstone-app. feat/control-runtime-views-20261117 targets dev dc6ada7b.
+[Plan](2026-11-17-control-runtime-views.md): three perspectives in the existing
+Control sheet, stable board selection, fixed-prefix event reads, runtime task
+lanes and exact Control-event diagnostic links. Agent trace reconstruction and
+the full workspace shell remain future slices. Local types and 85 App checks,
+123 scope checks pass; candidate5174 browser and real event navigation are next.
+No new CI approval, merge or candidate deployment.
+
+## Control persistent events — accepted, 2026-11-17
 
 Owner capstone-control; capstone-agent owns the HTTP adapter.
-feat/control-events-20261117 targets dev a7fb27d4.
+PR136 merged dc6ada7b; tested41db18f5, product4db1fb1a.
 [Plan](2026-11-17-control-events.md): atomic events and bounded scoped reads,
 stable source identities and explicit incomplete legacy coverage. This is the
-backend foundation for runtime lanes and linked diagnostics. Local PostgreSQL,
-Control and adapter tests pass; next complete focused gate and review before PR.
-No new CI approval, merge or deployment. UI consumption remains a later slice.
+backend foundation for runtime lanes and linked diagnostics. 65 focused checks
+including PostgreSQL pass; macOS CI44080297410 passed in135 seconds. Actualdev
+canonical rebuild/imagebb1799d6 and scoped read smoke of six old Goals passed;
+no execution commands, states unchanged. Source branch closed; cloud/demo unchanged.
 
 ## Control task board — accepted, 2026-11-17
 

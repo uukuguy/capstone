@@ -13,6 +13,14 @@
     "packages/capstone-app/src/ControlTaskBoard.test.tsx",
     "packages/capstone-app/src/ControlGoalPanel.tsx",
     "packages/capstone-app/src/ControlGoalPanel.css",
-    "packages/capstone-app/src/ControlGoals.test.tsx"
+    "packages/capstone-app/src/ControlGoals.test.tsx",
+    "packages/capstone-app/src/ControlWorkspaceViews.tsx",
+    "packages/capstone-app/src/ControlWorkspaceViews.css",
+    "packages/capstone-app/src/ControlWorkspaceViews.test.tsx",
+    "packages/capstone-app/src/controlEvents.ts",
+    "packages/capstone-app/src/controlEvents.test.ts",
+    "packages/capstone-app/src/controlGoals.ts",
+    "packages/capstone-app/src/threadHttpTransport.ts",
+    "packages/capstone-app/src/threadHttpTransport.test.ts"
   ]
 }

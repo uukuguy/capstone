@@ -12,3 +12,6 @@ def test_control_task_board_gate_is_limited_to_app_and_direct_consumers():
     assert classify(paths, target='main') == 'release'
     assert classify(paths + ['packages/capstone-agent/src/capstone_agent/control_host.py']) != 'control-task-board'
     assert classify(paths + ['packages/capstone-app/src/OtherPanel.tsx']) != 'control-task-board'
+    assert classify(paths + ['packages/capstone-app/src/ControlWorkspaceViews.tsx',
+                             'packages/capstone-app/src/controlEvents.ts',
+                             'packages/capstone-app/src/threadHttpTransport.ts']) == 'control-task-board'

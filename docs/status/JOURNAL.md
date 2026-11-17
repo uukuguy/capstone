@@ -8027,3 +8027,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: Control events implementation on feat/control-events-20261117 from dev a7fb27d4. Atomic owned event table, stable sequence/IDs, bounded scoped HTTP reads, legacy and old-writer coverage gaps. Real disposable PostgreSQL plus Control/adapter: 64 passed, no skips (1.73s); focused scope: 125 passed (3.92s). No CI, merge or deployment for this package. Prior board PR135/CI44073188596 accepted in actual dev; final receipts remain in ignored runs/control-workspace-design-20261117.
 
 - 2026-11-17: 4db1fb1a persists atomic Control events and bounded history reads for runtime observation and diagnostic links.
+
+- 2026-11-17: PR136/CI44080297410 accepted at dev dc6ada7b; actual local rebuild and six legacy Goal read checks passed.
+- 2026-11-17: Runtime-view candidate adds bounded Control event reading, stable three-view navigation and exact recorded execution links;85 App/types and123 scope checks pass.

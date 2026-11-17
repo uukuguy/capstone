@@ -11,6 +11,16 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('reads a fixed Control event prefix with workspace authorization',async()=>{
+    const body={schema:'capstone-control-events/1',workspace:'enterprise',goal_id:'goal_a',events:[],
+      after_sequence:0,through_sequence:0,next_sequence:0,has_more:false,history_complete:false,first_recorded_goal_revision:null}
+    const fetcher=vi.fn<typeof fetch>().mockImplementation(async()=>new Response(JSON.stringify(body)))
+    const transport=new HttpThreadTransport('https://api.example','operator',fetcher)
+    expect((await transport.controlEvents('goal_a',0,0)).history_complete).toBe(false)
+    expect(fetcher.mock.calls[0][0]).toBe('https://api.example/api/v1/control/goals/goal_a/events?after=0&limit=50&through=0')
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get('Authorization')).toBe('Bearer operator')
+    await expect(transport.controlEvents('goal_b')).rejects.toThrow()
+  })
   it('persists pin operations through the selected workspace transport',async()=>{
     const body={schema:'capstone-session-pins/1',workspace:'研究',revision:1,pins:['thr_a']}
     const fetcher=vi.fn<typeof fetch>().mockImplementation(async()=>new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2','Capstone-Workspace':encodeURIComponent('研究')}}))
