@@ -1245,6 +1245,9 @@ class GeneralPiHost:
             if (authority is None or not authority.active() or record['cancel'].is_set()
                     or record['status'] not in {'queued', 'running'}):
                 raise PermissionError('Mission execution is not active')
+            admitted = (record['request'].native_context or {}).get('policy', {}).get('allowed_tools', ())
+            if not isinstance(document, dict) or document.get('name') not in admitted:
+                raise PermissionError('Mission tool is not admitted for this execution')
             return record['mission'].request(document)
 
     def renew_execution(self, task_id: str, document) -> None:

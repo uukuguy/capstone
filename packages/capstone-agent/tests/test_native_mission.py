@@ -95,11 +95,13 @@ def test_host_mission_channel_requires_the_current_task_attempt_and_authority():
     host = object.__new__(GeneralPiHost)
     host._lock = RLock()
     grant = dict(schema=SCHEMA,generation='a'*64,capability='b'*64)
-    record = dict(request=SimpleNamespace(parent_attempt_id='attempt_1'),status='running',cancel=Event(),
+    record = dict(request=SimpleNamespace(parent_attempt_id='attempt_1',native_context={'policy':{'allowed_tools':['agent_mission_read']}}),status='running',cancel=Event(),
         execution_authority=ExecutionAuthority('a'*64,'b'*64,30),mission=MissionTaskChannel())
     host._tasks = {'task_1':record}
     call = dict(call_id='call_1|message_1',name='agent_mission_read',arguments={})
     assert host.mission_request('task_1',call) is None
+    with pytest.raises(PermissionError):
+        host.mission_request('task_1',dict(call_id='denied',name='agent_mission_control',arguments={'expected_revision':1,'action':'cancel'}))
     exchange = dict(parent_attempt_id='attempt_1',execution_authority=grant,receipts=[])
     assert host.mission_exchange('task_1',exchange) == {'requests':[call]}
     for changed in [{**exchange,'parent_attempt_id':'old'},{**exchange,'execution_authority':{**grant,'capability':'c'*64}}]:
