@@ -8,5 +8,6 @@ npm test --prefix packages/capstone-app -- \
   src/WorkspaceSessionEntry.test.tsx src/workspaceSessionCache.test.tsx \
   src/durableSessionPins.test.ts src/sessionPinsPersistence.test.ts \
   src/ThreadWorkEntry.test.tsx src/ThreadWorkExecution.test.tsx \
-  src/ThreadLiveEntry.test.tsx src/ThreadWorkspace.test.tsx
+  src/ThreadLiveEntry.test.tsx src/ThreadWorkspace.test.tsx \
+  src/WorkspaceConnectionStatus.test.tsx src/ControlGoals.test.tsx
 git diff --check

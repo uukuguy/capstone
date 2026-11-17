@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { MessageNotSentError } from '@assistant-ui/react'
 import { Plus, RefreshCw } from 'lucide-react'
 import ThreadWorkspace from './ThreadWorkspace'
+import {useWorkspaceNavigation} from './workspaceNavigationContext'
 import {WorkspaceGatewayStatus,SessionConnectionStatus} from './WorkspaceConnectionStatus'
 import {resultProjectionHistoryText} from './threadSystemNotices'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
@@ -65,9 +66,11 @@ export default function ThreadWorkAdapter({ transport, threadId, namespace, reco
   transport: HttpThreadTransport; threadId: string; namespace: string; recoveryOnly?: boolean
   preparedStore?:ThreadProjectionStore
 }) {
+  const sharedNavigation=useWorkspaceNavigation()
   const [localId, setCurrentId] = useState(threadId)
   const currentId=recoveryOnly?threadId:localId
-  const [sessions,setSessions]=useSessionCatalog(namespace)
+  const [localSessions,setSessions]=useSessionCatalog(namespace)
+  const sessions=sharedNavigation?.catalog??localSessions
   useEffect(()=>setCurrentId(threadId),[threadId])
   useEffect(() => {
     if(recoveryOnly)return
@@ -83,6 +86,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   sessions:ThreadListPage|null;setSessions:Dispatch<SetStateAction<ThreadListPage|null>>
   preparedStore?:ThreadProjectionStore
 }) {
+  const sharedNavigation=useWorkspaceNavigation()
   const transport=useMemo(()=>baseTransport.forThread(currentId),[baseTransport,currentId])
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
@@ -262,12 +266,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     return () => controller.abort()
   }, [key, currentId, commandStorageKey])
   useEffect(() => {
+    if(sharedNavigation)return
     const controller = new AbortController()
     void transport.listThreads(false, undefined, controller.signal).then(page => {
       if (!controller.signal.aborted) { setSessions(previous=>mergeSessionPage(previous,page)); setSessionError(false) }
     }).catch(() => { if (!controller.signal.aborted) setSessionError(true) })
     return () => controller.abort()
-  }, [transport, currentId,listReload,snapshot?.sessionTitle?.revision])
+  }, [transport, currentId,listReload,snapshot?.sessionTitle?.revision,!!sharedNavigation])
   useEffect(() => {
     if (currentId === 'new') return
     if(!pageVisible)return
@@ -303,6 +308,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     if (pending || writing.current) return
     persist(target); setSelected(target); setInitialText(drafts.current[target] || '')
   }
+  const selectWorkRef=useRef(selectWork);selectWorkRef.current=selectWork
+  useEffect(()=>{
+    if(!sharedNavigation)return
+    const select=(event:Event)=>{const detail=(event as CustomEvent<{threadId:string;workId:string}>).detail;if(detail?.threadId===currentId)selectWorkRef.current(detail.workId)}
+    window.addEventListener('capstone-work-selected',select)
+    return()=>window.removeEventListener('capstone-work-selected',select)
+  },[currentId,!!sharedNavigation])
   async function create() {
     if (writing.current) return
     writing.current = true; setBusy(true); setError(null)
@@ -615,6 +627,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       onOpenHistoricalModel={(modelId,revision)=>void changeModel('open_model',{model_id:modelId,model_revision:revision})}/>
   </>:null
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
+    navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
+      {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
+      {viewingLegacy&&<button type="button" disabled={busy||!!pending} onClick={()=>selectWork(snapshot?.works.find(work=>work.conversationMode)?.workId||'new')}>返回当前对话</button>}
+      {!recoveryOnly&&!nativeChat&&<button aria-pressed={selected==='new'} disabled={busy||!!pending} onClick={()=>selectWork('new')}>新的任务目标</button>}
+      {legacyWorks?.map((work,index)=><button key={work.workId} aria-pressed={selected===work.workId} disabled={busy||!!pending} onClick={()=>selectWork(work.workId)} title={work.goal}>{String(index+1).padStart(2,'0')} · {work.goal}</button>)}
+    </>}
     headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError||projection.synchronizationError} recovering={connectionRecovering} pending={!!pending}/>}
     navigationFooter={<WorkspaceGatewayStatus transport={transport} threadId={currentId} onConnection={setWelcomeGateway} locked={Boolean(snapshot?.works.some(work=>work.messages.length>0))}/>}
     resourcePanel={client.supportsProductIndex?productsPanel:nativeChat&&client.supportsProcessProducts?processPanel:undefined}
@@ -705,7 +723,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||uploadBusy}
-      welcomeGateway={welcomeGateway}
+      welcomeGateway={sharedNavigation?sharedNavigation.gateway:welcomeGateway}
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?pendingMessage?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={initialText} onDraftChange={onDraftChange}
       storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage}
       isRunning={active} canCancel={canStop}

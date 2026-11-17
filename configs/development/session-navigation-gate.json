@@ -5,12 +5,25 @@
     "packages/capstone-app/src/SessionNavigation.tsx",
     "packages/capstone-app/src/sessionCatalog.ts"
   ],
+  "anchor_sets": [
+    ["packages/capstone-app/src/SessionNavigation.tsx", "packages/capstone-app/src/sessionCatalog.ts"],
+    ["packages/capstone-app/src/WorkspaceNavigationFrame.tsx"]
+  ],
   "paths": [
     "configs/development/session-navigation-gate.json",
     "tools/test_session_navigation.sh",
+    "tools/ci_scope.py",
     "tools/tests/test_ci_session_navigation.py",
     "packages/capstone-app/src/SessionNavigation.tsx",
     "packages/capstone-app/src/SessionNavigation.test.tsx",
-    "packages/capstone-app/src/sessionCatalog.ts"
+    "packages/capstone-app/src/sessionCatalog.ts",
+    "packages/capstone-app/src/WorkspaceNavigationFrame.tsx",
+    "packages/capstone-app/src/workspaceNavigationContext.ts",
+    "packages/capstone-app/src/workspaceNavigation.css",
+    "packages/capstone-app/src/ThreadWorkspace.tsx",
+    "packages/capstone-app/src/ThreadLiveEntry.tsx",
+    "packages/capstone-app/src/ThreadLiveEntry.test.tsx",
+    "packages/capstone-app/src/ThreadWorkAdapter.tsx",
+    "packages/capstone-app/src/WorkspaceSessionEntry.tsx"
   ]
 }

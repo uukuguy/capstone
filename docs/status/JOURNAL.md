@@ -8007,3 +8007,9 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-17: PR128/head4ff09235 macOS CI43941305783 passed and merged into actualdev f818d2e9. Canonical actualdev rebuild28526 completed0/imagefaf6c85a; readiness, API/three-worker identity and scoped cache maintenance passed. Existing5173 repeated switches retain10 pin records/order and the same scrolled list position; correct selected headings and saved products confirmed. Original10 exact pin IDs match after rebuild. Candidate Vite74642 stopped. Only docs/session-sidebar-closeout-20261117 acceptance/control closeout targets dev; final own PR/CI/merge/HEAD receipts stay ignored. No new task/model execution or cloud/demo change.
 - 2026-11-17 b9260528: Recorded actualdev sidebar acceptance to close the verified navigation correction.
 - 2026-11-17 b0dfa1cc: Merged sidebar acceptance; live refresh exposed missing fixed deployment source. Add explicit f818d2e9 source node.
+- 2026-11-17 correction: User rejected metadata-only sidebar acceptance; move navigation lifetime to workspace, leaving Activities to own conversation/products.
+- 2026-11-17: Cold-switch DOM and post-auth catalog regressions failed first; persistent frame passes127 App/types and190 scope checks. Reviewer unavailable.
+- 2026-11-17 6a607d7f: Lifted navigation into workspace lifetime so selection changes highlight without remounting sidebar or awaiting catalog.
+- 2026-11-17: Browser proved stationary nodes; queued wheel after routing exposed legacy scroll locking. Added failing99→87 regression.
+- 2026-11-17: Persistent navigation skips route checkpoints;132 App/types passed, including gateway and Control consumers.
+- 2026-11-17: New-entry trial created empty thr_7f864f18c01f505b3268; verified zero events/works, deleted only owned test session, preserved10 pins.
