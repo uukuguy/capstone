@@ -1,6 +1,7 @@
 # Journal — append-only event log
 
 - 2026-11-18: Mapped durable intervention boundaries: active send rejects and native stdin blocks during prompt; server queue and consumption receipts required.
+- 2026-11-18: Added active-Work supplementary instruction storage/withdraw transitions;4 focused tests pass, runtime consumption and PostgreSQL validation pending.
 
 > One line per commit / verified result / dropped path. Never edit past lines.
 > Format: `## YYYY-MM-DD` date headers, then `- HH:MM <fact> [commit hash if any]`

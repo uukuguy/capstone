@@ -179,7 +179,8 @@ def apply_work(snapshot, command, *, archived=False):
     if command['run_id'] is not None and command['run_id'] != snapshot.run.run_id:
         return snapshot, 'run_mismatch', None
     if snapshot.current_attempt is not None and command['kind'] not in {
-            'cancel_work', 'pause_goal', 'cancel_goal', 'revise_goal_objective'}:
+            'cancel_work', 'pause_goal', 'cancel_goal', 'revise_goal_objective',
+            'queue_instruction', 'withdraw_instruction'}:
         return snapshot, 'attempt_in_progress', None
     from .thread_service import _application_case_active, _application_context_lock
     if (context_lock := _application_context_lock(snapshot)) is not None:
@@ -188,6 +189,38 @@ def apply_work(snapshot, command, *, archived=False):
         return snapshot, 'case_execution_active', None
     target_work = next((item for item in snapshot.works
                         if item['work_id'] == command['target']['id']), None)
+    if command['kind'] in {'queue_instruction', 'withdraw_instruction'}:
+        from .instruction_queue import submit, withdraw
+        if target_work is None:
+            return snapshot, 'work_not_found', None
+        if target_work['revision'] != command['target']['expected_revision']:
+            return snapshot, 'revision_conflict', None
+        work = deepcopy(target_work)
+        payload = command['payload']
+        if command['kind'] == 'queue_instruction':
+            if set(payload) != {'text'} or not isinstance(payload['text'], str) or not payload['text'].strip():
+                raise ThreadProtocolError('Instruction text is required')
+            current = snapshot.current_attempt
+            if current is None or current.attempt_id != work.get('latest_attempt_id'):
+                return snapshot, 'attempt_target_mismatch', None
+            if work.get('cancel_requested'):
+                return snapshot, 'attempt_stopping', None
+            queue = work.get('instruction_queue', [])
+            if len(queue) >= limits.work_message_count or len(payload['text']) > limits.input_text_chars:
+                return snapshot, 'work_limit_reached', None
+            work['instruction_queue'] = submit(queue, command['command_id'], payload['text'], current.attempt_id)
+        else:
+            if set(payload) != {'instruction_id'} or not isinstance(payload['instruction_id'], str):
+                raise ThreadProtocolError('Instruction identity is required')
+            try:
+                work['instruction_queue'] = withdraw(work.get('instruction_queue', []), payload['instruction_id'])
+            except ValueError:
+                return snapshot, 'instruction_unavailable', None
+        work['revision'] += 1
+        works = tuple(work if item['work_id'] == work['work_id'] else deepcopy(item) for item in snapshot.works)
+        if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
+            return snapshot, 'work_limit_reached', None
+        return replace(snapshot, works=works), None, work
     if command['kind'] in {'start_goal', 'pause_goal', 'resume_goal', 'cancel_goal', 'revise_goal_objective', 'continue_goal'}:
         from datetime import datetime, timezone
         from .goal_mode import GOAL_SCHEMA, control_goal, parse_goal_mode
