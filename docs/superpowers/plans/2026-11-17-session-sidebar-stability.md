@@ -19,7 +19,7 @@ page. The list shrinks and the browser clamps its scroll position.
   Select a focused macOS navigation gate, without solver/release checks.
 - [x] Canonical rebuild; inspect existing browser cold/warm switching, stable
   pinned rows/order/position and correct selected conversation. Preserve pins.
-- [ ] Review, focused CI and dev PR; actualdev rebuild/5173 acceptance. Update
+- [x] Review, focused CI and dev PR; actualdev rebuild/5173 acceptance. Update
   canonical worklist/register/graph. Final own closeout receipts stay ignored.
 
 Cache records are read-only presentation metadata, never pin authority or task

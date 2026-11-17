@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-17：会话切换左栏跳动修正由capstone-app所有，分支fix/session-sidebar-stability-20261117目标dev。原版截图10→3→10；399f90f3共享完整置顶记录并使移除前请求失效，125App/类型、145治理和规范重建通过，5次实际切换保持10行/顺序/正确会话。定向CI和dev集成待验。[验收](../reviews/2026-11-17-session-sidebar-stability-local.md)。
+2026-11-17：会话切换左栏跳动修正已通过PR128合入dev f818d2e9；125App/类型、145治理、macOS CI43941305783通过。实际dev规范重建和5173重复切换保持10项、顺序与滚动位置，原始置顶ID完全一致。当前仅控制收口docs/session-sidebar-closeout-20261117目标dev；最终回执忽略保存。[验收](../reviews/2026-11-17-session-sidebar-stability-local.md)。
 
 2026-11-17：阶段二PR126已合入dev87e780df；最终macOS CI43929754196、183后端/71App及类型通过。真实双会话/原字节/接受、重启、控制重放、预算及期限停止通过。实际dev规范重建、5173目标/四原成果/刷新与10置顶恢复通过，临时5174已停止。独立审查工具不可用。只剩控制文档PR合入和最终忽略回执，见[验收](../reviews/2026-11-17-control-delegation-local.md)。
 
