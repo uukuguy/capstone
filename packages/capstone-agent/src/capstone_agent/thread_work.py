@@ -46,6 +46,7 @@ def start_unavailable_reason(snapshot):
 
 
 def project_work(snapshot, work):
+    from .instruction_queue import supported
     reason = start_unavailable_reason(snapshot)
     if reason is None and len(work_instruction(work)) > limits.input_text_chars:
         reason = 'work_input_too_large'
@@ -54,9 +55,7 @@ def project_work(snapshot, work):
     return {**deepcopy(work), 'latest_attempt_id': work.get('latest_attempt_id'),
             'consumed_message_count': work.get('consumed_message_count', 0),
             'cancel_requested': work.get('cancel_requested', False),
-            'instruction_queue_available': (snapshot.active_model_context is None
-                and snapshot.native_execution is not None and 'capstone-native-instruction/1'
-                in snapshot.native_execution.get('capability', {}).get('instruction_schemas', ())),
+            'instruction_queue_available': snapshot.active_model_context is None and supported(snapshot.native_execution),
             'start_available': reason is None, 'start_unavailable_reason': reason}
 
 

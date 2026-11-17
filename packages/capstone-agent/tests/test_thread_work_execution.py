@@ -17,6 +17,24 @@ def execution_store(request):
     return store, thread_id
 
 
+@pytest.fixture(params=['memory', 'postgres'])
+def queue_store(request):
+    from test_enterprise_normal_chat import native_executor
+    if request.param == 'memory':
+        thread_id = 'thr_native_queue'
+        store = InMemoryThreadService(replace(_snapshot(thread_id), active_model_context=None,
+            active_grid_page_id=None, minimum_protocol_version=2))
+    else:
+        store, thread_id = request.getfixturevalue('postgres_thread_service')
+        store.create_thread(replace(_snapshot(thread_id), active_model_context=None,
+            active_grid_page_id=None, minimum_protocol_version=2))
+    executor = native_executor()
+    executor.capability['instruction_schemas'] = ['capstone-native-instruction/1']
+    executor.capability['execution_authority_schemas'] = ['capstone-execution-authority/1']
+    store.set_native_executor(executor)
+    return store, thread_id
+
+
 def professional_snapshot(thread_id='thr_work_exec'):
     snapshot = _snapshot(thread_id)
     return replace(snapshot, active_model_context=replace(snapshot.professional_context,
@@ -36,9 +54,9 @@ def save_work(store, thread_id, name='save'):
     return store.snapshot(thread_id).to_document()['works'][-1]
 
 
-def test_durable_instruction_reservation_and_admission(execution_store):
+def test_durable_instruction_reservation_and_admission(queue_store):
     from capstone_agent.thread_service import ThreadExecutionError
-    store, thread_id = execution_store
+    store, thread_id = queue_store
     work = save_work(store, thread_id)
     assert store.submit_command(command(store, thread_id, 'start_work', 'queue_start',
         work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
@@ -69,10 +87,10 @@ def test_durable_instruction_reservation_and_admission(execution_store):
     assert store.peek_instructions(resumed)[0]['id'] == 'cmd_input_two'
 
 
-def test_instruction_withdraw_reserve_race_has_one_winner(execution_store):
+def test_instruction_withdraw_reserve_race_has_one_winner(queue_store):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier
-    store, thread_id = execution_store
+    store, thread_id = queue_store
     work = save_work(store, thread_id)
     store.submit_command(command(store, thread_id, 'start_work', 'race_start',
         work_id=work['work_id'], revision=work['revision']))
@@ -100,10 +118,9 @@ def test_instruction_withdraw_reserve_race_has_one_winner(execution_store):
     assert final == ('delivery_unknown' if reserved is not None else 'withdrawn')
 
 
-def test_postgres_instruction_delivery_survives_store_restart(postgres_thread_service):
+def test_instruction_delivery_survives_store_restart(queue_store):
     from capstone_agent.thread_service import PostgresThreadService
-    store, thread_id = postgres_thread_service
-    store.create_thread(professional_snapshot(thread_id))
+    store, thread_id = queue_store
     work = save_work(store, thread_id)
     store.submit_command(command(store, thread_id, 'start_work', 'restart_start',
         work_id=work['work_id'], revision=work['revision']))
@@ -112,9 +129,41 @@ def test_postgres_instruction_delivery_survives_store_restart(postgres_thread_se
     store.submit_command(command(store, thread_id, 'queue_instruction', 'restart_input',
         work_id=work['work_id'], revision=work['revision'], payload={'text': 'Keep me'}))
     store.reserve_instruction(claim, 'cmd_restart_input')
-    restored = PostgresThreadService(store.dsn)
+    restored = PostgresThreadService(store.dsn) if hasattr(store, 'dsn') else store
     assert restored.snapshot(thread_id).works[0]['instruction_queue'][0]['state'] == 'delivering'
     assert restored.acknowledge_instruction(claim, 'cmd_restart_input')['state'] == 'admitted'
+
+
+@pytest.mark.parametrize('missing', ['instruction_schemas', 'execution_authority_schemas'])
+def test_queue_requires_frozen_native_capability(queue_store, missing):
+    from copy import deepcopy
+    store, thread_id = queue_store
+    binding = deepcopy(store._native_binding)
+    store._native_binding['capability'].pop(missing)
+    work = save_work(store, thread_id)
+    store.submit_command(command(store, thread_id, 'start_work', 'unsupported_start',
+        work_id=work['work_id'], revision=work['revision']))
+    claim = store.claim_attempt('old_host_worker', 30)
+    assert claim is not None
+    # Updating the live publication cannot expand the already accepted grants.
+    store._native_binding = binding
+    work = store.snapshot(thread_id).works[0]
+    receipt = store.submit_command(command(store, thread_id, 'queue_instruction', 'unsupported_input',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Do not lose me'}))
+    assert receipt.rejection == 'instruction_queue_unavailable'
+    assert not store.snapshot(thread_id).works[0].get('instruction_queue')
+
+
+def test_professional_execution_rejects_instruction_queue(execution_store):
+    store, thread_id = execution_store
+    work = save_work(store, thread_id)
+    store.submit_command(command(store, thread_id, 'start_work', 'professional_start',
+        work_id=work['work_id'], revision=work['revision']))
+    assert store.claim_attempt('professional_worker', 30) is not None
+    work = store.snapshot(thread_id).works[0]
+    receipt = store.submit_command(command(store, thread_id, 'queue_instruction', 'professional_input',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Unsupported'}))
+    assert receipt.rejection == 'instruction_queue_unavailable'
 
 
 def test_start_work_claim_and_terminal_share_one_ledger():

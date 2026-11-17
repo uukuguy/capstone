@@ -43,6 +43,9 @@ def test_active_work_saves_and_withdraws_supplement_without_replacing_attempt():
     work = {**snapshot.works[0], 'status':'running', 'latest_attempt_id':'attempt_one'}
     current = AttemptSnapshot('turn_one', 'attempt_one', 'running', None, 'capstone')
     service = InMemoryThreadService(replace(snapshot, works=(work,), current_attempt=current))
+    service._attempts[current.attempt_id] = {'attempt': current, 'submission': {'_native_execution': {
+        'capability': {'instruction_schemas': ['capstone-native-instruction/1'],
+                       'execution_authority_schemas': ['capstone-execution-authority/1']}}}}
     command.update(command_id='supplement', idempotency_key='supplement', kind='queue_instruction',
                    target=dict(kind='work', id=work['work_id'], expected_revision=work['revision']),
                    payload=dict(text='Change direction'))

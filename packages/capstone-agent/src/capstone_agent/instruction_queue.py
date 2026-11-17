@@ -2,6 +2,12 @@
 from copy import deepcopy
 
 
+def supported(binding):
+    capability = (binding or {}).get('capability', {})
+    return ('capstone-native-instruction/1' in capability.get('instruction_schemas', ())
+            and 'capstone-execution-authority/1' in capability.get('execution_authority_schemas', ()))
+
+
 def submit(queue, identity, text, attempt_id):
     if any(not isinstance(value, str) or not value.strip()
            for value in (identity, text, attempt_id)):

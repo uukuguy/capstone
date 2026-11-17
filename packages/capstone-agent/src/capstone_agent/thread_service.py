@@ -1604,6 +1604,11 @@ class InMemoryThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission)
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
+        if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
+            from .instruction_queue import supported
+            frozen = self._attempts.get(prepared.current_attempt.attempt_id, {}).get('submission') or {}
+            if not supported(frozen.get('_native_execution')):
+                input_rejection = 'instruction_queue_unavailable'
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
@@ -3152,6 +3157,13 @@ class PostgresThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission, connection=connection)
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
+        if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
+            from .instruction_queue import supported
+            saved = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s',
+                (snapshot.thread_id, prepared.current_attempt.attempt_id)).fetchone()
+            frozen = {} if saved is None else saved['submission_snapshot'] or {}
+            if not supported(frozen.get('_native_execution')):
+                input_rejection = 'instruction_queue_unavailable'
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
