@@ -128,6 +128,13 @@ def register_control_routes(app, *, threads, authorize, wake=None):
             wake(goal_id)
         return receipt
 
+    @app.get('/api/v1/control/goals/{goal_id}/events')
+    def read_events(goal_id: str, request: Request, after: int = Query(0, ge=0),
+                    limit: int = Query(50, ge=1, le=100), through: int | None = Query(None, ge=0)):
+        authorize(request)
+        return run(host.service.read_events, request.state.workspace_name, goal_id,
+                   after=after, limit=limit, through=through)
+
     @app.post('/api/v1/agent/delegations')
     def delegate(body: dict, request: Request):
         authorize(request)

@@ -16,6 +16,24 @@ def goal_request():
                  required_products=['report.md'], depends_on=['draft'], agent_id='capstone', mode='single', max_attempts=1)])
 
 
+def test_control_event_route_is_scoped_bounded_and_read_only():
+    from fastapi.testclient import TestClient
+    from test_thread_http_api import _app, _auth, _service
+    threads = _service()
+    with TestClient(_app(threads), base_url='http://localhost') as client:
+        goal = client.post('/api/v1/control/goals', headers=_auth(), json=goal_request()).json()
+        path = '/api/v1/control/goals/' + goal['goal_id'] + '/events'
+        before = threads.control_host.service.read(goal['workspace'], goal['goal_id'])
+        response = client.get(path, headers=_auth())
+        assert response.status_code == 200
+        assert response.json()['events'][0]['kind'] == 'goal.created'
+        assert client.get(path, headers={**_auth(), 'Capstone-Workspace': 'other'}).status_code == 404
+        assert client.get(path).status_code in {401, 403}
+        for query in ('limit=101', 'after=-1', 'through=2', 'after=2'):
+            assert client.get(path + '?' + query, headers=_auth()).status_code == 422
+        assert threads.control_host.service.read(goal['workspace'], goal['goal_id']) == before
+
+
 class Agent:
     def __init__(self):
         self.calls = []
@@ -99,7 +117,8 @@ def test_concurrent_api_worker_bootstrap_initializes_owned_tables(postgres_threa
         assert len(hosts) == 8
         with psycopg.connect(threads.dsn) as connection:
             rows = connection.execute('SELECT tablename FROM pg_tables WHERE schemaname=%s', (schema,)).fetchall()
-        assert {row[0] for row in rows} == {'capstone_control_goals', 'capstone_agent_delegations'}
+        assert {row[0] for row in rows} == {
+            'capstone_control_goals', 'capstone_control_events', 'capstone_agent_delegations'}
     finally:
         with psycopg.connect(threads.dsn) as connection:
             connection.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))

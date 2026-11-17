@@ -2,19 +2,37 @@
 from copy import deepcopy
 from threading import RLock
 
+from .events import build_event, event_page, page_bounds
+
 
 class MemoryStore:
     def __init__(self):
         self._lock = RLock()
         self._values = {}
+        self._events = {}
 
-    def transact(self, workspace, goal_id, change):
+    def transact(self, workspace, goal_id, change, *, event=None):
         with self._lock:
             key = (workspace, goal_id)
             current = deepcopy(self._values.get(key))
-            updated, result = change(current)
-            self._values[key] = deepcopy(updated)
-            return deepcopy(result)
+            updated, result = change(deepcopy(current))
+            recorded = build_event(current, updated, event)
+            saved, receipt = deepcopy(updated), deepcopy(result)
+            records = self._events.get(key, [])
+            if recorded is not None:
+                records = [*records, recorded]
+            self._values[key] = saved
+            self._events[key] = records
+            return receipt
+
+    def read_events(self, workspace, goal_id, *, after=0, limit=50, through=None):
+        with self._lock:
+            through = page_bounds(self._values[(workspace, goal_id)], after, limit, through)
+            records = self._events.get((workspace, goal_id), [])
+            rows = [e for e in records if after < e['sequence'] <= through][:limit + 1]
+            first = records[0] if records and records[0]['sequence'] <= through else None
+            last = next((e for e in reversed(records) if e['sequence'] <= through), None)
+            return deepcopy(event_page(workspace, goal_id, rows, first, last, after, limit, through))
 
     def read(self, workspace, goal_id):
         with self._lock:
@@ -45,8 +63,13 @@ class PostgresStore:
             connection.execute('''CREATE TABLE IF NOT EXISTS capstone_control_goals (
                 workspace text NOT NULL, goal_id text NOT NULL,
                 document jsonb NOT NULL, PRIMARY KEY(workspace, goal_id))''')
+            connection.execute('''CREATE TABLE IF NOT EXISTS capstone_control_events (
+                workspace text NOT NULL, goal_id text NOT NULL, sequence bigint NOT NULL,
+                document jsonb NOT NULL, PRIMARY KEY(workspace, goal_id, sequence),
+                FOREIGN KEY(workspace, goal_id) REFERENCES capstone_control_goals(workspace, goal_id)
+                ON DELETE CASCADE)''')
 
-    def transact(self, workspace, goal_id, change):
+    def transact(self, workspace, goal_id, change, *, event=None):
         from psycopg.types.json import Jsonb
         with self.connect() as connection:
             connection.execute('''INSERT INTO capstone_control_goals
@@ -54,10 +77,36 @@ class PostgresStore:
                 ON CONFLICT DO NOTHING''', (workspace, goal_id))
             row = connection.execute('''SELECT document FROM capstone_control_goals
                 WHERE workspace=%s AND goal_id=%s FOR UPDATE''', (workspace, goal_id)).fetchone()
-            updated, result = change(row['document'] or None)
+            current = row['document'] or None
+            updated, result = change(deepcopy(current))
+            recorded = build_event(current, updated, event)
+            if recorded is not None:
+                connection.execute('''INSERT INTO capstone_control_events
+                    (workspace,goal_id,sequence,document) VALUES (%s,%s,%s,%s)''',
+                    (workspace, goal_id, recorded['sequence'], Jsonb(recorded)))
             connection.execute('''UPDATE capstone_control_goals SET document=%s
                 WHERE workspace=%s AND goal_id=%s''', (Jsonb(updated), workspace, goal_id))
             return deepcopy(result)
+
+    def read_events(self, workspace, goal_id, *, after=0, limit=50, through=None):
+        with self.connect() as connection:
+            row = connection.execute('''SELECT document FROM capstone_control_goals
+                WHERE workspace=%s AND goal_id=%s''', (workspace, goal_id)).fetchone()
+            if row is None:
+                raise KeyError(goal_id)
+            through = page_bounds(row['document'], after, limit, through)
+            rows = connection.execute('''SELECT document FROM capstone_control_events
+                WHERE workspace=%s AND goal_id=%s AND sequence>%s AND sequence<=%s
+                ORDER BY sequence LIMIT %s''', (workspace, goal_id, after, through, limit + 1)).fetchall()
+            first = connection.execute('''SELECT document FROM capstone_control_events
+                WHERE workspace=%s AND goal_id=%s AND sequence<=%s
+                ORDER BY sequence LIMIT 1''', (workspace, goal_id, through)).fetchone()
+            last = connection.execute('''SELECT document FROM capstone_control_events
+                WHERE workspace=%s AND goal_id=%s AND sequence<=%s
+                ORDER BY sequence DESC LIMIT 1''', (workspace, goal_id, through)).fetchone()
+            return event_page(workspace, goal_id, [r['document'] for r in rows],
+                              first['document'] if first else None,
+                              last['document'] if last else None, after, limit, through)
 
     def read(self, workspace, goal_id):
         with self.connect() as connection:
