@@ -136,11 +136,13 @@ export class HttpThreadTransport implements ThreadTransport {
   private controlDocument(value:unknown){const goal=parseControlGoal(value);if(goal.workspace!==this.workspaceName)throw new Error('长期目标不属于当前工作空间。');return goal}
   private controlRequest(path:string,init:RequestInit={}){return this.request('/api/v1/control/goals'+path,{...init,signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))})}
   async controlGoals(after?:string){
-    const page=parseControlGoals(await this.controlRequest(after?'?after='+encodeURIComponent(after):''))
+    const query=new URLSearchParams({include_missions:'true'})
+    if(after)query.set('after',after)
+    const page=parseControlGoals(await this.controlRequest('?'+query))
     if(page.goals.some(g=>g.workspace!==this.workspaceName))throw new Error('目标列表不属于当前工作空间。')
     return page
   }
-  async controlGoal(id:string){const goal=this.controlDocument(await this.controlRequest('/'+encodeURIComponent(id)));if(goal.goal_id!==id)throw new Error('目标身份不匹配。');return goal}
+  async controlGoal(id:string){const goal=this.controlDocument(await this.controlRequest('/'+encodeURIComponent(id)+'?include_missions=true'));if(goal.goal_id!==id)throw new Error('目标身份不匹配。');return goal}
   async controlEvents(id:string,after=0,through?:number){
     if(!Number.isSafeInteger(after)||after<0||(through!==undefined&&(!Number.isSafeInteger(through)||through<after)))throw new Error('控制事件读取边界无效')
     const query=new URLSearchParams({after:String(after),limit:'50'})
