@@ -193,12 +193,13 @@ def checked_native_context(value):
         if binding is None or binding['mission_id']!=review['mission_id'] or binding['origin']!=review['origin']:
             raise ValueError('Mission review does not match its organizer binding')
     if 'mission_equipment' in value:
-        from .native_mission import checked_equipment
+        from .native_mission import checked_equipment,resource_protocol_tools
         selection = checked_equipment(value['mission_equipment'])
         if isinstance(value['policy'], dict) and isinstance(value['policy'].get('allowed_tools'), list):
             current = set(value['policy']['allowed_tools'])
+            protocol=resource_protocol_tools(current,value.get('resource_manifests',[]))
             if (current & set(selection['denied_tools']) or selection['allowed_tools'] is not None
-                    and not current <= set(selection['allowed_tools'])):
+                    and not current <= set(selection['allowed_tools'])|protocol):
                 raise ValueError('native Mission equipment was not enforced')
     if 'gateway_binding' in value:
         gateway = value['gateway_binding']
@@ -421,10 +422,11 @@ def native_context_for(claim, binding):
         frozen_gateway['catalog_revision'] = None
     selection = submission.get('_mission_equipment')
     if selection is not None:
-        from .native_mission import equipment_tools, registry_revision
+        from .native_mission import equipment_tools, registry_revision,resource_protocol_tools
         if submission.get('_mission_equipment_binding_revision') != registry_revision(public_document(binding)):
             raise ValueError('Mission equipment registry changed before execution')
-        tools = equipment_tools(tools, selection)
+        protocol=resource_protocol_tools(tools,submission.get('_resource_manifests',[]))
+        tools = equipment_tools(tools, selection,protocol_tools=protocol)
     return checked_native_context({'policy': {'schema': 'capstone-conversation-policy/1',
         'system_policy': profile.application_policy.load(), 'allowed_tools': sorted(tools),
         'external_lookup_enabled': False}, 'selected_task_records': pages,

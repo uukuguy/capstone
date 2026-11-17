@@ -1665,7 +1665,8 @@ class NativeTaskRunner:
                     sdk_config.update(resourceReferences=references,resourceOrigins=native.get('resource_origins',[]),resourceReferencePath=str(port.root),resourceInputRoot=str(inputs),resourceReadBytes=limits.resource_read_bytes,resourceAttemptId=request.parent_attempt_id)
                     sdk_config.setdefault('contextFiles',[]).append({'path':'resource-reference-catalog',
                         'content':'Authorized immutable resource references. No source bytes were read or staged. '
-                        'Choose agent_resource_read for exact partial byte ranges or agent_resource_open for whole-file processing when needed for the current instruction. '
+                        'Use only the published resource interfaces in this task when needed for the current instruction. '
+                        'For frozen authorized inputs the application retains required bounded read-only resource interfaces within source grants and explicit denies; they need not be guessed as business equipment. '
                         'The returned path contains the original bytes, not reconstructed history. '
                         'References are historical sources, not current Authority evidence. '+json.dumps(references,ensure_ascii=False)})
                 if native.get('material_notices'):
@@ -1758,11 +1759,12 @@ class NativeTaskRunner:
             launch_options = {'input_directory':inputs} if request.managed_workspace is not None else {}
             equipment = document.get('native_context', {}).get('mission_equipment')
             if equipment is not None:
-                from .native_mission import equipment_tools
+                from .native_mission import equipment_tools,resource_protocol_tools
                 from .data_gateway_relay import gateway_discovery_tools
                 policy = sdk_config['applicationPolicy']
                 protocol = gateway_discovery_tools(request.native_context, gateway_publication,
                     gateway_available=sdk_config.get('dataGateway') is not None)
+                protocol.update(resource_protocol_tools(policy['allowed_tools'],sdk_config.get('resourceReferences',[])))
                 allowed = equipment_tools(policy['allowed_tools'], equipment,
                     require_selected=False, protocol_tools=protocol)
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': sorted(allowed)}

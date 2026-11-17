@@ -49,6 +49,13 @@ REVISION = dict(type='integer', minimum=1,
     description='Exact Mission.revision from the latest returned Mission object (read or command receipt). Never use Mission.plan_revision as expected_revision.')
 PLAN_REVISION = dict(type='integer', minimum=1,
     description='Exact Mission.plan_revision of the inspected plan being concluded. This is separate from Mission.revision used for expected_revision.')
+PRODUCT_EVIDENCE = obj(dict(kind={'const':'product'},task_id=IDENTITY,
+    artifact_id=dict(type='string',minLength=1,maxLength=256),sha256=dict(type='string',pattern='^[a-f0-9]{64}$')))
+ANSWER_EVIDENCE = obj(dict(kind={'const':'answer'},task_id=IDENTITY,answer_ref=IDENTITY))
+CRITERION_VERDICT = {**obj(dict(criterion_index=dict(type='integer',minimum=0),
+    status={'enum':['met','not_met','unknown']},explanation=TEXT,
+    evidence=dict(type='array',items={'oneOf':[PRODUCT_EVIDENCE,ANSWER_EVIDENCE]},maxItems=64))),
+    'allOf':[{'if':{'properties':{'status':{'const':'met'}}},'then':{'properties':{'evidence':{'minItems':1}}}}]}
 CATALOG = {
     'agent_mission_read': dict(description='Read the Mission associated with this conversation and its currently registered equipment references and agents. Use their exact identities and revisions; availability does not require initialization or selection. Planning is not execution or acceptance.', inputSchema=obj({})),
     'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve unrelated Tasks; planning does not dispatch work.',
@@ -56,14 +63,15 @@ CATALOG = {
                              tasks=dict(type='array', items=TASK, maxItems=64),
                              removed_task_ids=dict(type='array',items=IDENTITY,maxItems=64,uniqueItems=True)),
                         ['expected_revision','acceptance_criteria','tasks'])),
-    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered equipment references from the current Mission publication. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
+    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered equipment references from the current Mission publication. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
     'agent_mission_ready': dict(description='Make an executable Mission plan ready only when Tasks, acceptance criteria and equipment are admitted. Then finish this organizer turn: a real Task boundary resumes organization automatically. Do not loop over state reads while waiting. If no dependency-ready Task remains, inspect actual results and conclude or wait. This is not product acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION))),
     'agent_mission_control': dict(description='Request pause, resume or cancellation of the associated Mission. A request does not confirm a running Task has stopped. Read actual state before replanning; organizer text never broadcasts to Tasks.',
         inputSchema=obj(dict(expected_revision=REVISION, action={'enum':['pause','resume','cancel']}))),
-    'agent_mission_conclude': dict(description='Conclude the current Mission plan only after inspecting actual saved results. Requires exact plan_revision, nonempty verified Tasks and no unfinished work. This marks delivery for user review, never final user acceptance.',
-        inputSchema=obj(dict(expected_revision=REVISION,plan_revision=PLAN_REVISION,summary=dict(type='string',minLength=1,maxLength=4096)))),
+    'agent_mission_conclude': dict(description='Assess every current acceptance criterion once against actual verified saved results. Include exact product artifact/hash or saved answer references for every met verdict; report not_met or unknown honestly. Requires exact plan_revision, nonempty verified Tasks and no unfinished work. Delivery requires all criteria met and remains subject to user acceptance.',
+        inputSchema=obj(dict(expected_revision=REVISION,plan_revision=PLAN_REVISION,summary=dict(type='string',minLength=1,maxLength=4096),
+            criteria_verdicts=dict(type='array',items=CRITERION_VERDICT,minItems=1,maxItems=64)))),
     'agent_mission_wait': dict(description='Record a deliberate wait for an admitted Task boundary or for user input, then finish this organizer turn. Actual Task boundary events resume organization; do not poll state in a read loop. Waiting never concludes the plan; user waits suspend automatic organizer continuation.',
         inputSchema=obj(dict(expected_revision=REVISION,until={'enum':['task_boundary','user']},reason=dict(type='string',minLength=1,maxLength=4096)))),
 }
@@ -123,6 +131,13 @@ def checked_equipment(value):
                 or len(set(items)) != len(items)):
             raise ValueError('invalid Mission selected tools')
     return deepcopy(value)
+
+
+def resource_protocol_tools(current,resource_manifests):
+    """Preserve registered readers of already frozen sources, never native file tools."""
+    if not resource_manifests:
+        return set()
+    return set(current).intersection({'agent_resource_open','agent_resource_read'})
 
 
 def equipment_tools(current, selection, *, require_selected=True, protocol_tools=()):

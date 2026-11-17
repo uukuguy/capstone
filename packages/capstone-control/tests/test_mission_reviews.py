@@ -42,7 +42,7 @@ def test_two_phase_organizer_uses_boundaries_and_explicit_plan_conclusion():
     mission=control.read_mission('team',mission['mission_id'])
     mission=complete_task(control,mission,2)
     assert mission['state']=='waiting_review' and len(control.pending_mission_reviews('team'))==1
-    mission=command(control,mission,'conclude_plan',{'plan_revision':mission['plan_revision'],'summary':'The inspected saved results meet the current objective.'},'conclude')
+    mission=command(control,mission,'conclude_plan',{'plan_revision':mission['plan_revision'],'summary':'The inspected saved results meet the current objective.','criteria_verdicts':[dict(criterion_index=0,status='met',explanation='Inspected the saved Task answer.',evidence=[dict(kind='answer',task_id='task_2',answer_ref='answer_2')])]},'conclude')
     assert mission['state']=='delivered' and mission['plan_concluded'] is True
     assert mission['plan_conclusion']['plan_revision']==mission['plan_revision']
 
@@ -67,10 +67,10 @@ def test_review_restart_budget_no_progress_and_stops_are_durable():
 def test_plan_conclusion_cannot_certify_empty_or_unverified_tasks():
     control=service();mission=create(control)
     with pytest.raises(InvalidTransition):
-        command(control,mission,'conclude_plan',{'plan_revision':mission['plan_revision'],'summary':'Done'},'empty')
+        command(control,mission,'conclude_plan',{'plan_revision':mission['plan_revision'],'summary':'Done','criteria_verdicts':[]},'empty')
     mission=command(control,mission,'prepare_task',{'task':task()},'prepare')
     with pytest.raises(InvalidTransition):
-        command(control,mission,'conclude_plan',{'plan_revision':mission['plan_revision'],'summary':'Done'},'unverified')
+        command(control,mission,'conclude_plan',{'plan_revision':mission['plan_revision'],'summary':'Done','criteria_verdicts':[]},'unverified')
 
 
 def test_running_observation_sequences_do_not_schedule_more_reviews():
@@ -201,7 +201,7 @@ def test_ready_and_conclusion_reject_incomplete_or_nonexecutable_plan():
         command(control,mission,'ready',{},'no_work')
     mission=command(control,mission,'update_plan',dict(acceptance_criteria=[],tasks=[]),'clear_criteria')
     with pytest.raises(InvalidTransition):
-        command(control,mission,'conclude_plan',dict(plan_revision=mission['plan_revision'],summary='Done'),'missing_criteria')
+        command(control,mission,'conclude_plan',dict(plan_revision=mission['plan_revision'],summary='Done',criteria_verdicts=[]),'missing_criteria')
     assert control.read_mission('team',mission['mission_id'])['state']=='waiting_review'
 
 

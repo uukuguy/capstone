@@ -5,6 +5,7 @@ execution access. The application must admit them at readiness and dispatch.
 """
 from copy import deepcopy
 from datetime import timedelta
+import re
 
 from .contracts import (ContractError, identity, object_fields, positive_integer,
                         text, text_list, utc_deadline, validate_goal_request)
@@ -13,6 +14,64 @@ from .service import Conflict, InvalidTransition, fingerprint, public
 
 TASK_FIELDS = {'task_id', 'objective', 'delivery_requirements', 'depends_on',
                'agent_id', 'mode', 'max_attempts', 'required_products'}
+
+
+def criteria_verdicts(goal, values):
+    """Bind each semantic verdict to the current acceptance contract and saved results."""
+    criteria = goal['acceptance_criteria']
+    if not isinstance(values, list) or not criteria or len(values) != len(criteria):
+        raise ContractError('acceptance verdicts must cover every current criterion')
+    indices = set()
+    for verdict in values:
+        object_fields(verdict, {'criterion_index', 'status', 'explanation', 'evidence'})
+        index = verdict['criterion_index']
+        if type(index) is not int or not 0 <= index < len(criteria) or index in indices:
+            raise ContractError('acceptance criterion indices must be exact and unique')
+        indices.add(index)
+        if not isinstance(verdict['status'], str) or verdict['status'] not in {'met', 'not_met', 'unknown'}:
+            raise ContractError('unsupported acceptance verdict status')
+        text(verdict['explanation'])
+        refs = verdict['evidence']
+        if not isinstance(refs, list) or len(refs) > 64 or (verdict['status'] == 'met' and not refs):
+            raise ContractError('met acceptance criteria require bounded saved evidence')
+        for ref in refs:
+            if not isinstance(ref, dict) or not isinstance(ref.get('kind'), str) or ref['kind'] not in {'product', 'answer'}:
+                raise ContractError('unsupported acceptance evidence kind')
+            fields = {'kind', 'task_id', 'artifact_id', 'sha256'} if ref['kind'] == 'product' else {'kind', 'task_id', 'answer_ref'}
+            object_fields(ref, fields)
+            identity(ref['task_id'])
+            task = next((task for task in goal['tasks'] if task['task_id'] == ref['task_id']), None)
+            delivery = task.get('delivery') if task else None
+            verification = task.get('verification') if task else None
+            if (not task or task['state'] != 'verified' or not delivery or not verification
+                    or verification['delivery_revision'] != delivery['revision']):
+                raise Conflict('acceptance evidence requires the current verified Task delivery')
+            if ref['kind'] == 'product':
+                text(ref['artifact_id'], limit=256)
+                if not isinstance(ref['sha256'], str) or re.fullmatch(r'[a-f0-9]{64}', ref['sha256']) is None:
+                    raise ContractError('acceptance evidence requires a SHA-256 digest')
+                if not any(product.get('artifact_id') == ref['artifact_id'] and product.get('sha256') == ref['sha256']
+                           for product in delivery['products']):
+                    raise Conflict('acceptance evidence does not match a current saved product')
+            else:
+                identity(ref['answer_ref'])
+                if delivery['answer_ref'] != ref['answer_ref']:
+                    raise Conflict('acceptance evidence does not match the current saved answer')
+    return deepcopy(sorted(values, key=lambda verdict: verdict['criterion_index']))
+
+
+def conclusion_satisfied(goal):
+    """Old opaque conclusions remain readable; they do not certify acceptance."""
+    metadata = goal.get('_mission', {})
+    conclusion = metadata.get('plan_conclusion')
+    if (not isinstance(conclusion, dict) or conclusion.get('plan_revision') != metadata.get('plan_revision', 1)
+            or not goal['tasks'] or not all(task['state'] == 'verified' for task in goal['tasks'])):
+        return False
+    try:
+        checked = criteria_verdicts(goal, conclusion.get('criteria_verdicts'))
+    except (ContractError, Conflict):
+        return False
+    return all(verdict['status'] == 'met' for verdict in checked)
 
 
 def references(values):
@@ -242,16 +301,26 @@ def command(service, workspace, document, actor):
             organizer(goal)['suspended']=False
             organizer(goal)['disposition']=None
         elif kind == 'conclude_plan':
-            object_fields(payload,{'plan_revision','summary'})
+            object_fields(payload,{'plan_revision','summary','criteria_verdicts'})
             positive_integer(payload['plan_revision'])
             text(payload['summary'],limit=4096)
-            if (goal['state'] not in {'planning','waiting_review','ready','running'} or not goal['tasks'] or not goal['acceptance_criteria']
-                    or not all(t['state']=='verified' for t in goal['tasks'])):
-                raise InvalidTransition('Mission plan conclusion requires nonempty verified saved Task results')
+            if (goal['state'] not in {'planning','waiting_review','ready','running','waiting'} or not goal['tasks'] or not goal['acceptance_criteria']
+                    or any(task['state'] in {'dispatching','running','waiting','resume_requested','revoke_requested'} for task in goal['tasks'])):
+                raise InvalidTransition('Mission plan conclusion requires a settled Task boundary and acceptance criteria')
             if payload['plan_revision']!=goal['_mission']['plan_revision']:
                 raise Conflict('stale Mission plan conclusion')
-            goal['_mission']['plan_conclusion']=dict(plan_revision=payload['plan_revision'],summary=payload['summary'],actor=actor)
-            goal.update(state='delivered',reason=None)
+            verdicts = criteria_verdicts(goal, payload['criteria_verdicts'])
+            all_met = all(verdict['status'] == 'met' for verdict in verdicts)
+            if all_met and not all(task['state'] == 'verified' for task in goal['tasks']):
+                raise InvalidTransition('satisfied Mission conclusion requires all Tasks to be verified')
+            goal['_mission']['plan_conclusion']=dict(plan_revision=payload['plan_revision'],summary=payload['summary'],actor=actor,criteria_verdicts=verdicts)
+            if all_met:
+                goal.update(state='delivered',reason=None)
+            else:
+                from .mission_reviews import organizer
+                organizer(goal)['suspended'] = True
+                organizer(goal)['disposition'] = dict(kind='wait',until='user',reason='acceptance_incomplete',revision=goal['revision']+1)
+                goal.update(state='waiting',reason='acceptance_incomplete')
         elif kind == 'wait':
             object_fields(payload,{'until','reason'})
             text(payload['reason'],limit=4096)

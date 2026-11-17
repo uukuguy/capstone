@@ -28,8 +28,8 @@ it('keeps a planning Mission visible alongside legacy Goals and directs changes 
   expect(screen.getByRole('button',{name:'修改目标与阶段'})).toBeTruthy()
 })
 it('offers Mission final acceptance only after a concluded plan and verified tasks',async()=>{
-  const legacy=goal(),base={...legacy,application_kind:'mission',mission_id:'goal_review',goal_id:'goal_review',origin:{thread_id:'thr_origin'},plan_revision:2,plan_complete:true,state:'delivered',tasks:legacy.tasks.map(task=>({...task,state:'verified'}))}
-  const pending=parseControlGoal({...base,plan_concluded:false}),concluded=parseControlGoal({...base,revision:base.revision+1,plan_concluded:true})
+  const legacy=goal(),base={...legacy,application_kind:'mission',mission_id:'goal_review',goal_id:'goal_review',origin:{thread_id:'thr_origin'},plan_revision:2,plan_complete:true,state:'delivered',tasks:legacy.tasks.map(task=>({...task,state:'verified',delivery:{revision:1,answer_ref:'answer_one',products:[]},verification:{delivery_revision:1}}))}
+  const pending=parseControlGoal({...base,plan_concluded:true,plan_conclusion:{plan_revision:2,summary:'Old opaque done'}}),concluded=parseControlGoal({...base,revision:base.revision+1,plan_concluded:true,plan_conclusion:{plan_revision:2,summary:'Inspected current answer',criteria_verdicts:[{criterion_index:0,status:'met',explanation:'Inspected the saved answer',evidence:[{kind:'answer',task_id:'stage_1',answer_ref:'answer_one'}]}]}})
   const api=transport([pending]);render(<ControlGoals transport={api} onOpenThread={vi.fn()}/>)
   fireEvent.click(screen.getByRole('button',{name:'任务执行'}))
   await screen.findByRole('heading',{name:'Produce a report'})

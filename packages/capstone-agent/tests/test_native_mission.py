@@ -57,6 +57,20 @@ def test_gateway_selection_keeps_only_already_admitted_discovery_protocol_tools(
         protocol_tools={'agent_tool_search','agent_tool_load'})
 
 
+def test_resource_protocol_helpers_require_frozen_resources_and_existing_publication():
+    from capstone_agent.native_mission import resource_protocol_tools,equipment_tools
+    current={'write','agent_resource_open','agent_resource_read','read','bash'}
+    manifest=[{'resource_id':'resource_1'}]
+    selection=dict(schema='capstone-mission-tool-selection/1',allowed_tools=['write'],denied_tools=[])
+    protocol=resource_protocol_tools(current,manifest)
+    assert protocol=={'agent_resource_open','agent_resource_read'}
+    assert equipment_tools(current,selection,protocol_tools=protocol)=={'write','agent_resource_open','agent_resource_read'}
+    assert resource_protocol_tools(current,[])==set()
+    assert resource_protocol_tools({'write','agent_resource_open'},manifest)=={'agent_resource_open'}
+    selection['denied_tools']=['agent_resource_open']
+    assert equipment_tools(current,selection,protocol_tools=protocol)=={'write','agent_resource_read'}
+
+
 @pytest.mark.parametrize('rejection',[None,'conflict','contract','transition'])
 def test_worker_services_mission_requests_with_its_bound_control_callback(monkeypatch,rejection):
     import time
@@ -120,6 +134,22 @@ def test_mission_tool_schemas_distinguish_current_object_revision_from_plan_revi
             assert 'Mission.revision' in expected['description']
             assert 'plan_revision' in expected['description']
     assert 'Mission.plan_revision' in CATALOG['agent_mission_conclude']['inputSchema']['properties']['plan_revision']['description']
+
+
+def test_mission_conclusion_schema_requires_typed_per_criterion_current_result_references():
+    from capstone_agent.native_mission import CATALOG
+    from jsonschema import Draft202012Validator
+    validator=Draft202012Validator(CATALOG['agent_mission_conclude']['inputSchema'])
+    base=dict(expected_revision=4,plan_revision=2,summary='Inspect results')
+    with pytest.raises(ValidationError):
+        validator.validate(base)
+    verdict=dict(criterion_index=0,status='met',explanation='Verified saved result',evidence=[])
+    with pytest.raises(ValidationError):
+        validator.validate({**base,'criteria_verdicts':[verdict]})
+    validator.validate({**base,'criteria_verdicts':[{**verdict,'evidence':[dict(kind='product',task_id='task_1',artifact_id='file_1',sha256='a'*64)]}]})
+    validator.validate({**base,'criteria_verdicts':[{**verdict,'status':'unknown'}]})
+    with pytest.raises(ValidationError):
+        validator.validate({**base,'criteria_verdicts':[{**verdict,'evidence':[dict(kind='product',task_id='task_1',artifact_id='file_1',sha256='invented')]}]})
 
 
 def test_host_mission_channel_requires_the_current_task_attempt_and_authority():

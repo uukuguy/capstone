@@ -183,6 +183,12 @@ def test_frozen_mission_equipment_reaches_actual_native_sdk_launch(tmp_path,monk
         tmp_path,monkeypatch,'1.20.0',False,False,equipment_name=equipment_name)
 
 
+@pytest.mark.parametrize('resource_protocol',[True,'delegated','denied'])
+def test_frozen_mission_resource_helpers_reach_actual_sdk_registration(tmp_path,monkeypatch,resource_protocol):
+    test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
+        tmp_path,monkeypatch,'1.20.0',False,False,equipment_name='write',resource_protocol=resource_protocol)
+
+
 def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_path, monkeypatch):
     test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
         tmp_path, monkeypatch, '1.20.0', False, False, domain_available=True)
@@ -191,7 +197,7 @@ def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_pat
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 @pytest.mark.parametrize('choice', [None, False, True])
 @pytest.mark.parametrize('experimental_llm_pool', [False, True])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False, equipment_name=None):
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False, equipment_name=None, resource_protocol=False):
     if choice is not None and version != '1.20.0':
         pytest.skip('Explicit UI control is verified against the current publication')
     import json
@@ -236,6 +242,15 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     if equipment_name is not None:
         native['mission_equipment'] = dict(schema='capstone-mission-tool-selection/1',allowed_tools=[equipment_name],denied_tools=[])
         native['policy']['allowed_tools'] = [equipment_name]
+    if resource_protocol:
+        from capstone_agent.resource_manifest import checked_resource
+        native['resource_manifests']=[checked_resource(dict(schema='capstone-resource/1',resource_id='resource_'+'a'*32,
+            version=1,thread_id='thread_1',file_name='source.txt',size_bytes=5,sha256='b'*64))]
+        if resource_protocol!='denied':
+            native['policy']['allowed_tools'].append('agent_resource_open')
+            if resource_protocol!='delegated':native['policy']['allowed_tools'].append('agent_resource_read')
+        else:
+            native['mission_equipment']['denied_tools']=['agent_resource_open','agent_resource_read']
     binding, task, _, _ = graph_fixture()
     binding['graph_work_edition'] = 'capstone-graph-work/1'
     captured = []
@@ -252,6 +267,13 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         assert '.runtime-capacity.json' in capacity_guidance
         assert runner.task_llm_profiles[task]['base_url'] == 'http://192.168.72.69:18804/v1'
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
+        if resource_protocol:
+            import subprocess
+            config_path=tmp_path/'mission-resource-sdk.json'
+            config_path.write_text(json.dumps(kwargs['sdk_config']))
+            fixture=Path(__file__).parent/'fixtures/mission-resource-registration.mjs'
+            result=subprocess.run(['node',str(fixture),str(config_path)],capture_output=True,text=True,check=True)
+            assert json.loads(result.stdout)['tools']==sorted(kwargs['sdk_config']['applicationPolicy']['allowed_tools'])
         raise Captured()
     monkeypatch.setattr(module, 'native_pi_launch', launch)
     from capstone_agent import domain_tool_client
@@ -272,6 +294,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         profiles={'direct_pi': SimpleNamespace(revision='test')},
         task_config=lambda *args, **kwargs: {'settings': published_settings, 'mcp': None})
     runner.environment_context = 'HOST VERIFIED ENVIRONMENT: offline libraries and report renderer'
+    if resource_protocol:
+        runner.bind_resource_staging(SimpleNamespace(remove_inputs=lambda *_:None))
+        monkeypatch.setattr(module.os,'chown',lambda *_:None)
     gateway_bindings = []
     runner.gateway = SimpleNamespace(publication=lambda: gateway_publication,
         bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None,
@@ -298,6 +323,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         expected = {equipment_name}
         if equipment_name.startswith('data_gateway_'):
             expected.update({'agent_tool_search','agent_tool_load'})
+        if resource_protocol:
+            if resource_protocol!='denied':expected.add('agent_resource_open')
+            if resource_protocol not in {'delegated','denied'}:expected.add('agent_resource_read')
         assert set(captured[0]['applicationPolicy']['allowed_tools']) == expected
         assert 'bash' not in expected and 'read' not in expected and 'edit' not in expected
         return

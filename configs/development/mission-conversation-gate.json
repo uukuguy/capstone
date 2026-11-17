@@ -6,6 +6,10 @@
     "packages/capstone-agent/src/capstone_agent/native_mission.py"
   ],
   "paths": [
+    "packages/capstone-control/tests/test_mission_acceptance.py",
+    "packages/capstone-agent/tests/fixtures/mission-resource-registration.mjs",
+    "packages/capstone-agent/tests/test_delegation_resource_alias.py",
+    "packages/capstone-agent/tests/test_mission_resource_protocol.py",
     "packages/capstone-agent/tests/test_general_pi_server.py",
     "packages/capstone-app/src/CapstoneAssistantThread.tsx",
     "packages/capstone-app/src/threadSystemNotices.ts",

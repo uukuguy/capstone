@@ -29,7 +29,11 @@ def public(goal):
             origin=deepcopy(metadata['origin']), plan_revision=metadata.get('plan_revision', 1),
             plan_complete=bool(goal['tasks'] and goal['acceptance_criteria']))
         conclusion=metadata.get('plan_conclusion')
-        result.update(plan_concluded=bool(conclusion and conclusion['plan_revision']==metadata.get('plan_revision',1)),
+        from .mission import conclusion_satisfied
+        satisfied = conclusion_satisfied(goal)
+        conclusion_status = None if not conclusion else ('legacy_unverified' if 'criteria_verdicts' not in conclusion
+            else 'stale' if conclusion.get('plan_revision') != metadata.get('plan_revision',1) else 'satisfied' if satisfied else 'incomplete')
+        result.update(plan_concluded=satisfied, plan_conclusion_status=conclusion_status,
                       plan_conclusion=deepcopy(conclusion))
         review=metadata.get('organizer',{})
         current=next((r for r in review.get('records',[]) if r['intent']['review_id']==review.get('current_review_id')),None)
@@ -356,6 +360,10 @@ class ControlService:
             goal.update(state='waiting_review' if '_mission' in goal else 'waiting',reason=payload['reason'])
         elif kind == 'accept':
             object_fields(payload, {'products'})
+            if '_mission' in goal:
+                from .mission import conclusion_satisfied
+                if not conclusion_satisfied(goal):
+                    raise InvalidTransition('Mission acceptance requires current satisfied criteria verdicts with saved evidence')
             if goal['state'] != 'delivered' or not all(t['state'] == 'verified' for t in goal['tasks']):
                 raise InvalidTransition('all Tasks must be verified before acceptance')
             products = [p for t in goal['tasks'] for p in t['delivery']['products']]
