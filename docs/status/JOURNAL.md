@@ -8162,3 +8162,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: f72472d6 retains exact Goal inputs through pause and resume. Focused regression tests pass.
 
 - 2026-11-18: e4ca33e4 isolates model-free Domain Pack state by Work. Registered tool replay and cross-Work denial pass.
+
+- 2026-11-18: 76887ec3 recovers complete formal/core JSON before a recorded tool trailer. The captured live reply decodes.
+
+- 2026-11-18: Live model-free Work replays the exact result without recalculation. Typed admission and unsupported limit claims remain open.

@@ -40,11 +40,21 @@ access to a referenced object.
   original result returned the same line ranking from the mounted run
   volume. This was an operator read. The original Thread's native
   continuation still lacks the admitted read grant.
+- A new model-free enterprise Thread completed two real Attempts in a
+  single Work. The first ran AC power flow once. The second returned the
+  same result reference after a successful branch ranking and made zero
+  replacement power-flow calls. A different Work could not read that
+  result in a registered tool check. Both terminal records still have
+  empty typed result and evidence arrays. The reply also added a limit
+  assessment without executing the limit check. This validates stored
+  result access and sorting only.
 
 ## Remaining acceptance
 
-Repeat a native Domain Pack calculation followed by a read of the exact
-prior result, with and without an open model. Run a Goal that reads an
+Validate typed producer admission, source selection and granted reads of
+the exact prior result in both native model modes. Validate that the
+answer keeps a ranking separate from an actual limit check. Test old
+Attempt-scoped references through a verified migration. Run a Goal that reads an
 exact file version after a worker restart. Run a Mission that passes both
 a file and a typed result to a child and then to review. Check wrong owner,
 missing object, and changed version. The result-only continuation must
