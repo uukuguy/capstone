@@ -8,16 +8,16 @@ _TOOL_TRAILER = re.compile(r'</｜｜DSML｜｜ parameter>\s*</｜｜DSML｜｜ 
 _SUMMARY_OPEN = '<capstone-answer-summary>'
 
 
-def _json_object(text: str) -> dict | None:
+def _json_object(text: str, *, strict: bool = True) -> dict | None:
     try:
-        value = json.loads(text)
+        value = json.loads(text, strict=strict)
     except ValueError:
         return None
     return value if isinstance(value, dict) else None
 
 
-def _answer_object(text: str) -> dict[str, str] | None:
-    value = _json_object(text)
+def _answer_object(text: str, *, strict: bool = True) -> dict[str, str] | None:
+    value = _json_object(text, strict=strict)
     if (value is not None and set(value) == {'answer', 'summary'}
             and all(isinstance(item, str) and item.strip() for item in value.values())):
         return value
@@ -58,4 +58,8 @@ def public_answer(text: str, *, answer_format: str | None = None) -> str:
             }, ensure_ascii=False)
     if not body or after:
         raise ValueError('answer_presentation_invalid')
+    if answer_format == 'formal-and-core/1' and _json_object(body) is None:
+        repaired = _answer_object(body, strict=False)
+        if repaired is not None:
+            return json.dumps(repaired, ensure_ascii=False)
     return body

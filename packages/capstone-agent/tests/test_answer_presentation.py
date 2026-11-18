@@ -56,3 +56,11 @@ def test_invalid_summary_does_not_hide_a_valid_formal_answer():
     assert recovered['answer'].startswith('计算已完成')
     assert '格式异常' in recovered['answer']
     assert recovered['summary'] is None
+
+
+def test_literal_line_breaks_keep_answer_and_summary_separate():
+    import json
+
+    text = '<capstone-answer>{"answer":"第一段\n第二段","summary":"摘要"}</capstone-answer>'
+    assert json.loads(public_answer(text, answer_format='formal-and-core/1')) == {
+        'answer': '第一段\n第二段', 'summary': '摘要'}
