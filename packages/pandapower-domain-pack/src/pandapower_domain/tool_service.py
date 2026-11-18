@@ -6,9 +6,12 @@ import hashlib
 import json
 import os
 import re
+from contextlib import ExitStack
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Lock
 from capability_agent.runtime.execution_queue import ExecutionReceiptError
+from pandapower_domain.authority import ContentReferenceVerifier, PandapowerArtifactAuthority, SimulatorIntegrityError
 
 from pandapower_domain.execution import (GridctlExecutor, SimulatorCapabilityError,
     source_execution_queue, execution_receipt_writer)
@@ -21,6 +24,17 @@ _TASK_ID = re.compile(r'^[A-Za-z0-9_-]{1,80}$')
 
 def _canonical(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+
+
+def _argument_references(value):
+    if isinstance(value, dict):
+        for item in value.values():
+            yield from _argument_references(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _argument_references(item)
+    elif isinstance(value, str) and re.fullmatch(r'(?:result|evidence|context|revision):sha256:[0-9a-f]{64}', value):
+        yield value
 
 
 class PandapowerToolService:
@@ -79,7 +93,7 @@ class PandapowerToolService:
             'tool_hashes': hashes,
         }
 
-    def invoke(self, document: dict, *, workspace_id: str) -> dict:
+    def invoke(self, document: dict, *, workspace_id: str, authority_inputs=()) -> dict:
         if not isinstance(workspace_id, str) or not _TASK_ID.fullmatch(workspace_id):
             raise ValueError('domain workspace identity is invalid')
         task_id = document.get('task_id')
@@ -99,14 +113,88 @@ class PandapowerToolService:
             raise ValueError('domain tool call identity is invalid')
         receipt = self._queue.receipt(task_id=task_id, call_id=call_id,
             observer=self._receipt_writer(task_id))
-        resource = str((self._root / workspace_id).resolve())
-        with self._queue.acquire(receipt, resource=resource, read_only=self._read_only.get(name, False)) as lease:
+        read_only = self._read_only.get(name, False)
+        refs = set(_argument_references(arguments))
+        owned_inputs = [item for item in authority_inputs if item['authority_id'] == PandapowerArtifactAuthority.authority_id]
+        referenced = {ref for ref in refs if not ref.startswith('revision:')}
+        revisions = refs - referenced
+
+        def shared_refs(item):
+            return set((*item['result_refs'], *item['evidence_refs'], *item.get('context_refs', ())))
+
+        linked = [item for item in owned_inputs if referenced & shared_refs(item)
+                  and (item['owner'] != workspace_id or referenced.intersection(
+                      (*item['result_refs'], *item['evidence_refs'])))]
+        delegated = next((item for item in linked if referenced <= shared_refs(item)), None)
+        with ExitStack() as opened:
+            execution_id = workspace_id
+            if delegated is not None and read_only:
+                folder = Path(opened.enter_context(TemporaryDirectory(prefix='grant-', dir=self._root)))
+                execution_id = folder.name
+            resource = str((self._root / execution_id).resolve())
+            lease = opened.enter_context(self._queue.acquire(receipt, resource=resource, read_only=read_only))
             try:
-                result = self._executor(workspace_id).invoke(capability, arguments,
+                if linked and (delegated is None or not read_only):
+                    raise ValueError('delegated authority input requires a granted read-only tool call')
+                if delegated is not None:
+                    if not _TASK_ID.fullmatch(delegated['owner']):
+                        raise ValueError('delegated authority owner is invalid')
+                    owner = PandapowerArtifactAuthority(self._root / delegated['owner'])
+                    owner.stage_read_inputs(self._root / execution_id, delegated['result_refs'], delegated['evidence_refs'],
+                                            delegated.get('context_refs', ()), revisions)
+                result = self._executor(execution_id).invoke(capability, arguments,
                     execution_lease=lease,
                     execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
                 response = ({'ok': True, 'result': result} if isinstance(result, dict)
                     else {'ok': False, 'error': {'message': 'domain tool call failed'}})
+                if isinstance(result, dict):
+                    authority = PandapowerArtifactAuthority(self._root / execution_id)
+                    verified = authority.admit(capability, result, ())
+                    evidence = {item.reference: item for item in verified.evidence}
+                    result_refs = {item.reference for item in verified.results}
+                    context_ref = result.get('context_ref')
+                    # Forward only a context the Pack opened or the call used.
+                    context_refs = [item.reference for item in verified.context
+                                    if item.reference == context_ref
+                                    and (capability == 'context.open' or item.reference in referenced)
+                                    and (delegated is None or item.reference in delegated.get('context_refs', ()))]
+                    if context_refs and 'revision_ref' in result and any(
+                            item.reference == context_ref and item.document['revision_ref'] != result['revision_ref']
+                            for item in verified.context):
+                        raise SimulatorIntegrityError('tool response does not match the verified context revision')
+                    if delegated is not None and (not result_refs.issubset(delegated['result_refs'])
+                            or not evidence.keys() <= set(delegated['evidence_refs'])):
+                        raise ValueError('delegated authority response exceeds the grant')
+                    if result_refs and not evidence:
+                        prior_evidence = (delegated['evidence_refs'] if delegated is not None else
+                            document.get('management', {}).get('prior_evidence_refs', ()))
+                        for ref in prior_evidence:
+                            try:
+                                item = authority.verify_evidence(ref)
+                            except SimulatorIntegrityError:
+                                # A different Pack or workspace can own a historical handle.
+                                continue
+                            if (item.document.get('result_ref') in result_refs
+                                    and item.document.get('context_ref') == result.get('context_ref')
+                                    and item.document.get('revision_ref') == result.get('revision_ref')):
+                                evidence[ref] = item
+                    if result_refs or evidence or context_refs:
+                        response['authority_references'] = {
+                            'authority_id': authority.authority_id,
+                            'capability_id': capability,
+                            'result_refs': [item.reference for item in verified.results],
+                            'evidence_refs': list(evidence),
+                            **({'context_refs': context_refs} if context_refs else {}),
+                        }
+                        if capability == 'result.branches.rank' and result_refs:
+                            selected = [row['branch_ref'] for row in result['branches'][:20]]
+                        elif capability == 'result.dataset.query' and result_refs:
+                            from .network_annotations import selected_loading_assets
+                            selected = selected_loading_assets(arguments, verified.results[0].document)
+                        else:
+                            selected = []
+                        if selected:
+                            response['authority_references']['view_refs'] = selected
             except ExecutionReceiptError:
                 raise
             except SimulatorCapabilityError as error:
@@ -114,6 +202,27 @@ class PandapowerToolService:
             except Exception:
                 response = {'ok': False, 'error': {'message': 'domain tool call failed'}}
         return {**response, 'execution_receipt': receipt}
+
+    def recover(self, receipt):
+        """Admit a saved task scope only after finding its exact owner receipt."""
+        task_id = receipt.get('task_id')
+        if not isinstance(task_id, str) or not re.fullmatch(r'pi-[a-f0-9]{64}', task_id):
+            raise ValueError('legacy task identity is invalid')
+        ledger = ContentReferenceVerifier(self._receipt_root / task_id)
+        directory = ('execution-receipts',)
+        try:
+            files = ledger._list_directory(directory)
+            if len(files) > 256:
+                raise ValueError('legacy receipt directory exceeds bounds')
+            for name in files:
+                if not re.fullmatch(r'[a-f0-9]{32}\.json', name):
+                    continue
+                saved = ledger._try_json_document((*directory, name), 'legacy execution receipt')
+                if saved is not None and saved[1] == receipt:
+                    return PandapowerArtifactAuthority(self._root / task_id).recover_references()
+        except SimulatorIntegrityError:
+            raise ValueError('legacy authority content is unavailable') from None
+        raise ValueError('legacy execution receipt does not match its owner')
 
     def _receipt_writer(self, task_id):
         # Each invocation gets a private control record, independent of HTTP

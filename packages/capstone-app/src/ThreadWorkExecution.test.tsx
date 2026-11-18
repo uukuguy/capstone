@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ThreadLiveEntry from './ThreadLiveEntry'
+import {sampleDiagramView} from './networkFixture'
 import ThreadWorkAdapter from './ThreadWorkAdapter'
 import { HttpThreadTransport } from './threadHttpTransport'
 import { writePendingCommands } from './threadSessionState'
@@ -70,7 +71,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
     const published={...artifact,...(role?{presentation_role:role}:{})}
     files.push(published);append('native_artifact_published',{artifact:published,work_id:'work_one'},true)
   }
-  function finish(cancelled = false) {
+  function finish(cancelled = false, network: boolean | 'history' = false) {
     work.status = cancelled ? 'cancelled' : 'completed'; work.revision += 1; work.cancel_requested = false; attempt = null
     const result = { schema: 'capstone-result-projection/1.0', result_id: 'result_one',
       result_ref: `result:sha256:${'a'.repeat(64)}`, evidence_refs: [`evidence:sha256:${'b'.repeat(64)}`],
@@ -80,8 +81,12 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
       status: 'completed', summary: [], tables: [], element_refs: [], overlay: null }
     if (!cancelled&&!native) projections.push(result)
     if(native&&!cancelled)work.messages=[]
+    if(network===true){
+      append('network_diagram',{diagram:sampleDiagramView.diagram},true)
+      append('network_layer',{ordinal:1,layer:sampleDiagramView.layer},true)
+    }
     append(cancelled ? 'attempt_cancelled' : 'attempt_completed', { work_id: work.work_id, work: projection(),
-      ...(cancelled ? { reason: 'user_requested' } : { answer: '来自真实事件的测试结果', ...(!native?{result_projections: [result]}:{}) }) }, true)
+      ...(cancelled ? { reason: 'user_requested' } : { answer: '来自真实事件的测试结果', ...(network?{authority_references:[{authority_id:'gridctl',context_refs:['context:one']}]}:{}), ...(!native?{result_projections: [result]}:{}) }) }, true)
   }
   const response = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'Capstone-Thread-Version': '2' } })
   function indexedProducts(){return events.filter(event=>event.event_type==='native_artifact_published'||['attempt_completed','attempt_cancelled'].includes(String(event.event_type))).map(event=>{
@@ -229,15 +234,36 @@ it('sends and withdraws a durable supplement while the original native attempt c
   await waitFor(()=>expect(server.commands).toHaveLength(1))
   fireEvent.change(input,{target:{value:'请先核对来源'}})
   await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
-  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  fireEvent.keyDown(input,{key:'Enter',isComposing:true})
+  expect(server.commands).toHaveLength(1)
+  fireEvent.keyDown(input,{key:'Enter'})
   await waitFor(()=>expect(server.commands[1]?.kind).toBe('queue_instruction'))
   expect(server.commands[1].payload).toEqual({text:'请先核对来源'})
   expect(server.attemptsCreated).toBe(1)
-  fireEvent.click(await screen.findByRole('button',{name:'待接纳指令 1'}))
+  await screen.findByRole('list',{name:'待处理补充指令'})
   fireEvent.click(screen.getByRole('button',{name:'撤回'}))
   await waitFor(()=>expect(server.commands[2]?.kind).toBe('withdraw_instruction'))
-  await screen.findByText('已撤回')
+  await waitFor(()=>expect(screen.queryByRole('list',{name:'待处理补充指令'})).toBeNull())
   expect(server.work.cancel_requested).toBe(false)
+})
+
+it('requests replacement only after selecting the interrupt send mode',async()=>{
+  const server=authority({native:true});server.work.instruction_queue_available=true
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="native-interrupt" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'开始检查'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  const mode=await screen.findByRole<HTMLSelectElement>('combobox',{name:'执行中发送方式'})
+  expect(mode.value).toBe('ask')
+  expect(screen.queryByRole('list',{name:'待处理补充指令'})).toBeNull()
+  fireEvent.change(mode,{target:{value:'interrupt'}})
+  fireEvent.change(input,{target:{value:'改为核对本地资料'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.keyDown(input,{key:'Enter'})
+  await waitFor(()=>expect(server.commands[1]?.payload).toEqual({text:'改为核对本地资料',mode:'interrupt'}))
+  await waitFor(()=>expect(mode.value).toBe('ask'))
 })
 
 it('retries an uncertain supplement with its original identity and no duplicate queue entry',async()=>{
@@ -528,6 +554,46 @@ it('follows new running preview artifacts and retains the latest selected report
   await screen.findByRole('heading',{name:'report.html'})
   expect(screen.queryByRole('heading',{name:'key_metrics.csv'})).toBeNull()
 })
+it('selects the saved grid diagram on completion without a second API request',async()=>{
+  vi.stubGlobal('crypto',webcrypto)
+  const server=authority({native:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="completed-grid" recoveryOnly />)
+  fireEvent.change(await screen.findByRole('textbox',{name:'Thread 指令'}),{target:{value:'查询线路端点'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  await act(async()=>server.started())
+  expect(screen.queryByRole('tab',{name:'电网图'})).toBeNull()
+  await act(async()=>server.finish(false,true))
+  expect((await screen.findByRole('tab',{name:'电网图'})).getAttribute('aria-selected')).toBe('true')
+  await screen.findByRole('img',{name:'电网拓扑'})
+  expect(server.fetcher.mock.calls.some(([url])=>String(url).includes('/task-diagram'))).toBe(false)
+})
+
+it('opens historical grid loading immediately and reuses the fetched diagram',async()=>{
+  vi.stubGlobal('crypto',webcrypto)
+  const server=authority({native:true,existingWork:true})
+  server.work.latest_attempt_id='attempt_one'
+  server.finish(false,'history')
+  let respond!: (response: Response)=>void
+  const diagram=new Promise<Response>(resolve=>{respond=resolve})
+  const fetcher=vi.fn((url:RequestInfo|URL,init?:RequestInit)=>String(url).includes('/task-diagram')
+    ?diagram:server.fetcher(url,init))
+  vi.stubGlobal('fetch',fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="historical-grid" recoveryOnly />)
+  const open=await screen.findByRole('button',{name:'查看此指令电网图'})
+  fireEvent.click(open)
+  expect(screen.getByText('正在载入指令电网图…')).toBeTruthy()
+  expect(screen.getByRole('tab',{name:'电网图'}).getAttribute('aria-selected')).toBe('true')
+  respond(new Response(JSON.stringify(sampleDiagramView),{headers:{'Capstone-Thread-Version':'2'}}))
+  await screen.findByRole('img',{name:'电网拓扑'})
+  fireEvent.click(screen.getByRole('tab',{name:'制品'}))
+  fireEvent.click(open)
+  expect(screen.getByRole('img',{name:'电网拓扑'})).toBeTruthy()
+  expect(fetcher.mock.calls.filter(([url])=>String(url).includes('/task-diagram'))).toHaveLength(1)
+})
+
 it('continues following new reports after inspecting the current instruction CSV',async()=>{
   vi.stubGlobal('crypto',webcrypto)
   vi.stubGlobal('URL',class extends URL {static createObjectURL=vi.fn(()=> 'blob:manual-csv');static revokeObjectURL=vi.fn()})

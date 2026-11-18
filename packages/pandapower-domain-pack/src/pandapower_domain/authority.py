@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import stat
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -541,6 +542,63 @@ class PandapowerArtifactAuthority:
 
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)
+
+    def recover_references(self) -> dict:
+        """Recover the verified content of a pre-admission task workspace."""
+        result_refs = []
+        evidence_refs = []
+        context_refs = []
+        layouts = (
+            ('results', r'(?:result|powerflow|contingency|contingency-scenario)-([0-9a-f]{64})\.json', 'result', result_refs),
+            ('analysis', r'analysis-evidence-([0-9a-f]{64})\.json', 'evidence', evidence_refs),
+            ('network-facts', r'network-fact-([0-9a-f]{64})\.json', 'evidence', evidence_refs),
+        )
+        for folder, pattern, kind, refs in layouts:
+            for name in self._verifier._list_directory(('evidence', folder)):
+                match = re.fullmatch(pattern, name)
+                if match:
+                    refs.append(f'{kind}:sha256:{match[1]}')
+                    if len(refs) > 64:
+                        raise SimulatorIntegrityError('legacy workspace references exceed the recovery limit')
+        verified = self.admit('legacy.workspace.read', {'result_refs': result_refs}, tuple(evidence_refs))
+        for name in self._verifier._list_directory(('evidence', 'contexts')):
+            if re.fullmatch(r'[0-9a-f]{64}\.json', name):
+                ref = 'context:sha256:' + name.removesuffix('.json')
+                context_refs.append(self.verify_context(ref).reference)
+                if len(context_refs) > 64:
+                    raise SimulatorIntegrityError('legacy workspace contexts exceed the recovery limit')
+        return {'authority_id': self.authority_id, 'capability_id': 'legacy.workspace.read',
+                'result_refs': [item.reference for item in verified.results],
+                'evidence_refs': [item.reference for item in verified.evidence],
+                **({'context_refs': context_refs} if context_refs else {})}
+
+    def stage_read_inputs(self, destination: Path, result_refs: list[str], evidence_refs: list[str],
+                          context_refs=(), revision_refs=()) -> None:
+        """Stage the verified immutable closure inside an isolated read workspace."""
+        verified = self.admit('delegated.read', {'result_refs': result_refs}, tuple(evidence_refs))
+        if ({item.reference for item in verified.results} != set(result_refs)
+                or {item.reference for item in verified.evidence} != set(evidence_refs)):
+            raise SimulatorIntegrityError('delegation does not cover the linked result and evidence')
+        contexts = {item.reference: item for item in verified.context}
+        for ref in context_refs:
+            contexts.setdefault(ref, self.verify_context(ref))
+        revisions = {item.document['revision_ref'] for item in contexts.values()}
+        if not set(revision_refs) <= revisions:
+            raise SimulatorIntegrityError('delegation does not cover the requested revision')
+        for item in (*contexts.values(), *verified.results, *verified.evidence):
+            path = destination / item.path.relative_to(self.workspace_root)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(item.document, ensure_ascii=False, separators=(',', ':'),
+                                       allow_nan=False), encoding='utf-8')
+        for ref in revisions:
+            digest = _reference_digest(ref, 'revision', label='revision_ref')
+            parts = ('evidence', 'models', f'{digest}.json')
+            loaded = self._verifier._try_file_bytes(parts, 'revision document')
+            if loaded is None or hashlib.sha256(loaded[1]).hexdigest() != digest:
+                raise SimulatorIntegrityError('delegated revision content changed')
+            path = destination.joinpath(*parts)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(loaded[1])
 
     def audit_answer_references(
         self,

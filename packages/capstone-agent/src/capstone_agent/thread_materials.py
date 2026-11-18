@@ -227,9 +227,28 @@ def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
     raise OSError('no verified durable adoption is available')
 
 
-def freeze_material_submission(service, snapshot, payload, submission, *, connection=None, work_id=None):
+def freeze_material_submission(service, snapshot, payload, submission, *, connection=None, work_id=None,
+                               resume_goal_inputs=False):
     """Freeze trusted bytes before command admission; missing refs reuse session objects."""
     active = _active(service, snapshot.thread_id, connection)
+    work = next((item for item in snapshot.works if item['work_id'] == work_id), None) if resume_goal_inputs else None
+    continuation = (work or {}).get('goal_continuation', {})
+    goal_refs = continuation.get('product_refs')
+    if 'authority_refs' in continuation:
+        submission = {**(submission or {}), '_goal_authority_selection': {
+            'attempt_id': continuation['predecessor_attempt_id'], 'refs': continuation['authority_refs'],
+            'model': continuation['authority_model']}}
+    from .delegation_authority import frozen_authority_sources, resolve_authority_inputs, resolve_gateway_inputs
+    grant = frozen_authority_sources(service, snapshot.thread_id, work_id, connection) if work_id else None
+    if grant is not None:
+        try:
+            inputs = resolve_authority_inputs(service, grant['workspace'], grant['sources'])
+            gateway_inputs = resolve_gateway_inputs(service, grant['workspace'], grant.get('gateway_sources', ()))
+        except (ValueError, ThreadNotFound):
+            return submission, 'authority_input_unavailable'
+        submission = {**(submission or {}), **({'_authority_inputs': inputs} if inputs else {}),
+            **({'_gateway_operation_inputs': gateway_inputs} if gateway_inputs else {}),
+            **({'_application_catalog': grant['catalog']} if grant['catalog'] is not None else {})}
     refs = payload.get('material_refs', list(active))
     if (not isinstance(refs, list) or len(refs) > limits.inline_material_count
             or any(not isinstance(ref, str) or ref not in active for ref in refs) or len(set(refs)) != len(refs)):
@@ -239,9 +258,9 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
         # file stays in resource storage. Inline materials, and attachments on
         # a family-worker session, stay outside that chain.
         requested = payload.get('attachment_refs')
-        if payload.get('material_refs') or (requested and snapshot.session_type != 'enterprise-research'):
+        if payload.get('material_refs') or ((requested or goal_refs) and snapshot.session_type != 'enterprise-research'):
             return submission, 'material_execution_unsupported'
-        if not requested:
+        if not requested and not goal_refs:
             return submission, None
         refs = []
     frozen = []
@@ -261,7 +280,17 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
             native_failure_origin(error))
         return submission, 'material_unavailable'
     notices, deferred = [], []
-    if not payload.get('context_product_refs'):
+    if goal_refs is not None:
+        if goal_refs:
+            sources = _process_files(service, snapshot, work_id, continuation['predecessor_attempt_id'], connection)
+            for ref in goal_refs:
+                matches = [source for source in sources if ref in (source['artifact_id'], source['file_name'])
+                           and source['source_status'] == 'completed']
+                if len(matches) != 1:
+                    return submission, 'product_context_unavailable'
+                if matches[0] not in deferred:
+                    deferred.append(matches[0])
+    elif not payload.get('context_product_refs'):
         for source in _process_files(service, snapshot, work_id, payload.get('source_attempt_id'), connection):
             # History supplies exact immutable references, never implicit file bodies.
             if source['size_bytes'] > 0:

@@ -128,6 +128,9 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   const requestPending=!!requested&&consumedRequest.current!==requestedKey
   const current=directory.threadId===threadId?directory:undefined
   const view=(!instructionScope||resolved?.entry.ref.attempt_id===instructionScope.attemptId&&resolved.entry.ref.origin!=='process_record')&&!requestPending&&resolved?.entry.ref.thread_id===threadId&&selection&&productRefKey(resolved.entry.ref)===productRefKey(selection)?resolved:undefined
+  const producerAttemptId=view?.entry.ref.producer_attempt_id??view?.entry.ref.attempt_id
+  const showProductSeries=client.supportsProductSeries&&view?.entry.ref.origin!=='process_record'
+  const showResourceReads=client.listResourceReads&&client.supportsResourceReads!==false&&producerAttemptId
   const viewKey=view?productRefKey(view.entry.ref):''
   useLayoutEffect(()=>{if(previewElement.current){previewElement.current.scrollTop=0;previewElement.current.scrollLeft=0}},[viewKey])
   const url=fileUrl?.key===viewKey?fileUrl.url:''
@@ -234,8 +237,11 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
         {view.bytes&&url&&<a aria-label="下载文件" title="下载文件" href={url} download={typeof view.entry.source.file_name==='string'?view.entry.source.file_name:view.entry.title}><ArrowDownToLine aria-hidden="true"/><span>下载文件</span></a>}
       </div>
       {view.projection&&<ResultProjectionCard key={`result:${viewKey}`} projection={view.projection} onFocusElement={onFocusElement} rowSelection={onReference&&client.supportsResultRows&&client.readResultRows&&client.prepareResultRows?{client:client as RowClient,ref:view.entry.ref,onSelect:row=>onReference(view.entry,undefined,undefined,row)}:undefined}/>}
-      {client.supportsProductSeries&&view.entry.ref.origin!=='process_record'&&<ProductComparison key={`comparison:${viewKey}`} client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={openSource}/>}
-      {client.listResourceReads&&client.supportsResourceReads!==false&&(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)&&<ResourceReadSources key={viewKey} client={client} threadId={threadId} attemptId={(view.entry.ref.producer_attempt_id??view.entry.ref.attempt_id)!} revision={revision}/>}
+      {(showProductSeries||showResourceReads)&&<details key={viewKey} className="thread-product-metadata">
+        <summary>成果版本与来源</summary>
+        {showProductSeries&&<ProductComparison client={client as ProductClient&SeriesClient} entry={view.entry} items={current?.items??[]} onOpen={openSource}/>}
+        {showResourceReads&&<ResourceReadSources client={client} threadId={threadId} attemptId={showResourceReads} revision={revision}/>}
+      </details>}
       {view.bytes&&<NativeFileContent previewSize={view.bytes.byteLength} name={fileName} media={previewMedia} url={url} text={text} textUnavailable={textUnavailable}/>}
       {view.bytes&&/\.(md|markdown)$/i.test(fileName)&&onReference&&client.supportsProductBlocks&&client.readProductBlocks&&
         <ProductParagraphPicker key={`paragraphs:${viewKey}`} source={view.entry.ref} bytes={view.bytes} read={client.readProductBlocks.bind(client)} onSelect={local=>onReference(view.entry,undefined,local)}/>}

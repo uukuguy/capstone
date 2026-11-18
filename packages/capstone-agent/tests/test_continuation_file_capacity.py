@@ -8,6 +8,35 @@ from capstone_agent import application_capacity
 from capstone_agent.thread_materials import _process_files
 
 
+def test_goal_continuation_freezes_only_named_files_from_its_predecessor(monkeypatch):
+    from dataclasses import replace
+
+    from capstone_agent.thread_materials import freeze_material_submission
+    from test_unscoped_research_intent import governed_executor, open_store
+
+    service = open_store(governed_executor(), session_type='enterprise-research')
+    snapshot = replace(service._snapshot, works=({'work_id': 'work_one', 'goal_continuation': {
+        'predecessor_attempt_id': 'attempt_prior', 'product_refs': ['draft.md']}},))
+    source = {'thread_id': snapshot.thread_id, 'attempt_id': 'attempt_prior', 'work_id': 'work_one',
+              'artifact_id': 'artifact_draft', 'file_name': 'draft.md', 'source_status': 'completed',
+              'sha256': 'a' * 64, 'size_bytes': 17}
+
+    def files(_service, _snapshot, work_id, source_id, _connection):
+        assert (work_id, source_id) == ('work_one', 'attempt_prior')
+        return [source, {**source, 'artifact_id': 'artifact_other', 'file_name': 'other.md'}]
+
+    monkeypatch.setattr('capstone_agent.thread_materials._process_files', files)
+    submission, rejection = freeze_material_submission(service, snapshot, {}, {},
+        work_id='work_one', resume_goal_inputs=True)
+    assert rejection is None
+    assert submission['_continuation_artifacts'] == [source]
+    assert submission['_resource_manifests'][0]['sha256'] == source['sha256']
+
+    monkeypatch.setattr('capstone_agent.thread_materials._process_files', lambda *args: [])
+    assert freeze_material_submission(service, snapshot, {}, {}, work_id='work_one',
+        resume_goal_inputs=True)[1] == 'product_context_unavailable'
+
+
 @pytest.mark.parametrize('change,accepted', [({'saved_at': '2026-11-02T10:00:00Z'}, True),
     ({'work_id': 'work_other'}, False), ({'sha256': '0' * 64}, False),
     ({'unknown_metadata': True}, False)])

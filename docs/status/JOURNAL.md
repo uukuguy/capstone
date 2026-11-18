@@ -8152,3 +8152,117 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 1019c5e0 records the real enterprise acceptance and refreshes the project overview for PR150.
 
 - 2026-11-18: 76841eda drops unbound summaries. Scoped macOS CI passed, and PR150 merged into dev at 958b6e27.
+
+- 2026-11-18: d3bac04d records acceptance and refreshes the control graph. PR151 merged at 028c8d76.
+
+- 2026-11-18: dcea417b fixes frozen result and Goal file selection. Native result admission and Mission typed handoff remain open.
+
+- 2026-11-18: 700be171 records actual Goal bytes and Authority persistence. Native consumer grants remain open.
+
+- 2026-11-18: f72472d6 retains exact Goal inputs through pause and resume. Focused regression tests pass.
+
+- 2026-11-18: e4ca33e4 isolates model-free Domain Pack state by Work. Registered tool replay and cross-Work denial pass.
+
+- 2026-11-18: 76887ec3 recovers complete formal/core JSON before a recorded tool trailer. The captured live reply decodes.
+
+- 2026-11-18: Live model-free Work replays the exact result without recalculation. Typed admission and unsupported limit claims remain open.
+
+- 2026-11-18: 6d4c37b7 persists verified Authority receipts so later Work attempts can recover exact results and linked evidence.
+
+- 2026-11-18: Both native model modes retain exact result and evidence references through real read-only ranking. Answer scope remains open.
+
+- 2026-11-18: After worker replacement, open-model ranking retains both references and reports unavailable limits without giving a limit assessment.
+
+- 2026-11-18: b1a00e64 requires observed thresholds before formal answers and core summaries make limit or compliance judgments.
+
+- 2026-11-18: a43f2819 retains the same Work predecessor catalog so background Goal admissions keep registered Domain Pack tools.
+
+- 2026-11-18: Real automatic Goal continuation reads and commits the original result and evidence through structured context without replacing the calculation.
+
+- 2026-11-18: 3083059b records Work and Goal acceptance and preserves the open Mission grant and legacy recovery work.
+
+- 2026-11-18: 99b79856 adds exact Goal selection and Mission authority grants for dependent tasks and reviews.
+
+- 2026-11-18: 10affee7 verifies exact selected Goal references after pause, resume, and reopening the PostgreSQL ledger.
+
+- 2026-11-18: 64489e1b keeps the Authority evidence digest stable and drops continuation inputs after terminal Goal dispositions.
+
+- 2026-11-18: Real Mission A, dependent B, and both reviews reused the original result. The Mission reached delivered.
+
+- 2026-11-18: A real named Goal paused and resumed after native worker restart, preserving original references and avoiding recalculation.
+
+- 2026-11-18: 70a2d97f resumes standalone Authority evidence from the same Work even when no result reference exists.
+
+- 2026-11-18: Live ordinary Work reopens standalone constraint evidence from the ledger and retains its digest.
+
+- 2026-11-18: b6b7464c records live Mission, restarted Goal, and standalone evidence verification for later integration.
+
+- 2026-11-18: 1648b7be recovers legacy Authority receipts and persists gateway operation grants across Work and Mission boundaries.
+
+- 2026-11-18: 7174053c verifies legacy ingress and records the live Mission gateway acceptance gap.
+
+- 2026-11-18: a94c3e36 binds view and context references and rejects Task deliveries missing required receipts.
+
+- 2026-11-18: b5e95f2f retains gateway view identity through job completion, locator results, and later reads.
+
+- 2026-11-18: Real Mission passed exact preparation-handle handoff to a dependent and its review; the source returned region_root_missing.
+
+- 2026-11-18: 96b131ae admits typed view metadata through Pi result validation after the real source returned a ready view.
+
+- 2026-11-18: ab387573 scopes CI to Harness consumers; local package boundaries and 1,206 targeted tests passed.
+
+- 2026-11-18: Live ready view replay retained source identity, read summary_nodes, and made zero replacement opens.
+
+- 2026-11-18: a59262f5 records exact local image, real ready view reuse, and Mission verification.
+
+- 2026-11-18: PR152 runs macOS Harness gate44335874304 on exact head a59262f5.
+
+- 2026-11-18: Live Goal reused its selected context, and final legacy recovery preserved the original Thread cursor.
+
+- 2026-11-18: cd62c104 records verified Goal and Mission handoffs plus the pending macOS gate.
+
+- 2026-11-18: 88689801 recovers full formal text and its summary from the live instruction response format.
+
+- 2026-11-18: dd80e047 displays a preserved formal answer and warning when supplemental presentation fails.
+
+- 2026-11-18: 2405d2d6 preserves separate answer and summary when model JSON contains literal line breaks.
+
+- 2026-11-19: Final live instruction run saved the formal answer, core summary, result, and two evidence references.
+
+- 2026-11-19: fc3a5b83 records the final live reply recovery and exact local runtime identity.
+
+- 2026-11-19: 1530c682 places execution below the formal answer and links verified model diagrams to native replies.
+
+- 2026-11-19: bf644195 records browser and runtime acceptance and adds focused checks for historical diagrams.
+
+- 2026-11-19: f0ee83f7 saves and restores verified instruction-specific topology focus and branch highlights.
+
+- 2026-11-19: 3fc01073 reads the saved native completion status so historical rankings can recover their original focus.
+
+- 2026-11-19: 66b85311 records verified historical and live instruction focus with the exact local image.
+
+- 2026-11-19: PR152 push used the process-local Clash proxy after direct Git stalled and remote state was checked.
+
+- 2026-11-19: b2ea6f11 auto-opens admitted grid views, aligns final highlights with saved queries, and renders readable summaries.
+
+- 2026-11-19: b7fde7da records browser timing, exact historical highlights, summary formatting, and the focused CI scope.
+
+- 2026-11-19: c34bad46 distinguishes in-place questions from explicit interruption and starts replacements with the frozen Work context.
+
+- 2026-11-19: 84772ea3 compacts the enterprise header and removes the idle composer status row.
+
+- 2026-11-19: cdc436d3 restores the original 60/40 default split while retaining user resizing.
+
+- 2026-11-19: 4ae38378 records live Enter behavior, transactional switching, and compact workspace measurements.
+
+- 2026-11-19: cd35cd96 restores the shared 18 px enterprise session title and verifies its 56 px header.
+
+- 2026-11-19: fab62528 pairs formal answers with same-execution summaries and makes expanded replies scrollable.
+
+- 2026-11-19: 11479c8c lets user scrolling override reading-position restoration and displays the whole formal reply inline.
+
+- 2026-11-19: 10097bfe records the live paired-answer event and full main-conversation scroll verification.
+
+- 2026-11-19: 8d4e6702 restores the answer header and folds existing conversation replies to saved summaries.
+
+- 2026-11-19: 196e8222 records single-answer toggling, whole-session folding, and historical-page coverage.

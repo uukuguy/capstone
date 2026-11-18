@@ -25,12 +25,13 @@ def catalog(threads, workspace, origin, *, resource_details=None):
          'id': item['resource_id'], 'revision': str(item['version'])}
         for item in page['resources']
     ]
+    domain_entries = _domain_equipment(threads, workspace, origin)
     registered = _catalog(binding)
     skills = [ref for ref in registered if ref['kind'] == 'skill'][:16]
     profiles = [ref for ref in registered if ref['kind'] == 'resource_profile']
     tools = [ref for ref in registered if ref['kind'] == 'capability']
     remaining = 64 - len(skills) - len(profiles) - len(resources)
-    return references(skills + profiles + resources + tools[:remaining])
+    return references(skills + profiles + resources + (domain_entries + tools)[:remaining])
 
 
 def resolve_resource(threads, workspace, origin, ref):
@@ -118,12 +119,23 @@ def _catalog(binding):
     return entries
 
 
+def _domain_equipment(threads, workspace, origin):
+    from .delegation_authority import origin_catalog
+    from .domain_tool_grant import domain_tool_grant
+    grant = domain_tool_grant(origin_catalog(threads, workspace, origin))
+    if grant is None:
+        return []
+    versions = dict.fromkeys((item['profile_id'], item['profile_version']) for item in grant['profiles'])
+    return [{'schema': 'capstone-mission-equipment-reference/1', 'kind': 'capability',
+             'id': profile, 'revision': version} for profile, version in versions]
+
+
 def admitted(threads, workspace, origin, ref):
     try:
         if ref['kind'] == 'resource':
             return bool(resolve_resource(threads, workspace, origin, ref))
         binding, _ = origin_binding(threads, workspace, origin)
-        return ref in _catalog(binding)
+        return ref in _catalog(binding) or ref in _domain_equipment(threads, workspace, origin)
     except (ValueError, KeyError):
         return False
 
@@ -147,7 +159,8 @@ def resolve_skill(binding, ref, allowed_tools):
 def resolve_admission(threads, workspace, origin, equipment, restrictions):
     equipment, restrictions = references(equipment), references(restrictions)
     binding, source = origin_binding(threads, workspace, origin)
-    published = _catalog(binding)
+    domain = _domain_equipment(threads, workspace, origin)
+    published = _catalog(binding) + domain
     resources = [ref for ref in equipment if ref['kind'] == 'resource']
     if len({ref['id'] for ref in resources}) != len(resources):
         raise ValueError('Mission Task must select one version per resource')
@@ -157,9 +170,11 @@ def resolve_admission(threads, workspace, origin, equipment, restrictions):
         raise ValueError('Mission equipment revision is unavailable')
     if any(ref['kind'] != 'capability' for ref in restrictions):
         raise ValueError('The required native resource profile cannot be excluded')
-    selected = [ref['id'] for ref in equipment if ref['kind'] == 'capability']
-    denied = [ref['id'] for ref in restrictions if ref['kind'] == 'capability']
-    if set(selected) & set(denied):
+    selected = [ref['id'] for ref in equipment if ref['kind'] == 'capability' and ref not in domain]
+    denied = [ref['id'] for ref in restrictions if ref['kind'] == 'capability' and ref not in domain]
+    selected_profiles = sorted(ref['id'] + '@' + ref['revision'] for ref in equipment if ref in domain)
+    denied_profiles = sorted(ref['id'] + '@' + ref['revision'] for ref in restrictions if ref in domain)
+    if set(selected) & set(denied) or set(selected_profiles) & set(denied_profiles):
         raise ValueError('Mission equipment cannot select a restricted capability')
     skills = [ref for ref in equipment if ref['kind'] == 'skill']
     if len(skills) > 1:
@@ -172,7 +187,10 @@ def resolve_admission(threads, workspace, origin, equipment, restrictions):
         invocation = ({'kind': 'skill_invocation', 'skill_id': skill['id'], 'skill_version': skill['version']},
                       {key: profile[key] for key in ('profile_id', 'revision')})
     return ({'schema': 'capstone-mission-tool-selection/1',
-             'allowed_tools': sorted(selected) if selected else None, 'denied_tools': sorted(denied)},
+             'allowed_tools': sorted(selected) if selected or selected_profiles else None,
+             'denied_tools': sorted(denied),
+             **({'domain_profiles': selected_profiles} if selected_profiles else {}),
+             **({'denied_domain_profiles': denied_profiles} if denied_profiles else {})},
             registry_revision(binding), source, invocation)
 
 

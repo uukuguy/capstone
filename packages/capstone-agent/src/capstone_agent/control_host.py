@@ -127,6 +127,9 @@ class ControlHost:
                     names = task.get('required_products', [])
                     if task['state'] != 'delivered':
                         continue
+                    missing = set(task.get('required_reference_sources', ())) - task['delivery'].keys()
+                    if missing:
+                        continue
                     products = {p['file_name']: p for p in task['delivery']['products']}
                     if any(name not in products for name in names):
                         continue

@@ -210,6 +210,57 @@ def create_wake_app(
         except ValueError:
             raise HTTPException(422, 'domain tool call is invalid') from None
 
+    @app.post('/domain-tools/task-diagram')
+    def task_diagram(body: dict, authorization: str = Header(default='')):
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        focused = body.get('focused', False)
+        project = getattr(domain_tools, 'project_task_view' if focused else 'project_task_diagram', None)
+        if not callable(project):
+            raise HTTPException(404, 'task diagram unavailable')
+        from .structural_context import checked_authority_references, checked_management
+        from .network_diagram import normalize_network_diagram, normalize_network_projection
+        try:
+            if (type(focused) is not bool or set(body) - {'focused', 'tool_calls'} != {'management', 'references'} or not isinstance(body['references'], list)
+                    or not 0 < len(body['references']) <= 64):
+                raise ValueError('invalid diagram request')
+            tool_calls = body.get('tool_calls', [])
+            if (not isinstance(tool_calls, list) or len(tool_calls) > 32 or any(
+                    not isinstance(call, dict) or set(call) != {'name', 'arguments'}
+                    or not isinstance(call['name'], str) or len(call['name']) > 256
+                    or not isinstance(call['arguments'], dict) for call in tool_calls)):
+                raise ValueError('invalid saved diagram tool calls')
+            checked = {'management': checked_management(body['management']), 'tool_calls': tool_calls,
+                       'references': [checked_authority_references(item) for item in body['references']]}
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(422, 'invalid diagram request') from None
+        try:
+            projection = project(checked)
+            if focused:
+                refs = tuple(ref for receipt in checked['references']
+                             for key in ('result_refs', 'evidence_refs') for ref in receipt[key])
+                return normalize_network_projection(projection, admitted_refs=refs)
+            return normalize_network_diagram(projection)
+        except Exception:
+            raise HTTPException(404, 'task diagram unavailable') from None
+
+    @app.post('/domain-tools/recover')
+    def domain_recover(body: dict, authorization: str = Header(default='')):
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        recover = getattr(domain_tools, 'recover', None)
+        if not callable(recover):
+            raise HTTPException(404, 'legacy recovery is not published by this worker')
+        from .tool_execution_receipt import checked_execution_receipt
+        receipt = checked_execution_receipt(body, task_id=body.get('task_id'), call_id=body.get('call_id'))
+        if receipt is None or [event['phase'] for event in receipt['events']] != [
+                'submitted', 'queued', 'acquired', 'execution_started', 'execution_ended', 'released']:
+            raise HTTPException(422, 'legacy execution receipt is invalid')
+        try:
+            return recover(receipt)
+        except ValueError:
+            raise HTTPException(404, 'legacy authority content is unavailable') from None
+
     return app
 
 

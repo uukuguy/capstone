@@ -12,40 +12,21 @@
 
 .enterprise-workspace .workspace-topbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  min-height: 152px;
-  row-gap: 10px;
-  padding-block: 14px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  min-height: 56px;
+  gap: 8px;
+  padding: 5px 20px;
   background: var(--enterprise-surface);
   border-bottom-color: var(--enterprise-line);
 }
 
-.enterprise-workspace .workspace-topbar .thread-navigation-toggle {
-  grid-column: 1;
-  grid-row: 1;
-}
-
 .enterprise-workspace-label {
-  grid-column: 2;
-  grid-row: 1;
   color: var(--enterprise-accent);
   font-size: 12px;
   font-weight: 600;
-}
-
-.enterprise-workspace .workspace-workhead {
-  grid-column: 1 / -1;
-  grid-row: 2;
-}
-
-.enterprise-workspace .workspace-workhead .session-heading-title h2 {
-  font-size: clamp(18px, 2vw, 26px);
-  line-height: 1.3;
-}
-
-.enterprise-workspace .workspace-top-actions {
-  grid-column: 3;
-  grid-row: 1;
+  white-space: nowrap;
+  padding-inline-end: 10px;
+  border-inline-end: 1px solid var(--enterprise-line);
 }
 
 .enterprise-workspace .thread-app-columns,
@@ -62,11 +43,20 @@
   background: var(--enterprise-surface);
 }
 
+.enterprise-workspace .thread-conversation-workspace .capstone-chat-composer {
+  padding-block-start: 8px;
+}
+
 @media (max-width: 760px) {
   .enterprise-workspace .workspace-topbar {
-    min-height: 0;
-    gap: 6px 8px;
-    padding-block: 8px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding-inline: 12px;
+  }
+
+  .enterprise-workspace-label { display: none; }
+
+  .enterprise-workspace .thread-conversation-workspace.has-resource-panel .thread-resource-panel {
+    inset-block-start: 56px;
   }
 
   .enterprise-workspace .workspace-session-records {

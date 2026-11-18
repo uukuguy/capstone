@@ -14,7 +14,7 @@ def goal():
     return {'schema': 'capstone-work-goal/1', 'objective': 'Produce a reviewed report',
             'objective_revision': 1, 'generation': 1, 'state': 'ready', 'reason': None,
             'max_attempts': 4, 'attempts_admitted': 0,
-            'deadline_at': '2026-11-17T12:00:00Z', 'last_settled_attempt_id': None}
+            'deadline_at': '2099-01-01T00:00:00Z', 'last_settled_attempt_id': None}
 
 
 @pytest.mark.parametrize('field', ['objective_revision', 'generation', 'max_attempts'])
@@ -235,6 +235,19 @@ def test_revise_discards_old_continuation(goal):
     assert ThreadSnapshot.from_document(updated.to_document()) == updated
 
 
+def test_pause_during_goal_iteration_retains_its_bound_inputs(goal):
+    from capstone_agent.thread_work import create_attempt, transition_work
+
+    snapshot = saved_work()
+    continuation = {'generation': 1, 'predecessor_attempt_id': 'attempt_old',
+                    'next_instruction': 'Read draft', 'product_refs': ['draft.md']}
+    work = {**snapshot.works[0], 'goal_mode': goal, 'goal_continuation': continuation}
+    snapshot, attempt, context, _ = create_attempt(replace(snapshot, works=(work,)), work)
+    work['pending_goal_control'] = {'goal_mode': {**work['goal_mode'], 'state': 'paused', 'reason': 'user_pause'}}
+    terminal, _ = transition_work(snapshot, context, attempt.attempt_id, 'cancelled')
+    assert terminal.works[0]['goal_continuation'] == continuation
+
+
 def test_terminal_goal_proposal_is_saved_with_work_state(goal):
     from capstone_agent.goal_receipts import apply_terminal_goal_proposal
     from capstone_agent.enterprise_context import TaskContext
@@ -275,6 +288,7 @@ def test_service_terminal_commits_continuation_with_attempt(goal, with_product):
     assert restored.current_attempt is None
     assert restored.works[0]['goal_mode']['state'] == 'ready'
     assert restored.works[0]['goal_continuation']['predecessor_attempt_id'] == claim.attempt.attempt_id
+    assert restored.works[0]['goal_continuation']['product_refs'] == progress['product_refs']
 
 
 def test_start_goal_admits_first_attempt_through_existing_service():

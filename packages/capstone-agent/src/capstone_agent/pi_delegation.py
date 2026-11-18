@@ -70,15 +70,19 @@ FORMAL_AND_CORE_INSTRUCTION = (
     '标签内只放该对象，不用 Markdown 代码围栏。闭合标签之后不要输出内容。'
     '对象包含 answer 和 summary 两个字符串。'
     '不要在字段值内使用回答标签。'
-    'answer 是完整正式回答。summary 是从正式回答提炼的一到两句纯文本，最多 480 字。'
+    'answer 是完整正式回答。summary 是从正式回答提炼的简短 Markdown，最多 480 字。'
+    '第一段先写核心结论。多项关键数值或制品用列表逐条写清，可用粗体标出关键数值。'
+    '简单结论保留一小段。用 JSON 转义序列表示换行。'
     '说明核心结论、关键数值及单位，以及已生成制品的名称和用途（如有）。'
+    '正式回答及摘要只能陈述有依据的事实。若未读取适用的限值、规则或基准，'
+    '只报告观察值和已执行的检查，不得给出越限、合规或通过判断。'
     '保留影响结论的限制。不要添加正式回答中没有的信息。'
 )
 
 from .application_capacity import limits, current_capacity, require_capacity
 
 
-def _json_document(value: object, *, native_events: bool = False) -> dict:
+def _json_document(value: object, *, native_events: bool = False, native_result: bool = False) -> dict:
     nodes = 0
 
     def visit(item, depth=0, path=(), presentation=False):
@@ -105,7 +109,20 @@ def _json_document(value: object, *, native_events: bool = False) -> dict:
                 and isinstance(item.get('tool_call_id'), str) and bool(item['tool_call_id'])
                 and item.get('is_error') is not True)
             result = {}
+            wrapped_result = (native_events or native_result) and path[:1] == ('result',)
+            source_path = path[1:] if wrapped_result else path
+            if ((native_result or wrapped_result)
+                    and len(source_path) == 2 and source_path[0] == 'sources'
+                    and type(source_path[1]) is int):
+                from .structural_context import (AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE,
+                    checked_authority_references, checked_gateway_operations)
+                if item.get('kind') == AUTHORITY_REFERENCE_SOURCE:
+                    result['metadata'] = checked_authority_references(item.get('metadata'))
+                elif item.get('kind') == GATEWAY_OPERATION_SOURCE:
+                    result['metadata'] = checked_gateway_operations(item.get('metadata'))
             for key, child in item.items():
+                if key in result:
+                    continue
                 if electrical_view and key == 'source_view':
                     from .grid_electrical_view import checked_electrical_descriptor
                     child = checked_electrical_descriptor(child)
@@ -417,7 +434,7 @@ class PiTaskResult:
 
     @classmethod
     def from_document(cls, document, request: PiTaskRequest):
-        document = _json_document(document)
+        document = _json_document(document, native_result=True)
         _validate_result(document, request.task_id, request.parent_attempt_id,
                          request.to_document()["executor_identity"])
         return cls(**{k: v for k, v in document.items() if k != "schema"})
@@ -425,7 +442,7 @@ class PiTaskResult:
     def to_document(self):
         return {"schema": "capstone-pi-task-result/2" if self.failure is not None else "capstone-pi-task-result/1", **_json_document(
             {field: getattr(self, field) for field in self.__dataclass_fields__
-             if field != 'failure' or self.failure is not None})}
+             if field != 'failure' or self.failure is not None}, native_result=True)}
 
 
 @runtime_checkable
@@ -643,7 +660,8 @@ class HttpGeneralPiExecutor:
                     raise ValueError('research transport response must be an object')
             else:
                 task_status = method == 'GET' and re.fullmatch(r'/tasks/[^/?]+(?:\?after=[0-9]+)?', path) is not None
-                result = _json_document(result, native_events=task_status)
+                task_recovery = method == 'POST' and re.fullmatch(r'/tasks/[^/?]+/recover', path) is not None
+                result = _json_document(result, native_events=task_status, native_result=task_recovery)
             checkpoint()
             return result
 
@@ -707,7 +725,7 @@ class HttpGeneralPiExecutor:
                 raise ValueError("Pi cancellation status is invalid; task state is unknown")
             status = response["status"]
             if status in STATUSES:
-                document = _json_document(response["result"])
+                document = _json_document(response["result"], native_result=True)
                 _validate_result(document, task_id, document.get("parent_attempt_id"),
                                  _json_document(self.identity))
                 if document["status"] != status:

@@ -25,6 +25,30 @@ def identity(value):
     return value
 
 
+def authority_source(value):
+    """Identify one authoritative terminal receipt without granting access."""
+    object_fields(value, {'thread_id', 'work_id', 'attempt_id', 'answer_ref'})
+    for item in value.values():
+        identity(item)
+    return value
+
+
+def validate_delivery(value, binding):
+    fields = {'answer_ref', 'products', 'status'}
+    source_fields = {'authority_source', 'gateway_source'}
+    if isinstance(value, dict):
+        fields.update(source_fields.intersection(value))
+    object_fields(value, fields)
+    identity(value['answer_ref'])
+    if value['status'] != 'completed' or not isinstance(value['products'], list):
+        raise ContractError('completed persisted delivery required')
+    for field in source_fields.intersection(value):
+        source = authority_source(value[field])
+        if (binding is None or any(source[key] != binding[key] for key in ('thread_id', 'work_id'))
+                or source['answer_ref'] != value['answer_ref']):
+            raise ContractError('authority source does not match the delivery binding')
+
+
 def positive_integer(value):
     if type(value) is not int or value < 1:
         raise ContractError('positive integer required')
@@ -66,7 +90,8 @@ def validate_goal_request(value):
     for task in tasks:
         fields = {'task_id', 'objective', 'delivery_requirements',
                   'depends_on', 'agent_id', 'mode', 'max_attempts'}
-        if not isinstance(task, dict) or not fields <= task.keys() or set(task) - fields - {'required_products'}:
+        if not isinstance(task, dict) or not fields <= task.keys() or set(task) - fields - {
+                'required_products', 'required_reference_sources'}:
             raise ContractError('Task fields do not match contract')
         task_id = identity(task['task_id'])
         if task_id in admitted:
@@ -86,6 +111,11 @@ def validate_goal_request(value):
                     or any(ord(c) < 32 or ord(c) == 127 for c in name) for name in products)
                 or len(set(products)) != len(products)):
             raise ContractError('required products must name distinct plain file names')
+        sources = task.get('required_reference_sources', [])
+        if (not isinstance(sources, list) or len(sources) > 2
+                or any(source not in ('authority_source', 'gateway_source') for source in sources)
+                or len(set(sources)) != len(sources)):
+            raise ContractError('required reference sources must name distinct supported receipt types')
         identity(task['agent_id'])
         positive_integer(task['max_attempts'])
         if not isinstance(task['mode'], str) or task['mode'] not in {'single', 'goal'}:

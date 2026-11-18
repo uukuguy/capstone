@@ -130,6 +130,73 @@ def test_mission_upload_grant_reads_frozen_version_after_replacement(postgres_th
         threads.delete_thread(binding['thread_id'])
 
 
+def test_mission_child_freezes_exact_authority_source(postgres_thread_service):
+    from dataclasses import replace
+    from capstone_agent.delegation_authority import resolve_authority_inputs, resolve_gateway_inputs
+    from capstone_agent.structural_context import management_for, management_note, structural_context_for
+    from test_thread_postgres import _snapshot
+    from test_thread_work_execution import command
+    from test_unscoped_research_intent import governed_executor, publish_domain
+
+    threads, origin = postgres_thread_service
+    threads.create_thread(replace(_snapshot(origin), active_model_context=None, active_grid_page_id=None,
+        minimum_protocol_version=2, session_type='enterprise-research'))
+    threads.set_native_executor(governed_executor())
+    publish_domain(threads, families=('pandapower',))
+    threads.submit_command(command(threads, origin, 'send_message', 'produce', payload={'text': 'Calculate'}))
+    producer = threads.claim_attempt('producer', 60)
+    assert producer is not None and producer.thread_id == origin
+    structural = structural_context_for(producer)
+    threads.freeze_attempt_input(producer, {'resources': {'structural_context': structural}})
+    result = 'result:sha256:' + 'a' * 64
+    evidence = 'evidence:sha256:' + 'b' * 64
+    receipt = {'authority_id': 'gridctl', 'capability_id': 'analysis.run',
+               'result_refs': [result], 'evidence_refs': [evidence]}
+    operation = {'binding': {'connection_id': 'conn_x', 'instance_id': 'instance_x', 'catalog_revision': 'revision_x'},
+                 'operations': [{'kind': 'job_ref', 'ref': 'issued-job'}]}
+    threads.append_runtime_event(producer, event_type='runtime_event', visibility='diagnostic',
+                                 payload={'gateway_operations': operation})
+    threads.finish_attempt(producer, phase='completed',
+        payload={'answer': 'Saved', 'result_refs': [result], 'evidence_refs': [evidence],
+                 'authority_references': [receipt]})
+    terminal = next(event for event in threads.read_events(origin, 0).events
+                    if event.event_type == 'attempt_completed')
+    source = {'thread_id': origin, 'work_id': producer.task_context.binding.work_id,
+              'attempt_id': producer.attempt.attempt_id, 'answer_ref': terminal.event_id}
+    with pytest.raises(ValueError, match='unavailable'):
+        resolve_authority_inputs(threads, 'enterprise', [{**source, 'answer_ref': 'evt_other'}])
+    with pytest.raises(ValueError, match='unavailable'):
+        resolve_authority_inputs(threads, 'enterprise', [{**source, 'work_id': 'work_other'}])
+    with pytest.raises(ValueError, match='unavailable'):
+        resolve_gateway_inputs(threads, 'enterprise', [{**source, 'work_id': 'work_other'}])
+    threads._catalog_context = None
+    from capstone_agent.mission_equipment import catalog
+    pack = next(item for item in catalog(threads, 'enterprise', {'thread_id': origin})
+                if item['id'] == 'pandapower-static-analysis')
+    request = {**delegation(), 'schema': 'capstone-agent-delegation/2',
+               'mission_origin': {'thread_id': origin}, 'equipment': [pack], 'restrictions': [],
+               'context_authority_sources': [source], 'context_gateway_sources': [source]}
+    agent = AgentDelegations(threads, MemoryDelegations())
+    binding = agent.delegate('enterprise', request)
+    try:
+        child = threads.claim_attempt('consumer', 60)
+        assert child is not None and child.thread_id == binding['thread_id']
+        assert child.application_catalog == producer.application_catalog
+        assert child.submission['_gateway_operation_inputs'] == [operation]
+        assert child.submission['_mission_equipment']['domain_profiles'] == [
+            pack['id'] + '@' + pack['revision']]
+        context = structural_context_for(child)
+        assert context['handles'] == [{'kind': 'result_ref', 'ref': result},
+                                      {'kind': 'evidence_ref', 'ref': evidence}]
+        assert management_for(context)['authority_inputs'] == [
+            {'owner': {'work_scope': structural['work_scope']}, **receipt}]
+        assert structural['work_scope'] not in management_note(context)
+        assert child.task_context.binding.work_id != source['work_id']
+        threads.finish_attempt(child, phase='completed', payload={'answer': 'Read'})
+    finally:
+        threads.delete_thread(binding['thread_id'])
+
+
 def test_mission_skill_delegation_uses_typed_invocation(postgres_thread_service):
     from test_enterprise_normal_chat import native_executor
     from test_thread_postgres import _snapshot

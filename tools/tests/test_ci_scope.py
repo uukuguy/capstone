@@ -591,3 +591,21 @@ def test_git_ignore_failure_cannot_exempt_delivery(delivery_repo, monkeypatch):
         scope.check_document_links(delivery_repo, ["docs/status/guide.md"])
     assert calls == [["git", "-C", str(delivery_repo.resolve()), "check-ignore", "-q", "--",
                       "runs/user-local-offline/release/README.md"]]
+
+
+def test_harness_reference_gate_is_scoped_to_the_registered_consumers():
+    from tools.ci_scope import classify as select_gate
+
+    changes = [
+        'packages/capstone-agent/src/capstone_agent/structural_context.py',
+        'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
+        'packages/capstone-control/src/capstone_control/service.py',
+        'packages/pandapower-domain-pack/src/pandapower_domain/authority.py',
+        'packages/capstone-app/src/ThreadProductsWorkspace.test.tsx',
+        'packages/capstone-app/src/ThreadProductsWorkspace.tsx',
+        'packages/capstone-app/src/threadProducts.css',
+        'docs/reviews/2026-11-18-harness-reference-continuity.md',
+    ]
+    assert select_gate(changes) == 'harness-references'
+    assert select_gate(changes, target='main') == 'release'
+    assert select_gate(changes + ['packages/grid-simulator/src/grid_simulator/operations.py']) == 'product'

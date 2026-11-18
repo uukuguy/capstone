@@ -28,7 +28,7 @@ from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES, MAX_
 from .general_pi_storage import GeneralPiStorage, request_hash
 from .general_pi_relay import ProviderRelay, forward_provider
 from .bounded_http_loop import run_http
-from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity
+from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity, require_capacity
 
 
 def _checked_investigation_checkpoint(event, record):
@@ -261,6 +261,20 @@ class GeneralPiHost:
         bind_diagnosis = getattr(run_task, 'bind_diagnosis_provider', None)
         if callable(bind_diagnosis):
             bind_diagnosis(self.diagnosis_context)
+        bind_gateway_operations = getattr(run_task, 'bind_gateway_operation_writer', None)
+        if callable(bind_gateway_operations):
+            bind_gateway_operations(self.record_gateway_operations)
+
+    def record_gateway_operations(self, task_id, value):
+        from .structural_context import checked_gateway_operations
+        receipt = checked_gateway_operations(value)
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None or record['status'] != 'running' or record['cancel'].is_set():
+                raise ValueError('gateway operation receipt has no active task')
+            if receipt['binding'] != record['request'].native_context.get('gateway_binding'):
+                raise ValueError('gateway operation receipt changed owner')
+            record['gateway_operations'] = receipt
 
     def diagnosis_context(self, request, workspace, uid):
         from .native_diagnosis import NativeDiagnosis, DIAGNOSIS_POLICY
@@ -380,7 +394,8 @@ class GeneralPiHost:
                 raise CapacityExceeded('native_task_count', active_count + 1, self._max_tasks,
                                        'native_task_admission', mode=current_capacity().mode)
             record = {'request': request, 'status': 'running', 'events': [], 'result': None,
-                      'cancel': threading.Event(), 'research_sources': [], 'research_call_hashes': {}}
+                      'cancel': threading.Event(), 'research_sources': [], 'research_call_hashes': {},
+                      'authority_references': {}}
             if (request.native_context or {}).get('mission_binding') is not None:
                 from .native_mission import MissionTaskChannel
                 record['mission'] = MissionTaskChannel()
@@ -1123,6 +1138,25 @@ class GeneralPiHost:
                 status, answer = 'failed', ''
                 public_failure = {'code':'native_product_delivery_incomplete','phase':'persistence'}
             saved_artifacts = artifacts
+            if status == 'completed' and (record['authority_references'] or record.get('gateway_operations')):
+                from .structural_context import AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE
+                with self._lock:
+                    receipts = tuple(record['authority_references'].items())
+                verified_sources = [
+                    {'source_id': 'authority-' + sha256(call_id.encode()).hexdigest(),
+                     'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
+                     'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': metadata}
+                    for call_id, metadata in receipts
+                ]
+                if record.get('gateway_operations') is not None:
+                    verified_sources.append({'source_id': 'gateway-operation-references',
+                        'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
+                        'kind': GATEWAY_OPERATION_SOURCE, 'metadata': record['gateway_operations']})
+                require_capacity('context_references', len(verified_sources), 'authority_reference_persistence')
+                if record.get('graph_context') is not None:
+                    require_capacity('context_references', len(sources) + len(verified_sources),
+                                     'authority_reference_persistence')
+                sources = verified_sources + sources[:limits.context_references - len(verified_sources)]
             result = PiTaskResult.from_document({'schema': 'capstone-pi-task-result/2' if public_failure else 'capstone-pi-task-result/1',
                 'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
                 'executor_identity': self.identity, 'status': status, 'answer': answer,
@@ -1325,6 +1359,9 @@ class NativeTaskRunner:
     def bind_resource_staging(self, staging):
         self._resource_staging = staging
 
+    def bind_gateway_operation_writer(self, writer):
+        self._gateway_operation_writer = writer
+
     def __call__(self, request, cancelled, emit, *, inventory_only=False):
         from .native_timing import NativeTiming
         timing = NativeTiming(request.task_id)
@@ -1489,6 +1526,15 @@ class NativeTaskRunner:
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
                             request.parent_attempt_id))
+                    saved_operations = (document.get('structural_context') or {}).get('gateway_operations')
+                    if saved_operations is not None and saved_operations['binding'] == frozen_gateway:
+                        task_gateway.restore_operations(request.task_id, frozen_gateway, saved_operations)
+                        sdk_config.setdefault('contextFiles', []).append({
+                            'path': 'admitted-gateway-operations',
+                            'content': 'Previously issued operation handles for the current registered gateway. '
+                                'Use them only for applicable continuation tools.\n' +
+                                json.dumps([{key: item[key] for key in ('kind', 'ref')}
+                                            for item in saved_operations['operations']], ensure_ascii=False)})
                     retained_contracts = getattr(task_gateway, 'contract_context', None)
                     if callable(retained_contracts):
                         retained = retained_contracts(request.task_id)
@@ -1594,10 +1640,17 @@ class NativeTaskRunner:
                         'The gateway owns all backend selection. Only published tools in the current task grant are enabled. Gateway observations do not become registered Authority results or evidence without explicit admission.'})
                 if request.domain_tools:
                     from .domain_tool_client import load_domain_tool_catalogs
-                    domain_catalog, domain_routes, mounted_packs = load_domain_tool_catalogs(request.domain_tools)
+                    equipment = document.get('native_context', {}).get('mission_equipment') or {}
+                    selected_profiles = set(equipment.get('domain_profiles', ()))
+                    denied_profiles = set(equipment.get('denied_domain_profiles', ()))
+                    profiles = [item for item in request.domain_tools['profiles']
+                        if item['profile_id'] + '@' + item['profile_version'] not in denied_profiles
+                        and (not selected_profiles or item['profile_id'] + '@' + item['profile_version'] in selected_profiles)]
+                    domain_catalog, domain_routes, mounted_packs = load_domain_tool_catalogs(
+                        {**request.domain_tools, 'profiles': profiles}) if profiles else ({}, {}, [])
                     unavailable_packs = sorted({
                         item['profile_id'] + '@' + item['profile_version']
-                        for item in request.domain_tools['profiles']
+                        for item in profiles
                     } - set(mounted_packs))
                     if unavailable_packs:
                         sdk_config.setdefault('contextFiles', []).append({
@@ -1771,9 +1824,16 @@ class NativeTaskRunner:
                 protocol = gateway_discovery_tools(request.native_context, gateway_publication,
                     gateway_available=sdk_config.get('dataGateway') is not None)
                 protocol.update(resource_protocol_tools(policy['allowed_tools'],sdk_config.get('resourceReferences',[])))
+                if equipment.get('domain_profiles') and sdk_config.get('domainTools'):
+                    protocol.update(sdk_config['domainTools']['catalog']['tools'])
+                    protocol.update({'agent_tool_search', 'agent_tool_load'})
                 allowed = equipment_tools(policy['allowed_tools'], equipment,
                     require_selected=False, protocol_tools=protocol)
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': sorted(allowed)}
+                if request.task_id in self.task_domain_routes:
+                    self.task_domain_routes[request.task_id] = {
+                        name: route for name, route in self.task_domain_routes[request.task_id].items()
+                        if name in allowed}
             timing.mark('resources_configured')
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
@@ -1821,7 +1881,13 @@ class NativeTaskRunner:
                 timing.mark('process_spawned')
             answer = process.run(request.instruction, timeout=request.timeout_seconds,
                                  cancelled=cancelled, on_event=emit, inventory_only=inventory_only,
-                                 on_process_started=process_started)
+                                 on_process_started=process_started, answer_format=request.answer_format)
+            writer = getattr(self, '_gateway_operation_writer', None)
+            issuer = getattr(task_gateway, 'issued_operations', None)
+            if frozen_gateway and frozen_gateway['catalog_revision'] and callable(writer) and callable(issuer):
+                operations = issuer(request.task_id)
+                if operations:
+                    writer(request.task_id, {'binding': frozen_gateway, 'operations': operations})
             return answer, ({'native_tools': process.tools, 'inventory': process.inventory} if inventory_only else process.usage)
         except Exception as error:
             if process is not None:
@@ -2415,6 +2481,20 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if management is not None:
                     body['management'] = management
                 result = invoke_domain_tool(origin, token, body)
+                if result.get('ok') is True and 'authority_references' in result:
+                    from .structural_context import checked_authority_references
+                    verified = checked_authority_references(result['authority_references'])
+                    with host._lock:
+                        record = host._tasks.get(task_id)
+                        if record is None or record['status'] != 'running' or record['cancel'].is_set():
+                            raise ValueError('domain tool result has no active task')
+                        receipts = record['authority_references']
+                        call_id = document['call_id']
+                        if call_id in receipts and receipts[call_id] != verified:
+                            raise ValueError('domain tool call identity changed references')
+                        require_capacity('context_references', len(receipts) + (call_id not in receipts),
+                                         'authority_reference_collection')
+                        receipts[call_id] = verified
                 payload = result.get('result') if result.get('ok') is True else result.get('error')
                 if not isinstance(payload, dict):
                     payload = {'message': 'domain tool call failed'}

@@ -43,6 +43,8 @@ TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     depends_on=dict(type='array', items=IDENTITY, uniqueItems=True, maxItems=64),
     agent_id=IDENTITY, mode={'enum':['single', 'goal']}, max_attempts=dict(type='integer', minimum=1),
     required_products=dict(type='array', items=dict(type='string', minLength=1, maxLength=255), uniqueItems=True, maxItems=64),
+    required_reference_sources=dict(type='array', items=dict(enum=['authority_source', 'gateway_source']),
+        uniqueItems=True, maxItems=2, description='Required when the Task must produce a reusable authority or gateway reference. A saved answer or file cannot satisfy this requirement.'),
     equipment=dict(type='array', items=REF, maxItems=64), restrictions=dict(type='array', items=REF, maxItems=64)),
     ['task_id', 'objective', 'delivery_requirements', 'depends_on', 'agent_id', 'mode', 'max_attempts'])
 REVISION = dict(type='integer', minimum=1,
@@ -63,7 +65,7 @@ CATALOG = {
                              tasks=dict(type='array', items=TASK, maxItems=64),
                              removed_task_ids=dict(type='array',items=IDENTITY,maxItems=64,uniqueItems=True)),
                         ['expected_revision','acceptance_criteria','tasks'])),
-    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered capability, resource_profile, exact registered skill or exact published resource versions from the Mission equipment catalog. Use depends_on to carry authorized saved products from verified predecessor Tasks. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
+    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered capability, Domain Pack, resource_profile, exact registered skill or exact published resource versions from the Mission equipment catalog. Select the exact published Domain Pack for its domain work. Use depends_on to carry authorized saved products and authority receipts from verified predecessor Tasks. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
     'agent_mission_ready': dict(description='Make an executable Mission plan ready only when Tasks, acceptance criteria and equipment are admitted. Then finish this organizer turn: a real Task boundary resumes organization automatically. Do not loop over state reads while waiting. If no dependency-ready Task remains, inspect actual results and conclude or wait. This is not product acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION))),
@@ -119,11 +121,12 @@ def checked_review(value):
 
 
 def checked_equipment(value):
-    if (not isinstance(value, dict) or set(value) != {'schema', 'allowed_tools', 'denied_tools'}
+    if (not isinstance(value, dict)
+            or set(value) - {'domain_profiles', 'denied_domain_profiles'} != {'schema', 'allowed_tools', 'denied_tools'}
             or value.get('schema') != 'capstone-mission-tool-selection/1'):
         raise ValueError('invalid Mission tool selection')
-    for field in ('allowed_tools', 'denied_tools'):
-        items = value[field]
+    for field in ('allowed_tools', 'denied_tools', 'domain_profiles', 'denied_domain_profiles'):
+        items = value.get(field, [])
         if field == 'allowed_tools' and items is None:
             continue
         if (not isinstance(items, list) or len(items) > 256
@@ -151,7 +154,7 @@ def equipment_tools(current, selection, *, require_selected=True, protocol_tools
         available.intersection_update(selected)
     available.update(protocol)
     available.difference_update(selection['denied_tools'])
-    if not available:
+    if not available and not selection.get('domain_profiles'):
         raise ValueError('Mission equipment leaves no executable tool')
     return available
 

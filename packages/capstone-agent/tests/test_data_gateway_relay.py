@@ -552,6 +552,36 @@ def test_generic_operation_refs_are_task_owned(producer, reader, field):
     assert calls == [producer, reader]
 
 
+@pytest.mark.parametrize('parameter', ['job_ref', 'preparation_ref'])
+def test_saved_operations_restore_after_adapter_restart_only_for_exact_owner(parameter):
+    producer, reader = 'data_gateway_start_export', 'data_gateway_export_status'
+    schemas = {reader: {'inputSchema': {'type': 'object', 'properties': {
+        parameter: {'type': 'string'}}, 'required': [parameter]}}}
+    first = access([producer, reader], schemas=schemas)
+
+    async def upstream(name, arguments, catalog):
+        data = {'preparation_ref': 'old-job'} if name == producer else {parameter: arguments[parameter]}
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+
+    first.client.call = upstream
+    asyncio.run(first.call('task-1', {'call_id': 'produce', 'name': producer, 'arguments': {}}))
+    binding = {'connection_id': 'conn_a', 'instance_id': 'instance_a', 'catalog_revision': first.catalog['revision']}
+    saved = {'binding': binding, 'operations': first.issued_operations('task-1')}
+    assert saved['operations'] == [{'kind': 'preparation_ref', 'ref': 'old-job'}]
+    first.revoke('task-1')
+
+    after = access([producer, reader], schemas=schemas)
+    after.client.call = upstream
+    call = {'call_id': 'poll', 'name': reader, 'arguments': {parameter: 'old-job'}}
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(after.call('task-1', call))
+    for swapped in ('connection_id', 'instance_id', 'catalog_revision'):
+        with pytest.raises(GatewayError, match='gateway_task_not_admitted'):
+            after.restore_operations('task-1', {**binding, swapped: 'changed'}, saved)
+    after.restore_operations('task-1', binding, saved)
+    assert asyncio.run(after.call('task-1', call))['is_error'] is False
+
+
 @pytest.mark.parametrize('data,status,is_error', [
     ({'rows': [{'job_ref': 'operation-one'}]}, 'ok', False),
     ({'job_ref': 'operation-one'}, 'error', False),
@@ -882,3 +912,122 @@ def test_unavailable_gateway_retains_only_configured_identity(tmp_path, monkeypa
     assert publication['identity'] == {'connection_name': 'Configured gateway', 'display_address': 'gateway.test:443'}
     assert publication['available'] is False
     assert 'secret-canary' not in json.dumps(publication)
+
+
+def test_saved_view_requires_registered_manifest_and_survives_restart():
+    from test_grid_electrical_view import manifest, page
+
+    producer, reader = 'data_gateway_open_network_model_view', 'data_gateway_read_network_model_view'
+    schemas = {reader: {'inputSchema': {'type': 'object', 'properties': {
+        'view_ref': {'type': 'string'}, 'stream': {'type': 'string'}},
+        'required': ['view_ref', 'stream']}}}
+    first = access([producer, reader], schemas=schemas)
+
+    async def upstream(name, arguments, catalog):
+        data = manifest() if name == producer else page(arguments['stream'])
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+
+    first.client.call = upstream
+    asyncio.run(first.call('task-1', {'call_id': 'produce', 'name': producer, 'arguments': {}}))
+    binding = {'connection_id': 'conn_a', 'instance_id': 'instance_a', 'catalog_revision': first.catalog['revision']}
+    saved = {'binding': binding, 'operations': first.issued_operations('task-1')}
+    from capstone_agent.structural_context import VIEW_IDENTITY_FIELDS
+    assert saved['operations'] == [{'kind': 'view_ref', 'ref': 'view-one',
+                                    'view_identity': {key: manifest()[key] for key in VIEW_IDENTITY_FIELDS}}]
+    first.revoke('task-1')
+
+    after = access([producer, reader], schemas=schemas)
+    after.client.call = upstream
+    call = {'call_id': 'read', 'name': reader, 'arguments': {'view_ref': 'view-one', 'stream': 'devices'}}
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(after.call('task-1', call))
+    after.restore_operations('task-1', binding, saved)
+    assert asyncio.run(after.call('task-1', call))['is_error'] is False
+    assert after.issued_operations('task-1') == saved['operations']
+
+    async def changed(*_):
+        return {'structuredContent': {'status': 'ok', 'data': page(model_revision='other')}}
+    after.client.call = changed
+    with pytest.raises(GatewayError, match='gateway_output_invalid'):
+        asyncio.run(after.call('task-1', {**call, 'call_id': 'changed'}))
+
+
+def test_untyped_view_field_does_not_grant_view_access():
+    producer, reader = 'data_gateway_start_export', 'data_gateway_custom_reader'
+    resource = access([producer, reader], schemas={reader: {'inputSchema': {
+        'type': 'object', 'properties': {'view_ref': {'type': 'string'}},
+        'required': ['view_ref']}}})
+
+    async def upstream(*_):
+        return {'structuredContent': {'status': 'ok', 'data': {'view_ref': 'untyped'}}}
+
+    resource.client.call = upstream
+    asyncio.run(resource.call('task-1', {'call_id': 'produce', 'name': producer, 'arguments': {}}))
+    assert resource.issued_operations('task-1') == []
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('task-1', {'call_id': 'read', 'name': reader,
+                                             'arguments': {'view_ref': 'untyped'}}))
+
+
+def test_completed_view_job_grants_its_published_read_continuation():
+    from test_grid_electrical_view import page
+
+    producer, poll, reader = ('data_gateway_open_network_model_view',
+        'data_gateway_get_network_model_job', 'data_gateway_read_network_model_view')
+    resource = access([producer, poll, reader], schemas={
+        poll: {'inputSchema': {'type': 'object', 'properties': {'job_ref': {'type': 'string'}}}},
+        reader: {'inputSchema': {'type': 'object', 'properties': {
+            'view_ref': {'type': 'string'}, 'stream': {'type': 'string'}},
+            'required': ['view_ref', 'stream']}}})
+    read_args = {'view_ref': 'view-one', 'stream': 'devices'}
+
+    async def upstream(name, arguments, catalog):
+        data = {
+            producer: {'state': 'preparing', 'preparation_ref': 'prepare-one'},
+            poll: {'job_ref': 'prepare-one', 'task_type': 'view_preparation', 'state': 'succeeded',
+                'model_ref': 'model:one', 'model_revision': 'revision-one', 'view_ref': 'view-one',
+                'next_action': {'tool': 'read_network_model_view', 'arguments': read_args}},
+            reader: page(),
+        }[name]
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+
+    resource.client.call = upstream
+    asyncio.run(resource.call('task-1', {'call_id': 'open', 'name': producer, 'arguments': {}}))
+    asyncio.run(resource.call('task-1', {'call_id': 'poll', 'name': poll,
+                                         'arguments': {'job_ref': 'prepare-one'}}))
+    assert any(o['kind'] == 'view_ref' for o in resource.issued_operations('task-1'))
+    assert asyncio.run(resource.call('task-1', {
+        'call_id': 'read', 'name': reader, 'arguments': read_args}))['is_error'] is False
+
+
+def test_published_locator_preserves_versioned_local_view_read():
+    from test_grid_electrical_view import manifest, page
+
+    producer, locator, reader = ('data_gateway_open_network_model_view',
+        'data_gateway_locate_network_model_objects', 'data_gateway_read_network_model_view')
+    schemas = {
+        locator: {'inputSchema': {'type': 'object', 'properties': {
+            'view_ref': {'type': 'string'}, 'objects': {'type': 'array'},
+            'expected_model_revision': {'type': 'string'}}}},
+        reader: {'inputSchema': {'type': 'object', 'properties': {
+            'view_ref': {'type': 'string'}, 'stream': {'type': 'string'}}}}}
+    resource = access([producer, locator, reader], schemas=schemas)
+    read_args = {'view_ref': 'local-view', 'stream': 'devices'}
+
+    async def upstream(name, arguments, catalog):
+        data = {
+            producer: manifest(),
+            locator: {'view_ref': 'view-one', 'model_revision': 'revision-one',
+                'source_snapshot_ref': 'snapshot-one', 'selection_ref': 'selection-one',
+                'results': [{'matches': [{'local_view_ref': 'local-view',
+                    'read_action': {'tool': 'read_network_model_view', 'arguments': read_args}}]}]},
+            reader: page(view_ref='local-view'),
+        }[name]
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+
+    resource.client.call = upstream
+    asyncio.run(resource.call('task-1', {'call_id': 'open', 'name': producer, 'arguments': {}}))
+    asyncio.run(resource.call('task-1', {'call_id': 'locate', 'name': locator,
+        'arguments': {'view_ref': 'view-one', 'expected_model_revision': 'revision-one', 'objects': []}}))
+    assert asyncio.run(resource.call('task-1', {
+        'call_id': 'read', 'name': reader, 'arguments': read_args}))['is_error'] is False

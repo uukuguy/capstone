@@ -18,6 +18,8 @@ def boundary(goal):
         item={key:deepcopy(task[key]) for key in ('task_id','revision','objective','state','generation','delivery','verification')}
         if task['state'] in {'failed','blocked'} and task.get('observation'):
             item['observation']={key:deepcopy(task['observation'][key]) for key in ('state','summary')}
+        if 'failure_reason' in task:
+            item['failure_reason'] = task['failure_reason']
         tasks.append(item)
     source=dict(plan_revision=goal['_mission']['plan_revision'],tasks=tasks)
     return {'digest':fingerprint(source),**source}

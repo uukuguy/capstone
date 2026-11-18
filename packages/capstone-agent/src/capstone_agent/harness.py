@@ -40,7 +40,7 @@ AttemptAdmission = Callable[
 
 @dataclass(frozen=True, slots=True)
 class AdmittedAttemptAnswer:
-    """Trusted application decision; native runtime references are not admission."""
+    """Trusted application decision over references verified by their owners."""
 
     answer: str
     mode: str
@@ -49,6 +49,7 @@ class AdmittedAttemptAnswer:
     evidence_refs: tuple[str, ...] = ()
     diagnostic_codes: tuple[str, ...] = ()
     result_projections: tuple[Mapping[str, object], ...] = ()
+    authority_references: tuple[Mapping[str, object], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.answer, str) or not self.answer.strip():
@@ -96,6 +97,14 @@ class AdmittedAttemptAnswer:
             raise ValueError("authority-backed admission requires evidence")
         if self.mode == "offline_information" and (self.result_refs or self.evidence_refs):
             raise ValueError("offline admission must not create run evidence")
+        if self.authority_references:
+            from .structural_context import checked_authority_references
+            require_capacity('context_references', len(self.authority_references), phase='answer_admission')
+            for value in self.authority_references:
+                receipt = checked_authority_references(value)
+                if (not set(receipt['result_refs']).issubset(self.result_refs)
+                        or not set(receipt['evidence_refs']).issubset(self.evidence_refs)):
+                    raise ValueError('authority receipt is outside the answer admission')
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,14 +141,21 @@ def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: 
         'admission': assurance}
     if admission.result_projections:
         payload['result_projections'] = [dict(item) for item in admission.result_projections]
+    if admission.authority_references:
+        payload['authority_references'] = [dict(item) for item in admission.authority_references]
     return payload
 
 
 def _core_summary_payload(runtime: object, answer: str, admitted_answer: str, recovery_attempted: bool) -> dict[str, str]:
     bundle = getattr(runtime, 'answer_core_bundle', None)
-    if bundle is None or recovery_attempted or bundle[0] != answer or answer != admitted_answer:
-        return {}
-    return {'answer_core_summary': bundle[1]}
+    if bundle is not None and not recovery_attempted and bundle[0] == answer == admitted_answer:
+        return {'answer_core_summary': bundle[1]}
+    summarize = getattr(runtime, 'summarize_answer', None)
+    if callable(summarize):
+        summary = summarize(admitted_answer)
+        if summary:
+            return {'answer_core_summary': summary}
+    return {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -892,6 +908,19 @@ class HarnessAttemptRunner:
                         },
                         visibility="public",
                     )
+            task_diagram = getattr(self._runtime, 'admitted_task_diagram', None)
+            if candidate is not None and candidate.authority_references and callable(task_diagram):
+                lease.check()
+                try:
+                    view = task_diagram(claim, candidate.authority_references)
+                    if view is not None:
+                        self._service.append_runtime_event(claim, event_type='network_diagram',
+                            payload={'diagram': view['diagram']}, visibility='public')
+                        self._service.append_runtime_event(claim, event_type='network_layer',
+                            payload={'ordinal': view['ordinal'], 'layer': view['layer'], 'projection_version': 2},
+                            visibility='public')
+                except (OSError, TypeError, ValueError):
+                    pass
             lease.check()
             terminal_commit_started = True
             terminal_payload['task_steps'] = self._stages.finish()

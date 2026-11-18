@@ -448,7 +448,7 @@ class GeneralPiProcess:
 
     def run(self, instruction: str, *, timeout: float, cancelled: Callable[[], bool],
             on_event: Callable[[dict], None], inventory_only: bool = False,
-            on_process_started: Callable[[], None] | None = None) -> str:
+            on_process_started: Callable[[], None] | None = None, answer_format: str | None = None) -> str:
         if timeout <= 0:
             raise ValueError('General Pi deadline is invalid')
         privilege = {} if self.uid is None else {'user': self.uid, 'group': self.uid, 'extra_groups': []}
@@ -654,7 +654,7 @@ class GeneralPiProcess:
                     self.usage['native_tools'] = self.tools
                     answer = ''.join(part.get('text', '') for part in assistants[-1].get('content', [])
                                      if part.get('type') == 'text')
-                    answer = public_answer(answer)
+                    answer = public_answer(answer, answer_format=answer_format)
                     if not answer.strip():
                         raise ValueError('General Pi answer is invalid')
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')

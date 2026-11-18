@@ -115,3 +115,37 @@ def project_scene_annotations(
     return {"scene": {"label": label,
                       "context_ref": context, "model_revision": revision, "source_ref": source_ref},
             "states": states, "regions": regions}
+
+
+def selected_loading_assets(arguments: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    """Project the ordered branch selection of a bounded loading dataset query."""
+    kind = {"result.res_line": "line", "result.res_trafo": "trafo",
+            "result.res_trafo3w": "trafo3w"}.get(arguments.get("dataset"))
+    order = arguments.get("sort")
+    limit = arguments.get("limit")
+    if (kind is None or not isinstance(order, Mapping) or order.get("field") != "loading_percent"
+            or order.get("direction") not in {"ascending", "descending"}
+            or "loading_percent" not in arguments.get("select", ())
+            or type(limit) is not int or not 1 <= limit <= 100 or arguments.get("where")
+            or arguments.get("offset", 0) != 0):
+        return []
+    indices = None
+    filters = arguments.get("filters", ())
+    if filters:
+        if not isinstance(filters, (list, tuple)) or len(filters) != 1 or not isinstance(filters[0], Mapping):
+            return []
+        condition = filters[0]
+        selected = condition.get("value")
+        if (condition.get("field") != "index" or condition.get("operator") != "in"
+                or not isinstance(selected, list) or not 0 < len(selected) <= 20
+                or any(type(index) is not int for index in selected)):
+            return []
+        indices = set(selected)
+    elif limit > 20:
+        return []
+    rows = [row for row in result.get("branch_results", ())
+            if row.get("element_kind") == kind and (indices is None or row.get("pandapower_index") in indices)
+            and type(row.get("loading_percent")) in (int, float)
+            and math.isfinite(row["loading_percent"]) and isinstance(row.get("branch_ref"), str)]
+    rows.sort(key=lambda row: row["loading_percent"], reverse=order["direction"] == "descending")
+    return [row["branch_ref"] for row in rows[:limit]]

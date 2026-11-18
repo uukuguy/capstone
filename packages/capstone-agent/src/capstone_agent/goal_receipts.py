@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from datetime import timezone
 from dataclasses import replace
 import json
+import re
 
 from .goal_mode import parse_goal_mode
 
@@ -45,6 +46,8 @@ def goal_response_instruction(instruction: str) -> str:
         '(continue, wait, complete), summary, next_instruction (nonempty only for continue; '
         'otherwise null), waiting_reason (nonempty only for wait; otherwise null), '
         'product_refs (array of saved product references; use [] when no references are needed). '
+        'Only for continue, optionally include authority_refs with exact saved context, result or evidence references needed by the next iteration. '
+        'Omit authority_refs for wait or complete. '
         'Use continue when more useful work remains, wait when input is missing, and complete '
         'only when the objective has been delivered. Save useful products before responding. '
         'Do not add markdown fences or execution identity fields. '
@@ -86,7 +89,7 @@ class GoalProposalCapture:
 
 def parse_goal_proposal(value: object) -> dict:
     fields = {'schema', 'disposition', 'summary', 'next_instruction', 'waiting_reason', 'product_refs'}
-    if not isinstance(value, dict) or set(value) != fields:
+    if not isinstance(value, dict) or set(value) - {'authority_refs'} != fields:
         raise ValueError('invalid goal proposal fields')
     if value['schema'] != 'capstone-work-goal-proposal/1':
         raise ValueError('unsupported goal proposal schema')
@@ -105,17 +108,32 @@ def parse_goal_proposal(value: object) -> dict:
         raise ValueError('unexpected continuation instruction')
     if (disposition == 'wait') != (value['waiting_reason'] is not None):
         raise ValueError('waiting reason does not match disposition')
-    refs = value['product_refs']
+    validate_goal_product_refs(value['product_refs'])
+    if disposition == 'continue' and 'authority_refs' in value:
+        validate_goal_authority_refs(value['authority_refs'])
+    result = deepcopy(value)
+    if disposition != 'continue':
+        result.pop('authority_refs', None)
+    return result
+
+
+def validate_goal_product_refs(refs):
     if (not isinstance(refs, list) or len(refs) > 64
             or any(not isinstance(ref, str) or not ref.strip() or len(ref) > 2048 for ref in refs)
             or len(set(refs)) != len(refs)):
         raise ValueError('invalid goal product references')
-    return deepcopy(value)
+
+
+def validate_goal_authority_refs(refs):
+    validate_goal_product_refs(refs)
+    if any(not re.fullmatch(r'(?:context|result|evidence):sha256:[0-9a-f]{64}', ref) for ref in refs):
+        raise ValueError('invalid goal authority references')
 
 
 def settle_goal_proposal(value: object, proposal: object, *, objective_revision: int,
                          generation: int, attempt_id: str, now: datetime,
-                         saved_product_refs: tuple[str, ...], delivery_saved: bool) -> dict:
+                         saved_product_refs: tuple[str, ...], delivery_saved: bool,
+                         saved_authority_refs=()) -> dict:
     """Qualify a proposal against host facts; callers persist the result atomically."""
     goal = parse_goal_mode(value)
     progress = parse_goal_proposal(proposal)
@@ -132,6 +150,8 @@ def settle_goal_proposal(value: object, proposal: object, *, objective_revision:
         raise ValueError('goal boundary clock must be UTC')
     if not set(progress['product_refs']) <= set(saved_product_refs):
         raise ValueError('goal references unsaved products')
+    if not set(progress.get('authority_refs', ())) <= set(saved_authority_refs):
+        raise ValueError('goal references unadmitted authority content')
     goal['last_settled_attempt_id'] = attempt_id
     if progress['disposition'] == 'complete':
         if delivery_saved is not True:
@@ -149,7 +169,7 @@ def settle_goal_proposal(value: object, proposal: object, *, objective_revision:
 
 
 def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
-                                 saved_product_refs, delivery_saved):
+                                 saved_product_refs, delivery_saved, saved_authority_refs=()):
     """Prepare Work goal state for the caller's terminal transaction."""
     works = deepcopy(list(snapshot.works))
     work = next(item for item in works if item['work_id'] == context.binding.work_id)
@@ -157,10 +177,15 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
     progress = parse_goal_proposal(proposal)
     settled = settle_goal_proposal(goal, progress, objective_revision=context.goal_revision,
         generation=goal['generation'], attempt_id=attempt_id, now=datetime.now(timezone.utc),
-        saved_product_refs=saved_product_refs, delivery_saved=delivery_saved)
+        saved_product_refs=saved_product_refs, delivery_saved=delivery_saved,
+        saved_authority_refs=saved_authority_refs)
     work['goal_mode'] = settled
     work.pop('goal_continuation', None)
     if settled['state'] == 'ready':
         work['goal_continuation'] = {'predecessor_attempt_id': attempt_id,
-            'generation': settled['generation'], 'next_instruction': progress['next_instruction']}
+            'generation': settled['generation'], 'next_instruction': progress['next_instruction'],
+            'product_refs': progress['product_refs'],
+            **({'authority_refs': progress['authority_refs'],
+                'authority_model': None if not context.model_contexts else context.model_contexts[0].to_document()}
+               if 'authority_refs' in progress else {})}
     return replace(snapshot, works=tuple(works))

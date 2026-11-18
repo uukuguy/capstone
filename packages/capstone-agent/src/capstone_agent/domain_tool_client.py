@@ -113,3 +113,69 @@ def invoke_domain_tool(origin: str, token: str, body: dict) -> dict:
     if document.get('ok') is False and isinstance(document.get('error'), dict):
         return document
     return {'ok': False, 'error': {'message': 'domain tool call failed'}}
+
+
+def project_task_diagram(structural, catalog, model_context, references, tool_calls=(), *, focused=False):
+    from .domain_tool_grant import domain_tool_grant
+    from .network_diagram import normalize_network_diagram, normalize_network_projection
+    from .structural_context import management_for
+
+    token = os.environ.get('CAPSTONE_OPERATOR_TOKEN', '')
+    grant = domain_tool_grant(catalog, model_context)
+    management = management_for(structural)
+    if not token or not grant or management is None:
+        return None
+    origins = domain_tool_origins(os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''))
+    refs = tuple(ref for receipt in references for key in ('result_refs', 'evidence_refs') for ref in receipt[key])
+    result_refs = {ref for receipt in references for ref in receipt['result_refs']}
+    diagrams = []
+    for family in dict.fromkeys(profile['implementation_family'] for profile in grant['profiles']):
+        if family not in origins:
+            continue
+        origin = origins[family]
+        body = {'management': management, 'references': references}
+        if focused:
+            body['focused'] = True
+        if focused and tool_calls and result_refs:
+            tools, _, _ = load_domain_tool_catalogs(
+                {'profiles': [profile for profile in grant['profiles'] if profile['implementation_family'] == family]},
+                origins=origins, token=token)
+            published = tools.get('tools', {})
+            body['tool_calls'] = [
+                call for call in tool_calls
+                if call['name'] in published
+                and isinstance(reference := call['arguments'].get('result_ref'), str)
+                and reference in result_refs
+            ]
+        try:
+            diagram = _request(origin, '/domain-tools/task-diagram', token, body=json.dumps(body).encode(), timeout=10)
+            diagrams.append(normalize_network_projection(diagram, admitted_refs=refs) if focused
+                            else normalize_network_diagram(diagram))
+        except (OSError, TypeError, ValueError):
+            continue
+    return diagrams[0] if len(diagrams) == 1 else None
+
+
+def recover_legacy_authority_inputs(receipts, grant, checkpoint):
+    from .structural_context import checked_authority_references
+
+    token = os.environ.get('CAPSTONE_OPERATOR_TOKEN', '')
+    if not receipts or not grant or not token:
+        return []
+    origins = domain_tool_origins(os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''))
+    families = dict.fromkeys(item['implementation_family'] for item in grant['profiles'])
+    inputs = []
+    for receipt in receipts:
+        for family in families:
+            if family not in origins:
+                continue
+            checkpoint()
+            try:
+                saved = _request(origins[family], '/domain-tools/recover', token,
+                                 body=json.dumps(receipt).encode(), timeout=3)
+                references = checked_authority_references(saved)
+            except (OSError, ValueError):
+                continue
+            inputs.append({'owner': {'legacy_task': receipt['task_id']}, **references})
+    checkpoint()
+    return inputs

@@ -11,17 +11,43 @@ def plan(control):
     return command(control,mission,'ready',{},'ready')
 
 
-def complete_task(control,mission,number=1):
+def complete_task(control,mission,number=1,**delivery_fields):
     mission = command(control,mission,'delegate_next',{},'dispatch_'+str(number))
     current = next(t for t in mission['tasks'] if t['state']=='dispatching')
     control.deliver('team',mission['mission_id'],current['delegation']['delegation_id'],
         {'thread_id':'task_thread_'+str(number),'work_id':'task_work_'+str(number)},
-        dict(answer_ref='answer_'+str(number),products=[],status='completed'))
+        dict(answer_ref='answer_'+str(number),products=[],status='completed',**delivery_fields))
     goal = control.read('team',mission['mission_id'])
     control.command('team',dict(schema='capstone-control-command/1',operation_id='verify_'+str(number),
         goal_id=mission['mission_id'],expected_revision=goal['revision'],kind='verify_task',
         payload=dict(task_id=current['task_id'],delivery_revision=1,checks=[dict(name='Saved answer checked',passed=True)])))
     return control.read_mission('team',mission['mission_id'])
+
+
+def test_verified_authority_source_reaches_review_and_declared_dependent():
+    control = service()
+    source = dict(thread_id='task_thread_1', work_id='task_work_1',
+                  attempt_id='attempt_1', answer_ref='answer_1')
+    mission = complete_task(control, plan(control), authority_source=source, gateway_source=source)
+    intent = control.pending_mission_reviews('team')[0]
+    reserved = control.reserve_mission_review('team', mission['mission_id'], intent['review_id'])
+    assert reserved['boundary']['tasks'][0]['delivery']['authority_source'] == source
+    assert reserved['boundary']['tasks'][0]['delivery']['gateway_source'] == source
+    control.acknowledge_mission_review('team', mission['mission_id'], intent['review_id'],
+        dict(thread_id='thread_1', work_id='origin_work', attempt_id='review_1'))
+    mission = control.read_mission('team', mission['mission_id'])
+    second = task('task_2')
+    second['depends_on'] = ['task_1']
+    mission = command(control, mission, 'prepare_task', {'task': second}, 'second')
+    mission = command(control, mission, 'ready', {}, 'ready_second')
+    control.finish_mission_review('team', mission['mission_id'], intent['review_id'],
+                                  attempt_id='review_1', phase='completed')
+    mission = control.read_mission('team', mission['mission_id'])
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch_2')
+    delegated = mission['tasks'][1]['delegation']['delegation_id']
+    request = control.delegation_request('team', mission['mission_id'], delegated)
+    assert request['context_authority_sources'] == [source]
+    assert request['context_gateway_sources'] == [source]
 
 
 def test_two_phase_organizer_uses_boundaries_and_explicit_plan_conclusion():
@@ -225,3 +251,27 @@ def test_trusted_release_refunds_only_unbound_reservation_and_resume_has_new_ide
     with pytest.raises(InvalidTransition):
         control.release_mission_review('team',mission['mission_id'],second['review_id'])
     assert control.read_mission('team',mission['mission_id'])['organizer']['reviews_admitted']==1
+
+
+def test_missing_required_reference_reaches_review_as_failed_delivery():
+    control = service()
+    mission = create(control, acceptance_criteria=['Read the source operation'])
+    producer = {**task(), 'required_reference_sources': ['gateway_source']}
+    consumer = {**task('task_2'), 'depends_on': ['task_1']}
+    mission = command(control, mission, 'update_plan',
+        {'acceptance_criteria': ['Read the source operation'], 'tasks': [producer, consumer]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    binding = {'thread_id': 'task_thread', 'work_id': 'task_work'}
+    answer = {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'}
+
+    control.deliver('team', mission['mission_id'], delegation, binding, answer)
+    control.deliver('team', mission['mission_id'], delegation, binding, answer)
+
+    intent = control.pending_mission_reviews('team')[0]
+    failed, pending = intent['boundary']['tasks']
+    assert failed['state'] == 'failed'
+    assert failed['failure_reason'] == 'required_reference_receipt_missing'
+    assert failed['delivery']['answer_ref'] == 'saved_answer'
+    assert pending['state'] == 'pending'

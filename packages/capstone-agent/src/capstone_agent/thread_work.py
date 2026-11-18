@@ -5,7 +5,7 @@ import json
 import secrets
 
 from .enterprise_context import TaskContext, WorkBinding
-from .thread_protocol import ThreadProtocolError, ThreadSnapshot
+from .thread_protocol import ModelContextSnapshot, ThreadProtocolError, ThreadSnapshot
 from .session_title import SessionTitle
 from .application_capacity import limits, require_capacity
 
@@ -83,13 +83,20 @@ def transition_work(snapshot, task_context, attempt_id, status):
             work['consumed_message_count'] = len(work['messages'])
     if status in {'completed', 'failed', 'cancelled', 'interrupted'}:
         for item in work.get('instruction_queue', []):
-            if item['attempt_id'] == attempt_id and item['state'] == 'delivering':
+            if item['attempt_id'] != attempt_id:
+                continue
+            if item['state'] == 'delivering':
                 item['state'] = 'delivery_unknown'
+            elif item['state'] == 'pending' and item.get('mode') == 'interrupt' and work.get('cancel_requested'):
+                item['state'] = 'withdrawn'
         work['cancel_requested'] = False
         pending = work.pop('pending_goal_control', None)
         if pending is not None:
-            work.pop('goal_continuation', None)
             goal = pending['goal_mode']
+            previous = work['goal_mode']
+            if (goal['reason'] != 'user_pause' or goal['generation'] != previous['generation']
+                    or goal['objective_revision'] != previous['objective_revision']):
+                work.pop('goal_continuation', None)
             work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'])
             work['task_context'] = replace(task_context, goal_revision=goal['objective_revision']).to_document()
         elif 'goal_mode' in work:
@@ -227,7 +234,7 @@ def apply_work(snapshot, command, *, archived=False):
         work = deepcopy(target_work)
         payload = command['payload']
         if command['kind'] == 'queue_instruction':
-            if set(payload) != {'text'} or not isinstance(payload['text'], str) or not payload['text'].strip():
+            if set(payload) - {'mode'} != {'text'} or ('mode' in payload and payload['mode'] != 'interrupt') or not isinstance(payload['text'], str) or not payload['text'].strip():
                 raise ThreadProtocolError('Instruction text is required')
             current = snapshot.current_attempt
             if current is None or current.attempt_id != work.get('latest_attempt_id'):
@@ -237,7 +244,14 @@ def apply_work(snapshot, command, *, archived=False):
             queue = work.get('instruction_queue', [])
             if len(queue) >= limits.work_message_count or len(payload['text']) > limits.input_text_chars:
                 return snapshot, 'work_limit_reached', None
-            work['instruction_queue'] = submit(queue, command['command_id'], payload['text'], current.attempt_id)
+            mode = payload.get('mode')
+            if mode == 'interrupt':
+                if snapshot.active_model_context is not None or not work.get('conversation_mode') or 'goal_mode' in work:
+                    return snapshot, 'instruction_queue_unavailable', None
+                if any(item['attempt_id'] == current.attempt_id and item['state'] == 'pending'
+                       and item.get('mode') == 'interrupt' for item in queue):
+                    return snapshot, 'attempt_stopping', None
+            work['instruction_queue'] = submit(queue, command['command_id'], payload['text'], current.attempt_id, mode=mode)
         else:
             if set(payload) != {'instruction_id'} or not isinstance(payload['instruction_id'], str):
                 raise ThreadProtocolError('Instruction identity is required')
@@ -505,7 +519,8 @@ def parse_snapshot(document):
             seen_instructions, previous_sequence = set(), 0
             for item in queue:
                 if (not isinstance(item, dict)
-                        or set(item) != {'id', 'text', 'attempt_id', 'sequence', 'state'}
+                        or set(item) - {'mode'} != {'id', 'text', 'attempt_id', 'sequence', 'state'}
+                        or ('mode' in item and item['mode'] != 'interrupt')
                         or not isinstance(item['text'], str) or not item['text'].strip()
                         or len(item['text']) > limits.input_text_chars
                         or type(item['sequence']) is not int or item['sequence'] <= previous_sequence
@@ -520,7 +535,7 @@ def parse_snapshot(document):
                 previous_sequence = item['sequence']
         if 'goal_continuation' in work:
             continuation = work['goal_continuation']
-            if (not isinstance(continuation, dict) or set(continuation) != {
+            if (not isinstance(continuation, dict) or set(continuation) - {'product_refs', 'authority_refs', 'authority_model'} != {
                     'predecessor_attempt_id', 'generation', 'next_instruction'}
                     or 'goal_mode' not in work
                     or type(continuation['generation']) is not int
@@ -529,6 +544,22 @@ def parse_snapshot(document):
                            or len(continuation[key]) > limits.input_text_chars
                            for key in ('predecessor_attempt_id', 'next_instruction'))):
                 raise ThreadProtocolError('invalid goal continuation')
+            if 'product_refs' in continuation:
+                from .goal_receipts import validate_goal_product_refs
+                try:
+                    validate_goal_product_refs(continuation['product_refs'])
+                except ValueError as error:
+                    raise ThreadProtocolError('invalid goal continuation products') from error
+            if ('authority_refs' in continuation) != ('authority_model' in continuation):
+                raise ThreadProtocolError('incomplete goal authority selection')
+            if 'authority_refs' in continuation:
+                from .goal_receipts import validate_goal_authority_refs
+                try:
+                    validate_goal_authority_refs(continuation['authority_refs'])
+                    if continuation['authority_model'] is not None:
+                        ModelContextSnapshot.from_document(continuation['authority_model'])
+                except ValueError as error:
+                    raise ThreadProtocolError('invalid goal continuation authority references') from error
         if 'pending_goal_control' in work:
             from .goal_mode import parse_goal_mode
             pending = work['pending_goal_control']

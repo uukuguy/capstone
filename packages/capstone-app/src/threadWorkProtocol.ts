@@ -9,7 +9,7 @@ import {parseContextProductRefs} from './threadProducts'
 import {parseGoalMode,goalCommand,type GoalMode,type GoalControl} from './goalMode'
 import type { AttemptPhase, RuntimeMode } from './threadProtocol'
 
-export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;state:'pending'|'delivering'|'delivery_unknown'|'admitted'|'withdrawn'}
+export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;mode?:'interrupt';state:'pending'|'delivering'|'delivery_unknown'|'admitted'|'withdrawn'}
 export type WorkRecord = {
   instructionQueue?:QueuedInstruction[]
   instructionQueueAvailable?:boolean
@@ -114,8 +114,8 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       if(!Array.isArray(work.instruction_queue))throw new ThreadProtocolError('指令队列无效')
       instructionQueue=work.instruction_queue.map(raw=>{
         const entry=object(raw)
-        if(typeof entry.text!=='string'||!entry.text.trim()||!['pending','delivering','delivery_unknown','admitted','withdrawn'].includes(String(entry.state)))throw new ThreadProtocolError('队列指令无效')
-        return {id:id(entry.id),text:entry.text,attemptId:id(entry.attempt_id),sequence:revision(entry.sequence,1),state:entry.state as QueuedInstruction['state']}
+        if((entry.mode!==undefined&&entry.mode!=='interrupt')||typeof entry.text!=='string'||!entry.text.trim()||!['pending','delivering','delivery_unknown','admitted','withdrawn'].includes(String(entry.state)))throw new ThreadProtocolError('队列指令无效')
+        return {id:id(entry.id),text:entry.text,attemptId:id(entry.attempt_id),sequence:revision(entry.sequence,1),state:entry.state as QueuedInstruction['state'],...(entry.mode==='interrupt'?{mode:'interrupt' as const}:{})}
       })
       if(new Set(instructionQueue.map(entry=>entry.id)).size!==instructionQueue.length)throw new ThreadProtocolError('队列指令身份重复')
       instructionQueue.sort((a,b)=>a.sequence-b.sequence)
@@ -205,8 +205,9 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
   if (target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
   if(command.kind==='queue_instruction'||command.kind==='withdraw_instruction'){
     const field=command.kind==='queue_instruction'?'text':'instruction_id'
-    if(Object.keys(payload).length!==1||typeof payload[field]!=='string'||!(payload[field] as string).trim()||(field==='text'&&exceedsCapacity((payload[field] as string).length,'input_text_chars')))throw new ThreadProtocolError('队列命令无效')
-    return {schema:'capstone-command/2',thread_id:threadId,run_id:id(command.run_id),command_id:id(command.command_id),idempotency_key:id(command.idempotency_key),kind:command.kind,target:{kind:'work',id:id(target.id),expected_revision:revision(target.expected_revision,1)},payload:{[field]:field==='instruction_id'?id(payload[field]):payload[field] as string}}
+    const interrupt=command.kind==='queue_instruction'&&payload.mode==='interrupt'
+    if(Object.keys(payload).length!==(interrupt?2:1)||typeof payload[field]!=='string'||!(payload[field] as string).trim()||(field==='text'&&exceedsCapacity((payload[field] as string).length,'input_text_chars')))throw new ThreadProtocolError('队列命令无效')
+    return {schema:'capstone-command/2',thread_id:threadId,run_id:id(command.run_id),command_id:id(command.command_id),idempotency_key:id(command.idempotency_key),kind:command.kind,target:{kind:'work',id:id(target.id),expected_revision:revision(target.expected_revision,1)},payload:{[field]:field==='instruction_id'?id(payload[field]):payload[field] as string,...(interrupt?{mode:'interrupt'}:{})}}
   }
   if (['start_goal','pause_goal','resume_goal','cancel_goal','revise_goal_objective'].includes(String(command.kind))) {
     if(!Object.values(payload).every(value=>typeof value==='string'||typeof value==='number'))throw new ThreadProtocolError('目标命令无效')

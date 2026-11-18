@@ -23,19 +23,19 @@ def enqueue_rejection(binding, snapshot, work_id):
     return 'instruction_queue_capacity_reached' if count >= binding['capability']['instruction_limit'] else None
 
 
-def submit(queue, identity, text, attempt_id):
+def submit(queue, identity, text, attempt_id, *, mode=None):
     if any(not isinstance(value, str) or not value.strip()
            for value in (identity, text, attempt_id)):
         raise ValueError('Instruction identity, text and attempt are required')
     previous = next((item for item in queue if item['id'] == identity), None)
     if previous is not None:
-        if previous['text'] != text or previous['attempt_id'] != attempt_id:
+        if previous['text'] != text or previous['attempt_id'] != attempt_id or previous.get('mode') != mode:
             raise ValueError('Instruction identity was reused with different content')
         return deepcopy(queue)
     result = deepcopy(queue)
     result.append(dict(id=identity, text=text, attempt_id=attempt_id,
                        sequence=max((item['sequence'] for item in queue), default=0) + 1,
-                       state='pending'))
+                       state='pending', **({'mode': mode} if mode else {})))
     return result
 
 
@@ -67,7 +67,7 @@ def admit(queue, attempt_id, lease_token, *, stopped=False):
 
 def pending(queue, attempt_id):
     return tuple(deepcopy(item) for item in sorted(queue, key=lambda item: item['sequence'])
-                 if item['attempt_id'] == attempt_id and item['state'] == 'pending')
+                 if item['attempt_id'] == attempt_id and item['state'] == 'pending' and item.get('mode') != 'interrupt')
 
 
 def reserve(queue, attempt_id, identity):
@@ -162,3 +162,43 @@ def access(service, claim, operation, identity=None):
             connection.execute('UPDATE capstone_threads SET works=%s,last_event_seq=%s WHERE thread_id=%s',
                                (Jsonb(list(updated.works)), event.event_seq, claim.thread_id))
         return () if operation == 'peek' and item is None else item
+
+
+def replacement_item(snapshot, attempt_id):
+    """Choose an explicit interruption for the current Work."""
+    for work in snapshot.works:
+        if (work.get('latest_attempt_id') == attempt_id and work.get('conversation_mode')
+                and not work.get('cancel_requested') and 'goal_mode' not in work):
+            for item in work.get('instruction_queue', ()):
+                if (item['attempt_id'] == attempt_id and item['state'] == 'pending'
+                        and item.get('mode') == 'interrupt'):
+                    return work['work_id'], item
+    return None
+
+
+def prepare_replacement(before, terminal, attempt_id, submission):
+    """Admit a separate instruction using the source Attempt's frozen grants."""
+    from dataclasses import replace
+    from .thread_work import create_attempt, project_work
+    from .enterprise_context import TaskContext
+    import secrets
+
+    selection = replacement_item(before, attempt_id)
+    if selection is None:
+        return None
+    work_id, selected = selection
+    works = deepcopy(terminal.works)
+    work = next(item for item in works if item['work_id'] == work_id)
+    queued = next(item for item in work['instruction_queue'] if item['id'] == selected['id'])
+    queued['state'] = 'admitted'
+    work.update(status='queued', revision=work['revision'] + 1, messages=[queued['text']],
+                consumed_message_count=0, cancel_requested=False)
+    context = TaskContext.from_document(work['task_context'])
+    work['task_context'] = replace(context, snapshot_id='task_' + secrets.token_hex(10)).to_document()
+    snapshot, current, task_context, text = create_attempt(replace(terminal, works=works), work)
+    frozen = {**deepcopy(submission or {}), 'input': {'kind': 'text', 'text': text}}
+    payload = {'command_id': queued['id'], 'kind': 'send_auto',
+               'payload': {'text': text, 'source_attempt_id': attempt_id},
+               'supersedes_attempt_id': attempt_id, 'work_id': work_id,
+               'work': project_work(snapshot, work)}
+    return snapshot, current, task_context, frozen, payload

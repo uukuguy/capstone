@@ -1516,3 +1516,16 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-llm-popover button:disabled { opacity: .45; cursor: default; }
 .thread-llm-popover small { margin-left: 8px; font-size: 11px; }
 @media (pointer: coarse) { .thread-llm-popover button { min-height: 44px; } }
+
+.capstone-chat-viewport > .capstone-chat-message { flex-shrink: 0; }
+.capstone-answer-status { display: inline-block; margin-right: 8px; font-size: 12px; }
+.capstone-chat-body .capstone-answer-summary .capstone-chat-markdown,
+.capstone-chat-body .capstone-answer-summary .capstone-chat-markdown :is(p, li),
+.capstone-chat-body .capstone-answer-content .capstone-chat-markdown,
+.capstone-chat-body .capstone-answer-content .capstone-chat-markdown p {
+  font-size: var(--conversation-font-size, 14px);
+  line-height: 1.6;
+}
+
+.capstone-answer-summary .capstone-chat-markdown :is(ul, ol) { margin: 5px 0; padding-inline-start: 20px; }
+.capstone-answer-summary .capstone-chat-markdown > :last-child { margin-bottom: 0; }

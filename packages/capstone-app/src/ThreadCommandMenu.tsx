@@ -111,7 +111,6 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
       }
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return }
       if (!(event.target instanceof HTMLTextAreaElement)) return
-      if (disabled && event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); return }
       if (candidates.length && ['ArrowDown', 'ArrowUp', 'Tab', 'Enter'].includes(event.key)) {
         event.preventDefault(); event.stopPropagation()
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') setIndex((index + (event.key === 'ArrowDown' ? 1 : -1) + candidates.length) % candidates.length)
