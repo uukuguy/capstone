@@ -8166,3 +8166,15 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 76887ec3 recovers complete formal/core JSON before a recorded tool trailer. The captured live reply decodes.
 
 - 2026-11-18: Live model-free Work replays the exact result without recalculation. Typed admission and unsupported limit claims remain open.
+
+- 2026-11-18: 6d4c37b7 persists verified Authority receipts so later Work attempts can recover exact results and linked evidence.
+
+- 2026-11-18: Both native model modes retain exact result and evidence references through real read-only ranking. Answer scope remains open.
+
+- 2026-11-18: After worker replacement, open-model ranking retains both references and reports unavailable limits without giving a limit assessment.
+
+- 2026-11-18: b1a00e64 requires observed thresholds before formal answers and core summaries make limit or compliance judgments.
+
+- 2026-11-18: a43f2819 retains the same Work predecessor catalog so background Goal admissions keep registered Domain Pack tools.
+
+- 2026-11-18: Real automatic Goal continuation reads and commits the original result and evidence through structured context without replacing the calculation.
