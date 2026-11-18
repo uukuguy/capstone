@@ -425,6 +425,8 @@ CAPSTONE_GENERAL_NATIVE_TESTS=1 uv run --project packages/capstone-agent pytest 
 
 App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接继续打开对应 Thread。App 先读取 `/api/v1/thread-access`：`CAPSTONE_THREAD_OPEN_ACCESS=true` 时直接进入工作台，不输入或保存浏览器令牌。本地 Compose 默认开启；cloud-dev 在本地验收后显式开启。设为 `false` 时保留原 operator token 入口。该接口返回访问模式和安全的有效容量快照，不返回操作员或 Provider 密钥。创建 Thread 后把其 ID 写入当前 URL，刷新时恢复同一 Thread。模型目录只提交“打开 模型 ID 电网模型”，拓扑由模型状态投影同步。已完成回答可重新提交原指令作为新的 Turn，保留原回答；失败回答沿用原 Turn 的重试 Attempt。原登记案例页移到 `/old`，下面的公开案例说明均指该页面；案例受限凭证不会授予智能体 Provider 权限。
 
+企业工作台入口为 `/enterprise`。可用 `/enterprise?workspace=<name>&thread=<id>` 打开已授权的会话。切换会话会保留入口路径。刷新读取同一会话及成果，按当前工作空间和访问模式授权。
+
 对话区的小型「新建对话」创建独立 Thread，不取消原有后台任务。用户系统、历史会话列表、归档恢复界面和 LLM 会话命名暂缓，后续计划记录在[会话管理计划](superpowers/plans/2026-10-06-thread-session-management.md#current-scope-2026-10-06-1124)。当前 App 只管理已连接的 Thread；既有消息、结果和证据仍保留。
 
 服务端模型准备缓存有容量和空闲期限。正在执行的 Attempt 固定其资源；空闲回收只释放进程对象、声明和端点，不删除数据库中的消息、结果与证据。下一条指令按已登记的模型重新准备资源。运行时在终态停止，RPC 请求有有限期限。API 对实时订阅总数及每个 Thread 的订阅数设上限，连接结束后释放名额；容量暂满时返回可重试的 503。缓存数量可在 worker 私有 `/health` 的 `thread_contexts` 中核对。阈值统一由[共享运行配置](../configs/runtime/host-runtime-v1.json)管理，本地与云端必须一致。

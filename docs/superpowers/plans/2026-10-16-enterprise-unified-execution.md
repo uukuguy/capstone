@@ -1,5 +1,15 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Dedicated enterprise workspace entry
+
+Owner capstone-app. PR146 merged to dev `68857937` after scoped macOS App
+CI `44236252574`. The first Task 5 slice uses the approved prototype and
+shared conversation components. It adds a dedicated route, read-only Thread
+recovery, and separate layout preferences. Local acceptance covers real
+submit and stop, product reading, refresh without duplicate commands, and
+screenshots at 1440 and 390 pixels. The remaining Task 5 scope stays open.
+[Implementation plan](2026-11-18-enterprise-workspace-entry.md).
+
 ## Mission registered skill equipment
 
 Owner capstone-agent with capstone-control. PR144 merged to dev `f22ea11c`
