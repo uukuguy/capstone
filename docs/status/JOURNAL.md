@@ -8252,3 +8252,11 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: 84772ea3 compacts the enterprise header and removes the idle composer status row.
 
 - 2026-11-19: cdc436d3 restores the original 60/40 default split while retaining user resizing.
+
+- 2026-11-19: 4ae38378 records live Enter behavior, transactional switching, and compact workspace measurements.
+
+- 2026-11-19: cd35cd96 restores the shared 18 px enterprise session title and verifies its 56 px header.
+
+- 2026-11-19: fab62528 pairs formal answers with same-execution summaries and makes expanded replies scrollable.
+
+- 2026-11-19: 11479c8c lets user scrolling override reading-position restoration and displays the whole formal reply inline.

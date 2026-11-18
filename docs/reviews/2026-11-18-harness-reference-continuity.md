@@ -325,3 +325,25 @@ A real inserted question stayed in `attempt_0a6af820a71bed8f` while its
 registered grid tools continued. The attempt completed and answered the
 inserted question. Focused checks passed 201 App tests and 119 backend
 tests, with PostgreSQL enabled for the ledger cases.
+
+## Paired answer summaries and long replies
+
+The execution path saves the formal answer and its corresponding summary
+together. If the initial model response omits the summary, the execution
+asks its selected model to summarize the admitted formal answer. The
+fallback has no tools. It preserves the saved answer when a summary request
+fails.
+
+The original gateway Attempt `attempt_db29bab16f9bd102` retained its
+4115-character formal answer. Its original completion event had no summary.
+The recovery used the stored model selection and appended a summary event
+for that Attempt. It did not change the formal answer. The full expanded
+answer uses the conversation viewport. User scroll input clears pending
+reading-position restoration. Browser testing reached the final paragraph
+with End on the conversation viewport and confirmed that the reply has
+no inner scrollbar.
+
+A fresh gateway execution, `attempt_0ccae9013f741b80`, used real tools and
+saved both its 4370-character formal answer and its distinct 253-character
+summary in a single completion event. Focused checks passed 211 App tests
+and 81 Agent tests. Four conditional Agent tests were skipped.
