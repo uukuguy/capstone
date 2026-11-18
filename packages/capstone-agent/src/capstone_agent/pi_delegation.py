@@ -112,9 +112,12 @@ def _json_document(value: object, *, native_events: bool = False, native_result:
             if ((native_result or wrapped_result)
                     and len(source_path) == 2 and source_path[0] == 'sources'
                     and type(source_path[1]) is int):
-                from .structural_context import AUTHORITY_REFERENCE_SOURCE, checked_authority_references
+                from .structural_context import (AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE,
+                    checked_authority_references, checked_gateway_operations)
                 if item.get('kind') == AUTHORITY_REFERENCE_SOURCE:
                     result['metadata'] = checked_authority_references(item.get('metadata'))
+                elif item.get('kind') == GATEWAY_OPERATION_SOURCE:
+                    result['metadata'] = checked_gateway_operations(item.get('metadata'))
             for key, child in item.items():
                 if key in result:
                     continue

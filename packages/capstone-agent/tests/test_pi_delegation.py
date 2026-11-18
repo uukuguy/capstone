@@ -696,3 +696,24 @@ def test_repeated_status_events_are_deduplicated_before_parent_cancellation(serv
     assert len(events)==1
     assert events[0]['event_id']=='e1'
     assert state['cancelled']==['/tasks/task-1']
+
+
+def test_native_result_persists_typed_versioned_gateway_view_receipt():
+    from capstone_agent.structural_context import GATEWAY_OPERATION_SOURCE
+
+    request = PiTaskRequest.from_document(request_document())
+    value = result_document(request)
+    receipt = {'binding': {'connection_id': 'conn', 'instance_id': 'instance', 'catalog_revision': 'rev'},
+        'operations': [{'kind': 'view_ref', 'ref': 'view-one',
+            'view_identity': {'model_ref': 'model-one', 'model_revision': 'revision-one'}}]}
+    source = {'source_id': 'gateway-operation-references', 'task_id': request.task_id,
+              'parent_attempt_id': request.parent_attempt_id, 'kind': GATEWAY_OPERATION_SOURCE,
+              'metadata': receipt}
+    value['sources'] = [source]
+    assert PiTaskResult.from_document(value, request).to_document() == value
+
+    with pytest.raises(ValueError, match='protected fields'):
+        PiTaskResult.from_document({**value, 'sources': [{**source, 'kind': 'note'}]}, request)
+    receipt['operations'][0]['view_identity']['other'] = 'forged'
+    with pytest.raises(ValueError, match='gateway view identity'):
+        PiTaskResult.from_document(value, request)

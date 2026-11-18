@@ -62,7 +62,10 @@ def checked_gateway_operations(value):
         elif 'view_identity' in item:
             raise ValueError('unexpected gateway view identity')
         key = (item['kind'], item['ref'])
-        checked[key] = merge_gateway_reference(checked.get(key), dict(item))
+        document = dict(item)
+        if isinstance(identity, Mapping):
+            document['view_identity'] = dict(identity)
+        checked[key] = merge_gateway_reference(checked.get(key), document)
     return {'binding': dict(binding), 'operations': list(checked.values())}
 
 
