@@ -3,6 +3,7 @@ import type {GatewayConnectionStatus} from './threadInput'
 import type {ThreadListPage} from './threadManagement'
 
 export type WorkspaceNavigationState={
+  enterprise?:boolean
   open:boolean
   toggle:()=>void
   panelId:string

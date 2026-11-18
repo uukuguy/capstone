@@ -59,12 +59,12 @@ function TokenPrompt({ onSubmit }: { onSubmit: (token: string) => void }) {
   </main>
 }
 
-export default function ThreadLiveEntry({ threadId, mode, presentation }: { threadId: string; mode?: 'work'; presentation?: 'workspace' }) {
-  if (presentation === 'workspace') return <WorkspaceRouteEntry threadId={threadId} />
+export default function ThreadLiveEntry({ threadId, mode, presentation }: { threadId: string; mode?: 'work'; presentation?: 'workspace' | 'enterprise' }) {
+  if (presentation) return <WorkspaceRouteEntry threadId={threadId} enterprise={presentation === 'enterprise'} />
   return mode === 'work' ? <WorkLiveEntry threadId={threadId} /> : <LegacyThreadLiveEntry threadId={threadId} />
 }
 
-function WorkspaceRouteEntry({ threadId }: { threadId: string }) {
+function WorkspaceRouteEntry({ threadId, enterprise }: { threadId: string; enterprise: boolean }) {
   const [currentId, setCurrentId] = useState(threadId)
   const [visited,setVisited]=useState([threadId])
   const [namespace,setNamespace]=useState(()=>storageNamespace(import.meta.env.VITE_API_ORIGIN||''))
@@ -102,7 +102,7 @@ function WorkspaceRouteEntry({ threadId }: { threadId: string }) {
     window.addEventListener('capstone-thread-access-changed',reset)
     return () => {window.removeEventListener('popstate', navigate);window.removeEventListener('capstone-session-released',release);window.removeEventListener('capstone-session-cache-limit',resize);window.removeEventListener('capstone-thread-access-changed',reset)}
   }, [currentId,limit,namespace])
-  return <WorkspaceNavigationFrame key={namespace} namespace={namespace} currentId={currentId}>{visited.map(id=><SessionReadingProvider key={`${namespace}.${id}`} namespace={namespace} threadId={id}><Activity mode={id===currentId?'visible':'hidden'}>
+  return <WorkspaceNavigationFrame key={namespace} namespace={namespace} currentId={currentId} enterprise={enterprise}>{visited.map(id=><SessionReadingProvider key={`${namespace}.${id}`} namespace={namespace} threadId={id}><Activity mode={id===currentId?'visible':'hidden'}>
     {id==='new'?<WorkspaceSessionEntry onCreated={navigateSession}/>:<WorkspaceLiveEntry threadId={id}/>}
   </Activity></SessionReadingProvider>)}</WorkspaceNavigationFrame>
 }

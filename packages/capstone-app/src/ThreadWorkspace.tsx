@@ -44,9 +44,12 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   const [expanded, setExpanded] = useSessionViewState(sessionKey?'layout.expanded':'preparation.expanded',false)
   useEffect(()=>{if(resourcePanel)saveWorkspacePanels(sessionKey,{resource:resourcePanelOpen})},[sessionKey,resourcePanelOpen,Boolean(resourcePanel)])
   useEffect(() => { if (!resourcePanelOpen) setExpanded(false) }, [resourcePanelOpen])
-  const [share, setShare] = useSessionViewState('layout.conversation-share',() => {
-    try { const saved=Number(localStorage.getItem('capstone.workspace.conversation-share')); if (saved>=25 && saved<=70) return saved } catch { /* Use the default split. */ }
-    return 60
+  const enterprise = sharedNavigation?.enterprise === true
+  const shareStorage = enterprise ? 'capstone.enterprise-workspace.conversation-share' : 'capstone.workspace.conversation-share'
+  const defaultShare = enterprise ? 48 : 60
+  const [share, setShare] = useSessionViewState(enterprise?'layout.enterprise-conversation-share':'layout.conversation-share',() => {
+    try { const saved=Number(localStorage.getItem(shareStorage)); if (saved>=25 && saved<=70) return saved } catch { /* Use the default split. */ }
+    return defaultShare
   })
   const columns = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
@@ -57,7 +60,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   const resize = (value: number) => {
     const next=Math.round(Math.max(25,Math.min(70,value)))
     setShare(next)
-    try { localStorage.setItem('capstone.workspace.conversation-share',String(next)) } catch { /* Keep the live ratio. */ }
+    try { localStorage.setItem(shareStorage,String(next)) } catch { /* Keep the live ratio. */ }
   }
   useEffect(() => {
     const adapt=()=>setContainerWidth(columns.current?.getBoundingClientRect().width || 0)
@@ -95,7 +98,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); closeResource() } }}>
         <ResourceFullscreenContext.Provider value={expanded}><WorkspaceProducts views={resourceViews || [{id:'resource',label:resourceLabel,content:resourcePanel}]} selectedId={selectedResourceView} onSelect={onResourceViewChange}
           actions={<>
-            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label="恢复默认比例" title="恢复默认比例" onClick={()=>resize(60)}><RotateCcw aria-hidden="true" /></button>
+            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label="恢复默认比例" title="恢复默认比例" onClick={()=>resize(defaultShare)}><RotateCcw aria-hidden="true" /></button>
             <button type="button" className="workspace-product-icon thread-resource-expand" aria-label={expanded ? '恢复左右布局' : '全屏'} title={expanded ? '恢复左右布局' : '全屏'} onClick={()=>setExpanded(value=>!value)}>{expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>
             <button type="button" className="workspace-product-icon" aria-label={`关闭${resourceLabel}`} title={`关闭${resourceLabel}`} onClick={closeResource}><X aria-hidden="true" /></button>
           </>} /></ResourceFullscreenContext.Provider>
@@ -123,6 +126,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
       <main className="workspace-shell">
         <header className="workspace-topbar" aria-label="工作空间">
           <button ref={sharedNavigation?.toggleRef??navigationToggle} type="button" className="thread-navigation-toggle" aria-label="会话导航" aria-expanded={sharedNavigation?.open??navigationOpen} aria-controls={sharedNavigation?.panelId??navigationPanelId} onClick={()=>sharedNavigation?sharedNavigation.toggle():setNavigationOpen(value=>!value)}><Menu aria-hidden="true" /></button>
+          {sharedNavigation?.enterprise&&<span className="enterprise-workspace-label">企业工作台</span>}
           {headingBar}
           <div className="workspace-top-actions">{headerActions}</div>
         </header>

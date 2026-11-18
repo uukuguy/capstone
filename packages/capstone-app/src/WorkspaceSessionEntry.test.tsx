@@ -23,14 +23,20 @@ it('opens the direct new-session entry over v2 without selecting resources or wa
   expect(screen.queryByRole('radio')).toBeNull()
   expect(screen.queryByRole('combobox')).toBeNull()
 })
-it.each([['thr_saved','thr_saved'],['thr_missing','thr_recent'],[undefined,'thr_recent']])('restores threadless entry using saved %s then recent session',async(saved,expected)=>{
-  window.history.replaceState({},'','/?workspace=enterprise')
+it.each([
+  ['/', 'thr_saved', 'thr_saved'],
+  ['/', 'thr_missing', 'thr_recent'],
+  ['/', undefined, 'thr_recent'],
+  ['/enterprise', 'thr_saved', 'thr_saved'],
+])('restores %s using saved %s then a recent session',async(path,saved,expected)=>{
+  window.history.replaceState({},'',`${path}?workspace=enterprise`)
   if(saved)rememberWorkspaceThread(saved)
   const threads=['thr_recent','thr_saved'].map(thread_id=>({thread_id,model_id:null,implementation_family:null,minimum_protocol_version:2,created_at:'2026-10-31',archived:false,last_event_seq:0}))
   const fetcher=vi.fn(async(url:string,_init?:RequestInit)=>url.endsWith('/thread-access')?Response.json({schema:'capstone-thread-access/1',mode:'open'}):Response.json({schema:'capstone-thread-list/1',threads,has_more:false,next_before_thread_id:null}))
   vi.stubGlobal('fetch',fetcher)
   render(<WorkspaceSessionEntry onCreated={vi.fn()}/>)
   await waitFor(()=>expect(new URLSearchParams(location.search).get('thread')).toBe(expected))
+  expect(location.pathname).toBe(path)
   expect(fetcher.mock.calls.every(([,init])=>!init?.method||init.method==='GET')).toBe(true)
 })
 it('creates exactly one session when threadless history is empty',async()=>{
