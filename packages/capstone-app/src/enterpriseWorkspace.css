@@ -29,11 +29,6 @@
   border-inline-end: 1px solid var(--enterprise-line);
 }
 
-.enterprise-workspace .workspace-workhead .session-heading-title h2 {
-  font-size: clamp(16px, 1.55vw, 21px);
-  line-height: 1.3;
-}
-
 .enterprise-workspace .thread-app-columns,
 .enterprise-workspace .thread-conversation-workspace .thread-chat-pane {
   background: var(--enterprise-paper);
