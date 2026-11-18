@@ -228,13 +228,12 @@ def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
 
 
 def freeze_material_submission(service, snapshot, payload, submission, *, connection=None, work_id=None,
-                               goal_predecessor=None):
+                               resume_goal_inputs=False):
     """Freeze trusted bytes before command admission; missing refs reuse session objects."""
     active = _active(service, snapshot.thread_id, connection)
-    work = next((item for item in snapshot.works if item['work_id'] == work_id), None) if goal_predecessor else None
+    work = next((item for item in snapshot.works if item['work_id'] == work_id), None) if resume_goal_inputs else None
     continuation = (work or {}).get('goal_continuation', {})
-    goal_refs = (continuation.get('product_refs')
-                 if continuation.get('predecessor_attempt_id') == goal_predecessor else None)
+    goal_refs = continuation.get('product_refs')
     refs = payload.get('material_refs', list(active))
     if (not isinstance(refs, list) or len(refs) > limits.inline_material_count
             or any(not isinstance(ref, str) or ref not in active for ref in refs) or len(set(refs)) != len(refs)):
@@ -268,7 +267,7 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
     notices, deferred = [], []
     if goal_refs is not None:
         if goal_refs:
-            sources = _process_files(service, snapshot, work_id, goal_predecessor, connection)
+            sources = _process_files(service, snapshot, work_id, continuation['predecessor_attempt_id'], connection)
             for ref in goal_refs:
                 matches = [source for source in sources if ref in (source['artifact_id'], source['file_name'])
                            and source['source_status'] == 'completed']

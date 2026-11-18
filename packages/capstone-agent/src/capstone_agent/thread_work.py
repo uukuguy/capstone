@@ -88,8 +88,11 @@ def transition_work(snapshot, task_context, attempt_id, status):
         work['cancel_requested'] = False
         pending = work.pop('pending_goal_control', None)
         if pending is not None:
-            work.pop('goal_continuation', None)
             goal = pending['goal_mode']
+            previous = work['goal_mode']
+            if (goal['reason'] != 'user_pause' or goal['generation'] != previous['generation']
+                    or goal['objective_revision'] != previous['objective_revision']):
+                work.pop('goal_continuation', None)
             work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'])
             work['task_context'] = replace(task_context, goal_revision=goal['objective_revision']).to_document()
         elif 'goal_mode' in work:

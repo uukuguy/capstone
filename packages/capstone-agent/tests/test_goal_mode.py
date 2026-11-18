@@ -235,6 +235,19 @@ def test_revise_discards_old_continuation(goal):
     assert ThreadSnapshot.from_document(updated.to_document()) == updated
 
 
+def test_pause_during_goal_iteration_retains_its_bound_inputs(goal):
+    from capstone_agent.thread_work import create_attempt, transition_work
+
+    snapshot = saved_work()
+    continuation = {'generation': 1, 'predecessor_attempt_id': 'attempt_old',
+                    'next_instruction': 'Read draft', 'product_refs': ['draft.md']}
+    work = {**snapshot.works[0], 'goal_mode': goal, 'goal_continuation': continuation}
+    snapshot, attempt, context, _ = create_attempt(replace(snapshot, works=(work,)), work)
+    work['pending_goal_control'] = {'goal_mode': {**work['goal_mode'], 'state': 'paused', 'reason': 'user_pause'}}
+    terminal, _ = transition_work(snapshot, context, attempt.attempt_id, 'cancelled')
+    assert terminal.works[0]['goal_continuation'] == continuation
+
+
 def test_terminal_goal_proposal_is_saved_with_work_state(goal):
     from capstone_agent.goal_receipts import apply_terminal_goal_proposal
     from capstone_agent.enterprise_context import TaskContext

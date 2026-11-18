@@ -27,14 +27,14 @@ def test_goal_continuation_freezes_only_named_files_from_its_predecessor(monkeyp
 
     monkeypatch.setattr('capstone_agent.thread_materials._process_files', files)
     submission, rejection = freeze_material_submission(service, snapshot, {}, {},
-        work_id='work_one', goal_predecessor='attempt_prior')
+        work_id='work_one', resume_goal_inputs=True)
     assert rejection is None
     assert submission['_continuation_artifacts'] == [source]
     assert submission['_resource_manifests'][0]['sha256'] == source['sha256']
 
     monkeypatch.setattr('capstone_agent.thread_materials._process_files', lambda *args: [])
     assert freeze_material_submission(service, snapshot, {}, {}, work_id='work_one',
-        goal_predecessor='attempt_prior')[1] == 'product_context_unavailable'
+        resume_goal_inputs=True)[1] == 'product_context_unavailable'
 
 
 @pytest.mark.parametrize('change,accepted', [({'saved_at': '2026-11-02T10:00:00Z'}, True),
