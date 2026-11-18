@@ -223,6 +223,8 @@ def structural_context_for(claim) -> dict:
                 handles.append({'kind': 'evidence_ref', 'ref': evidence})
         if len(handles) >= 64:
             break
+    if selection is None:
+        handles.extend({'kind': 'evidence_ref', 'ref': ref} for ref in getattr(claim, 'prior_evidence_refs', ()))
     unique = {(item['kind'], item['ref']): item for item in handles}
     if (inputs or selection is not None) and len(unique) > 64:
         raise ValueError('authority handles exceed structural context capacity')

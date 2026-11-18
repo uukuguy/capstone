@@ -19,7 +19,7 @@ import re
 import secrets
 import time
 from itertools import islice
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from .execution_stages import preparation_step
 from .thread_startup_timing import record_thread_startup
@@ -625,16 +625,19 @@ def _visible_completed_attempts(conversation: ConversationContext,
             and (allowed is None or message['attempt_id'] in allowed)]
 
 
-def _with_native_prior_results(prior, terminal_records) -> tuple[PriorResultReference, ...]:
+def _native_prior_context(prior, terminal_records) -> tuple[tuple[PriorResultReference, ...], tuple[str, ...]]:
     from .structural_context import checked_authority_references
 
     receipts = {}
+    standalone_evidence = {}
     for attempt_id, payload in terminal_records:
         for value in payload.get('authority_references', ()):
             receipt = checked_authority_references(value)
             if (not set(receipt['result_refs']).issubset(payload.get('result_refs', ()))
                     or not set(receipt['evidence_refs']).issubset(payload.get('evidence_refs', ()))):
                 raise ThreadExecutionError('saved authority receipt is outside the terminal admission')
+            if not receipt['result_refs']:
+                standalone_evidence.update(dict.fromkeys(receipt['evidence_refs']))
             for ref in receipt['result_refs']:
                 existing = receipts.get(ref)
                 if existing is None or (not existing.evidence_refs and receipt['evidence_refs']):
@@ -643,7 +646,8 @@ def _with_native_prior_results(prior, terminal_records) -> tuple[PriorResultRefe
     for item in prior:
         receipts.setdefault(item.result_ref, item)
     require_capacity('context_references', len(receipts), phase='prior_results')
-    return tuple(receipts.values())
+    require_capacity('context_references', len(standalone_evidence), phase='prior_evidence')
+    return tuple(receipts.values()), tuple(standalone_evidence)
 
 
 def _result_projection_window(snapshot: ThreadSnapshot, additions: tuple[ResultProjection, ...]) -> ThreadSnapshot:
@@ -844,6 +848,7 @@ class AttemptClaim:
     turn_plan: TurnPlan | None = None
     application_catalog: Mapping[str, object] | None = None
     prior_results: tuple[PriorResultReference, ...] = ()
+    prior_evidence_refs: tuple[str, ...] = field(default=(), kw_only=True)
     previous_instruction: PreviousInstruction | None = None
     conversation_context: ConversationContext = ConversationContext()
     submission: Mapping[str, Any] | None = None
@@ -876,6 +881,11 @@ class AttemptClaim:
             require_capacity('context_references', len(self.prior_results), phase='attempt_claim')
         if not isinstance(self.prior_results, tuple) or any(not isinstance(item, PriorResultReference) for item in self.prior_results):
             raise ThreadExecutionError("attempt prior results are invalid")
+        if not isinstance(self.prior_evidence_refs, tuple):
+            raise ThreadExecutionError('attempt prior evidence is invalid')
+        require_capacity('context_references', len(self.prior_evidence_refs), phase='attempt_claim')
+        for reference in self.prior_evidence_refs:
+            validate_artifact_reference(reference, kind='evidence')
         if self.model_context is None:
             from .native_conversation import validate_binding
             validate_binding((self.submission or {}).get('_native_execution'))
@@ -2302,11 +2312,12 @@ class InMemoryThreadService(NativeExecutionOwner):
                 previous = (None if record.get('task_context') is not None and record.get('source_attempt_id') is None
                             else _previous_instruction_from_events(self._events, self._attempts, context, record.get('source_attempt_id')))
                 prior = _prior_results_for_context(self._snapshot, allowed_attempt_ids=allowed_attempt_ids)
+                prior_evidence = ()
                 from .structural_context import main_chain_native_binding
                 conversation = record['conversation_context']
                 if main_chain_native_binding(record.get('submission')) and (context is not None or allowed_attempt_ids is not None):
                     visible = set(_visible_completed_attempts(conversation, allowed_attempt_ids))
-                    prior = _with_native_prior_results(prior, (
+                    prior, prior_evidence = _native_prior_context(prior, (
                         (item.attempt_id, item.payload) for item in reversed(self._events)
                         if item.attempt_id in visible and item.event_type == 'attempt_completed'
                         and item.event_seq <= conversation.history_cutoff and item.run_id == self._snapshot.run.run_id
@@ -2322,6 +2333,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     task_context=record.get('task_context'),
                     started_at=event.occurred_at,
                     prior_results=prior,
+                    prior_evidence_refs=prior_evidence,
                     previous_instruction=previous,
                     conversation_context=record["conversation_context"],
                     submission=record.get("submission"),
@@ -4624,6 +4636,7 @@ class PostgresThreadService(NativeExecutionOwner):
             previous = (None if task_context is not None and source is None
                         else _previous_instruction_from_postgres(connection, thread['thread_id'], context, source))
             prior = _prior_results_for_context(self._snapshot_from_row(thread), allowed_attempt_ids=allowed_attempt_ids)
+            prior_evidence = ()
             from .structural_context import main_chain_native_binding
             frozen_conversation = ConversationContext.from_document(conversation)
             if main_chain_native_binding(attempt_row.get('submission_snapshot')) and (context is not None or allowed_attempt_ids is not None):
@@ -4639,7 +4652,7 @@ class PostgresThreadService(NativeExecutionOwner):
                         ORDER BY e.event_seq DESC""",
                         (thread['thread_id'], thread['run_id'], visible, frozen_conversation.history_cutoff,
                          None if context is None else Jsonb(context.to_document()))).fetchall()
-                    prior = _with_native_prior_results(prior, ((item['attempt_id'], item['payload']) for item in records))
+                    prior, prior_evidence = _native_prior_context(prior, ((item['attempt_id'], item['payload']) for item in records))
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
                 event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
@@ -4653,6 +4666,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 task_context=task_context,
                 started_at=event.occurred_at,
                 prior_results=prior,
+                prior_evidence_refs=prior_evidence,
                 previous_instruction=previous,
                 conversation_context=frozen_conversation,
                 submission=attempt_row.get("submission_snapshot"),

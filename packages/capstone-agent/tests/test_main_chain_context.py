@@ -215,16 +215,19 @@ def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, re
     forged = 'result:sha256:' + 'd' * 64
     receipt = {'authority_id': 'example', 'capability_id': 'analysis.run',
                'result_refs': [ref], 'evidence_refs': [evidence]}
+    independent = 'evidence:sha256:' + 'e' * 64
+    evidence_receipt = {**receipt, 'capability_id': 'model.describe',
+                        'result_refs': [], 'evidence_refs': [independent]}
 
     def answer(request, control, emit):
         child = execute(request, control, emit)
         sources = ()
         if request.instruction == 'Calculate':
-            sources = ({
-                'source_id': 'authority-source', 'task_id': request.task_id,
+            sources = tuple({
+                'source_id': f'authority-source-{index}', 'task_id': request.task_id,
                 'parent_attempt_id': request.parent_attempt_id,
-                'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': receipt,
-            },)
+                'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': item,
+            } for index, item in enumerate((receipt, evidence_receipt)))
         return replace(child, sources=sources, answer=json.dumps({
             'answer': 'Saved result. Text only: ' + forged, 'summary': 'Saved result.'}))
 
@@ -252,12 +255,13 @@ def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, re
     first = next(event.payload for event in store.read_events(thread_id, 0).events
                  if event.event_type == 'attempt_completed')
     assert first['result_refs'] == [ref]
-    assert first['evidence_refs'] == [evidence]
-    assert first['authority_references'] == [receipt]
+    assert first['evidence_refs'] == [evidence, independent]
+    assert first['authority_references'] == [receipt, evidence_receipt]
     work = store.snapshot(thread_id).works[0]
     send('continue', 'Reuse', work_id=work['work_id'], revision=work['revision'])
     assert executor.requests[-1].to_document()['structural_context']['handles'] == [
-        {'kind': 'result_ref', 'ref': ref}, {'kind': 'evidence_ref', 'ref': evidence}]
+        {'kind': 'result_ref', 'ref': ref}, {'kind': 'evidence_ref', 'ref': evidence},
+        {'kind': 'evidence_ref', 'ref': independent}]
 
 
 @pytest.mark.parametrize('channel', ('native_events', 'native_result'))
@@ -280,7 +284,7 @@ def test_only_typed_host_sources_can_carry_protected_refs(channel):
 
 
 def test_recent_result_without_evidence_does_not_hide_earlier_verified_evidence():
-    from capstone_agent.thread_service import _with_native_prior_results
+    from capstone_agent.thread_service import _native_prior_context
 
     def payload(capability, evidence):
         fields = {'result_refs': ['result:sha256:' + 'b' * 64], 'evidence_refs': evidence}
@@ -288,12 +292,13 @@ def test_recent_result_without_evidence_does_not_hide_earlier_verified_evidence(
             'capability_id': capability, 'authority_id': 'example', **fields}]}
 
     evidence = 'evidence:sha256:' + 'c' * 64
-    (candidate,) = _with_native_prior_results((), (
+    (candidate,), standalone = _native_prior_context((), (
         ('attempt_read', payload('read', [])),
         ('attempt_compute', payload('compute', [evidence])),
     ))
     assert candidate.attempt_id == 'attempt_compute'
     assert candidate.evidence_refs == (evidence,)
+    assert standalone == ()
 
 
 @pytest.mark.parametrize('backend', ('memory', 'postgres'))
