@@ -35,9 +35,9 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
         check(request)
         return await invoke(reads.detail, thread_id, read_id)
 
-    async def invoke(fn, *args):
+    async def invoke(fn, *args, **kwargs):
         try:
-            return await run_in_threadpool(fn, *args)
+            return await run_in_threadpool(fn, *args, **kwargs)
         except ThreadNotFound:
             raise HTTPException(404, 'thread not found') from None
         except CapacityExceeded:
@@ -61,10 +61,10 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
         return {'schema': 'capstone-resources/1', 'resources': await invoke(uploads.resources, thread_id, draft)}
 
     @app.get('/api/v1/threads/{thread_id}/resources/{resource_id}/content')
-    async def content(thread_id: str, resource_id: str, request: Request):
+    async def content(thread_id: str, resource_id: str, request: Request, version: int = 1):
         check(request)
-        resource = await invoke(uploads.published, thread_id, resource_id)
-        iterator = iter(uploads.read(thread_id, resource_id))
+        resource = await invoke(uploads.published, thread_id, resource_id, version=version)
+        iterator = iter(uploads.read(thread_id, resource_id, version=version))
 
         def take():
             try:
@@ -97,11 +97,15 @@ def register_resource_routes(app, *, service, objects, authorize, uploads=None):
         import json
         try:
             body = json.loads(data)
-            if not isinstance(body, dict) or not {'file_name', 'size_bytes', 'request_id'} <= set(body) or set(body) - {'file_name', 'size_bytes', 'request_id', 'draft'}:
+            required = {'file_name', 'size_bytes', 'request_id'}
+            optional = {'draft', 'resource_id', 'expected_version'}
+            if not isinstance(body, dict) or not required <= set(body) or set(body) - required - optional:
                 raise ValueError()
         except (ValueError, TypeError):
             raise HTTPException(422, 'invalid upload metadata') from None
-        return await invoke(uploads.begin, thread_id, body['file_name'], body['size_bytes'], body['request_id'], body.get('draft', False))
+        return await invoke(uploads.begin, thread_id, body['file_name'], body['size_bytes'],
+                            body['request_id'], body.get('draft', False),
+                            resource_id=body.get('resource_id'), expected_version=body.get('expected_version'))
 
     @app.get('/api/v1/threads/{thread_id}/resource-uploads/{upload_id}')
     async def status(thread_id: str, upload_id: str, request: Request):

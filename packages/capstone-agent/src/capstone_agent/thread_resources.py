@@ -81,7 +81,7 @@ class ResourceUploads:
         if state['state'] != 'uploading' or state['expires_at'] <= time.time():
             raise ValueError('upload is closed or expired')
 
-    def begin(self, thread, name, size, request_id, draft=False):
+    def begin(self, thread, name, size, request_id, draft=False, resource_id=None, expected_version=None):
         if type(size) is int and size > self.max_file_bytes:
             raise CapacityExceeded('upload_file_bytes', size, self.max_file_bytes, 'resource.upload.begin', mode=current_capacity().mode)
         if (not isinstance(name, str) or not name or len(name.encode()) > 255
@@ -90,14 +90,24 @@ class ResourceUploads:
                 or type(draft) is not bool or type(size) is not int or not 0 < size <= self.max_file_bytes
                 or not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', request_id)):
             raise ValueError('invalid upload metadata or configured capacity exceeded')
+        if resource_id is not None or expected_version is not None:
+            if (draft or not isinstance(resource_id, str) or not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id)
+                    or type(expected_version) is not int or expected_version < 1):
+                raise ValueError('invalid replacement resource version')
+        replacement = {} if resource_id is None else {'replacement_id': resource_id, 'expected_version': expected_version}
+
+        def check_retry(item, initial_draft):
+            if (item['file_name'] != name or item['size_bytes'] != size or initial_draft != draft
+                    or item.get('replacement_id') != resource_id or item.get('expected_version') != expected_version):
+                raise ValueError('upload request conflict')
+
         def apply(snapshot, connection):
             reservations = {}
             if connection is not None:
                 from .resource_projection import states
                 for item in states(connection, thread, published_only=False):
                     if item['request_id'] == request_id:
-                        if item['file_name'] != name or item['size_bytes'] != size or item.get('initial_draft', False) != draft:
-                            raise ValueError('upload request conflict')
+                        check_retry(item, item.get('initial_draft', False))
                         return self._public(self._state(thread, item['upload_id'], connection))
                     if item['state'] not in ('cancelled', 'expired'):
                         reservations[item['upload_id']] = item['size_bytes']
@@ -108,14 +118,15 @@ class ResourceUploads:
                 elif event.event_type == 'resource_upload_cancelled':
                     reservations.pop(p['upload_id'], None)
                 if event.event_type == 'resource_upload_started' and p['request_id'] == request_id:
-                    if p['file_name'] != name or p['size_bytes'] != size or p.get('draft', False) != draft:
-                        raise ValueError('upload request conflict')
+                    check_retry(p, p.get('draft', False))
                     return self._public(self._state(thread, p['upload_id'], connection))
             if sum(reservations.values()) + size > self.max_session_bytes:
                 if current_capacity().mode != 'debug':
                     raise ValueError('session storage quota exceeded; cancel unused uploads')
                 raise CapacityExceeded('upload_session_bytes', sum(reservations.values())+size, self.max_session_bytes, 'resource.upload.begin', mode=current_capacity().mode)
-            payload = {'upload_id': 'upload_' + secrets.token_hex(16), 'request_id': request_id,
+            if replacement:
+                self._check_replacement(thread, resource_id, expected_version, connection)
+            payload = {**replacement, 'upload_id': 'upload_' + secrets.token_hex(16), 'request_id': request_id,
                 'file_name': name, 'size_bytes': size, 'chunk_bytes': self.chunk_bytes,
                 'expires_at': time.time() + self.ttl_seconds, 'draft': draft}
             _write_event(self.service, snapshot, 'resource_upload_started', payload, connection)
@@ -132,8 +143,10 @@ class ResourceUploads:
 
     def resources(self, thread, draft=False, connection=None):
         self.service.snapshot(thread)
-        return [state['resource'] for state in self.resource_states(thread, connection)
-                if state['state'] == 'complete' and state.get('draft', False) == draft]
+        latest = {state['resource']['resource_id']: state['resource']
+                  for state in self.resource_states(thread, connection)
+                  if state['state'] == 'complete' and state.get('draft', False) == draft}
+        return list(latest.values())
 
     def resource_page(self, thread, draft=False, limit=100, cursor=None):
         if type(limit) is not int or not 1 <= limit <= 100 or type(draft) is not bool:
@@ -158,8 +171,11 @@ class ResourceUploads:
                 events = self._events(thread)
                 revision = max((e.event_seq for e in events), default=0)
                 rows = []
+                latest = {event.payload['resource']['resource_id']: event.event_seq
+                          for event in events if event.event_type == 'resource_published'}
                 for event in events:
-                    if event.event_type == 'resource_published' and event.event_seq > after:
+                    if (event.event_type == 'resource_published' and event.event_seq > after
+                            and latest[event.payload['resource']['resource_id']] == event.event_seq):
                         state = self._state(thread, event.payload['upload_id'], events=events)
                         if state['state'] == 'complete' and state.get('draft', False) == draft:
                             rows.append((event.event_seq, state['resource']))
@@ -263,8 +279,9 @@ class ResourceUploads:
         digest = sha256()
         for i in range(count):
             digest.update(self._bytes(thread, uid, state['parts'][i]))
-        resource = {'schema': 'capstone-resource/1', 'resource_id': 'resource_' + uid.removeprefix('upload_'),
-            'version': 1, 'thread_id': thread, 'file_name': state['file_name'],
+        resource = {'schema': 'capstone-resource/1',
+            'resource_id': state.get('replacement_id', 'resource_' + uid.removeprefix('upload_')),
+            'version': state.get('expected_version', 0) + 1, 'thread_id': thread, 'file_name': state['file_name'],
             'size_bytes': state['size_bytes'], 'sha256': digest.hexdigest(),
             'media_type': 'application/octet-stream', 'processing_state': 'unprocessed'}
         def publish(snapshot, connection):
@@ -274,6 +291,8 @@ class ResourceUploads:
             self._editable(latest)
             if latest['parts'] != state['parts']:
                 raise ValueError('upload changed during verification')
+            if 'replacement_id' in latest:
+                self._check_replacement(thread, resource['resource_id'], latest['expected_version'], connection)
             _write_event(self.service, snapshot, 'resource_published', {'upload_id': uid, 'resource': resource}, connection)
             return resource
         return _mutate(self.service, thread, publish)
@@ -291,14 +310,45 @@ class ResourceUploads:
         for part in (state['reserved'] | state['parts']).values():
             self.objects.delete(self._key(thread, uid, part))
 
-    def published(self, thread, resource_id):
+    def _version_upload(self, thread, resource_id, version, connection=None):
+        if version == 1:
+            return 'upload_' + resource_id.removeprefix('resource_')
+        if not hasattr(self.service, '_lock'):
+            from .resource_projection import version_upload
+            if connection is not None:
+                return version_upload(connection, thread, resource_id, version)
+            with self.service._connect() as opened:
+                return version_upload(opened, thread, resource_id, version)
+        for event in self._events(thread):
+            if event.event_type == 'resource_published':
+                resource = event.payload['resource']
+                if resource['resource_id'] == resource_id and resource['version'] == version:
+                    return event.payload['upload_id']
+        return None
+
+    def _check_replacement(self, thread, resource_id, version, connection):
+        uid = self._version_upload(thread, resource_id, version, connection)
+        if (uid is None or self._version_upload(thread, resource_id, version + 1, connection) is not None):
+            raise ValueError('resource version conflict')
+        state = self._state(thread, uid, connection, include_parts=False)
+        if state['state'] != 'complete' or state.get('draft', False):
+            raise ValueError('resource version is not published')
+
+    def _published_state(self, thread, resource_id, version, *, include_parts):
         self.service.snapshot(thread)
-        if not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id):
-            raise ValueError('invalid resource identity')
-        state = self._state(thread, 'upload_' + resource_id.removeprefix('resource_'), include_parts=False)
+        if (not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id)
+                or type(version) is not int or version < 1):
+            raise ValueError('invalid resource identity or version')
+        uid = self._version_upload(thread, resource_id, version)
+        if uid is None:
+            raise ValueError('resource version is not published')
+        state = self._state(thread, uid, include_parts=include_parts)
         if state['state'] != 'complete' or 'resource' not in state:
             raise ValueError('resource is not published')
-        return state['resource']
+        return state
+
+    def published(self, thread, resource_id, *, version=1):
+        return self._published_state(thread, resource_id, version, include_parts=False)['resource']
 
     def part_limits(self, thread, uid):
         self.service.snapshot(thread)
@@ -306,14 +356,9 @@ class ResourceUploads:
         self._editable(state)
         return {'chunk_bytes': state['chunk_bytes']}
 
-    def read(self, thread, resource_id, *, start=0, length=None):
-        self.service.snapshot(thread)
-        if not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id):
-            raise ValueError('invalid resource identity')
-        uid = 'upload_' + resource_id.removeprefix('resource_')
-        state = self._state(thread, uid)
-        if state['state'] != 'complete':
-            raise ValueError('resource is not published')
+    def read(self, thread, resource_id, *, start=0, length=None, version=1):
+        state = self._published_state(thread, resource_id, version, include_parts=True)
+        uid = state['upload_id']
         length = state['size_bytes'] - start if length is None else length
         if type(start) is not int or type(length) is not int or min(start, length) < 0 or start + length > state['size_bytes']:
             raise ValueError('invalid resource range')

@@ -69,3 +69,10 @@ def test_single_execution_resume_consumes_new_delegation_after_stop():
     assert goal['delegations_admitted'] == 2
     assert goal['tasks'][0]['delegation']['delegation_id'] != old
     assert goal['tasks'][0]['delegation_history'][0]['delegation_id'] == old
+    current = goal['tasks'][0]['delegation']['delegation_id']
+    s.bind('a', goal['goal_id'], current, {'thread_id': 'new_thread', 'work_id': 'new_work'})
+    goal = s.observe('a', goal['goal_id'], current, {
+        'sequence': 1, 'state': 'completed', 'summary': '',
+        'delivery': {'answer_ref': 'new_answer', 'products': [], 'status': 'completed'},
+    })
+    assert goal['tasks'][0]['state'] == 'delivered'

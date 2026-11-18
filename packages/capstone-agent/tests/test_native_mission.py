@@ -1,3 +1,6 @@
+from test_enterprise_normal_chat import chat_store
+from test_thread_postgres import postgres_thread_service
+
 import pytest
 from jsonschema import ValidationError
 
@@ -137,7 +140,7 @@ def test_mission_tool_schemas_distinguish_current_object_revision_from_plan_revi
     assert 'Mission.plan_revision' in CATALOG['agent_mission_conclude']['inputSchema']['properties']['plan_revision']['description']
 
 
-@pytest.mark.parametrize('kind',['resource','skill'])
+@pytest.mark.parametrize('kind',['skill'])
 def test_task_model_schema_excludes_unimplemented_equipment_kinds(kind):
     from capstone_agent.native_mission import CATALOG
     from jsonschema import Draft202012Validator
@@ -148,6 +151,29 @@ def test_task_model_schema_excludes_unimplemented_equipment_kinds(kind):
                       ('agent_mission_update_plan',{'expected_revision':2,'acceptance_criteria':['Inspect report'],'tasks':[task]})]:
         with pytest.raises(ValidationError):
             Draft202012Validator(CATALOG[name]['inputSchema']).validate(args)
+
+
+def test_resource_equipment_admits_old_published_version(chat_store):
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.mission_equipment import resolve_resource
+    from capstone_agent.thread_resources import ResourceUploads
+
+    threads, thread = chat_store
+    from capstone_agent.workspace_scope import DEFAULT_WORKSPACE
+    workspace = DEFAULT_WORKSPACE
+    uploads = ResourceUploads(threads, MemoryObjectStore(), chunk_bytes=4)
+    first = uploads.begin(thread, 'source.txt', 4, 'source')['upload_id']
+    uploads.part(thread, first, 0, b'old!')
+    original = uploads.complete(thread, first)
+    resource_id = original['resource_id']
+    second = uploads.begin(thread, 'source.txt', 4, 'new', resource_id=resource_id,
+                           expected_version=1)['upload_id']
+    uploads.part(thread, second, 0, b'new!')
+    uploads.complete(thread, second)
+    ref = {'kind': 'resource', 'id': resource_id, 'revision': '1'}
+    assert resolve_resource(threads, workspace, {'thread_id': thread}, ref)['sha256'] == original['sha256']
+    with pytest.raises(ValueError, match='version'):
+        resolve_resource(threads, workspace, {'thread_id': thread}, {**ref, 'revision': '3'})
 
 
 def test_mission_conclusion_schema_requires_typed_per_criterion_current_result_references():

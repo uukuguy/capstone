@@ -126,8 +126,12 @@ class ResourceRangeReads:
     def _key(receipt):
         return 'resource-range-reads/' + sha256(receipt['thread_id'].encode()).hexdigest() + '/' + receipt['read_id']
 
-    def read(self, thread_id, attempt_id, task_id, manifest, request, *, checkpoint=lambda: None):
+    def read(self, thread_id, attempt_id, task_id, manifest, request, *, checkpoint=lambda: None, source=None):
         canonical = checked_resource(dict(manifest))
+        source = canonical if source is None else checked_resource(source)
+        if {**source, 'thread_id': thread_id} != canonical:
+            raise ValueError('resource range source does not match the frozen manifest')
+        source_thread = source['thread_id']
         if (not isinstance(request, dict) or set(request) != {'schema','request_id','resource_id','offset','length'}
                 or request['schema'] != 'capstone-resource-range-request/1'
                 or not isinstance(request['request_id'], str) or not re.fullmatch('[a-f0-9]{64}', request['request_id'])
@@ -167,20 +171,21 @@ class ResourceRangeReads:
         if previous:
             return recover(previous)
         uploads = ResourceUploads(self.service, self.objects)
-        uid = 'upload_' + canonical['resource_id'].removeprefix('resource_')
         try:
-            state = uploads._state(thread_id, uid, include_parts=False)
+            state = uploads._published_state(
+                source_thread, source['resource_id'], source['version'], include_parts=False)
         except ValueError as error:
             raise ResourceRangeRejected('resource range source is unavailable','resource_range_unavailable') from error
-        if state['state'] != 'complete' or checked_resource(state.get('resource')) != canonical:
+        if state['state'] != 'complete' or checked_resource(state.get('resource')) != source:
             raise ResourceRangeRejected('published resource identity changed','resource_range_unavailable')
+        uid = state['upload_id']
         end = request['offset'] + request['length']
         fragments = []
         for index in range(request['offset'] // state['chunk_bytes'], (end + state['chunk_bytes']-1)//state['chunk_bytes']):
-            part_state = uploads._state(thread_id, uid, part_index=index)
+            part_state = uploads._state(source_thread, uid, part_index=index)
             part = part_state['parts'][index]
             try:
-                data = self._io(lambda p=part: uploads._bytes(thread_id, uid, p), deadline, checkpoint)
+                data = self._io(lambda p=part: uploads._bytes(source_thread, uid, p), deadline, checkpoint)
             except ResourceRangeRejected:
                 raise
             except (OSError,KeyError,ValueError) as error:

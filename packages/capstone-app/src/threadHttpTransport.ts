@@ -498,13 +498,13 @@ export class HttpThreadTransport implements ThreadTransport {
     }while(cursor)
     return resources
   }
-  async readThreadResource(threadId:string,file:{resource_id:string;size_bytes:number;sha256:string},signal?:AbortSignal):Promise<Uint8Array> {
+  async readThreadResource(threadId:string,file:{resource_id:string;size_bytes:number;sha256:string;version?:number},signal?:AbortSignal):Promise<Uint8Array> {
     if(!/^resource_[a-f0-9]{32}$/.test(file.resource_id)||!Number.isSafeInteger(file.size_bytes)||file.size_bytes<1||!/^[a-f0-9]{64}$/.test(file.sha256))throw new Error('资源身份无效')
     assertCapacity(file.size_bytes,'artifact_file_bytes','resource.content')
-    const response=await this.streamRequest(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources/${encodeURIComponent(file.resource_id)}/content`,signal)
+    const response=await this.streamRequest(this.resourceContentPath(threadId,file),signal)
     return verifiedFileBytes(response,file.size_bytes,file.sha256,'artifact_file_bytes')
   }
-  async saveThreadResource(threadId:string,file:{resource_id:string;file_name:string;size_bytes:number;sha256:string},signal?:AbortSignal):Promise<void> {
+  async saveThreadResource(threadId:string,file:{resource_id:string;file_name:string;size_bytes:number;sha256:string;version?:number},signal?:AbortSignal):Promise<void> {
     if(!/^resource_[a-f0-9]{32}$/.test(file.resource_id)||!file.file_name||!Number.isSafeInteger(file.size_bytes)||!/^[a-f0-9]{64}$/.test(file.sha256))throw new Error('资源身份无效')
     if(file.size_bytes<=applicationCapacity('artifact_file_bytes'))throw new Error('此文件可在读取后直接保存。')
     const picker=(globalThis as {showSaveFilePicker?:(options?:{suggestedName?:string})=>Promise<{createWritable:()=>Promise<{write:(data:Uint8Array)=>Promise<void>;close:()=>Promise<void>;abort:()=>Promise<void>}>}>}).showSaveFilePicker
@@ -514,10 +514,16 @@ export class HttpThreadTransport implements ThreadTransport {
     catch(cause){if(cause instanceof DOMException&&cause.name==='AbortError')throw new Error('已取消保存。');throw cause}
     const writable=await handle.createWritable()
     try{
-      const response=await this.streamRequest(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources/${encodeURIComponent(file.resource_id)}/content`,signal)
+      const response=await this.streamRequest(this.resourceContentPath(threadId,file),signal)
       await writeVerifiedStream(response,file.size_bytes,file.sha256,chunk=>writable.write(chunk))
       await writable.close()
     }catch(cause){await writable.abort().catch(()=>undefined);throw cause}
+  }
+  private resourceContentPath(threadId:string,file:{resource_id:string;version?:number}) {
+    const version=file.version??1
+    if(!Number.isSafeInteger(version)||version<1)throw new Error('资源版本无效')
+    const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/resources/${encodeURIComponent(file.resource_id)}/content`
+    return version===1?path:`${path}?version=${version}`
   }
   cancelResourceUpload(threadId:string,uploadId:string,signal?:AbortSignal) {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-uploads/${encodeURIComponent(uploadId)}`,{method:'DELETE',signal})

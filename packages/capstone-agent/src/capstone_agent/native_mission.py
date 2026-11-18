@@ -36,7 +36,7 @@ def obj(properties, required=None):
 IDENTITY = dict(type='string', pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
 TEXT = dict(type='string', minLength=1, maxLength=16384)
 REF = obj(dict(schema={'const': 'capstone-mission-equipment-reference/1'},
-    kind={'enum': ['capability', 'resource_profile']}, id=IDENTITY,
+    kind={'enum': ['capability', 'resource_profile', 'resource']}, id=IDENTITY,
     revision=dict(type='string', minLength=1, maxLength=256)))
 TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     delivery_requirements=dict(type='array', items=TEXT, minItems=1, maxItems=64),
@@ -63,7 +63,7 @@ CATALOG = {
                              tasks=dict(type='array', items=TASK, maxItems=64),
                              removed_task_ids=dict(type='array',items=IDENTITY,maxItems=64,uniqueItems=True)),
                         ['expected_revision','acceptance_criteria','tasks'])),
-    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered capability or resource_profile equipment from the current Mission publication. Skill/resource equipment adapters are not published. Use depends_on to carry authorized saved products from verified predecessor Tasks; resource_id is an input reference, not equipment. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
+    'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered capability, resource_profile or exact published resource versions from the Mission equipment catalog. Use depends_on to carry authorized saved products from verified predecessor Tasks. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults for simple tasks. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
     'agent_mission_ready': dict(description='Make an executable Mission plan ready only when Tasks, acceptance criteria and equipment are admitted. Then finish this organizer turn: a real Task boundary resumes organization automatically. Do not loop over state reads while waiting. If no dependency-ready Task remains, inspect actual results and conclude or wait. This is not product acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION))),

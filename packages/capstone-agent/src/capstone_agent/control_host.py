@@ -35,7 +35,11 @@ class ControlHost:
         if claim is not None and mission.get('origin') is not None:
             from .mission_equipment import catalog
             try:
-                mission['available_equipment'] = catalog(self.agent.threads, workspace, mission['origin'])
+                resource_details = []
+                mission['available_equipment'] = catalog(self.agent.threads, workspace, mission['origin'],
+                                                         resource_details=resource_details)
+                if resource_details:
+                    mission['available_resource_details'] = resource_details
             except ValueError:
                 mission['available_equipment'] = []
                 mission['equipment_status'] = {'available': False,
@@ -259,7 +263,7 @@ def register_control_routes(app, *, threads, authorize, wake=None):
         if body.get('mission_id') != mission_id:
             raise HTTPException(422, 'command Mission does not match route')
         receipt = run(host.command_mission, request.state.workspace_name, body,
-                      actor=request.state.product_actor)
+                      actor=request.state.product_actor, validate_task_equipment=True)
         if wake:
             wake(mission_id)
         return receipt

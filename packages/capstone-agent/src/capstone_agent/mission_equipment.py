@@ -1,6 +1,7 @@
 """Resolve Mission equipment only from the selected native registry."""
 from copy import deepcopy
 from dataclasses import replace
+import re
 from psycopg.types.json import Jsonb
 
 from capstone_control.service import fingerprint
@@ -12,9 +13,58 @@ def registry_revision(binding):
     return registered_revision(binding)
 
 
-def catalog(threads, workspace, origin):
+def catalog(threads, workspace, origin, *, resource_details=None):
     binding, _ = origin_binding(threads, workspace, origin)
-    return _catalog(binding)
+    from .thread_resources import ResourceUploads
+    page = ResourceUploads(threads, None).resource_page(origin['thread_id'], limit=16)
+    if resource_details is not None:
+        resource_details.extend({key: item[key] for key in ('resource_id', 'version', 'file_name', 'size_bytes')}
+                                for item in page['resources'])
+    resources = [
+        {'schema': 'capstone-mission-equipment-reference/1', 'kind': 'resource',
+         'id': item['resource_id'], 'revision': str(item['version'])}
+        for item in page['resources']
+    ]
+    return _catalog(binding)[:64-len(resources)] + resources
+
+
+def resolve_resource(threads, workspace, origin, ref):
+    """Resolve published, non-draft inputs without taking a second Thread lock."""
+    from .resource_manifest import checked_resource
+    from .thread_resources import ResourceUploads
+    thread = origin['thread_id']
+    threads.require_workspace(thread, workspace)
+    resource_id, revision = ref['id'], ref['revision']
+    if not re.fullmatch(r'resource_[a-f0-9]{32}', resource_id) or not re.fullmatch(r'[1-9][0-9]{0,15}', revision):
+        raise ValueError('invalid Mission resource version')
+    if hasattr(threads, '_lock'):
+        uploads = ResourceUploads(threads, None)
+        with threads._lock:
+            uid = uploads._version_upload(thread, resource_id, int(revision))
+            state = uploads._state(thread, uid) if uid is not None else {}
+        resource = state.get('resource') if state.get('state') == 'complete' and not state.get('draft') else None
+    else:
+        with threads._connect() as connection:
+            row = connection.execute("""SELECT published.payload->'resource' AS resource
+                FROM capstone_thread_events published
+                JOIN capstone_thread_events started ON started.thread_id=published.thread_id
+                    AND started.event_type='resource_upload_started'
+                    AND started.payload->>'upload_id'=published.payload->>'upload_id'
+                WHERE published.thread_id=%s AND published.event_type='resource_published'
+                AND published.payload->'resource'->>'resource_id'=%s
+                AND published.payload->'resource'->>'version'=%s
+                AND (NOT COALESCE((started.payload->>'draft')::boolean,false)
+                    OR EXISTS (SELECT 1 FROM capstone_thread_events admitted
+                        WHERE admitted.thread_id=published.thread_id AND admitted.event_type='command_accepted'
+                        AND admitted.event_seq>published.event_seq AND admitted.payload->'attachment_refs' ? %s))
+                AND NOT EXISTS (SELECT 1 FROM capstone_thread_events cancelled
+                    WHERE cancelled.thread_id=published.thread_id AND cancelled.event_type='resource_upload_cancelled'
+                    AND cancelled.payload->>'upload_id'=published.payload->>'upload_id')
+                LIMIT 1""", (thread, resource_id, revision, resource_id)).fetchone()
+        resource = row['resource'] if row else None
+    if resource is None:
+        raise ValueError('Mission resource version is unavailable')
+    return checked_resource(resource)
 
 
 def origin_binding(threads, workspace, origin):
@@ -61,7 +111,10 @@ def _catalog(binding):
 
 def admitted(threads, workspace, origin, ref):
     try:
-        return ref in catalog(threads, workspace, origin)
+        if ref['kind'] == 'resource':
+            return bool(resolve_resource(threads, workspace, origin, ref))
+        binding, _ = origin_binding(threads, workspace, origin)
+        return ref in _catalog(binding)
     except (ValueError, KeyError):
         return False
 
@@ -74,9 +127,14 @@ def resolve_admission(threads, workspace, origin, equipment, restrictions):
     equipment, restrictions = references(equipment), references(restrictions)
     binding, source = origin_binding(threads, workspace, origin)
     published = _catalog(binding)
-    if any(ref not in published for ref in equipment + restrictions):
+    resources = [ref for ref in equipment if ref['kind'] == 'resource']
+    if len({ref['id'] for ref in resources}) != len(resources):
+        raise ValueError('Mission Task must select one version per resource')
+    for ref in resources:
+        resolve_resource(threads, workspace, origin, ref)
+    if any(ref not in published for ref in equipment + restrictions if ref not in resources):
         raise ValueError('Mission equipment revision is unavailable')
-    if any(ref['kind'] == 'resource_profile' for ref in restrictions):
+    if any(ref['kind'] != 'capability' for ref in restrictions):
         raise ValueError('The required native resource profile cannot be excluded')
     selected = [ref['id'] for ref in equipment if ref['kind'] == 'capability']
     denied = [ref['id'] for ref in restrictions if ref['kind'] == 'capability']
