@@ -238,14 +238,16 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
         submission = {**(submission or {}), '_goal_authority_selection': {
             'attempt_id': continuation['predecessor_attempt_id'], 'refs': continuation['authority_refs'],
             'model': continuation['authority_model']}}
-    from .delegation_authority import frozen_authority_sources, resolve_authority_inputs
+    from .delegation_authority import frozen_authority_sources, resolve_authority_inputs, resolve_gateway_inputs
     grant = frozen_authority_sources(service, snapshot.thread_id, work_id, connection) if work_id else None
     if grant is not None:
         try:
             inputs = resolve_authority_inputs(service, grant['workspace'], grant['sources'])
+            gateway_inputs = resolve_gateway_inputs(service, grant['workspace'], grant.get('gateway_sources', ()))
         except (ValueError, ThreadNotFound):
             return submission, 'authority_input_unavailable'
         submission = {**(submission or {}), **({'_authority_inputs': inputs} if inputs else {}),
+            **({'_gateway_operation_inputs': gateway_inputs} if gateway_inputs else {}),
             **({'_application_catalog': grant['catalog']} if grant['catalog'] is not None else {})}
     refs = payload.get('material_refs', list(active))
     if (not isinstance(refs, list) or len(refs) > limits.inline_material_count

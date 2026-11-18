@@ -256,13 +256,14 @@ class DelegatedRuntime:
         granted_tools = domain_tool_grant(
             resources.get('application_catalog'), self._claim.model_context) if task_fields else None
         structural = resources.get('structural_context') if task_fields else None
-        from .structural_context import AUTHORITY_REFERENCE_SOURCE, checked_authority_references
+        from .structural_context import (AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE,
+                                         checked_authority_references, checked_gateway_operations)
         dependency_results = []
         for identity in dependencies:
             if identity in self._general_results:
                 dependency = self._general_results[identity].to_document()
                 dependency['sources'] = [source for source in dependency['sources']
-                                         if source['kind'] != AUTHORITY_REFERENCE_SOURCE]
+                                         if source['kind'] not in {AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE}]
                 dependency_results.append(dependency)
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(dependency_results),
@@ -536,6 +537,11 @@ class DelegatedRuntime:
         for kind in ('sources', 'artifacts'):
             for reference in document[kind]:
                 metadata = reference['metadata']
+                if (kind == 'sources' and reference['kind'] == GATEWAY_OPERATION_SOURCE
+                        and result.status == 'completed'):
+                    self._emit(on_event, {'goal_id': goal['goal_id'],
+                        'gateway_operations': checked_gateway_operations(metadata)})
+                    continue
                 if (kind == 'sources' and reference['kind'] == AUTHORITY_REFERENCE_SOURCE
                         and result.status == 'completed'):
                     self._emit(on_event, {'goal_id': goal['goal_id'],

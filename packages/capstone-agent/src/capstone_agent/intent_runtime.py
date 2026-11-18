@@ -606,9 +606,26 @@ class IntentRuntimeFactory:
                                         'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
                                        for ref in prior]}
         from .native_task_context import native_context_for
-        from .structural_context import structural_context_for
+        from .structural_context import checked_gateway_operations, structural_context_for
         resources['native_context'] = native_context_for(claim, accepted)
-        resources['structural_context'] = structural_context_for(replace(claim, prior_results=prior))
+        if claim.legacy_authority_receipts and '_goal_authority_selection' not in submission:
+            from .domain_tool_client import recover_legacy_authority_inputs
+            from .domain_tool_grant import domain_tool_grant
+            recovered = recover_legacy_authority_inputs(claim.legacy_authority_receipts,
+                domain_tool_grant(claim.application_catalog, claim.model_context), control.checkpoint)
+            if recovered:
+                submission = {**submission, '_authority_inputs': [*submission.get('_authority_inputs', ()), *recovered]}
+        resources['structural_context'] = structural_context_for(replace(claim, prior_results=prior, submission=submission))
+        gateway_binding = resources['native_context'].get('gateway_binding')
+        operations = {}
+        if gateway_binding and gateway_binding.get('catalog_revision'):
+            for raw in (*submission.get('_gateway_operation_inputs', ()), *claim.prior_gateway_operations):
+                receipt = checked_gateway_operations(raw)
+                if receipt['binding'] == gateway_binding:
+                    operations.update({(item['kind'], item['ref']): item for item in receipt['operations']})
+        if operations:
+            resources['structural_context']['gateway_operations'] = checked_gateway_operations({
+                'binding': gateway_binding, 'operations': list(operations.values())[:64]})
         frozen = freeze(claim, {'request': request.to_document(), 'resources': resources})
         if 'engine_identity' in frozen:
             saved = None if freeze_decision is None else freeze_decision(claim, None)

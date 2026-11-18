@@ -41,7 +41,7 @@ class PandapowerDomainToolService(PandapowerToolService):
         if management is not None:
             checked = checked_management(management)
             document = {**document, 'management': checked}
-            inputs = [{**item, 'owner': domain_workspace_id({
+            inputs = [{**item, 'owner': item['owner'].get('legacy_task') or domain_workspace_id({
                 'task_id': document['task_id'], 'management': {'schema': checked['schema'], **item['owner']}})}
                 for item in checked.get('authority_inputs', ())]
         else:

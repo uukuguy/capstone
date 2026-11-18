@@ -3,7 +3,7 @@ from copy import deepcopy
 
 from capstone_control.contracts import authority_source
 
-from .structural_context import checked_authority_references, checked_structural_context
+from .structural_context import checked_authority_references, checked_gateway_operations, checked_structural_context
 
 GRANT_EVENT = 'delegation_authority_sources_granted'
 
@@ -22,16 +22,17 @@ def frozen_authority_sources(service, thread_id, work_id, connection=None):
     return deepcopy(rows[0]) if rows else None
 
 
-def grant_authority_sources(service, workspace, thread_id, work_id, delegation_id, sources, origin):
+def grant_authority_sources(service, workspace, thread_id, work_id, delegation_id, sources, origin, *, gateway_sources=()):
     from .thread_materials import _mutate, _write_event
 
     service.require_workspace(thread_id, workspace)
     resolve_authority_inputs(service, workspace, sources)
+    resolve_gateway_inputs(service, workspace, gateway_sources)
     catalog = origin_catalog(service, workspace, origin)
-    if not sources and catalog is None:
+    if not sources and not gateway_sources and catalog is None:
         return
     grant = {'workspace': workspace, 'work_id': work_id, 'delegation_id': delegation_id,
-             'sources': sources, 'catalog': catalog}
+             'sources': sources, 'gateway_sources': list(gateway_sources), 'catalog': catalog}
 
     def save(snapshot, connection):
         if not any(work['work_id'] == work_id for work in snapshot.works):
@@ -40,6 +41,8 @@ def grant_authority_sources(service, workspace, thread_id, work_id, delegation_i
         if previous is not None and any(previous[key] != grant[key]
                                         for key in ('workspace', 'work_id', 'delegation_id', 'sources')):
             raise ValueError('delegation authority grant changed')
+        if previous is not None and previous.get('gateway_sources', []) != grant['gateway_sources']:
+            raise ValueError('delegation gateway grant changed')
         if previous is None:
             _write_event(service, snapshot, GRANT_EVENT, grant, connection)
 
@@ -117,3 +120,35 @@ def resolve_authority_inputs(service, workspace, sources):
     if len(inputs) > 64:
         raise ValueError('delegation authority inputs exceed bounds')
     return inputs
+
+
+def resolve_gateway_inputs(service, workspace, sources):
+    if not isinstance(sources, (list, tuple)) or len(sources) > 64:
+        raise ValueError('invalid gateway receipt sources')
+    receipts = []
+    for source in sources:
+        authority_source(source)
+        service.require_workspace(source['thread_id'], workspace)
+        after = 0
+        saved = []
+        for _ in range(128):
+            page = service.read_attempt_records(source['thread_id'], source['attempt_id'], after=after, limit=128)
+            for event in page['events']:
+                payload = event['payload']
+                if event['event_type'] == 'runtime_event' and 'gateway_operations' in payload:
+                    saved.append(checked_gateway_operations(payload['gateway_operations']))
+                if (event['event_type'] == 'attempt_completed' and event['event_id'] == source['answer_ref']
+                        and payload.get('work_id') == source['work_id'] and saved):
+                    receipts.extend(saved)
+                    if len(receipts) > 64:
+                        raise ValueError('gateway input receipts exceed bounds')
+                    break
+            else:
+                if page['has_more'] and page['next_after'] > after:
+                    after = page['next_after']
+                    continue
+                raise ValueError('gateway receipt source is unavailable')
+            break
+        else:
+            raise ValueError('gateway receipt source exceeds page limit')
+    return receipts

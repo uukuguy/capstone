@@ -33,7 +33,7 @@ def _request(value):
         fields |= {'equipment', 'restrictions', 'mission_origin'}
     if (not isinstance(value, dict) or not fields <= set(value)
             or set(value) - fields - {'control_revision', 'required_products'} - (
-                {'context_authority_sources'} if v2 else set())
+                {'context_authority_sources', 'context_gateway_sources'} if v2 else set())
             or value['schema'] not in {'capstone-agent-delegation/1', 'capstone-agent-delegation/2'}):
         raise ValueError('invalid Agent delegation contract')
     if v2:
@@ -43,11 +43,12 @@ def _request(value):
         references(value['restrictions'])
         checked_origin(value['mission_origin'])
         from capstone_control.contracts import authority_source
-        sources = value.get('context_authority_sources', [])
-        if not isinstance(sources, list) or len(sources) > 64:
-            raise ValueError('invalid delegation authority sources')
-        for source in sources:
-            authority_source(source)
+        for field in ('context_authority_sources', 'context_gateway_sources'):
+            sources = value.get(field, [])
+            if not isinstance(sources, list) or len(sources) > 64:
+                raise ValueError('invalid delegation receipt sources')
+            for source in sources:
+                authority_source(source)
     for key in ['delegation_id', 'operation_id', 'goal_id', 'task_id', 'agent_id']:
         if not isinstance(value[key], str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', value[key]):
             raise ValueError('invalid delegation identity')
@@ -155,7 +156,7 @@ class AgentDelegations:
                 from .delegation_authority import grant_authority_sources
                 grant_authority_sources(self.threads, workspace, thread, work['work_id'],
                     request['delegation_id'], request.get('context_authority_sources', []),
-                    request['mission_origin'])
+                    request['mission_origin'], gateway_sources=request.get('context_gateway_sources', []))
             upload_refs = [ref for ref in request.get('equipment', []) if ref['kind'] == 'resource']
             if upload_refs:
                 from .delegation_resources import grant_mission_uploads
@@ -209,10 +210,12 @@ class AgentDelegations:
                  'interrupted': 'unknown'}.get(status, status)
         delivery = None
         if state == 'completed':
-            after, artifacts, terminal, authoritative = 0, {}, None, False
+            after, artifacts, terminal, authoritative, gateway = 0, {}, None, False, False
             for _ in range(128):
                 page = self.threads.read_attempt_records(binding['thread_id'], work['latest_attempt_id'], after=after, limit=128)
                 for event in page['events']:
+                    if event['event_type'] == 'runtime_event' and event['payload'].get('gateway_operations'):
+                        gateway = True
                     if event['event_type'] == 'native_artifact_published':
                         item = event['payload']['artifact']
                         if item['work_id'] == binding['work_id'] and item.get('source_status') == 'completed':
@@ -232,6 +235,8 @@ class AgentDelegations:
             delivery = {'answer_ref': terminal, 'products': list(artifacts.values()), 'status': 'completed'}
             if authoritative and delegation['schema'] == 'capstone-agent-delegation/2':
                 delivery['authority_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}
+            if gateway and delegation['schema'] == 'capstone-agent-delegation/2':
+                delivery['gateway_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}
         return {'sequence': sequence, 'state': state,
                 'summary': work.get('goal_mode', {}).get('reason') or work.get('blocked_reason') or state,
                 'delivery': delivery}

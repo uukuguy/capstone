@@ -261,6 +261,20 @@ class GeneralPiHost:
         bind_diagnosis = getattr(run_task, 'bind_diagnosis_provider', None)
         if callable(bind_diagnosis):
             bind_diagnosis(self.diagnosis_context)
+        bind_gateway_operations = getattr(run_task, 'bind_gateway_operation_writer', None)
+        if callable(bind_gateway_operations):
+            bind_gateway_operations(self.record_gateway_operations)
+
+    def record_gateway_operations(self, task_id, value):
+        from .structural_context import checked_gateway_operations
+        receipt = checked_gateway_operations(value)
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None or record['status'] != 'running' or record['cancel'].is_set():
+                raise ValueError('gateway operation receipt has no active task')
+            if receipt['binding'] != record['request'].native_context.get('gateway_binding'):
+                raise ValueError('gateway operation receipt changed owner')
+            record['gateway_operations'] = receipt
 
     def diagnosis_context(self, request, workspace, uid):
         from .native_diagnosis import NativeDiagnosis, DIAGNOSIS_POLICY
@@ -1124,8 +1138,8 @@ class GeneralPiHost:
                 status, answer = 'failed', ''
                 public_failure = {'code':'native_product_delivery_incomplete','phase':'persistence'}
             saved_artifacts = artifacts
-            if status == 'completed' and record['authority_references']:
-                from .structural_context import AUTHORITY_REFERENCE_SOURCE
+            if status == 'completed' and (record['authority_references'] or record.get('gateway_operations')):
+                from .structural_context import AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE
                 with self._lock:
                     receipts = tuple(record['authority_references'].items())
                 verified_sources = [
@@ -1134,6 +1148,10 @@ class GeneralPiHost:
                      'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': metadata}
                     for call_id, metadata in receipts
                 ]
+                if record.get('gateway_operations') is not None:
+                    verified_sources.append({'source_id': 'gateway-operation-references',
+                        'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
+                        'kind': GATEWAY_OPERATION_SOURCE, 'metadata': record['gateway_operations']})
                 require_capacity('context_references', len(verified_sources), 'authority_reference_persistence')
                 if record.get('graph_context') is not None:
                     require_capacity('context_references', len(sources) + len(verified_sources),
@@ -1341,6 +1359,9 @@ class NativeTaskRunner:
     def bind_resource_staging(self, staging):
         self._resource_staging = staging
 
+    def bind_gateway_operation_writer(self, writer):
+        self._gateway_operation_writer = writer
+
     def __call__(self, request, cancelled, emit, *, inventory_only=False):
         from .native_timing import NativeTiming
         timing = NativeTiming(request.task_id)
@@ -1505,6 +1526,14 @@ class NativeTaskRunner:
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
                             request.parent_attempt_id))
+                    saved_operations = (document.get('structural_context') or {}).get('gateway_operations')
+                    if saved_operations is not None and saved_operations['binding'] == frozen_gateway:
+                        task_gateway.restore_operations(request.task_id, frozen_gateway, saved_operations)
+                        sdk_config.setdefault('contextFiles', []).append({
+                            'path': 'admitted-gateway-operations',
+                            'content': 'Previously issued operation handles for the current registered gateway. '
+                                'Use them only for applicable continuation tools.\n' +
+                                json.dumps(saved_operations['operations'], ensure_ascii=False)})
                     retained_contracts = getattr(task_gateway, 'contract_context', None)
                     if callable(retained_contracts):
                         retained = retained_contracts(request.task_id)
@@ -1852,6 +1881,12 @@ class NativeTaskRunner:
             answer = process.run(request.instruction, timeout=request.timeout_seconds,
                                  cancelled=cancelled, on_event=emit, inventory_only=inventory_only,
                                  on_process_started=process_started, answer_format=request.answer_format)
+            writer = getattr(self, '_gateway_operation_writer', None)
+            issuer = getattr(task_gateway, 'issued_operations', None)
+            if frozen_gateway and frozen_gateway['catalog_revision'] and callable(writer) and callable(issuer):
+                operations = issuer(request.task_id)
+                if operations:
+                    writer(request.task_id, {'binding': frozen_gateway, 'operations': operations})
             return answer, ({'native_tools': process.tools, 'inventory': process.inventory} if inventory_only else process.usage)
         except Exception as error:
             if process is not None:

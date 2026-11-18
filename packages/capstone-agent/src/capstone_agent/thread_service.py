@@ -650,6 +650,25 @@ def _native_prior_context(prior, terminal_records) -> tuple[tuple[PriorResultRef
     return tuple(receipts.values()), tuple(standalone_evidence)
 
 
+def _legacy_authority_receipts(records):
+    from .tool_execution_receipt import checked_execution_receipt
+
+    receipts = {}
+    for payload in records:
+        task_id = payload.get('task_id')
+        if (payload.get('native_type') != 'tool_execution_end' or payload.get('is_error') is not False
+                or not isinstance(task_id, str) or not re.fullmatch(r'pi-[a-f0-9]{64}', task_id)):
+            continue
+        receipt = checked_execution_receipt((payload.get('activity') or {}).get('execution_receipt'),
+                                            task_id=task_id, call_id=payload.get('tool_call_id'))
+        if receipt is not None and [event['phase'] for event in receipt['events']] == [
+                'submitted', 'queued', 'acquired', 'execution_started', 'execution_ended', 'released']:
+            receipts.setdefault(task_id, receipt)
+        if len(receipts) == 4:
+            break
+    return tuple(receipts.values())
+
+
 def _result_projection_window(snapshot: ThreadSnapshot, additions: tuple[ResultProjection, ...]) -> ThreadSnapshot:
     """Bound the active catalog, with explicit metadata; the ledger retains all results."""
     catalog = snapshot.result_projections + additions
@@ -849,6 +868,8 @@ class AttemptClaim:
     application_catalog: Mapping[str, object] | None = None
     prior_results: tuple[PriorResultReference, ...] = ()
     prior_evidence_refs: tuple[str, ...] = field(default=(), kw_only=True)
+    legacy_authority_receipts: tuple[Mapping, ...] = field(default=(), kw_only=True)
+    prior_gateway_operations: tuple[Mapping, ...] = field(default=(), kw_only=True)
     previous_instruction: PreviousInstruction | None = None
     conversation_context: ConversationContext = ConversationContext()
     submission: Mapping[str, Any] | None = None
@@ -2313,6 +2334,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                             else _previous_instruction_from_events(self._events, self._attempts, context, record.get('source_attempt_id')))
                 prior = _prior_results_for_context(self._snapshot, allowed_attempt_ids=allowed_attempt_ids)
                 prior_evidence = ()
+                legacy = ()
+                gateway_operations = ()
                 from .structural_context import main_chain_native_binding
                 conversation = record['conversation_context']
                 if main_chain_native_binding(record.get('submission')) and (context is not None or allowed_attempt_ids is not None):
@@ -2322,6 +2345,23 @@ class InMemoryThreadService(NativeExecutionOwner):
                         if item.attempt_id in visible and item.event_type == 'attempt_completed'
                         and item.event_seq <= conversation.history_cutoff and item.run_id == self._snapshot.run.run_id
                         and self._attempts[item.attempt_id].get('model_context') == context))
+                    if allowed_attempt_ids is not None:
+                        gateway_operations = tuple(islice((item.payload['gateway_operations']
+                            for item in reversed(self._events) if item.attempt_id in visible
+                            and item.run_id == self._snapshot.run.run_id and item.event_seq <= conversation.history_cutoff
+                            and item.event_type == 'runtime_event' and 'gateway_operations' in item.payload), 64))
+                    if context is None and allowed_attempt_ids is not None:
+                        eligible = {
+                            item.attempt_id for item in self._events
+                            if item.attempt_id in visible and item.event_type == 'attempt_completed'
+                            and item.event_seq <= conversation.history_cutoff and item.run_id == self._snapshot.run.run_id
+                            and not item.payload.get('authority_references')
+                            and (structural := (self._attempts[item.attempt_id].get('intent_input_snapshot') or {})
+                                 .get('resources', {}).get('structural_context'))
+                            and structural.get('model') is None and 'work_scope' not in structural}
+                        legacy = _legacy_authority_receipts(item.payload for item in reversed(self._events)
+                            if item.attempt_id in eligible and item.event_type == 'runtime_event'
+                            and item.event_seq <= conversation.history_cutoff and item.run_id == self._snapshot.run.run_id)
                 return AttemptClaim(
                     thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
                     workspace_name=self._workspace_name,
@@ -2334,6 +2374,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                     started_at=event.occurred_at,
                     prior_results=prior,
                     prior_evidence_refs=prior_evidence,
+                    legacy_authority_receipts=legacy,
+                    prior_gateway_operations=gateway_operations,
                     previous_instruction=previous,
                     conversation_context=record["conversation_context"],
                     submission=record.get("submission"),
@@ -4637,6 +4679,8 @@ class PostgresThreadService(NativeExecutionOwner):
                         else _previous_instruction_from_postgres(connection, thread['thread_id'], context, source))
             prior = _prior_results_for_context(self._snapshot_from_row(thread), allowed_attempt_ids=allowed_attempt_ids)
             prior_evidence = ()
+            legacy = ()
+            gateway_operations = ()
             from .structural_context import main_chain_native_binding
             frozen_conversation = ConversationContext.from_document(conversation)
             if main_chain_native_binding(attempt_row.get('submission_snapshot')) and (context is not None or allowed_attempt_ids is not None):
@@ -4653,6 +4697,30 @@ class PostgresThreadService(NativeExecutionOwner):
                         (thread['thread_id'], thread['run_id'], visible, frozen_conversation.history_cutoff,
                          None if context is None else Jsonb(context.to_document()))).fetchall()
                     prior, prior_evidence = _native_prior_context(prior, ((item['attempt_id'], item['payload']) for item in records))
+                    if allowed_attempt_ids is not None:
+                        operations = connection.execute("""SELECT payload->'gateway_operations' AS receipt
+                            FROM capstone_thread_events
+                            WHERE thread_id=%s AND run_id=%s AND attempt_id=ANY(%s) AND event_seq<=%s
+                            AND event_type='runtime_event' AND payload ? 'gateway_operations'
+                            ORDER BY event_seq DESC LIMIT 64""",
+                            (thread['thread_id'], thread['run_id'], visible, frozen_conversation.history_cutoff)).fetchall()
+                        gateway_operations = tuple(item['receipt'] for item in operations)
+                    if context is None and allowed_attempt_ids is not None:
+                        rows = connection.execute("""SELECT e.payload
+                            FROM capstone_thread_events e
+                            JOIN capstone_thread_attempts a ON a.attempt_id=e.attempt_id AND a.thread_id=e.thread_id
+                            JOIN capstone_thread_events c ON c.attempt_id=e.attempt_id AND c.thread_id=e.thread_id
+                            WHERE e.thread_id=%s AND e.run_id=%s AND e.attempt_id=ANY(%s)
+                            AND e.event_seq<c.event_seq AND c.event_seq<=%s
+                            AND c.event_type='attempt_completed' AND NOT c.payload ? 'authority_references'
+                            AND e.event_type='runtime_event' AND e.payload->>'native_type'='tool_execution_end'
+                            AND e.payload->'activity' ? 'execution_receipt'
+                            AND a.model_context_snapshot IS NULL
+                            AND a.intent_input_snapshot#>'{resources,structural_context,model}'='null'::jsonb
+                            AND NOT (a.intent_input_snapshot#>'{resources,structural_context}') ? 'work_scope'
+                            ORDER BY e.event_seq DESC LIMIT 128""",
+                            (thread['thread_id'], thread['run_id'], visible, frozen_conversation.history_cutoff)).fetchall()
+                        legacy = _legacy_authority_receipts(item['payload'] for item in rows)
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
                 event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
@@ -4667,6 +4735,8 @@ class PostgresThreadService(NativeExecutionOwner):
                 started_at=event.occurred_at,
                 prior_results=prior,
                 prior_evidence_refs=prior_evidence,
+                legacy_authority_receipts=legacy,
+                prior_gateway_operations=gateway_operations,
                 previous_instruction=previous,
                 conversation_context=frozen_conversation,
                 submission=attempt_row.get("submission_snapshot"),

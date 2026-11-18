@@ -20,6 +20,30 @@ _MODEL_FIELDS = (
 )
 
 AUTHORITY_REFERENCE_SOURCE = 'domain_authority_references'
+GATEWAY_OPERATION_SOURCE = 'gateway_operation_references'
+
+
+def checked_gateway_operations(value):
+    if not isinstance(value, Mapping) or set(value) != {'binding', 'operations'}:
+        raise ValueError('invalid gateway operation receipt')
+    binding = value['binding']
+    if (not isinstance(binding, Mapping) or set(binding) != {'connection_id', 'instance_id', 'catalog_revision'}
+            or any(not isinstance(binding[key], str) or not 0 < len(binding[key]) <= 256
+                   for key in ('instance_id', 'catalog_revision'))
+            or binding['connection_id'] is not None
+            and (not isinstance(binding['connection_id'], str) or not 0 < len(binding['connection_id']) <= 256)):
+        raise ValueError('invalid gateway operation owner')
+    operations = value['operations']
+    if not isinstance(operations, (list, tuple)) or not 0 < len(operations) <= 64:
+        raise ValueError('invalid gateway operation list')
+    checked = {}
+    for item in operations:
+        if (not isinstance(item, Mapping) or set(item) != {'kind', 'ref'}
+                or item['kind'] not in ('job_ref', 'preparation_ref') or not isinstance(item['ref'], str)
+                or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', item['ref'])):
+            raise ValueError('invalid gateway operation reference')
+        checked[item['kind'], item['ref']] = dict(item)
+    return {'binding': dict(binding), 'operations': list(checked.values())}
 
 
 def checked_authority_references(value: object) -> dict:
@@ -89,7 +113,7 @@ def _checked_handles(value) -> list[dict]:
 def checked_structural_context(value) -> dict:
     """Admit identities and opaque refs. Reject tool payloads."""
 
-    if (not isinstance(value, Mapping) or set(value) - {'work_scope', 'authority_inputs'} != {'schema', 'model', 'handles'}
+    if (not isinstance(value, Mapping) or set(value) - {'work_scope', 'authority_inputs', 'gateway_operations'} != {'schema', 'model', 'handles'}
             or value.get('schema') != 'capstone-structural-context/1'):
         raise ValueError('structural context is invalid')
     document = {
@@ -103,6 +127,8 @@ def checked_structural_context(value) -> dict:
         document['work_scope'] = _checked_work_scope(value['work_scope'])
     if 'authority_inputs' in value:
         document['authority_inputs'] = _checked_authority_inputs(value['authority_inputs'])
+    if 'gateway_operations' in value:
+        document['gateway_operations'] = checked_gateway_operations(value['gateway_operations'])
     return document
 
 
@@ -118,6 +144,9 @@ def _checked_authority_inputs(value):
             selector = {'model': _checked_model(owner['model'])}
         elif isinstance(owner, Mapping) and set(owner) == {'work_scope'}:
             selector = {'work_scope': _checked_work_scope(owner['work_scope'])}
+        elif (isinstance(owner, Mapping) and set(owner) == {'legacy_task'}
+              and isinstance(owner['legacy_task'], str) and re.fullmatch(r'pi-[a-f0-9]{64}', owner['legacy_task'])):
+            selector = {'legacy_task': owner['legacy_task']}
         else:
             raise ValueError('invalid authority input owner')
         inputs.append({'owner': selector, **checked_authority_references(
@@ -177,6 +206,7 @@ def management_note(value: Mapping) -> str:
     checked = checked_structural_context(value)
     checked.pop('work_scope', None)
     checked.pop('authority_inputs', None)
+    checked.pop('gateway_operations', None)
     return (
         'Main-chain management context. It names the open model and opaque handles. '
         'Domain Pack tools keep grid calculation data. Gateway tools keep their own refs and payloads. '

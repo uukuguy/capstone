@@ -132,7 +132,7 @@ def test_mission_upload_grant_reads_frozen_version_after_replacement(postgres_th
 
 def test_mission_child_freezes_exact_authority_source(postgres_thread_service):
     from dataclasses import replace
-    from capstone_agent.delegation_authority import resolve_authority_inputs
+    from capstone_agent.delegation_authority import resolve_authority_inputs, resolve_gateway_inputs
     from capstone_agent.structural_context import management_for, management_note, structural_context_for
     from test_thread_postgres import _snapshot
     from test_thread_work_execution import command
@@ -152,6 +152,10 @@ def test_mission_child_freezes_exact_authority_source(postgres_thread_service):
     evidence = 'evidence:sha256:' + 'b' * 64
     receipt = {'authority_id': 'gridctl', 'capability_id': 'analysis.run',
                'result_refs': [result], 'evidence_refs': [evidence]}
+    operation = {'binding': {'connection_id': 'conn_x', 'instance_id': 'instance_x', 'catalog_revision': 'revision_x'},
+                 'operations': [{'kind': 'job_ref', 'ref': 'issued-job'}]}
+    threads.append_runtime_event(producer, event_type='runtime_event', visibility='diagnostic',
+                                 payload={'gateway_operations': operation})
     threads.finish_attempt(producer, phase='completed',
         payload={'answer': 'Saved', 'result_refs': [result], 'evidence_refs': [evidence],
                  'authority_references': [receipt]})
@@ -163,19 +167,22 @@ def test_mission_child_freezes_exact_authority_source(postgres_thread_service):
         resolve_authority_inputs(threads, 'enterprise', [{**source, 'answer_ref': 'evt_other'}])
     with pytest.raises(ValueError, match='unavailable'):
         resolve_authority_inputs(threads, 'enterprise', [{**source, 'work_id': 'work_other'}])
+    with pytest.raises(ValueError, match='unavailable'):
+        resolve_gateway_inputs(threads, 'enterprise', [{**source, 'work_id': 'work_other'}])
     threads._catalog_context = None
     from capstone_agent.mission_equipment import catalog
     pack = next(item for item in catalog(threads, 'enterprise', {'thread_id': origin})
                 if item['id'] == 'pandapower-static-analysis')
     request = {**delegation(), 'schema': 'capstone-agent-delegation/2',
                'mission_origin': {'thread_id': origin}, 'equipment': [pack], 'restrictions': [],
-               'context_authority_sources': [source]}
+               'context_authority_sources': [source], 'context_gateway_sources': [source]}
     agent = AgentDelegations(threads, MemoryDelegations())
     binding = agent.delegate('enterprise', request)
     try:
         child = threads.claim_attempt('consumer', 60)
         assert child is not None and child.thread_id == binding['thread_id']
         assert child.application_catalog == producer.application_catalog
+        assert child.submission['_gateway_operation_inputs'] == [operation]
         assert child.submission['_mission_equipment']['domain_profiles'] == [
             pack['id'] + '@' + pack['revision']]
         context = structural_context_for(child)

@@ -130,6 +130,9 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monke
     assert references.results == expected.results
     assert references.context == expected.context
     assert references.evidence == expected.evidence
+    recovered = authority.recover_references()
+    assert recovered == {'authority_id': 'gridctl', 'capability_id': 'legacy.workspace.read',
+                         'result_refs': [result_ref], 'evidence_refs': [evidence_ref]}
 
     (evidence_root / 'results' / 'unrelated.json').write_text('{}')
     staged = tmp_path / 'delegated-read'
@@ -175,6 +178,16 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monke
         'evidence_ref': 'evidence:sha256:' + 'a' * 64}},
         workspace_id='consumer', authority_inputs=[grant])['ok'] is False
     assert len(called) == 1
+
+    legacy_id = 'pi-' + 'a' * 64
+    run_root.rename(tmp_path / legacy_id)
+    ledger = tmp_path / legacy_id / 'execution-receipts'
+    ledger.mkdir()
+    proof = {'task_id': legacy_id, 'call_id': 'invocation'}
+    (ledger / ('1' * 32 + '.json')).write_text(json.dumps(proof))
+    assert service.recover(proof) == recovered
+    with pytest.raises(ValueError, match='does not match'):
+        service.recover({**proof, 'call_id': 'other'})
 
 
 def _canonical_json(document: object) -> str:

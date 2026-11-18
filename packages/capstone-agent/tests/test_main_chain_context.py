@@ -206,7 +206,7 @@ def test_core_reply_cannot_survive_a_changed_or_recovered_answer():
 
 @pytest.mark.parametrize('backend', ('memory', 'postgres'))
 def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, request):
-    from capstone_agent.structural_context import AUTHORITY_REFERENCE_SOURCE
+    from capstone_agent.structural_context import AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE
 
     executor = governed_executor()
     execute = executor.execute
@@ -218,6 +218,10 @@ def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, re
     independent = 'evidence:sha256:' + 'e' * 64
     evidence_receipt = {**receipt, 'capability_id': 'model.describe',
                         'result_refs': [], 'evidence_refs': [independent]}
+    operation = {'binding': {'connection_id': 'conn_x', 'instance_id': 'instance_x', 'catalog_revision': 'revision_x'},
+                 'operations': [{'kind': 'job_ref', 'ref': 'issued-job'}]}
+    executor.capability['data_gateway'] = {'available': True, 'connection_id': 'conn_x',
+        'identity': {'instance_id': 'instance_x'}, 'catalog': {'revision': 'revision_x', 'tools': {}}}
 
     def answer(request, control, emit):
         child = execute(request, control, emit)
@@ -228,6 +232,9 @@ def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, re
                 'parent_attempt_id': request.parent_attempt_id,
                 'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': item,
             } for index, item in enumerate((receipt, evidence_receipt)))
+            sources += ({'source_id': 'gateway-references', 'task_id': request.task_id,
+                'parent_attempt_id': request.parent_attempt_id, 'kind': GATEWAY_OPERATION_SOURCE,
+                'metadata': operation},)
         return replace(child, sources=sources, answer=json.dumps({
             'answer': 'Saved result. Text only: ' + forged, 'summary': 'Saved result.'}))
 
@@ -257,11 +264,14 @@ def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, re
     assert first['result_refs'] == [ref]
     assert first['evidence_refs'] == [evidence, independent]
     assert first['authority_references'] == [receipt, evidence_receipt]
+    assert any(event.payload.get('gateway_operations') == operation
+               for event in store.read_events(thread_id, 0).events)
     work = store.snapshot(thread_id).works[0]
     send('continue', 'Reuse', work_id=work['work_id'], revision=work['revision'])
     assert executor.requests[-1].to_document()['structural_context']['handles'] == [
         {'kind': 'result_ref', 'ref': ref}, {'kind': 'evidence_ref', 'ref': evidence},
         {'kind': 'evidence_ref', 'ref': independent}]
+    assert executor.requests[-1].to_document()['structural_context']['gateway_operations'] == operation
 
 
 @pytest.mark.parametrize('channel', ('native_events', 'native_result'))
@@ -299,6 +309,63 @@ def test_recent_result_without_evidence_does_not_hide_earlier_verified_evidence(
     assert candidate.attempt_id == 'attempt_compute'
     assert candidate.evidence_refs == (evidence,)
     assert standalone == ()
+
+
+@pytest.mark.parametrize('backend', ('memory', 'postgres'))
+def test_only_completed_legacy_work_can_offer_saved_execution_receipts(backend, request, monkeypatch):
+    from capability_agent.runtime.execution_queue import ExecutionQueue
+
+    executor = governed_executor()
+    if backend == 'memory':
+        store = open_store(executor, session_type='enterprise-research')
+        thread_id = 'thr_unscoped'
+    else:
+        from test_thread_postgres import _snapshot
+        store, thread_id = request.getfixturevalue('postgres_thread_service')
+        store.create_thread(replace(_snapshot(thread_id), active_model_context=None, active_grid_page_id=None,
+            minimum_protocol_version=2, session_type='enterprise-research'))
+        store.set_native_executor(executor)
+    publish_domain(store, families=('pandapower',))
+    task_id = 'pi-' + 'a' * 64
+    queue = ExecutionQueue(capacity=1)
+    proof = queue.receipt(task_id=task_id, call_id='read')
+    with queue.acquire(proof, resource='legacy'):
+        queue.record(proof, 'execution_started', provenance='authority_process')
+        queue.record(proof, 'execution_ended', provenance='authority_process')
+    assert store.submit_command(command(store, thread_id, 'send_message', 'legacy',
+        payload={'text': 'Produce'})).status == 'accepted'
+    first = store.claim_attempt('native', 30, 'native')
+    assert first is not None
+    store.freeze_attempt_input(first, {'resources': {'structural_context': {
+        'schema': 'capstone-structural-context/1', 'model': None, 'handles': []}}})
+    store.append_runtime_event(first, event_type='runtime_event', visibility='diagnostic', payload={
+        'native_type': 'tool_execution_end', 'is_error': False, 'task_id': task_id,
+        'tool_call_id': 'read', 'activity': {'execution_receipt': proof}})
+    store.finish_attempt(first, phase='completed', payload={'answer': 'Saved without reference in prose.'})
+    work = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'send_message', 'resume',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Reuse'})).status == 'accepted'
+    second = store.claim_attempt('native', 30, 'native')
+    assert second is not None and second.legacy_authority_receipts == (proof,)
+    from capstone_agent import domain_tool_client
+    from capstone_agent.structural_context import management_for, management_note
+    ref = 'result:sha256:' + 'b' * 64
+    recovered = {'owner': {'legacy_task': task_id}, 'authority_id': 'gridctl',
+                 'capability_id': 'legacy.workspace.read', 'result_refs': [ref], 'evidence_refs': []}
+
+    def recover(receipts, grant, checkpoint):
+        assert receipts == (proof,)
+        assert {profile['implementation_family'] for profile in grant['profiles']} == {'pandapower'}
+        checkpoint()
+        return [recovered]
+
+    monkeypatch.setattr(domain_tool_client, 'recover_legacy_authority_inputs', recover)
+    plan = native_runtime_factory(executor).plan_intent(second, NodeControl(lambda: None, time.monotonic() + 30),
+        store.freeze_attempt_input, freeze_decision=store.freeze_attempt_decision)
+    context = plan.intent_resources['structural_context']
+    assert management_for(context)['authority_inputs'] == [recovered]
+    assert task_id not in management_note(context)
+    assert context['handles'][0] == {'kind': 'result_ref', 'ref': ref}
 
 
 @pytest.mark.parametrize('backend', ('memory', 'postgres'))

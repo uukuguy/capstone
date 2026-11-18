@@ -35,14 +35,15 @@ def authority_source(value):
 
 def validate_delivery(value, binding):
     fields = {'answer_ref', 'products', 'status'}
-    if isinstance(value, dict) and 'authority_source' in value:
-        fields.add('authority_source')
+    source_fields = {'authority_source', 'gateway_source'}
+    if isinstance(value, dict):
+        fields.update(source_fields.intersection(value))
     object_fields(value, fields)
     identity(value['answer_ref'])
     if value['status'] != 'completed' or not isinstance(value['products'], list):
         raise ContractError('completed persisted delivery required')
-    if 'authority_source' in value:
-        source = authority_source(value['authority_source'])
+    for field in source_fields.intersection(value):
+        source = authority_source(value[field])
         if (binding is None or any(source[key] != binding[key] for key in ('thread_id', 'work_id'))
                 or source['answer_ref'] != value['answer_ref']):
             raise ContractError('authority source does not match the delivery binding')

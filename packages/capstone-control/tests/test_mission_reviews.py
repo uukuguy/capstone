@@ -28,10 +28,11 @@ def test_verified_authority_source_reaches_review_and_declared_dependent():
     control = service()
     source = dict(thread_id='task_thread_1', work_id='task_work_1',
                   attempt_id='attempt_1', answer_ref='answer_1')
-    mission = complete_task(control, plan(control), authority_source=source)
+    mission = complete_task(control, plan(control), authority_source=source, gateway_source=source)
     intent = control.pending_mission_reviews('team')[0]
     reserved = control.reserve_mission_review('team', mission['mission_id'], intent['review_id'])
     assert reserved['boundary']['tasks'][0]['delivery']['authority_source'] == source
+    assert reserved['boundary']['tasks'][0]['delivery']['gateway_source'] == source
     control.acknowledge_mission_review('team', mission['mission_id'], intent['review_id'],
         dict(thread_id='thread_1', work_id='origin_work', attempt_id='review_1'))
     mission = control.read_mission('team', mission['mission_id'])
@@ -46,6 +47,7 @@ def test_verified_authority_source_reaches_review_and_declared_dependent():
     delegated = mission['tasks'][1]['delegation']['delegation_id']
     request = control.delegation_request('team', mission['mission_id'], delegated)
     assert request['context_authority_sources'] == [source]
+    assert request['context_gateway_sources'] == [source]
 
 
 def test_two_phase_organizer_uses_boundaries_and_explicit_plan_conclusion():

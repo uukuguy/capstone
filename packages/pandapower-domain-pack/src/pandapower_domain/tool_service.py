@@ -11,7 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
 from capability_agent.runtime.execution_queue import ExecutionReceiptError
-from pandapower_domain.authority import PandapowerArtifactAuthority, SimulatorIntegrityError
+from pandapower_domain.authority import ContentReferenceVerifier, PandapowerArtifactAuthority, SimulatorIntegrityError
 
 from pandapower_domain.execution import (GridctlExecutor, SimulatorCapabilityError,
     source_execution_queue, execution_receipt_writer)
@@ -173,6 +173,27 @@ class PandapowerToolService:
             except Exception:
                 response = {'ok': False, 'error': {'message': 'domain tool call failed'}}
         return {**response, 'execution_receipt': receipt}
+
+    def recover(self, receipt):
+        """Admit a saved task scope only after finding its exact owner receipt."""
+        task_id = receipt.get('task_id')
+        if not isinstance(task_id, str) or not re.fullmatch(r'pi-[a-f0-9]{64}', task_id):
+            raise ValueError('legacy task identity is invalid')
+        ledger = ContentReferenceVerifier(self._receipt_root / task_id)
+        directory = ('execution-receipts',)
+        try:
+            files = ledger._list_directory(directory)
+            if len(files) > 256:
+                raise ValueError('legacy receipt directory exceeds bounds')
+            for name in files:
+                if not re.fullmatch(r'[a-f0-9]{32}\.json', name):
+                    continue
+                saved = ledger._try_json_document((*directory, name), 'legacy execution receipt')
+                if saved is not None and saved[1] == receipt:
+                    return PandapowerArtifactAuthority(self._root / task_id).recover_references()
+        except SimulatorIntegrityError:
+            raise ValueError('legacy authority content is unavailable') from None
+        raise ValueError('legacy execution receipt does not match its owner')
 
     def _receipt_writer(self, task_id):
         # Each invocation gets a private control record, independent of HTTP

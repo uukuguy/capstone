@@ -552,6 +552,36 @@ def test_generic_operation_refs_are_task_owned(producer, reader, field):
     assert calls == [producer, reader]
 
 
+@pytest.mark.parametrize('parameter', ['job_ref', 'preparation_ref'])
+def test_saved_operations_restore_after_adapter_restart_only_for_exact_owner(parameter):
+    producer, reader = 'data_gateway_start_export', 'data_gateway_export_status'
+    schemas = {reader: {'inputSchema': {'type': 'object', 'properties': {
+        parameter: {'type': 'string'}}, 'required': [parameter]}}}
+    first = access([producer, reader], schemas=schemas)
+
+    async def upstream(name, arguments, catalog):
+        data = {'preparation_ref': 'old-job'} if name == producer else {parameter: arguments[parameter]}
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+
+    first.client.call = upstream
+    asyncio.run(first.call('task-1', {'call_id': 'produce', 'name': producer, 'arguments': {}}))
+    binding = {'connection_id': 'conn_a', 'instance_id': 'instance_a', 'catalog_revision': first.catalog['revision']}
+    saved = {'binding': binding, 'operations': first.issued_operations('task-1')}
+    assert saved['operations'] == [{'kind': 'preparation_ref', 'ref': 'old-job'}]
+    first.revoke('task-1')
+
+    after = access([producer, reader], schemas=schemas)
+    after.client.call = upstream
+    call = {'call_id': 'poll', 'name': reader, 'arguments': {parameter: 'old-job'}}
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(after.call('task-1', call))
+    for swapped in ('connection_id', 'instance_id', 'catalog_revision'):
+        with pytest.raises(GatewayError, match='gateway_task_not_admitted'):
+            after.restore_operations('task-1', {**binding, swapped: 'changed'}, saved)
+    after.restore_operations('task-1', binding, saved)
+    assert asyncio.run(after.call('task-1', call))['is_error'] is False
+
+
 @pytest.mark.parametrize('data,status,is_error', [
     ({'rows': [{'job_ref': 'operation-one'}]}, 'ok', False),
     ({'job_ref': 'operation-one'}, 'error', False),

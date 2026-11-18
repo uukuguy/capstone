@@ -210,6 +210,23 @@ def create_wake_app(
         except ValueError:
             raise HTTPException(422, 'domain tool call is invalid') from None
 
+    @app.post('/domain-tools/recover')
+    def domain_recover(body: dict, authorization: str = Header(default='')):
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        recover = getattr(domain_tools, 'recover', None)
+        if not callable(recover):
+            raise HTTPException(404, 'legacy recovery is not published by this worker')
+        from .tool_execution_receipt import checked_execution_receipt
+        receipt = checked_execution_receipt(body, task_id=body.get('task_id'), call_id=body.get('call_id'))
+        if receipt is None or [event['phase'] for event in receipt['events']] != [
+                'submitted', 'queued', 'acquired', 'execution_started', 'execution_ended', 'released']:
+            raise HTTPException(422, 'legacy execution receipt is invalid')
+        try:
+            return recover(receipt)
+        except ValueError:
+            raise HTTPException(404, 'legacy authority content is unavailable') from None
+
     return app
 
 

@@ -211,6 +211,21 @@ class DataGatewayAccess:
         with self._lock:
             self._tasks.pop(task_id, None)
 
+    def restore_operations(self, task_id, current_binding, saved):
+        from .structural_context import checked_gateway_operations
+        receipt = checked_gateway_operations(saved)
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if (record is None or receipt['binding'] != current_binding
+                    or record['catalog']['revision'] != current_binding['catalog_revision']):
+                raise GatewayError('gateway_task_not_admitted')
+            record.setdefault('operation_refs', set()).update(item['ref'] for item in receipt['operations'])
+
+    def issued_operations(self, task_id):
+        with self._lock:
+            record = self._tasks.get(task_id) or {}
+            return [{'kind': kind, 'ref': ref} for kind, ref in record.get('issued_operations', ())]
+
     async def resolve_contracts(self, task_id, names):
         """Read exact metadata only for this frozen task's granted selections."""
         with self._lock:
@@ -363,6 +378,11 @@ class DataGatewayAccess:
                 if ('job_ref' not in properties or not isinstance(job_ref, str)
                         or job_ref not in record.get('operation_refs', set())):
                     raise GatewayError('gateway_tool_not_admitted')
+            if 'preparation_ref' in document['arguments']:
+                ref = document['arguments']['preparation_ref']
+                if ('preparation_ref' not in properties or not isinstance(ref, str)
+                        or ref not in record.get('operation_refs', set())):
+                    raise GatewayError('gateway_tool_not_admitted')
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
             span = {**(context or {}), 'span_id': uuid4().hex, 'tool_call_id': call_id,
@@ -489,6 +509,11 @@ class DataGatewayAccess:
                 for field in ('job_ref', 'preparation_ref'):
                     ref = data.get(field)
                     if isinstance(ref, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', ref):
+                        issued = record.setdefault('issued_operations', {})
+                        require_capacity('context_references', len(issued) + ((field, ref) not in issued), 'gateway_operation')
+                        if len(issued) >= 64 and (field, ref) not in issued:
+                            raise GatewayError('gateway_output_invalid')
+                        issued[field, ref] = None
                         record.setdefault('operation_refs', set()).add(ref)
         return response
 

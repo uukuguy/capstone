@@ -36,7 +36,7 @@ def review_store(request):
     return service, thread_id, workspace, executor
 
 
-def reserved_review(review_store, *, complete_origin=True, products=None, reserve=True, authority=None):
+def reserved_review(review_store, *, complete_origin=True, products=None, reserve=True, authority=None, gateway=None):
     service, thread_id, workspace, executor = review_store
     host = configure_control(service)
     mission = host.create_mission(workspace, {'schema': 'capstone-control-mission-create/1',
@@ -48,18 +48,25 @@ def reserved_review(review_store, *, complete_origin=True, products=None, reserv
     delivery_authority = {}
     if complete_origin:
         payload = {'answer': 'The first task is planned.'}
+        if gateway is not None:
+            service.append_runtime_event(original, event_type='runtime_event', visibility='diagnostic',
+                                         payload={'gateway_operations': gateway})
         if authority is not None:
             from capstone_agent.structural_context import structural_context_for
             service.freeze_attempt_input(original, {'resources': {'structural_context': structural_context_for(original)}})
             payload.update(authority_references=[authority], result_refs=authority['result_refs'],
                            evidence_refs=authority['evidence_refs'])
         service.finish_attempt(original, phase='completed', payload=payload)
-        if authority is not None:
+        if authority is not None or gateway is not None:
             terminal = next(event for event in service.read_events(thread_id, 0).events
                             if event.event_type == 'attempt_completed')
-            delivery_authority = {'authority_source': {'thread_id': thread_id,
+            coordinates = {'thread_id': thread_id,
                 'work_id': original.task_context.binding.work_id, 'attempt_id': original.attempt.attempt_id,
-                'answer_ref': terminal.event_id}}
+                'answer_ref': terminal.event_id}
+            if authority is not None:
+                delivery_authority['authority_source'] = coordinates
+            if gateway is not None:
+                delivery_authority['gateway_source'] = coordinates
     task = dict(task_id='inspect', objective='Inspect the registered material',
         delivery_requirements=['Return a saved answer'], depends_on=[], agent_id='capstone',
         mode='single', max_attempts=1)
@@ -72,10 +79,11 @@ def reserved_review(review_store, *, complete_origin=True, products=None, reserv
     delegation = goal['tasks'][0]['delegation']
     product_binding = ({'thread_id': products[0]['thread_id'], 'work_id': products[0]['work_id']}
                        if products else {'thread_id': 'thr_fixture_child', 'work_id': 'work_fixture_child'})
-    if delivery_authority:
-        product_binding = {key: delivery_authority['authority_source'][key] for key in ('thread_id', 'work_id')}
+    source = delivery_authority.get('authority_source', delivery_authority.get('gateway_source'))
+    if source:
+        product_binding = {key: source[key] for key in ('thread_id', 'work_id')}
     host.service.deliver(workspace, mission['mission_id'], delegation['delegation_id'],
-        product_binding, {'answer_ref': delivery_authority.get('authority_source', {}).get('answer_ref', 'answer_fixture'),
+        product_binding, {'answer_ref': source['answer_ref'] if source else 'answer_fixture',
                           'products': products or [], 'status': 'completed', **delivery_authority})
     goal = host.service.read(workspace, mission['mission_id'])
     host.service.command(workspace, dict(schema='capstone-control-command/1', operation_id='verify',
@@ -95,13 +103,16 @@ def test_mission_review_freezes_authority_inputs_from_reserved_delivery(review_s
     receipt = {'authority_id': 'registered', 'capability_id': 'calculate',
                'result_refs': ['result:sha256:' + 'a' * 64],
                'evidence_refs': ['evidence:sha256:' + 'b' * 64]}
-    _host, _mission, intent, original = reserved_review(review_store, authority=receipt)
+    operation = {'binding': {'connection_id': 'conn_x', 'instance_id': 'instance_x', 'catalog_revision': 'revision_x'},
+                 'operations': [{'kind': 'preparation_ref', 'ref': 'issued-job'}]}
+    _host, _mission, intent, original = reserved_review(review_store, authority=receipt, gateway=operation)
     assert service.submit_mission_review(intent)['thread_id'] == thread_id
     review = service.claim_attempt('reviewer', 30)
     assert review is not None
     context = structural_context_for(review)
     assert context['authority_inputs'] == [{
         'owner': {'work_scope': structural_context_for(original)['work_scope']}, **receipt}]
+    assert review.submission['_gateway_operation_inputs'] == [operation]
 
 
 def test_review_instruction_has_a_typed_identity_and_no_user_history_record():

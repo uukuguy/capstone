@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import stat
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -541,6 +542,27 @@ class PandapowerArtifactAuthority:
 
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)
+
+    def recover_references(self) -> dict:
+        """Recover the verified content of a pre-admission task workspace."""
+        result_refs = []
+        evidence_refs = []
+        layouts = (
+            ('results', r'(?:result|powerflow|contingency|contingency-scenario)-([0-9a-f]{64})\.json', 'result', result_refs),
+            ('analysis', r'analysis-evidence-([0-9a-f]{64})\.json', 'evidence', evidence_refs),
+            ('network-facts', r'network-fact-([0-9a-f]{64})\.json', 'evidence', evidence_refs),
+        )
+        for folder, pattern, kind, refs in layouts:
+            for name in self._verifier._list_directory(('evidence', folder)):
+                match = re.fullmatch(pattern, name)
+                if match:
+                    refs.append(f'{kind}:sha256:{match[1]}')
+                    if len(refs) > 64:
+                        raise SimulatorIntegrityError('legacy workspace references exceed the recovery limit')
+        verified = self.admit('legacy.workspace.read', {'result_refs': result_refs}, tuple(evidence_refs))
+        return {'authority_id': self.authority_id, 'capability_id': 'legacy.workspace.read',
+                'result_refs': [item.reference for item in verified.results],
+                'evidence_refs': [item.reference for item in verified.evidence]}
 
     def stage_read_inputs(self, destination: Path, result_refs: list[str], evidence_refs: list[str]) -> None:
         """Stage the verified immutable closure inside an isolated read workspace."""
