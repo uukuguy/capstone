@@ -143,6 +143,11 @@ class AgentDelegations:
                 from .delegation_resources import grant_resources
                 grant_resources(self.threads, workspace, thread, work['work_id'],
                                 request['delegation_id'], request['context_products'])
+            upload_refs = [ref for ref in request.get('equipment', []) if ref['kind'] == 'resource']
+            if upload_refs:
+                from .delegation_resources import grant_mission_uploads
+                grant_mission_uploads(self.threads, workspace, thread, work['work_id'],
+                    request['delegation_id'], request['mission_origin'], upload_refs)
             if work['latest_attempt_id'] is None and work['start_available']:
                 if request['mode'] == 'goal':
                     self._command(thread, work, 'start_goal', 'start',

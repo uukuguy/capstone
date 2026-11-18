@@ -8,6 +8,7 @@ from .resource_manifest import checked_resource
 
 GRANT_EVENT = 'delegation_resources_granted'
 MISSION_REVIEW_GRANT_EVENT = 'mission_review_resources_granted'
+MISSION_UPLOAD_GRANT_EVENT = 'mission_uploads_granted'
 DELIVERY_EVENT = 'delegation_input_delivered'
 
 
@@ -45,27 +46,55 @@ def _same_frozen_grants(previous, proposed, thread_id):
         for old, new in zip(previous, proposed))
 
 
-def frozen_grants(service, thread_id, work_id, connection=None, *, review_id=None):
+def frozen_grants(service, thread_id, work_id, connection=None, *, review_id=None, mission_uploads=False):
     if work_id in {None, 'new'}:
         return []
+    event_type = (MISSION_UPLOAD_GRANT_EVENT if mission_uploads else
+                  GRANT_EVENT if review_id is None else MISSION_REVIEW_GRANT_EVENT)
     if connection is not None:
         rows = connection.execute('''SELECT payload FROM capstone_thread_events
             WHERE thread_id=%s AND event_type=%s AND payload->>'work_id'=%s
             AND (%s::text IS NULL OR payload->>'delegation_id'=%s)
-            ORDER BY event_seq LIMIT 2''', (thread_id,
-                GRANT_EVENT if review_id is None else MISSION_REVIEW_GRANT_EVENT, work_id, review_id, review_id)).fetchall()
+            ORDER BY event_seq LIMIT 2''', (thread_id, event_type, work_id, review_id, review_id)).fetchall()
         records = [row['payload'] for row in rows]
     elif hasattr(service, '_lock'):
         records = [e.payload for e in service._events if e.thread_id == thread_id
-                   and e.event_type == (GRANT_EVENT if review_id is None else MISSION_REVIEW_GRANT_EVENT)
+                   and e.event_type == event_type
                    and e.payload['work_id'] == work_id
                    and (review_id is None or e.payload['delegation_id'] == review_id)]
     else:
         with service._connect() as opened:
-            return frozen_grants(service, thread_id, work_id, opened, review_id=review_id)
+            return frozen_grants(service, thread_id, work_id, opened, review_id=review_id,
+                                 mission_uploads=mission_uploads)
     if len(records) > 1:
         raise ValueError('delegation Work has conflicting resource grants')
     return deepcopy(records[0]['resources']) if records else []
+
+
+def grant_mission_uploads(service, workspace, thread_id, work_id, delegation_id, origin, references):
+    from .mission_equipment import resolve_resource
+    from .thread_materials import _mutate, _write_event
+
+    service.require_workspace(thread_id, workspace)
+    require_capacity('context_references', len(references), phase='delegation.resources')
+    grants = []
+    for ref in references:
+        source = resolve_resource(service, workspace, origin, ref)
+        grants.append({'workspace': workspace, 'work_id': work_id, 'source': source,
+                       'resource': {**source, 'thread_id': thread_id}})
+
+    def save(snapshot, connection):
+        previous = frozen_grants(service, thread_id, work_id, connection, mission_uploads=True)
+        if previous:
+            if previous != grants:
+                raise ValueError('Mission upload grant conflict')
+            return
+        if not any(w['work_id'] == work_id and w['latest_attempt_id'] is None for w in snapshot.works):
+            raise ValueError('Mission upload grant requires an unstarted Work')
+        _write_event(service, snapshot, MISSION_UPLOAD_GRANT_EVENT,
+                     {'work_id': work_id, 'delegation_id': delegation_id, 'resources': grants}, connection)
+
+    _mutate(service, thread_id, save)
 
 
 def grant_resources(service, workspace, thread_id, work_id, delegation_id, products, *, mission_review=False):

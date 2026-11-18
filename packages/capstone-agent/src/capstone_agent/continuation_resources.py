@@ -53,6 +53,23 @@ def resource_reader_for(service, claim):
     historical = {artifact_resource(source)['resource_id']: source
                   for source in submission.get('_continuation_artifacts', ())}
 
+    def upload_source(canonical):
+        grants = [grant for grant in submission.get('_mission_upload_grants', ())
+                  if grant['resource'] == canonical]
+        if not grants:
+            return canonical
+        if (len(grants) != 1 or claim.task_context is None
+                or grants[0]['work_id'] != claim.task_context.binding.work_id
+                or grants[0]['workspace'] != claim.workspace_name):
+            raise ValueError('Mission upload grant ownership mismatch')
+        source = grants[0]['source']
+        from .mission_equipment import resolve_resource
+        published = resolve_resource(service, claim.workspace_name, {'thread_id': source['thread_id']},
+                                     {'id': source['resource_id'], 'revision': str(source['version'])})
+        if published != source or {**source, 'thread_id': claim.thread_id} != canonical:
+            raise ValueError('Mission upload source version changed')
+        return source
+
     def read_resource(manifest):
         canonical = checked_resource(dict(manifest))
         if canonical != allowed.get(canonical['resource_id']) or canonical['thread_id'] != claim.thread_id:
@@ -64,8 +81,9 @@ def resource_reader_for(service, claim):
         source = historical.get(canonical['resource_id'])
         if source is None:
             from .thread_resources import ResourceUploads
+            origin = upload_source(canonical)
             yield from ResourceUploads(service, service._material_objects).read(
-                claim.thread_id, canonical['resource_id'], version=canonical['version'])
+                origin['thread_id'], origin['resource_id'], version=origin['version'])
             return
         if (claim.task_context is None or source['thread_id'] != claim.thread_id
                 or source['work_id'] != claim.task_context.binding.work_id):
@@ -95,7 +113,7 @@ def resource_reader_for(service, claim):
         from .resource_range_reads import ResourceRangeReads
         return ResourceRangeReads(service, service._material_objects).read(
             claim.thread_id, claim.attempt.attempt_id, control.task_id, canonical, request,
-            checkpoint=control.checkpoint)
+            checkpoint=control.checkpoint, source=upload_source(canonical))
 
     read_resource.read_range = read_range
     def record_delivery(task_id, manifest):

@@ -88,6 +88,48 @@ def test_cross_workspace_delegation_identity_has_separate_thread(postgres_thread
             registry.delete(workspace, d['operation_id'])
 
 
+def test_mission_upload_grant_reads_frozen_version_after_replacement(postgres_thread_service):
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.continuation_resources import resource_reader_for
+    from capstone_agent.thread_resources import ResourceUploads
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_postgres import _snapshot
+
+    threads, origin = postgres_thread_service
+    threads.create_thread(_snapshot(origin))
+    threads.set_native_executor(native_executor())
+    threads._material_objects = MemoryObjectStore()
+    uploads = ResourceUploads(threads, threads._material_objects, chunk_bytes=4)
+    uid = uploads.begin(origin, 'source.txt', 4, 'origin')['upload_id']
+    uploads.part(origin, uid, 0, b'old!')
+    source = uploads.complete(origin, uid)
+    ref = dict(schema='capstone-mission-equipment-reference/1', kind='resource',
+               id=source['resource_id'], revision='1')
+    request = {**delegation(), 'schema': 'capstone-agent-delegation/2',
+               'mission_origin': {'thread_id': origin}, 'equipment': [ref], 'restrictions': []}
+    agent = AgentDelegations(threads, MemoryDelegations())
+    with pytest.raises(KeyError):
+        agent.delegate('other', request)
+    binding = agent.delegate('enterprise', request)
+    claim = None
+    try:
+        newer = uploads.begin(origin, 'source.txt', 4, 'new', resource_id=ref['id'],
+                              expected_version=1)['upload_id']
+        uploads.part(origin, newer, 0, b'new!')
+        uploads.complete(origin, newer)
+        claim = threads.claim_attempt('mission-version-test', 60)
+        assert claim is not None and claim.thread_id == binding['thread_id']
+        manifest, = claim.submission['_resource_manifests']
+        assert manifest['resource_id'] == ref['id'] and manifest['version'] == 1
+        assert b''.join(resource_reader_for(threads, claim)(manifest)) == b'old!'
+        with pytest.raises(ValueError, match='not admitted'):
+            list(resource_reader_for(threads, claim)({**manifest, 'version': 2}))
+    finally:
+        if claim is not None:
+            threads.finish_attempt(claim, phase='cancelled', payload={})
+        threads.delete_thread(binding['thread_id'])
+
+
 def test_goal_pause_resume_retains_work_and_consumed_budget(postgres_thread_service):
     from test_enterprise_normal_chat import native_executor
     threads, _ = postgres_thread_service

@@ -35,7 +35,11 @@ class ControlHost:
         if claim is not None and mission.get('origin') is not None:
             from .mission_equipment import catalog
             try:
-                mission['available_equipment'] = catalog(self.agent.threads, workspace, mission['origin'])
+                resource_details = []
+                mission['available_equipment'] = catalog(self.agent.threads, workspace, mission['origin'],
+                                                         resource_details=resource_details)
+                if resource_details:
+                    mission['available_resource_details'] = resource_details
             except ValueError:
                 mission['available_equipment'] = []
                 mission['equipment_status'] = {'available': False,
