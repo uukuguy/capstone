@@ -143,6 +143,14 @@ def _claim_application_catalog(service, context, submission):
     return None
 
 
+def _goal_catalog_source(snapshot, command):
+    if command['kind'] not in {'continue_goal', 'resume_goal'}:
+        return None
+    work_id = command['target']['id']
+    work = next((item for item in snapshot.works if item['work_id'] == work_id), {})
+    return work.get('goal_continuation', {}).get('predecessor_attempt_id')
+
+
 _MAX_COMMAND_BYTES = limits.command_bytes
 _MAX_EVENT_BYTES = limits.event_bytes
 _COMMAND_FIELDS = frozenset({
@@ -1655,6 +1663,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission)
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
+        catalog_source = _goal_catalog_source(prepared, parsed)
         if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
             from .instruction_queue import enqueue_rejection
             frozen = self._attempts.get(prepared.current_attempt.attempt_id, {}).get('submission') or {}
@@ -1732,6 +1741,13 @@ class InMemoryThreadService(NativeExecutionOwner):
                             stored_submission['_application_catalog'] = published
                 if updated.session_type == 'enterprise-research' and stored_submission is not None and '_native_execution' in stored_submission:
                     stored_submission['_answer_core_summary'] = True
+                    source = self._attempts.get(catalog_source) if catalog_source is not None else None
+                    if ('_application_catalog' not in stored_submission and source is not None and task_context is not None
+                            and source['attempt'].phase == 'completed' and source.get('model_context') == updated.active_model_context
+                            and source.get('task_context') is not None and source['task_context'].binding == task_context.binding):
+                        catalog = (source.get('submission') or {}).get('_application_catalog')
+                        if isinstance(catalog, Mapping):
+                            stored_submission['_application_catalog'] = catalog
                 from .mission_origin import bind_submission
                 stored_submission = bind_submission(updated, work['work_id'], stored_submission, instruction=instruction)
                 self._attempts[attempt.attempt_id] = {
@@ -3226,6 +3242,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission, connection=connection)
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
+        catalog_source = _goal_catalog_source(prepared, parsed)
         if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
             from .instruction_queue import enqueue_rejection
             saved = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s',
@@ -3310,6 +3327,16 @@ class PostgresThreadService(NativeExecutionOwner):
                             submission['_application_catalog'] = published
                 if updated.session_type == 'enterprise-research' and submission is not None and '_native_execution' in submission:
                     submission['_answer_core_summary'] = True
+                    if '_application_catalog' not in submission and catalog_source is not None:
+                        source = connection.execute("""SELECT submission_snapshot->'_application_catalog' AS catalog
+                            FROM capstone_thread_attempts
+                            WHERE attempt_id=%s AND thread_id=%s AND run_id=%s AND phase='completed'
+                            AND task_context_snapshot->'binding' = %s
+                            AND model_context_snapshot IS NOT DISTINCT FROM %s::jsonb""",
+                            (catalog_source, snapshot.thread_id, snapshot.run.run_id, Jsonb(task_context.binding.to_document()),
+                             None if context is None else Jsonb(context.to_document()))).fetchone()
+                        if source is not None and isinstance(source['catalog'], Mapping):
+                            submission['_application_catalog'] = source['catalog']
                 from .mission_origin import bind_submission
                 submission = bind_submission(updated, work['work_id'], submission, instruction=instruction)
                 connection.execute("""INSERT INTO capstone_thread_attempts

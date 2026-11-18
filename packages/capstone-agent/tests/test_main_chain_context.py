@@ -296,6 +296,40 @@ def test_recent_result_without_evidence_does_not_hide_earlier_verified_evidence(
     assert candidate.evidence_refs == (evidence,)
 
 
+@pytest.mark.parametrize('backend', ('memory', 'postgres'))
+def test_automatic_goal_continuation_keeps_the_published_domain_catalog(backend, request):
+    from capstone_agent.goal_continuation import drain_goal_continuations
+
+    executor = governed_executor()
+    if backend == 'memory':
+        store = open_store(executor, session_type='enterprise-research')
+        thread_id = 'thr_unscoped'
+    else:
+        from test_thread_postgres import _snapshot
+        store, thread_id = request.getfixturevalue('postgres_thread_service')
+        store.create_thread(replace(_snapshot(thread_id), active_model_context=None, active_grid_page_id=None,
+            minimum_protocol_version=2, session_type='enterprise-research'))
+        store.set_native_executor(executor)
+    publish_domain(store, families=('pandapower',))
+    assert store.submit_command(command(store, thread_id, 'work_message', 'save',
+        payload={'text': 'Calculate then read a result'})).status == 'accepted'
+    work = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'start_goal', 'calculate',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': 'Calculate then read a result', 'max_attempts': 2,
+            'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
+    first = store.claim_attempt('native', 30, 'native')
+    assert first is not None and first.application_catalog is not None
+    store.finish_attempt(first, phase='completed', payload={'answer': 'Saved the calculation',
+        'goal_proposal': {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+            'summary': 'Saved the calculation', 'next_instruction': 'Read the result',
+            'waiting_reason': None, 'product_refs': []}})
+    store._catalog_context = None
+    assert drain_goal_continuations(store) == 1
+    continuation = store.claim_attempt('native', 30, 'native')
+    assert continuation is not None and continuation.application_catalog == first.application_catalog
+
+
 def test_enterprise_research_admits_an_attachment_while_a_model_is_open():
     from capstone_agent.artifacts import MemoryObjectStore
     from capstone_agent.thread_resources import ResourceUploads
