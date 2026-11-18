@@ -50,6 +50,8 @@
     "packages/capstone-app/src/ThreadCommandMenu.tsx",
     "packages/capstone-app/src/ThreadWorkAdapter.tsx",
     "packages/capstone-app/src/ThreadWorkExecution.test.tsx",
+    "packages/capstone-app/src/ThreadWorkspace.test.tsx",
+    "packages/capstone-app/src/ThreadWorkspace.tsx",
     "packages/capstone-app/src/executionDetails.css",
     "packages/capstone-app/src/enterpriseWorkspace.css",
     "packages/capstone-app/src/instructionStatus.css",

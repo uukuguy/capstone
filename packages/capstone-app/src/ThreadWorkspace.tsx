@@ -46,7 +46,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   useEffect(() => { if (!resourcePanelOpen) setExpanded(false) }, [resourcePanelOpen])
   const enterprise = sharedNavigation?.enterprise === true
   const shareStorage = enterprise ? 'capstone.enterprise-workspace.conversation-share' : 'capstone.workspace.conversation-share'
-  const defaultShare = enterprise ? 48 : 60
+  const defaultShare = 60
   const [share, setShare] = useSessionViewState(enterprise?'layout.enterprise-conversation-share':'layout.conversation-share',() => {
     try { const saved=Number(localStorage.getItem(shareStorage)); if (saved>=25 && saved<=70) return saved } catch { /* Use the default split. */ }
     return defaultShare

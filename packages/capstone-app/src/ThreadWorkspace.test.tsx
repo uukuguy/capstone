@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import CapstoneAssistantThread from './CapstoneAssistantThread'
 import ThreadWorkspace from './ThreadWorkspace'
+import {WorkspaceNavigationContext} from './workspaceNavigationContext'
 import SessionNavigation from './SessionNavigation'
 
 afterEach(() => { cleanup(); sessionStorage.clear();localStorage.clear() })
@@ -103,6 +104,20 @@ it('clamps a narrow window without replacing the preferred split and can reset i
   fireEvent.click(screen.getByRole('button',{name:'恢复默认比例'}))
   expect(separator.getAttribute('aria-valuenow')).toBe('60')
   rect.mockRestore();localStorage.clear()
+})
+
+it('uses the same default split in the enterprise workspace', () => {
+  const navigation={enterprise:true,open:false,toggle:vi.fn(),panelId:'navigation',toggleRef:{current:null},
+    gateway:undefined,catalog:null,refreshCatalog:vi.fn()}
+  render(<WorkspaceNavigationContext.Provider value={navigation}>
+    <ThreadWorkspace conversationOnly resourcePanel={<p>结果表</p>} resourcePanelOpen><p>对话</p></ThreadWorkspace>
+  </WorkspaceNavigationContext.Provider>)
+  const separator=screen.getByRole('separator',{name:'调整对话与成果宽度'})
+  expect(separator.getAttribute('aria-valuenow')).toBe('60')
+  fireEvent.keyDown(separator,{key:'ArrowLeft'})
+  expect(separator.getAttribute('aria-valuenow')).toBe('58')
+  fireEvent.click(screen.getByRole('button',{name:'恢复默认比例'}))
+  expect(separator.getAttribute('aria-valuenow')).toBe('60')
 })
 
 it('bounds pointer resizing and keeps the split when the product workspace is expanded', () => {
