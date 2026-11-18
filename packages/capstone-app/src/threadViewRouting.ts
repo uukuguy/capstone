@@ -1,7 +1,7 @@
 import type {GridSourceLevel} from './gridSource'
 import type {DiagramNetworkView} from './types'
 import type {EventEnvelope,ModelContextSnapshot} from './threadProtocol'
-import type {ThreadNetworkTask} from './threadProjectionStore'
+import type {ThreadGridPage,ThreadNetworkTask} from './threadProjectionStore'
 
 /** Host-verified presentation request; it grants neither a model nor calculation evidence. */
 export type ThreadSourceViewRequest={
@@ -88,6 +88,17 @@ function successful(payload:Record<string,unknown>):boolean{
 function sameContext(left:ModelContextSnapshot,right:ModelContextSnapshot):boolean{
   return left.id===right.id&&left.modelId===right.modelId&&left.modelRevision===right.modelRevision&&
     left.implementationFamily===right.implementationFamily&&left.selectionRevision===right.selectionRevision
+}
+
+/** Link the model snapshot alone when the Attempt has no admitted analysis layer. */
+export function selectInstructionModelPage(events:readonly EventEnvelope[],pages:readonly ThreadGridPage[],attemptId:string):string|null{
+  const completed=events.find(event=>event.visibility==='public'&&event.eventType==='attempt_completed'&&event.attemptId===attemptId)
+  if(!completed?.modelContextId||!completed.selectionRevision)return null
+  const page=pages.find(({context,networkView:view})=>context.id===completed.modelContextId&&
+    context.selectionRevision===completed.selectionRevision&&view?.schema==='capstone-network-view/2.0'&&
+    view.diagram.model.id===context.modelId&&view.diagram.model.revision===context.modelRevision&&
+    view.layer.overlay===null&&view.layer.focus_ids.length===0&&view.layer.next_focus_ids.length===0)
+  return page?.pageId??null
 }
 
 /** Proposes a view from admitted execution only. Caller owns manual priority and lifecycle. */

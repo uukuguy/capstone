@@ -7,7 +7,7 @@ import ProcessLifecycleNode from './ProcessLifecycleNode'
 import ProcessCallTrace, { callTraceIssues, modelCallMs, type ProcessTraceFocus, type ProcessToolCall } from './ProcessCallTrace'
 import './taskStepProcess.css'
 
-const phaseLabels: Record<string, string> = { pending: '等待', ready: '可执行', executing: '执行中', executed: '已返回', recorded: '待检查', assessing: '检查中', success: '完成', limited: '受限', failure: '失败' }
+export const phaseLabels: Record<string, string> = { pending: '等待', ready: '可执行', executing: '执行中', executed: '已返回', recorded: '待检查', assessing: '检查中', success: '完成', limited: '受限', failure: '失败' }
 const nativeLabels: Record<string, string> = { completed: '原生执行完成', failed: '原生执行失败', cancelled: '原生执行已取消', unknown: '原生结束状态未知' }
 const waitLabels: Record<string, string> = { dependencies: '前置结果尚未通过评估', model_revision_required: '需要模型修订' }
 const reasonLabels: Record<string, string> = { source_changed: '来源变化', method_changed: '方法变化', missing_result: '结果缺失', discrepancy: '发现矛盾' }

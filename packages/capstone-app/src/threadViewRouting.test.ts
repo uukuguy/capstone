@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest'
-import {parseThreadSourceViewRequest,parseThreadDisplayRequest,selectThreadViewProposal} from './threadViewRouting'
+import {parseThreadSourceViewRequest,parseThreadDisplayRequest,selectThreadViewProposal,selectInstructionModelPage} from './threadViewRouting'
 import {sampleDiagramView} from './networkFixture'
 import type {EventEnvelope,ModelContextSnapshot} from './threadProtocol'
 import type {ThreadNetworkTask} from './threadProjectionStore'
@@ -118,6 +118,17 @@ it('uses only an admitted actual model task view matching the complete current c
     expect(selectThreadViewProposal({events:[],networkTasks:[model(8,{context:{...currentContext,[key]:'wrong'}})],attemptId:'latest',currentContext})).toBeNull()
   }
   expect(selectThreadViewProposal({events:[],networkTasks:[task],attemptId:'latest',currentContext:null})).toBeNull()
+})
+
+it('links an instruction to its frozen model topology when a task layer is absent',()=>{
+  const completion={...event(6,{}),eventType:'attempt_completed',modelContextId:currentContext.id,
+    selectionRevision:currentContext.selectionRevision}
+  const page={pageId:'page',context:currentContext,networkView:{...sampleDiagramView,
+    layer:{...sampleDiagramView.layer,overlay:null,focus_ids:[],next_focus_ids:[]}}}
+  expect(selectInstructionModelPage([completion],[page],'latest')).toBe('page')
+  expect(selectInstructionModelPage([completion],[page],'other')).toBeNull()
+  expect(selectInstructionModelPage([{...completion,selectionRevision:'previous'}],[page],'latest')).toBeNull()
+  expect(selectInstructionModelPage([completion],[{...page,networkView:sampleDiagramView}],'latest')).toBeNull()
 })
 it('follows actual source/model transitions and produces the same proposal on replay',()=>{
   const source=event(10),task=model(8)

@@ -793,8 +793,11 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     details_manifest = Path(__file__).resolve().parents[1] / 'configs/development/execution-details-gate.json'
     if details_manifest.is_file():
         details = json.loads(details_manifest.read_text())
+        allowed = set(details['paths'])
+        if set(details.get('answer_anchors', ())).issubset(paths):
+            allowed.update(details.get('answer_paths', ()))
         if set(details['anchors']).issubset(paths) and all(
-                path in details['paths'] or _control_path(path) for path in paths):
+                path in allowed or _control_path(path) for path in paths):
             return 'execution-details'
     events_manifest = Path(__file__).resolve().parents[1] / 'configs/development/control-events-gate.json'
     if events_manifest.is_file():

@@ -58,7 +58,7 @@ import {buildModelWorkspaceCommand} from './threadWorkProtocol'
 import GridSourceWorkspace from './GridSourceWorkspace'
 import ElectricalModelWorkspace from './ElectricalModelWorkspace'
 import type {GridSourceView} from './gridSource'
-import {parseThreadDisplayRequest,selectThreadViewProposal,type ThreadDisplayRequest} from './threadViewRouting'
+import {parseThreadDisplayRequest,selectInstructionModelPage,selectThreadViewProposal,type ThreadDisplayRequest} from './threadViewRouting'
 
 const statusCopy: Record<string, string> = { ready: '已保存，待执行', queued: '已排队', running: '执行中', completed: '已完成', failed: '执行失败', cancelled: '已取消', interrupted: '执行已中断', blocked: '执行不可用' }
 class CommandRejectedError extends Error {}
@@ -534,15 +534,24 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       return proposal?[[attemptId,proposal] as const]:[]
     }))
   },[store,projection,professional?.activeModelContext])
+  const instructionModelPages=useMemo(()=>{
+    if(!sharedNavigation?.enterprise)return new Map<string,string>()
+    const attempts=new Set(store.publicEvents.flatMap(event=>event.attemptId&&event.eventType==='attempt_completed'?[event.attemptId]:[]))
+    return new Map([...attempts].flatMap(attemptId=>{
+      const pageId=selectInstructionModelPage(store.publicEvents,projection.gridPages,attemptId)
+      return pageId?[[attemptId,pageId] as const]:[]
+    }))
+  },[store,projection,sharedNavigation?.enterprise])
   function showInstructionNetwork(attemptId:string){
     const proposal=instructionViews.get(attemptId)
-    if(!proposal)return
+    const modelPage=proposal?.kind==='model'?proposal.pageId:instructionModelPages.get(attemptId)
+    if(proposal?.kind!=='source'&&!modelPage)return
     markManualView()
-    if(proposal.kind==='source'){
+    if(proposal?.kind==='source'){
       saveInstructionView({...instructionViewRef.current,requestedSource:proposal.request,requestNonce:instructionViewRef.current.requestNonce+1})
       setResourceView('source-topology')
-    }else{
-      store.viewGridPage(proposal.pageId);setResourceView('model')
+    }else if(modelPage){
+      store.viewGridPage(modelPage);setResourceView('model')
     }
     setProductsOpen(true)
   }
@@ -791,7 +800,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
       onOpenAnswerDetail={nativeChat?()=>selectResourceView('execution'):undefined}
       runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation}
-      networkAttemptIds={[...instructionViews.keys()]} onShowNetwork={showInstructionNetwork}
+      networkAttemptIds={[...new Set([...instructionViews.keys(),...instructionModelPages.keys()])]} onShowNetwork={showInstructionNetwork}
       acceptedDraft={nativeChat?acceptedDraft:undefined}
       composerControls={liveConversation?(historyActions,inputActions)=><>{modelWorkspace&&<ThreadModelDirectory models={projection.catalog?.models||[]} currentModelId={snapshot?.modelContext?.modelId||''} target={modelTarget} onTargetChange={setModelTarget} disabled={busy||active||!!currentAttempt||!!missionPending||projection.connection!=='live'} pending={!!pending} workspace={modelWorkspace} allowEmpty={snapshot?.sessionType==='enterprise-research'||snapshot?.sessionType==='general-chat'} onSwitch={modelId=>void changeModel('open_model',{model_id:modelId})} onActivate={entryId=>void changeModel('activate_model',{entry_id:entryId})} onClose={entryId=>void changeModel('close_model',{entry_id:entryId})}/>}
       <ThreadMaterialUpload threadId={currentId} upload={(file,signal)=>client.uploadThreadMaterial(currentId,file,signal)} resourceUpload={(file,options)=>transport.uploadThreadResource(currentId,file,options)} cancelResource={id=>transport.cancelResourceUpload(currentId,id)} disabled={busy||active||!!pending||!!missionPending} remainingFiles={Math.max(0,applicationCapacity('inline_material_count')-materials.length)} remainingBytes={materials.length>=applicationCapacity('inline_material_count')?0:remainingMaterialBytes} onBusyChange={setUploadBusy} onUploaded={material=>{inputActions.addMaterial(material.material_id);setCatalogReload(value=>value+1)}}

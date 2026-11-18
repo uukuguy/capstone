@@ -834,6 +834,10 @@ class HarnessAttemptRunner:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
             if candidate is not None:
                 terminal_payload = terminal_payload_for_admission(candidate)
+            core_bundle = getattr(self._runtime, 'answer_core_bundle', None)
+            if (not recovery_attempted and core_bundle is not None
+                    and core_bundle[0] == answer == admitted_answer):
+                terminal_payload['answer_core_summary'] = core_bundle[1]
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
