@@ -1153,7 +1153,7 @@ def _saved_diagram_tool_calls(records):
             excerpt = activity.get('input_excerpt')
             if isinstance(excerpt, str) and len(excerpt) <= 640:
                 inputs[key] = excerpt
-        if kind == 'tool_execution_end' and activity.get('is_error') is False and key in inputs:
+        if kind == 'tool_execution_end' and record.get('is_error') is False and key in inputs:
             try:
                 owner = checked_execution_receipt(activity.get('execution_receipt'), task_id=task, call_id=call)
                 if owner is None or not any(item['phase'] == 'execution_ended' for item in owner['events']):

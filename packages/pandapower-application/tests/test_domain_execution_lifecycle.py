@@ -344,10 +344,10 @@ def test_saved_rank_call_requires_matching_successful_receipt():
                     'provenance': 'authority_process' if phase.startswith('execution_') else 'owner_scheduler'}
                    for index, phase in enumerate(phases)],
     }
-    end = {**shared, 'native_type': 'tool_execution_end', 'activity': {
-        'is_error': False, 'execution_receipt': receipt,
-    }}
+    end = {**shared, 'native_type': 'tool_execution_end', 'is_error': False,
+           'activity': {'execution_receipt': receipt}}
     expected = [{'name': shared['tool_name'], 'arguments': {'result_ref': 'result:one', 'limit': 3}}]
     assert _saved_diagram_tool_calls([start, end]) == expected
     assert _saved_diagram_tool_calls([start, {**end, 'tool_call_id': 'another'}]) == []
-    assert _saved_diagram_tool_calls([start, {**end, 'activity': {'is_error': False}}]) == []
+    assert _saved_diagram_tool_calls([start, {**end, 'activity': {}}]) == []
+    assert _saved_diagram_tool_calls([start, {**end, 'is_error': True}]) == []
