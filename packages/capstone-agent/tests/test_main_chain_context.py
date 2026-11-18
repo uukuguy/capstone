@@ -297,7 +297,8 @@ def test_recent_result_without_evidence_does_not_hide_earlier_verified_evidence(
 
 
 @pytest.mark.parametrize('backend', ('memory', 'postgres'))
-def test_automatic_goal_continuation_keeps_the_published_domain_catalog(backend, request):
+@pytest.mark.parametrize('route', ('automatic', 'resume'))
+def test_goal_continuation_keeps_the_published_catalog_and_selected_refs(backend, route, request):
     from capstone_agent.goal_continuation import drain_goal_continuations
 
     executor = governed_executor()
@@ -331,7 +332,19 @@ def test_automatic_goal_continuation_keeps_the_published_domain_catalog(backend,
             'summary': 'Saved the calculation', 'next_instruction': 'Read the result',
             'waiting_reason': None, 'product_refs': [], 'authority_refs': [result, proof]}})
     store._catalog_context = None
-    assert drain_goal_continuations(store) == 1
+    if route == 'automatic':
+        assert drain_goal_continuations(store) == 1
+    else:
+        work = store.snapshot(thread_id).works[0]
+        assert store.submit_command(command(store, thread_id, 'pause_goal', 'pause',
+            work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+        if backend == 'postgres':
+            from capstone_agent.thread_service import PostgresThreadService
+            store = PostgresThreadService(store.dsn)
+            store.set_native_executor(executor)
+        work = store.snapshot(thread_id).works[0]
+        assert store.submit_command(command(store, thread_id, 'resume_goal', 'resume',
+            work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
     continuation = store.claim_attempt('native', 30, 'native')
     assert continuation is not None and continuation.application_catalog == first.application_catalog
     assert structural_context_for(continuation)['handles'] == [
