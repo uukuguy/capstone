@@ -7,8 +7,10 @@ turn needs to organize the work.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
+from hashlib import sha256
 
 
 _TOKEN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$')
@@ -66,22 +68,35 @@ def _checked_handles(value) -> list[dict]:
 def checked_structural_context(value) -> dict:
     """Admit identities and opaque refs. Reject tool payloads."""
 
-    if (not isinstance(value, Mapping) or set(value) != {'schema', 'model', 'handles'}
+    if (not isinstance(value, Mapping) or set(value) - {'work_scope'} != {'schema', 'model', 'handles'}
             or value.get('schema') != 'capstone-structural-context/1'):
         raise ValueError('structural context is invalid')
-    return {
+    document = {
         'schema': 'capstone-structural-context/1',
         'model': _checked_model(value.get('model')),
         'handles': _checked_handles(value.get('handles')),
     }
+    if 'work_scope' in value:
+        if document['model'] is not None:
+            raise ValueError('structural context is invalid')
+        document['work_scope'] = _checked_work_scope(value['work_scope'])
+    return document
+
+
+def _checked_work_scope(value):
+    if not isinstance(value, str) or not re.fullmatch(r'work-[a-f0-9]{40}', value):
+        raise ValueError('structural context is invalid')
+    return value
 
 
 def checked_management(value) -> dict:
-    """The model identity a domain tool may use to find its own workspace."""
+    """The model identity or Work scope for a Domain Pack workspace."""
 
-    if (not isinstance(value, Mapping) or set(value) != {'schema', 'model'}
+    if (not isinstance(value, Mapping) or set(value) not in ({'schema', 'model'}, {'schema', 'work_scope'})
             or value.get('schema') != 'capstone-structural-context/1'):
         raise ValueError('structural context is invalid')
+    if 'work_scope' in value:
+        return {'schema': value['schema'], 'work_scope': _checked_work_scope(value['work_scope'])}
     model = _checked_model(value.get('model'))
     if model is None:
         raise ValueError('structural context is invalid')
@@ -89,19 +104,23 @@ def checked_management(value) -> dict:
 
 
 def management_for(structural: Mapping | None) -> dict | None:
-    """Copy the model identity out of a chain record. Omit handles and payloads."""
+    """Return the private workspace selector from the frozen chain record."""
 
-    if not isinstance(structural, Mapping) or structural.get('model') is None:
+    if not isinstance(structural, Mapping):
         return None
     checked = checked_structural_context(structural)
+    if 'work_scope' in checked:
+        return {'schema': checked['schema'], 'work_scope': checked['work_scope']}
+    if checked['model'] is None:
+        return None
     return {'schema': checked['schema'], 'model': checked['model']}
 
 
 def management_note(value: Mapping) -> str:
     """Reader text for the main chain. It names refs and does not carry tool data."""
 
-    import json
     checked = checked_structural_context(value)
+    checked.pop('work_scope', None)
     return (
         'Main-chain management context. It names the open model and opaque handles. '
         'Domain Pack tools keep grid calculation data. Gateway tools keep their own refs and payloads. '
@@ -138,8 +157,12 @@ def structural_context_for(claim) -> dict:
                 handles.append({'kind': 'evidence_ref', 'ref': evidence})
         if len(handles) >= 64:
             break
-    return checked_structural_context(
-        {'schema': 'capstone-structural-context/1', 'model': model, 'handles': handles[:64]})
+    document = {'schema': 'capstone-structural-context/1', 'model': model, 'handles': handles[:64]}
+    task = getattr(claim, 'task_context', None)
+    if model is None and task is not None:
+        identity = json.dumps([claim.thread_id, claim.run_id, task.binding.work_id], separators=(',', ':'))
+        document['work_scope'] = 'work-' + sha256(identity.encode()).hexdigest()[:40]
+    return checked_structural_context(document)
 
 
 def main_chain_native_binding(submission: Mapping | None) -> bool:

@@ -64,6 +64,26 @@ def test_structural_context_names_refs_and_rejects_tool_payloads():
         checked_structural_context({**document, 'model': {**document['model'], 'buses': []}})
 
 
+def test_model_free_scope_uses_frozen_work_run_and_thread():
+    from types import SimpleNamespace
+
+    from capstone_agent.structural_context import management_for, management_note
+
+    def binding(thread='thr_one', run='run_one', work='work_one', attempt='attempt_one'):
+        claim = SimpleNamespace(thread_id=thread, run_id=run, model_context=None,
+            task_context=SimpleNamespace(binding=SimpleNamespace(work_id=work)), attempt=attempt)
+        structural = structural_context_for(claim)
+        management = management_for(structural)
+        assert 'work_scope' not in management_note(structural)
+        return management
+
+    original = binding()
+    assert original == binding(attempt='attempt_two')
+    assert original != binding(thread='thr_two')
+    assert original != binding(run='run_two')
+    assert original != binding(work='work_two')
+
+
 def test_family_predicate_keeps_native_execution_ahead_of_the_open_model():
     sql = _attempt_family_predicate('a.')
     assert sql.count('%s') == 5

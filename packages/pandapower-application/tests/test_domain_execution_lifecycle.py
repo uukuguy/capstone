@@ -31,6 +31,19 @@ def test_open_model_management_selects_one_pack_workspace():
         domain_workspace_id({'task_id': 'task', 'management': {**management, 'model': {**model, 'buses': []}}})
 
 
+def test_host_frozen_model_free_work_scope_survives_attempt_changes():
+    from pandapower_application.domain_tools import domain_workspace_id
+
+    scope = 'work-' + 'a' * 40
+    assert domain_workspace_id({'task_id': 'pi-one', 'management': {
+        'schema': 'capstone-structural-context/1', 'work_scope': scope}}) == scope
+    assert domain_workspace_id({'task_id': 'pi-two', 'management': {
+        'schema': 'capstone-structural-context/1', 'work_scope': scope}}) == scope
+    with pytest.raises(ValueError, match='structural context'):
+        domain_workspace_id({'task_id': 'pi-two', 'management': {
+            'schema': 'capstone-structural-context/1', 'work_scope': '../other'}})
+
+
 def test_service_returns_owner_receipt_on_success_and_failure(tmp_path):
     service = PandapowerDomainToolService(workspace_root=tmp_path)
     service._capabilities = {'published': 'capability'}

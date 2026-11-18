@@ -20,7 +20,10 @@ def domain_workspace_id(document: dict) -> str:
     if management is None:
         return task_id
     from capstone_agent.structural_context import checked_management
-    model = checked_management(management)['model']
+    binding = checked_management(management)
+    if 'work_scope' in binding:
+        return binding['work_scope']
+    model = binding['model']
     canonical = json.dumps(model, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return 'model-' + hashlib.sha256(canonical.encode()).hexdigest()[:40]
 
