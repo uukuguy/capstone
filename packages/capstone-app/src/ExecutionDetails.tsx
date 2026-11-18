@@ -3,7 +3,7 @@ import {createPortal} from 'react-dom'
 import {ArrowDown,ListTree} from 'lucide-react'
 import './executionDetails.css'
 
-export const ExecutionDetailsContext=createContext<{target:HTMLDivElement|null;open:()=>void}|null>(null)
+export const ExecutionDetailsContext=createContext<{target:HTMLDivElement|null;open:()=>void;inlineSummary?:boolean}|null>(null)
 
 /** Locate within the reader without scrolling hidden workspace ancestors. */
 export function locateExecutionRecord(reader:HTMLElement,record:HTMLElement){
