@@ -8150,3 +8150,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: b0f643f3 moves the topology action into the visible receipt. A real IEEE 39 Attempt restores both replies and opens its topology.
 
 - 2026-11-18: 1019c5e0 records the real enterprise acceptance and refreshes the project overview for PR150.
+
+- 2026-11-18: 76841eda drops unbound summaries. Scoped macOS CI passed, and PR150 merged into dev at 958b6e27.
