@@ -23,10 +23,26 @@ retain result and evidence resolution. Product storage retains file
 resolution. Text from an earlier answer supplies context and does not grant
 access to a referenced object.
 
-Remaining acceptance uses real producers and consumers. Repeat a native
-Domain Pack calculation followed by a read of the exact prior result, with
-and without an open model. Run a Goal that reads an exact file version after
-a worker restart. Run a Mission that passes both a file and a typed result
-to a child and then to review. Check wrong owner, missing object, changed
-version and scope checks. The result-only continuation must make zero
-replacement calculation calls.
+## Local checks
+
+- 259 focused agent tests passed. A separate disposable PostgreSQL run
+  passed 155 Goal, Mission continuation and Work tests. Ten hosted and
+  Domain Pack lifecycle tests passed.
+- A real Goal published `draft.md` and `decoy.md` in its first Attempt.
+  The next Attempt had a single historical input receipt for `draft.md`
+  and read its exact bytes. The original and final downloads matched their
+  recorded digests. The final file contained the marker that appeared
+  only in the original file.
+- After a local worker rebuild, a registered `gridctl` read of the
+  original result returned the same line ranking from the mounted run
+  volume. This was an operator read. The original Thread's native
+  continuation still lacks the admitted read grant.
+
+## Remaining acceptance
+
+Repeat a native Domain Pack calculation followed by a read of the exact
+prior result, with and without an open model. Run a Goal that reads an
+exact file version after a worker restart. Run a Mission that passes both
+a file and a typed result to a child and then to review. Check wrong owner,
+missing object, and changed version. The result-only continuation must
+make zero replacement calculation calls.
