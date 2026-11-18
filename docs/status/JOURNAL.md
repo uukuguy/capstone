@@ -8148,3 +8148,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: a76b8321 adds enterprise core replies, frozen-model graph access and the compact process. Focused gates pass locally.
 
 - 2026-11-18: b0f643f3 moves the topology action into the visible receipt. A real IEEE 39 Attempt restores both replies and opens its topology.
+
+- 2026-11-18: 1019c5e0 records the real enterprise acceptance and refreshes the project overview for PR150.

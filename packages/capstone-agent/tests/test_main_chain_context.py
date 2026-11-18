@@ -147,6 +147,17 @@ def test_enterprise_main_chain_commits_model_summary_with_formal_answer(summary)
     assert completed.payload.get('answer_core_summary') == (summary if len(summary) <= 480 else None)
 
 
+def test_core_reply_cannot_survive_a_changed_or_recovered_answer():
+    from types import SimpleNamespace
+
+    from capstone_agent.harness import _core_summary_payload
+
+    runtime = SimpleNamespace(answer_core_bundle=('accepted', 'summary'))
+    assert _core_summary_payload(runtime, 'accepted', 'accepted', False) == {'answer_core_summary': 'summary'}
+    assert _core_summary_payload(runtime, 'accepted', 'rewritten', False) == {}
+    assert _core_summary_payload(runtime, 'accepted', 'accepted', True) == {}
+
+
 def test_enterprise_research_admits_an_attachment_while_a_model_is_open():
     from capstone_agent.artifacts import MemoryObjectStore
     from capstone_agent.thread_resources import ResourceUploads
