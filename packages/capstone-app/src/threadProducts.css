@@ -116,6 +116,11 @@
 .is-resource-expanded .workspace-product-paper .pptx-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .is-resource-expanded .workspace-product-paper .pptx-preview > nav { flex: none; }
 .is-resource-expanded .workspace-product-paper .pptx-preview > img { flex: 1; min-height: 0; width: 100%; height: calc(100% - 42px); max-height: none; object-fit: contain; }
+.thread-product-metadata { min-width: 0; margin-block: 4px; }
+.thread-product-metadata > summary { cursor: pointer; min-height: 44px; align-content: center; }
+.thread-product-view:has(iframe):has(> .thread-product-metadata) { grid-template-rows: 40px auto minmax(0,1fr); }
+.thread-product-view:has(iframe) > .thread-product-metadata { grid-column: 1 / -1; grid-row: 2; max-height: 40vh; overflow: auto; }
+.thread-product-view:has(iframe) > .thread-product-metadata ~ .native-artifact-preview { grid-row: 3; }
 .product-comparison{border-block:1px solid var(--border-color,#d7dce3);padding:12px 0;margin:12px 0;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0;container-type:inline-size}
 .product-comparison h4,.product-comparison p{margin:0}
 .product-comparison label{display:grid;gap:6px}

@@ -15,6 +15,12 @@ it('keeps separate resource and product source counts before the report body',as
  const body=await screen.findByRole('heading',{name:'Range report'})
  const resources=await screen.findByText('资源读取来源 · 3')
  const products=await screen.findByText('成果引用来源 · 0')
+ const disclosure=screen.getByText("成果版本与来源").closest("details")
+ expect(disclosure?.open).toBe(false)
+ expect(disclosure?.contains(resources)).toBe(true)
+ expect(disclosure?.contains(products)).toBe(true)
+ fireEvent.click(disclosure!.querySelector("summary")!)
+ expect(disclosure?.open).toBe(true)
  expect(resources.compareDocumentPosition(body)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
  expect(products.compareDocumentPosition(resources)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
  expect(resources.closest('details')?.open).toBe(false)
@@ -35,6 +41,9 @@ it('keeps one comparison and paragraph picker when switching real Markdown previ
   const current=i%2?first:second
   view.rerender(<ThreadProductsWorkspace {...props} requested={{ref:current.ref,nonce:i}}/>)
   await screen.findByRole('heading',{name:current.ref.product_id})
+  const summary=screen.getByText('成果版本与来源')
+  expect(summary.closest('details')?.open).toBe(false)
+  fireEvent.click(summary)
   expect(screen.getAllByRole('region',{name:'成果对照与采用'})).toHaveLength(1)
   expect(screen.getAllByText('选择段落引用')).toHaveLength(1)
  }
@@ -45,7 +54,8 @@ it('opens comparison in the existing preview and keeps explicit references avail
  const file:ProductEntry={...entry,ref:{...ref,origin:'native_file'},title:'draft.md',media_type:'text/markdown',source_status:'completed',source:{file_name:'draft.md'},capabilities:{read:true,select:true}}
  const reference=vi.fn(),client={supportsProductSeries:true,productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null}),discoverProductSeries:vi.fn().mockResolvedValue(null),productSources:vi.fn().mockResolvedValue([]),commandProductSeries:vi.fn(),compareProducts:vi.fn(),seriesMembers:vi.fn()}
  const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1} onReference={reference}/>)
- expect(await screen.findByRole('region',{name:'成果对照与采用'})).toBeTruthy()
+ fireEvent.click(await screen.findByText('成果版本与来源'))
+ expect(screen.getByRole('region',{name:'成果对照与采用'})).toBeTruthy()
  view.rerender(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={2} onReference={reference}/>)
  await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
  expect(screen.getAllByRole('region',{name:'成果对照与采用'})).toHaveLength(1)
