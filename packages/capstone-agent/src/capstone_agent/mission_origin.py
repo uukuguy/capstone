@@ -133,12 +133,17 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
         return deepcopy(origin) if create is None else created
 
 
-def bind_submission(snapshot, work_id, submission):
+def bind_submission(snapshot, work_id, submission, *, instruction=None):
     """Freeze the latest explicit Mission association for this Work or Thread."""
     work = next((item for item in snapshot.works if item['work_id'] == work_id), {})
     if work.get('mission_equipment') is not None:
         submission = {**(submission or {}), '_mission_equipment': deepcopy(work['mission_equipment']),
                       '_mission_equipment_binding_revision': work['mission_equipment_binding_revision']}
+    if work.get('mission_skill') is not None:
+        skill = work['mission_skill']
+        submission = {**(submission or {}), 'input': {**skill['input'], 'text': instruction},
+                      'resource_profile': deepcopy(skill['resource_profile']),
+                      'context_selection': {'include_refs': [], 'exclude_refs': []}}
     reference = next((ref for ref in reversed(snapshot.mission_refs)
                       if ref.get('work_id', work_id) == work_id), None)
     if reference is None:

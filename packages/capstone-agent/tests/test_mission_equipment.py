@@ -12,6 +12,21 @@ from test_thread_work_execution import command
 from test_mission_origin import request
 
 
+def test_skill_selection_checks_exact_version_and_effective_tools():
+    from capstone_agent.mission_equipment import resolve_skill
+
+    skill = {'id': 'registered-check', 'kind': 'skill', 'version': 'v1',
+             'ready': True, 'required_tools': ['read']}
+    binding = {'capability': {'resource_profiles': {
+        'delegated_pi': {'profile_id': 'delegated_pi', 'revision': 'catalog1', 'resources': [skill]},
+    }}}
+    assert resolve_skill(binding, {'id': skill['id'], 'revision': 'v1'}, {'read'}) == skill
+    with pytest.raises(ValueError, match='version'):
+        resolve_skill(binding, {'id': skill['id'], 'revision': 'other'}, {'read'})
+    with pytest.raises(ValueError, match='tools'):
+        resolve_skill(binding, {'id': skill['id'], 'revision': 'v1'}, {'write'})
+
+
 def test_registry_selection_is_exact_and_unknown_revisions_fail(chat_store):
     threads, thread_id = chat_store
     threads.set_native_executor(native_executor())

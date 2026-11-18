@@ -130,6 +130,41 @@ def test_mission_upload_grant_reads_frozen_version_after_replacement(postgres_th
         threads.delete_thread(binding['thread_id'])
 
 
+def test_mission_skill_delegation_uses_typed_invocation(postgres_thread_service):
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_postgres import _snapshot
+
+    threads, origin = postgres_thread_service
+    threads.create_thread(_snapshot(origin))
+    executor = native_executor()
+    profile = executor.capability['resource_profiles']['delegated_pi']
+    profile['resources'] = [{'id': 'write-clear', 'kind': 'skill', 'version': '1.0.0',
+        'source': 'registered-fixture', 'roles': ['delegated_pi'], 'enabled': True,
+        'installed': True, 'ready': True, 'reason': None, 'required_tools': [], 'loaded_identity': 'c' * 64}]
+    profile['load_receipt']['skills'] = {'write-clear': 'c' * 64}
+    threads.set_native_executor(executor)
+    ref = dict(schema='capstone-mission-equipment-reference/1', kind='skill', id='write-clear', revision='1.0.0')
+    req = {**delegation(), 'schema': 'capstone-agent-delegation/2',
+           'mission_origin': {'thread_id': origin}, 'equipment': [ref], 'restrictions': []}
+    agent = AgentDelegations(threads, MemoryDelegations())
+    binding = agent.delegate('enterprise', req)
+    try:
+        assert agent.delegate('enterprise', req) == binding
+        from capstone_agent.intent_runtime import IntentRuntimeFactory
+        from capstone_agent.thread_worker import run_pending_attempt
+
+        outcome = run_pending_attempt(threads, IntentRuntimeFactory(None, None, None, general_executor=executor),
+            worker_id='mission-skill-test', implementation_family='native')
+        assert outcome.status == 'completed'
+        native = executor.requests[0].to_document()
+        assert native['input']['kind'] == 'skill_invocation'
+        assert native['input']['skill_id'] == ref['id']
+        assert native['input']['skill_version'] == ref['revision']
+        assert native['resource_profile']['revision'] == profile['revision']
+    finally:
+        threads.delete_thread(binding['thread_id'])
+
+
 def test_goal_pause_resume_retains_work_and_consumed_budget(postgres_thread_service):
     from test_enterprise_normal_chat import native_executor
     threads, _ = postgres_thread_service

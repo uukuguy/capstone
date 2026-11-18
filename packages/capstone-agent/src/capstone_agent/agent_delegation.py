@@ -110,9 +110,10 @@ class AgentDelegations:
             selection = None
             equipment_binding_revision = None
             source_binding = None
+            invocation = None
             if request['schema'] == 'capstone-agent-delegation/2':
                 from .mission_equipment import resolve_admission
-                selection, equipment_binding_revision, source_binding = resolve_admission(self.threads, workspace, request['mission_origin'],
+                selection, equipment_binding_revision, source_binding, invocation = resolve_admission(self.threads, workspace, request['mission_origin'],
                     request['equipment'], request['restrictions'])
             if datetime.fromisoformat(request['deadline_at']) <= datetime.now(timezone.utc):
                 raise DelegationRevoked('delegation deadline expired')
@@ -137,7 +138,7 @@ class AgentDelegations:
             if selection is not None:
                 from .mission_equipment import bind_work
                 bind_work(self.threads, workspace, thread, work['work_id'], selection,
-                    binding_revision=equipment_binding_revision)
+                    binding_revision=equipment_binding_revision, invocation=invocation)
                 work = self.threads.snapshot(thread).to_document()['works'][0]
             if request['context_products']:
                 from .delegation_resources import grant_resources

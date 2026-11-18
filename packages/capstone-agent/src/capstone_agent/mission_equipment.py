@@ -106,6 +106,10 @@ def _catalog(binding):
     if profile is not None:
         entries.append({'schema': 'capstone-mission-equipment-reference/1', 'kind': 'resource_profile',
             'id': profile['profile_id'], 'revision': profile['revision']})
+        entries.extend({'schema': 'capstone-mission-equipment-reference/1', 'kind': 'skill',
+                        'id': item['id'], 'revision': item['version']}
+                       for item in profile.get('resources', ())
+                       if item['kind'] == 'skill' and item['ready'])
     return references(entries[:64])
 
 
@@ -121,6 +125,18 @@ def admitted(threads, workspace, origin, ref):
 
 def resolve(threads, workspace, origin, equipment, restrictions):
     return resolve_admission(threads, workspace, origin, equipment, restrictions)[0]
+
+
+def resolve_skill(binding, ref, allowed_tools):
+    profile = binding.get('capability', {}).get('resource_profiles', {}).get('delegated_pi', {})
+    skill = next((item for item in profile.get('resources', ())
+                  if item['kind'] == 'skill' and item['id'] == ref['id']
+                  and item['version'] == ref['revision'] and item['ready']), None)
+    if skill is None:
+        raise ValueError('Mission skill version is unavailable')
+    if not set(skill['required_tools']) <= set(allowed_tools):
+        raise ValueError('Mission skill requires tools outside the Task selection')
+    return skill
 
 
 def resolve_admission(threads, workspace, origin, equipment, restrictions):
@@ -140,26 +156,42 @@ def resolve_admission(threads, workspace, origin, equipment, restrictions):
     denied = [ref['id'] for ref in restrictions if ref['kind'] == 'capability']
     if set(selected) & set(denied):
         raise ValueError('Mission equipment cannot select a restricted capability')
+    skills = [ref for ref in equipment if ref['kind'] == 'skill']
+    if len(skills) > 1:
+        raise ValueError('Mission Task may select one skill')
+    invocation = None
+    if skills:
+        available = set(selected or (ref['id'] for ref in published if ref['kind'] == 'capability'))
+        skill = resolve_skill(binding, skills[0], available - set(denied))
+        profile = binding['capability']['resource_profiles']['delegated_pi']
+        invocation = ({'kind': 'skill_invocation', 'skill_id': skill['id'], 'skill_version': skill['version']},
+                      {key: profile[key] for key in ('profile_id', 'revision')})
     return ({'schema': 'capstone-mission-tool-selection/1',
              'allowed_tools': sorted(selected) if selected else None, 'denied_tools': sorted(denied)},
-            registry_revision(binding), source)
+            registry_revision(binding), source, invocation)
 
 
-def bind_work(threads, workspace, thread_id, work_id, selection, *, binding_revision=None):
+def bind_work(threads, workspace, thread_id, work_id, selection, *, binding_revision=None, invocation=None):
     """Persist the resolved selection before creating the execution Attempt."""
     from .native_mission import checked_equipment
     selection = checked_equipment(selection)
     binding_revision = binding_revision or registry_revision(threads._native_binding)
+    skill = None if invocation is None else {'input': invocation[0], 'resource_profile': invocation[1]}
     def change(snapshot):
         works = deepcopy(list(snapshot.works))
         work = next(item for item in works if item['work_id'] == work_id)
         previous = work.get('mission_equipment')
-        if previous == selection and work.get('mission_equipment_binding_revision') == binding_revision:
+        if (previous == selection and work.get('mission_equipment_binding_revision') == binding_revision
+                and work.get('mission_skill') == skill):
             return snapshot
         if work.get('latest_attempt_id') is not None:
             raise ValueError('Mission equipment cannot change after execution admission')
         work['mission_equipment'] = deepcopy(selection)
         work['mission_equipment_binding_revision'] = binding_revision
+        if skill is not None:
+            work['mission_skill'] = deepcopy(skill)
+        else:
+            work.pop('mission_skill', None)
         work['revision'] += 1
         return replace(snapshot, works=tuple(works))
     if hasattr(threads, '_lock'):

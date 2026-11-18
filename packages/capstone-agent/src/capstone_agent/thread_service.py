@@ -1702,7 +1702,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                         if published is not None and '_application_catalog' not in stored_submission:
                             stored_submission['_application_catalog'] = published
                 from .mission_origin import bind_submission
-                stored_submission = bind_submission(updated, work['work_id'], stored_submission)
+                stored_submission = bind_submission(updated, work['work_id'], stored_submission, instruction=instruction)
                 self._attempts[attempt.attempt_id] = {
                     'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
                     'lease_token': None, 'lease_deadline': None, 'model_context': updated.active_model_context,
@@ -3266,7 +3266,7 @@ class PostgresThreadService(NativeExecutionOwner):
                         if published is not None and '_application_catalog' not in submission:
                             submission['_application_catalog'] = published
                 from .mission_origin import bind_submission
-                submission = bind_submission(updated, work['work_id'], submission)
+                submission = bind_submission(updated, work['work_id'], submission, instruction=instruction)
                 connection.execute("""INSERT INTO capstone_thread_attempts
                     (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
                      selection_revision,model_context_snapshot,conversation_context_snapshot,
