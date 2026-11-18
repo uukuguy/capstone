@@ -2,9 +2,9 @@ import {Circle, Square} from 'lucide-react'
 import type {QueuedInstruction} from './threadWorkProtocol'
 import './instructionStatus.css'
 
-export default function InstructionStatus({active,stopping,stopped,waiting,queue,disabled,canStop,onStop,onWithdraw,interruptOnSend=false,onInterruptChange}:{active:boolean;stopping:boolean;stopped:boolean;waiting:boolean;queue:QueuedInstruction[];disabled:boolean;canStop:boolean;onStop:()=>void;onWithdraw:(id:string)=>void;interruptOnSend?:boolean;onInterruptChange?:(value:boolean)=>void}){
+export default function InstructionStatus({active,stopping,waiting,queue,disabled,canStop,onStop,onWithdraw,interruptOnSend=false,onInterruptChange}:{active:boolean;stopping:boolean;waiting:boolean;queue:QueuedInstruction[];disabled:boolean;canStop:boolean;onStop:()=>void;onWithdraw:(id:string)=>void;interruptOnSend?:boolean;onInterruptChange?:(value:boolean)=>void}){
   const pending=queue.filter(item=>item.state==='pending'||item.state==='delivering')
-  const status=stopping?'正在停止':waiting?'待你回复':active?'执行中':stopped?'已停止':''
+  const status=stopping?'正在停止':waiting?'待你回复':active?'执行中':''
   if(!pending.length&&!status&&!canStop)return null
   return <div className="instruction-status">
     {pending.length>0&&<ul className="instruction-queue" aria-label="待处理补充指令">

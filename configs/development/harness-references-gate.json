@@ -51,6 +51,7 @@
     "packages/capstone-app/src/ThreadWorkAdapter.tsx",
     "packages/capstone-app/src/ThreadWorkExecution.test.tsx",
     "packages/capstone-app/src/executionDetails.css",
+    "packages/capstone-app/src/enterpriseWorkspace.css",
     "packages/capstone-app/src/instructionStatus.css",
     "packages/capstone-app/src/styles-light.css",
     "packages/capstone-app/src/threadHttpTransport.ts",
