@@ -8116,3 +8116,15 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: PR142 merged as 8d402bed after focused macOS CI. Verified source branch closed.
 
 - 2026-11-18: Actual dev 8d402bed rebuilt. Both real Mission products match version 1; generation 2 remains verified.
+
+- 2026-11-18: a18c36aa defines Mission skill version admission and delegates loading through the existing native workspace.
+
+- 2026-11-18: c5bd077b plans Mission skill delivery. PostgreSQL reproduces typed input rejection on the text-only Work creation command.
+
+- 2026-11-18: f62b8164 binds registered skill versions to child attempts. Local focused gate passes; real model verification started.
+
+- 2026-11-18: 42e55f15 reserves skill entries in Mission discovery. Tool-heavy catalog regression passes.
+
+- 2026-11-18: PR144 merged as f22ea11c. Real generation 2 loaded the frozen skill and saved a verified product.
+
+- 2026-11-18: Actual dev f22ea11c rebuilt. Both skill load events and verified product digests match local acceptance.

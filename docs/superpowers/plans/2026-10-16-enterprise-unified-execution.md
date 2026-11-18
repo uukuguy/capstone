@@ -1,5 +1,13 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Mission registered skill equipment
+
+Owner capstone-agent with capstone-control. PR144 merged to dev `f22ea11c`
+after focused macOS CI `44229048684`. Real acceptance covers exact registered
+skill selection and load, a verified saved product, rejection of an unknown
+version before plan mutation, and generation 2 at the same frozen skill version.
+[Implementation plan](2026-11-18-mission-registered-skills.md).
+
 ## Mission versioned business resources
 
 Owner capstone-agent, with capstone-control and capstone-app. PR142 merged to

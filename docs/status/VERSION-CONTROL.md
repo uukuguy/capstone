@@ -14,6 +14,8 @@
 
 # 多线版本控制
 
+2026-11-18 Mission 注册技能配备通过 PR144 合入 dev `f22ea11c`。受检来源 `42e55f15`，macOS 定向 CI `44229048684` 通过。真实组织者选择验证技能 1.0.0，子任务加载并保存 2,007 字节记录。暂停后第二代委派使用同一版本，1,537 字节记录复验通过。无效版本在计划变更前被拒绝。见[实施计划](../superpowers/plans/2026-11-18-mission-registered-skills.md)。
+
 2026-11-18 Mission 版本化业务资源通过 PR142 合入 dev `8d402bed`。受检来源 `d251f400`，macOS 定向 CI `44223654353` 通过，交付分支已关闭。
 capstone-agent 负责资源发布、来源校验和子任务读授权。capstone-control 持久化任务版本并按代接纳观察。capstone-app 按版本下载。实际 dev 规范重建后，两项已验证任务及其 40/31 字节成果均通过版本和摘要复验。见[实施计划](../superpowers/plans/2026-11-18-mission-versioned-resources.md)和本机回执 `runs/mission-versioned-resources-20261118/dev-runtime-receipt.json`。
 
@@ -1369,6 +1371,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| mission-registered-skills-20261118 | PR144 合入与本机注册技能配备验收 |
 | mission-versioned-resources-20261118 | PR142 合入与本机 Mission 资源授权、暂停恢复 |
 | mission-conversation-20261118 | Mission真实渐进组织闭环验收来源，待dev集成 |
 | instruction-admission-20261118 | PR140已接受主会话持续控制来源 |
@@ -1412,6 +1415,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| mission-registered-skills-20261118 | f22ea11c | dev | Mission 注册技能配备 | PR144，macOS 定向 CI 和两次真实技能委派通过 | 精确版本与原生加载；目录为技能保留空间。[实施计划](../superpowers/plans/2026-11-18-mission-registered-skills.md) | shared-agent |
 | mission-versioned-resources-20261118 | 8d402bed | dev | Mission 版本化资源 | PR142 的 macOS 定向 CI 与本机真实子任务验收通过 | 资源版本发布、精确子任务读授权、按委派隔离观察序号。[实施计划](../superpowers/plans/2026-11-18-mission-versioned-resources.md) | shared-agent |
 | mission-conversation-20261118 | 941afaee | feature | Mission意图与结果驱动组织 | 同一指令真实闭环、91Control/485后端/200范围/94App通过；待定向CI/dev集成 | 主会话意图创建与注册任务配备；持久结果复盘与逐项验收门禁。[验证](../reviews/2026-11-18-mission-conversation-local.md) | shared-agent |
 | instruction-admission-20261118 | c2526df3 | feature | 主会话持续指令接纳 | PR140合38a9e77f；CI44156164744与实际5173验收通过 | 持久队列、安全边界接纳、状态条与窄屏来源定位。[计划](../superpowers/plans/2026-11-18-durable-instruction-admission.md) | shared-agent |
@@ -1620,6 +1624,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| mission-registered-skills-20261118 | 已合入 dev | dev · PR144 | 精确技能版本与委派执行；暂停后保留原版本 | CI、技能加载及成果复验通过 |
 | mission-versioned-resources-20261118 | 已合入 dev | dev · PR142 | 精确资源版本与子任务授权；暂停后按原版本恢复 | macOS CI、本地模型与原字节验收通过 |
 | mission-conversation-20261118 | 已验证组织闭环 | feat/mission-foundation-20261118 | 粗略意图与渐进规划；真实制品授权及逐项验收 | 一次提交/两任务/两复盘/原字节实测通过；待定向CI/dev集成 |
 | instruction-admission-20261118 | 已接受会话控制 | dev · PR140 | 主会话执行中提交与边界接纳；状态条与停止恢复 | CI与实际5173真实验收通过 |
@@ -2091,7 +2096,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API/三 worker 与 App 检出 `8d402bed`；App 产品树 `d251f400` 与合并树一致 | API/三 worker 同镜像 b9459f68；就绪与缓存维护通过 | App http://127.0.0.1:5173/；PR142 已合并，真实任务、两个版本的读取及第二代委派复验通过。 |
+| local-dev | API/三 worker 与 App 检出 `f22ea11c`；App 产品树 `42e55f15` 与合并树一致 | API/三 worker 同镜像 4ba1552b；就绪与缓存维护通过 | App http://127.0.0.1:5173/；两代委派的技能加载事件及成果摘要已复验。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
