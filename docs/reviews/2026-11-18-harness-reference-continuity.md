@@ -1,0 +1,32 @@
+# Harness reference continuity
+
+Scope includes a later instruction in one Work, automatic Goal iterations,
+and Mission task handoffs. Acceptance requires the consumer to resolve and
+read the exact prior product or result under its current grant. A successful
+producer, a matching reference string and a persisted conversation are
+separate checks.
+
+| Path | Observed behavior | Status |
+| --- | --- | --- |
+| Native Domain Pack result to a later instruction | IEEE 39 tool execution produced a result. The first Attempt ended with empty admitted result and evidence arrays. The later Attempt received the reference in history text, then the Authority returned `unknown_result` in its task workspace. A diagnostic read in the original workspace ranked the original result successfully. | Producer result admission and scoped consumer resolution are open. |
+| Native Domain Pack result across worker replacement | The hosted pandapower worker used the tool service's temporary directory. The confirmed result was outside the mounted run volume. | Hosted registration uses the existing run directory for the tool workspace unless an explicit path is configured. The local source directories were saved and copied to the existing run volume. |
+| Previously admitted result to native main-chain context | The plan used an empty prior-result list even when the claim carried admitted results. Structural context also used a different visibility filter from the frozen list. | The plan now uses one visible set for both paths. Covered by a regression test. |
+| Goal product to the next iteration | Settlement checked the proposal's products, then the continuation saved the next instruction and dropped the checked references. Input preparation could select other historical files in the Work. | Newly persisted continuations retain product references. Admission freezes completed files from the exact predecessor and checks their manifests. Historical continuations keep their existing read path. |
+| Mission files to a child or review | The existing grant freezes producer, artifact descriptor and digest, checks the destination Work, and verifies bytes on read. | This is the established file path. The audit found no equivalent in that grant for a Domain Pack result or evidence handle. |
+| Native final reply | A separate failure receipt pointed to the answer-envelope marker count after the ranking tool succeeded. | Formal/core answer parsing now accepts a single valid two-field JSON object with redundant envelope markers. Ambiguous replies still fail validation. |
+
+The general continuation path must preserve the producing Attempt, Work,
+workspace, owner, product kind and immutable version. It must authorize the
+consumer before resolving content. Reuse the existing Harness admission and
+the owning reader for each kind. Domain Packs and registered Authorities
+retain result and evidence resolution. Product storage retains file
+resolution. Text from an earlier answer supplies context and does not grant
+access to a referenced object.
+
+Remaining acceptance uses real producers and consumers. Repeat a native
+Domain Pack calculation followed by a read of the exact prior result, with
+and without an open model. Run a Goal that reads an exact file version after
+a worker restart. Run a Mission that passes both a file and a typed result
+to a child and then to review. Check wrong owner, missing object, changed
+version and scope checks. The result-only continuation must make zero
+replacement calculation calls.

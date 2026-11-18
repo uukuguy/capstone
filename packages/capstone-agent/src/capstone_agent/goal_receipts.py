@@ -105,12 +105,15 @@ def parse_goal_proposal(value: object) -> dict:
         raise ValueError('unexpected continuation instruction')
     if (disposition == 'wait') != (value['waiting_reason'] is not None):
         raise ValueError('waiting reason does not match disposition')
-    refs = value['product_refs']
+    validate_goal_product_refs(value['product_refs'])
+    return deepcopy(value)
+
+
+def validate_goal_product_refs(refs):
     if (not isinstance(refs, list) or len(refs) > 64
             or any(not isinstance(ref, str) or not ref.strip() or len(ref) > 2048 for ref in refs)
             or len(set(refs)) != len(refs)):
         raise ValueError('invalid goal product references')
-    return deepcopy(value)
 
 
 def settle_goal_proposal(value: object, proposal: object, *, objective_revision: int,
@@ -162,5 +165,6 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
     work.pop('goal_continuation', None)
     if settled['state'] == 'ready':
         work['goal_continuation'] = {'predecessor_attempt_id': attempt_id,
-            'generation': settled['generation'], 'next_instruction': progress['next_instruction']}
+            'generation': settled['generation'], 'next_instruction': progress['next_instruction'],
+            'product_refs': progress['product_refs']}
     return replace(snapshot, works=tuple(works))

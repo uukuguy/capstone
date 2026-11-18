@@ -520,7 +520,7 @@ def parse_snapshot(document):
                 previous_sequence = item['sequence']
         if 'goal_continuation' in work:
             continuation = work['goal_continuation']
-            if (not isinstance(continuation, dict) or set(continuation) != {
+            if (not isinstance(continuation, dict) or set(continuation) - {'product_refs'} != {
                     'predecessor_attempt_id', 'generation', 'next_instruction'}
                     or 'goal_mode' not in work
                     or type(continuation['generation']) is not int
@@ -529,6 +529,12 @@ def parse_snapshot(document):
                            or len(continuation[key]) > limits.input_text_chars
                            for key in ('predecessor_attempt_id', 'next_instruction'))):
                 raise ThreadProtocolError('invalid goal continuation')
+            if 'product_refs' in continuation:
+                from .goal_receipts import validate_goal_product_refs
+                try:
+                    validate_goal_product_refs(continuation['product_refs'])
+                except ValueError as error:
+                    raise ThreadProtocolError('invalid goal continuation products') from error
         if 'pending_goal_control' in work:
             from .goal_mode import parse_goal_mode
             pending = work['pending_goal_control']

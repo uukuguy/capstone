@@ -597,12 +597,18 @@ class IntentRuntimeFactory:
         general = {'identity': accepted['identity'], 'capability': accepted['capability'],
                    'application_profile': accepted['application_profile'],
                    'original_attempt_id': claim.attempt.attempt_id, 'timeout_seconds': self._timeout_for(claim)}
+        visible_attempts = {message['attempt_id'] for message in history['messages']
+                            if message['role'] == 'assistant' and message['status'] == 'completed'}
+        prior = tuple(ref for ref in claim.prior_results if ref.attempt_id in visible_attempts)
         resources = {'general_executor': general, 'submission': {key: value for key, value in (claim.submission or {}).items() if key != '_materials'},
-                     'application_catalog': claim.application_catalog, 'prior_results': []}
+                     'application_catalog': claim.application_catalog,
+                     'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
+                                        'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
+                                       for ref in prior]}
         from .native_task_context import native_context_for
         from .structural_context import structural_context_for
         resources['native_context'] = native_context_for(claim, accepted)
-        resources['structural_context'] = structural_context_for(claim)
+        resources['structural_context'] = structural_context_for(replace(claim, prior_results=prior))
         frozen = freeze(claim, {'request': request.to_document(), 'resources': resources})
         if 'engine_identity' in frozen:
             saved = None if freeze_decision is None else freeze_decision(claim, None)

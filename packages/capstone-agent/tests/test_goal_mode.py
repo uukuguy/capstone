@@ -14,7 +14,7 @@ def goal():
     return {'schema': 'capstone-work-goal/1', 'objective': 'Produce a reviewed report',
             'objective_revision': 1, 'generation': 1, 'state': 'ready', 'reason': None,
             'max_attempts': 4, 'attempts_admitted': 0,
-            'deadline_at': '2026-11-17T12:00:00Z', 'last_settled_attempt_id': None}
+            'deadline_at': '2099-01-01T00:00:00Z', 'last_settled_attempt_id': None}
 
 
 @pytest.mark.parametrize('field', ['objective_revision', 'generation', 'max_attempts'])
@@ -275,6 +275,7 @@ def test_service_terminal_commits_continuation_with_attempt(goal, with_product):
     assert restored.current_attempt is None
     assert restored.works[0]['goal_mode']['state'] == 'ready'
     assert restored.works[0]['goal_continuation']['predecessor_attempt_id'] == claim.attempt.attempt_id
+    assert restored.works[0]['goal_continuation']['product_refs'] == progress['product_refs']
 
 
 def test_start_goal_admits_first_attempt_through_existing_service():

@@ -1821,7 +1821,7 @@ class NativeTaskRunner:
                 timing.mark('process_spawned')
             answer = process.run(request.instruction, timeout=request.timeout_seconds,
                                  cancelled=cancelled, on_event=emit, inventory_only=inventory_only,
-                                 on_process_started=process_started)
+                                 on_process_started=process_started, answer_format=request.answer_format)
             return answer, ({'native_tools': process.tools, 'inventory': process.inventory} if inventory_only else process.usage)
         except Exception as error:
             if process is not None:

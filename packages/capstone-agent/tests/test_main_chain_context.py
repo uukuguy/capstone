@@ -118,6 +118,31 @@ def test_open_model_main_chain_carries_management_context_and_both_tool_grants()
     assert 'data_gateway_discover_data_inventory' in request.native_context['policy']['allowed_tools']
 
 
+def test_native_plan_freezes_only_visible_admitted_prior_results():
+    from capstone_agent.conversation_context import ConversationContext
+    from capstone_agent.thread_service import PriorResultReference
+
+    executor = governed_executor()
+    store = _store(executor, 'enterprise-research')
+    claim = store.claim_attempt('native', 30, 'native')
+    assert claim is not None
+    ref = 'result:sha256:' + 'a' * 64
+    evidence = 'evidence:sha256:' + 'b' * 64
+    message = {'message_id': 'msg_old', 'role': 'assistant', 'content': '先前结果',
+        'turn_id': 'turn_old', 'attempt_id': 'attempt_old', 'model_context_id': _model().id,
+        'status': 'completed'}
+    claim = replace(claim, conversation_context=ConversationContext(messages=(message,)), prior_results=(
+        PriorResultReference(ref, (evidence,), 'capability.example', 'attempt_old'),
+        PriorResultReference('result:sha256:' + 'c' * 64, (), 'capability.example', 'attempt_hidden'),
+    ))
+    plan = native_runtime_factory(executor).plan_intent(claim, NodeControl(lambda: None, time.monotonic() + 30),
+        store.freeze_attempt_input, freeze_decision=store.freeze_attempt_decision)
+    resources = plan.intent_resources
+    assert [item['result_ref'] for item in resources['prior_results']] == [ref]
+    assert resources['structural_context']['handles'] == [
+        {'kind': 'result_ref', 'ref': ref}, {'kind': 'evidence_ref', 'ref': evidence}]
+
+
 @pytest.mark.parametrize('summary', ['已完成计算，报告可查计算步骤。', '字' * 481])
 def test_enterprise_main_chain_commits_model_summary_with_formal_answer(summary):
     executor = governed_executor()

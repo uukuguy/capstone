@@ -195,7 +195,8 @@ def build_registered_pandapower_thread_application():
             general_executor=configured_general_executor(environment),
             general_timeout_seconds=float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600')))
     from pandapower_application.domain_tools import PandapowerDomainToolService
-    assembly = replace(assembly, domain_tool_service=PandapowerDomainToolService())
+    tool_workspace = Path(os.environ.get('CAPSTONE_DOMAIN_TOOL_WORKSPACE') or workspace_root.parent / 'domain-tools')
+    assembly = replace(assembly, domain_tool_service=PandapowerDomainToolService(workspace_root=tool_workspace))
     return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
             if validation_builder is not None else assembly)
 

@@ -227,9 +227,14 @@ def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
     raise OSError('no verified durable adoption is available')
 
 
-def freeze_material_submission(service, snapshot, payload, submission, *, connection=None, work_id=None):
+def freeze_material_submission(service, snapshot, payload, submission, *, connection=None, work_id=None,
+                               goal_predecessor=None):
     """Freeze trusted bytes before command admission; missing refs reuse session objects."""
     active = _active(service, snapshot.thread_id, connection)
+    work = next((item for item in snapshot.works if item['work_id'] == work_id), None) if goal_predecessor else None
+    continuation = (work or {}).get('goal_continuation', {})
+    goal_refs = (continuation.get('product_refs')
+                 if continuation.get('predecessor_attempt_id') == goal_predecessor else None)
     refs = payload.get('material_refs', list(active))
     if (not isinstance(refs, list) or len(refs) > limits.inline_material_count
             or any(not isinstance(ref, str) or ref not in active for ref in refs) or len(set(refs)) != len(refs)):
@@ -239,9 +244,9 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
         # file stays in resource storage. Inline materials, and attachments on
         # a family-worker session, stay outside that chain.
         requested = payload.get('attachment_refs')
-        if payload.get('material_refs') or (requested and snapshot.session_type != 'enterprise-research'):
+        if payload.get('material_refs') or ((requested or goal_refs) and snapshot.session_type != 'enterprise-research'):
             return submission, 'material_execution_unsupported'
-        if not requested:
+        if not requested and not goal_refs:
             return submission, None
         refs = []
     frozen = []
@@ -261,7 +266,17 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
             native_failure_origin(error))
         return submission, 'material_unavailable'
     notices, deferred = [], []
-    if not payload.get('context_product_refs'):
+    if goal_refs is not None:
+        if goal_refs:
+            sources = _process_files(service, snapshot, work_id, goal_predecessor, connection)
+            for ref in goal_refs:
+                matches = [source for source in sources if ref in (source['artifact_id'], source['file_name'])
+                           and source['source_status'] == 'completed']
+                if len(matches) != 1:
+                    return submission, 'product_context_unavailable'
+                if matches[0] not in deferred:
+                    deferred.append(matches[0])
+    elif not payload.get('context_product_refs'):
         for source in _process_files(service, snapshot, work_id, payload.get('source_attempt_id'), connection):
             # History supplies exact immutable references, never implicit file bodies.
             if source['size_bytes'] > 0:

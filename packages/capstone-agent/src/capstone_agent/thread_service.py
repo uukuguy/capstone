@@ -1615,7 +1615,9 @@ class InMemoryThreadService(NativeExecutionOwner):
             self._snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
         if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal'}:
             from .thread_materials import freeze_material_submission
-            submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission, work_id=parsed['target']['id'])
+            submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission,
+                work_id=parsed['target']['id'], goal_predecessor=parsed['payload'].get('predecessor_attempt_id')
+                if parsed['kind'] == 'continue_goal' else None)
             if input_rejection is None:
                 from .thread_products import freeze_product_selection
                 submission, input_rejection = freeze_product_selection(self, prepared, parsed['payload'], submission)
@@ -3174,7 +3176,9 @@ class PostgresThreadService(NativeExecutionOwner):
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
         if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal'}:
             from .thread_materials import freeze_material_submission
-            submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission, connection=connection, work_id=parsed['target']['id'])
+            submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission,
+                connection=connection, work_id=parsed['target']['id'],
+                goal_predecessor=parsed['payload'].get('predecessor_attempt_id') if parsed['kind'] == 'continue_goal' else None)
             if input_rejection is None:
                 from .thread_products import freeze_product_selection
                 submission, input_rejection = freeze_product_selection(self, prepared, parsed['payload'], submission, connection=connection)
