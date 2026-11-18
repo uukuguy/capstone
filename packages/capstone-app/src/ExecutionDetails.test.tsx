@@ -64,15 +64,20 @@ it('moves a real assistant answer into the same execution reader',()=>{
 it('keeps the enterprise answer excerpt and recorded progress in the conversation',()=>{
   const target=document.createElement('div')
   document.body.append(target)
+  const openNetwork=vi.fn()
   const view=render(<ExecutionDetailsContext.Provider value={{target,open:vi.fn(),inlineSummary:true}}>
-    <CapstoneAssistantThread events={[]} projectedMessages={[
+    <CapstoneAssistantThread events={[]} networkAttemptIds={['a1']} onShowNetwork={openNetwork} projectedMessages={[
       {id:'assistant-1',role:'assistant',content:[{type:'text',text:`两项核验均通过。\n\n${'已核对原始数据。'.repeat(50)}\n\n完整核验依据。`}],
         status:{type:'complete',reason:'stop'},metadata:{custom:{attemptId:'a1',terminalPhase:'completed',
-          activities:[{id:'call1',label:'核验原始数据',source:'tool',status:'completed'}]}}}
+          activities:[{id:'call1',label:'核验原始数据',source:'tool',status:'completed'},
+            {id:'call2',label:'计算潮流',source:'tool',status:'completed'}]}}}
     ]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>
   </ExecutionDetailsContext.Provider>)
   expect(within(view.container).getByText('两项核验均通过。')).toBeTruthy()
   expect(within(view.container).getByText('核验原始数据')).toBeTruthy()
+  expect(within(view.container).getByText('计算潮流')).toBeTruthy()
+  fireEvent.click(within(view.container).getByRole('button',{name:'查看此指令电网图'}))
+  expect(openNetwork).toHaveBeenCalledWith('a1')
   expect(within(view.container).queryByText('完整核验依据。')).toBeNull()
   expect(within(target).getByText('完整核验依据。')).toBeTruthy()
   view.unmount()

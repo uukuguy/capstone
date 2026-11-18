@@ -1082,7 +1082,10 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const showInlineSummary = role === 'assistant' && executionDock?.inlineSummary && Boolean(executionDock.target)
   const latestProgress = showInlineSummary && Array.isArray(custom?.taskProgress)
     ? (custom.taskProgress as TaskProgress[]).filter(item => item.kind !== 'goal').at(-1) : undefined
-  const latestActivity = showInlineSummary ? activities.at(-1) : undefined
+  const inlineSteps = showInlineSummary && Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []
+  const inlineActivities = showInlineSummary ? activities.slice(-6) : []
+  const showInstructionNetwork = networkAttemptIds.includes(attemptId) && onShowNetwork
+    ? () => onShowNetwork(attemptId) : undefined
   const answerExcerpt = showInlineSummary && hasText ? text.trim() : ''
   const processStorageKey = `capstone-process-open:${typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId}`
   const [activityOpen, setActivityOpen] = useState(() => {
@@ -1137,11 +1140,21 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </>} />}
   </>
   return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
-    {showInlineSummary && (latestProgress || latestActivity) && <div className="capstone-task-progress" aria-label="执行过程摘要">
+    {showInlineSummary && (latestProgress || inlineSteps.length > 0 || inlineActivities.length > 0) && <div className="capstone-task-progress" aria-label="执行过程摘要">
+      {inlineSteps.length > 0 && <ol aria-label="任务步骤">{inlineSteps.slice(-6).map(step => <li key={step.id}>
+        <span>{step.title}</span> · {{running:'执行中',completed:'已完成',partial:'部分完成',failed:'失败',limited:'受限',cancelled:'已停止'}[step.status]}
+      </li>)}</ol>}
       {latestProgress && <p>{latestProgress.text}</p>}
-      {latestActivity && <p><span>{latestActivity.label}</span> · {{running:'执行中',completed:'已完成',failed:'失败',cancelled:'已停止'}[latestActivity.status]}</p>}
+      {inlineActivities.length > 0 && <details open={status?.type==='running'||undefined}><summary>工具调用 · {activities.length} 次</summary>
+        <ol aria-label="近期工具调用">{inlineActivities.map(activity => <li key={activity.id}>
+          <span>{activity.label}</span> · {{running:'执行中',completed:'已完成',failed:'失败',cancelled:'已停止'}[activity.status]}
+        </li>)}</ol>
+      </details>}
     </div>}
     {answerExcerpt && <div className="capstone-chat-body" aria-label="答复摘要"><MarkdownMessage>{answerExcerpt.length > 320 ? answerExcerpt.slice(0, 320) + '…' : answerExcerpt}</MarkdownMessage></div>}
+    {showInlineSummary && showInstructionNetwork && <div className="capstone-chat-actions">
+      <IconAction label="查看此指令电网图" onClick={showInstructionNetwork}><Network /></IconAction>
+    </div>}
     <ExecutionDetailEntry enabled={role==='assistant'} id={attemptId} label={instruction||'本次执行'} status={status?.type==='running'?'执行中':custom?.terminalPhase==='cancelled'?'已停止':custom?.terminalPhase==='failed'?'执行失败':custom?.terminalPhase==='interrupted'?'执行中断':'执行已结束'}>
     {executionDock && processContent}
     <div className="capstone-chat-body">
