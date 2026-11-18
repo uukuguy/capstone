@@ -248,3 +248,36 @@ Native Attempt `attempt_0269ef131b02d844` published its IEEE 39 diagram.
 The original completed Attempt `attempt_97c0ed64814465e6` resolved its
 saved diagram with 39 buses and 46 branches on image `f827f36f9c68…`.
 The same URL from a different workspace returned 404.
+## Instruction topology focus
+
+The instruction diagram now carries a verified view layer for the saved
+revision. The browser fits the area around focus elements and their terminal
+buses. Fitting the full diagram remains a manual action. Opening the same
+instruction again restores its focus.
+
+Native branch endpoint reads use the saved network fact to identify the
+branch. Native ranking calls store the ordered assets returned by the
+registered tool. The projection confirms membership in the admitted result
+and reads its loading values. A historical ranking can recover complete
+arguments from a successful owner receipt for the same Attempt. It reads the
+saved result through the same published ranking capability. It does not
+rerun power flow. A view without a saved focus identifies itself as a full
+diagram.
+
+The original endpoint Attempt `attempt_0cb9460732a43f5f` highlighted line 11
+in the browser. Changing to the full diagram and reopening the Attempt
+returned to the same focus area. Focused application, agent, App and scope
+checks passed with 16, 111, 202 and 123 tests respectively. The agent suite
+skipped four conditional tests.
+
+A fresh Provider session saved two separate views. Attempt
+`attempt_06d8f01feef6966f` focused line 11. Attempt
+`attempt_5fc947015044ad45` focused the three lines returned by the registered
+loading rank in order: lines 21, 11 and 26. The saved layer carried a loading
+value for each of the three lines.
+
+The final local image `83d5c5b3edc4…` runs source `3fc01073` in the API and
+all three workers. The read endpoint restored the original line 11 view and
+the two original five-branch ranking views from the same saved Thread. The
+new three-line view also passed the browser camera, highlight and reopen
+checks.

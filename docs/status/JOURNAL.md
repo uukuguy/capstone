@@ -8232,3 +8232,9 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: fc3a5b83 records the final live reply recovery and exact local runtime identity.
 
 - 2026-11-19: 1530c682 places execution below the formal answer and links verified model diagrams to native replies.
+
+- 2026-11-19: bf644195 records browser and runtime acceptance and adds focused checks for historical diagrams.
+
+- 2026-11-19: f0ee83f7 saves and restores verified instruction-specific topology focus and branch highlights.
+
+- 2026-11-19: 3fc01073 reads the saved native completion status so historical rankings can recover their original focus.
