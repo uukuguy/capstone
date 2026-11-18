@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-18 企业指令核心回复与执行过程候选的分支、验收边界和进度见 [版本台账](VERSION-CONTROL.md#功能包前沿) 和 [项目全景](PROJECT-OVERVIEW.html)。
+
 2026-11-18 企业主会话回复与执行过程可见性修正。真实恢复与 CI 状态见 VERSION-CONTROL。
 
 2026-11-18 企业工作台入口首包经 PR146 合入 dev。真实提交、停止、成果查看和窄屏验收通过。来源及 CI 见 VERSION-CONTROL。
