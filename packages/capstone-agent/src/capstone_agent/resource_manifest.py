@@ -12,7 +12,7 @@ def checked_resource(value):
     if (not required <= value.keys() or value['schema'] != 'capstone-resource/1'
             or not isinstance(value['resource_id'], str)
             or not re.fullmatch(r'resource_[a-f0-9]{32}', value['resource_id'])
-            or type(value['version']) is not int or value['version'] != 1
+            or type(value['version']) is not int or value['version'] < 1
             or not isinstance(value['thread_id'], str)
             or not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', value['thread_id'])
             or type(value['size_bytes']) is not int or value['size_bytes'] <= 0

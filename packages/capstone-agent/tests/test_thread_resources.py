@@ -9,6 +9,35 @@ from test_enterprise_normal_chat import chat_store
 from test_thread_postgres import postgres_thread_service
 
 
+def test_replacement_keeps_exact_versions_readable(chat_store):
+    service, thread = chat_store
+    uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
+    first = uploads.begin(thread, 'data.csv', 4, 'initial')['upload_id']
+    uploads.part(thread, first, 0, b'old!')
+    original = uploads.complete(thread, first)
+    resource_id = original['resource_id']
+    second = uploads.begin(thread, 'data.csv', 4, 'replacement',
+                           resource_id=resource_id, expected_version=1)['upload_id']
+    competing = uploads.begin(thread, 'data.csv', 4, 'competing',
+                              resource_id=resource_id, expected_version=1)['upload_id']
+    uploads.part(thread, second, 0, b'new!')
+    uploads.part(thread, competing, 0, b'race')
+    replacement = uploads.complete(thread, second)
+    assert replacement['resource_id'] == resource_id
+    assert replacement['version'] == 2
+    assert uploads.complete(thread, second) == replacement
+    assert uploads.published(thread, resource_id, version=1) == original
+    assert b''.join(uploads.read(thread, resource_id, version=1)) == b'old!'
+    assert b''.join(uploads.read(thread, resource_id, version=2)) == b'new!'
+    assert uploads.resource_page(thread)['resources'] == [replacement]
+    assert uploads.resources(thread) == [replacement]
+    with pytest.raises(ValueError, match='version'):
+        uploads.complete(thread, competing)
+    with pytest.raises(ValueError, match='version'):
+        uploads.begin(thread, 'data.csv', 4, 'stale',
+                      resource_id=resource_id, expected_version=1)
+
+
 def test_resource_pages_cover_published_files_and_reject_changed_scope(chat_store):
     service, thread = chat_store
     uploads = ResourceUploads(service, MemoryObjectStore(), chunk_bytes=4)
@@ -298,7 +327,19 @@ def test_http_chunk_bound_and_authorization(chat_store):
     uid = client.post(base, json={'file_name':'data.csv','size_bytes':4,'request_id':'http'}).json()['upload_id']
     assert client.put(f'{base}/{uid}/parts/0', content=b'abcde').status_code == 413
     assert client.put(f'{base}/{uid}/parts/0', content=b'abcd').status_code == 200
-    assert client.post(f'{base}/{uid}/complete').json()['sha256'] == sha256(b'abcd').hexdigest()
+    original = client.post(f'{base}/{uid}/complete').json()
+    assert original['sha256'] == sha256(b'abcd').hexdigest()
+    replacement = client.post(base, json={
+        'file_name': 'data.csv', 'size_bytes': 4, 'request_id': 'http-replacement',
+        'resource_id': original['resource_id'], 'expected_version': 1,
+    })
+    assert replacement.status_code == 201
+    uid = replacement.json()['upload_id']
+    assert client.put(f'{base}/{uid}/parts/0', content=b'efgh').status_code == 200
+    assert client.post(f'{base}/{uid}/complete').json()['version'] == 2
+    path = f'/api/v1/threads/{thread}/resources/{original["resource_id"]}/content'
+    assert client.get(path).content == b'abcd'
+    assert client.get(path, params={'version': 2}).content == b'efgh'
 
 
 def test_http_streams_complete_resource_bytes(chat_store):

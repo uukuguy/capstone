@@ -9,7 +9,7 @@ export function parseStoredResources(value:unknown,threadId:string):StoredResour
   const page=value as {schema?:string;resources?:StoredResource[]}
   if(page?.schema!=='capstone-resources/1'||!Array.isArray(page.resources))throw new Error('资源目录无效')
   for(const resource of page.resources)if(resource.schema!=='capstone-resource/1'||resource.thread_id!==threadId
-    ||!/^resource_[a-f0-9]{32}$/.test(resource.resource_id)||resource.version!==1||typeof resource.file_name!=='string'
+    ||!/^resource_[a-f0-9]{32}$/.test(resource.resource_id)||!Number.isSafeInteger(resource.version)||resource.version<1||typeof resource.file_name!=='string'
     ||!Number.isSafeInteger(resource.size_bytes)||resource.size_bytes<1||!/^[a-f0-9]{64}$/.test(resource.sha256))throw new Error('资源身份无效')
   return page.resources
 }

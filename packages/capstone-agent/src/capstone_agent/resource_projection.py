@@ -105,6 +105,14 @@ def state(connection, thread, uid, *, part_index=None, include_parts=True):
     return result
 
 
+def version_upload(connection, thread, resource_id, version):
+    synchronize(connection, thread)
+    row = connection.execute("""SELECT upload_id FROM capstone_resource_uploads
+        WHERE thread_id=%s AND metadata->'resource'->>'resource_id'=%s
+        AND metadata->'resource'->>'version'=%s""", (thread, resource_id, str(version))).fetchone()
+    return row['upload_id'] if row else None
+
+
 def states(connection, thread, *, published_only=True):
     synchronize(connection, thread)
     query = 'SELECT metadata FROM capstone_resource_uploads WHERE thread_id=%s'
@@ -118,8 +126,11 @@ def page(connection, thread, draft, after, limit):
     synchronize(connection, thread)
     revision = connection.execute(f"""SELECT COALESCE(MAX(event_seq),0) AS revision FROM capstone_thread_events
         WHERE thread_id=%s AND event_type IN ({_EVENT_TYPES_SQL})""", (thread,)).fetchone()['revision']
-    rows = connection.execute("""SELECT metadata,published_seq FROM capstone_resource_uploads
-        WHERE thread_id=%s AND published_seq>%s AND metadata->>'state'='complete'
-        AND COALESCE((metadata->>'draft')::boolean,false)=%s
-        ORDER BY published_seq LIMIT %s""", (thread, after, draft, limit+1)).fetchall()
+    rows = connection.execute("""SELECT item.metadata,item.published_seq FROM capstone_resource_uploads item
+        WHERE item.thread_id=%s AND item.published_seq>%s AND item.metadata->>'state'='complete'
+        AND COALESCE((item.metadata->>'draft')::boolean,false)=%s
+        AND NOT EXISTS (SELECT 1 FROM capstone_resource_uploads newer
+            WHERE newer.thread_id=item.thread_id AND newer.published_seq>item.published_seq
+            AND newer.metadata->'resource'->>'resource_id'=item.metadata->'resource'->>'resource_id')
+        ORDER BY item.published_seq LIMIT %s""", (thread, after, draft, limit+1)).fetchall()
     return revision, [(row['published_seq'], row['metadata']['resource']) for row in rows]

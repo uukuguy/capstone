@@ -167,13 +167,14 @@ class ResourceRangeReads:
         if previous:
             return recover(previous)
         uploads = ResourceUploads(self.service, self.objects)
-        uid = 'upload_' + canonical['resource_id'].removeprefix('resource_')
         try:
-            state = uploads._state(thread_id, uid, include_parts=False)
+            state = uploads._published_state(
+                thread_id, canonical['resource_id'], canonical['version'], include_parts=False)
         except ValueError as error:
             raise ResourceRangeRejected('resource range source is unavailable','resource_range_unavailable') from error
         if state['state'] != 'complete' or checked_resource(state.get('resource')) != canonical:
             raise ResourceRangeRejected('published resource identity changed','resource_range_unavailable')
+        uid = state['upload_id']
         end = request['offset'] + request['length']
         fragments = []
         for index in range(request['offset'] // state['chunk_bytes'], (end + state['chunk_bytes']-1)//state['chunk_bytes']):

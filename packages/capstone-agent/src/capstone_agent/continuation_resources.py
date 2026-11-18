@@ -64,7 +64,8 @@ def resource_reader_for(service, claim):
         source = historical.get(canonical['resource_id'])
         if source is None:
             from .thread_resources import ResourceUploads
-            yield from ResourceUploads(service, service._material_objects).read(claim.thread_id, canonical['resource_id'])
+            yield from ResourceUploads(service, service._material_objects).read(
+                claim.thread_id, canonical['resource_id'], version=canonical['version'])
             return
         if (claim.task_context is None or source['thread_id'] != claim.thread_id
                 or source['work_id'] != claim.task_context.binding.work_id):
