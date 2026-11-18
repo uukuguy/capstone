@@ -140,17 +140,15 @@ def test_mission_tool_schemas_distinguish_current_object_revision_from_plan_revi
     assert 'Mission.plan_revision' in CATALOG['agent_mission_conclude']['inputSchema']['properties']['plan_revision']['description']
 
 
-@pytest.mark.parametrize('kind',['skill'])
-def test_task_model_schema_excludes_unimplemented_equipment_kinds(kind):
+def test_task_model_schema_accepts_registered_skill_equipment():
     from capstone_agent.native_mission import CATALOG
     from jsonschema import Draft202012Validator
     task=dict(task_id='task_2',objective='Use the authorized predecessor result',delivery_requirements=['Save a report'],
         depends_on=['task_1'],agent_id='capstone',mode='single',max_attempts=1,
-        equipment=[dict(schema='capstone-mission-equipment-reference/1',kind=kind,id='source_input',revision='1')])
+        equipment=[dict(schema='capstone-mission-equipment-reference/1',kind='skill',id='source_input',revision='1')])
     for name,args in [('agent_mission_prepare_task',{'expected_revision':2,'task':task}),
                       ('agent_mission_update_plan',{'expected_revision':2,'acceptance_criteria':['Inspect report'],'tasks':[task]})]:
-        with pytest.raises(ValidationError):
-            Draft202012Validator(CATALOG[name]['inputSchema']).validate(args)
+        Draft202012Validator(CATALOG[name]['inputSchema']).validate(args)
 
 
 def test_resource_equipment_admits_old_published_version(chat_store):

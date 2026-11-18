@@ -44,6 +44,9 @@ class ControlHost:
                 mission['available_equipment'] = []
                 mission['equipment_status'] = {'available': False,
                     'reason': 'Origin gateway requires its registered source adapter before delegation.'}
+            excluded = set((claim.submission or {}).get('session_skills', {}).get('excluded', ()))
+            mission['available_equipment'] = [ref for ref in mission['available_equipment']
+                                              if ref['kind'] != 'skill' or ref['id'] not in excluded]
             from .agent_delegation import REGISTERED_AGENTS
             mission['registered_agents'] = sorted(REGISTERED_AGENTS)
         return mission
@@ -52,8 +55,10 @@ class ControlHost:
                         validate_task_equipment=False):
         from .mission_origin import access
         mission = self.read_mission(workspace, command['mission_id'], claim=claim)
+        excluded_skills = () if claim is None else (claim.submission or {}).get('session_skills', {}).get('excluded', ())
         apply = lambda: self.service.command_mission(workspace, command, actor=actor,
-                                                     validate_task_equipment=validate_task_equipment)
+                                                     validate_task_equipment=validate_task_equipment,
+                                                     excluded_skills=excluded_skills)
         if mission.get('origin') is None:
             return apply()
         return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply,
@@ -195,7 +200,7 @@ def configure_control(threads, *, wake=None):
     def admit_task(workspace, origin, task):
         from .agent_delegation import REGISTERED_AGENTS
         from .mission_equipment import resolve
-        if task['agent_id'] not in REGISTERED_AGENTS:
+        if task.get('agent_id') not in REGISTERED_AGENTS:
             return False
         try:
             resolve(threads, workspace, origin, task.get('equipment', []), task.get('restrictions', []))

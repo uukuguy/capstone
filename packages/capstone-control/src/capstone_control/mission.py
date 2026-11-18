@@ -100,6 +100,8 @@ def checked_tasks(tasks, goal):
             raise ContractError('unsupported Mission Task fields')
         selected, denied = references(task.get('equipment', [])), references(task.get('restrictions', []))
         resource_ids = [ref['id'] for ref in selected if ref['kind'] == 'resource']
+        if sum(ref['kind'] == 'skill' for ref in selected) > 1 or any(ref['kind'] == 'skill' for ref in denied):
+            raise ContractError('Mission Tasks may select one skill and cannot use skills as restrictions')
         if len(set(resource_ids)) != len(resource_ids) or any(ref['kind'] == 'resource' for ref in denied):
             raise ContractError('Mission Tasks may select one version per resource and cannot use resources as restrictions')
         if {fingerprint(ref) for ref in selected} & {fingerprint(ref) for ref in denied}:
@@ -223,7 +225,7 @@ def update_tasks(goal, proposed):
     goal['tasks'] = combined
 
 
-def command(service, workspace, document, actor, *, validate_task_equipment=False):
+def command(service, workspace, document, actor, *, validate_task_equipment=False, excluded_skills=()):
     object_fields(document, {'schema', 'operation_id', 'mission_id', 'expected_revision', 'kind', 'payload'})
     if document['schema'] != 'capstone-control-mission-command/1':
         raise ContractError('unsupported Mission command schema')
@@ -260,6 +262,11 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                         for ref in references(task.get(field, [])):
                             if admit is None or admit(workspace, goal['_mission']['origin'], ref) is not True:
                                 raise ContractError('Mission Task equipment must use exact currently registered references')
+                    skills = [ref for ref in task.get('equipment', []) if ref['kind'] == 'skill']
+                    if skills and (any(ref['id'] in excluded_skills for ref in skills)
+                                   or service.admit_mission_task is None
+                                   or not service.admit_mission_task(workspace, goal['_mission']['origin'], task)):
+                        raise ContractError('Mission Task skill is outside the admitted equipment selection')
             if kind == 'ready':
                 object_fields(payload, set())
                 if goal['state'] not in {'planning','waiting_review'} and not (goal['state'] == 'paused' and not goal['_mission'].get('activated')):

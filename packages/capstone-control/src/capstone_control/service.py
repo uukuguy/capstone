@@ -63,9 +63,9 @@ class ControlService:
         return projection(self, self.store.read(workspace, mission_id))
 
     def command_mission(self, workspace, command, *, actor='application:trusted',
-                        validate_task_equipment=False):
+                        validate_task_equipment=False, excluded_skills=()):
         from .mission import command as apply
-        return apply(self, workspace, command, actor, validate_task_equipment=validate_task_equipment)
+        return apply(self, workspace, command, actor, validate_task_equipment=validate_task_equipment, excluded_skills=excluded_skills)
 
     def pending_mission_reviews(self, workspace=None, limit=32):
         from .mission_reviews import pending

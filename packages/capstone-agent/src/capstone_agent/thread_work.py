@@ -475,7 +475,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
