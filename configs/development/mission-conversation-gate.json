@@ -6,6 +6,18 @@
     "packages/capstone-agent/src/capstone_agent/native_mission.py"
   ],
   "paths": [
+    "packages/capstone-agent/src/capstone_agent/continuation_resources.py",
+    "packages/capstone-agent/src/capstone_agent/resource_manifest.py",
+    "packages/capstone-agent/src/capstone_agent/resource_projection.py",
+    "packages/capstone-agent/src/capstone_agent/resource_range_reads.py",
+    "packages/capstone-agent/src/capstone_agent/thread_materials.py",
+    "packages/capstone-agent/src/capstone_agent/thread_resource_http.py",
+    "packages/capstone-agent/src/capstone_agent/thread_resources.py",
+    "packages/capstone-agent/tests/test_resource_range_transport.py",
+    "packages/capstone-agent/tests/test_thread_resources.py",
+    "packages/capstone-app/src/resourceReads.ts",
+    "packages/capstone-app/src/resourceUploads.ts",
+    "packages/capstone-app/src/threadResourceTransport.test.ts",
     "packages/capstone-agent/tests/test_mission_model_admission.py",
     "packages/capstone-control/tests/test_mission_acceptance.py",
     "packages/capstone-agent/tests/fixtures/mission-resource-registration.mjs",

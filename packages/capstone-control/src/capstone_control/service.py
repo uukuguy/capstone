@@ -225,6 +225,13 @@ class ControlService:
                     observation['state'] in {'paused', 'cancelled'}):
                 raise InvalidTransition('unbound delegation cannot publish observations')
             old = task.get('observation')
+            if (old is not None and task.get('delegation_history')
+                    and task['state'] in {'running', 'waiting', 'resume_requested'}
+                    and old['state'] in {'paused', 'cancelled', 'completed', 'failed'}
+                    and task['delegation'].get('requested_control') is None):
+                # Existing resumed records can still carry the prior stop
+                # acknowledgement. Its sequence belongs to the old child.
+                old = None
             if old is not None and observation['sequence'] <= old['sequence']:
                 if observation['sequence'] == old['sequence'] and observation != old:
                     raise Conflict('observation sequence has different content')
@@ -401,6 +408,7 @@ class ControlService:
         if task is None:
             raise InvalidTransition('no dependency-ready Task')
         task['generation'] += 1
+        task.pop('observation', None)
         delegation_id = 'delegation_' + fingerprint([goal['goal_id'], goal['objective_revision'], task['task_id'],
                                                     task['revision'], task['generation']])[:32]
         task['delegation'] = dict(schema='capstone-agent-delegation/1',

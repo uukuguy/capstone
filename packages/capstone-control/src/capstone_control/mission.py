@@ -99,6 +99,9 @@ def checked_tasks(tasks, goal):
         if not isinstance(task, dict) or set(task) - TASK_FIELDS - {'equipment', 'restrictions'}:
             raise ContractError('unsupported Mission Task fields')
         selected, denied = references(task.get('equipment', [])), references(task.get('restrictions', []))
+        resource_ids = [ref['id'] for ref in selected if ref['kind'] == 'resource']
+        if len(set(resource_ids)) != len(resource_ids) or any(ref['kind'] == 'resource' for ref in denied):
+            raise ContractError('Mission Tasks may select one version per resource and cannot use resources as restrictions')
         if {fingerprint(ref) for ref in selected} & {fingerprint(ref) for ref in denied}:
             raise ContractError('restricted equipment cannot be selected')
         plain.append({key: value for key, value in task.items() if key in TASK_FIELDS})
