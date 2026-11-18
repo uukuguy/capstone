@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-18 企业工作台入口首包经 PR146 合入 dev。真实提交、停止、成果查看和窄屏验收通过。来源及 CI 见 VERSION-CONTROL。
+
 2026-11-18 Mission 注册技能配备经 PR144 合入 dev。真实技能加载、制品和暂停后第二代委派通过。来源见 VERSION-CONTROL。
 
 2026-11-18 Mission 版本化业务资源通过 PR142 合入 dev。版本及验收见 VERSION-CONTROL 和 PROJECT-OVERVIEW。

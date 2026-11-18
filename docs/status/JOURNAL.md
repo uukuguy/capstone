@@ -8128,3 +8128,11 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: PR144 merged as f22ea11c. Real generation 2 loaded the frozen skill and saved a verified product.
 
 - 2026-11-18: Actual dev f22ea11c rebuilt. Both skill load events and verified product digests match local acceptance.
+
+- 2026-11-18: 7f1cfdb8 defines the dedicated enterprise entry, reuse boundary and live recovery acceptance.
+
+- 2026-11-18: 69cddcad adds enterprise routing, scoped layout preferences and read-only session recovery. 104 App checks pass.
+
+- 2026-11-18: fa68bf31 keeps the 390px composer visible. The real stop receipt and read-only refresh passed.
+
+- 2026-11-18: PR146 merged as 68857937. Actual dev restored the stopped Thread and verified the product and narrow composer.
