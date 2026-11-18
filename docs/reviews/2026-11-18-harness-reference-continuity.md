@@ -11,6 +11,8 @@ separate checks.
 | Native Domain Pack result to a later instruction | IEEE 39 tool execution produced a result. The first Attempt ended with empty admitted result and evidence arrays. The later Attempt received the reference in history text, then the Authority returned `unknown_result` in its task workspace. | The host freezes an isolated Thread, Run and Work scope for model-free native execution. The Domain Pack verifies result and evidence content. The native host forwards the verified receipt to Harness, which stores it in the completed Attempt. The next native instruction reads receipts in its frozen history and model scope. Older Attempt workspace migration remains open. |
 | Native Domain Pack result across worker replacement | The hosted pandapower worker used the tool service's temporary directory. The confirmed result was outside the mounted run volume. | Hosted registration uses the existing run directory for the tool workspace unless an explicit path is configured. The local source directories were saved and copied to the existing run volume. |
 | Previously admitted result to native main-chain context | The plan used an empty prior-result list even when the claim carried admitted results. Structural context also used a different visibility filter from the frozen list. | The plan now uses one visible set for both paths. Covered by a regression test. |
+| Older native Attempt | Its completed terminal record has no admitted references. It has a producer execution receipt and an Attempt-scoped private artifact directory. | Recovery selects a completed predecessor in the same frozen Work. The registered worker matches the exact saved receipt, verifies the source artifacts, and issues scoped read inputs without changing the old record. |
+| Gateway operation receipts | Job and preparation handles were lost when the native adapter revoked its task. | The host captures issued handles, stores them in the attempt ledger, and restores grants only under the same registered connection, instance, and catalog revision. Mission carries producer coordinates to dependent tasks and reviews. |
 | Goal product to the next iteration | Settlement checked the proposal's products, then the continuation saved the next instruction and dropped the checked references. Input preparation could select other historical files in the Work. | Newly persisted continuations retain product references. Admission freezes completed files from the exact predecessor and checks their manifests. Historical continuations keep their existing read path. |
 | Goal result to the next iteration | A real automatic continuation carried the admitted result and evidence but received no Application catalog from the native worker. The model could only find gateway and general tools. | When current publication is unavailable, continuation uses the exact completed predecessor catalog from the same Work and model selection. Memory, PostgreSQL and real automatic continuation checks pass. |
 | Mission files and Authority references to a child or review | The file grant freezes the producer, artifact descriptor and digest. The delivery carried only an answer receipt and file descriptors. | Control now carries exact terminal coordinates from verified dependencies to a child and from delivered or verified tasks to a reserved review. The application resolves the receipt in the producer ledger. The Pack checks the content and stages the admitted references in an isolated read workspace. |
@@ -114,29 +116,37 @@ access to a referenced object.
 
 ## Remaining acceptance
 
-Recover older Attempt-scoped references by verifying the recorded
-execution identity and rechecking the content with the owner. Each
-result-only continuation must make zero replacement calculation calls.
+Each result-only continuation must make zero replacement calculation calls.
 
-The original Thread still has its durable worker execution receipts and
-the Pack's private Attempt files. The old native host has a completed
-task receipt with zero saved observations. Recovery must match the saved
-worker receipt and the original Work, then let the Pack verify the
-artifacts in that exact scope. This avoids relying on reader text to
-reconstruct provenance.
+The old native host has a completed task receipt with zero saved observations.
+Commit `1648b7be` reconstructs the typed handle list from the owning
+Pack's verified artifacts after matching the exact stored worker receipt.
+The real original Thread's receipt reproduced all three line rankings with
+the same original result and evidence. The negative proof changed the call
+identity and recovery rejected it. The original Thread's event cursor stayed
+the same. A separate memory and PostgreSQL fixture exercised freezing the
+old producer receipt for a later Attempt in the same Work.
 
-The initial relay covers verified result and evidence handles. Model
-selection has its existing frozen management record. Domain tool context
-handles, gateway handles and other owner-issued references still need
-their own versioned readers and admission contracts before they can be
-transferred. The registered issuer establishes ownership, and the grant
-establishes permission.
+The relay covers verified result and evidence handles, plus registered
+gateway job and preparation handles. Model selection has its existing
+frozen management record. Domain tool context handles, gateway view
+handles and other owner-issued reference types still need their own
+versioned readers and admission contracts before they can be transferred.
+The registered issuer establishes ownership, and the grant establishes
+permission.
 
-The gateway adapter currently keeps `job_ref` and `preparation_ref`
-authorization in its active native task record. Durable gateway
-continuation needs a typed receipt bound to the gateway instance,
-connection, compatible catalog and producer before a later task can
-resume the operation.
+The real local-integration gateway issued a preparation handle in
+`attempt_c6630f9cedba96c0`. The next Attempt used that admitted handle
+for a single source status read. The source reported `region_root_missing`
+for the original operation. No second view creation took place. Focused
+regressions cover native adapter restart, all three owner changes, and
+Mission dependent and review grant propagation. In live Mission
+`goal_5c7f4158883406be5c8cbcb63d038559`, the producer's two open requests
+failed with `invalid_view_request` because the source required an exact
+grid object reference. The source issued no preparation handle. The
+organizer still marked the producer verified. This run leaves live
+cross-Work gateway admission unverified and shows that the review must
+check the tool outcome when the task requires a source-issued handle.
 
 The Mission file grant in `delegation_resources.py` verifies a completed
 producer record and binds the saved artifact version to a consumer Work.

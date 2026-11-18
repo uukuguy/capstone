@@ -8194,3 +8194,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 70a2d97f resumes standalone Authority evidence from the same Work even when no result reference exists.
 
 - 2026-11-18: Live ordinary Work reopens standalone constraint evidence from the ledger and retains its digest.
+
+- 2026-11-18: b6b7464c records live Mission, restarted Goal, and standalone evidence verification for later integration.
+
+- 2026-11-18: 1648b7be recovers legacy Authority receipts and persists gateway operation grants across Work and Mission boundaries.

@@ -494,3 +494,27 @@ def test_domain_invoke_accepts_management_identity_and_rejects_a_payload():
         assert rejected.status_code == 422
     assert seen[0]['management'] == identity
     assert 'buses' not in json.dumps(seen[0])
+
+
+def test_legacy_worker_recovery_requires_operator_and_completed_execution():
+    from capability_agent.runtime.execution_queue import ExecutionQueue
+    from fastapi.testclient import TestClient
+
+    queue = ExecutionQueue(capacity=1)
+    proof = queue.receipt(task_id='pi-' + 'f' * 64, call_id='legacy')
+    with queue.acquire(proof, resource='legacy'):
+        queue.record(proof, 'execution_started', provenance='authority_process')
+        queue.record(proof, 'execution_ended', provenance='authority_process')
+
+    class Pack:
+        def recover(self, receipt):
+            assert receipt == proof
+            return {'ok': True}
+
+    app = create_wake_app(threading.Event(), 'operator-secret', implementation_family='pandapower', domain_tools=Pack())
+    route = '/domain-tools/recover'
+    auth = {'Authorization': f"Bearer {wake_token('operator-secret')}"}
+    with TestClient(app) as client:
+        assert client.post(route, json=proof).status_code == 401
+        assert client.post(route, headers=auth, json={**proof, 'events': proof['events'][:3]}).status_code == 422
+        assert client.post(route, headers=auth, json=proof).json() == {'ok': True}
