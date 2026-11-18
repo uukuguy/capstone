@@ -5,6 +5,18 @@ import re
 OPEN = '<capstone-answer>'
 CLOSE = '</capstone-answer>'
 _TOOL_TRAILER = re.compile(r'</｜｜DSML｜｜ parameter>\s*</｜｜DSML｜｜ invoke>\s*</｜｜DSML｜｜ calls>\s*\Z')
+_SUMMARY_OPEN = '<capstone-answer-summary>'
+
+
+def _answer_object(text: str) -> dict[str, str] | None:
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return None
+    if (isinstance(value, dict) and set(value) == {'answer', 'summary'}
+            and all(isinstance(item, str) and item.strip() for item in value.values())):
+        return value
+    return None
 
 
 def public_answer(text: str, *, answer_format: str | None = None) -> str:
@@ -19,16 +31,16 @@ def public_answer(text: str, *, answer_format: str | None = None) -> str:
             if CLOSE not in before:
                 while candidate.endswith(CLOSE):
                     candidate = candidate[:-len(CLOSE)].rstrip()
-                try:
-                    value = json.loads(candidate)
-                except ValueError:
-                    value = None
-                if (isinstance(value, dict) and set(value) == {'answer', 'summary'}
-                        and all(isinstance(item, str) and item.strip() for item in value.values())):
+                if _answer_object(candidate) is not None:
                     return candidate
         raise ValueError('answer_presentation_invalid')
     _, remainder = text.split(OPEN, 1)
     body, after = remainder.split(CLOSE, 1)
-    if not body.strip() or after.strip():
+    body, after = body.strip(), after.strip()
+    if body and answer_format == 'formal-and-core/1' and after.startswith(_SUMMARY_OPEN):
+        supplemental = _answer_object(after.removeprefix(_SUMMARY_OPEN).strip())
+        if supplemental is not None and _answer_object(body) is None:
+            return json.dumps({'answer': body, 'summary': supplemental['summary']}, ensure_ascii=False)
+    if not body or after:
         raise ValueError('answer_presentation_invalid')
-    return body.strip()
+    return body

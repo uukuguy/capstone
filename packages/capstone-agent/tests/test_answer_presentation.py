@@ -32,3 +32,15 @@ def test_bundle_recovers_complete_json_before_native_tool_closing_markers():
 def test_malformed_boundary_is_rejected(text):
     with pytest.raises(ValueError, match='answer_presentation_invalid'):
         public_answer(text)
+
+
+def test_split_formal_and_core_keeps_the_complete_formal_answer():
+    import json
+
+    text = ('<capstone-answer>完整报告\n第一项和第二项。</capstone-answer>\n\n'
+            '<capstone-answer-summary>{"answer":"简写的报告","summary":"两项已核对。"}'
+            '</｜｜DSML｜｜ parameter>\n</｜｜DSML｜｜ invoke>\n</｜｜DSML｜｜ calls>')
+    assert json.loads(public_answer(text, answer_format='formal-and-core/1')) == {
+        'answer': '完整报告\n第一项和第二项。', 'summary': '两项已核对。'}
+    with pytest.raises(ValueError, match='answer_presentation_invalid'):
+        public_answer(text + '\n额外正文', answer_format='formal-and-core/1')
