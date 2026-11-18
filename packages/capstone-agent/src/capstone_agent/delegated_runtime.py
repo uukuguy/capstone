@@ -121,6 +121,13 @@ class DelegatedRuntime:
     def network_projection_enabled(self) -> bool:
         return self._network_projection_requested
 
+    def admitted_task_diagram(self, claim, receipts):
+        if not receipts or claim.model_context is not None:
+            return None
+        from .domain_tool_client import project_task_diagram
+        return project_task_diagram(self._resources.get('structural_context'),
+                                    claim.application_catalog, claim.model_context, receipts)
+
     def network_projection(self, claim, result_refs, evidence_refs, tool_events):
         del tool_events
         if (claim.model_context != self._claim.model_context or

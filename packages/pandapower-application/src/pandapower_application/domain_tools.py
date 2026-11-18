@@ -31,6 +31,35 @@ def domain_workspace_id(document: dict) -> str:
 class PandapowerDomainToolService(PandapowerToolService):
     """Select the application workspace before entering domain execution."""
 
+    def project_task_diagram(self, document: dict) -> dict:
+        """Project the one exact authority context used by an admitted answer."""
+        from pandapower_domain.authority import PandapowerArtifactAuthority
+        from pandapower_domain.network_annotations import project_base_disconnections
+
+        owner = domain_workspace_id({'task_id': 'diagram', 'management': document['management']})
+        authority = PandapowerArtifactAuthority(self._root / owner)
+        contexts = set()
+        for receipt in document['references']:
+            if receipt['authority_id'] != authority.authority_id:
+                continue
+            contexts.update(receipt.get('context_refs', ()))
+            for reference in receipt['result_refs']:
+                contexts.add(authority.verify_result(reference).document['context_ref'])
+            for reference in receipt['evidence_refs']:
+                contexts.add(authority.verify_evidence(reference).document['context_ref'])
+        if len(contexts) != 1:
+            raise ValueError('task has no unique diagram context')
+        context_ref = contexts.pop()
+        context = authority.verify_context(context_ref).document
+        topology = self._executor(owner).invoke('operator.diagram.get', {'context_ref': context_ref})
+        if (topology.get('context_ref') != context_ref
+                or topology.get('revision_ref') != context['revision_ref']):
+            raise ValueError('task diagram context changed')
+        return {'schema': 'capstone-network-diagram/1.0',
+                'model': {'id': context['model_id'], 'revision': context['revision_ref'], 'source': authority.authority_id},
+                'coordinate_system': topology['coordinate_system'], 'buses': topology['buses'],
+                'branches': topology['branches'], 'disconnections': project_base_disconnections(topology)}
+
     def invoke(self, document: dict, *, workspace_id: str | None = None) -> dict:
         # The application derives workspace ownership from the admitted document.
         del workspace_id

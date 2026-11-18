@@ -100,6 +100,7 @@ jobs:
           uv sync --project packages/capstone-agent
           uv sync --project packages/pandapower-application
           uv sync --project packages/grid-simulator
+          npm ci --prefix packages/capstone-app
       - name: Set up session pin consumers
         if: steps.scope.outputs.gate == 'mission-conversation' || steps.scope.outputs.gate == 'instruction-admission' || steps.scope.outputs.gate == 'execution-details' || steps.scope.outputs.gate == 'control-task-board' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation' || steps.scope.outputs.gate == 'control-events'
         run: |

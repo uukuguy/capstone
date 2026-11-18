@@ -1089,6 +1089,38 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
         raise ThreadProtocolError(f"{name} is too large")
 
 
+def saved_task_diagram_inputs(service, thread_id, attempt_id):
+    """Read the versioned projection inputs of one completed, model-free Attempt."""
+    from .structural_context import checked_authority_references
+    if isinstance(service, InMemoryThreadService):
+        with service._lock:
+            row = dict(service._attempts.get(attempt_id) or {})
+            event = next((e for e in reversed(service._events) if e.thread_id == thread_id
+                and e.attempt_id == attempt_id and e.event_type == 'attempt_completed'
+                and e.model_context_id is None), None)
+            if event is None:
+                raise ValueError('task diagram source unavailable')
+            row.update(payload=event.payload, submission_snapshot=row.get('submission'))
+    else:
+        with service._connect() as connection:
+            row = connection.execute("""SELECT e.payload,a.intent_input_snapshot,a.submission_snapshot
+                FROM capstone_thread_attempts a JOIN capstone_thread_events e
+                ON a.thread_id=e.thread_id AND a.run_id=e.run_id AND a.attempt_id=e.attempt_id
+                WHERE a.thread_id=%s AND a.attempt_id=%s AND a.phase='completed'
+                AND a.model_context_snapshot IS NULL AND e.event_type='attempt_completed'""",
+                (thread_id, attempt_id)).fetchone()
+        if row is None:
+            raise ValueError('task diagram source unavailable')
+    payload = row['payload']
+    references = [checked_authority_references(item) for item in payload.get('authority_references', ())]
+    if not references or any(not set(item[key]) <= set(payload.get(key, ())) for item in references
+                             for key in ('result_refs', 'evidence_refs')):
+        raise ValueError('task diagram references are unavailable')
+    structural = (row.get('intent_input_snapshot') or {}).get('resources', {}).get('structural_context')
+    catalog = (row.get('submission_snapshot') or {}).get('_application_catalog')
+    return structural, catalog, None, references
+
+
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
     if event_type == 'research_state_updated' and claim.task_context is not None:
         if (payload.get('task_context') != claim.task_context.to_document()
@@ -1108,7 +1140,7 @@ def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim
         raise
     except (TypeError, ValueError) as error:
         raise ThreadProtocolError("network diagram payload is invalid") from error
-    if (diagram["model"]["id"] != claim.professional_context.model_id or
+    if claim.model_context is not None and (diagram["model"]["id"] != claim.professional_context.model_id or
             diagram["model"]["revision"] != claim.professional_context.model_revision):
         raise ThreadProtocolError("network diagram does not match the claimed model")
 

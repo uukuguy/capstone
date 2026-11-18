@@ -19,3 +19,6 @@ uv run --project packages/pandapower-domain-pack python -m pytest -q \
 uv run --project packages/pandapower-application python -m pytest -q \
   packages/pandapower-application/tests/test_domain_execution_lifecycle.py \
   packages/pandapower-application/tests/application/test_hosted.py
+
+npm --prefix packages/capstone-app run check
+npm --prefix packages/capstone-app test -- src/ExecutionDetails.test.tsx src/CapstoneAssistantThread.test.tsx src/threadHttpTransport.test.ts

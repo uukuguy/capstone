@@ -243,3 +243,25 @@ def test_mixed_entry_calls_use_one_owner_budget(tmp_path):
     assert all(r['ok'] for r in results)
     assert peak == 8
     assert len({r['execution_receipt']['owner_id'] for r in results}) == 1
+
+
+def test_native_task_diagram_uses_verified_context_without_reopening(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from pandapower_domain.authority import PandapowerArtifactAuthority
+
+    ref = 'context:sha256:' + 'a' * 64
+    revision = 'revision:sha256:' + 'b' * 64
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'verify_context', lambda self, value:
+        SimpleNamespace(document={'model_id': 'ieee39', 'revision_ref': revision}))
+    calls = []
+    def invoke(capability, arguments):
+        calls.append((capability, arguments))
+        return {'context_ref': ref, 'revision_ref': revision, 'coordinate_system': 'fixture',
+                'buses': [], 'branches': [], 'branch_states': []}
+    monkeypatch.setattr(service, '_executor', lambda owner: SimpleNamespace(invoke=invoke))
+    diagram = service.project_task_diagram({'management': {'schema': 'capstone-structural-context/1',
+        'work_scope': 'work-' + 'c' * 40}, 'references': [{'authority_id': 'gridctl',
+        'context_refs': [ref], 'result_refs': [], 'evidence_refs': []}]})
+    assert diagram['model']['revision'] == revision
+    assert calls == [('operator.diagram.get', {'context_ref': ref})]

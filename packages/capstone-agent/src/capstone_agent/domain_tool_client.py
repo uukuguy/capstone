@@ -115,6 +115,30 @@ def invoke_domain_tool(origin: str, token: str, body: dict) -> dict:
     return {'ok': False, 'error': {'message': 'domain tool call failed'}}
 
 
+def project_task_diagram(structural, catalog, model_context, references):
+    from .domain_tool_grant import domain_tool_grant
+    from .network_diagram import normalize_network_diagram
+    from .structural_context import management_for
+
+    token = os.environ.get('CAPSTONE_OPERATOR_TOKEN', '')
+    grant = domain_tool_grant(catalog, model_context)
+    management = management_for(structural)
+    if not token or not grant or management is None:
+        return None
+    origins = domain_tool_origins(os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''))
+    body = json.dumps({'management': management, 'references': references}).encode()
+    diagrams = []
+    for family in dict.fromkeys(profile['implementation_family'] for profile in grant['profiles']):
+        if family not in origins:
+            continue
+        try:
+            diagram = _request(origins[family], '/domain-tools/task-diagram', token, body=body, timeout=10)
+            diagrams.append(normalize_network_diagram(diagram))
+        except (OSError, TypeError, ValueError):
+            continue
+    return diagrams[0] if len(diagrams) == 1 else None
+
+
 def recover_legacy_authority_inputs(receipts, grant, checkpoint):
     from .structural_context import checked_authority_references
 

@@ -323,6 +323,11 @@ export class HttpThreadTransport implements ThreadTransport {
     return parseProcessProducts(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/products?${query}`, {signal}), threadId, before)
   }
 
+  readTaskDiagram(threadId: string, attemptId: string, signal?: AbortSignal) {
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/task-diagram`,
+      {signal}, applicationCapacity('control_document_bytes'), 'control_document_bytes')
+  }
+
   async readAttemptRecords(threadId: string, attemptId: string, after = 0, signal?: AbortSignal) {
     if (!Number.isSafeInteger(after) || after < 0) throw new Error('任务记录游标无效')
     const query = new URLSearchParams({ after: String(after), limit: String(applicationCapacity('native_record_count')) })

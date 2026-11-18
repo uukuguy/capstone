@@ -1,5 +1,4 @@
 import ResultRowTable,{type RowSelectionControls} from './ResultRowTable'
-import {ExecutionDetailEntry,ExecutionDetailsContext} from './ExecutionDetails'
 import { receiptDuration, parseToolBatch, parseToolDispatchReceipt, parseToolExecutionReceipt, type ToolExecutionReceipt } from './toolExecutionReceipt'
 import {parseServiceBusCalls,serviceBusSummary,type ServiceBusCalls} from './serviceBusCalls'
 import ServiceBusCallDetails from './ServiceBusCallDetails'
@@ -26,7 +25,7 @@ import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord 
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
 import { projectTaskProgress, projectTaskStepDiagnostics, projectResearchBranches, type TaskProgress, type TaskStepDiagnostic, type ResearchBranch } from './taskProgress'
 import TaskStepProcess, { RecordedResult, StepErrorDetails, projectTaskSteps, ResearchBranchItems, readStepOpen, saveStepOpen, toolExecutionMs, type StepFoldCommand, type TaskStep } from './TaskStepProcess'
-import ExecutionGraphProcess, { graphTraceIssues, phaseLabels, type GraphTraceFocus } from './ExecutionGraphProcess'
+import ExecutionGraphProcess, { graphTraceIssues, type GraphTraceFocus } from './ExecutionGraphProcess'
 import {projectProcessCompactions,type ProcessCompaction} from './processCompactions'
 import ProcessCallTrace, { modelCallMs, type ProcessModelCall } from './ProcessCallTrace'
 import { projectProcessModelRequests } from './processModelRequests'
@@ -1045,14 +1044,13 @@ function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolea
   </div>
 }
 
-function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, modelSummary, showActivity = true, resultProjections, onFocusElement, onOpenTaskResults, nativeArtifacts = [], onOpenNativeArtifact, readInstructionFile, saveInstructionFile }: { nativeArtifacts?:readonly NativeArtifact[]; onOpenNativeArtifact?:(artifact:NativeArtifact)=>void; readInstructionFile?:InstructionFileReader; saveInstructionFile?:InstructionFileSaver; onOpenTaskResults?: (product: TaskResultCollection) => void; onOpenResultProduct?: (result: ResultProjection) => void; selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onFollowup?: (attemptId: string) => void; canRerunCompleted: boolean; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void }) {
+function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, modelSummary, showActivity = true, resultProjections, onFocusElement, onOpenTaskResults, nativeArtifacts = [], onOpenNativeArtifact, readInstructionFile, saveInstructionFile }: { inlineExecution?: boolean; nativeArtifacts?:readonly NativeArtifact[]; onOpenNativeArtifact?:(artifact:NativeArtifact)=>void; readInstructionFile?:InstructionFileReader; saveInstructionFile?:InstructionFileSaver; onOpenTaskResults?: (product: TaskResultCollection) => void; onOpenResultProduct?: (result: ResultProjection) => void; selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onFollowup?: (attemptId: string) => void; canRerunCompleted: boolean; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => boolean | void }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
-  const executionDock = useContext(ExecutionDetailsContext)
   const readRecords = useContext(AttemptRecordsContext)
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
   const id = useAuiState((state) => state.message.id)
-  const { restoreAnchor, preserveControl,finishedAttempt } = useContext(AnswerReadingContext)
+  const { restoreAnchor, preserveControl, finishedAttempt } = useContext(AnswerReadingContext)
   const footerRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => restoreAnchor(id), [id, restoreAnchor])
   const status = useAuiState((state) => state.message.status)
@@ -1090,32 +1088,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
   const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
-  const showInlineSummary = role === 'assistant' && executionDock?.inlineSummary && Boolean(executionDock.target)
-  const latestProgress = showInlineSummary && Array.isArray(custom?.taskProgress)
-    ? (custom.taskProgress as TaskProgress[]).filter(item => item.kind !== 'goal').at(-1) : undefined
-  const inlineGraph = showInlineSummary ? custom?.executionGraph as ExecutionGraph | undefined : undefined
-  const inlineSteps = inlineGraph
-    ? inlineGraph.current.nodes.filter(node=>node.applicability==='current').slice(-6)
-      .map(node=>({id:node.id,title:node.purpose,status:phaseLabels[node.phase]}))
-    : showInlineSummary && Array.isArray(custom?.taskSteps)
-      ? (custom.taskSteps as TaskStep[]).filter(step=>!isExecutionLifecycleStep(step.id)).slice(-6)
-        .map(step=>({id:step.id,title:step.title,status:{running:'执行中',completed:'已完成',partial:'部分完成',failed:'失败',limited:'受限',cancelled:'已停止'}[step.status]}))
-      : []
-  const inlineActivityGroups = new Map<string,{label:string;status:ChatActivity['status'];count:number}>()
-  const taskActivities = showInlineSummary ? activities.filter(activity=>activity.status==='failed'||
-    !['agent_tool_search','agent_tool_load'].includes(activity.toolName??'')) : []
-  if(showInlineSummary)for(const {label,status} of taskActivities.length ? taskActivities : activities){
-    const key=JSON.stringify([label,status])
-    inlineActivityGroups.set(key,{label,status,count:(inlineActivityGroups.get(key)?.count??0)+1})
-  }
-  const allInlineActivities = [...inlineActivityGroups]
-  const inlineActivities = allInlineActivities.length > 8
-    ? [...allInlineActivities.slice(0,5),...allInlineActivities.slice(-3)] : allInlineActivities
-  const failedActivityCount = showInlineSummary ? activities.filter(activity=>activity.status==='failed').length : 0
-  const processCalls = showInlineSummary && Array.isArray(custom?.modelRequests) ? custom.modelRequests.length : 0
-  const showInstructionNetwork = networkAttemptIds.includes(attemptId) && onShowNetwork
-    ? () => onShowNetwork(attemptId) : undefined
-  const coreReply = showInlineSummary && hasText && typeof custom?.coreReply === 'string' ? custom.coreReply : ''
+  const coreReply = role === 'assistant' && hasText && typeof custom?.coreReply === 'string' ? custom.coreReply : ''
   const processStorageKey = `capstone-process-open:${typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId}`
   const [activityOpen, setActivityOpen] = useState(() => {
     try { return localStorage.getItem(processStorageKey) === 'true' } catch { return false }
@@ -1143,13 +1116,13 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const terminalWithoutText = role === 'assistant' && !hasText && status?.type !== 'running'
   const toggleActivity = () => togglePanel('process')
   useEffect(()=>{
-    if(!executionDock&&role==='assistant'&&finishedAttempt?.id===attemptId){
-      try { localStorage.setItem(processStorageKey, 'false') } catch { /* Retain state in this page. */ }
+    if(!inlineExecution&&role==='assistant'&&finishedAttempt?.id===attemptId){
       setActivityOpen(false);setProcessPanel(null)
       if(activityRef.current)activityRef.current.open=false
     }
-  },[finishedAttempt?.sequence,attemptId,role,processStorageKey])
+  },[inlineExecution,finishedAttempt?.sequence,attemptId,role])
   const messageState = status?.type === 'running' ? 'running' : typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : status?.type
+  const statusLabel = {running:'执行中',completed:'已完成',failed:'执行失败',cancelled:'已停止',interrupted:'执行中断'}[String(messageState) as 'running'|'completed'|'failed'|'cancelled'|'interrupted']
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) ||
     (custom?.terminalPhase === 'completed' && canRerunCompleted && instruction?.trim() &&
       (!modelSummary || contextId === modelSummary.contextId))
@@ -1168,28 +1141,20 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {(failureResults.length > 0 || Array.isArray(custom?.toolExecutions) && custom.toolExecutions.length > 0) && <InferenceEvidencePanel title="执行记录" attemptId={attemptId} admitted={false} resultRefs={[]} evidenceRefs={[]} projections={[]} failures={failureResults} executions={(custom?.toolExecutions || []) as ToolExecutionRecord[]} />}
     </>} />}
   </>
-  return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
-    {showInlineSummary && (latestProgress || inlineSteps.length > 0 || inlineActivityGroups.size > 0 || processCalls > 0) && <div className="capstone-task-progress" aria-label="执行过程摘要">
-      {inlineSteps.length > 0 && <ol aria-label="任务步骤">{inlineSteps.map(step => <li key={step.id}>
-        <span>{step.title}</span> · {step.status}
-      </li>)}</ol>}
-      {latestProgress && <p>{latestProgress.text}</p>}
-      {inlineActivityGroups.size > 0 && <>
-        <p>工具调用 · {activities.length} 次{failedActivityCount>0&&` · ${failedActivityCount} 次失败`}</p>
-        <ol aria-label="工具调用摘要">{inlineActivities.map(([key,activity]) => <li key={key}>
-          <span>{activity.label}</span> · {{running:'执行中',completed:'已完成',failed:'失败',cancelled:'已停止'}[activity.status]}{activity.count>1&&` · ${activity.count} 次`}
-        </li>)}</ol>
-      </>}
-      {processCalls>0&&inlineActivityGroups.size===0&&<p>模型请求 · {processCalls} 次</p>}
+  return <MessagePrimitive.Root data-message-id={id} data-execution-id={role==='assistant'?attemptId:undefined} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
+    {inlineExecution && completedAnswer && <div className="capstone-answer-header">
+      <span className="capstone-chat-role">{author}</span>
+      {finishedAt && <InstructionTime value={finishedAt} completion />}
     </div>}
-    {coreReply && <div className="capstone-chat-body" aria-label="答复摘要"><p>{coreReply}</p></div>}
-    <ExecutionDetailEntry enabled={role==='assistant'} id={attemptId} label={instruction||'本次执行'}
-      actionLabel={showInlineSummary && completedAnswer ? '查看正式回答与执行详情' : undefined}
-      secondaryAction={showInlineSummary && showInstructionNetwork && <button type="button" onClick={showInstructionNetwork}>
-        <Network aria-hidden="true" />查看此指令电网图
-      </button>}
-      status={status?.type==='running'?'执行中':custom?.terminalPhase==='cancelled'?'已停止':custom?.terminalPhase==='failed'?'执行失败':custom?.terminalPhase==='interrupted'?'执行中断':'执行已结束'}>
-    {executionDock && processContent}
+    {coreReply && <div className="capstone-chat-body capstone-answer-summary" aria-label="答复摘要"><p>{coreReply}</p></div>}
+    {role === 'assistant' && <div ref={footerRef} className="capstone-chat-footer" onClickCapture={() => { if (footerRef.current) preserveControl(id, footerRef.current) }}>
+      {inlineExecution && statusLabel && <span className="capstone-answer-status">{statusLabel}</span>}
+      <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
+      {(hasText || terminalWithoutText) && <ChatActions productAction={productAction} answerLabel={instruction || text.slice(0, 100) || '本次回答'} onCloseEvidence={() => selectPanel(null)} networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => togglePanel('result')} evidenceOpen={activePanel === 'evidence'} onShowEvidence={() => togglePanel('evidence')} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
+        attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
+        processAvailable={Boolean(startedAt) || (Array.isArray(custom?.modelRequests) && custom.modelRequests.length > 0) || Boolean(custom?.executionGraph) || (Array.isArray(custom?.taskSteps) && custom.taskSteps.length > 0) || Boolean(custom?.researchSnapshot) || failureResults.length > 0 || Boolean(readRecords)}
+        onSelectResult={(resultId) => { selectPanel('result'); setPendingResultId(resultId) }} />}
+    </div>}
     <div className="capstone-chat-body">
       {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]} readFile={readInstructionFile} saveFile={saveInstructionFile}/>}
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
@@ -1200,19 +1165,15 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
-      </> : completedAnswer ? <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt} /> : hasText
+      </> : completedAnswer ? (inlineExecution ? <details className="capstone-formal-answer">
+        <summary>正式回答</summary><MarkdownMessage>{text}</MarkdownMessage>
+      </details> : <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt} />) : hasText
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}
     </div>
+    {processContent}
     {completedAnswer && onOpenTaskResults && <div className="capstone-result-products">{taskResultCollections(attemptResultProjections, attemptId).map(collection => <button key={collection.id} type="button" className="capstone-result-product" onClick={() => onOpenTaskResults(collection)} aria-label={`打开${collection.title}`}><Activity aria-hidden="true" /><span><strong>{collection.title}</strong><small>本次指令 · {collection.results.length} 项分析结果</small></span><span aria-hidden="true">↗</span></button>)}</div>}
-    {!executionDock&&role==='assistant'&&onOpenNativeArtifact&&attemptFiles.length>0&&<InstructionFiles files={attemptFiles} onOpen={onOpenNativeArtifact}/>}
-    {role === 'assistant' && <div ref={footerRef} className="capstone-chat-footer" onClickCapture={() => { if (footerRef.current) preserveControl(id, footerRef.current) }}>
-      <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
-      {(hasText || terminalWithoutText) && <ChatActions productAction={executionDock?undefined:productAction} answerLabel={instruction || text.slice(0, 100) || '本次回答'} onCloseEvidence={() => selectPanel(null)} networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => togglePanel('result')} evidenceOpen={activePanel === 'evidence'} onShowEvidence={() => togglePanel('evidence')} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
-        attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
-        processAvailable={Boolean(startedAt) || (Array.isArray(custom?.modelRequests) && custom.modelRequests.length > 0) || Boolean(custom?.executionGraph) || (Array.isArray(custom?.taskSteps) && custom.taskSteps.length > 0) || Boolean(custom?.researchSnapshot) || failureResults.length > 0 || Boolean(readRecords)}
-        onSelectResult={(resultId) => { selectPanel('result'); setPendingResultId(resultId) }} />}
-    </div>}
+    {role==='assistant'&&onOpenNativeArtifact&&attemptFiles.length>0&&<InstructionFiles files={attemptFiles} onOpen={onOpenNativeArtifact}/>}
     {role === 'assistant' && hasResults && resultOpen && <AnswerDetailSheet title="结果明细" answerLabel={instruction || text.slice(0, 100) || '本次回答'} onClose={() => selectPanel(null)}><ResultExplorer projections={attemptResultProjections} failures={failureResults}
       initialResultId={pendingResultId} onClose={() => { if (footerRef.current) preserveControl(id, footerRef.current); selectPanel(null) }} renderResult={(projection, tableId) =>
         <ResultProjectionCard projection={projection} tableId={tableId} onFocusElement={(value, elementId) => { if (onFocusElement?.(value, elementId) === true) selectPanel(null) }} />} /></AnswerDetailSheet>}
@@ -1222,9 +1183,6 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
 
-    {!executionDock && processContent}
-    </ExecutionDetailEntry>
-    {executionDock&&role==='assistant'&&<>{productAction}{onOpenNativeArtifact&&attemptFiles.length>0&&<InstructionFiles files={attemptFiles} onOpen={onOpenNativeArtifact}/>}</>}
   </MessagePrimitive.Root>
 }
 
@@ -1321,6 +1279,7 @@ export type CapstoneAssistantThreadProps = {
   runtimeStatus?: ReactNode
   connectionState?: string
   resultHistoryNotice?: string
+  inlineExecution?: boolean
   composerMode?: 'contextual' | 'text'
   composerLabel?: string
   composerPlaceholder?: string
@@ -1402,7 +1361,7 @@ export function restoreVisibleConversation(viewport:HTMLElement){
 }
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, allowConcurrentSend = false, composerStatus, instructionReceipts, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, readInstructionFile, saveInstructionFile, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, inlineExecution = false, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, allowConcurrentSend = false, composerStatus, instructionReceipts, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, readInstructionFile, saveInstructionFile, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
   const [answerDetail, setAnswerDetail] = useState<AnswerDetailSelection>()
   const nativeArtifacts=useMemo(()=>[...new Map([...projectNativeArtifacts(events),...(nativeArtifactProjections||[])].map(file=>[`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`,file])).values()],[events,nativeArtifactProjections])
   const [restoredInput]=useState(()=>{try{return {draft:readInputDraft(storageKey)||emptyInputDraft(runtimeMode),error:''}}catch(error){return {draft:emptyInputDraft(runtimeMode),error:error instanceof Error?error.message:'输入草稿无法恢复。'}}})
@@ -1813,7 +1772,7 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
     <AttemptRecordsContext.Provider value={onReadAttemptRecords}>
     <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor, preserveControl,finishedAttempt }}>
     <InstructionProductsContext.Provider value={{scopes:providedInstructionScopes??instructionProductScopes(allMessages),open:onOpenInstructionProducts}}>
-    <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, onFollowup: isRunning ? undefined : onFollowup, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement, onOpenResultProduct, onOpenTaskResults, nativeArtifacts, onOpenNativeArtifact, readInstructionFile, saveInstructionFile }}>
+    <ChatMessageContext.Provider value={{ inlineExecution, selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, onFollowup: isRunning ? undefined : onFollowup, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement, onOpenResultProduct, onOpenTaskResults, nativeArtifacts, onOpenNativeArtifact, readInstructionFile, saveInstructionFile }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat" onClickCapture={event => {
       const summary = event.target instanceof Element ? event.target.closest('summary') : null
       const message = summary?.closest<HTMLElement>('[data-message-id]')

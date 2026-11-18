@@ -210,6 +210,28 @@ def create_wake_app(
         except ValueError:
             raise HTTPException(422, 'domain tool call is invalid') from None
 
+    @app.post('/domain-tools/task-diagram')
+    def task_diagram(body: dict, authorization: str = Header(default='')):
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        project = getattr(domain_tools, 'project_task_diagram', None)
+        if not callable(project):
+            raise HTTPException(404, 'task diagram unavailable')
+        from .structural_context import checked_authority_references, checked_management
+        from .network_diagram import normalize_network_diagram
+        try:
+            if (set(body) != {'management', 'references'} or not isinstance(body['references'], list)
+                    or not 0 < len(body['references']) <= 64):
+                raise ValueError('invalid diagram request')
+            checked = {'management': checked_management(body['management']),
+                       'references': [checked_authority_references(item) for item in body['references']]}
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(422, 'invalid diagram request') from None
+        try:
+            return normalize_network_diagram(project(checked))
+        except Exception:
+            raise HTTPException(404, 'task diagram unavailable') from None
+
     @app.post('/domain-tools/recover')
     def domain_recover(body: dict, authorization: str = Header(default='')):
         if not hmac.compare_digest(authorization, expected):

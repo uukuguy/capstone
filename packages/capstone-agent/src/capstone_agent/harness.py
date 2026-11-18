@@ -903,6 +903,16 @@ class HarnessAttemptRunner:
                         },
                         visibility="public",
                     )
+            task_diagram = getattr(self._runtime, 'admitted_task_diagram', None)
+            if candidate is not None and candidate.authority_references and callable(task_diagram):
+                lease.check()
+                try:
+                    diagram = task_diagram(claim, candidate.authority_references)
+                    if diagram is not None:
+                        self._service.append_runtime_event(claim, event_type='network_diagram',
+                            payload={'diagram': diagram}, visibility='public')
+                except (OSError, TypeError, ValueError):
+                    pass
             lease.check()
             terminal_commit_started = True
             terminal_payload['task_steps'] = self._stages.finish()
