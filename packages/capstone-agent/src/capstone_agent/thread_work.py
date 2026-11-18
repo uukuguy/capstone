@@ -5,7 +5,7 @@ import json
 import secrets
 
 from .enterprise_context import TaskContext, WorkBinding
-from .thread_protocol import ThreadProtocolError, ThreadSnapshot
+from .thread_protocol import ModelContextSnapshot, ThreadProtocolError, ThreadSnapshot
 from .session_title import SessionTitle
 from .application_capacity import limits, require_capacity
 
@@ -523,7 +523,7 @@ def parse_snapshot(document):
                 previous_sequence = item['sequence']
         if 'goal_continuation' in work:
             continuation = work['goal_continuation']
-            if (not isinstance(continuation, dict) or set(continuation) - {'product_refs'} != {
+            if (not isinstance(continuation, dict) or set(continuation) - {'product_refs', 'authority_refs', 'authority_model'} != {
                     'predecessor_attempt_id', 'generation', 'next_instruction'}
                     or 'goal_mode' not in work
                     or type(continuation['generation']) is not int
@@ -538,6 +538,16 @@ def parse_snapshot(document):
                     validate_goal_product_refs(continuation['product_refs'])
                 except ValueError as error:
                     raise ThreadProtocolError('invalid goal continuation products') from error
+            if ('authority_refs' in continuation) != ('authority_model' in continuation):
+                raise ThreadProtocolError('incomplete goal authority selection')
+            if 'authority_refs' in continuation:
+                from .goal_receipts import validate_goal_authority_refs
+                try:
+                    validate_goal_authority_refs(continuation['authority_refs'])
+                    if continuation['authority_model'] is not None:
+                        ModelContextSnapshot.from_document(continuation['authority_model'])
+                except ValueError as error:
+                    raise ThreadProtocolError('invalid goal continuation authority references') from error
         if 'pending_goal_control' in work:
             from .goal_mode import parse_goal_mode
             pending = work['pending_goal_control']

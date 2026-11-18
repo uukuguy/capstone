@@ -542,6 +542,26 @@ class PandapowerArtifactAuthority:
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)
 
+    def stage_read_inputs(self, destination: Path, result_refs: list[str], evidence_refs: list[str]) -> None:
+        """Stage the verified immutable closure inside an isolated read workspace."""
+        verified = self.admit('delegated.read', {'result_refs': result_refs}, tuple(evidence_refs))
+        if ({item.reference for item in verified.results} != set(result_refs)
+                or {item.reference for item in verified.evidence} != set(evidence_refs)):
+            raise SimulatorIntegrityError('delegation does not cover the linked result and evidence')
+        for item in (*verified.context, *verified.results, *verified.evidence):
+            path = destination / item.path.relative_to(self.workspace_root)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(item.document, ensure_ascii=False, allow_nan=False), encoding='utf-8')
+        for ref in {item.document['revision_ref'] for item in verified.context}:
+            digest = _reference_digest(ref, 'revision', label='revision_ref')
+            parts = ('evidence', 'models', f'{digest}.json')
+            loaded = self._verifier._try_file_bytes(parts, 'revision document')
+            if loaded is None or hashlib.sha256(loaded[1]).hexdigest() != digest:
+                raise SimulatorIntegrityError('delegated revision content changed')
+            path = destination.joinpath(*parts)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(loaded[1])
+
     def audit_answer_references(
         self,
         claim_evidence_refs: tuple[str, ...],

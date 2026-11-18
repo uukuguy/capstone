@@ -338,9 +338,15 @@ def _prepare_terminal_transition(
             # Qualify against the running version, then retain the terminal Work
             # projection and message cursor prepared above in this transaction.
             try:
+                from .structural_context import checked_authority_references
+                trusted = [checked_authority_references(item) for item in payload.get('authority_references', ())]
+                selected = {
+                    ref for item in trusted for kind in ('result_refs', 'evidence_refs')
+                    for ref in item[kind] if ref in payload.get(kind, ())}
                 qualified = apply_terminal_goal_proposal(snapshot, claim.task_context,
                     claim.attempt.attempt_id, payload['goal_proposal'],
-                    saved_product_refs=saved_product_refs, delivery_saved=isinstance(payload.get('answer'), str)
+                    saved_product_refs=saved_product_refs, saved_authority_refs=selected,
+                    delivery_saved=isinstance(payload.get('answer'), str)
                     and bool(payload['answer'].strip()))
             except ValueError as error:
                 raise ThreadProtocolError('invalid terminal goal proposal') from error

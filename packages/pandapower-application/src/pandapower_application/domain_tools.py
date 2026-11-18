@@ -34,4 +34,18 @@ class PandapowerDomainToolService(PandapowerToolService):
     def invoke(self, document: dict, *, workspace_id: str | None = None) -> dict:
         # The application derives workspace ownership from the admitted document.
         del workspace_id
-        return super().invoke(document, workspace_id=domain_workspace_id(document))
+        from capstone_agent.structural_context import checked_management
+
+        target = domain_workspace_id(document)
+        management = document.get('management')
+        if management is not None:
+            checked = checked_management(management)
+            document = {**document, 'management': checked}
+            inputs = [{**item, 'owner': domain_workspace_id({
+                'task_id': document['task_id'], 'management': {'schema': checked['schema'], **item['owner']}})}
+                for item in checked.get('authority_inputs', ())]
+        else:
+            inputs = []
+        if inputs:
+            return super().invoke(document, workspace_id=target, authority_inputs=inputs)
+        return super().invoke(document, workspace_id=target)

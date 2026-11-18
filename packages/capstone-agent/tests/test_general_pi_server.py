@@ -194,6 +194,11 @@ def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_pat
         tmp_path, monkeypatch, '1.20.0', False, False, domain_available=True)
 
 
+def test_mission_domain_pack_grants_tools_without_granting_shell(tmp_path, monkeypatch):
+    test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
+        tmp_path, monkeypatch, '1.20.0', False, False, domain_available=True, equipment_name='fixture-pack@1')
+
+
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 @pytest.mark.parametrize('choice', [None, False, True])
 @pytest.mark.parametrize('experimental_llm_pool', [False, True])
@@ -240,8 +245,11 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         native['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
         native['policy']['allowed_tools'].extend(LLM_CALL_POOL_TOOLS)
     if equipment_name is not None:
-        native['mission_equipment'] = dict(schema='capstone-mission-tool-selection/1',allowed_tools=[equipment_name],denied_tools=[])
-        native['policy']['allowed_tools'] = [equipment_name]
+        allowed = [] if '@' in equipment_name else [equipment_name]
+        native['mission_equipment'] = dict(schema='capstone-mission-tool-selection/1',allowed_tools=allowed,denied_tools=[])
+        if '@' in equipment_name:
+            native['mission_equipment']['domain_profiles'] = [equipment_name]
+        native['policy']['allowed_tools'] = list(allowed)
     if resource_protocol:
         from capstone_agent.resource_manifest import checked_resource
         native['resource_manifests']=[checked_resource(dict(schema='capstone-resource/1',resource_id='resource_'+'a'*32,
@@ -321,6 +329,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         assert isinstance(request.native_context['mission_equipment'], Mapping)
         assert not isinstance(request.native_context['mission_equipment'], dict)
         expected = {equipment_name}
+        if '@' in equipment_name:
+            expected = {'pack_inspect', 'agent_tool_search', 'agent_tool_load'}
         if equipment_name.startswith('data_gateway_'):
             expected.update({'agent_tool_search','agent_tool_load'})
         if resource_protocol:

@@ -43,7 +43,7 @@ def test_context_descendant_requires_verified_same_model_ancestry(tmp_path: Path
         authority.verify_context_descendant(leaf, root)
 
 
-def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path) -> None:
+def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monkeypatch) -> None:
     profile = build_pandapower_profile()
     run_root = tmp_path / "run"
     evidence_root = run_root / "evidence"
@@ -130,6 +130,50 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path) -> No
     assert references.results == expected.results
     assert references.context == expected.context
     assert references.evidence == expected.evidence
+
+    (evidence_root / 'results' / 'unrelated.json').write_text('{}')
+    staged = tmp_path / 'delegated-read'
+    authority.stage_read_inputs(staged, [result_ref], [evidence_ref])
+    target = PandapowerArtifactAuthority(staged)
+    assert target.verify_result(result_ref).document == result_body | {'result_ref': result_ref}
+    assert target.verify_evidence(evidence_ref).document == evidence_body
+    assert target.verify_context(context_ref).document == context
+    assert not (staged / 'evidence' / 'results' / 'unrelated.json').exists()
+    with pytest.raises(SimulatorIntegrityError, match='linked result and evidence'):
+        authority.stage_read_inputs(tmp_path / 'rejected', [], [evidence_ref])
+
+    from pandapower_domain.execution import GridctlExecutor
+    from pandapower_domain.tool_service import PandapowerToolService
+
+    service = PandapowerToolService(workspace_root=tmp_path)
+    service._capabilities = {'read': 'result.read', 'write': 'result.write'}
+    service._read_only = {'read': True, 'write': False}
+    monkeypatch.setattr(service, '_executor', lambda workspace:
+        GridctlExecutor(executable=tmp_path / 'unused', workspace=tmp_path / workspace))
+    called = []
+
+    def run(executor, request, **kwargs):
+        assert executor.workspace.name.startswith('grant-')
+        isolated = PandapowerArtifactAuthority(executor.workspace)
+        assert isolated.verify_result(result_ref).reference == result_ref
+        assert isolated.verify_evidence(evidence_ref).reference == evidence_ref
+        called.append(executor.workspace)
+        response = {**json.loads(request), 'ok': True, 'result': result}
+        return 0, (json.dumps(response) + '\n').encode(), b'', False
+
+    monkeypatch.setattr(GridctlExecutor, '_run_bounded', run)
+    grant = dict(owner='run', authority_id='gridctl', result_refs=[result_ref], evidence_refs=[evidence_ref])
+    document = dict(task_id='consumer', call_id='read', name='read', arguments={'result_ref': result_ref})
+    received = service.invoke(document, workspace_id='consumer', authority_inputs=[grant])
+    assert received['ok'] is True
+    assert received['authority_references']['result_refs'] == [result_ref]
+    assert received['authority_references']['evidence_refs'] == [evidence_ref]
+    assert len(called) == 1 and not called[0].exists()
+    assert service.invoke({**document, 'name': 'write'}, workspace_id='consumer', authority_inputs=[grant])['ok'] is False
+    assert service.invoke({**document, 'arguments': {**document['arguments'],
+        'evidence_ref': 'evidence:sha256:' + 'a' * 64}},
+        workspace_id='consumer', authority_inputs=[grant])['ok'] is False
+    assert len(called) == 1
 
 
 def _canonical_json(document: object) -> str:

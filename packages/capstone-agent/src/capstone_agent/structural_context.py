@@ -89,7 +89,7 @@ def _checked_handles(value) -> list[dict]:
 def checked_structural_context(value) -> dict:
     """Admit identities and opaque refs. Reject tool payloads."""
 
-    if (not isinstance(value, Mapping) or set(value) - {'work_scope'} != {'schema', 'model', 'handles'}
+    if (not isinstance(value, Mapping) or set(value) - {'work_scope', 'authority_inputs'} != {'schema', 'model', 'handles'}
             or value.get('schema') != 'capstone-structural-context/1'):
         raise ValueError('structural context is invalid')
     document = {
@@ -101,7 +101,28 @@ def checked_structural_context(value) -> dict:
         if document['model'] is not None:
             raise ValueError('structural context is invalid')
         document['work_scope'] = _checked_work_scope(value['work_scope'])
+    if 'authority_inputs' in value:
+        document['authority_inputs'] = _checked_authority_inputs(value['authority_inputs'])
     return document
+
+
+def _checked_authority_inputs(value):
+    if not isinstance(value, (list, tuple)) or len(value) > 64:
+        raise ValueError('invalid authority inputs')
+    inputs = []
+    for item in value:
+        if not isinstance(item, Mapping) or 'owner' not in item:
+            raise ValueError('invalid authority input')
+        owner = item['owner']
+        if isinstance(owner, Mapping) and set(owner) == {'model'} and owner['model'] is not None:
+            selector = {'model': _checked_model(owner['model'])}
+        elif isinstance(owner, Mapping) and set(owner) == {'work_scope'}:
+            selector = {'work_scope': _checked_work_scope(owner['work_scope'])}
+        else:
+            raise ValueError('invalid authority input owner')
+        inputs.append({'owner': selector, **checked_authority_references(
+            {key: entry for key, entry in item.items() if key != 'owner'})})
+    return inputs
 
 
 def _checked_work_scope(value):
@@ -113,7 +134,7 @@ def _checked_work_scope(value):
 def checked_management(value) -> dict:
     """The model identity or Work scope for a Domain Pack workspace."""
 
-    if (not isinstance(value, Mapping) or set(value) - {'prior_evidence_refs'} not in ({'schema', 'model'}, {'schema', 'work_scope'})
+    if (not isinstance(value, Mapping) or set(value) - {'prior_evidence_refs', 'authority_inputs'} not in ({'schema', 'model'}, {'schema', 'work_scope'})
             or value.get('schema') != 'capstone-structural-context/1'):
         raise ValueError('structural context is invalid')
     evidence = value.get('prior_evidence_refs', [])
@@ -122,6 +143,8 @@ def checked_management(value) -> dict:
                    for ref in evidence)):
         raise ValueError('structural context is invalid')
     prior = {'prior_evidence_refs': list(dict.fromkeys(evidence))} if evidence else {}
+    if 'authority_inputs' in value:
+        prior['authority_inputs'] = _checked_authority_inputs(value['authority_inputs'])
     if 'work_scope' in value:
         return {'schema': value['schema'], 'work_scope': _checked_work_scope(value['work_scope']), **prior}
     model = _checked_model(value.get('model'))
@@ -139,6 +162,8 @@ def management_for(structural: Mapping | None) -> dict | None:
     evidence = list(dict.fromkeys(item['ref'] for item in checked['handles']
         if item['kind'] == 'evidence_ref' and re.fullmatch(r'evidence:sha256:[0-9a-f]{64}', item['ref'])))
     prior = {'prior_evidence_refs': evidence} if evidence else {}
+    if 'authority_inputs' in checked:
+        prior['authority_inputs'] = checked['authority_inputs']
     if 'work_scope' in checked:
         return {'schema': checked['schema'], 'work_scope': checked['work_scope'], **prior}
     if checked['model'] is None:
@@ -151,6 +176,7 @@ def management_note(value: Mapping) -> str:
 
     checked = checked_structural_context(value)
     checked.pop('work_scope', None)
+    checked.pop('authority_inputs', None)
     return (
         'Main-chain management context. It names the open model and opaque handles. '
         'Domain Pack tools keep grid calculation data. Gateway tools keep their own refs and payloads. '
@@ -177,8 +203,18 @@ def structural_context_for(claim) -> dict:
                 for profile_id, version in getattr(context, 'enabled_profiles', ())[:16]
             ],
         }
-    handles = []
-    for item in getattr(claim, 'prior_results', ()) or ():
+    inputs = _checked_authority_inputs((getattr(claim, 'submission', None) or {}).get('_authority_inputs', []))
+    handles = [{'kind': kind + '_ref', 'ref': ref} for item in inputs
+               for kind in ('result', 'evidence') for ref in item[kind + '_refs']]
+    selection = (getattr(claim, 'submission', None) or {}).get('_goal_authority_selection')
+    if selection is not None:
+        from .goal_receipts import validate_goal_authority_refs
+        validate_goal_authority_refs(selection['refs'])
+        identity = None if context is None else context.to_document()
+        if selection['refs'] and selection['model'] != identity:
+            raise ValueError('goal authority input model changed')
+        handles.extend({'kind': ref.split(':', 1)[0] + '_ref', 'ref': ref} for ref in selection['refs'])
+    for item in (() if selection is not None else getattr(claim, 'prior_results', ()) or ()):
         result_ref = getattr(item, 'result_ref', None)
         if isinstance(result_ref, str) and _TOKEN.fullmatch(result_ref):
             handles.append({'kind': 'result_ref', 'ref': result_ref})
@@ -187,7 +223,12 @@ def structural_context_for(claim) -> dict:
                 handles.append({'kind': 'evidence_ref', 'ref': evidence})
         if len(handles) >= 64:
             break
-    document = {'schema': 'capstone-structural-context/1', 'model': model, 'handles': handles[:64]}
+    unique = {(item['kind'], item['ref']): item for item in handles}
+    if (inputs or selection is not None) and len(unique) > 64:
+        raise ValueError('authority handles exceed structural context capacity')
+    document = {'schema': 'capstone-structural-context/1', 'model': model, 'handles': list(unique.values())[:64]}
+    if inputs:
+        document['authority_inputs'] = inputs
     task = getattr(claim, 'task_context', None)
     if model is None and task is not None:
         identity = json.dumps([claim.thread_id, claim.run_id, task.binding.work_id], separators=(',', ':'))

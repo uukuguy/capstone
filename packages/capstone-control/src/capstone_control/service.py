@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 import json
 
-from .contracts import (ContractError, identity, object_fields, positive_integer,
+from .contracts import (ContractError, identity, object_fields, positive_integer, validate_delivery,
                         utc_deadline, validate_goal_request)
 
 
@@ -157,6 +157,11 @@ class ControlService:
             metadata = self.store.read(workspace, goal_id)['_mission']
             result.update(schema='capstone-agent-delegation/2', equipment=deepcopy(task.get('equipment', [])),
                 restrictions=deepcopy(task.get('restrictions', [])), mission_origin=deepcopy(metadata['origin']))
+            sources = [deepcopy(previous['delivery']['authority_source']) for previous in goal['tasks']
+                if previous['task_id'] in task['depends_on'] and previous['state'] == 'verified'
+                and 'authority_source' in previous['delivery']]
+            if sources:
+                result['context_authority_sources'] = sources
         return result
 
     def expire_pending(self, workspace, goal_id, delegation_id):
@@ -277,10 +282,7 @@ class ControlService:
 
     @staticmethod
     def _settle_delivery(task, delivery):
-        object_fields(delivery, {'answer_ref', 'products', 'status'})
-        identity(delivery['answer_ref'])
-        if delivery['status'] != 'completed' or not isinstance(delivery['products'], list):
-            raise ContractError('completed persisted delivery required')
+        validate_delivery(delivery, task['delegation']['binding'])
         content = {**deepcopy(delivery), 'revision': 1}
         if task['delivery'] is not None and task['delivery'] != content:
             raise Conflict('delivery changed after persistence')
@@ -489,10 +491,7 @@ class ControlService:
         object_fields(binding, {'thread_id', 'work_id'})
         for value in binding.values():
             identity(value)
-        object_fields(delivery, {'answer_ref', 'products', 'status'})
-        identity(delivery['answer_ref'])
-        if delivery['status'] != 'completed' or not isinstance(delivery['products'], list):
-            raise ContractError('completed persisted delivery required')
+        validate_delivery(delivery, binding)
 
         def change(goal):
             if goal is None:

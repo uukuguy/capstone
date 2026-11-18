@@ -234,6 +234,19 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
     work = next((item for item in snapshot.works if item['work_id'] == work_id), None) if resume_goal_inputs else None
     continuation = (work or {}).get('goal_continuation', {})
     goal_refs = continuation.get('product_refs')
+    if 'authority_refs' in continuation:
+        submission = {**(submission or {}), '_goal_authority_selection': {
+            'attempt_id': continuation['predecessor_attempt_id'], 'refs': continuation['authority_refs'],
+            'model': continuation['authority_model']}}
+    from .delegation_authority import frozen_authority_sources, resolve_authority_inputs
+    grant = frozen_authority_sources(service, snapshot.thread_id, work_id, connection) if work_id else None
+    if grant is not None:
+        try:
+            inputs = resolve_authority_inputs(service, grant['workspace'], grant['sources'])
+        except (ValueError, ThreadNotFound):
+            return submission, 'authority_input_unavailable'
+        submission = {**(submission or {}), **({'_authority_inputs': inputs} if inputs else {}),
+            **({'_application_catalog': grant['catalog']} if grant['catalog'] is not None else {})}
     refs = payload.get('material_refs', list(active))
     if (not isinstance(refs, list) or len(refs) > limits.inline_material_count
             or any(not isinstance(ref, str) or ref not in active for ref in refs) or len(set(refs)) != len(refs)):

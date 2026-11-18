@@ -320,14 +320,22 @@ def test_automatic_goal_continuation_keeps_the_published_domain_catalog(backend,
             'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
     first = store.claim_attempt('native', 30, 'native')
     assert first is not None and first.application_catalog is not None
+    result = 'result:sha256:' + 'a' * 64
+    proof = 'evidence:sha256:' + 'b' * 64
+    decoy = 'evidence:sha256:' + 'c' * 64
     store.finish_attempt(first, phase='completed', payload={'answer': 'Saved the calculation',
+        'result_refs': [result], 'evidence_refs': [proof, decoy],
+        'authority_references': [{'authority_id': 'registered', 'capability_id': 'calculate',
+                                 'result_refs': [result], 'evidence_refs': [proof, decoy]}],
         'goal_proposal': {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
             'summary': 'Saved the calculation', 'next_instruction': 'Read the result',
-            'waiting_reason': None, 'product_refs': []}})
+            'waiting_reason': None, 'product_refs': [], 'authority_refs': [result, proof]}})
     store._catalog_context = None
     assert drain_goal_continuations(store) == 1
     continuation = store.claim_attempt('native', 30, 'native')
     assert continuation is not None and continuation.application_catalog == first.application_catalog
+    assert structural_context_for(continuation)['handles'] == [
+        {'kind': 'result_ref', 'ref': result}, {'kind': 'evidence_ref', 'ref': proof}]
 
 
 def test_enterprise_research_admits_an_attachment_while_a_model_is_open():

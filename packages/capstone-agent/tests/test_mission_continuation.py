@@ -36,7 +36,7 @@ def review_store(request):
     return service, thread_id, workspace, executor
 
 
-def reserved_review(review_store, *, complete_origin=True, products=None, reserve=True):
+def reserved_review(review_store, *, complete_origin=True, products=None, reserve=True, authority=None):
     service, thread_id, workspace, executor = review_store
     host = configure_control(service)
     mission = host.create_mission(workspace, {'schema': 'capstone-control-mission-create/1',
@@ -45,8 +45,21 @@ def reserved_review(review_store, *, complete_origin=True, products=None, reserv
     assert service.submit_command(command(service, thread_id, 'send_message', 'original',
         payload={'text': 'Inspect results and keep the report in Chinese.'})).status == 'accepted'
     original = service.claim_attempt('original_planner', 30)
+    delivery_authority = {}
     if complete_origin:
-        service.finish_attempt(original, phase='completed', payload={'answer': 'The first task is planned.'})
+        payload = {'answer': 'The first task is planned.'}
+        if authority is not None:
+            from capstone_agent.structural_context import structural_context_for
+            service.freeze_attempt_input(original, {'resources': {'structural_context': structural_context_for(original)}})
+            payload.update(authority_references=[authority], result_refs=authority['result_refs'],
+                           evidence_refs=authority['evidence_refs'])
+        service.finish_attempt(original, phase='completed', payload=payload)
+        if authority is not None:
+            terminal = next(event for event in service.read_events(thread_id, 0).events
+                            if event.event_type == 'attempt_completed')
+            delivery_authority = {'authority_source': {'thread_id': thread_id,
+                'work_id': original.task_context.binding.work_id, 'attempt_id': original.attempt.attempt_id,
+                'answer_ref': terminal.event_id}}
     task = dict(task_id='inspect', objective='Inspect the registered material',
         delivery_requirements=['Return a saved answer'], depends_on=[], agent_id='capstone',
         mode='single', max_attempts=1)
@@ -59,8 +72,11 @@ def reserved_review(review_store, *, complete_origin=True, products=None, reserv
     delegation = goal['tasks'][0]['delegation']
     product_binding = ({'thread_id': products[0]['thread_id'], 'work_id': products[0]['work_id']}
                        if products else {'thread_id': 'thr_fixture_child', 'work_id': 'work_fixture_child'})
+    if delivery_authority:
+        product_binding = {key: delivery_authority['authority_source'][key] for key in ('thread_id', 'work_id')}
     host.service.deliver(workspace, mission['mission_id'], delegation['delegation_id'],
-        product_binding, {'answer_ref': 'answer_fixture', 'products': products or [], 'status': 'completed'})
+        product_binding, {'answer_ref': delivery_authority.get('authority_source', {}).get('answer_ref', 'answer_fixture'),
+                          'products': products or [], 'status': 'completed', **delivery_authority})
     goal = host.service.read(workspace, mission['mission_id'])
     host.service.command(workspace, dict(schema='capstone-control-command/1', operation_id='verify',
         goal_id=mission['mission_id'], expected_revision=goal['revision'], kind='verify_task',
@@ -70,6 +86,22 @@ def reserved_review(review_store, *, complete_origin=True, products=None, reserv
     intent = (host.service.reserve_mission_review(workspace, mission['mission_id'], pending['review_id'])
               if reserve else pending)
     return host, mission, intent, original
+
+
+def test_mission_review_freezes_authority_inputs_from_reserved_delivery(review_store):
+    from capstone_agent.structural_context import structural_context_for
+
+    service, thread_id, _workspace, _executor = review_store
+    receipt = {'authority_id': 'registered', 'capability_id': 'calculate',
+               'result_refs': ['result:sha256:' + 'a' * 64],
+               'evidence_refs': ['evidence:sha256:' + 'b' * 64]}
+    _host, _mission, intent, original = reserved_review(review_store, authority=receipt)
+    assert service.submit_mission_review(intent)['thread_id'] == thread_id
+    review = service.claim_attempt('reviewer', 30)
+    assert review is not None
+    context = structural_context_for(review)
+    assert context['authority_inputs'] == [{
+        'owner': {'work_scope': structural_context_for(original)['work_scope']}, **receipt}]
 
 
 def test_review_instruction_has_a_typed_identity_and_no_user_history_record():

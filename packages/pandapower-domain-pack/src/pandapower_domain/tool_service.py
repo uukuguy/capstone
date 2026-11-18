@@ -6,7 +6,9 @@ import hashlib
 import json
 import os
 import re
+from contextlib import ExitStack
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Lock
 from capability_agent.runtime.execution_queue import ExecutionReceiptError
 from pandapower_domain.authority import PandapowerArtifactAuthority, SimulatorIntegrityError
@@ -22,6 +24,17 @@ _TASK_ID = re.compile(r'^[A-Za-z0-9_-]{1,80}$')
 
 def _canonical(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+
+
+def _argument_references(value):
+    if isinstance(value, dict):
+        for item in value.values():
+            yield from _argument_references(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _argument_references(item)
+    elif isinstance(value, str) and re.fullmatch(r'(?:result|evidence|context|revision):sha256:[0-9a-f]{64}', value):
+        yield value
 
 
 class PandapowerToolService:
@@ -80,7 +93,7 @@ class PandapowerToolService:
             'tool_hashes': hashes,
         }
 
-    def invoke(self, document: dict, *, workspace_id: str) -> dict:
+    def invoke(self, document: dict, *, workspace_id: str, authority_inputs=()) -> dict:
         if not isinstance(workspace_id, str) or not _TASK_ID.fullmatch(workspace_id):
             raise ValueError('domain workspace identity is invalid')
         task_id = document.get('task_id')
@@ -100,21 +113,43 @@ class PandapowerToolService:
             raise ValueError('domain tool call identity is invalid')
         receipt = self._queue.receipt(task_id=task_id, call_id=call_id,
             observer=self._receipt_writer(task_id))
-        resource = str((self._root / workspace_id).resolve())
-        with self._queue.acquire(receipt, resource=resource, read_only=self._read_only.get(name, False)) as lease:
+        read_only = self._read_only.get(name, False)
+        refs = set(_argument_references(arguments))
+        owned_inputs = [item for item in authority_inputs if item['authority_id'] == PandapowerArtifactAuthority.authority_id]
+        linked = [item for item in owned_inputs if refs.intersection((*item['result_refs'], *item['evidence_refs']))]
+        delegated = next((item for item in linked if refs.issubset((*item['result_refs'], *item['evidence_refs']))), None)
+        with ExitStack() as opened:
+            execution_id = workspace_id
+            if delegated is not None and read_only:
+                folder = Path(opened.enter_context(TemporaryDirectory(prefix='grant-', dir=self._root)))
+                execution_id = folder.name
+            resource = str((self._root / execution_id).resolve())
+            lease = opened.enter_context(self._queue.acquire(receipt, resource=resource, read_only=read_only))
             try:
-                result = self._executor(workspace_id).invoke(capability, arguments,
+                if linked and (delegated is None or not read_only):
+                    raise ValueError('delegated authority input requires a granted read-only tool call')
+                if delegated is not None:
+                    if not _TASK_ID.fullmatch(delegated['owner']):
+                        raise ValueError('delegated authority owner is invalid')
+                    owner = PandapowerArtifactAuthority(self._root / delegated['owner'])
+                    owner.stage_read_inputs(self._root / execution_id, delegated['result_refs'], delegated['evidence_refs'])
+                result = self._executor(execution_id).invoke(capability, arguments,
                     execution_lease=lease,
                     execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
                 response = ({'ok': True, 'result': result} if isinstance(result, dict)
                     else {'ok': False, 'error': {'message': 'domain tool call failed'}})
                 if isinstance(result, dict):
-                    authority = PandapowerArtifactAuthority(self._root / workspace_id)
+                    authority = PandapowerArtifactAuthority(self._root / execution_id)
                     verified = authority.admit(capability, result, ())
                     evidence = {item.reference: item for item in verified.evidence}
                     result_refs = {item.reference for item in verified.results}
+                    if delegated is not None and (not result_refs.issubset(delegated['result_refs'])
+                            or not evidence.keys() <= set(delegated['evidence_refs'])):
+                        raise ValueError('delegated authority response exceeds the grant')
                     if result_refs and not evidence:
-                        for ref in document.get('management', {}).get('prior_evidence_refs', ()):
+                        prior_evidence = (delegated['evidence_refs'] if delegated is not None else
+                            document.get('management', {}).get('prior_evidence_refs', ()))
+                        for ref in prior_evidence:
                             try:
                                 item = authority.verify_evidence(ref)
                             except SimulatorIntegrityError:

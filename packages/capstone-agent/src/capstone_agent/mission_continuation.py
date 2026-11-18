@@ -78,7 +78,7 @@ def _select_work(snapshot, intent):
     return candidates[0]
 
 
-def _submission(service, prior, intent, grants):
+def _submission(service, prior, intent, grants, authority_inputs=()):
     from .mission_equipment import origin_binding, registry_revision
     source = deepcopy(prior or {})
     mission = source.get('_mission')
@@ -105,6 +105,10 @@ def _submission(service, prior, intent, grants):
     else:
         source.pop('_resource_manifests', None)
     source['_mission_review'] = deepcopy(intent)
+    if authority_inputs:
+        source['_authority_inputs'] = deepcopy(authority_inputs)
+    else:
+        source.pop('_authority_inputs', None)
     source['input'] = {'kind': 'text', 'text': review_instruction(intent)}
     # Selected methods remain registered grants; a prior skill invocation is
     # not a mandatory first action for a new application continuation.
@@ -219,6 +223,11 @@ def admit_review(service, intent):
         from .delegation_resources import grant_resources
         grants = grant_resources(service, workspace, thread_id, selected['work_id'],
             intent['review_id'], products, mission_review=True)
+    from .delegation_authority import resolve_authority_inputs
+    authority_sources = [task['delivery']['authority_source'] for task in intent['boundary']['tasks']
+        if task.get('state') in {'delivered', 'verified'}
+        and 'authority_source' in (task.get('delivery') or {})]
+    authority_inputs = resolve_authority_inputs(service, workspace, authority_sources)
     if hasattr(service, '_lock'):
         with service._lock:
             service.require_workspace(thread_id, workspace)
@@ -235,7 +244,7 @@ def admit_review(service, intent):
                 return None
             previous_id = work.get('latest_attempt_id')
             prior = service._attempts.get(previous_id, {})
-            submission = _submission(service, prior.get('submission'), intent, grants)
+            submission = _submission(service, prior.get('submission'), intent, grants, authority_inputs)
             updated, saved, attempt, context = prepared
             relevant = {identity: record for identity, record in service._attempts.items()
                 if record.get('task_context') is not None
@@ -274,7 +283,8 @@ def admit_review(service, intent):
         previous_id = work.get('latest_attempt_id')
         prior = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s',
             (thread_id, previous_id)).fetchone()
-        submission = _submission(service, None if prior is None else prior['submission_snapshot'], intent, grants)
+        submission = _submission(service, None if prior is None else prior['submission_snapshot'],
+                                 intent, grants, authority_inputs)
         updated, saved, attempt, context = prepared
         conversation = _conversation_from_postgres(connection, thread_id, snapshot.last_event_seq, work_id=work['work_id'])
         connection.execute("""INSERT INTO capstone_thread_attempts

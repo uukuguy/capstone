@@ -25,6 +25,29 @@ def identity(value):
     return value
 
 
+def authority_source(value):
+    """Identify one authoritative terminal receipt without granting access."""
+    object_fields(value, {'thread_id', 'work_id', 'attempt_id', 'answer_ref'})
+    for item in value.values():
+        identity(item)
+    return value
+
+
+def validate_delivery(value, binding):
+    fields = {'answer_ref', 'products', 'status'}
+    if isinstance(value, dict) and 'authority_source' in value:
+        fields.add('authority_source')
+    object_fields(value, fields)
+    identity(value['answer_ref'])
+    if value['status'] != 'completed' or not isinstance(value['products'], list):
+        raise ContractError('completed persisted delivery required')
+    if 'authority_source' in value:
+        source = authority_source(value['authority_source'])
+        if (binding is None or any(source[key] != binding[key] for key in ('thread_id', 'work_id'))
+                or source['answer_ref'] != value['answer_ref']):
+            raise ContractError('authority source does not match the delivery binding')
+
+
 def positive_integer(value):
     if type(value) is not int or value < 1:
         raise ContractError('positive integer required')

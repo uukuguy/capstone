@@ -1610,10 +1610,17 @@ class NativeTaskRunner:
                         'The gateway owns all backend selection. Only published tools in the current task grant are enabled. Gateway observations do not become registered Authority results or evidence without explicit admission.'})
                 if request.domain_tools:
                     from .domain_tool_client import load_domain_tool_catalogs
-                    domain_catalog, domain_routes, mounted_packs = load_domain_tool_catalogs(request.domain_tools)
+                    equipment = document.get('native_context', {}).get('mission_equipment') or {}
+                    selected_profiles = set(equipment.get('domain_profiles', ()))
+                    denied_profiles = set(equipment.get('denied_domain_profiles', ()))
+                    profiles = [item for item in request.domain_tools['profiles']
+                        if item['profile_id'] + '@' + item['profile_version'] not in denied_profiles
+                        and (not selected_profiles or item['profile_id'] + '@' + item['profile_version'] in selected_profiles)]
+                    domain_catalog, domain_routes, mounted_packs = load_domain_tool_catalogs(
+                        {**request.domain_tools, 'profiles': profiles}) if profiles else ({}, {}, [])
                     unavailable_packs = sorted({
                         item['profile_id'] + '@' + item['profile_version']
-                        for item in request.domain_tools['profiles']
+                        for item in profiles
                     } - set(mounted_packs))
                     if unavailable_packs:
                         sdk_config.setdefault('contextFiles', []).append({
@@ -1787,9 +1794,16 @@ class NativeTaskRunner:
                 protocol = gateway_discovery_tools(request.native_context, gateway_publication,
                     gateway_available=sdk_config.get('dataGateway') is not None)
                 protocol.update(resource_protocol_tools(policy['allowed_tools'],sdk_config.get('resourceReferences',[])))
+                if equipment.get('domain_profiles') and sdk_config.get('domainTools'):
+                    protocol.update(sdk_config['domainTools']['catalog']['tools'])
+                    protocol.update({'agent_tool_search', 'agent_tool_load'})
                 allowed = equipment_tools(policy['allowed_tools'], equipment,
                     require_selected=False, protocol_tools=protocol)
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': sorted(allowed)}
+                if request.task_id in self.task_domain_routes:
+                    self.task_domain_routes[request.task_id] = {
+                        name: route for name, route in self.task_domain_routes[request.task_id].items()
+                        if name in allowed}
             timing.mark('resources_configured')
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
