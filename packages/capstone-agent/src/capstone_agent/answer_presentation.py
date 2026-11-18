@@ -1,11 +1,15 @@
 """Project explicit public text without classifying natural language."""
 import json
+import re
 
 OPEN = '<capstone-answer>'
 CLOSE = '</capstone-answer>'
+_TOOL_TRAILER = re.compile(r'</｜｜DSML｜｜ parameter>\s*</｜｜DSML｜｜ invoke>\s*</｜｜DSML｜｜ calls>\s*\Z')
 
 
 def public_answer(text: str, *, answer_format: str | None = None) -> str:
+    if answer_format == 'formal-and-core/1' and OPEN in text:
+        text = _TOOL_TRAILER.sub('', text)
     if OPEN not in text and CLOSE not in text:
         return text  # Older protocols: do not guess or delete prose.
     if text.count(OPEN) != 1 or text.count(CLOSE) != 1:

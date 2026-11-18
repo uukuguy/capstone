@@ -8160,3 +8160,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 700be171 records actual Goal bytes and Authority persistence. Native consumer grants remain open.
 
 - 2026-11-18: f72472d6 retains exact Goal inputs through pause and resume. Focused regression tests pass.
+
+- 2026-11-18: e4ca33e4 isolates model-free Domain Pack state by Work. Registered tool replay and cross-Work denial pass.

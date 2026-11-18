@@ -18,6 +18,16 @@ def test_bundle_recovery_does_not_choose_between_two_answers():
                       '<capstone-answer>{"answer":"乙"}</capstone-answer>',
                       answer_format='formal-and-core/1')
 
+
+def test_bundle_recovers_complete_json_before_native_tool_closing_markers():
+    bundle = '{"answer":"线路排序","summary":"三条线路"}'
+    text = ('<capstone-answer>' + bundle + '</｜｜DSML｜｜ parameter>\n'
+            '</｜｜DSML｜｜ invoke>\n</｜｜DSML｜｜ calls>')
+    assert public_answer(text, answer_format='formal-and-core/1') == bundle
+
+    with pytest.raises(ValueError, match='answer_presentation_invalid'):
+        public_answer(text + '\n另一个答案', answer_format='formal-and-core/1')
+
 @pytest.mark.parametrize('text', ['<capstone-answer>x', '<capstone-answer></capstone-answer>', '<capstone-answer>x</capstone-answer>extra'])
 def test_malformed_boundary_is_rejected(text):
     with pytest.raises(ValueError, match='answer_presentation_invalid'):
