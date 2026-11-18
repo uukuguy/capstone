@@ -221,7 +221,7 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_task_not_admitted')
             for item in receipt['operations']:
                 if item['kind'] == 'view_ref':
-                    record.setdefault('view_refs', {})[item['ref']] = item['view_identity_sha256']
+                    record.setdefault('view_refs', {})[item['ref']] = item['view_identity']
                 else:
                     record.setdefault('operation_refs', set()).add(item['ref'])
 
@@ -455,12 +455,16 @@ class DataGatewayAccess:
         if (consumes_job and successful
                 and (not isinstance(data, dict) or data.get('job_ref') != arguments.get('job_ref'))):
             raise GatewayError('gateway_output_invalid')
-        from .data_gateway_views import view_identity_sha256
-        if view_identity and successful and (
-                not isinstance(data, dict) or data.get('view_ref') != arguments['view_ref']
-                or view_identity_sha256(data) != view_identity
-                or ('stream' in arguments and data.get('stream') != arguments['stream'])):
-            raise GatewayError('gateway_output_invalid')
+        if view_identity and successful:
+            expected = view_identity
+            if 'objects' in properties and 'expected_model_revision' in properties:
+                expected = {key: value for key, value in expected.items() if key not in ('schema', 'model_ref')}
+                if arguments.get('expected_model_revision') != expected['model_revision']:
+                    raise GatewayError('gateway_output_invalid')
+            if (not isinstance(data, dict) or data.get('view_ref') != arguments['view_ref']
+                    or any(data.get(key) != value for key, value in expected.items())
+                    or ('stream' in arguments and data.get('stream') != arguments['stream'])):
+                raise GatewayError('gateway_output_invalid')
         body = encode(result).decode()
         from .gateway_diagnostics import service_bus_calls
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
@@ -523,22 +527,26 @@ class DataGatewayAccess:
             if successful and isinstance(data, dict) and data.get('state') != 'failed':
                 # Only explicit operation references at the result's data root
                 # grant access. Business rows and nested objects never do.
-                references = [(field, data.get(field)) for field in ('job_ref', 'preparation_ref')]
-                if manifest is not None:
-                    references.append(('view_ref', manifest['view_ref']))
-                for field, ref in references:
+                from .data_gateway_views import view_references
+                from .structural_context import merge_gateway_reference
+                views = view_references(manifest, data, arguments, properties, binding_catalog, view_identity)
+                references = [(field, data.get(field), {}) for field in ('job_ref', 'preparation_ref')]
+                references.extend(('view_ref', ref, {'view_identity': identity}) for ref, identity in views.items())
+                for field, ref, extra in references:
                     if isinstance(ref, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', ref):
                         issued = record.setdefault('issued_operations', {})
                         require_capacity('context_references', len(issued) + ((field, ref) not in issued), 'gateway_operation')
                         if len(issued) >= 64 and (field, ref) not in issued:
                             raise GatewayError('gateway_output_invalid')
-                        item = {'kind': field, 'ref': ref}
+                        item = {'kind': field, 'ref': ref, **extra}
                         if field == 'view_ref':
-                            identity = view_identity_sha256(manifest)
-                            previous = record.setdefault('view_refs', {}).setdefault(ref, identity)
-                            if previous != identity:
-                                raise GatewayError('gateway_output_invalid')
-                            item['view_identity_sha256'] = identity
+                            scoped = record.setdefault('view_refs', {})
+                            old = {'kind': field, 'ref': ref, 'view_identity': scoped[ref]} if ref in scoped else None
+                            try:
+                                item = merge_gateway_reference(old, item)
+                            except ValueError as error:
+                                raise GatewayError('gateway_output_invalid') from error
+                            scoped[ref] = item['view_identity']
                         else:
                             record.setdefault('operation_refs', set()).add(ref)
                         issued[field, ref] = item

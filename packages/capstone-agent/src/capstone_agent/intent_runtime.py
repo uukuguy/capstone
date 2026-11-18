@@ -606,7 +606,7 @@ class IntentRuntimeFactory:
                                         'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
                                        for ref in prior]}
         from .native_task_context import native_context_for
-        from .structural_context import checked_gateway_operations, structural_context_for
+        from .structural_context import checked_gateway_operations, merge_gateway_reference, structural_context_for
         resources['native_context'] = native_context_for(claim, accepted)
         if claim.legacy_authority_receipts and '_goal_authority_selection' not in submission:
             from .domain_tool_client import recover_legacy_authority_inputs
@@ -624,8 +624,7 @@ class IntentRuntimeFactory:
                 if receipt['binding'] == gateway_binding:
                     for item in receipt['operations']:
                         key = (item['kind'], item['ref'])
-                        if operations.setdefault(key, item) != item:
-                            raise ValueError('saved gateway reference identity changed')
+                        operations[key] = merge_gateway_reference(operations.get(key), item)
         if operations:
             resources['structural_context']['gateway_operations'] = checked_gateway_operations({
                 'binding': gateway_binding, 'operations': list(operations.values())[:64]})

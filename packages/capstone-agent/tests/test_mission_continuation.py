@@ -106,7 +106,8 @@ def test_mission_review_freezes_authority_inputs_from_reserved_delivery(review_s
                'context_refs': ['context:sha256:' + 'c' * 64]}
     operation = {'binding': {'connection_id': 'conn_x', 'instance_id': 'instance_x', 'catalog_revision': 'revision_x'},
                  'operations': [{'kind': 'preparation_ref', 'ref': 'issued-job'},
-                                {'kind': 'view_ref', 'ref': 'issued-view', 'view_identity_sha256': 'd' * 64}]}
+                                {'kind': 'view_ref', 'ref': 'issued-view',
+                                 'view_identity': {'model_ref': 'model:one', 'model_revision': 'revision-one'}}]}
     _host, _mission, intent, original = reserved_review(review_store, authority=receipt, gateway=operation)
     assert service.submit_mission_review(intent)['thread_id'] == thread_id
     review = service.claim_attempt('reviewer', 30)

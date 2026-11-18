@@ -9,18 +9,70 @@ import json
 import threading
 import time
 from datetime import datetime
-from hashlib import sha256
 from jsonschema.exceptions import ValidationError
 from .data_gateway_mcp import validate as validate_gateway_schema
 
 
-def view_identity_sha256(value):
-    from .grid_electrical_view import IDENTITY
-    keys = ('schema', *IDENTITY)
-    if any(not isinstance(value.get(key), str) or not value[key] for key in keys):
-        return None
-    identity = {key: value[key] for key in keys}
-    return sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+def view_references(manifest, data, arguments, properties, catalog, parent_identity):
+    """Admit the electrical-view protocol's declared outputs and read actions."""
+    from .structural_context import VIEW_IDENTITY_FIELDS
+
+    if manifest is not None:
+        return {manifest['view_ref']: {key: manifest[key] for key in VIEW_IDENTITY_FIELDS}}
+    if (data.get('task_type') == 'view_preparation' and data.get('state') == 'succeeded'
+            and isinstance(arguments.get('job_ref'), str)):
+        identity = {key: data.get(key) for key in ('model_ref', 'model_revision')}
+        ref = data.get('view_ref')
+        if not isinstance(ref, str) or not ref:
+            return {}
+        actions = [data.get('next_action')]
+    elif parent_identity and 'objects' in properties and 'expected_model_revision' in properties:
+        identity = parent_identity
+        ref = None
+        actions = []
+        results = data.get('results')
+        for item in results if isinstance(results, list) else ():
+            matches = item.get('matches') if isinstance(item, dict) else None
+            for match in matches if isinstance(matches, list) else ():
+                if not isinstance(match, dict):
+                    continue
+                action = match.get('read_action')
+                supplied = action.get('arguments') if isinstance(action, dict) else None
+                if isinstance(supplied, dict) and supplied.get('view_ref') == match.get('local_view_ref'):
+                    actions.append(action)
+    elif parent_identity:
+        identity = {**parent_identity, **{key: data[key] for key in VIEW_IDENTITY_FIELDS
+                                         if isinstance(data.get(key), str) and 0 < len(data[key]) <= 512}}
+        return {arguments['view_ref']: identity}
+    else:
+        return {}
+    if any(not isinstance(value, str) or not 0 < len(value) <= 512 for value in identity.values()):
+        return {}
+    references = {arguments['view_ref']: identity} if ref is None else {}
+    for action in actions:
+        if not isinstance(action, dict) or not isinstance(action.get('tool'), str):
+            continue
+        name = action['tool']
+        if name not in catalog['tools']:
+            name = 'data_gateway_' + name
+        supplied = action.get('arguments')
+        if (name not in catalog['tools'] or not isinstance(supplied, dict)
+                or not isinstance(supplied.get('view_ref'), str)
+                or not isinstance(supplied.get('stream'), str) or ref is not None and supplied['view_ref'] != ref):
+            continue
+        schema = catalog['tools'][name].get('inputSchema')
+        if schema is not None:
+            if not {'view_ref', 'stream'} <= schema.get('properties', {}).keys():
+                continue
+            try:
+                validate_gateway_schema(schema, supplied)
+            except (ValueError, ValidationError):
+                continue
+        elif 'progressive' not in catalog or set(supplied) - {'view_ref', 'stream', 'limit'}:
+            # A later consumer must still load its own exact read contract.
+            continue
+        references[supplied['view_ref']] = identity
+    return references
 
 
 class GatewayViewBindings:

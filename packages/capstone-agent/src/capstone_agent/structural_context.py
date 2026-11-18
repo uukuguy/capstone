@@ -21,6 +21,17 @@ _MODEL_FIELDS = (
 
 AUTHORITY_REFERENCE_SOURCE = 'domain_authority_references'
 GATEWAY_OPERATION_SOURCE = 'gateway_operation_references'
+VIEW_IDENTITY_FIELDS = ('model_ref', 'model_revision', 'selection_ref', 'source_snapshot_ref', 'schema')
+
+
+def merge_gateway_reference(previous, item):
+    if previous is None or previous == item:
+        return item
+    old = previous['view_identity']
+    new = item['view_identity']
+    if any(old[key] != new[key] for key in old.keys() & new.keys()):
+        raise ValueError('gateway reference identity changed')
+    return {**item, 'view_identity': {**old, **new}}
 
 
 def checked_gateway_operations(value):
@@ -38,20 +49,20 @@ def checked_gateway_operations(value):
         raise ValueError('invalid gateway operation list')
     checked = {}
     for item in operations:
-        if (not isinstance(item, Mapping) or set(item) - {'view_identity_sha256'} != {'kind', 'ref'}
+        if (not isinstance(item, Mapping) or set(item) - {'view_identity'} != {'kind', 'ref'}
                 or item['kind'] not in ('job_ref', 'preparation_ref', 'view_ref') or not isinstance(item['ref'], str)
                 or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', item['ref'])):
             raise ValueError('invalid gateway operation reference')
-        digest = item.get('view_identity_sha256')
+        identity = item.get('view_identity')
         if item['kind'] == 'view_ref':
-            if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
+            if (not isinstance(identity, Mapping) or not {'model_ref', 'model_revision'} <= identity.keys()
+                    or set(identity) - set(VIEW_IDENTITY_FIELDS)
+                    or any(not isinstance(part, str) or not 0 < len(part) <= 512 for part in identity.values())):
                 raise ValueError('invalid gateway view identity')
-        elif 'view_identity_sha256' in item:
+        elif 'view_identity' in item:
             raise ValueError('unexpected gateway view identity')
-        old = checked.get((item['kind'], item['ref']))
-        if old is not None and old != item:
-            raise ValueError('gateway reference identity changed')
-        checked[item['kind'], item['ref']] = dict(item)
+        key = (item['kind'], item['ref'])
+        checked[key] = merge_gateway_reference(checked.get(key), dict(item))
     return {'binding': dict(binding), 'operations': list(checked.values())}
 
 
