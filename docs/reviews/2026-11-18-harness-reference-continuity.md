@@ -281,3 +281,25 @@ all three workers. The read endpoint restored the original line 11 view and
 the two original five-branch ranking views from the same saved Thread. The
 new three-line view also passed the browser camera, highlight and reopen
 checks.
+
+## Completion navigation and answer summaries
+
+A new completed instruction with a saved network layer opens the right-hand
+grid tab. The App uses the admitted event data directly. A historical view
+opens its tab immediately, shows loading when required and reuses a bounded
+session cache.
+
+The saved narrow loading query determines the view when it follows a broader
+exploratory rank. Historical Attempts `attempt_97c0ed64814465e6` and
+`attempt_4602b9986422f21a` now show just lines 21, 11 and 26. The separate
+mixed-branch Attempt `attempt_e6ca56fca197e013` retains its five branches.
+The local read endpoint returned the two corrected views in 1.145 s and
+1.223 s on image `a1981a8ecd8a…`.
+
+A real Provider run, `attempt_0838ef4d153159b3`, automatically selected the
+grid tab, highlighted all three requested lines and made zero follow-up
+diagram requests. The App rendered the model's summary as three list items,
+with separate conclusion and limitation paragraphs. Browser replay of
+`attempt_4602b9986422f21a` also showed exactly three highlights. The focused
+App suite passed 300 tests. The focused Agent suite passed 147 tests and
+the application lifecycle suite passed 16 tests.

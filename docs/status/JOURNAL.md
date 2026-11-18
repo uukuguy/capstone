@@ -8238,3 +8238,9 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: f0ee83f7 saves and restores verified instruction-specific topology focus and branch highlights.
 
 - 2026-11-19: 3fc01073 reads the saved native completion status so historical rankings can recover their original focus.
+
+- 2026-11-19: 66b85311 records verified historical and live instruction focus with the exact local image.
+
+- 2026-11-19: PR152 push used the process-local Clash proxy after direct Git stalled and remote state was checked.
+
+- 2026-11-19: b2ea6f11 auto-opens admitted grid views, aligns final highlights with saved queries, and renders readable summaries.
