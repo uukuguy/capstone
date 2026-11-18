@@ -89,7 +89,7 @@ class GoalProposalCapture:
 
 def parse_goal_proposal(value: object) -> dict:
     fields = {'schema', 'disposition', 'summary', 'next_instruction', 'waiting_reason', 'product_refs'}
-    if not isinstance(value, dict) or set(value) - {'authority_refs'} != fields:
+    if not isinstance(value, dict) or set(value) - {'authority_refs', 'criteria', 'remaining_steps'} != fields:
         raise ValueError('invalid goal proposal fields')
     if value['schema'] != 'capstone-work-goal-proposal/1':
         raise ValueError('unsupported goal proposal schema')
@@ -111,6 +111,19 @@ def parse_goal_proposal(value: object) -> dict:
     validate_goal_product_refs(value['product_refs'])
     if disposition == 'continue' and 'authority_refs' in value:
         validate_goal_authority_refs(value['authority_refs'])
+    if 'remaining_steps' in value and (disposition != 'continue'
+            or not isinstance(value['remaining_steps'], list) or not 1 <= len(value['remaining_steps']) <= 32):
+        raise ValueError('invalid Goal plan revision')
+    if 'criteria' in value:
+        criteria = value['criteria']
+        if (disposition != 'complete' or not isinstance(criteria, list) or not 1 <= len(criteria) <= 32):
+            raise ValueError('invalid Goal criterion review')
+        for item in criteria:
+            if (not isinstance(item, dict) or set(item) != {'index', 'verdict', 'refs'}
+                    or type(item['index']) is not int or item['index'] < 0
+                    or item['verdict'] not in ('met', 'unmet', 'unknown')):
+                raise ValueError('invalid Goal criterion review')
+            validate_goal_product_refs(item['refs'])
     result = deepcopy(value)
     if disposition != 'continue':
         result.pop('authority_refs', None)
@@ -179,6 +192,10 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
         generation=goal['generation'], attempt_id=attempt_id, now=datetime.now(timezone.utc),
         saved_product_refs=saved_product_refs, delivery_saved=delivery_saved,
         saved_authority_refs=saved_authority_refs)
+    if 'goal_plan' in work:
+        from .session_goal_plan import qualify_planned_review
+        work['goal_plan'] = qualify_planned_review(
+            work['goal_plan'], progress, (*saved_product_refs, *saved_authority_refs), objective=goal['objective'])
     work['goal_mode'] = settled
     work.pop('goal_continuation', None)
     if settled['state'] == 'ready':

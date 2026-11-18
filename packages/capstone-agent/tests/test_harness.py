@@ -973,3 +973,39 @@ def test_explicit_professional_route_cannot_be_downgraded_by_classifier() -> Non
     selected = next(event for event in events if event.event_type == "turn_route_selected")
     assert selected.payload["route"] == "professional"
     assert events[-1].payload["admission"]["mode"] == "limited"
+
+
+def test_terminal_write_failure_records_stage_and_keeps_published_artifact(monkeypatch, caplog):
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_terminal_fault",
+        "idempotency_key": "idem_terminal_fault", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    service.append_runtime_event(claim, event_type="native_artifact_published",
+        payload={"artifact": {"artifact_id": "published_report", "file_name": "report.md"}})
+
+    def fail_write(*args, **kwargs):
+        assert kwargs["phase"] == "completed", kwargs["payload"]
+        raise OSError("private connection details")
+
+    monkeypatch.setattr(service, "finish_attempt", fail_write)
+    runtime = HarnessPiClient(_PiSession(), admission=lambda _claim, answer, *_:
+        AdmittedAttemptAnswer(answer, "limited", "limited"))
+    with pytest.raises(OSError):
+        HarnessAttemptRunner(service, runtime).run(claim)
+
+    assert 'stage=terminal_write' in caplog.text
+    assert 'private connection details' not in caplog.text
+    assert any(event.event_type == 'native_artifact_published' for event in service._events)
+    diagnostic = next(event for event in service._events
+                      if event.event_type == 'attempt_settlement_diagnostic')
+    assert diagnostic.payload['error_code'] == 'terminal_write_failed'
+    assert diagnostic.attempt_id == claim.attempt.attempt_id
+    service._attempts[claim.attempt.attempt_id]['lease_deadline'] = 0
+    assert service.interrupt_expired_attempts() == 1
+    public = next(event for event in service._events if event.event_type == 'attempt_interrupted')
+    assert public.payload['stage'] == 'terminal_write'
+    assert public.payload['error_code'] == 'terminal_write_failed'

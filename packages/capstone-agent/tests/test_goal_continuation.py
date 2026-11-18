@@ -36,6 +36,30 @@ def test_drain_submits_only_ready_idle_work():
     assert commands[0]['kind'] == 'continue_goal'
 
 
+def _review_saved_step(store, claim, *, complete=False):
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews
+
+    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Draft saved', 'next_instruction': 'Review draft',
+        'waiting_reason': None, 'product_refs': []}
+    if complete:
+        store.append_runtime_event(claim, event_type='native_artifact_published',
+            payload={'artifact': {'artifact_id': 'report_product', 'file_name': 'report.md'}})
+        progress.update(disposition='complete', next_instruction=None,
+                        criteria=[{'index': 0, 'verdict': 'met', 'refs': ['report.md']}])
+    store.finish_attempt(claim, phase='completed', payload={'answer': 'Reviewed' if complete else 'Draft'})
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: progress) == 1
+
+
+def _admit_initial_plan(store):
+    from capstone_agent.session_goal_plan import drain_initial_goal_plans
+
+    assert drain_initial_goal_plans(store, planner=lambda _: {
+        'schema': 'capstone-session-goal-plan/1', 'criteria': ['Reviewed report'],
+        'steps': [{'instruction': 'Write draft', 'expected_result': 'Draft'},
+                  {'instruction': 'Review draft', 'expected_result': 'Report'}]}) == 1
+
+
 def test_service_runs_two_attempts_without_another_user_instruction():
     from capstone_agent.thread_service import InMemoryThreadService
     from capstone_agent.goal_continuation import drain_goal_continuations
@@ -46,18 +70,15 @@ def test_service_runs_two_attempts_without_another_user_instruction():
         work_id=work['work_id'], revision=work['revision'], payload={
         'objective': 'Inspect the model', 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'})
     assert store.submit_command(start).status == 'accepted'
+    _admit_initial_plan(store)
     first = store.claim_attempt('worker', 30)
-    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
-        'summary': 'Draft saved', 'next_instruction': 'Review draft',
-        'waiting_reason': None, 'product_refs': []}
-    store.finish_attempt(first, phase='completed', payload={'answer': 'Draft', 'goal_proposal': progress})
+    _review_saved_step(store, first)
     assert drain_goal_continuations(store) == 1
     assert drain_goal_continuations(store) == 0
     second = store.claim_attempt('worker', 30)
     assert second is not None and second.attempt.attempt_id != first.attempt.attempt_id
     assert 'Review draft' in second.instruction
-    store.finish_attempt(second, phase='completed', payload={'answer': 'Reviewed report',
-        'goal_proposal': {**progress, 'disposition': 'complete', 'next_instruction': None}})
+    _review_saved_step(store, second, complete=True)
     assert drain_goal_continuations(store) == 0
     goal = store.snapshot('thr_work_exec').works[0]['goal_mode']
     assert goal['state'] == 'completed'
@@ -76,11 +97,9 @@ def test_postgres_restart_and_concurrent_continuation(postgres_thread_service):
         work_id=work['work_id'], revision=work['revision'], payload={
         'objective': 'Inspect model', 'max_attempts': 3,
         'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
+    _admit_initial_plan(store)
     first = store.claim_attempt('worker', 30)
-    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
-        'summary': 'Draft saved', 'next_instruction': 'Review draft',
-        'waiting_reason': None, 'product_refs': []}
-    store.finish_attempt(first, phase='completed', payload={'answer': 'Draft', 'goal_proposal': progress})
+    _review_saved_step(store, first)
     restarted = PostgresThreadService(store.dsn)
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(drain_goal_continuations, [store, restarted]))
@@ -88,8 +107,7 @@ def test_postgres_restart_and_concurrent_continuation(postgres_thread_service):
     assert second is not None
     assert restarted.claim_attempt('worker_three', 30) is None
     assert 'Review draft' in second.instruction
-    restarted.finish_attempt(second, phase='completed', payload={'answer': 'Reviewed',
-        'goal_proposal': {**progress, 'disposition': 'complete', 'next_instruction': None}})
+    _review_saved_step(restarted, second, complete=True)
     restored = PostgresThreadService(store.dsn).snapshot(thread_id)
     assert restored.works[0]['goal_mode']['state'] == 'completed'
     assert restored.works[0]['goal_mode']['attempts_admitted'] == 2

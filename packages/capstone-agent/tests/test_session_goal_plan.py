@@ -68,3 +68,48 @@ def test_initial_plan_rejects_a_late_result(changed):
         bind_initial_goal_plan(
             proposal(), thread_id="thr_a", work=work, objective_revision=2, generation=3,
         )
+
+
+def test_goal_review_advances_only_to_the_saved_next_instruction():
+    from capstone_agent.session_goal_plan import qualify_planned_review
+
+    plan = {"plan": proposal(), "step_index": 0}
+    progress = {"disposition": "continue", "next_instruction": "Repeat the entire goal.",
+                "product_refs": ["source.md"]}
+    with pytest.raises(ValueError, match="saved next"):
+        qualify_planned_review(plan, progress, ("source.md",))
+    progress["next_instruction"] = "Run the benchmark."
+    reviewed = qualify_planned_review(plan, progress, ("source.md",))
+    assert reviewed["step_index"] == 1
+    assert reviewed["review_refs"] == ["source.md"]
+
+
+def test_goal_review_requires_evidence_for_every_criterion():
+    from capstone_agent.session_goal_plan import qualify_planned_review
+
+    plan = {"plan": proposal(), "step_index": 1, "review_refs": ["source.md"]}
+    progress = {"disposition": "complete", "product_refs": []}
+    with pytest.raises(ValueError, match="every criterion"):
+        qualify_planned_review(plan, progress, ())
+    progress["criteria"] = [{"index": 0, "verdict": "met", "refs": ["unknown.md"]}]
+    with pytest.raises(ValueError, match="saved references"):
+        qualify_planned_review(plan, progress, ())
+    progress["criteria"][0]["refs"] = ["source.md"]
+    assert qualify_planned_review(plan, progress, ())["criteria"] == progress["criteria"]
+
+
+def test_review_can_replace_only_unexecuted_steps():
+    from capstone_agent.session_goal_plan import qualify_planned_review
+
+    current = {"plan": proposal(), "step_index": 0, "plan_revision": 1}
+    progress = {"disposition": "continue", "next_instruction": "Repair source data.",
+                "product_refs": ["source.md"],
+                "remaining_steps": [
+                    {"instruction": "Repair source data.", "expected_result": "Clean source."},
+                    {"instruction": "Run the benchmark.", "expected_result": "Saved results."},
+                ]}
+    updated = qualify_planned_review(current, progress, ("source.md",), objective="Build a benchmark.")
+    assert updated["plan_revision"] == 2
+    assert updated["plan"]["steps"][0] == current["plan"]["steps"][0]
+    assert updated["plan"]["criteria"] == current["plan"]["criteria"]
+    assert updated["plan"]["steps"][1]["instruction"] == "Repair source data."

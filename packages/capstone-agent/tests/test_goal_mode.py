@@ -332,6 +332,36 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage,
     assert claim.instruction == "Check source material."
     assert store.snapshot(thread_id).works[0]["goal_plan"]["plan"] == plan
     assert store.snapshot(thread_id).works[0]['goal_mode']['attempts_admitted'] == 1
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews
+    progress = {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Source checked', 'next_instruction': 'Write report.',
+        'waiting_reason': None, 'product_refs': []}
+    saved = store.finish_attempt(claim, phase='completed', payload={'answer': 'Source checked'})
+    assert saved.works[0]['goal_mode']['reason'] == 'goal_review_pending'
+    assert drain_goal_continuations(store) == 0
+
+    def review(goal, plan, delivery):
+        assert delivery['answer'] == 'Source checked'
+        assert delivery['attempt_id'] == claim.attempt.attempt_id
+        return progress
+
+    assert drain_goal_step_reviews(store, reviewer=review) == 1
+    assert drain_goal_continuations(store) == 1
+    second = store.claim_attempt('worker', 30)
+    assert second.instruction == 'Write report.'
+    assert second.task_context.binding.work_id == claim.task_context.binding.work_id
+    store.append_runtime_event(second, event_type='native_artifact_published', payload={
+        'artifact': {'artifact_id': 'artifact_final', 'file_name': 'report.md'}})
+    progress.update(disposition='complete', summary='Report saved', next_instruction=None,
+        criteria=[{'index': 0, 'verdict': 'met', 'refs': ['report.md']}])
+    store.finish_attempt(second, phase='completed', payload={'answer': 'Report saved'})
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: progress) == 1
+    final = store.snapshot(thread_id).works[0]
+    assert final['goal_mode']['state'] == 'completed'
+    assert final['goal_plan']['criteria'] == progress['criteria']
+    assert 'goal_continuation' not in final
+    assert drain_goal_continuations(store) == 0
 
 
 def test_goal_start_prepares_standard_input_submission(monkeypatch):

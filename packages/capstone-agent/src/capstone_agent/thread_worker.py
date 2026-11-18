@@ -320,8 +320,9 @@ def serve_thread_attempts(
                 if drain_mission_reviews(service) and wake_event is not None:
                     wake_event.set()
             if implementation_family == 'native' and callable(getattr(service, 'submit_initial_goal_plan', None)):
-                from .session_goal_plan import drain_initial_goal_plans
-                if drain_initial_goal_plans(service) and wake_event is not None:
+                from .session_goal_plan import drain_goal_step_reviews, drain_initial_goal_plans
+                advanced = drain_goal_step_reviews(service) or drain_initial_goal_plans(service)
+                if advanced and wake_event is not None:
                     wake_event.set()
             if callable(getattr(service, 'goal_continuation_candidates', None)):
                 from .goal_continuation import drain_goal_continuations

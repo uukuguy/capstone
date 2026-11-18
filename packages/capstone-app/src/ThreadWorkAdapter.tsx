@@ -884,7 +884,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
-      {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} objective={goalDraft??selectedWork?.goal??''}
+      {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} plan={selectedWork?.goalPlan} planning={selectedWork?.goalPlanPending} objective={goalDraft??selectedWork?.goal??''}
         disabled={busy||!!pending||projection.connection!=='live'} onControl={(kind,payload)=>{
           if(snapshot)void (async()=>{
             let work=selectedWork
