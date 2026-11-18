@@ -569,6 +569,14 @@ class DelegatedRuntime:
             return result.status, bundle.answer
         return result.status, result.answer
 
+    def summarize_answer(self, answer):
+        submission = self._resources.get('submission') or {}
+        selection = submission.get('llm_selection')
+        if not submission.get('_answer_core_summary') or not selection or getattr(self, '_goal_response_enabled', False):
+            return None
+        from .answer_core_summary import summarize_answer
+        return summarize_answer(answer, selection)
+
     def bind_artifact_store(self, objects):
         self._artifact_store = objects
 

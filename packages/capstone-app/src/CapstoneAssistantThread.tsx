@@ -410,6 +410,10 @@ function terminalContent(event: EventEnvelope): string {
 
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = [], previews:readonly ThinkingPreview[]=[]): ThreadMessageLike[] {
   const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
+  const recoveredSummaries = new Map(events.flatMap(event =>
+    event.visibility === 'public' && event.eventType === 'answer_summary_recovered'
+      && event.attemptId && typeof event.payload.answer_core_summary === 'string'
+      ? [[event.attemptId, event.payload.answer_core_summary.trim()] as const] : []))
   const runtimeModes = new Map<string, RuntimeMode>()
   const nativeAttempts = new Set(events.filter(event => ['native_conversation','pi','direct_pi'].includes(String(event.payload.source))).map(event => event.attemptId || event.turnId))
   for (const event of events) {
@@ -522,8 +526,9 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             resultRefs: stringRefs(event.payload.result_refs),
             evidenceRefs: stringRefs(event.payload.evidence_refs),
             admission: event.payload.admission,
-            coreReply: event.visibility === 'public' && event.eventType === 'attempt_completed' &&
-              typeof event.payload.answer_core_summary === 'string' ? event.payload.answer_core_summary.trim() : undefined,
+            coreReply: event.visibility === 'public' && event.eventType === 'attempt_completed'
+              ? (typeof event.payload.answer_core_summary === 'string' ? event.payload.answer_core_summary.trim() : '')
+                || (key ? recoveredSummaries.get(key) : undefined) : undefined,
             toolCount: relatedTools,
             modelContextId: event.modelContextId || (key ? contextByAttempt.get(key)?.modelContextId : undefined),
             selectionRevision: event.selectionRevision || (key ? contextByAttempt.get(key)?.selectionRevision : undefined),
@@ -1174,7 +1179,7 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
       </> : completedAnswer ? (inlineExecution ? <details className="capstone-formal-answer">
-        <summary>正式回答</summary><MarkdownMessage>{text}</MarkdownMessage>
+        <summary>正式回答</summary><div className="capstone-formal-answer-scroll" role="region" aria-label="正式回答正文" tabIndex={0}><MarkdownMessage>{text}</MarkdownMessage></div>
       </details> : <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt} />) : hasText
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}

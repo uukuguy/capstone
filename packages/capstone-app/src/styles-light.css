@@ -1518,6 +1518,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 @media (pointer: coarse) { .thread-llm-popover button { min-height: 44px; } }
 
 .capstone-formal-answer { margin-top: 4px; }
+.capstone-formal-answer-scroll { max-block-size: min(52dvh, 36rem); overflow: auto; scrollbar-gutter: stable; }
+.capstone-formal-answer-scroll:focus-visible { outline: 2px solid #497c78; outline-offset: -2px; }
 .capstone-formal-answer > summary { cursor: pointer; padding: 8px 0; }
 .capstone-answer-status { display: inline-block; margin-right: 8px; font-size: 12px; }
 .capstone-chat-body.capstone-answer-summary .capstone-chat-markdown,

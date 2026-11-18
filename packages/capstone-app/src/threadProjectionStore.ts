@@ -390,7 +390,7 @@ export class ThreadProjectionStore {
           this.conversationDiagnosticBytes+=bytes
         }
       }else if(event.eventType==='assistant_process_delta'||(event.visibility==='public'&&[
-        'command_accepted','attempt_started','attempt_completed','attempt_failed',
+        'command_accepted','attempt_started','attempt_completed','attempt_failed','answer_summary_recovered',
         'attempt_cancelled','attempt_interrupted','native_artifact_published',
         'turn_route_selected','turn_plan_created',
       ].includes(event.eventType)))this.conversationArchive.set(event.eventSeq,event)

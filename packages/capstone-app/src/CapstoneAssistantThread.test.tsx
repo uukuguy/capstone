@@ -1857,6 +1857,18 @@ describe('CapstoneAssistantThread', () => {
     expect(second.querySelector('details')?.open).toBe(false)
   })
 
+  it('displays a recovered summary beside the same scrollable formal answer', () => {
+    render(<CapstoneAssistantThread inlineExecution events={[
+      event('attempt_completed', 1, {answer:'已保存的正式回答。'}, 'attempt_1'),
+      event('answer_summary_recovered', 2, {answer_core_summary:'补生成的摘要。'}, 'attempt_1'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByLabelText('答复摘要').textContent).toBe('补生成的摘要。')
+    fireEvent.click(screen.getByText('正式回答'))
+    const body = screen.getByRole('region', {name:'正式回答正文'})
+    expect(body.tabIndex).toBe(0)
+    expect(body.textContent).toBe('已保存的正式回答。')
+  })
+
   it('renders an independently generated summary as readable Markdown', () => {
     const summary = '潮流已收敛。\n\n- **线路 21**：73.37%\n- **线路 11**：67.15%'
     render(<CapstoneAssistantThread inlineExecution events={[

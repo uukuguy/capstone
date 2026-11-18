@@ -538,3 +538,19 @@ def test_context_only_authority_receipt_is_visible_without_becoming_evidence():
     assert prior == evidence == ()
     document = structural_context_for(SimpleNamespace(prior_context_refs=contexts))
     assert document['handles'] == [{'kind': 'context_ref', 'ref': ref}]
+
+
+def test_missing_bundle_summary_uses_only_the_final_admitted_answer():
+    from types import SimpleNamespace
+    from capstone_agent.harness import _core_summary_payload
+
+    seen = []
+    def summarize(answer):
+        seen.append(answer)
+        return 'Recovered summary'
+
+    runtime = SimpleNamespace(answer_core_bundle=('draft', 'stale summary'), summarize_answer=summarize)
+    assert _core_summary_payload(runtime, 'draft', 'saved formal answer', True) == {
+        'answer_core_summary': 'Recovered summary',
+    }
+    assert seen == ['saved formal answer']

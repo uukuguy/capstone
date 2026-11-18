@@ -148,9 +148,14 @@ def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: 
 
 def _core_summary_payload(runtime: object, answer: str, admitted_answer: str, recovery_attempted: bool) -> dict[str, str]:
     bundle = getattr(runtime, 'answer_core_bundle', None)
-    if bundle is None or recovery_attempted or bundle[0] != answer or answer != admitted_answer:
-        return {}
-    return {'answer_core_summary': bundle[1]}
+    if bundle is not None and not recovery_attempted and bundle[0] == answer == admitted_answer:
+        return {'answer_core_summary': bundle[1]}
+    summarize = getattr(runtime, 'summarize_answer', None)
+    if callable(summarize):
+        summary = summarize(admitted_answer)
+        if summary:
+            return {'answer_core_summary': summary}
+    return {}
 
 
 @dataclass(frozen=True, slots=True)
