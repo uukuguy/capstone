@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-18 企业主会话回复与执行过程可见性修正。真实恢复与 CI 状态见 VERSION-CONTROL。
+
 2026-11-18 企业工作台入口首包经 PR146 合入 dev。真实提交、停止、成果查看和窄屏验收通过。来源及 CI 见 VERSION-CONTROL。
 
 2026-11-18 Mission 注册技能配备经 PR144 合入 dev。真实技能加载、制品和暂停后第二代委派通过。来源见 VERSION-CONTROL。

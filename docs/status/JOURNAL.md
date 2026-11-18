@@ -8136,3 +8136,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: fa68bf31 keeps the 390px composer visible. The real stop receipt and read-only refresh passed.
 
 - 2026-11-18: PR146 merged as 68857937. Actual dev restored the stopped Thread and verified the product and narrow composer.
+
+- 2026-11-18: b526d771 restores enterprise inline reply and observed progress. 47 focused App checks pass.
+
+- 2026-11-18: PR148 merged at 6d4bc023. Rebuilt dev restores two replies, progress summaries and complete records at 390px.
