@@ -8178,3 +8178,19 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: a43f2819 retains the same Work predecessor catalog so background Goal admissions keep registered Domain Pack tools.
 
 - 2026-11-18: Real automatic Goal continuation reads and commits the original result and evidence through structured context without replacing the calculation.
+
+- 2026-11-18: 3083059b records Work and Goal acceptance and preserves the open Mission grant and legacy recovery work.
+
+- 2026-11-18: 99b79856 adds exact Goal selection and Mission authority grants for dependent tasks and reviews.
+
+- 2026-11-18: 10affee7 verifies exact selected Goal references after pause, resume, and reopening the PostgreSQL ledger.
+
+- 2026-11-18: 64489e1b keeps the Authority evidence digest stable and drops continuation inputs after terminal Goal dispositions.
+
+- 2026-11-18: Real Mission A, dependent B, and both reviews reused the original result. The Mission reached delivered.
+
+- 2026-11-18: A real named Goal paused and resumed after native worker restart, preserving original references and avoiding recalculation.
+
+- 2026-11-18: 70a2d97f resumes standalone Authority evidence from the same Work even when no result reference exists.
+
+- 2026-11-18: Live ordinary Work reopens standalone constraint evidence from the ledger and retains its digest.

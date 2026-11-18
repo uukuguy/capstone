@@ -13,7 +13,8 @@ separate checks.
 | Previously admitted result to native main-chain context | The plan used an empty prior-result list even when the claim carried admitted results. Structural context also used a different visibility filter from the frozen list. | The plan now uses one visible set for both paths. Covered by a regression test. |
 | Goal product to the next iteration | Settlement checked the proposal's products, then the continuation saved the next instruction and dropped the checked references. Input preparation could select other historical files in the Work. | Newly persisted continuations retain product references. Admission freezes completed files from the exact predecessor and checks their manifests. Historical continuations keep their existing read path. |
 | Goal result to the next iteration | A real automatic continuation carried the admitted result and evidence but received no Application catalog from the native worker. The model could only find gateway and general tools. | When current publication is unavailable, continuation uses the exact completed predecessor catalog from the same Work and model selection. Memory, PostgreSQL and real automatic continuation checks pass. |
-| Mission files to a child or review | The existing grant freezes producer, artifact descriptor and digest, checks the destination Work, and verifies bytes on read. | This is the established file path. The audit found no equivalent in that grant for a Domain Pack result or evidence handle. |
+| Mission files and Authority references to a child or review | The file grant freezes the producer, artifact descriptor and digest. The delivery carried only an answer receipt and file descriptors. | Control now carries exact terminal coordinates from verified dependencies to a child and from delivered or verified tasks to a reserved review. The application resolves the receipt in the producer ledger. The Pack checks the content and stages the admitted references in an isolated read workspace. |
+| Mission Domain Pack selection | A real planner selected shell because the Mission equipment catalog omitted the registered Domain Pack. The child received a catalog and still lacked an admitted domain tool. | The equipment catalog now publishes exact registered Pack versions. The native host enforces selected and denied versions, plus the resolved tool allowlist. |
 | Native final reply | A separate failure receipt pointed to the answer-envelope marker count after the tool succeeded. A later live attempt produced complete answer JSON followed by tool protocol closing markers. | Formal/core answer parsing accepts the single valid two-field JSON object with redundant envelope markers or the exact observed tool trailer. Ambiguous replies still fail validation. |
 
 The general continuation path must preserve the producing Attempt, Work,
@@ -75,17 +76,54 @@ access to a referenced object.
   domain catalog in its frozen input. It read and committed the exact
   result and evidence with zero replacement power-flow calls. The local
   memory and disposable PostgreSQL verification suite passed 33 checks.
+- Commit `99b79856` adds named Goal handle selection and Mission authority
+  grants. Focused tests passed 388 Control and Agent checks against memory
+  and disposable PostgreSQL, plus 17 Domain Pack checks. They cover
+  producer identity, exact reference selection, isolated solver reads,
+  rejection of an ungranted reference, and denial of write tools on a read grant.
+- The real Mission `goal_4d7c17c1472b1d5bd15909c2bc8a51fe` reached
+  delivered on local image `6da6ba2b…`. Task A produced the AC power-flow
+  result in `attempt_026643aa364455d1`. Dependent Task B
+  `attempt_e0cf08ba27238f8c` persisted the same result and evidence.
+  Both organizer reviews ran the Authority branch ranking successfully.
+  B and the reviews made zero replacement power-flow calls.
+- The first review's direct evidence read exposed a digest mismatch after
+  staging JSON. Commit `64489e1b` now writes the Authority's canonical
+  bytes. A real isolated `gridctl` evidence read verified the original
+  digest and linked result with that fix.
+- Four Goal checks cover named selection in automatic dispatch and manual
+  pause and resume with memory and a reopened PostgreSQL ledger. The live
+  named Goal read both selected handles and preserved the original result
+  and evidence. Its initial final reply included irrelevant context and
+  revision handles in the continuation field. Terminal dispositions now
+  discard that unused field. After rebuilding `64489e1b` on image
+  `d49a1ce5…`, the named Goal completed in `attempt_2b3cd64c3d6cde4d`.
+  It reused the exact result and original evidence with zero replacement
+  power-flow calls. Three registered topology reads added separate
+  evidence references for line endpoints.
+- In live Goal `thr_76e9c178457d3a957cd0`, execution paused the
+  in-progress consumer `attempt_bd4caa3f6380cdc2`. After the native
+  worker restarted, `attempt_b2d27b67c1140626` resumed from the selected
+  producer receipt, read the same result and evidence, and completed
+  without replacing the computation.
+- After rebuilding `70a2d97f` on image `acbfa63d…`, real Work
+  `thr_0356c35b1e4952d3a264` contained model constraint evidence and no
+  result reference. Its first answer omitted the handle. The next Attempt
+  received that independent handle from the ledger and used `grid_evidence_get`
+  successfully. Both terminal records contain the same evidence digest.
 
 ## Remaining acceptance
 
 Recover older Attempt-scoped references by verifying the recorded
-execution identity and rechecking the content with the owner. For Goal
-continuity, verify a named result or evidence selection and the same
-grant after a worker restart and after pause and resume. For Mission continuity,
-bind each typed reference to the verified producer and the specific
-consumer. Exercise the same handoff to a child and then to review. Check
-wrong owner, missing content and changed version. Each result-only
-continuation must make zero replacement calculation calls.
+execution identity and rechecking the content with the owner. Each
+result-only continuation must make zero replacement calculation calls.
+
+The original Thread still has its durable worker execution receipts and
+the Pack's private Attempt files. The old native host has a completed
+task receipt with zero saved observations. Recovery must match the saved
+worker receipt and the original Work, then let the Pack verify the
+artifacts in that exact scope. This avoids relying on reader text to
+reconstruct provenance.
 
 The initial relay covers verified result and evidence handles. Model
 selection has its existing frozen management record. Domain tool context
@@ -94,9 +132,15 @@ their own versioned readers and admission contracts before they can be
 transferred. The registered issuer establishes ownership, and the grant
 establishes permission.
 
+The gateway adapter currently keeps `job_ref` and `preparation_ref`
+authorization in its active native task record. Durable gateway
+continuation needs a typed receipt bound to the gateway instance,
+connection, compatible catalog and producer before a later task can
+resume the operation.
+
 The Mission file grant in `delegation_resources.py` verifies a completed
-producer record, then binds the saved artifact version to a specific
-consumer Work. Apply the same checks to the Authority receipt before
-dispatching a dependent task or final review. The receiving pack must read
-the exact granted reference through its registered authority. Keep the
-producer workspace private and deny reads outside the receipt.
+producer record and binds the saved artifact version to a consumer Work.
+The analogous authority grant in `delegation_authority.py` resolves the
+producer's exact terminal event and frozen owner configuration. The
+receiving Pack stages the authorized immutable closure and removes it
+after each read.
