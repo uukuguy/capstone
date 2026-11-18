@@ -58,7 +58,7 @@ def test_authority_verifies_references_before_pack_publishes_them(tmp_path, monk
     def admit(authority, capability, result, evidence):
         assert authority.workspace_root == tmp_path / 'task'
         assert (capability, result, evidence) == ('capability', {'result_ref': ref}, ())
-        return SimpleNamespace(results=(SimpleNamespace(reference=ref),),
+        return SimpleNamespace(context=(), results=(SimpleNamespace(reference=ref),),
                                evidence=(SimpleNamespace(reference=evidence_ref),))
 
     monkeypatch.setattr(PandapowerArtifactAuthority, 'admit', admit)
@@ -91,7 +91,7 @@ def test_readonly_tool_recovers_only_matching_verified_evidence(tmp_path, monkey
     result = {'result_ref': ref, 'context_ref': 'ctx', 'revision_ref': 'rev'}
     service._executors['work-' + 'a' * 40] = SimpleNamespace(invoke=lambda *args, **kwargs: result)
     monkeypatch.setattr(PandapowerArtifactAuthority, 'admit', lambda *args:
-        SimpleNamespace(results=(SimpleNamespace(reference=ref),), evidence=()))
+        SimpleNamespace(context=(), results=(SimpleNamespace(reference=ref),), evidence=()))
 
     def verify(authority, reference):
         if reference == missing:

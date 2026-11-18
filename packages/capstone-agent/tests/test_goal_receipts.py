@@ -5,10 +5,15 @@ from capstone_agent.goal_receipts import parse_goal_proposal
 
 def test_terminal_disposition_drops_unused_continuation_reference_selection():
     value = proposal(disposition='complete', next_instruction=None, authority_refs=[
-        'context:sha256:' + 'a' * 64])
+        'revision:sha256:' + 'a' * 64])
     assert 'authority_refs' not in parse_goal_proposal(value)
     with pytest.raises(ValueError, match='authority references'):
         parse_goal_proposal(proposal(authority_refs=value['authority_refs']))
+
+
+def test_goal_continuation_accepts_a_context_reference_selection():
+    refs = ['context:sha256:' + 'a' * 64]
+    assert parse_goal_proposal(proposal(authority_refs=refs))['authority_refs'] == refs
 
 
 def test_boundary_requires_exact_identity_and_saved_delivery():

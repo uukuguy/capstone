@@ -73,7 +73,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|app|mission-conversation|instruction-admission|execution-details|control-events|control-task-board|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|presentation-library|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|app|mission-conversation|harness-references|instruction-admission|execution-details|control-events|control-task-board|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|presentation-library|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -85,7 +85,7 @@ jobs:
         with:
           node-version: "22.19.0"
       - name: Set up standard dependencies
-        if: steps.scope.outputs.gate != 'gateway-bindings' && steps.scope.outputs.gate != 'gateway-capabilities' && steps.scope.outputs.gate != 'execution-lifecycle' && steps.scope.outputs.gate != 'architecture-retirement' && steps.scope.outputs.gate != 'presentation-library' && steps.scope.outputs.gate != 'product-references' && steps.scope.outputs.gate != 'product-adoption' && steps.scope.outputs.gate != 'result-rows' && steps.scope.outputs.gate != 'resource-ranges' && steps.scope.outputs.gate != 'historical-inputs' && steps.scope.outputs.gate != 'worker-interruption' && steps.scope.outputs.gate != 'recoverable-tasks' && steps.scope.outputs.gate != 'session-pins' && steps.scope.outputs.gate != 'agent-goal' && steps.scope.outputs.gate != 'control-delegation' && steps.scope.outputs.gate != 'mission-conversation' && steps.scope.outputs.gate != 'instruction-admission' && steps.scope.outputs.gate != 'execution-details' && steps.scope.outputs.gate != 'control-task-board' && steps.scope.outputs.gate != 'control-events'
+        if: steps.scope.outputs.gate != 'gateway-bindings' && steps.scope.outputs.gate != 'gateway-capabilities' && steps.scope.outputs.gate != 'execution-lifecycle' && steps.scope.outputs.gate != 'architecture-retirement' && steps.scope.outputs.gate != 'presentation-library' && steps.scope.outputs.gate != 'product-references' && steps.scope.outputs.gate != 'product-adoption' && steps.scope.outputs.gate != 'result-rows' && steps.scope.outputs.gate != 'resource-ranges' && steps.scope.outputs.gate != 'historical-inputs' && steps.scope.outputs.gate != 'worker-interruption' && steps.scope.outputs.gate != 'recoverable-tasks' && steps.scope.outputs.gate != 'session-pins' && steps.scope.outputs.gate != 'agent-goal' && steps.scope.outputs.gate != 'control-delegation' && steps.scope.outputs.gate != 'mission-conversation' && steps.scope.outputs.gate != 'harness-references' && steps.scope.outputs.gate != 'instruction-admission' && steps.scope.outputs.gate != 'execution-details' && steps.scope.outputs.gate != 'control-task-board' && steps.scope.outputs.gate != 'control-events'
         run: make setup
       - name: Set up product reference consumers
         if: steps.scope.outputs.gate == 'product-references' || steps.scope.outputs.gate == 'product-adoption' || steps.scope.outputs.gate == 'result-rows' || steps.scope.outputs.gate == 'resource-ranges' || steps.scope.outputs.gate == 'historical-inputs' || steps.scope.outputs.gate == 'worker-interruption' || steps.scope.outputs.gate == 'recoverable-tasks'
@@ -94,6 +94,12 @@ jobs:
           uv sync --project packages/capstone-agent
           uv sync --project packages/grid-simulator
           npm ci --prefix packages/capstone-app
+      - name: Set up Harness reference consumers
+        if: steps.scope.outputs.gate == 'harness-references'
+        run: |
+          uv sync --project packages/capstone-agent
+          uv sync --project packages/pandapower-application
+          uv sync --project packages/grid-simulator
       - name: Set up session pin consumers
         if: steps.scope.outputs.gate == 'mission-conversation' || steps.scope.outputs.gate == 'instruction-admission' || steps.scope.outputs.gate == 'execution-details' || steps.scope.outputs.gate == 'control-task-board' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation' || steps.scope.outputs.gate == 'control-events'
         run: |
@@ -131,7 +137,7 @@ jobs:
       - name: Check managed runtime
         run: make doctor
       - name: Verify product references with disposable PostgreSQL
-        if: steps.scope.outputs.gate == 'mission-conversation' || steps.scope.outputs.gate == 'instruction-admission' || steps.scope.outputs.gate == 'product-references' || steps.scope.outputs.gate == 'product-adoption' || steps.scope.outputs.gate == 'result-rows' || steps.scope.outputs.gate == 'resource-ranges' || steps.scope.outputs.gate == 'historical-inputs' || steps.scope.outputs.gate == 'worker-interruption' || steps.scope.outputs.gate == 'recoverable-tasks' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation' || steps.scope.outputs.gate == 'control-events'
+        if: steps.scope.outputs.gate == 'mission-conversation' || steps.scope.outputs.gate == 'harness-references' || steps.scope.outputs.gate == 'instruction-admission' || steps.scope.outputs.gate == 'product-references' || steps.scope.outputs.gate == 'product-adoption' || steps.scope.outputs.gate == 'result-rows' || steps.scope.outputs.gate == 'resource-ranges' || steps.scope.outputs.gate == 'historical-inputs' || steps.scope.outputs.gate == 'worker-interruption' || steps.scope.outputs.gate == 'recoverable-tasks' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation' || steps.scope.outputs.gate == 'control-events'
         timeout-minutes: 10
         shell: bash
         run: |
@@ -144,6 +150,8 @@ jobs:
           export CAPSTONE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres
           if [ "${{ steps.scope.outputs.gate }}" = "mission-conversation" ]; then
             bash tools/test_mission_conversation.sh
+          elif [ "${{ steps.scope.outputs.gate }}" = "harness-references" ]; then
+            bash tools/test_harness_references.sh
           elif [ "${{ steps.scope.outputs.gate }}" = "instruction-admission" ]; then
             bash tools/test_instruction_admission.sh
           elif [ "${{ steps.scope.outputs.gate }}" = "control-events" ]; then

@@ -17,6 +17,7 @@ DOC_FILES = {"README.md", "README.zh-CN.md", "AGENTS.md", "CLAUDE.md",
              "tools/render_project_overview.py"}
 GOVERNANCE_FILES = {"tools/tests/test_ci_presentation_library.py",".github/workflows/verify.yml", "tools/ci_scope.py",
                     "configs/development/issue-automation.json",
+                    "configs/development/harness-references-gate.json", "tools/test_harness_references.sh",
                     "tools/tests/test_ci_scope.py", "tools/tests/test_ci_workbench_scope.py",
                     "tools/tests/test_verification_targets.py", "tools/tests/test_ci_gateway_controls.py",
                     "tools/tests/test_ci_gateway_bindings.py", "tools/tests/test_ci_execution_lifecycle.py"}
@@ -777,7 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
-    import json
+    reference_manifest = Path(__file__).resolve().parents[1] / 'configs/development/harness-references-gate.json'
+    if reference_manifest.is_file():
+        references = json.loads(reference_manifest.read_text())
+        if set(references['anchors']).issubset(paths) and all(
+                path in references['paths'] or _control_path(path) for path in paths):
+            return 'harness-references'
     mission_manifest = Path(__file__).resolve().parents[1] / 'configs/development/mission-conversation-gate.json'
     if mission_manifest.is_file():
         mission = json.loads(mission_manifest.read_text())
