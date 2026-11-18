@@ -1179,7 +1179,7 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
       </> : completedAnswer ? (inlineExecution ? <details className="capstone-formal-answer">
-        <summary>正式回答</summary><div className="capstone-formal-answer-scroll" role="region" aria-label="正式回答正文" tabIndex={0}><MarkdownMessage>{text}</MarkdownMessage></div>
+        <summary>正式回答</summary><MarkdownMessage>{text}</MarkdownMessage>
       </details> : <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt} />) : hasText
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}
@@ -1469,13 +1469,26 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
     historyAnchor.current = null
     pendingHistoryAnchor.current = null
   }
-  function cancelLatestScrollIntent() {
-    if (!returnLatestScrollPending.current) return
-    returnLatestScrollPending.current = false
-    returnLatestScrollToken.current += 1
+  function cancelReadingScrollIntent() {
+    if (returnLatestScrollPending.current) {
+      returnLatestScrollPending.current = false
+      returnLatestScrollToken.current += 1
+    }
+    scrollAnchor.current = null
+    historyAnchor.current = null
+    pendingHistoryAnchor.current = null
   }
-  function cancelLatestScrollIntentForKey(event: ReactKeyboardEvent) {
-    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) cancelLatestScrollIntent()
+  function cancelReadingScrollIntentForKey(event: ReactKeyboardEvent) {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) cancelReadingScrollIntent()
+    const viewport = viewportRef.current
+    if (!viewport || event.target !== viewport || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      viewport.scrollTop = event.key === 'Home' ? 0 : viewport.scrollHeight - viewport.clientHeight
+    } else if (event.key === 'PageUp' || event.key === 'PageDown') {
+      event.preventDefault()
+      viewport.scrollTop += (event.key === 'PageUp' ? -1 : 1) * viewport.clientHeight
+    }
   }
   function captureScrollAnchor(id: string, control: HTMLButtonElement) {
     const viewport = viewportRef.current
@@ -1801,11 +1814,11 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
         </div>}
         {!caseExecution && caseCatalog.length > 0 && <><ThreadCasePicker cases={caseCatalog} disabled={disabled || Boolean(caseStartDisabledReason) || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />{caseStartDisabledReason && <small>{caseStartDisabledReason}</small>}</>}
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
-        {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
+        {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" role="region" aria-label="会话内容" tabIndex={0} onWheel={cancelReadingScrollIntent} onTouchStart={cancelReadingScrollIntent} onKeyDown={cancelReadingScrollIntentForKey}>
           {messages.length === 0 && <>{emptyState ?? <EmptyThreadState disabled={disabled} />}{(inputCatalog||inputCatalogLoading)&&<WelcomeConnections catalog={inputCatalog} gateway={welcomeGateway} profileId={activeInput.llm_profile_id} loading={inputCatalogLoading}/>}</>}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" autoScroll={!restoringSessionPosition&&!readingLayoutChanging&&!locatingInstruction} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" role="region" aria-label="会话内容" tabIndex={0} autoScroll={!restoringSessionPosition&&!readingLayoutChanging&&!locatingInstruction} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelReadingScrollIntent} onTouchStart={cancelReadingScrollIntent} onKeyDown={cancelReadingScrollIntentForKey}>
           {messages.length === 0 && <>{emptyState ?? <EmptyThreadState disabled={disabled} />}{(inputCatalog||inputCatalogLoading)&&<WelcomeConnections catalog={inputCatalog} gateway={welcomeGateway} profileId={activeInput.llm_profile_id} loading={inputCatalogLoading}/>}</>}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
