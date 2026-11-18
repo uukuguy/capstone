@@ -42,5 +42,17 @@ def test_split_formal_and_core_keeps_the_complete_formal_answer():
             '</｜｜DSML｜｜ parameter>\n</｜｜DSML｜｜ invoke>\n</｜｜DSML｜｜ calls>')
     assert json.loads(public_answer(text, answer_format='formal-and-core/1')) == {
         'answer': '完整报告\n第一项和第二项。', 'summary': '两项已核对。'}
-    with pytest.raises(ValueError, match='answer_presentation_invalid'):
-        public_answer(text + '\n额外正文', answer_format='formal-and-core/1')
+    recovered = json.loads(public_answer(text + '\n额外正文', answer_format='formal-and-core/1'))
+    assert recovered['answer'].startswith('完整报告\n第一项和第二项。')
+    assert '格式异常' in recovered['answer']
+    assert '额外正文' not in recovered['answer'] and recovered['summary'] is None
+
+
+def test_invalid_summary_does_not_hide_a_valid_formal_answer():
+    import json
+
+    text = '<capstone-answer>{"answer":"计算已完成","summary":42}</capstone-answer>内容额外'
+    recovered = json.loads(public_answer(text, answer_format='formal-and-core/1'))
+    assert recovered['answer'].startswith('计算已完成')
+    assert '格式异常' in recovered['answer']
+    assert recovered['summary'] is None

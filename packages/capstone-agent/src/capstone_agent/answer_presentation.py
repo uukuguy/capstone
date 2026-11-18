@@ -8,12 +8,17 @@ _TOOL_TRAILER = re.compile(r'</｜｜DSML｜｜ parameter>\s*</｜｜DSML｜｜ 
 _SUMMARY_OPEN = '<capstone-answer-summary>'
 
 
-def _answer_object(text: str) -> dict[str, str] | None:
+def _json_object(text: str) -> dict | None:
     try:
         value = json.loads(text)
     except ValueError:
         return None
-    if (isinstance(value, dict) and set(value) == {'answer', 'summary'}
+    return value if isinstance(value, dict) else None
+
+
+def _answer_object(text: str) -> dict[str, str] | None:
+    value = _json_object(text)
+    if (value is not None and set(value) == {'answer', 'summary'}
             and all(isinstance(item, str) and item.strip() for item in value.values())):
         return value
     return None
@@ -37,10 +42,20 @@ def public_answer(text: str, *, answer_format: str | None = None) -> str:
     _, remainder = text.split(OPEN, 1)
     body, after = remainder.split(CLOSE, 1)
     body, after = body.strip(), after.strip()
-    if body and answer_format == 'formal-and-core/1' and after.startswith(_SUMMARY_OPEN):
-        supplemental = _answer_object(after.removeprefix(_SUMMARY_OPEN).strip())
-        if supplemental is not None and _answer_object(body) is None:
-            return json.dumps({'answer': body, 'summary': supplemental['summary']}, ensure_ascii=False)
+    if body and after and answer_format == 'formal-and-core/1':
+        bundle = _answer_object(body)
+        if bundle is None and after.startswith(_SUMMARY_OPEN):
+            supplemental = _answer_object(after.removeprefix(_SUMMARY_OPEN).strip())
+            if supplemental is not None:
+                return json.dumps({'answer': body, 'summary': supplemental['summary']}, ensure_ascii=False)
+        decoded = _json_object(body)
+        answer = decoded.get('answer') if decoded is not None else (
+            body if not body.startswith(('{', '[')) else None)
+        if isinstance(answer, str) and answer.strip():
+            return json.dumps({
+                'answer': answer.strip() + '\n\n> 回答格式异常。已保留正式回答，附加内容未通过校验。',
+                'summary': bundle['summary'] if bundle is not None else None,
+            }, ensure_ascii=False)
     if not body or after:
         raise ValueError('answer_presentation_invalid')
     return body
