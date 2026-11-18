@@ -8264,3 +8264,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: 10097bfe records the live paired-answer event and full main-conversation scroll verification.
 
 - 2026-11-19: 8d4e6702 restores the answer header and folds existing conversation replies to saved summaries.
+
+- 2026-11-19: 196e8222 records single-answer toggling, whole-session folding, and historical-page coverage.

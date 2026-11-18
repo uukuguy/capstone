@@ -2111,7 +2111,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API 与三 worker 的已核对运行源码 `fab62528`；Vite App 使用 `8d4e6702` | 同后端镜像 0fb98b637a76；就绪与缓存维护通过 | App http://127.0.0.1:5173/enterprise；真实上下文、就绪视图和 Mission 续接。[验收](../reviews/2026-11-18-harness-reference-continuity.md) |
+| local-dev | API 与三 worker 的已核对运行源码 `fab62528`；Vite App 使用 `8d4e6702` | 同后端镜像 10ac6fd60fc6；就绪与缓存维护通过 | App http://127.0.0.1:5173/enterprise；真实上下文、就绪视图和 Mission 续接。[验收](../reviews/2026-11-18-harness-reference-continuity.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
