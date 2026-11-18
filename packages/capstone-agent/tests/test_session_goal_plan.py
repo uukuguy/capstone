@@ -113,3 +113,11 @@ def test_review_can_replace_only_unexecuted_steps():
     assert updated["plan"]["steps"][0] == current["plan"]["steps"][0]
     assert updated["plan"]["criteria"] == current["plan"]["criteria"]
     assert updated["plan"]["steps"][1]["instruction"] == "Repair source data."
+
+
+def test_provider_objective_echo_does_not_change_the_saved_plan(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model',
+        lambda *_: {**proposal(), 'objective': 'Provider echo'})
+    assert session_goal_plan.request_initial_plan('Build a benchmark.') == proposal()

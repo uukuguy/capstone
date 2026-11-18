@@ -120,9 +120,15 @@ def request_initial_plan(objective: str) -> dict:
         'criteria (a list of verifiable acceptance conditions), and steps (a list '
         'of objects with instruction and expected_result). Give at least two distinct '
         'executable instructions in the user’s language. Order dependencies and keep '
-        'the first step focused. Do not execute any steps.',
+        'the first step focused. Do not execute any steps. '
+        'Output exactly these three top-level keys, schema, criteria, steps. '
+        'Do not include an objective field, step IDs, commentary, or Markdown fences.',
         objective,
     )
+    if isinstance(response, dict) and 'objective' in response:
+        # The application owns the objective. A provider may echo it as
+        # descriptive metadata. It has no place in the admitted proposal.
+        response = {key: value for key, value in response.items() if key != 'objective'}
     return parse_goal_plan(response, objective=objective)
 
 
