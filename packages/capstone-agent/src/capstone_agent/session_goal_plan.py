@@ -38,3 +38,25 @@ def parse_goal_plan(value: object, *, objective: str) -> dict:
             "expected_result": _plan_text(step["expected_result"]),
         })
     return {"schema": SCHEMA, "criteria": [_plan_text(item) for item in criteria], "steps": parsed_steps}
+
+
+def bind_initial_goal_plan(
+    proposal: object, *, thread_id: str, work: dict, objective_revision: int, generation: int,
+) -> dict:
+    """Bind a planner result to the current Work inside the admission transaction."""
+    goal = work["goal_mode"]
+    if (goal["objective_revision"] != objective_revision
+            or goal["generation"] != generation
+            or goal["state"] != "ready"
+            or goal["attempts_admitted"] != 0
+            or "goal_plan" in work):
+        raise ValueError("Initial Goal plan is no longer current")
+    return {
+        "schema": "capstone-session-goal-plan-receipt/1",
+        "thread_id": thread_id,
+        "work_id": work["work_id"],
+        "objective_revision": objective_revision,
+        "generation": generation,
+        "plan_revision": 1,
+        "plan": parse_goal_plan(proposal, objective=goal["objective"]),
+    }
