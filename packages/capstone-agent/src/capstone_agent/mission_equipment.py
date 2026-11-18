@@ -25,7 +25,12 @@ def catalog(threads, workspace, origin, *, resource_details=None):
          'id': item['resource_id'], 'revision': str(item['version'])}
         for item in page['resources']
     ]
-    return _catalog(binding)[:64-len(resources)] + resources
+    registered = _catalog(binding)
+    skills = [ref for ref in registered if ref['kind'] == 'skill'][:16]
+    profiles = [ref for ref in registered if ref['kind'] == 'resource_profile']
+    tools = [ref for ref in registered if ref['kind'] == 'capability']
+    remaining = 64 - len(skills) - len(profiles) - len(resources)
+    return references(skills + profiles + resources + tools[:remaining])
 
 
 def resolve_resource(threads, workspace, origin, ref):
@@ -110,7 +115,7 @@ def _catalog(binding):
                         'id': item['id'], 'revision': item['version']}
                        for item in profile.get('resources', ())
                        if item['kind'] == 'skill' and item['ready'])
-    return references(entries[:64])
+    return entries
 
 
 def admitted(threads, workspace, origin, ref):

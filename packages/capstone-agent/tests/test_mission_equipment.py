@@ -27,6 +27,19 @@ def test_skill_selection_checks_exact_version_and_effective_tools():
         resolve_skill(binding, {'id': skill['id'], 'revision': 'v1'}, {'write'})
 
 
+def test_skill_publication_keeps_space_when_tools_fill_catalog(chat_store, monkeypatch):
+    from capstone_agent import mission_equipment
+
+    threads, thread = chat_store
+    binding = {'capability': {'native_builtin_tools': [f'tool_{n}' for n in range(70)],
+        'resource_profiles': {'delegated_pi': {'profile_id': 'delegated_pi', 'revision': 'r1',
+            'resources': [{'id': 'registered-check', 'kind': 'skill', 'version': 'v1', 'ready': True}]}}}}
+    monkeypatch.setattr(mission_equipment, 'origin_binding', lambda *_: (binding, None))
+    published = catalog(threads, 'enterprise', {'thread_id': thread})
+    assert len(published) == 64
+    assert any(ref['kind'] == 'skill' and ref['id'] == 'registered-check' for ref in published)
+
+
 def test_registry_selection_is_exact_and_unknown_revisions_fail(chat_store):
     threads, thread_id = chat_store
     threads.set_native_executor(native_executor())
