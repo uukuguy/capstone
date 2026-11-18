@@ -187,6 +187,14 @@ run did not exercise a successful cross-Work gateway admission.
   Pack tests, and 14 Application tests on the local macOS checkout.
   Thirty-five conditional cases were skipped. The gate runs with disposable
   PostgreSQL and keeps the development branch out of the full product suite.
+- Real Goal `thr_dcdbd391d7895b2668c8` continued from
+  `attempt_cd53472aa5a45ba7` to `attempt_9830984951852596`. The first
+  Attempt selected only its context receipt. The second read the original
+  context with the registered dataset tool and completed the Goal.
+- Real Mission `goal_99bf18dca4665624f7698461eb503c0f` delivered after its
+  dependent Work and organizer review each read one page from the ready
+  view. Both frozen inputs matched the producer's complete view receipt.
+  Each read succeeded and neither consumer reopened the view.
 - The focused run with disposable PostgreSQL passed 441 tests and skipped
   32 unavailable cases. The Pack authority and execution check passed
   26 tests. The focused gateway relay rerun passed 54 tests and checked

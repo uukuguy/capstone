@@ -1294,7 +1294,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| harness-reference-continuity | Harness 跨轮次引用续接 | 1 | 本机真实验收通过 | 同一 Work、Goal 和 Mission 的版本化上下文、结果、证据、制品、网关操作与视图交接 | fix/harness-reference-continuity-20261118 | dev 定向 CI 和集成 | dev 028c8d76 | 96b131ae 保存版本化视图与模型上下文，复用原操作；必需回执缺失阻止依赖派发。 | 真实 Work 读取原模型上下文与已就绪视图。真实 Mission 跨 Work 和复核查询原操作；缺回执时阻止依赖。1,206 个本机定向检查通过。[审计](../reviews/2026-11-18-harness-reference-continuity.md) |
+| harness-reference-continuity | Harness 跨轮次引用续接 | 1 | 本机真实验收通过 | 同一 Work、Goal 和 Mission 的版本化上下文、结果、证据、制品、网关操作与视图交接 | fix/harness-reference-continuity-20261118 | 等待 PR152 定向 CI 通过后合入 dev | dev 028c8d76 | 96b131ae 保存版本化视图与模型上下文，复用原操作；必需回执缺失阻止依赖派发。 | 真实 Work 读取原模型上下文与已就绪视图。真实 Mission 跨 Work 和复核查询原操作；缺回执时阻止依赖。1,206 个本机定向检查通过。PR152 的 macOS 作业已排队。[审计](../reviews/2026-11-18-harness-reference-continuity.md) |
 | enterprise-core-reply-20261118 | 企业指令核心回复与执行过程 | 1 | 已合入 dev，本地真实验收通过 | 主会话展示核心摘要和具体执行操作，右栏保留正式回答；已打开模型按冻结版本引用 | dev | 根据后续真实任务反馈维护 | dev ba6dba8e / PR150 | 按实际步骤和工具调用展示过程；关联模型拓扑和正式回答 | PR150 合入 958b6e27，macOS 定向 CI 通过。IEEE 39 真实潮流收敛，下载校验 Markdown 记录，刷新恢复摘要及全文入口。[设计](../superpowers/specs/2026-11-18-enterprise-core-reply-design.md) |
 | enterprise-data | 生产数据研究接入 | 1 | 首期已合入；会话级取源本地验证通过 | enterprise-research动态发现生产数据工具，保存来源与报告，按会话冻结实例 | dev d3c69284 | 后续按具体业务反馈推进 | origin/dev196e865a | 主提供方动态契约与续接；会话级实例、契约版本、模型视图及回执一致 | 联调A与研发B会话隔离，真实CSV5行及下载哈希通过；未做云端发布。[验证报告](../reports/2026-10-31-session-gateway-binding.md) |
 | dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev已快进f300，local-dev规范重建与真实源码核验通过；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
@@ -1811,6 +1811,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 152 | harness-reference-continuity | fix/harness-reference-continuity-20261118 | dev | OPEN | 本机通过；macOS 定向 CI 44335874304 排队，精确受检提交 a59262f5。 |
 | 119 | shared-agent | docs/harness-cancellation-acceptance-20261115 | dev | MERGED | fffc881e；受检0e1fb9f2；获批macOS docs CI43723280469通过111秒；现有取消/新指令/API重启与刷新证据，无运行代码变化 |
 | 118 | shared-agent | docs/historical-input-closeout-20261115 | dev | MERGED | d718050c；受检1250ac71；获批macOS docs CI43708007107通过125秒；实际dev同步，运行来源5798dad6保留，分支关闭 |
 | 117 | shared-agent | feat/historical-input-receipts-20261115 | dev | MERGED | 5798dad6；受检6625c0bb；唯一获批macOS historical-inputs CI43704515136通过149秒；来源分支关闭，云端/demo未变 |
@@ -1889,7 +1890,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| fix/harness-reference-continuity-20261118 | Harness，目标 dev | 96b131ae 本机真实验收，ab387573 定向门禁 | dev 评审与集成 | harness-reference-continuity |
+| fix/harness-reference-continuity-20261118 | Harness，目标 dev | 96b131ae 本机真实验收，ab387573 定向门禁；PR152 审核中 | macOS CI 通过后合入 dev | harness-reference-continuity |
 | feat/durable-instruction-admission-20261118 | PR140已合dev并关闭来源分支 | 受检c2526df3，合并38a9e77f；定向CI与实际本机通过 | 保留有限回执；Mission由独立工作包接续 | shared-agent |
 | feat/mission-foundation-20261118 | capstone-control/agent/App，目标dev38a9e77f | 941afaee及同一指令真实闭环通过；91Control/485后端/94App通过 | 定向CI/PR集成后验证实际5173；最终自身回执由忽略目录结算 | shared-agent |
 | feat/execution-details-20261117 | PR138已合入并关闭 | f1c4dc57；189App/类型与143范围通过；最终规范重建及5174复验通过 | 完成本机复验与定向集成门禁；后续为持久指令接纳 | shared-agent |

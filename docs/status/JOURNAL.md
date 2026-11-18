@@ -8212,3 +8212,9 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: ab387573 scopes CI to Harness consumers; local package boundaries and 1,206 targeted tests passed.
 
 - 2026-11-18: Live ready view replay retained source identity, read summary_nodes, and made zero replacement opens.
+
+- 2026-11-18: a59262f5 records exact local image, real ready view reuse, and Mission verification.
+
+- 2026-11-18: PR152 runs macOS Harness gate44335874304 on exact head a59262f5.
+
+- 2026-11-18: Live Goal reused its selected context, and final legacy recovery preserved the original Thread cursor.
