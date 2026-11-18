@@ -601,6 +601,9 @@ def test_harness_reference_gate_is_scoped_to_the_registered_consumers():
         'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
         'packages/capstone-control/src/capstone_control/service.py',
         'packages/pandapower-domain-pack/src/pandapower_domain/authority.py',
+        'packages/capstone-app/src/ThreadProductsWorkspace.test.tsx',
+        'packages/capstone-app/src/ThreadProductsWorkspace.tsx',
+        'packages/capstone-app/src/threadProducts.css',
         'docs/reviews/2026-11-18-harness-reference-continuity.md',
     ]
     assert select_gate(changes) == 'harness-references'
