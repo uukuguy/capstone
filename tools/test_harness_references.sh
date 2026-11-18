@@ -9,7 +9,7 @@ uv run --project packages/capstone-agent python -m pytest -q \
   "$agent"/test_{agent_delegation,answer_presentation,continuation_file_capacity,control_host}.py \
   "$agent"/test_{data_gateway_relay,data_gateway_views,grid_electrical_view,gateway_progressive}.py \
   "$agent"/test_{delegated_runtime,general_pi_executor,general_pi_server,goal_mode,goal_receipts,harness}.py \
-  "$agent"/test_{main_chain_context,mission_continuation,pi_delegation,thread_work_execution,thread_worker}.py \
+  "$agent"/test_{main_chain_context,mission_continuation,pi_delegation,thread_http_api,thread_work_execution,thread_worker}.py \
   tools/tests/test_ci_scope.py tools/tests/test_host_runtime_contract.py tools/tests/test_image_layer_order.py
 
 uv run --project packages/pandapower-domain-pack python -m pytest -q \

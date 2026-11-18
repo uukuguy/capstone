@@ -8228,3 +8228,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 2405d2d6 preserves separate answer and summary when model JSON contains literal line breaks.
 
 - 2026-11-19: Final live instruction run saved the formal answer, core summary, result, and two evidence references.
+
+- 2026-11-19: fc3a5b83 records the final live reply recovery and exact local runtime identity.
+
+- 2026-11-19: 1530c682 places execution below the formal answer and links verified model diagrams to native replies.

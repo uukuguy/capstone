@@ -227,3 +227,24 @@ The final local image `7f52be531d78…` completed a fresh live run
 `attempt_b7c3aca64e1c9fae`. It admitted the queued instruction and saved
 the formal answer, a separate 132-character core summary, one result and
 two evidence references. The focused suite passed 268 tests.
+
+## Enterprise answer layout and associated topology
+
+The enterprise conversation shows one full process record below the formal
+answer. The CAPSTONE header and completion time precede the core summary.
+Status, duration and actions sit above the closed formal answer. The
+summary and formal body use the same font size and line height. Browser
+measurement confirmed that expanding the answer leaves the toolbar at the
+same vertical position.
+
+A native answer can publish a diagram from its verified Authority context.
+The application reads the exact model revision through the registered
+operator diagram capability without reopening the model or running a
+calculation. Older completed Attempts can read their frozen diagram on
+demand when the required receipt remains available. Existing work and model
+selection remain intact.
+
+Native Attempt `attempt_0269ef131b02d844` published its IEEE 39 diagram.
+The original completed Attempt `attempt_97c0ed64814465e6` resolved its
+saved diagram with 39 buses and 46 branches on image `f827f36f9c68…`.
+The same URL from a different workspace returned 404.
