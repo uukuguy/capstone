@@ -63,7 +63,7 @@ import {parseThreadDisplayRequest,selectInstructionModelPage,selectThreadViewPro
 
 const statusCopy: Record<string, string> = { ready: '已保存，待执行', queued: '已排队', running: '执行中', completed: '已完成', failed: '执行失败', cancelled: '已取消', interrupted: '执行已中断', blocked: '执行不可用' }
 class CommandRejectedError extends Error {}
-type InstructionViewState={attemptId:string|null;manual:boolean;appliedSeq:number;automatic:'source'|'model'|'products'|null;requestedSource?:ThreadDisplayRequest;requestNonce:number}
+type InstructionViewState={attemptId:string|null;manual:boolean;appliedSeq:number;automatic:'source'|'model'|'task-diagram'|'products'|null;requestedSource?:ThreadDisplayRequest;requestNonce:number}
 const reasonCopy: Record<string, string> = { execution_unavailable: '当前任务的执行能力尚未接通，仍可保存目标和资料。', model_context_required: '当前任务没有专业模型，仍可保存资料。', capability_required: '当前任务尚未启用执行所需的业务能力，仍可保存目标和资料。', attempt_in_progress: '当前会话已有任务正在执行。', case_execution_active: '当前会话已有案例正在执行。', case_context_locked: '当前案例正在使用任务上下文，请等待其完成。', context_change_pending: '任务上下文正在更新，请稍后重试。', thread_archived: '此会话已归档。', run_not_open: '当前运行已关闭。' }
 
 /** Data adapter for the existing workspace and assistant-ui presentation. */
@@ -173,10 +173,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [attachmentReload,setAttachmentReload]=useState(0)
   useEffect(()=>setUploadBusy(false),[currentId])
   const [productsOpen,setProductsOpen]=useSessionViewState('resource.open',()=>readWorkspacePanels(currentId).resource??false)
-  const [shownTaskDiagram,setShownTaskDiagram]=useState<string>()
+  const [shownTaskDiagram,setShownTaskDiagram]=useSessionViewState<string|undefined>('resource.task-diagram',undefined)
   const [taskViewRequest,setTaskViewRequest]=useState(0)
   const [restoredTaskDiagram,setRestoredTaskDiagram]=useState<{threadId:string;attemptId:string;view:NonNullable<ReturnType<typeof parseNetworkView>>}>()
   const diagramRequest=useRef<AbortController | undefined>(undefined)
+  const historicalDiagrams=useRef(new Map<string,NonNullable<ReturnType<typeof parseNetworkView>>>())
+  const [taskDiagramLoad,setTaskDiagramLoad]=useState<'loading'|'unavailable'>()
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
   const instructionViewRef=useRef(instructionView);instructionViewRef.current=instructionView
@@ -559,8 +561,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     return new Map(store.conversationEvents.flatMap(event=>
       event.visibility==='public'&&event.eventType==='attempt_completed'&&!event.modelContextId&&event.attemptId&&
       Array.isArray(event.payload.authority_references)&&event.payload.authority_references.length>0
-        ?[[event.attemptId,[event.payload.result_refs,event.payload.evidence_refs]
-          .flatMap(refs=>Array.isArray(refs)?refs.filter((ref):ref is string=>typeof ref==='string'):[])] as const]:[]))
+        ?[[event.attemptId,{eventSeq:event.eventSeq,refs:[event.payload.result_refs,event.payload.evidence_refs]
+          .flatMap(refs=>Array.isArray(refs)?refs.filter((ref):ref is string=>typeof ref==='string'):[]),
+          receipts:event.payload.authority_references}] as const]:[]))
   },[store,projection])
   const taskDiagrams=useMemo(()=>{
     const diagrams=new Map<string,unknown>()
@@ -568,12 +571,15 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     for(const event of store.conversationEvents){
       const attemptId=event.attemptId
       if(event.visibility!=='public'||!attemptId||event.modelContextId)continue
-      const refs=taskDiagramSources.get(attemptId)
-      if(!refs)continue
+      const source=taskDiagramSources.get(attemptId)
+      if(!source)continue
       if(event.eventType==='network_diagram')diagrams.set(attemptId,event.payload.diagram)
       if(event.eventType==='network_layer'){
+        if(event.payload.projection_version!==2&&source.receipts.some(receipt=>
+          receipt?.capability_id==='result.dataset.query')&&source.receipts.some(receipt=>
+          receipt?.capability_id==='result.branches.rank'))continue
         const view=parseNetworkView({schema:'capstone-network-view/2.0',ordinal:1,
-          diagram:diagrams.get(attemptId),layer:event.payload.layer},1,refs)
+          diagram:diagrams.get(attemptId),layer:event.payload.layer},1,source.refs)
         if(view)views.set(attemptId,view)
       }
     }
@@ -581,15 +587,21 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   },[store,projection,taskDiagramSources])
   const shownDiagram=shownTaskDiagram?(taskDiagrams.get(shownTaskDiagram)??
     (restoredTaskDiagram?.threadId===currentId&&restoredTaskDiagram.attemptId===shownTaskDiagram?restoredTaskDiagram.view:undefined)):undefined
-  useEffect(()=>()=>diagramRequest.current?.abort(),[currentId])
+  useEffect(()=>()=>{diagramRequest.current?.abort();historicalDiagrams.current.clear()},[currentId])
+  function openTaskDiagram(attemptId:string){
+    setShownTaskDiagram(attemptId)
+    setTaskViewRequest(value=>value+1)
+    setResourceView('task-diagram')
+    setProductsOpen(true)
+  }
   function showInstructionNetwork(attemptId:string){
     diagramRequest.current?.abort()
     const proposal=instructionViews.get(attemptId)
     const showView=(view:NonNullable<ReturnType<typeof parseNetworkView>>)=>{
       setRestoredTaskDiagram({threadId:currentId,attemptId,view})
-      setShownTaskDiagram(attemptId)
-      setTaskViewRequest(value=>value+1)
-      selectResourceView('task-diagram')
+      setTaskDiagramLoad(undefined)
+      markManualView()
+      openTaskDiagram(attemptId)
     }
     if(proposal?.kind==='model'){
       showView(proposal.view)
@@ -597,22 +609,29 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     }
     const modelPage=instructionModelPages.get(attemptId)
     if(proposal?.kind!=='source'&&!modelPage){
-      const refs=taskDiagramSources.get(attemptId)
-      if(!refs)return
-      const saved=taskDiagrams.get(attemptId)??(restoredTaskDiagram?.threadId===currentId
-        &&restoredTaskDiagram.attemptId===attemptId?restoredTaskDiagram.view:undefined)
+      const source=taskDiagramSources.get(attemptId)
+      if(!source)return
+      const cacheKey=`${currentId}:${attemptId}`
+      const saved=taskDiagrams.get(attemptId)??historicalDiagrams.current.get(cacheKey)
       if(saved){
         showView(saved)
         return
       }
+      markManualView()
+      setTaskDiagramLoad('loading')
+      openTaskDiagram(attemptId)
       const request=new AbortController()
       diagramRequest.current=request
       void transport.readTaskDiagram(currentId,attemptId,request.signal).then(value=>{
         if(request.signal.aborted)return
-        const view=parseNetworkView(value,1,refs)
+        const view=parseNetworkView(value,1,source.refs)
         if(!view)throw new Error('模型拓扑无法验证')
-        showView(view)
-      }).catch(()=>{if(!request.signal.aborted)setError('此指令没有可用的电网图。')})
+        const cache=historicalDiagrams.current
+        cache.set(cacheKey,view)
+        if(cache.size>8)cache.delete(cache.keys().next().value!)
+        setRestoredTaskDiagram({threadId:currentId,attemptId,view})
+        setTaskDiagramLoad(undefined)
+      }).catch(()=>{if(!request.signal.aborted)setTaskDiagramLoad('unavailable')})
       return
     }
     markManualView()
@@ -635,7 +654,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   }
   function setResourcePanelOpen(open:boolean){markManualView();setProductsOpen(open)}
   useEffect(()=>{
-    if(!liveConversation||!latestInstructionAttempt||resourceView==='task-diagram')return
+    if(!liveConversation||!latestInstructionAttempt)return
     let state=instructionViewRef.current
     if(state.attemptId!==latestInstructionAttempt){
       // Refresh can first replay an older history page. It is not a new instruction.
@@ -646,7 +665,29 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       setRequestedProduct(undefined)
       saveInstructionView(state)
     }
-    if(state.manual||state.automatic==='products'||!viewProposal||viewProposal.eventSeq<=state.appliedSeq)return
+    const completed=taskDiagramSources.get(latestInstructionAttempt)
+    const terminalSeq=viewProposal?store.publicEvents.find(event=>
+      event.attemptId===latestInstructionAttempt&&event.eventType==='attempt_completed')?.eventSeq:undefined
+    const readySeq=completed&&taskDiagrams.has(latestInstructionAttempt)?completed.eventSeq:terminalSeq
+    if(client.supportsProductIndex&&readySeq&&readySeq>state.appliedSeq){
+      diagramRequest.current?.abort()
+      if(viewProposal?.kind==='source'){
+        const identical=state.automatic==='source'&&JSON.stringify(state.requestedSource)===JSON.stringify(viewProposal.request)
+        saveInstructionView({...state,appliedSeq:readySeq,automatic:'source',manual:false,
+          requestedSource:viewProposal.request,requestNonce:state.requestNonce+(identical?0:1)})
+        setResourceView('source-topology')
+        setProductsOpen(true)
+      }else{
+        if(viewProposal?.kind==='model')
+          setRestoredTaskDiagram({threadId:currentId,attemptId:latestInstructionAttempt,view:viewProposal.view})
+        saveInstructionView({...state,appliedSeq:readySeq,automatic:'task-diagram',manual:false})
+        setTaskDiagramLoad(undefined)
+        openTaskDiagram(latestInstructionAttempt)
+      }
+      artifactOpened.current=true
+      return
+    }
+    if(state.manual||state.automatic==='products'||state.automatic==='task-diagram'||!viewProposal||viewProposal.eventSeq<=state.appliedSeq)return
     if(viewProposal.kind==='source'){
       const identical=state.automatic==='source'&&JSON.stringify(state.requestedSource)===JSON.stringify(viewProposal.request)
       saveInstructionView({...state,appliedSeq:viewProposal.eventSeq,automatic:'source',requestedSource:viewProposal.request,requestNonce:state.requestNonce+(identical?0:1)})
@@ -656,7 +697,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       store.viewGridPage(viewProposal.pageId);setResourceView('model')
     }
     artifactOpened.current=true;setProductsOpen(true)
-  },[liveConversation,latestInstructionAttempt,latestAcceptedInstruction,viewProposal,resourceView,store,saveInstructionView,client.supportsProductIndex])
+  },[liveConversation,latestInstructionAttempt,latestAcceptedInstruction,viewProposal,taskDiagrams,taskDiagramSources,store,saveInstructionView,client.supportsProductIndex,currentId])
   const requestedSourceView=parseThreadDisplayRequest(instructionView.requestedSource)??undefined
   const nativeFiles=projectNativeArtifacts(conversation.events)
   const attemptLabels=Object.fromEntries(conversation.events.filter(event=>event.eventType==='command_accepted'&&event.attemptId).flatMap(event=>{
@@ -779,11 +820,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     if(record){record.scrollIntoView({block:'nearest'});record.focus({preventScroll:true})}
     else setError('来源执行暂不可用，请加载原始记录后重试。')
   }
-  const taskDiagramViews=shownDiagram?[{id:'task-diagram',label:'电网图',content:<NetworkView compact
+  const taskDiagramViews=resourceView!=='source-topology'&&(shownDiagram||taskDiagramLoad||resourceView==='task-diagram')?[{id:'task-diagram',label:'电网图',content:shownDiagram?<NetworkView compact
     view={shownDiagram} modelName={(shownDiagram.schema==='capstone-network-view/2.0'?shownDiagram.diagram:shownDiagram).model.id} focusKey={shownTaskDiagram!} returnTaskRequest={taskViewRequest}
     instructionLabel={shownDiagram.schema==='capstone-network-view/2.0'
       && !shownDiagram.layer.focus_ids.length && !shownDiagram.layer.annotations
-      ? '模型全图 · 无已保存焦点' : '本次指令的关注视图'}/>,description:'本次执行使用的注册模型和版本。'}]:[]
+      ? '模型全图 · 无已保存焦点' : '本次指令的关注视图'}/>:<p role="status">{taskDiagramLoad==='loading'?'正在载入指令电网图…':taskDiagramLoad==='unavailable'?'此指令没有可用的电网图。':'选择一条指令查看电网图。'}</p>,description:'本次执行使用的注册模型和版本。'}]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
@@ -840,7 +881,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
       {pending?.kind==='withdraw_instruction'&&<button type="button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试撤回请求</button>}
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
-      {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
+      {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||attachmentsLoading||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
       {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}/>)}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}

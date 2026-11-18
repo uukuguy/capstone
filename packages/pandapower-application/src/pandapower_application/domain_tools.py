@@ -39,7 +39,7 @@ class PandapowerDomainToolService(PandapowerToolService):
         """Project the exact topology and attention of one admitted answer."""
         from pandapower_application.thread_network_view import project_endpoint_focus
         from pandapower_domain.authority import PandapowerArtifactAuthority
-        from pandapower_domain.network_annotations import project_base_disconnections
+        from pandapower_domain.network_annotations import project_base_disconnections, selected_loading_assets
         from pandapower_domain.execution import SimulatorCapabilityError
 
         owner = domain_workspace_id({'task_id': 'diagram', 'management': document['management']})
@@ -47,7 +47,9 @@ class PandapowerDomainToolService(PandapowerToolService):
         contexts = set()
         endpoint_evidence = []
         ranked_views = []
-        saved_rank_results = {}
+        dataset_views = []
+        saved_queries = {}
+        results = {}
         for receipt in document['references']:
             if receipt['authority_id'] != authority.authority_id:
                 continue
@@ -55,12 +57,16 @@ class PandapowerDomainToolService(PandapowerToolService):
             if receipt.get('capability_id') == 'topology.branch.endpoints.get':
                 endpoint_evidence.extend(receipt['evidence_refs'])
             for reference in receipt['result_refs']:
-                result = authority.verify_result(reference).document
+                if reference not in results:
+                    results[reference] = authority.verify_result(reference).document
+                result = results[reference]
                 contexts.add(result['context_ref'])
-                if receipt.get('capability_id') == 'result.branches.rank':
-                    saved_rank_results[reference] = result
+                capability = receipt.get('capability_id')
+                if capability in {'result.branches.rank', 'result.dataset.query'}:
+                    saved_queries[capability, reference] = result
                     if receipt.get('view_refs'):
-                        ranked_views.append((reference, result, receipt['view_refs']))
+                        views = dataset_views if capability == 'result.dataset.query' else ranked_views
+                        views.append((reference, result, receipt['view_refs']))
             for reference in receipt['evidence_refs']:
                 contexts.add(authority.verify_evidence(reference).document['context_ref'])
         if len(contexts) != 1:
@@ -77,28 +83,41 @@ class PandapowerDomainToolService(PandapowerToolService):
                 'coordinate_system': topology['coordinate_system'], 'buses': topology['buses'],
                 'branches': topology['branches'], 'disconnections': project_base_disconnections(topology)}
 
-        focus = project_endpoint_focus(topology, endpoint_evidence, authority, executor,
-                                       context_ref, context['revision_ref'])
-        if not ranked_views and saved_rank_results:
+        if not dataset_views:
             for call in reversed(document.get('tool_calls', ())):
                 arguments = call['arguments']
                 reference = arguments.get('result_ref')
-                if (self._capabilities.get(call['name']) != 'result.branches.rank' or not isinstance(reference, str)
-                        or reference not in saved_rank_results):
+                capability = self._capabilities.get(call['name'])
+                if capability != 'result.dataset.query' or not isinstance(reference, str):
+                    continue
+                result = saved_queries.get((capability, reference))
+                if result is not None and (selected := selected_loading_assets(arguments, result)):
+                    dataset_views.append((reference, result, selected))
+                    break
+        if not dataset_views and not ranked_views:
+            for call in reversed(document.get('tool_calls', ())):
+                arguments = call['arguments']
+                reference = arguments.get('result_ref')
+                capability = self._capabilities.get(call['name'])
+                if capability != 'result.branches.rank' or not isinstance(reference, str):
+                    continue
+                result = saved_queries.get((capability, reference))
+                if result is None:
                     continue
                 try:
-                    ranked = executor.invoke('result.branches.rank', arguments)
+                    ranked = executor.invoke(capability, arguments)
                 except (SimulatorCapabilityError, ValueError):
                     continue
                 if (ranked.get('result_ref') == reference and ranked.get('context_ref') == context_ref
                         and ranked.get('revision_ref') == context['revision_ref']):
                     selected = [row['branch_ref'] for row in ranked['branches'][:20]]
-                    ranked_views.append((reference, saved_rank_results[reference], selected))
+                    ranked_views.append((reference, result, selected))
                     break
 
+        focus = []
         overlay = None
         known = {branch['id'] for branch in topology['branches']}
-        for reference, result, selected in reversed(ranked_views):
+        for reference, result, selected in reversed(dataset_views or ranked_views):
             if result.get('revision_ref') != context['revision_ref']:
                 continue
             rows = {row['branch_ref']: row for row in result.get('branch_results', ())}
@@ -116,11 +135,14 @@ class PandapowerDomainToolService(PandapowerToolService):
                 if kind == 'line' and identifier in known and type(value) in (int, float) and math.isfinite(value):
                     values.append({'id': identifier, 'value': value})
             if ranked_focus:
-                focus = list(dict.fromkeys([*ranked_focus, *focus]))[:20]
+                focus = list(dict.fromkeys(ranked_focus))[:20]
                 if values:
                     overlay = {'metric': 'loading_percent', 'unit': '%',
                                'source_ref': reference, 'values': values}
                 break
+        if not focus:
+            focus = project_endpoint_focus(topology, endpoint_evidence, authority, executor,
+                                           context_ref, context['revision_ref'])
         return {'schema': 'capstone-network-view/2.0', 'ordinal': 1, 'diagram': diagram,
                 'layer': {'focus_ids': focus, 'next_focus_ids': [], 'overlay': overlay}}
 

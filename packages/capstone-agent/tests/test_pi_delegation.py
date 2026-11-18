@@ -598,9 +598,11 @@ def test_event_callback_parent_stop_prevents_completed_return(service, reason):
         else:
             time.sleep(0.09)
 
+    # Cancellation is driven by the callback, independent of the HTTP setup time.
+    budget = 1 if reason == "cancel" else 0.07
     with pytest.raises(RuntimeError if reason == "cancel" else TimeoutError):
         executor(origin).execute(PiTaskRequest.from_document(request_document()),
-                                 NodeControl(check, time.monotonic() + 0.07), on_event)
+                                 NodeControl(check, time.monotonic() + budget), on_event)
     assert state["cancelled"] == ["/tasks/task-1"]
 
 

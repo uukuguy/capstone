@@ -641,6 +641,13 @@ function messageText(message: { content: unknown }): string {
 
 export const MarkdownMessage = MarkdownContent
 
+function answerSummaryMarkdown(summary: string) {
+  if (summary.includes('\n') || summary.length < 100) return summary
+  const sentences = summary.split(/(?<=[。！？；])\s*(?=[^。！？；])/u)
+  return sentences.join('\n\n')
+}
+
+
 async function copyToClipboard(value: string): Promise<boolean> {
   if (!value) return false
   if (navigator.clipboard?.writeText) {
@@ -1146,7 +1153,7 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
       <span className="capstone-chat-role">{author}</span>
       {finishedAt && <InstructionTime value={finishedAt} completion />}
     </div>}
-    {coreReply && <div className="capstone-chat-body capstone-answer-summary" aria-label="答复摘要"><p>{coreReply}</p></div>}
+    {coreReply && <div className="capstone-chat-body capstone-answer-summary" aria-label="答复摘要"><MarkdownMessage>{answerSummaryMarkdown(coreReply)}</MarkdownMessage></div>}
     {role === 'assistant' && <div ref={footerRef} className="capstone-chat-footer" onClickCapture={() => { if (footerRef.current) preserveControl(id, footerRef.current) }}>
       {inlineExecution && statusLabel && <span className="capstone-answer-status">{statusLabel}</span>}
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />

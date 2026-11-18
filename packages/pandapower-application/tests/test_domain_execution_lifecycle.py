@@ -324,6 +324,26 @@ def test_ranked_task_view_validates_selection_against_admitted_result(tmp_path, 
     layer = service.project_task_view(request)['layer']
     assert layer['focus_ids'] == ['line:11', 'line:2']
     assert layer['overlay']['values'] == [{'id': 'line:11', 'value': 70}, {'id': 'line:2', 'value': 10}]
+    # A narrower structured selection supersedes the exploratory ranking.
+    query = {'authority_id': 'gridctl', 'capability_id': 'result.dataset.query',
+             'result_refs': ['result:one'], 'evidence_refs': [], 'view_refs': [high]}
+    request['references'].append(query)
+    assert service.project_task_view(request)['layer']['focus_ids'] == ['line:11']
+
+    # Older records contain the successful query but lack its view references.
+    query.pop('view_refs')
+    service._capabilities['loading_query'] = 'result.dataset.query'
+    request['tool_calls'] = [{'name': 'loading_query', 'arguments': {
+        'result_ref': 'result:one', 'dataset': 'result.res_line',
+        'select': ['index', 'loading_percent'], 'limit': 1,
+        'sort': {'field': 'loading_percent', 'direction': 'descending'},
+    }}]
+    layer = service.project_task_view(request)['layer']
+    assert layer['focus_ids'] == ['line:11']
+    assert layer['overlay']['values'] == [{'id': 'line:11', 'value': 70}]
+
+    request.pop('tool_calls')
+    request['references'].pop()
     receipt['view_refs'] = ['asset:line:sha256:' + 'c' * 64]
     assert service.project_task_view(request)['layer']['focus_ids'] == []
 

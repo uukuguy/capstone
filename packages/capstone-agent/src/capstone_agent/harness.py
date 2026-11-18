@@ -912,7 +912,8 @@ class HarnessAttemptRunner:
                         self._service.append_runtime_event(claim, event_type='network_diagram',
                             payload={'diagram': view['diagram']}, visibility='public')
                         self._service.append_runtime_event(claim, event_type='network_layer',
-                            payload={'ordinal': view['ordinal'], 'layer': view['layer']}, visibility='public')
+                            payload={'ordinal': view['ordinal'], 'layer': view['layer'], 'projection_version': 2},
+                            visibility='public')
                 except (OSError, TypeError, ValueError):
                     pass
             lease.check()

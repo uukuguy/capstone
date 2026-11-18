@@ -1857,6 +1857,17 @@ describe('CapstoneAssistantThread', () => {
     expect(second.querySelector('details')?.open).toBe(false)
   })
 
+  it('renders an independently generated summary as readable Markdown', () => {
+    const summary = '潮流已收敛。\n\n- **线路 21**：73.37%\n- **线路 11**：67.15%'
+    render(<CapstoneAssistantThread inlineExecution events={[
+      event('attempt_completed', 1, {answer:'完整的正式回答。',answer_core_summary:summary}, 'attempt_1'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const block = screen.getByLabelText('答复摘要')
+    expect(block.querySelectorAll('li')).toHaveLength(2)
+    expect(block.querySelector('strong')?.textContent).toBe('线路 21')
+    expect(block.querySelector('p')?.textContent).toBe('潮流已收敛。')
+  })
+
   it('keeps an earlier completed execution open when its summary is clicked again', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', payload: { text: '打开模型' } }, 'attempt_1'),

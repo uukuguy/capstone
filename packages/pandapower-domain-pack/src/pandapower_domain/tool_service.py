@@ -188,8 +188,13 @@ class PandapowerToolService:
                         }
                         if capability == 'result.branches.rank' and result_refs:
                             selected = [row['branch_ref'] for row in result['branches'][:20]]
-                            if selected:
-                                response['authority_references']['view_refs'] = selected
+                        elif capability == 'result.dataset.query' and result_refs:
+                            from .network_annotations import selected_loading_assets
+                            selected = selected_loading_assets(arguments, verified.results[0].document)
+                        else:
+                            selected = []
+                        if selected:
+                            response['authority_references']['view_refs'] = selected
             except ExecutionReceiptError:
                 raise
             except SimulatorCapabilityError as error:

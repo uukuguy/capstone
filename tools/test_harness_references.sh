@@ -21,4 +21,4 @@ uv run --project packages/pandapower-application python -m pytest -q \
   packages/pandapower-application/tests/application/test_hosted.py
 
 npm --prefix packages/capstone-app run check
-npm --prefix packages/capstone-app test -- src/ExecutionDetails.test.tsx src/CapstoneAssistantThread.test.tsx src/threadHttpTransport.test.ts
+npm --prefix packages/capstone-app test -- src/ExecutionDetails.test.tsx src/ThreadWorkExecution.test.tsx src/CapstoneAssistantThread.test.tsx src/threadHttpTransport.test.ts
