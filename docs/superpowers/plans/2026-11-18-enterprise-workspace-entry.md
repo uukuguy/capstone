@@ -39,3 +39,15 @@ restored focus to its toggle and left the composer visible.
 
 The actual dev backend used image `4ba1552b3b12`. Runtime and browser evidence
 are in the local `runs/enterprise-workspace-entry-20261118/` directory.
+
+## Main conversation correction
+
+Each enterprise assistant turn shows an excerpt from its actual reply and a
+summary of recorded progress or tool activity when available. The shared
+execution reader retains the full answer and process. A terminal status is
+displayed as status. It is never used as reply content.
+
+PR #148 merged to dev `6d4bc023` after focused macOS CI `44239399878`.
+The rebuilt App restored two real replies, two progress summaries and two
+complete records at 390px. The local browser receipt is in
+`runs/enterprise-inline-reply-20261118/dev-browser.json`.

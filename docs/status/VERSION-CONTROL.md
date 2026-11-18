@@ -14,6 +14,8 @@
 
 # 多线版本控制
 
+2026-11-18 企业主会话回复与执行过程修正经 PR148 合入 dev `6d4bc023`。受检来源 `b526d771`，macOS 定向 CI `44239399878` 通过。原有真实 Mission 的两条回答、过程摘要和右栏记录已核对。47 项定向 App 检查通过。
+
 2026-11-18 企业工作台入口首包经 PR146 合入 dev `68857937`。受检来源 `fa68bf31`，macOS App CI `44236252574` 通过。新增 `/enterprise`，复用现有会话、输入、执行详情和成果。104 项 App 定向检查、真实提交与停止、只读刷新、1440px 和 390px 布局验收通过。[实施计划](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md)。
 
 2026-11-18 Mission 注册技能配备通过 PR144 合入 dev `f22ea11c`。受检来源 `42e55f15`，macOS 定向 CI `44229048684` 通过。真实组织者选择验证技能 1.0.0，子任务加载并保存 2,007 字节记录。暂停后第二代委派使用同一版本，1,537 字节记录复验通过。无效版本在计划变更前被拒绝。见[实施计划](../superpowers/plans/2026-11-18-mission-registered-skills.md)。
@@ -1418,6 +1420,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| enterprise-inline-reply-20261118 | 6d4bc023 | dev | 企业主会话回复与进展 | PR148、macOS CI 和真实会话复验通过 | 主会话显示真实答复摘录和已记录进展，右栏保留完整记录。[验收](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md#main-conversation-correction) | shared-agent |
 | enterprise-workspace-entry-20261118 | 68857937 | dev | 独立企业工作台入口 | PR146，macOS App CI 和本机真实验收通过 | 独立路由和布局偏好、复用会话与制品。[实施计划](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md) | shared-agent |
 | mission-registered-skills-20261118 | f22ea11c | dev | Mission 注册技能配备 | PR144，macOS 定向 CI 和两次真实技能委派通过 | 精确版本与原生加载；目录为技能保留空间。[实施计划](../superpowers/plans/2026-11-18-mission-registered-skills.md) | shared-agent |
 | mission-versioned-resources-20261118 | 8d402bed | dev | Mission 版本化资源 | PR142 的 macOS 定向 CI 与本机真实子任务验收通过 | 资源版本发布、精确子任务读授权、按委派隔离观察序号。[实施计划](../superpowers/plans/2026-11-18-mission-versioned-resources.md) | shared-agent |
@@ -1628,6 +1631,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| enterprise-inline-reply-20261118 | 已合入 dev | dev · PR148 | 主会话可读真实回复；主线显示执行进展并链接完整记录 | CI 与真实会话复验通过 |
 | enterprise-workspace-entry-20261118 | 已合入 dev | dev · PR146 | 独立企业路由与布局偏好；复用真实会话、输入及成果 | macOS CI 和本机桌面、窄屏验收通过 |
 | mission-registered-skills-20261118 | 已合入 dev | dev · PR144 | 精确技能版本与委派执行；暂停后保留原版本 | CI、技能加载及成果复验通过 |
 | mission-versioned-resources-20261118 | 已合入 dev | dev · PR142 | 精确资源版本与子任务授权；暂停后按原版本恢复 | macOS CI、本地模型与原字节验收通过 |
@@ -2101,7 +2105,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API/三 worker 与 App 检出 `68857937`；App 产品树 `fa68bf31` 与合并树一致 | API/三 worker 同镜像 4ba1552b；就绪与缓存维护通过 | App http://127.0.0.1:5173/enterprise；实际 dev 复验停止回执、制品摘要、恢复及 390px 输入区。 |
+| local-dev | API/三 worker 与 App 检出 `6d4bc023`；App 产品树 `b526d771` 与合并树一致 | API/三 worker 同镜像 c11baddb；就绪与缓存维护通过 | App http://127.0.0.1:5173/enterprise；真实 Mission 两条回复、过程摘要和右栏完整记录复验。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
