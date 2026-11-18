@@ -1089,7 +1089,7 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
         raise ThreadProtocolError(f"{name} is too large")
 
 
-def saved_task_diagram_inputs(service, thread_id, attempt_id):
+def saved_task_diagram_inputs(service, thread_id, attempt_id, *, focused=False):
     """Read the versioned projection inputs of one completed, model-free Attempt."""
     from .structural_context import checked_authority_references
     if isinstance(service, InMemoryThreadService):
@@ -1101,6 +1101,10 @@ def saved_task_diagram_inputs(service, thread_id, attempt_id):
             if event is None:
                 raise ValueError('task diagram source unavailable')
             row.update(payload=event.payload, submission_snapshot=row.get('submission'))
+            if focused:
+                tool_records = [e.payload for e in service._events if e.thread_id == thread_id
+                                and e.attempt_id == attempt_id and e.event_type == 'runtime_event'
+                                and e.visibility == 'public' and e.event_seq < event.event_seq][-256:]
     else:
         with service._connect() as connection:
             row = connection.execute("""SELECT e.payload,a.intent_input_snapshot,a.submission_snapshot
@@ -1109,6 +1113,13 @@ def saved_task_diagram_inputs(service, thread_id, attempt_id):
                 WHERE a.thread_id=%s AND a.attempt_id=%s AND a.phase='completed'
                 AND a.model_context_snapshot IS NULL AND e.event_type='attempt_completed'""",
                 (thread_id, attempt_id)).fetchone()
+            if focused and row is not None:
+                tool_records = [entry['payload'] for entry in reversed(connection.execute(
+                    """SELECT payload FROM capstone_thread_events
+                    WHERE thread_id=%s AND attempt_id=%s AND event_type='runtime_event'
+                    AND visibility='public'
+                    AND payload->>'native_type' IN ('tool_execution_start', 'tool_execution_end')
+                    ORDER BY event_seq DESC LIMIT 256""", (thread_id, attempt_id)).fetchall())]
         if row is None:
             raise ValueError('task diagram source unavailable')
     payload = row['payload']
@@ -1118,7 +1129,41 @@ def saved_task_diagram_inputs(service, thread_id, attempt_id):
         raise ValueError('task diagram references are unavailable')
     structural = (row.get('intent_input_snapshot') or {}).get('resources', {}).get('structural_context')
     catalog = (row.get('submission_snapshot') or {}).get('_application_catalog')
-    return structural, catalog, None, references
+    if not focused:
+        return structural, catalog, None, references, []
+    return structural, catalog, None, references, _saved_diagram_tool_calls(tool_records)
+
+
+def _saved_diagram_tool_calls(records):
+    """Recover complete inputs only for successful, owner-receipted native calls."""
+    from .tool_execution_receipt import checked_execution_receipt
+
+    inputs = {}
+    calls = []
+    for record in records:
+        name, task, call = (record.get(key) for key in ('tool_name', 'task_id', 'tool_call_id'))
+        if not all(isinstance(item, str) and 0 < len(item) <= 256 for item in (name, task, call)):
+            continue
+        key = (task, call, name)
+        activity = record.get('activity')
+        if not isinstance(activity, Mapping):
+            continue
+        kind = record.get('native_type')
+        if kind == 'tool_execution_start':
+            excerpt = activity.get('input_excerpt')
+            if isinstance(excerpt, str) and len(excerpt) <= 640:
+                inputs[key] = excerpt
+        if kind == 'tool_execution_end' and activity.get('is_error') is False and key in inputs:
+            try:
+                owner = checked_execution_receipt(activity.get('execution_receipt'), task_id=task, call_id=call)
+                if owner is None or not any(item['phase'] == 'execution_ended' for item in owner['events']):
+                    continue
+                arguments = json.loads(inputs.pop(key))
+            except ValueError:
+                continue
+            if isinstance(arguments, dict):
+                calls.append({'name': name, 'arguments': arguments})
+    return calls[-32:]
 
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:

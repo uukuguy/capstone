@@ -706,13 +706,14 @@ def create_host_app(
             })
 
         @app.get("/api/v1/threads/{thread_id}/attempts/{attempt_id}/task-diagram")
-        def get_task_diagram(thread_id: str, attempt_id: str, request: Request):
+        def get_task_diagram(thread_id: str, attempt_id: str, request: Request, focused: bool = False):
             require_private_thread(request)
             from .domain_tool_client import project_task_diagram
             from .thread_service import saved_task_diagram_inputs
             try:
                 thread_service.require_workspace(thread_id, request.state.workspace_name)
-                diagram = project_task_diagram(*saved_task_diagram_inputs(thread_service, thread_id, attempt_id))
+                diagram = project_task_diagram(*saved_task_diagram_inputs(thread_service, thread_id, attempt_id, focused=focused),
+                                               focused=focused)
             except (ThreadNotFound, ValueError, TypeError, KeyError):
                 diagram = None
             if diagram is None:

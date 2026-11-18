@@ -265,3 +265,89 @@ def test_native_task_diagram_uses_verified_context_without_reopening(tmp_path, m
         'context_refs': [ref], 'result_refs': [], 'evidence_refs': []}]})
     assert diagram['model']['revision'] == revision
     assert calls == [('operator.diagram.get', {'context_ref': ref})]
+
+
+def test_native_task_view_focuses_verified_branch(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from pandapower_domain.authority import PandapowerArtifactAuthority
+
+    ref, revision, evidence = ('context:one', 'revision:one', 'evidence:one')
+    asset = 'asset:line:sha256:' + 'a' * 64
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'verify_context', lambda self, value:
+        SimpleNamespace(document={'model_id': 'ieee39', 'revision_ref': revision}))
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'verify_evidence', lambda self, value:
+        SimpleNamespace(document={'context_ref': ref, 'revision_ref': revision,
+            'subject_ref': asset, 'evidence_type': 'network_fact',
+            'capability_id': 'topology.branch.endpoints.get'}))
+
+    def invoke(capability, arguments):
+        if capability == 'operator.diagram.get':
+            return {'context_ref': ref, 'revision_ref': revision, 'coordinate_system': 'fixture',
+                    'buses': [], 'branches': [{'id': 'line:11'}], 'branch_states': []}
+        assert capability == 'model.element.get' and arguments['identifier'] == asset
+        return {'context_ref': ref, 'revision_ref': revision, 'asset_ref': asset,
+                'element': {'asset_ref': asset, 'kind': 'line', 'index': 11}}
+
+    monkeypatch.setattr(service, '_executor', lambda owner: SimpleNamespace(invoke=invoke))
+    view = service.project_task_view({'management': {'schema': 'capstone-structural-context/1',
+        'work_scope': 'work-' + 'c' * 40}, 'references': [{'authority_id': 'gridctl',
+        'capability_id': 'topology.branch.endpoints.get', 'context_refs': [ref],
+        'result_refs': [], 'evidence_refs': [evidence]}]})
+    assert view['layer']['focus_ids'] == ['line:11']
+
+
+def test_ranked_task_view_validates_selection_against_admitted_result(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from pandapower_domain.authority import PandapowerArtifactAuthority
+
+    context = 'context:one'
+    revision = 'revision:one'
+    low, high = ('asset:line:sha256:' + char * 64 for char in 'ab')
+    result = {'context_ref': context, 'revision_ref': revision, 'branch_results': [
+        {'branch_ref': low, 'element_kind': 'line', 'pandapower_index': 2, 'loading_percent': 10},
+        {'branch_ref': high, 'element_kind': 'line', 'pandapower_index': 11, 'loading_percent': 70},
+    ]}
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'verify_context', lambda self, value:
+        SimpleNamespace(document={'model_id': 'ieee39', 'revision_ref': revision}))
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'verify_result', lambda self, value:
+        SimpleNamespace(document=result))
+    monkeypatch.setattr(service, '_executor', lambda owner: SimpleNamespace(invoke=lambda *args: {
+        'context_ref': context, 'revision_ref': revision, 'coordinate_system': 'fixture',
+        'buses': [], 'branches': [{'id': 'line:2'}, {'id': 'line:11'}], 'branch_states': [],
+    }))
+    receipt = {'authority_id': 'gridctl', 'capability_id': 'result.branches.rank',
+               'result_refs': ['result:one'], 'evidence_refs': [], 'view_refs': [high, low]}
+    request = {'management': {'schema': 'capstone-structural-context/1',
+               'work_scope': 'work-' + 'c' * 40}, 'references': [receipt]}
+    layer = service.project_task_view(request)['layer']
+    assert layer['focus_ids'] == ['line:11', 'line:2']
+    assert layer['overlay']['values'] == [{'id': 'line:11', 'value': 70}, {'id': 'line:2', 'value': 10}]
+    receipt['view_refs'] = ['asset:line:sha256:' + 'c' * 64]
+    assert service.project_task_view(request)['layer']['focus_ids'] == []
+
+
+def test_saved_rank_call_requires_matching_successful_receipt():
+    from capstone_agent.thread_service import _saved_diagram_tool_calls
+
+    task, call = 'task-one', 'call-one'
+    shared = {'task_id': task, 'tool_call_id': call, 'tool_name': 'grid_result_branches_rank'}
+    start = {**shared, 'native_type': 'tool_execution_start', 'activity': {
+        'input_excerpt': '{"result_ref":"result:one","limit":3}',
+    }}
+    phases = ('submitted', 'queued', 'acquired', 'execution_started', 'execution_ended', 'released')
+    receipt = {
+        'schema': 'capstone-tool-execution/1', 'owner_id': 'owner', 'scope_id': 'scope',
+        'task_id': task, 'call_id': call, 'policy_version': 'rolling/1', 'capacity': 8,
+        'events': [{'phase': phase, 'at': '2026-11-19T00:00:00Z', 'elapsed_ms': index,
+                    'provenance': 'authority_process' if phase.startswith('execution_') else 'owner_scheduler'}
+                   for index, phase in enumerate(phases)],
+    }
+    end = {**shared, 'native_type': 'tool_execution_end', 'activity': {
+        'is_error': False, 'execution_receipt': receipt,
+    }}
+    expected = [{'name': shared['tool_name'], 'arguments': {'result_ref': 'result:one', 'limit': 3}}]
+    assert _saved_diagram_tool_calls([start, end]) == expected
+    assert _saved_diagram_tool_calls([start, {**end, 'tool_call_id': 'another'}]) == []
+    assert _saved_diagram_tool_calls([start, {**end, 'activity': {'is_error': False}}]) == []

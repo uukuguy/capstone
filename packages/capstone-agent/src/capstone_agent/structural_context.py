@@ -70,7 +70,7 @@ def checked_gateway_operations(value):
 
 
 def checked_authority_references(value: object) -> dict:
-    if not isinstance(value, Mapping) or set(value) - {'context_refs'} != {
+    if not isinstance(value, Mapping) or set(value) - {'context_refs', 'view_refs'} != {
         'authority_id', 'capability_id', 'result_refs', 'evidence_refs',
     }:
         raise ValueError('authority references are invalid')
@@ -85,6 +85,13 @@ def checked_authority_references(value: object) -> dict:
                        or not re.fullmatch(kind + r':sha256:[0-9a-f]{64}', ref) for ref in refs)):
             raise ValueError('authority references are invalid')
         receipt[key] = list(dict.fromkeys(refs))
+    if 'view_refs' in value:
+        refs = value['view_refs']
+        if (not isinstance(refs, (list, tuple)) or not 0 < len(refs) <= 20
+                or any(not isinstance(ref, str) or not re.fullmatch(
+                    r'asset:[A-Za-z0-9_]{1,32}:sha256:[0-9a-f]{64}', ref) for ref in refs)):
+            raise ValueError('authority view references are invalid')
+        receipt['view_refs'] = list(dict.fromkeys(refs))
     if not (receipt['result_refs'] or receipt['evidence_refs'] or receipt.get('context_refs')):
         raise ValueError('authority references are empty')
     return receipt

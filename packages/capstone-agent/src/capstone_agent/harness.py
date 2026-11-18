@@ -907,10 +907,12 @@ class HarnessAttemptRunner:
             if candidate is not None and candidate.authority_references and callable(task_diagram):
                 lease.check()
                 try:
-                    diagram = task_diagram(claim, candidate.authority_references)
-                    if diagram is not None:
+                    view = task_diagram(claim, candidate.authority_references)
+                    if view is not None:
                         self._service.append_runtime_event(claim, event_type='network_diagram',
-                            payload={'diagram': diagram}, visibility='public')
+                            payload={'diagram': view['diagram']}, visibility='public')
+                        self._service.append_runtime_event(claim, event_type='network_layer',
+                            payload={'ordinal': view['ordinal'], 'layer': view['layer']}, visibility='public')
                 except (OSError, TypeError, ValueError):
                     pass
             lease.check()

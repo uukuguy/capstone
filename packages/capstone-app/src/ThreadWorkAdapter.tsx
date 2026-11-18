@@ -3,7 +3,7 @@ import MissionStatus from './MissionStatus'
 import {missionObjectiveFromInput,type MissionCreate} from './missions'
 import InstructionStatus from './InstructionStatus'
 import {NetworkView} from './NetworkView'
-import {parseNetworkDiagram} from './networkValidation'
+import {parseNetworkView} from './networkValidation'
 import ControlGoalPanel from './ControlGoalPanel'
 import {goalCommand,goalObjectiveFromInput} from './goalMode'
 import ProductReferenceChips from './ProductReferenceChips'
@@ -174,7 +174,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   useEffect(()=>setUploadBusy(false),[currentId])
   const [productsOpen,setProductsOpen]=useSessionViewState('resource.open',()=>readWorkspacePanels(currentId).resource??false)
   const [shownTaskDiagram,setShownTaskDiagram]=useState<string>()
-  const [restoredTaskDiagram,setRestoredTaskDiagram]=useState<{threadId:string;attemptId:string;diagram:NonNullable<ReturnType<typeof parseNetworkDiagram>>}>()
+  const [taskViewRequest,setTaskViewRequest]=useState(0)
+  const [restoredTaskDiagram,setRestoredTaskDiagram]=useState<{threadId:string;attemptId:string;view:NonNullable<ReturnType<typeof parseNetworkView>>}>()
   const diagramRequest=useRef<AbortController | undefined>(undefined)
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
@@ -531,9 +532,18 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   // Reconstruct associations from admitted events, including loaded history.
   // Selecting a saved presentation never dispatches a business command.
   const instructionViews=useMemo(()=>{
-    const attempts=new Set(store.publicEvents.map(event=>event.attemptId).filter((id):id is string=>!!id))
+    const events=store.publicEvents
+    const tasks=store.networkTasks
+    const attempts=new Set(events.map(event=>event.attemptId).filter((id):id is string=>!!id))
+    const completed=new Map(store.conversationEvents.filter(event=>event.eventType==='attempt_completed')
+      .map(event=>[event.attemptId,event]))
+    const contexts=new Map(tasks.map(task=>[task.attemptId,task.context]))
     return new Map([...attempts].flatMap(attemptId=>{
-      const proposal=selectThreadViewProposal({events:store.publicEvents,networkTasks:store.networkTasks,attemptId,currentContext:professional?.activeModelContext})
+      const terminal=completed.get(attemptId)
+      const candidate=contexts.get(attemptId)
+      const context=candidate&&candidate.id===terminal?.modelContextId
+        &&candidate.selectionRevision===terminal.selectionRevision?candidate:professional?.activeModelContext
+      const proposal=selectThreadViewProposal({events,networkTasks:tasks,attemptId,currentContext:context})
       return proposal?[[attemptId,proposal] as const]:[]
     }))
   },[store,projection,professional?.activeModelContext])
@@ -545,41 +555,63 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       return pageId?[[attemptId,pageId] as const]:[]
     }))
   },[store,projection,sharedNavigation?.enterprise])
-  const taskDiagrams=useMemo(()=>{
-    const events=store.conversationEvents
-    const completed=new Set(events.filter(event=>event.eventType==='attempt_completed').map(event=>event.attemptId))
-    return new Map(events.flatMap(event=>{
-      if(event.eventType!=='network_diagram'||event.modelContextId||!event.attemptId||!completed.has(event.attemptId))return []
-      const diagram=parseNetworkDiagram(event.payload.diagram)
-      return diagram?[[event.attemptId,diagram] as const]:[]
-    }))
+  const taskDiagramSources=useMemo(()=>{
+    return new Map(store.conversationEvents.flatMap(event=>
+      event.visibility==='public'&&event.eventType==='attempt_completed'&&!event.modelContextId&&event.attemptId&&
+      Array.isArray(event.payload.authority_references)&&event.payload.authority_references.length>0
+        ?[[event.attemptId,[event.payload.result_refs,event.payload.evidence_refs]
+          .flatMap(refs=>Array.isArray(refs)?refs.filter((ref):ref is string=>typeof ref==='string'):[])] as const]:[]))
   },[store,projection])
-  const eligibleTaskDiagrams=useMemo(()=>new Set(store.conversationEvents.flatMap(event=>
-    event.visibility==='public'&&event.eventType==='attempt_completed'&&!event.modelContextId&&event.attemptId&&
-    Array.isArray(event.payload.authority_references)&&event.payload.authority_references.length>0?[event.attemptId]:[])),[store,projection])
+  const taskDiagrams=useMemo(()=>{
+    const diagrams=new Map<string,unknown>()
+    const views=new Map<string,NonNullable<ReturnType<typeof parseNetworkView>>>()
+    for(const event of store.conversationEvents){
+      const attemptId=event.attemptId
+      if(event.visibility!=='public'||!attemptId||event.modelContextId)continue
+      const refs=taskDiagramSources.get(attemptId)
+      if(!refs)continue
+      if(event.eventType==='network_diagram')diagrams.set(attemptId,event.payload.diagram)
+      if(event.eventType==='network_layer'){
+        const view=parseNetworkView({schema:'capstone-network-view/2.0',ordinal:1,
+          diagram:diagrams.get(attemptId),layer:event.payload.layer},1,refs)
+        if(view)views.set(attemptId,view)
+      }
+    }
+    return views
+  },[store,projection,taskDiagramSources])
   const shownDiagram=shownTaskDiagram?(taskDiagrams.get(shownTaskDiagram)??
-    (restoredTaskDiagram?.threadId===currentId&&restoredTaskDiagram.attemptId===shownTaskDiagram?restoredTaskDiagram.diagram:undefined)):undefined
+    (restoredTaskDiagram?.threadId===currentId&&restoredTaskDiagram.attemptId===shownTaskDiagram?restoredTaskDiagram.view:undefined)):undefined
   useEffect(()=>()=>diagramRequest.current?.abort(),[currentId])
   function showInstructionNetwork(attemptId:string){
-    if(taskDiagrams.has(attemptId)){
+    diagramRequest.current?.abort()
+    const proposal=instructionViews.get(attemptId)
+    const showView=(view:NonNullable<ReturnType<typeof parseNetworkView>>)=>{
+      setRestoredTaskDiagram({threadId:currentId,attemptId,view})
       setShownTaskDiagram(attemptId)
+      setTaskViewRequest(value=>value+1)
       selectResourceView('task-diagram')
+    }
+    if(proposal?.kind==='model'){
+      showView(proposal.view)
       return
     }
-    const proposal=instructionViews.get(attemptId)
-    const modelPage=proposal?.kind==='model'?proposal.pageId:instructionModelPages.get(attemptId)
+    const modelPage=instructionModelPages.get(attemptId)
     if(proposal?.kind!=='source'&&!modelPage){
-      if(!eligibleTaskDiagrams.has(attemptId))return
-      diagramRequest.current?.abort()
+      const refs=taskDiagramSources.get(attemptId)
+      if(!refs)return
+      const saved=taskDiagrams.get(attemptId)??(restoredTaskDiagram?.threadId===currentId
+        &&restoredTaskDiagram.attemptId===attemptId?restoredTaskDiagram.view:undefined)
+      if(saved){
+        showView(saved)
+        return
+      }
       const request=new AbortController()
       diagramRequest.current=request
       void transport.readTaskDiagram(currentId,attemptId,request.signal).then(value=>{
         if(request.signal.aborted)return
-        const diagram=parseNetworkDiagram(value)
-        if(!diagram)throw new Error('模型拓扑无法验证')
-        setRestoredTaskDiagram({threadId:currentId,attemptId,diagram})
-        setShownTaskDiagram(attemptId)
-        selectResourceView('task-diagram')
+        const view=parseNetworkView(value,1,refs)
+        if(!view)throw new Error('模型拓扑无法验证')
+        showView(view)
       }).catch(()=>{if(!request.signal.aborted)setError('此指令没有可用的电网图。')})
       return
     }
@@ -748,8 +780,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     else setError('来源执行暂不可用，请加载原始记录后重试。')
   }
   const taskDiagramViews=shownDiagram?[{id:'task-diagram',label:'电网图',content:<NetworkView compact
-    view={null} previewDiagram={shownDiagram} modelName={shownDiagram.model.id} focusKey={shownTaskDiagram!}
-    instructionLabel="本次回答关联的模型拓扑"/>,description:'本次执行使用的注册模型和版本。'}]:[]
+    view={shownDiagram} modelName={(shownDiagram.schema==='capstone-network-view/2.0'?shownDiagram.diagram:shownDiagram).model.id} focusKey={shownTaskDiagram!} returnTaskRequest={taskViewRequest}
+    instructionLabel={shownDiagram.schema==='capstone-network-view/2.0'
+      && !shownDiagram.layer.focus_ids.length && !shownDiagram.layer.annotations
+      ? '模型全图 · 无已保存焦点' : '本次指令的关注视图'}/>,description:'本次执行使用的注册模型和版本。'}]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
@@ -839,7 +873,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       saveInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined||!file.file_name)return Promise.reject(new Error('附件信息暂不可用。'));return transport.saveThreadResource(currentId,{resource_id:file.resource_id,file_name:file.file_name,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
       runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation}
-      networkAttemptIds={[...new Set([...instructionViews.keys(),...instructionModelPages.keys(),...taskDiagrams.keys(),...eligibleTaskDiagrams])]} onShowNetwork={showInstructionNetwork}
+      networkAttemptIds={[...new Set([...instructionViews.keys(),...instructionModelPages.keys(),...taskDiagrams.keys(),...taskDiagramSources.keys()])]} onShowNetwork={showInstructionNetwork}
       acceptedDraft={nativeChat?acceptedDraft:undefined}
       composerControls={liveConversation?(historyActions,inputActions)=><>{modelWorkspace&&<ThreadModelDirectory models={projection.catalog?.models||[]} currentModelId={snapshot?.modelContext?.modelId||''} target={modelTarget} onTargetChange={setModelTarget} disabled={busy||active||!!currentAttempt||!!missionPending||projection.connection!=='live'} pending={!!pending} workspace={modelWorkspace} allowEmpty={snapshot?.sessionType==='enterprise-research'||snapshot?.sessionType==='general-chat'} onSwitch={modelId=>void changeModel('open_model',{model_id:modelId})} onActivate={entryId=>void changeModel('activate_model',{entry_id:entryId})} onClose={entryId=>void changeModel('close_model',{entry_id:entryId})}/>}
       <ThreadMaterialUpload threadId={currentId} upload={(file,signal)=>client.uploadThreadMaterial(currentId,file,signal)} resourceUpload={(file,options)=>transport.uploadThreadResource(currentId,file,options)} cancelResource={id=>transport.cancelResourceUpload(currentId,id)} disabled={busy||active||!!pending||!!missionPending} remainingFiles={Math.max(0,applicationCapacity('inline_material_count')-materials.length)} remainingBytes={materials.length>=applicationCapacity('inline_material_count')?0:remainingMaterialBytes} onBusyChange={setUploadBusy} onUploaded={material=>{inputActions.addMaterial(material.material_id);setCatalogReload(value=>value+1)}}

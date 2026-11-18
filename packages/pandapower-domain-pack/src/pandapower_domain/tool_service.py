@@ -186,6 +186,10 @@ class PandapowerToolService:
                             'evidence_refs': list(evidence),
                             **({'context_refs': context_refs} if context_refs else {}),
                         }
+                        if capability == 'result.branches.rank' and result_refs:
+                            selected = [row['branch_ref'] for row in result['branches'][:20]]
+                            if selected:
+                                response['authority_references']['view_refs'] = selected
             except ExecutionReceiptError:
                 raise
             except SimulatorCapabilityError as error:

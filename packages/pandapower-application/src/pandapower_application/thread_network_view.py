@@ -320,58 +320,62 @@ class PandapowerThreadNetworkProjectionProvider:
             refs = event.get("evidence_refs")
             if isinstance(refs, (list, tuple)):
                 successful_refs.update(ref for ref in refs if isinstance(ref, str))
-        branches = topology.get("branches")
-        known_ids = {
-            branch["id"] for branch in branches
-            if isinstance(branch, Mapping) and isinstance(branch.get("id"), str)
-        } if isinstance(branches, list) else set()
-        focus: list[str] = []
-        resolved_assets: set[str] = set()
-        for reference in dict.fromkeys(evidence_refs):
-            if reference not in successful_refs:
-                continue
-            artifact = self._authority.verify_evidence(reference)
-            document = getattr(artifact, "document", None)
-            if not isinstance(document, Mapping) or (
-                document.get("evidence_type") != "network_fact"
-                or document.get("capability_id") != _ENDPOINT_CAPABILITY
-                or document.get("context_ref") != self._binding.context_ref
-                or document.get("revision_ref") != self._binding.model_revision
-            ):
-                continue
-            subject = document.get("subject_ref")
-            if not isinstance(subject, str):
-                continue
-            match = _BRANCH_ASSET.fullmatch(subject)
-            if match is None or subject in resolved_assets:
-                continue
-            resolved_assets.add(subject)
-            kind = match.group(1)
-            resolved = self._executor.invoke("model.element.get", {
-                "context_ref": self._binding.context_ref, "kind": kind,
-                "namespace": "asset_ref", "identifier": subject,
-            })
-            element = resolved.get("element")
-            if (resolved.get("context_ref") != self._binding.context_ref
-                    or resolved.get("revision_ref") != self._binding.model_revision
-                    or resolved.get("asset_ref") != subject
-                    or not isinstance(element, Mapping)
-                    or element.get("asset_ref") != subject
-                    or element.get("kind") != kind
-                    or type(element.get("index")) is not int):
-                continue
-            identifier = f"{kind}:{element['index']}"
-            candidates = (
-                [identifier + ":mv", identifier + ":lv"] if kind == "trafo3w"
-                else [identifier]
-            )
-            for candidate in candidates:
-                if candidate in known_ids and candidate not in focus:
-                    focus.append(candidate)
-                    if len(focus) == 20:
-                        return focus
-        return focus
+        return project_endpoint_focus(topology, (ref for ref in evidence_refs if ref in successful_refs),
+                                      self._authority, self._executor,
+                                      self._binding.context_ref, self._binding.model_revision)
 
+
+def project_endpoint_focus(topology, evidence_refs, authority, executor, context_ref, revision):
+    """Resolve verified endpoint evidence to diagram identifiers."""
+    branches = topology.get("branches")
+    known_ids = {
+        branch["id"] for branch in branches
+        if isinstance(branch, Mapping) and isinstance(branch.get("id"), str)
+    } if isinstance(branches, list) else set()
+    focus: list[str] = []
+    resolved_assets: set[str] = set()
+    for reference in dict.fromkeys(evidence_refs):
+        artifact = authority.verify_evidence(reference)
+        document = getattr(artifact, "document", None)
+        if not isinstance(document, Mapping) or (
+            document.get("evidence_type") != "network_fact"
+            or document.get("capability_id") != _ENDPOINT_CAPABILITY
+            or document.get("context_ref") != context_ref
+            or document.get("revision_ref") != revision
+        ):
+            continue
+        subject = document.get("subject_ref")
+        if not isinstance(subject, str):
+            continue
+        match = _BRANCH_ASSET.fullmatch(subject)
+        if match is None or subject in resolved_assets:
+            continue
+        resolved_assets.add(subject)
+        kind = match.group(1)
+        resolved = executor.invoke("model.element.get", {
+            "context_ref": context_ref, "kind": kind,
+            "namespace": "asset_ref", "identifier": subject,
+        })
+        element = resolved.get("element")
+        if (resolved.get("context_ref") != context_ref
+                or resolved.get("revision_ref") != revision
+                or resolved.get("asset_ref") != subject
+                or not isinstance(element, Mapping)
+                or element.get("asset_ref") != subject
+                or element.get("kind") != kind
+                or type(element.get("index")) is not int):
+            continue
+        identifier = f"{kind}:{element['index']}"
+        candidates = (
+            [identifier + ":mv", identifier + ":lv"] if kind == "trafo3w"
+            else [identifier]
+        )
+        for candidate in candidates:
+            if candidate in known_ids and candidate not in focus:
+                focus.append(candidate)
+                if len(focus) == 20:
+                    return focus
+    return focus
 
 def build_pandapower_thread_network_provider(
     context: PreparedModelCapabilityContext,

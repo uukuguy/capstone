@@ -324,7 +324,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   readTaskDiagram(threadId: string, attemptId: string, signal?: AbortSignal) {
-    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/task-diagram`,
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/task-diagram?focused=true`,
       {signal}, applicationCapacity('control_document_bytes'), 'control_document_bytes')
   }
 

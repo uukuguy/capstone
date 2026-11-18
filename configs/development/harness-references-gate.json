@@ -53,6 +53,7 @@
     "packages/capstone-control/tests/test_mission_reviews.py",
     "packages/pandapower-application/src/pandapower_application/domain_tools.py",
     "packages/pandapower-application/src/pandapower_application/hosted.py",
+    "packages/pandapower-application/src/pandapower_application/thread_network_view.py",
     "packages/pandapower-application/tests/test_domain_execution_lifecycle.py",
     "packages/pandapower-domain-pack/src/pandapower_domain/authority.py",
     "packages/pandapower-domain-pack/src/pandapower_domain/tool_service.py",

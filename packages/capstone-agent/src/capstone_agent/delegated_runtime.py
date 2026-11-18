@@ -126,7 +126,7 @@ class DelegatedRuntime:
             return None
         from .domain_tool_client import project_task_diagram
         return project_task_diagram(self._resources.get('structural_context'),
-                                    claim.application_catalog, claim.model_context, receipts)
+                                    claim.application_catalog, claim.model_context, receipts, focused=True)
 
     def network_projection(self, claim, result_refs, evidence_refs, tool_events):
         del tool_events
