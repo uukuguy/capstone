@@ -4,6 +4,8 @@ from dataclasses import replace
 import pytest
 from datetime import datetime, timezone
 
+from test_thread_postgres import postgres_thread_service  # noqa: F401
+
 from capstone_agent.goal_mode import parse_goal_mode
 from capstone_agent.thread_protocol import ThreadProtocolError, ThreadSnapshot
 from capstone_agent.thread_service import InMemoryThreadService, ThreadCreator
@@ -291,17 +293,45 @@ def test_service_terminal_commits_continuation_with_attempt(goal, with_product):
     assert restored.works[0]['goal_continuation']['product_refs'] == progress['product_refs']
 
 
-def test_start_goal_admits_first_attempt_through_existing_service():
+@pytest.mark.parametrize('invalid_plan', [False, True])
+@pytest.mark.parametrize('storage', ['memory', 'postgres'])
+def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage, request):
     from test_thread_work_execution import professional_snapshot, save_work, command
-    store = InMemoryThreadService(professional_snapshot())
-    work = save_work(store, 'thr_work_exec')
-    receipt = store.submit_command(command(store, 'thr_work_exec', 'start_goal', 'goal_start',
+    if storage == 'postgres':
+        store, thread_id = request.getfixturevalue('postgres_thread_service')
+        store.create_thread(professional_snapshot(thread_id))
+    else:
+        thread_id = 'thr_work_exec'
+        store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, thread_id)
+    receipt = store.submit_command(command(store, thread_id, 'start_goal', 'goal_start',
         work_id=work['work_id'], revision=work['revision'], payload={
         'objective': work['goal'], 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'}))
     assert receipt.status == 'accepted'
+    assert store.claim_attempt('worker', 30) is None
+    from capstone_agent.session_goal_plan import drain_initial_goal_plans, initial_plan_command
+    planned_work = store.snapshot(thread_id).works[0]
+    plan = {"schema": "capstone-session-goal-plan/1", "criteria": ["Verified report"],
+            "steps": [{"instruction": "Check source material.", "expected_result": "Source receipt."},
+                      {"instruction": "Write report.", "expected_result": "Saved report."}]}
+    next_command = initial_plan_command(thread_id, planned_work, plan)
+    from capstone_agent.thread_protocol import ThreadProtocolError
+    with pytest.raises(ThreadProtocolError, match='internal'):
+        store.submit_command(next_command)
+    if invalid_plan:
+        assert drain_initial_goal_plans(store, planner=lambda objective: {}) == 0
+        paused = store.snapshot(thread_id).works[0]
+        assert paused['goal_mode']['state'] == 'paused'
+        assert paused['goal_mode']['reason'] == 'goal_planning_failed'
+        assert store.claim_attempt('worker', 30) is None
+        return
+    assert drain_initial_goal_plans(store, planner=lambda objective: plan) == 1
+    assert drain_initial_goal_plans(store, planner=lambda objective: pytest.fail('planned twice')) == 0
     claim = store.claim_attempt('worker', 30)
     assert claim is not None
-    assert store.snapshot('thr_work_exec').works[0]['goal_mode']['attempts_admitted'] == 1
+    assert claim.instruction == "Check source material."
+    assert store.snapshot(thread_id).works[0]["goal_plan"]["plan"] == plan
+    assert store.snapshot(thread_id).works[0]['goal_mode']['attempts_admitted'] == 1
 
 
 def test_goal_start_prepares_standard_input_submission(monkeypatch):
