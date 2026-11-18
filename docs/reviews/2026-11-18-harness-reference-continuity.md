@@ -347,3 +347,16 @@ A fresh gateway execution, `attempt_0ccae9013f741b80`, used real tools and
 saved both its 4370-character formal answer and its distinct 253-character
 summary in a single completion event. Focused checks passed 211 App tests
 and 81 Agent tests. Four conditional Agent tests were skipped.
+
+## Answer display controls
+
+The completed enterprise answer uses the original CAPSTONE and time header
+with the original chevron. It opens with the formal answer. Folding swaps
+the answer body for its saved summary. The execution toolbar remains above
+the answer body.
+
+Settings applies its fold or unfold action to every completed answer in
+the current session. The fold cutoff includes older pages loaded later.
+New answers open in full. The browser confirmed the single-answer toggle
+on the saved gateway answer and both batch commands on a two-answer
+session. The focused App suite passed 190 tests.
