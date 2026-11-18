@@ -6,6 +6,10 @@
     "packages/capstone-agent/src/capstone_agent/native_mission.py"
   ],
   "paths": [
+    "docs/superpowers/plans/2026-11-18-mission-versioned-resources.md",
+    "docs/superpowers/specs/2026-11-18-mission-versioned-resources-design.md",
+    "packages/capstone-agent/tests/test_agent_delegation.py",
+    "packages/capstone-control/tests/test_controls.py",
     "packages/capstone-agent/src/capstone_agent/continuation_resources.py",
     "packages/capstone-agent/src/capstone_agent/resource_manifest.py",
     "packages/capstone-agent/src/capstone_agent/resource_projection.py",
