@@ -2546,7 +2546,10 @@ class InMemoryThreadService(NativeExecutionOwner):
         with self._lock:
             self._require_claim(claim)
             from .mission_continuation import review_cancel_requested
-            return claim.attempt.attempt_id in self._cancel_requests or review_cancel_requested(self, claim)
+            from .instruction_queue import replacement_item
+            return (claim.attempt.attempt_id in self._cancel_requests
+                    or replacement_item(self._snapshot, claim.attempt.attempt_id) is not None
+                    or review_cancel_requested(self, claim))
 
     def rollback_context_if_preparation_failed(
         self, claim: AttemptClaim, *, error_code: str,
@@ -2632,10 +2635,11 @@ class InMemoryThreadService(NativeExecutionOwner):
         cutoff = time.monotonic()
         interrupted = 0
         with self._lock:
-            for record in self._attempts.values():
+            for record in list(self._attempts.values()):
                 deadline = record.get("lease_deadline")
                 if record["attempt"].phase != "running" or deadline is None or deadline > cutoff:
                     continue
+                before = self._snapshot
                 terminal = replace(record["attempt"], phase="interrupted")
                 from .thread_work import work_event_payload
                 work_snapshot, work_payload = work_event_payload(
@@ -2652,6 +2656,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 self._snapshot = replace(
                     work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
                 )
+                self._append_replacement(before, terminal, record)
                 interrupted += 1
         return interrupted
 
@@ -2707,6 +2712,7 @@ class InMemoryThreadService(NativeExecutionOwner):
             raise ValueError("attempt terminal phase is invalid")
         _validate_bounded_json(payload, name="attempt.payload", maximum=limits.control_document_bytes)
         with self._lock:
+            before = self._snapshot
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
@@ -2715,6 +2721,9 @@ class InMemoryThreadService(NativeExecutionOwner):
                 'payload': event.payload} for event in self._events], claim.attempt.attempt_id)
             work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
                 self._snapshot, claim, phase, payload, saved_product_refs=refs)
+            from .instruction_queue import replacement_item
+            if phase == 'cancelled' and replacement_item(before, claim.attempt.attempt_id):
+                event_payload = {**event_payload, 'reason': 'superseded_by_instruction'}
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
@@ -2733,10 +2742,32 @@ class InMemoryThreadService(NativeExecutionOwner):
                 work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
                 result_projections=work_snapshot.result_projections,
             )
+            self._append_replacement(before, terminal, record)
             snapshot = self._snapshot
         from .session_title_summary import schedule_completed_title
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
+
+    def _append_replacement(self, before, terminal, record):
+        from .instruction_queue import prepare_replacement
+        replacement = prepare_replacement(before, self._snapshot, terminal.attempt_id, record.get('submission'))
+        if replacement is None:
+            return
+        snapshot, attempt, task_context, submission, accepted = replacement
+        work_attempts = {identity: item for identity, item in self._attempts.items()
+                         if item.get('task_context') is not None
+                         and item['task_context'].binding == task_context.binding}
+        conversation = _conversation_from_events(self._events, work_attempts,
+                                                  snapshot.thread_id, self._snapshot.last_event_seq)
+        self._attempts[attempt.attempt_id] = {
+            'attempt': attempt, 'kind': 'send_auto', 'instruction': submission['input']['text'],
+            'lease_token': None, 'lease_deadline': None, 'model_context': snapshot.active_model_context,
+            'command_id': accepted['command_id'], 'conversation_context': conversation,
+            'submission': submission, 'source_attempt_id': terminal.attempt_id, 'task_context': task_context,
+        }
+        event = self._append_event(event_type='command_accepted', attempt=attempt, payload=accepted,
+                                   context=snapshot.active_model_context)
+        self._snapshot = replace(snapshot, last_event_seq=event.event_seq)
 
     def _seal_open_captures(self, terminal, context) -> None:
         from .native_artifact_projection import incomplete_capture_seals
@@ -4976,7 +5007,13 @@ class PostgresThreadService(NativeExecutionOwner):
                 (claim.thread_id, claim.attempt.attempt_id),
             ).fetchone()
             from .mission_continuation import review_cancel_requested
-            return requested is not None or review_cancel_requested(self, claim)
+            replacement = connection.execute("""SELECT 1 FROM capstone_threads t,
+                LATERAL jsonb_array_elements(t.works) w,
+                LATERAL jsonb_array_elements(COALESCE(w->'instruction_queue', '[]'::jsonb)) q
+                WHERE t.thread_id=%s AND w->>'latest_attempt_id'=%s
+                  AND q->>'attempt_id'=%s AND q->>'state'='pending' AND q->>'mode'='interrupt'
+                LIMIT 1""", (claim.thread_id, claim.attempt.attempt_id, claim.attempt.attempt_id)).fetchone()
+            return requested is not None or replacement is not None or review_cancel_requested(self, claim)
 
     def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
                                workspace_name: str) -> None:
@@ -5133,12 +5170,13 @@ class PostgresThreadService(NativeExecutionOwner):
                 if not isinstance(current, dict) or current.get("attempt_id") != attempt["attempt_id"]:
                     raise ThreadExecutionError("attempt snapshot is inconsistent")
                 terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
+                before = self._snapshot_from_row(thread)
                 from .enterprise_context import TaskContext
                 from .thread_work import work_event_payload
                 task_context = (None if attempt.get('task_context_snapshot') is None
                                 else TaskContext.from_document(attempt['task_context_snapshot']))
                 work_snapshot, work_payload = work_event_payload(
-                    replace(self._snapshot_from_row(thread), current_attempt=None),
+                    replace(before, current_attempt=None),
                     task_context, terminal.attempt_id, 'interrupted')
                 event_seq = self._seal_open_captures_postgres(
                     connection, thread, terminal, thread["last_event_seq"], context=None)
@@ -5153,11 +5191,12 @@ class PostgresThreadService(NativeExecutionOwner):
                        WHERE attempt_id = %s""",
                     (attempt["attempt_id"],),
                 )
-                connection.execute(
+                settled = connection.execute(
                     """UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s, works = %s
-                       WHERE thread_id = %s""",
+                       WHERE thread_id = %s RETURNING *""",
                     (event.event_seq, Jsonb(list(work_snapshot.works)), thread["thread_id"]),
-                )
+                ).fetchone()
+                self._append_replacement_postgres(connection, settled, before, terminal, attempt)
                 interrupted += 1
         return interrupted
 
@@ -5241,9 +5280,13 @@ class PostgresThreadService(NativeExecutionOwner):
             products = connection.execute("SELECT attempt_id,event_type,payload FROM capstone_thread_events "
                 "WHERE thread_id=%s AND attempt_id=%s AND event_type='native_artifact_published'",
                 (claim.thread_id, claim.attempt.attempt_id)).fetchall()
+            before = self._snapshot_from_row(thread)
             work_snapshot, event_payload, projection_parts = _prepare_terminal_transition(
-                self._snapshot_from_row(thread), claim, phase, payload,
+                before, claim, phase, payload,
                 saved_product_refs=published_goal_refs(products, claim.attempt.attempt_id))
+            from .instruction_queue import replacement_item
+            if phase == 'cancelled' and replacement_item(before, claim.attempt.attempt_id):
+                event_payload = {**event_payload, 'reason': 'superseded_by_instruction'}
             event_seq = thread["last_event_seq"]
             event_seq = self._seal_open_captures_postgres(
                 connection, thread, terminal, event_seq, context=claim.model_context)
@@ -5275,10 +5318,34 @@ class PostgresThreadService(NativeExecutionOwner):
                  None if work_snapshot.application_state is None else Jsonb(dict(work_snapshot.application_state)), claim.thread_id),
             ).fetchone()
             assert updated is not None
-            snapshot = self._snapshot_from_row(updated)
+            snapshot = self._append_replacement_postgres(connection, updated, before, terminal, attempt)
         from .session_title_summary import schedule_completed_title
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
+
+    def _append_replacement_postgres(self, connection, thread, before, terminal, source):
+        from .instruction_queue import prepare_replacement
+        settled = self._snapshot_from_row(thread)
+        prepared = prepare_replacement(before, settled, terminal.attempt_id, source['submission_snapshot'])
+        if prepared is None:
+            return settled
+        snapshot, attempt, task_context, submission, accepted = prepared
+        event = self._make_attempt_event(thread, attempt, event_seq=settled.last_event_seq + 1,
+                                        event_type='command_accepted', payload=accepted)
+        conversation = _conversation_from_postgres(connection, snapshot.thread_id, settled.last_event_seq,
+                                                  work_id=task_context.binding.work_id)
+        connection.execute("""INSERT INTO capstone_thread_attempts
+            (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,conversation_context_snapshot,
+             task_context_snapshot,runtime_mode,submission_snapshot,phase)
+            VALUES (%s,%s,%s,%s,%s,'send_auto',%s,%s,%s,%s,%s,'accepted')""",
+            (attempt.attempt_id, snapshot.thread_id, snapshot.run.run_id, attempt.turn_id,
+             accepted['command_id'], submission['input']['text'], Jsonb(conversation.to_document()),
+             Jsonb(task_context.to_document()), attempt.runtime_mode, Jsonb(submission)))
+        self._insert_event(connection, event)
+        connection.execute("""UPDATE capstone_threads SET current_attempt=%s, works=%s, last_event_seq=%s
+                              WHERE thread_id=%s""",
+                           (Jsonb(attempt.to_document()), Jsonb(list(snapshot.works)), event.event_seq, snapshot.thread_id))
+        return replace(snapshot, last_event_seq=event.event_seq)
 
     def _seal_open_captures_postgres(self, connection, thread, terminal, event_seq, *, context) -> int:
         from .native_artifact_projection import incomplete_capture_seals

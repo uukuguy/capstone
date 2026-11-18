@@ -403,6 +403,7 @@ function terminalContent(event: EventEnvelope): string {
     const code = typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined
     return `**执行失败**\n\n${detail || attemptFailureCopy(code)}${detail && code ? `\n\n诊断代码：${code}` : ''}`
   }
+  if (event.eventType === 'attempt_cancelled' && event.payload.reason === 'superseded_by_instruction') return '**已中止，切换到新指令。**'
   if (event.eventType === 'attempt_cancelled') return '**本次 Attempt 已取消**\n\n可以修改指令后重新发送。'
   return '**本次 Attempt 已中断**\n\n可以查看执行过程，并在确认模型上下文后重新运行。'
 }
@@ -1314,7 +1315,6 @@ export type CapstoneAssistantThreadProps = {
   isRunning: boolean
   allowConcurrentSend?:boolean
   composerStatus?:ReactNode
-  instructionReceipts?:ReactNode
   acceptedDraft?: AcceptedDraft
   activity: readonly (ChatActivity | string)[]
   onSend: (mode: SendMode, text: string, input?: InputSubmission) => Promise<void>
@@ -1368,7 +1368,7 @@ export function restoreVisibleConversation(viewport:HTMLElement){
 }
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, inlineExecution = false, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, allowConcurrentSend = false, composerStatus, instructionReceipts, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, readInstructionFile, saveInstructionFile, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, inlineExecution = false, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, allowConcurrentSend = false, composerStatus, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, readInstructionFile, saveInstructionFile, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
   const [answerDetail, setAnswerDetail] = useState<AnswerDetailSelection>()
   const nativeArtifacts=useMemo(()=>[...new Map([...projectNativeArtifacts(events),...(nativeArtifactProjections||[])].map(file=>[`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`,file])).values()],[events,nativeArtifactProjections])
   const [restoredInput]=useState(()=>{try{return {draft:readInputDraft(storageKey)||emptyInputDraft(runtimeMode),error:''}}catch(error){return {draft:emptyInputDraft(runtimeMode),error:error instanceof Error?error.message:'输入草稿无法恢复。'}}})
@@ -1799,12 +1799,10 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
         {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && <>{emptyState ?? <EmptyThreadState disabled={disabled} />}{(inputCatalog||inputCatalogLoading)&&<WelcomeConnections catalog={inputCatalog} gateway={welcomeGateway} profileId={activeInput.llm_profile_id} loading={inputCatalogLoading}/>}</>}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
-          {instructionReceipts}
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
         </div> : <ThreadPrimitive.Viewport ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" autoScroll={!restoringSessionPosition&&!readingLayoutChanging&&!locatingInstruction} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && <>{emptyState ?? <EmptyThreadState disabled={disabled} />}{(inputCatalog||inputCatalogLoading)&&<WelcomeConnections catalog={inputCatalog} gateway={welcomeGateway} profileId={activeInput.llm_profile_id} loading={inputCatalogLoading}/>}</>}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
-          {instructionReceipts}
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
         </ThreadPrimitive.Viewport>}
         {resultHistoryNotice&&<p role="status">{resultHistoryNotice}</p>}

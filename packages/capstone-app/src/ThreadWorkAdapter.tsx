@@ -392,6 +392,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const currentAttempt=snapshot?.currentAttempt||professional?.currentAttempt
   const canStop = active && selectedWork.latestAttemptId === currentAttempt?.attemptId
   const queueAvailable=liveConversation&&selectedWork?.instructionQueueAvailable===true
+  const [interruptOnSend,setInterruptOnSend]=useState(false)
+  useEffect(()=>setInterruptOnSend(false),[currentId,selectedWork?.latestAttemptId])
   const concurrentSend=queueAvailable&&active&&!selectedWork?.cancelRequested
   async function dispatch(command: WorkCommand) {
     if ((recovery||viewingLegacy) && !(pending && JSON.stringify(command) === JSON.stringify(pending)) && !(command.kind === 'cancel_work' && canStop && !pending)) throw new Error('此入口只可确认原请求或停止已有执行。')
@@ -414,7 +416,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         setAcceptedDraft({text:payload.text,commandId:command.command_id,submission})
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message'||command.kind==='queue_instruction') { drafts.current[selected] = ''; persist(selected) }
-      setNotice(command.kind==='queue_instruction'?'补充指令已保存，等待执行接纳。':command.kind==='withdraw_instruction'?'撤回已确认。':command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
+      setNotice(command.kind==='queue_instruction'?('mode' in command.payload&&command.payload.mode==='interrupt'?'等待当前指令结束后执行新指令。':'插问已保存，等待接纳。'):command.kind==='withdraw_instruction'?'撤回已确认。':command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
       await store.refreshWorkSnapshot().catch(cause => { if (mounted.current) setError(cause.message) })
       if (!mounted.current) return
       if (command.target.kind==='work' && selected === 'new' && typeof receipt.target?.id === 'string' && receipt.target.id !== 'new') {
@@ -481,7 +483,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         throw new MessageNotSentError('执行中仅支持补充文字。请移除新选资料、引用或技能，或等待执行结束后发送；草稿保留。')
       }
       try{
-        await dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'queue_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{text}})
+        await dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'queue_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{text,...(interruptOnSend?{mode:'interrupt'}:{})}})
+        setInterruptOnSend(false)
         return
       }catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'发送结果待确认。')}
     }
@@ -815,11 +818,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       modelBusy={busy||active||!!currentAttempt||projection.connection!=='live'}
       onOpenHistoricalModel={(modelId,revision)=>void changeModel('open_model',{model_id:modelId,model_revision:revision})}/>
   </>:null
-  function locateQueuedInstruction(attemptId:string){
-    const record=Array.from(document.querySelectorAll<HTMLElement>('[data-execution-id]')).find(node=>node.dataset.executionId===attemptId)
-    if(record){record.scrollIntoView({block:'nearest'});record.focus({preventScroll:true})}
-    else setError('来源执行暂不可用，请加载原始记录后重试。')
-  }
   const taskDiagramViews=resourceView!=='source-topology'&&(shownDiagram||taskDiagramLoad||resourceView==='task-diagram')?[{id:'task-diagram',label:'电网图',content:shownDiagram?<NetworkView compact
     view={shownDiagram} modelName={(shownDiagram.schema==='capstone-network-view/2.0'?shownDiagram.diagram:shownDiagram).model.id} focusKey={shownTaskDiagram!} returnTaskRequest={taskViewRequest}
     instructionLabel={shownDiagram.schema==='capstone-network-view/2.0'
@@ -927,13 +925,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       welcomeGateway={sharedNavigation?sharedNavigation.gateway:welcomeGateway}
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?(pendingMessage||missionPending)?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={missionPending?.text??initialText} onDraftChange={onDraftChange}
       storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&!concurrentSend&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage||!!missionPending}
-      instructionReceipts={liveConversation&&selectedWork?.instructionQueue?.length?<section className="instruction-mainline" aria-label="补充指令与接纳回执">{selectedWork.instructionQueue.map(item=><article key={item.id}>
-        <p className="instruction-mainline-text">{item.text}</p><div className="execution-receipt"><span>{item.state==='pending'?'待接纳':item.state==='delivering'?'正在送达，尚未确认接纳':item.state==='delivery_unknown'?'接纳结果待核实 · 不会自动重发，请先查看来源执行':item.state==='admitted'?'已接纳 · 已进入执行上下文，尚不表示完成':'已撤回'}</span><button type="button" onClick={()=>locateQueuedInstruction(item.attemptId)}>查看来源执行</button></div>
-      </article>)}</section>:undefined}
       allowConcurrentSend={queueAvailable}
-      composerStatus={queueAvailable?<InstructionStatus active={active} stopping={!!selectedWork?.cancelRequested} stopped={selectedWork?.status==='cancelled'||selectedWork?.status==='interrupted'} waiting={currentAttempt?.phase==='waiting'} queue={selectedWork?.instructionQueue||[]} disabled={busy||!!pending||projection.connection!=='live'} canStop={canStop} onStop={()=>void cancel()} onWithdraw={instructionId=>{if(snapshot&&selectedWork)void dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'withdraw_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{instruction_id:instructionId}}).catch(()=>{})}} onLocate={attemptId=>{
-        locateQueuedInstruction(attemptId)
-      }}/>:undefined}
+      composerStatus={queueAvailable?<InstructionStatus active={active} interruptOnSend={interruptOnSend} onInterruptChange={selectedWork?.goalMode?undefined:setInterruptOnSend} stopping={!!selectedWork?.cancelRequested} stopped={selectedWork?.status==='cancelled'||selectedWork?.status==='interrupted'} waiting={currentAttempt?.phase==='waiting'} queue={selectedWork?.instructionQueue||[]} disabled={busy||!!pending||projection.connection!=='live'} canStop={canStop} onStop={()=>void cancel()} onWithdraw={instructionId=>{if(snapshot&&selectedWork)void dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'withdraw_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{instruction_id:instructionId}}).catch(()=>{})}}/>:undefined}
       isRunning={active} canCancel={canStop}
       cancelLabel={pending?.kind === 'cancel_work' ? '重试停止请求' : selectedWork?.cancelRequested ? '停止请求中' : '停止任务'}
       cancelDisabled={busy || projection.connection !== 'live' || (!!pending && pending.kind !== 'cancel_work') || (selectedWork?.cancelRequested === true && pending?.kind !== 'cancel_work')}

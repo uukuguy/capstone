@@ -732,3 +732,42 @@ def test_start_activates_pending_resources_atomically_after_admission(execution_
     events = store.read_events(thread_id, 0).events
     activation = next(event for event in events if event.event_type in {'selection_activated', 'model_context_activated'})
     assert activation.event_seq < accepted.accepted_event_seq
+
+
+def test_explicit_replacement_settles_old_attempt_and_starts_once(queue_store):
+    store, thread_id = queue_store
+    assert store.submit_command(command(store, thread_id, 'send_message', 'replace_source',
+        payload={'text': 'Original instruction'})).status == 'accepted'
+    source = store.claim_attempt('source_worker', 30)
+    assert source is not None
+    work = store.snapshot(thread_id).works[0]
+    request = command(store, thread_id, 'queue_instruction', 'explicit_replace',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'text': 'Replacement instruction', 'mode': 'interrupt'})
+    receipt = store.submit_command(request)
+    assert receipt.status == 'accepted'
+    assert store.submit_command(request) == receipt
+    assert store.peek_instructions(source) == ()
+    assert store.cancel_requested(source)
+    assert store.claim_attempt('next_worker', 30) is None
+
+    snapshot = store.finish_attempt(source, phase='cancelled', payload={})
+    assert snapshot.current_attempt is not None
+    assert snapshot.current_attempt.attempt_id != source.attempt.attempt_id
+    successor = store.claim_attempt('next_worker', 30)
+    assert successor is not None
+    assert successor.instruction == 'Replacement instruction'
+    assert successor.task_context.binding == source.task_context.binding
+    assert any(message['content'] == 'Original instruction' and message['status'] == 'cancelled'
+               for message in successor.conversation_context.messages)
+    assert successor.submission['_native_execution'] == source.submission['_native_execution']
+    assert not store.cancel_requested(successor)
+    events = store.read_events(thread_id, 0).events
+    stopped = next(event for event in events if event.event_type == 'attempt_cancelled')
+    started = next(event for event in events if event.event_type == 'command_accepted'
+                   and event.attempt_id == successor.attempt.attempt_id)
+    assert stopped.payload['reason'] == 'superseded_by_instruction'
+    assert stopped.event_seq < started.event_seq
+    assert started.payload['supersedes_attempt_id'] == source.attempt.attempt_id
+    store.finish_attempt(successor, phase='completed', payload={'answer': 'Replacement answer'})
+    assert store.snapshot(thread_id).current_attempt is None
