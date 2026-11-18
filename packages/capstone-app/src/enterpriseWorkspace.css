@@ -68,4 +68,10 @@
     gap: 6px 8px;
     padding-block: 8px;
   }
+
+  .enterprise-workspace .workspace-session-records {
+    max-block-size: min(20dvh, 144px);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
 }
