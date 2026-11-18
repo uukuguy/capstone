@@ -164,6 +164,8 @@ class ControlService:
                     and field in previous['delivery']]
                 if sources:
                     result['context_' + kind + '_sources'] = sources
+        if task.get('required_reference_sources'):
+            result['required_reference_sources'] = deepcopy(task['required_reference_sources'])
         return result
 
     def expire_pending(self, workspace, goal_id, delegation_id):
@@ -261,7 +263,7 @@ class ControlService:
                         else:
                             goal['state'] = 'cancelled' if kind == 'cancel' else 'paused'
             elif state == 'completed':
-                self._settle_delivery(task, observation['delivery'])
+                self._settle_delivery(goal, task, observation['delivery'])
             elif state in {'failed', 'unknown', 'cancelled'}:
                 task['state'] = 'failed' if state == 'failed' else 'blocked'
                 goal.update(state='paused', reason='delegation_' + state)
@@ -283,12 +285,16 @@ class ControlService:
                               observation_sequence=observation['sequence'], observed_state=observation['state']))
 
     @staticmethod
-    def _settle_delivery(task, delivery):
+    def _settle_delivery(goal, task, delivery):
         validate_delivery(delivery, task['delegation']['binding'])
         content = {**deepcopy(delivery), 'revision': 1}
         if task['delivery'] is not None and task['delivery'] != content:
             raise Conflict('delivery changed after persistence')
-        task.update(state='delivered', delivery=content)
+        missing = set(task.get('required_reference_sources', ())) - content.keys()
+        task.update(state='failed' if missing else 'delivered', delivery=content)
+        if missing:
+            task['failure_reason'] = 'required_reference_receipt_missing'
+            goal.update(state='waiting', reason='delegation_failed')
 
     def command(self, workspace, command, *, actor='application:trusted'):
         object_fields(command, {'schema', 'operation_id', 'goal_id', 'expected_revision',
@@ -472,6 +478,8 @@ class ControlService:
             raise InvalidTransition('Task has no current delivery')
         if payload['delivery_revision'] != task['delivery']['revision']:
             raise Conflict('stale delivery revision')
+        if any(source not in task['delivery'] for source in task.get('required_reference_sources', ())):
+            raise InvalidTransition('Task delivery lacks a required reference receipt')
         checks = payload['checks']
         if not isinstance(checks, list) or not checks:
             raise ContractError('verification checks required')
@@ -500,7 +508,8 @@ class ControlService:
                 raise KeyError(goal_id)
             task = next((t for t in goal['tasks'] if t['delegation'] and
                          t['delegation']['delegation_id'] == delegation_id), None)
-            if task is None or task['state'] not in {'dispatching', 'running', 'delivered'}:
+            if task is None or (task['state'] not in {'dispatching', 'running', 'delivered'}
+                                and not (task['state'] == 'failed' and task['delivery'] is not None)):
                 raise InvalidTransition('delegation is no longer eligible to deliver')
             d = task['delegation']
             if d['goal_revision'] != goal['objective_revision'] or d['task_revision'] != task['revision']:
@@ -513,7 +522,7 @@ class ControlService:
                     raise Conflict('delivery changed after persistence')
                 return goal, public(goal)
             d['binding'] = deepcopy(binding)
-            task.update(state='delivered', delivery=content)
+            self._settle_delivery(goal, task, delivery)
             if '_mission' in goal:
                 from .mission_reviews import queue_boundary
                 queue_boundary(goal)

@@ -1533,7 +1533,8 @@ class NativeTaskRunner:
                             'path': 'admitted-gateway-operations',
                             'content': 'Previously issued operation handles for the current registered gateway. '
                                 'Use them only for applicable continuation tools.\n' +
-                                json.dumps(saved_operations['operations'], ensure_ascii=False)})
+                                json.dumps([{key: item[key] for key in ('kind', 'ref')}
+                                            for item in saved_operations['operations']], ensure_ascii=False)})
                     retained_contracts = getattr(task_gateway, 'contract_context', None)
                     if callable(retained_contracts):
                         retained = retained_contracts(request.task_id)

@@ -90,7 +90,8 @@ def validate_goal_request(value):
     for task in tasks:
         fields = {'task_id', 'objective', 'delivery_requirements',
                   'depends_on', 'agent_id', 'mode', 'max_attempts'}
-        if not isinstance(task, dict) or not fields <= task.keys() or set(task) - fields - {'required_products'}:
+        if not isinstance(task, dict) or not fields <= task.keys() or set(task) - fields - {
+                'required_products', 'required_reference_sources'}:
             raise ContractError('Task fields do not match contract')
         task_id = identity(task['task_id'])
         if task_id in admitted:
@@ -110,6 +111,11 @@ def validate_goal_request(value):
                     or any(ord(c) < 32 or ord(c) == 127 for c in name) for name in products)
                 or len(set(products)) != len(products)):
             raise ContractError('required products must name distinct plain file names')
+        sources = task.get('required_reference_sources', [])
+        if (not isinstance(sources, list) or len(sources) > 2
+                or any(source not in ('authority_source', 'gateway_source') for source in sources)
+                or len(set(sources)) != len(sources)):
+            raise ContractError('required reference sources must name distinct supported receipt types')
         identity(task['agent_id'])
         positive_integer(task['max_attempts'])
         if not isinstance(task['mode'], str) or task['mode'] not in {'single', 'goal'}:

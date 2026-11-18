@@ -116,8 +116,16 @@ class PandapowerToolService:
         read_only = self._read_only.get(name, False)
         refs = set(_argument_references(arguments))
         owned_inputs = [item for item in authority_inputs if item['authority_id'] == PandapowerArtifactAuthority.authority_id]
-        linked = [item for item in owned_inputs if refs.intersection((*item['result_refs'], *item['evidence_refs']))]
-        delegated = next((item for item in linked if refs.issubset((*item['result_refs'], *item['evidence_refs']))), None)
+        referenced = {ref for ref in refs if not ref.startswith('revision:')}
+        revisions = refs - referenced
+
+        def shared_refs(item):
+            return set((*item['result_refs'], *item['evidence_refs'], *item.get('context_refs', ())))
+
+        linked = [item for item in owned_inputs if referenced & shared_refs(item)
+                  and (item['owner'] != workspace_id or referenced.intersection(
+                      (*item['result_refs'], *item['evidence_refs'])))]
+        delegated = next((item for item in linked if referenced <= shared_refs(item)), None)
         with ExitStack() as opened:
             execution_id = workspace_id
             if delegated is not None and read_only:
@@ -132,7 +140,8 @@ class PandapowerToolService:
                     if not _TASK_ID.fullmatch(delegated['owner']):
                         raise ValueError('delegated authority owner is invalid')
                     owner = PandapowerArtifactAuthority(self._root / delegated['owner'])
-                    owner.stage_read_inputs(self._root / execution_id, delegated['result_refs'], delegated['evidence_refs'])
+                    owner.stage_read_inputs(self._root / execution_id, delegated['result_refs'], delegated['evidence_refs'],
+                                            delegated.get('context_refs', ()), revisions)
                 result = self._executor(execution_id).invoke(capability, arguments,
                     execution_lease=lease,
                     execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
@@ -143,6 +152,16 @@ class PandapowerToolService:
                     verified = authority.admit(capability, result, ())
                     evidence = {item.reference: item for item in verified.evidence}
                     result_refs = {item.reference for item in verified.results}
+                    context_ref = result.get('context_ref')
+                    # Forward only a context the Pack opened or the call used.
+                    context_refs = [item.reference for item in verified.context
+                                    if item.reference == context_ref
+                                    and (capability == 'context.open' or item.reference in referenced)
+                                    and (delegated is None or item.reference in delegated.get('context_refs', ()))]
+                    if context_refs and 'revision_ref' in result and any(
+                            item.reference == context_ref and item.document['revision_ref'] != result['revision_ref']
+                            for item in verified.context):
+                        raise SimulatorIntegrityError('tool response does not match the verified context revision')
                     if delegated is not None and (not result_refs.issubset(delegated['result_refs'])
                             or not evidence.keys() <= set(delegated['evidence_refs'])):
                         raise ValueError('delegated authority response exceeds the grant')
@@ -159,12 +178,13 @@ class PandapowerToolService:
                                     and item.document.get('context_ref') == result.get('context_ref')
                                     and item.document.get('revision_ref') == result.get('revision_ref')):
                                 evidence[ref] = item
-                    if result_refs or evidence:
+                    if result_refs or evidence or context_refs:
                         response['authority_references'] = {
                             'authority_id': authority.authority_id,
                             'capability_id': capability,
                             'result_refs': [item.reference for item in verified.results],
                             'evidence_refs': list(evidence),
+                            **({'context_refs': context_refs} if context_refs else {}),
                         }
             except ExecutionReceiptError:
                 raise

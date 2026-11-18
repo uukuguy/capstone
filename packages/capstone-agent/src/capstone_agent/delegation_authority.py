@@ -115,7 +115,8 @@ def resolve_authority_inputs(service, workspace, sources):
             owner = next((item['owner'] for item in structural.get('authority_inputs', ())
                 if item['authority_id'] == receipt['authority_id']
                 and set(receipt['result_refs']).issubset(item['result_refs'])
-                and set(receipt['evidence_refs']).issubset(item['evidence_refs'])), selector)
+                and set(receipt['evidence_refs']).issubset(item['evidence_refs'])
+                and set(receipt.get('context_refs', ())).issubset(item.get('context_refs', ()))), selector)
             inputs.append({'owner': owner, **receipt})
     if len(inputs) > 64:
         raise ValueError('delegation authority inputs exceed bounds')

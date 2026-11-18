@@ -43,6 +43,8 @@ TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     depends_on=dict(type='array', items=IDENTITY, uniqueItems=True, maxItems=64),
     agent_id=IDENTITY, mode={'enum':['single', 'goal']}, max_attempts=dict(type='integer', minimum=1),
     required_products=dict(type='array', items=dict(type='string', minLength=1, maxLength=255), uniqueItems=True, maxItems=64),
+    required_reference_sources=dict(type='array', items=dict(enum=['authority_source', 'gateway_source']),
+        uniqueItems=True, maxItems=2, description='Required when the Task must produce a reusable authority or gateway reference. A saved answer or file cannot satisfy this requirement.'),
     equipment=dict(type='array', items=REF, maxItems=64), restrictions=dict(type='array', items=REF, maxItems=64)),
     ['task_id', 'objective', 'delivery_requirements', 'depends_on', 'agent_id', 'mode', 'max_attempts'])
 REVISION = dict(type='integer', minimum=1,

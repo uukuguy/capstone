@@ -102,9 +102,11 @@ def test_mission_review_freezes_authority_inputs_from_reserved_delivery(review_s
     service, thread_id, _workspace, _executor = review_store
     receipt = {'authority_id': 'registered', 'capability_id': 'calculate',
                'result_refs': ['result:sha256:' + 'a' * 64],
-               'evidence_refs': ['evidence:sha256:' + 'b' * 64]}
+               'evidence_refs': ['evidence:sha256:' + 'b' * 64],
+               'context_refs': ['context:sha256:' + 'c' * 64]}
     operation = {'binding': {'connection_id': 'conn_x', 'instance_id': 'instance_x', 'catalog_revision': 'revision_x'},
-                 'operations': [{'kind': 'preparation_ref', 'ref': 'issued-job'}]}
+                 'operations': [{'kind': 'preparation_ref', 'ref': 'issued-job'},
+                                {'kind': 'view_ref', 'ref': 'issued-view', 'view_identity_sha256': 'd' * 64}]}
     _host, _mission, intent, original = reserved_review(review_store, authority=receipt, gateway=operation)
     assert service.submit_mission_review(intent)['thread_id'] == thread_id
     review = service.claim_attempt('reviewer', 30)
@@ -112,6 +114,7 @@ def test_mission_review_freezes_authority_inputs_from_reserved_delivery(review_s
     context = structural_context_for(review)
     assert context['authority_inputs'] == [{
         'owner': {'work_scope': structural_context_for(original)['work_scope']}, **receipt}]
+    assert {'kind': 'context_ref', 'ref': receipt['context_refs'][0]} in context['handles']
     assert review.submission['_gateway_operation_inputs'] == [operation]
 
 

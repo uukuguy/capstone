@@ -13,7 +13,7 @@ from .service import Conflict, InvalidTransition, fingerprint, public
 
 
 TASK_FIELDS = {'task_id', 'objective', 'delivery_requirements', 'depends_on',
-               'agent_id', 'mode', 'max_attempts', 'required_products'}
+               'agent_id', 'mode', 'max_attempts', 'required_products', 'required_reference_sources'}
 
 
 def criteria_verdicts(goal, values):

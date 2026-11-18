@@ -219,12 +219,16 @@ class DataGatewayAccess:
             if (record is None or receipt['binding'] != current_binding
                     or record['catalog']['revision'] != current_binding['catalog_revision']):
                 raise GatewayError('gateway_task_not_admitted')
-            record.setdefault('operation_refs', set()).update(item['ref'] for item in receipt['operations'])
+            for item in receipt['operations']:
+                if item['kind'] == 'view_ref':
+                    record.setdefault('view_refs', {})[item['ref']] = item['view_identity_sha256']
+                else:
+                    record.setdefault('operation_refs', set()).add(item['ref'])
 
     def issued_operations(self, task_id):
         with self._lock:
             record = self._tasks.get(task_id) or {}
-            return [{'kind': kind, 'ref': ref} for kind, ref in record.get('issued_operations', ())]
+            return deepcopy(list(record.get('issued_operations', {}).values()))
 
     async def resolve_contracts(self, task_id, names):
         """Read exact metadata only for this frozen task's granted selections."""
@@ -383,6 +387,13 @@ class DataGatewayAccess:
                 if ('preparation_ref' not in properties or not isinstance(ref, str)
                         or ref not in record.get('operation_refs', set())):
                     raise GatewayError('gateway_tool_not_admitted')
+            for field in ('view_ref', 'parent_view_ref'):
+                if field in document['arguments']:
+                    ref = document['arguments'][field]
+                    if (field not in properties or not isinstance(ref, str)
+                            or ref not in record.get('view_refs', set())):
+                        raise GatewayError('gateway_tool_not_admitted')
+            view_identity = record.get('view_refs', {}).get(document['arguments'].get('view_ref'))
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
             span = {**(context or {}), 'span_id': uuid4().hex, 'tool_call_id': call_id,
@@ -444,6 +455,12 @@ class DataGatewayAccess:
         if (consumes_job and successful
                 and (not isinstance(data, dict) or data.get('job_ref') != arguments.get('job_ref'))):
             raise GatewayError('gateway_output_invalid')
+        from .data_gateway_views import view_identity_sha256
+        if view_identity and successful and (
+                not isinstance(data, dict) or data.get('view_ref') != arguments['view_ref']
+                or view_identity_sha256(data) != view_identity
+                or ('stream' in arguments and data.get('stream') != arguments['stream'])):
+            raise GatewayError('gateway_output_invalid')
         body = encode(result).decode()
         from .gateway_diagnostics import service_bus_calls
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
@@ -478,7 +495,7 @@ class DataGatewayAccess:
                     span['continuation_contract_error'] = str(error)
                     break
             binding_catalog = {**catalog, 'tools': {**catalog['tools'], **record.get('exact_tools', {})}}
-        self.view_bindings.observe(name, arguments, result, binding_catalog)
+        manifest = self.view_bindings.observe(name, arguments, result, binding_catalog)
         classify_contract = getattr(self.client, 'contract_context_entry', None)
         contract_entry = classify_contract(name, arguments, result, catalog) if classify_contract else None
         with self._lock:
@@ -503,18 +520,28 @@ class DataGatewayAccess:
                     record.setdefault('blocked_requests', {})[operation_key] = (
                         provenance.get('request_id') if isinstance(provenance, dict) else None)
                     break
-            if successful and isinstance(data, dict):
+            if successful and isinstance(data, dict) and data.get('state') != 'failed':
                 # Only explicit operation references at the result's data root
                 # grant access. Business rows and nested objects never do.
-                for field in ('job_ref', 'preparation_ref'):
-                    ref = data.get(field)
+                references = [(field, data.get(field)) for field in ('job_ref', 'preparation_ref')]
+                if manifest is not None:
+                    references.append(('view_ref', manifest['view_ref']))
+                for field, ref in references:
                     if isinstance(ref, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', ref):
                         issued = record.setdefault('issued_operations', {})
                         require_capacity('context_references', len(issued) + ((field, ref) not in issued), 'gateway_operation')
                         if len(issued) >= 64 and (field, ref) not in issued:
                             raise GatewayError('gateway_output_invalid')
-                        issued[field, ref] = None
-                        record.setdefault('operation_refs', set()).add(ref)
+                        item = {'kind': field, 'ref': ref}
+                        if field == 'view_ref':
+                            identity = view_identity_sha256(manifest)
+                            previous = record.setdefault('view_refs', {}).setdefault(ref, identity)
+                            if previous != identity:
+                                raise GatewayError('gateway_output_invalid')
+                            item['view_identity_sha256'] = identity
+                        else:
+                            record.setdefault('operation_refs', set()).add(ref)
+                        issued[field, ref] = item
         return response
 
     def diagnostic_calls(self, task_id):

@@ -251,3 +251,27 @@ def test_trusted_release_refunds_only_unbound_reservation_and_resume_has_new_ide
     with pytest.raises(InvalidTransition):
         control.release_mission_review('team',mission['mission_id'],second['review_id'])
     assert control.read_mission('team',mission['mission_id'])['organizer']['reviews_admitted']==1
+
+
+def test_missing_required_reference_reaches_review_as_failed_delivery():
+    control = service()
+    mission = create(control, acceptance_criteria=['Read the source operation'])
+    producer = {**task(), 'required_reference_sources': ['gateway_source']}
+    consumer = {**task('task_2'), 'depends_on': ['task_1']}
+    mission = command(control, mission, 'update_plan',
+        {'acceptance_criteria': ['Read the source operation'], 'tasks': [producer, consumer]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    binding = {'thread_id': 'task_thread', 'work_id': 'task_work'}
+    answer = {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'}
+
+    control.deliver('team', mission['mission_id'], delegation, binding, answer)
+    control.deliver('team', mission['mission_id'], delegation, binding, answer)
+
+    intent = control.pending_mission_reviews('team')[0]
+    failed, pending = intent['boundary']['tasks']
+    assert failed['state'] == 'failed'
+    assert failed['failure_reason'] == 'required_reference_receipt_missing'
+    assert failed['delivery']['answer_ref'] == 'saved_answer'
+    assert pending['state'] == 'pending'

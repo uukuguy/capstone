@@ -38,29 +38,40 @@ def checked_gateway_operations(value):
         raise ValueError('invalid gateway operation list')
     checked = {}
     for item in operations:
-        if (not isinstance(item, Mapping) or set(item) != {'kind', 'ref'}
-                or item['kind'] not in ('job_ref', 'preparation_ref') or not isinstance(item['ref'], str)
+        if (not isinstance(item, Mapping) or set(item) - {'view_identity_sha256'} != {'kind', 'ref'}
+                or item['kind'] not in ('job_ref', 'preparation_ref', 'view_ref') or not isinstance(item['ref'], str)
                 or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', item['ref'])):
             raise ValueError('invalid gateway operation reference')
+        digest = item.get('view_identity_sha256')
+        if item['kind'] == 'view_ref':
+            if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
+                raise ValueError('invalid gateway view identity')
+        elif 'view_identity_sha256' in item:
+            raise ValueError('unexpected gateway view identity')
+        old = checked.get((item['kind'], item['ref']))
+        if old is not None and old != item:
+            raise ValueError('gateway reference identity changed')
         checked[item['kind'], item['ref']] = dict(item)
     return {'binding': dict(binding), 'operations': list(checked.values())}
 
 
 def checked_authority_references(value: object) -> dict:
-    if not isinstance(value, Mapping) or set(value) != {
+    if not isinstance(value, Mapping) or set(value) - {'context_refs'} != {
         'authority_id', 'capability_id', 'result_refs', 'evidence_refs',
     }:
         raise ValueError('authority references are invalid')
     receipt: dict = {key: _token(value[key]) for key in ('authority_id', 'capability_id')}
-    for kind in ('result', 'evidence'):
+    for kind in ('result', 'evidence', 'context'):
         key = kind + '_refs'
+        if kind == 'context' and key not in value:
+            continue
         refs = value[key]
         if (not isinstance(refs, (list, tuple)) or len(refs) > 64
                 or any(not isinstance(ref, str)
                        or not re.fullmatch(kind + r':sha256:[0-9a-f]{64}', ref) for ref in refs)):
             raise ValueError('authority references are invalid')
         receipt[key] = list(dict.fromkeys(refs))
-    if not (receipt['result_refs'] or receipt['evidence_refs']):
+    if not (receipt['result_refs'] or receipt['evidence_refs'] or receipt.get('context_refs')):
         raise ValueError('authority references are empty')
     return receipt
 
@@ -104,7 +115,7 @@ def _checked_handles(value) -> list[dict]:
     for item in value:
         if not isinstance(item, Mapping) or set(item) != {'kind', 'ref'}:
             raise ValueError('structural context is invalid')
-        if item['kind'] not in {'result_ref', 'evidence_ref'}:
+        if item['kind'] not in {'result_ref', 'evidence_ref', 'context_ref'}:
             raise ValueError('structural context is invalid')
         checked.append({'kind': item['kind'], 'ref': _token(item['ref'], limit=256)})
     return checked
@@ -235,7 +246,7 @@ def structural_context_for(claim) -> dict:
         }
     inputs = _checked_authority_inputs((getattr(claim, 'submission', None) or {}).get('_authority_inputs', []))
     handles = [{'kind': kind + '_ref', 'ref': ref} for item in inputs
-               for kind in ('result', 'evidence') for ref in item[kind + '_refs']]
+               for kind in ('result', 'evidence', 'context') for ref in item.get(kind + '_refs', ())]
     selection = (getattr(claim, 'submission', None) or {}).get('_goal_authority_selection')
     if selection is not None:
         from .goal_receipts import validate_goal_authority_refs
@@ -255,6 +266,7 @@ def structural_context_for(claim) -> dict:
             break
     if selection is None:
         handles.extend({'kind': 'evidence_ref', 'ref': ref} for ref in getattr(claim, 'prior_evidence_refs', ()))
+        handles.extend({'kind': 'context_ref', 'ref': ref} for ref in getattr(claim, 'prior_context_refs', ()))
     unique = {(item['kind'], item['ref']): item for item in handles}
     if (inputs or selection is not None) and len(unique) > 64:
         raise ValueError('authority handles exceed structural context capacity')

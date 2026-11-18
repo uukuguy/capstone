@@ -302,7 +302,7 @@ def test_recent_result_without_evidence_does_not_hide_earlier_verified_evidence(
             'capability_id': capability, 'authority_id': 'example', **fields}]}
 
     evidence = 'evidence:sha256:' + 'c' * 64
-    (candidate,), standalone = _native_prior_context((), (
+    (candidate,), standalone, contexts = _native_prior_context((), (
         ('attempt_read', payload('read', [])),
         ('attempt_compute', payload('compute', [evidence])),
     ))
@@ -396,13 +396,15 @@ def test_goal_continuation_keeps_the_published_catalog_and_selected_refs(backend
     result = 'result:sha256:' + 'a' * 64
     proof = 'evidence:sha256:' + 'b' * 64
     decoy = 'evidence:sha256:' + 'c' * 64
+    context_ref = 'context:sha256:' + 'd' * 64
     store.finish_attempt(first, phase='completed', payload={'answer': 'Saved the calculation',
         'result_refs': [result], 'evidence_refs': [proof, decoy],
         'authority_references': [{'authority_id': 'registered', 'capability_id': 'calculate',
-                                 'result_refs': [result], 'evidence_refs': [proof, decoy]}],
+                                 'result_refs': [result], 'evidence_refs': [proof, decoy],
+                                 'context_refs': [context_ref]}],
         'goal_proposal': {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
             'summary': 'Saved the calculation', 'next_instruction': 'Read the result',
-            'waiting_reason': None, 'product_refs': [], 'authority_refs': [result, proof]}})
+            'waiting_reason': None, 'product_refs': [], 'authority_refs': [result, proof, context_ref]}})
     store._catalog_context = None
     if route == 'automatic':
         assert drain_goal_continuations(store) == 1
@@ -420,7 +422,8 @@ def test_goal_continuation_keeps_the_published_catalog_and_selected_refs(backend
     continuation = store.claim_attempt('native', 30, 'native')
     assert continuation is not None and continuation.application_catalog == first.application_catalog
     assert structural_context_for(continuation)['handles'] == [
-        {'kind': 'result_ref', 'ref': result}, {'kind': 'evidence_ref', 'ref': proof}]
+        {'kind': 'result_ref', 'ref': result}, {'kind': 'evidence_ref', 'ref': proof},
+        {'kind': 'context_ref', 'ref': context_ref}]
 
 
 def test_enterprise_research_admits_an_attachment_while_a_model_is_open():
@@ -518,3 +521,20 @@ def test_legacy_worker_recovery_requires_operator_and_completed_execution():
         assert client.post(route, json=proof).status_code == 401
         assert client.post(route, headers=auth, json={**proof, 'events': proof['events'][:3]}).status_code == 422
         assert client.post(route, headers=auth, json=proof).json() == {'ok': True}
+
+
+def test_context_only_authority_receipt_is_visible_without_becoming_evidence():
+    from types import SimpleNamespace
+    from capstone_agent.structural_context import checked_authority_references, structural_context_for
+    from capstone_agent.thread_service import _native_prior_context
+
+    ref = 'context:sha256:' + 'a' * 64
+    receipt = checked_authority_references({
+        'authority_id': 'gridctl', 'capability_id': 'context.open',
+        'result_refs': [], 'evidence_refs': [], 'context_refs': [ref],
+    })
+    prior, evidence, contexts = _native_prior_context((), [
+        ('attempt_a', {'authority_references': [receipt]})])
+    assert prior == evidence == ()
+    document = structural_context_for(SimpleNamespace(prior_context_refs=contexts))
+    assert document['handles'] == [{'kind': 'context_ref', 'ref': ref}]

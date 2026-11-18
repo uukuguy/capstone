@@ -622,7 +622,10 @@ class IntentRuntimeFactory:
             for raw in (*submission.get('_gateway_operation_inputs', ()), *claim.prior_gateway_operations):
                 receipt = checked_gateway_operations(raw)
                 if receipt['binding'] == gateway_binding:
-                    operations.update({(item['kind'], item['ref']): item for item in receipt['operations']})
+                    for item in receipt['operations']:
+                        key = (item['kind'], item['ref'])
+                        if operations.setdefault(key, item) != item:
+                            raise ValueError('saved gateway reference identity changed')
         if operations:
             resources['structural_context']['gateway_operations'] = checked_gateway_operations({
                 'binding': gateway_binding, 'operations': list(operations.values())[:64]})

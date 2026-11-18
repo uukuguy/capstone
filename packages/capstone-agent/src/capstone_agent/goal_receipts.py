@@ -46,7 +46,7 @@ def goal_response_instruction(instruction: str) -> str:
         '(continue, wait, complete), summary, next_instruction (nonempty only for continue; '
         'otherwise null), waiting_reason (nonempty only for wait; otherwise null), '
         'product_refs (array of saved product references; use [] when no references are needed). '
-        'Only for continue, optionally include authority_refs with exact saved result or evidence references needed by the next iteration. '
+        'Only for continue, optionally include authority_refs with exact saved context, result or evidence references needed by the next iteration. '
         'Omit authority_refs for wait or complete. '
         'Use continue when more useful work remains, wait when input is missing, and complete '
         'only when the objective has been delivered. Save useful products before responding. '
@@ -126,7 +126,7 @@ def validate_goal_product_refs(refs):
 
 def validate_goal_authority_refs(refs):
     validate_goal_product_refs(refs)
-    if any(not re.fullmatch(r'(?:result|evidence):sha256:[0-9a-f]{64}', ref) for ref in refs):
+    if any(not re.fullmatch(r'(?:context|result|evidence):sha256:[0-9a-f]{64}', ref) for ref in refs):
         raise ValueError('invalid goal authority references')
 
 

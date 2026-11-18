@@ -127,6 +127,12 @@ class ControlHost:
                     names = task.get('required_products', [])
                     if task['state'] != 'delivered':
                         continue
+                    missing = set(task.get('required_reference_sources', ())) - task['delivery'].keys()
+                    if missing:
+                        if goal.get('reason') != 'delivery_verification_unavailable':
+                            goal = self._command(goal, 'defer_verification', {
+                                'task_id': task['task_id'], 'reason': 'delivery_verification_unavailable'})
+                        continue
                     products = {p['file_name']: p for p in task['delivery']['products']}
                     if any(name not in products for name in names):
                         continue

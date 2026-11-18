@@ -32,7 +32,7 @@ def _request(value):
     if v2:
         fields |= {'equipment', 'restrictions', 'mission_origin'}
     if (not isinstance(value, dict) or not fields <= set(value)
-            or set(value) - fields - {'control_revision', 'required_products'} - (
+            or set(value) - fields - {'control_revision', 'required_products', 'required_reference_sources'} - (
                 {'context_authority_sources', 'context_gateway_sources'} if v2 else set())
             or value['schema'] not in {'capstone-agent-delegation/1', 'capstone-agent-delegation/2'}):
         raise ValueError('invalid Agent delegation contract')
@@ -141,6 +141,8 @@ class AgentDelegations:
                 text = request['objective'] + '\n\n交付要求：\n' + '\n'.join(request['delivery_requirements'])
                 if request.get('required_products'):
                     text += '\n必须保存的成果文件：' + json.dumps(request['required_products'], ensure_ascii=False)
+                if request.get('required_reference_sources'):
+                    text += '\n必须交付已注册工具签发的引用回执：' + json.dumps(request['required_reference_sources'])
                 self._command(thread, None, 'work_message', 'create-work', {'text': text})
             work = self.threads.snapshot(thread).to_document()['works'][0]
             if selection is not None:
@@ -233,9 +235,11 @@ class AgentDelegations:
             if terminal is None:
                 raise ValueError('completed Work has no persisted answer')
             delivery = {'answer_ref': terminal, 'products': list(artifacts.values()), 'status': 'completed'}
-            if authoritative and delegation['schema'] == 'capstone-agent-delegation/2':
+            if authoritative and (delegation['schema'] == 'capstone-agent-delegation/2'
+                                  or 'authority_source' in delegation.get('required_reference_sources', ())):
                 delivery['authority_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}
-            if gateway and delegation['schema'] == 'capstone-agent-delegation/2':
+            if gateway and (delegation['schema'] == 'capstone-agent-delegation/2'
+                            or 'gateway_source' in delegation.get('required_reference_sources', ())):
                 delivery['gateway_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}
         return {'sequence': sequence, 'state': state,
                 'summary': work.get('goal_mode', {}).get('reason') or work.get('blocked_reason') or state,

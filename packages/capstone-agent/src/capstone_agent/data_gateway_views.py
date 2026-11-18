@@ -9,8 +9,18 @@ import json
 import threading
 import time
 from datetime import datetime
+from hashlib import sha256
 from jsonschema.exceptions import ValidationError
 from .data_gateway_mcp import validate as validate_gateway_schema
+
+
+def view_identity_sha256(value):
+    from .grid_electrical_view import IDENTITY
+    keys = ('schema', *IDENTITY)
+    if any(not isinstance(value.get(key), str) or not value[key] for key in keys):
+        return None
+    identity = {key: value[key] for key in keys}
+    return sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
 
 class GatewayViewBindings:
@@ -115,11 +125,12 @@ class GatewayViewBindings:
             if 'job_ref' in arguments:
                 with self._lock:
                     self._actions.pop(self._key(arguments), None)
-            return
+            return None
         data = content.get('data')
         if not isinstance(data, dict):
-            return
+            return None
         actions = self.candidate_actions(response)
+        manifest = None
         with self._lock:
             revision = catalog.get('revision')
             if revision != self._revision:
@@ -173,3 +184,4 @@ class GatewayViewBindings:
                     bucket.append(deepcopy(invocation))
             while len(self._actions) > 2048:
                 self._actions.popitem(last=False)
+        return manifest

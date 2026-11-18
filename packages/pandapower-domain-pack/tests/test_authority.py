@@ -132,7 +132,7 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monke
     assert references.evidence == expected.evidence
     recovered = authority.recover_references()
     assert recovered == {'authority_id': 'gridctl', 'capability_id': 'legacy.workspace.read',
-                         'result_refs': [result_ref], 'evidence_refs': [evidence_ref]}
+                         'result_refs': [result_ref], 'evidence_refs': [evidence_ref], 'context_refs': [context_ref]}
 
     (evidence_root / 'results' / 'unrelated.json').write_text('{}')
     staged = tmp_path / 'delegated-read'
@@ -142,6 +142,13 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monke
     assert target.verify_evidence(evidence_ref).document == evidence_body
     assert hashlib.sha256(target.verify_evidence(evidence_ref).path.read_bytes()).hexdigest() == evidence_digest
     assert target.verify_context(context_ref).document == context
+    context_only = tmp_path / 'delegated-context'
+    authority.stage_read_inputs(context_only, [], [], [context_ref], [revision_ref])
+    assert PandapowerArtifactAuthority(context_only).verify_context(context_ref).document == context
+    assert not (context_only / 'evidence' / 'results').exists()
+    with pytest.raises(SimulatorIntegrityError, match='requested revision'):
+        authority.stage_read_inputs(tmp_path / 'wrong-revision', [], [], [context_ref],
+                                    ['revision:sha256:' + 'a' * 64])
     assert not (staged / 'evidence' / 'results' / 'unrelated.json').exists()
     with pytest.raises(SimulatorIntegrityError, match='linked result and evidence'):
         authority.stage_read_inputs(tmp_path / 'rejected', [], [evidence_ref])
@@ -159,10 +166,16 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monke
     def run(executor, request, **kwargs):
         assert executor.workspace.name.startswith('grant-')
         isolated = PandapowerArtifactAuthority(executor.workspace)
-        assert isolated.verify_result(result_ref).reference == result_ref
-        assert isolated.verify_evidence(evidence_ref).reference == evidence_ref
+        call = json.loads(request)
+        if call['arguments'].get('context_ref'):
+            assert isolated.verify_context(context_ref).document == context
+            body = {'context_ref': context_ref, 'revision_ref': revision_ref}
+        else:
+            assert isolated.verify_result(result_ref).reference == result_ref
+            assert isolated.verify_evidence(evidence_ref).reference == evidence_ref
+            body = result
         called.append(executor.workspace)
-        response = {**json.loads(request), 'ok': True, 'result': result}
+        response = {**call, 'ok': True, 'result': body}
         return 0, (json.dumps(response) + '\n').encode(), b'', False
 
     monkeypatch.setattr(GridctlExecutor, '_run_bounded', run)
@@ -178,6 +191,14 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monke
         'evidence_ref': 'evidence:sha256:' + 'a' * 64}},
         workspace_id='consumer', authority_inputs=[grant])['ok'] is False
     assert len(called) == 1
+    context_grant = {**grant, 'context_refs': [context_ref], 'result_refs': [], 'evidence_refs': []}
+    read_context = {**document, 'call_id': 'read-context',
+                    'arguments': {'context_ref': context_ref, 'revision_ref': revision_ref}}
+    receipt = service.invoke(read_context, workspace_id='consumer', authority_inputs=[context_grant])
+    assert receipt['ok'] is True
+    assert receipt['authority_references']['context_refs'] == [context_ref]
+    assert receipt['authority_references']['result_refs'] == receipt['authority_references']['evidence_refs'] == []
+    assert not called[-1].exists()
 
     legacy_id = 'pi-' + 'a' * 64
     run_root.rename(tmp_path / legacy_id)

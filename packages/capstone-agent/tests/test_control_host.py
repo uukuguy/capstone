@@ -122,3 +122,21 @@ def test_concurrent_api_worker_bootstrap_initializes_owned_tables(postgres_threa
     finally:
         with psycopg.connect(threads.dsn) as connection:
             connection.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
+
+
+def test_required_gateway_receipt_cannot_be_replaced_by_saved_file():
+    service = ControlService(MemoryStore())
+    agent = Agent()
+    host = ControlHost(service, agent, verify_product=lambda *_: None)
+    request = goal_request()
+    request['tasks'][0]['required_reference_sources'] = ['gateway_source']
+    goal = service.create('enterprise', request)
+
+    for _ in range(5):
+        host.tick()
+
+    current = service.read('enterprise', goal['goal_id'])
+    assert current['tasks'][0]['state'] == 'failed'
+    assert current['tasks'][0]['delivery']['products'][0]['file_name'] == 'draft.txt'
+    assert current['tasks'][1]['state'] == 'pending'
+    assert len(agent.calls) == 1

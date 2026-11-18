@@ -343,6 +343,7 @@ def _prepare_terminal_transition(
                 selected = {
                     ref for item in trusted for kind in ('result_refs', 'evidence_refs')
                     for ref in item[kind] if ref in payload.get(kind, ())}
+                selected.update(ref for item in trusted for ref in item.get('context_refs', ()))
                 qualified = apply_terminal_goal_proposal(snapshot, claim.task_context,
                     claim.attempt.attempt_id, payload['goal_proposal'],
                     saved_product_refs=saved_product_refs, saved_authority_refs=selected,
@@ -625,11 +626,12 @@ def _visible_completed_attempts(conversation: ConversationContext,
             and (allowed is None or message['attempt_id'] in allowed)]
 
 
-def _native_prior_context(prior, terminal_records) -> tuple[tuple[PriorResultReference, ...], tuple[str, ...]]:
+def _native_prior_context(prior, terminal_records) -> tuple[tuple[PriorResultReference, ...], tuple[str, ...], tuple[str, ...]]:
     from .structural_context import checked_authority_references
 
     receipts = {}
     standalone_evidence = {}
+    contexts = {}
     for attempt_id, payload in terminal_records:
         for value in payload.get('authority_references', ()):
             receipt = checked_authority_references(value)
@@ -638,6 +640,7 @@ def _native_prior_context(prior, terminal_records) -> tuple[tuple[PriorResultRef
                 raise ThreadExecutionError('saved authority receipt is outside the terminal admission')
             if not receipt['result_refs']:
                 standalone_evidence.update(dict.fromkeys(receipt['evidence_refs']))
+            contexts.update(dict.fromkeys(receipt.get('context_refs', ())))
             for ref in receipt['result_refs']:
                 existing = receipts.get(ref)
                 if existing is None or (not existing.evidence_refs and receipt['evidence_refs']):
@@ -647,7 +650,8 @@ def _native_prior_context(prior, terminal_records) -> tuple[tuple[PriorResultRef
         receipts.setdefault(item.result_ref, item)
     require_capacity('context_references', len(receipts), phase='prior_results')
     require_capacity('context_references', len(standalone_evidence), phase='prior_evidence')
-    return tuple(receipts.values()), tuple(standalone_evidence)
+    require_capacity('context_references', len(contexts), phase='prior_context')
+    return tuple(receipts.values()), tuple(standalone_evidence), tuple(contexts)
 
 
 def _legacy_authority_receipts(records):
@@ -869,6 +873,7 @@ class AttemptClaim:
     prior_results: tuple[PriorResultReference, ...] = ()
     prior_evidence_refs: tuple[str, ...] = field(default=(), kw_only=True)
     legacy_authority_receipts: tuple[Mapping, ...] = field(default=(), kw_only=True)
+    prior_context_refs: tuple[str, ...] = field(default=(), kw_only=True)
     prior_gateway_operations: tuple[Mapping, ...] = field(default=(), kw_only=True)
     previous_instruction: PreviousInstruction | None = None
     conversation_context: ConversationContext = ConversationContext()
@@ -2336,11 +2341,12 @@ class InMemoryThreadService(NativeExecutionOwner):
                 prior_evidence = ()
                 legacy = ()
                 gateway_operations = ()
+                prior_contexts = ()
                 from .structural_context import main_chain_native_binding
                 conversation = record['conversation_context']
                 if main_chain_native_binding(record.get('submission')) and (context is not None or allowed_attempt_ids is not None):
                     visible = set(_visible_completed_attempts(conversation, allowed_attempt_ids))
-                    prior, prior_evidence = _native_prior_context(prior, (
+                    prior, prior_evidence, prior_contexts = _native_prior_context(prior, (
                         (item.attempt_id, item.payload) for item in reversed(self._events)
                         if item.attempt_id in visible and item.event_type == 'attempt_completed'
                         and item.event_seq <= conversation.history_cutoff and item.run_id == self._snapshot.run.run_id
@@ -2375,6 +2381,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     prior_results=prior,
                     prior_evidence_refs=prior_evidence,
                     legacy_authority_receipts=legacy,
+                    prior_context_refs=prior_contexts,
                     prior_gateway_operations=gateway_operations,
                     previous_instruction=previous,
                     conversation_context=record["conversation_context"],
@@ -4681,6 +4688,7 @@ class PostgresThreadService(NativeExecutionOwner):
             prior_evidence = ()
             legacy = ()
             gateway_operations = ()
+            prior_contexts = ()
             from .structural_context import main_chain_native_binding
             frozen_conversation = ConversationContext.from_document(conversation)
             if main_chain_native_binding(attempt_row.get('submission_snapshot')) and (context is not None or allowed_attempt_ids is not None):
@@ -4696,7 +4704,8 @@ class PostgresThreadService(NativeExecutionOwner):
                         ORDER BY e.event_seq DESC""",
                         (thread['thread_id'], thread['run_id'], visible, frozen_conversation.history_cutoff,
                          None if context is None else Jsonb(context.to_document()))).fetchall()
-                    prior, prior_evidence = _native_prior_context(prior, ((item['attempt_id'], item['payload']) for item in records))
+                    prior, prior_evidence, prior_contexts = _native_prior_context(
+                        prior, ((item['attempt_id'], item['payload']) for item in records))
                     if allowed_attempt_ids is not None:
                         operations = connection.execute("""SELECT payload->'gateway_operations' AS receipt
                             FROM capstone_thread_events
@@ -4736,6 +4745,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 prior_results=prior,
                 prior_evidence_refs=prior_evidence,
                 legacy_authority_receipts=legacy,
+                prior_context_refs=prior_contexts,
                 prior_gateway_operations=gateway_operations,
                 previous_instruction=previous,
                 conversation_context=frozen_conversation,
