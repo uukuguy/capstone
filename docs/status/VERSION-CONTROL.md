@@ -1294,7 +1294,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| harness-reference-continuity | Harness 跨轮次引用续接 | 1 | 本机真实验收通过 | 同一 Work、Goal 和 Mission 的版本化上下文、结果、证据、制品、网关操作与视图交接 | fix/harness-reference-continuity-20261118 | 等待 PR152 定向 CI 通过后合入 dev | dev 028c8d76 | b2ea6f11 在指令完成时打开电网图，按最终已核验查询展示元件，并排版回答摘要。 | 真实 Work 读取原模型上下文与已就绪视图。真实 Mission 跨 Work 和复核查询原操作；缺回执时阻止依赖。1,206 个本机定向检查通过。追加指令的正式回答与摘要保存修正已通过真实回放。PR152 定向 CI 继续跟踪。[审计](../reviews/2026-11-18-harness-reference-continuity.md) |
+| harness-reference-continuity | Harness 跨轮次引用续接 | 1 | 本机真实验收通过 | 同一 Work、Goal 和 Mission 的版本化上下文、结果、证据、制品、网关操作与视图交接 | fix/harness-reference-continuity-20261118 | 等待 PR152 定向 CI 通过后合入 dev | dev 028c8d76 | cdc436d3 对齐右栏比例并压缩标题与输入区。c34bad46 区分插问和中止后执行。 | 真实 Work 读取原模型上下文与已就绪视图。真实 Mission 跨 Work 和复核查询原操作；缺回执时阻止依赖。1,206 个本机定向检查通过。追加指令的正式回答与摘要保存修正已通过真实回放。PR152 定向 CI 继续跟踪。[审计](../reviews/2026-11-18-harness-reference-continuity.md) |
 | enterprise-core-reply-20261118 | 企业指令核心回复与执行过程 | 1 | 已合入 dev，本地真实验收通过 | 主会话展示核心摘要和具体执行操作，右栏保留正式回答；已打开模型按冻结版本引用 | dev | 根据后续真实任务反馈维护 | dev ba6dba8e / PR150 | 按实际步骤和工具调用展示过程；关联模型拓扑和正式回答 | PR150 合入 958b6e27，macOS 定向 CI 通过。IEEE 39 真实潮流收敛，下载校验 Markdown 记录，刷新恢复摘要及全文入口。[设计](../superpowers/specs/2026-11-18-enterprise-core-reply-design.md) |
 | enterprise-data | 生产数据研究接入 | 1 | 首期已合入；会话级取源本地验证通过 | enterprise-research动态发现生产数据工具，保存来源与报告，按会话冻结实例 | dev d3c69284 | 后续按具体业务反馈推进 | origin/dev196e865a | 主提供方动态契约与续接；会话级实例、契约版本、模型视图及回执一致 | 联调A与研发B会话隔离，真实CSV5行及下载哈希通过；未做云端发布。[验证报告](../reports/2026-10-31-session-gateway-binding.md) |
 | dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev已快进f300，local-dev规范重建与真实源码核验通过；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
@@ -1422,7 +1422,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| harness-reference-local-20261118 | b2ea6f11 | feature | Harness 引用续接 | 本机真实 Work 与 Mission 验收通过 | 原模型上下文与网关视图续接、依赖回执核验、指令电网图对焦。[验证](../reviews/2026-11-18-harness-reference-continuity.md) | harness-reference-continuity |
+| harness-reference-local-20261118 | c34bad46 | feature | Harness 引用续接 | 本机真实 Work 与 Mission 验收通过 | 原模型上下文与网关视图续接、依赖回执核验、指令电网图对焦。[验证](../reviews/2026-11-18-harness-reference-continuity.md) | harness-reference-continuity |
 | enterprise-inline-reply-20261118 | 6d4bc023 | dev | 企业主会话回复与进展 | PR148、macOS CI 和真实会话复验通过 | 主会话显示真实答复摘录和已记录进展，右栏保留完整记录。[验收](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md#main-conversation-correction) | shared-agent |
 | enterprise-workspace-entry-20261118 | 68857937 | dev | 独立企业工作台入口 | PR146，macOS App CI 和本机真实验收通过 | 独立路由和布局偏好、复用会话与制品。[实施计划](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md) | shared-agent |
 | mission-registered-skills-20261118 | f22ea11c | dev | Mission 注册技能配备 | PR144，macOS 定向 CI 和两次真实技能委派通过 | 精确版本与原生加载；目录为技能保留空间。[实施计划](../superpowers/plans/2026-11-18-mission-registered-skills.md) | shared-agent |
@@ -2111,7 +2111,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API 与三 worker 的已核对运行源码 `b2ea6f11`；App 使用同一候选产品代码 | 同后端镜像 a1981a8ecd8a；就绪与缓存维护通过 | App http://127.0.0.1:5173/enterprise；真实上下文、就绪视图和 Mission 续接。[验收](../reviews/2026-11-18-harness-reference-continuity.md) |
+| local-dev | API 与三 worker 的已核对运行源码 `c34bad46`；Vite App 使用 `cdc436d3` | 同后端镜像 333f494a33e9；就绪与缓存维护通过 | App http://127.0.0.1:5173/enterprise；真实上下文、就绪视图和 Mission 续接。[验收](../reviews/2026-11-18-harness-reference-continuity.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

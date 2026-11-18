@@ -303,3 +303,25 @@ with separate conclusion and limitation paragraphs. Browser replay of
 `attempt_4602b9986422f21a` also showed exactly three highlights. The focused
 App suite passed 300 tests. The focused Agent suite passed 147 tests and
 the application lifecycle suite passed 16 tests.
+
+## Dynamic instructions and workspace layout
+
+The composer displays pending supplements as rows. It hides the empty buffer
+and removes the persistent stopped row. The desktop browser measured a 56 px
+single-row header, an 8 px composer inset, one composer divider and no
+horizontal overflow at 1289 px. The enterprise workspace uses the original
+60/40 default split. Existing resize controls still adjust and reset it.
+
+Enter submits plain input while tool selection is locked. Keyboard
+composition and Shift+Enter retain their own behavior. The default send
+mode inserts a question into the active execution. Explicit interruption
+settles the former Attempt and admits the replacement under the same Work
+in one transaction. The replacement receives the frozen grants and the
+available conversation context.
+
+A real browser Enter submission cancelled `attempt_43e258f6a6de1c75` and
+completed its successor `attempt_52103c3f68927c9c` with a separate answer.
+A real inserted question stayed in `attempt_0a6af820a71bed8f` while its
+registered grid tools continued. The attempt completed and answered the
+inserted question. Focused checks passed 201 App tests and 119 backend
+tests, with PostgreSQL enabled for the ledger cases.

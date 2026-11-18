@@ -8244,3 +8244,11 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: PR152 push used the process-local Clash proxy after direct Git stalled and remote state was checked.
 
 - 2026-11-19: b2ea6f11 auto-opens admitted grid views, aligns final highlights with saved queries, and renders readable summaries.
+
+- 2026-11-19: b7fde7da records browser timing, exact historical highlights, summary formatting, and the focused CI scope.
+
+- 2026-11-19: c34bad46 distinguishes in-place questions from explicit interruption and starts replacements with the frozen Work context.
+
+- 2026-11-19: 84772ea3 compacts the enterprise header and removes the idle composer status row.
+
+- 2026-11-19: cdc436d3 restores the original 60/40 default split while retaining user resizing.
