@@ -122,6 +122,12 @@ const TOOL_LABELS: Record<string, string> = {
   agent_research_update: '保存研究进展与待解决问题',
   agent_research_depth: '调整后续推理深度',
   agent_task_progress: '记录任务进展',
+  agent_mission_read: '读取 Mission 状态',
+  agent_mission_prepare_task: '准备子任务',
+  agent_mission_update_plan: '更新任务计划',
+  agent_mission_ready: '提交任务执行',
+  agent_mission_wait: '等待后续指令',
+  agent_mission_conclude: '核对任务成果',
   agent_tools_execute: '执行多步数据处理',
   agent_task_records_read: '读取原任务记录',
   grid_model_list: '读取模型目录',
@@ -1073,6 +1079,11 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
   const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
+  const showInlineSummary = role === 'assistant' && executionDock?.inlineSummary && Boolean(executionDock.target)
+  const latestProgress = showInlineSummary && Array.isArray(custom?.taskProgress)
+    ? (custom.taskProgress as TaskProgress[]).filter(item => item.kind !== 'goal').at(-1) : undefined
+  const latestActivity = showInlineSummary ? activities.at(-1) : undefined
+  const answerExcerpt = showInlineSummary && hasText ? text.trim() : ''
   const processStorageKey = `capstone-process-open:${typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId}`
   const [activityOpen, setActivityOpen] = useState(() => {
     try { return localStorage.getItem(processStorageKey) === 'true' } catch { return false }
@@ -1126,6 +1137,11 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </>} />}
   </>
   return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
+    {showInlineSummary && (latestProgress || latestActivity) && <div className="capstone-task-progress" aria-label="执行过程摘要">
+      {latestProgress && <p>{latestProgress.text}</p>}
+      {latestActivity && <p><span>{latestActivity.label}</span> · {{running:'执行中',completed:'已完成',failed:'失败',cancelled:'已停止'}[latestActivity.status]}</p>}
+    </div>}
+    {answerExcerpt && <div className="capstone-chat-body" aria-label="答复摘要"><MarkdownMessage>{answerExcerpt.length > 320 ? answerExcerpt.slice(0, 320) + '…' : answerExcerpt}</MarkdownMessage></div>}
     <ExecutionDetailEntry enabled={role==='assistant'} id={attemptId} label={instruction||'本次执行'} status={status?.type==='running'?'执行中':custom?.terminalPhase==='cancelled'?'已停止':custom?.terminalPhase==='failed'?'执行失败':custom?.terminalPhase==='interrupted'?'执行中断':'执行已结束'}>
     {executionDock && processContent}
     <div className="capstone-chat-body">

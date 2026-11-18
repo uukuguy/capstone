@@ -60,3 +60,21 @@ it('moves a real assistant answer into the same execution reader',()=>{
   view.unmount()
   target.remove()
 })
+
+it('keeps the enterprise answer excerpt and recorded progress in the conversation',()=>{
+  const target=document.createElement('div')
+  document.body.append(target)
+  const view=render(<ExecutionDetailsContext.Provider value={{target,open:vi.fn(),inlineSummary:true}}>
+    <CapstoneAssistantThread events={[]} projectedMessages={[
+      {id:'assistant-1',role:'assistant',content:[{type:'text',text:`两项核验均通过。\n\n${'已核对原始数据。'.repeat(50)}\n\n完整核验依据。`}],
+        status:{type:'complete',reason:'stop'},metadata:{custom:{attemptId:'a1',terminalPhase:'completed',
+          activities:[{id:'call1',label:'核验原始数据',source:'tool',status:'completed'}]}}}
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>
+  </ExecutionDetailsContext.Provider>)
+  expect(within(view.container).getByText('两项核验均通过。')).toBeTruthy()
+  expect(within(view.container).getByText('核验原始数据')).toBeTruthy()
+  expect(within(view.container).queryByText('完整核验依据。')).toBeNull()
+  expect(within(target).getByText('完整核验依据。')).toBeTruthy()
+  view.unmount()
+  target.remove()
+})

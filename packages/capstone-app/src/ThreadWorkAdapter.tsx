@@ -701,7 +701,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     requestAnimationFrame(()=>{const record=Array.from(executionTarget?.querySelectorAll<HTMLElement>('[data-execution-id]')||[]).find(node=>node.dataset.executionId===attemptId);if(record){if(executionTarget)locateExecutionRecord(executionTarget,record)}else setError('来源执行暂不可用，请加载原始记录后重试。')})
   }
   const executionViews=nativeChat&&client.supportsProductIndex?[{id:'execution',label:'执行详情',content:<ExecutionDetailsSurface onTarget={setExecutionTarget}/>,description:'执行过程与正式回答，保留原始指令及成果来源。'}]:[]
-  return <ExecutionDetailsContext.Provider value={executionViews.length?{target:executionTarget,open:()=>selectResourceView('execution')}:null}><ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
+  return <ExecutionDetailsContext.Provider value={executionViews.length?{target:executionTarget,open:()=>selectResourceView('execution'),inlineSummary:sharedNavigation?.enterprise}:null}><ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
       {viewingLegacy&&<button type="button" disabled={busy||!!pending} onClick={()=>selectWork(snapshot?.works.find(work=>work.conversationMode)?.workId||'new')}>返回当前对话</button>}
