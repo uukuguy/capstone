@@ -26,7 +26,7 @@ import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord 
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
 import { projectTaskProgress, projectTaskStepDiagnostics, projectResearchBranches, type TaskProgress, type TaskStepDiagnostic, type ResearchBranch } from './taskProgress'
 import TaskStepProcess, { RecordedResult, StepErrorDetails, projectTaskSteps, ResearchBranchItems, readStepOpen, saveStepOpen, toolExecutionMs, type StepFoldCommand, type TaskStep } from './TaskStepProcess'
-import ExecutionGraphProcess, { graphTraceIssues, type GraphTraceFocus } from './ExecutionGraphProcess'
+import ExecutionGraphProcess, { graphTraceIssues, phaseLabels, type GraphTraceFocus } from './ExecutionGraphProcess'
 import {projectProcessCompactions,type ProcessCompaction} from './processCompactions'
 import ProcessCallTrace, { modelCallMs, type ProcessModelCall } from './ProcessCallTrace'
 import { projectProcessModelRequests } from './processModelRequests'
@@ -117,6 +117,8 @@ export type ChatActivity = {
 
 const TOOL_LABELS: Record<string, string> = {
   agent_skill: '技能',
+  agent_tool_search: '查找可用工具',
+  agent_tool_load: '加载工具',
   agent_resource_open: '读取引用资料',
   agent_research_read: '读取已保存的研究记录',
   agent_research_update: '保存研究进展与待解决问题',
@@ -137,6 +139,12 @@ const TOOL_LABELS: Record<string, string> = {
   grid_topology_branch_endpoints: '解析线路端点',
   grid_model_constraints_describe: '获取模型约束',
   grid_model_dataset_list: '获取模型数据集',
+  grid_model_dataset_query: '查询模型数据',
+  grid_model_dataset_describe: '读取模型数据字段',
+  grid_result_dataset_query: '查询计算结果',
+  grid_result_dataset_describe: '读取计算结果字段',
+  grid_analysis_powerflow_ac: '计算交流潮流',
+  grid_analysis_operation_list: '读取可用分析操作',
   grid_environment_describe: '读取运行环境',
   grid_guide_open: '读取分析指南',
 }
@@ -249,6 +257,7 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
     const failure = event.payload.failure && typeof event.payload.failure === 'object' && !Array.isArray(event.payload.failure) ? event.payload.failure as Record<string, unknown> : undefined
     grouped.set(id, {
       id,
+      toolName: toolName(event),
       label: typeof event.payload.tool_name === 'string' || typeof event.payload.capability === 'string' ? TOOL_LABELS[toolName(event)] || toolName(event).replaceAll('_', ' ') : previous?.label || toolName(event),
       source: typeof event.payload.binding_id === 'string' || typeof event.payload.capability === 'string' ? activitySource(event) : previous?.source || activitySource(event),
       status,
@@ -513,6 +522,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             resultRefs: stringRefs(event.payload.result_refs),
             evidenceRefs: stringRefs(event.payload.evidence_refs),
             admission: event.payload.admission,
+            coreReply: event.visibility === 'public' && event.eventType === 'attempt_completed' &&
+              typeof event.payload.answer_core_summary === 'string' ? event.payload.answer_core_summary.trim() : undefined,
             toolCount: relatedTools,
             modelContextId: event.modelContextId || (key ? contextByAttempt.get(key)?.modelContextId : undefined),
             selectionRevision: event.selectionRevision || (key ? contextByAttempt.get(key)?.selectionRevision : undefined),
@@ -1082,8 +1093,29 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const showInlineSummary = role === 'assistant' && executionDock?.inlineSummary && Boolean(executionDock.target)
   const latestProgress = showInlineSummary && Array.isArray(custom?.taskProgress)
     ? (custom.taskProgress as TaskProgress[]).filter(item => item.kind !== 'goal').at(-1) : undefined
-  const latestActivity = showInlineSummary ? activities.at(-1) : undefined
-  const answerExcerpt = showInlineSummary && hasText ? text.trim() : ''
+  const inlineGraph = showInlineSummary ? custom?.executionGraph as ExecutionGraph | undefined : undefined
+  const inlineSteps = inlineGraph
+    ? inlineGraph.current.nodes.filter(node=>node.applicability==='current').slice(-6)
+      .map(node=>({id:node.id,title:node.purpose,status:phaseLabels[node.phase]}))
+    : showInlineSummary && Array.isArray(custom?.taskSteps)
+      ? (custom.taskSteps as TaskStep[]).filter(step=>!isExecutionLifecycleStep(step.id)).slice(-6)
+        .map(step=>({id:step.id,title:step.title,status:{running:'执行中',completed:'已完成',partial:'部分完成',failed:'失败',limited:'受限',cancelled:'已停止'}[step.status]}))
+      : []
+  const inlineActivityGroups = new Map<string,{label:string;status:ChatActivity['status'];count:number}>()
+  const taskActivities = showInlineSummary ? activities.filter(activity=>activity.status==='failed'||
+    !['agent_tool_search','agent_tool_load'].includes(activity.toolName??'')) : []
+  if(showInlineSummary)for(const {label,status} of taskActivities.length ? taskActivities : activities){
+    const key=JSON.stringify([label,status])
+    inlineActivityGroups.set(key,{label,status,count:(inlineActivityGroups.get(key)?.count??0)+1})
+  }
+  const allInlineActivities = [...inlineActivityGroups]
+  const inlineActivities = allInlineActivities.length > 8
+    ? [...allInlineActivities.slice(0,5),...allInlineActivities.slice(-3)] : allInlineActivities
+  const failedActivityCount = showInlineSummary ? activities.filter(activity=>activity.status==='failed').length : 0
+  const processCalls = showInlineSummary && Array.isArray(custom?.modelRequests) ? custom.modelRequests.length : 0
+  const showInstructionNetwork = networkAttemptIds.includes(attemptId) && onShowNetwork
+    ? () => onShowNetwork(attemptId) : undefined
+  const coreReply = showInlineSummary && hasText && typeof custom?.coreReply === 'string' ? custom.coreReply : ''
   const processStorageKey = `capstone-process-open:${typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId}`
   const [activityOpen, setActivityOpen] = useState(() => {
     try { return localStorage.getItem(processStorageKey) === 'true' } catch { return false }
@@ -1137,12 +1169,26 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </>} />}
   </>
   return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
-    {showInlineSummary && (latestProgress || latestActivity) && <div className="capstone-task-progress" aria-label="执行过程摘要">
+    {showInlineSummary && (latestProgress || inlineSteps.length > 0 || inlineActivityGroups.size > 0 || processCalls > 0) && <div className="capstone-task-progress" aria-label="执行过程摘要">
+      {inlineSteps.length > 0 && <ol aria-label="任务步骤">{inlineSteps.map(step => <li key={step.id}>
+        <span>{step.title}</span> · {step.status}
+      </li>)}</ol>}
       {latestProgress && <p>{latestProgress.text}</p>}
-      {latestActivity && <p><span>{latestActivity.label}</span> · {{running:'执行中',completed:'已完成',failed:'失败',cancelled:'已停止'}[latestActivity.status]}</p>}
+      {inlineActivityGroups.size > 0 && <>
+        <p>工具调用 · {activities.length} 次{failedActivityCount>0&&` · ${failedActivityCount} 次失败`}</p>
+        <ol aria-label="工具调用摘要">{inlineActivities.map(([key,activity]) => <li key={key}>
+          <span>{activity.label}</span> · {{running:'执行中',completed:'已完成',failed:'失败',cancelled:'已停止'}[activity.status]}{activity.count>1&&` · ${activity.count} 次`}
+        </li>)}</ol>
+      </>}
+      {processCalls>0&&inlineActivityGroups.size===0&&<p>模型请求 · {processCalls} 次</p>}
     </div>}
-    {answerExcerpt && <div className="capstone-chat-body" aria-label="答复摘要"><MarkdownMessage>{answerExcerpt.length > 320 ? answerExcerpt.slice(0, 320) + '…' : answerExcerpt}</MarkdownMessage></div>}
-    <ExecutionDetailEntry enabled={role==='assistant'} id={attemptId} label={instruction||'本次执行'} status={status?.type==='running'?'执行中':custom?.terminalPhase==='cancelled'?'已停止':custom?.terminalPhase==='failed'?'执行失败':custom?.terminalPhase==='interrupted'?'执行中断':'执行已结束'}>
+    {coreReply && <div className="capstone-chat-body" aria-label="答复摘要"><p>{coreReply}</p></div>}
+    <ExecutionDetailEntry enabled={role==='assistant'} id={attemptId} label={instruction||'本次执行'}
+      actionLabel={showInlineSummary && completedAnswer ? '查看正式回答与执行详情' : undefined}
+      secondaryAction={showInlineSummary && showInstructionNetwork && <button type="button" onClick={showInstructionNetwork}>
+        <Network aria-hidden="true" />查看此指令电网图
+      </button>}
+      status={status?.type==='running'?'执行中':custom?.terminalPhase==='cancelled'?'已停止':custom?.terminalPhase==='failed'?'执行失败':custom?.terminalPhase==='interrupted'?'执行中断':'执行已结束'}>
     {executionDock && processContent}
     <div className="capstone-chat-body">
       {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]} readFile={readInstructionFile} saveFile={saveInstructionFile}/>}

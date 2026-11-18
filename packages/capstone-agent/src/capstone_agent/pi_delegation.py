@@ -65,6 +65,15 @@ _FORBIDDEN = {"authority", "authority_refs", "result_refs", "evidence_refs", "mo
 _TASK_V1_FIELDS = ('task_id', 'parent_attempt_id', 'entrypoint', 'instruction',
                    'messages', 'dependency_results', 'executor_identity', 'timeout_seconds')
 _TASK_V2_FIELDS = ('business_context', 'resource_profile', 'input')
+FORMAL_AND_CORE_INSTRUCTION = (
+    '完成工具调用后，把整个 JSON 对象放在唯一一对 <capstone-answer> 和 </capstone-answer> 内。'
+    '标签内只放该对象，不用 Markdown 代码围栏。闭合标签之后不要输出内容。'
+    '对象包含 answer 和 summary 两个字符串。'
+    '不要在字段值内使用回答标签。'
+    'answer 是完整正式回答。summary 是从正式回答提炼的一到两句纯文本，最多 480 字。'
+    '说明核心结论、关键数值及单位，以及已生成制品的名称和用途（如有）。'
+    '保留影响结论的限制。不要添加正式回答中没有的信息。'
+)
 
 from .application_capacity import limits, current_capacity, require_capacity
 
@@ -191,6 +200,7 @@ class PiTaskRequest:
     domain_tools: Mapping | None = field(default=None, kw_only=True)
     skill_scope: Mapping | None = field(default=None, kw_only=True)
     structural_context: Mapping | None = field(default=None, kw_only=True)
+    answer_format: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         document = _json_document({name: getattr(self, name) for name in _TASK_V1_FIELDS})
@@ -272,6 +282,10 @@ class PiTaskRequest:
             if self.business_context is None:
                 raise ValueError('structural context requires typed Pi input')
             object.__setattr__(self, 'structural_context', _freeze(checked_structural_context(self.structural_context)))
+        if self.answer_format is not None and (
+            self.answer_format != 'formal-and-core/1' or self.business_context is None
+        ):
+            raise ValueError('Pi answer format is invalid')
         # Include the schema and every v2 field in the total transport budget.
         self.to_document()
 
@@ -284,7 +298,8 @@ class PiTaskRequest:
             document = _json_document(document)
             _fields(document, _TASK_V1_FIELDS, schema)
         elif schema == 'capstone-pi-task/2':
-            optional = tuple(key for key in ('native_context', 'research_binding', 'managed_workspace', 'domain_tools', 'skill_scope', 'structural_context') if key in document)
+            optional = tuple(key for key in ('native_context', 'research_binding', 'managed_workspace', 'domain_tools',
+                'skill_scope', 'structural_context', 'answer_format') if key in document)
             _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS + optional, schema)
             base = _json_document({key: document[key] for key in _TASK_V1_FIELDS})
             document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS + optional}}
@@ -315,6 +330,8 @@ class PiTaskRequest:
         if self.structural_context is not None:
             from .structural_context import checked_structural_context
             document['structural_context'] = checked_structural_context(self.structural_context)
+        if self.answer_format is not None:
+            document['answer_format'] = self.answer_format
         byte_limit = limits.native_task_bytes if self.native_context is not None else limits.control_document_bytes
         if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > byte_limit:
             raise ValueError('Pi JSON exceeds byte bounds')

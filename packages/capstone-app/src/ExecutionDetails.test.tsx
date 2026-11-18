@@ -61,20 +61,58 @@ it('moves a real assistant answer into the same execution reader',()=>{
   target.remove()
 })
 
-it('keeps the enterprise answer excerpt and recorded progress in the conversation',()=>{
+it('keeps the committed core reply and recorded progress in the enterprise conversation',()=>{
   const target=document.createElement('div')
   document.body.append(target)
+  const openNetwork=vi.fn()
   const view=render(<ExecutionDetailsContext.Provider value={{target,open:vi.fn(),inlineSummary:true}}>
-    <CapstoneAssistantThread events={[]} projectedMessages={[
+    <CapstoneAssistantThread events={[]} networkAttemptIds={['a1']} onShowNetwork={openNetwork} projectedMessages={[
       {id:'assistant-1',role:'assistant',content:[{type:'text',text:`两项核验均通过。\n\n${'已核对原始数据。'.repeat(50)}\n\n完整核验依据。`}],
         status:{type:'complete',reason:'stop'},metadata:{custom:{attemptId:'a1',terminalPhase:'completed',
-          activities:[{id:'call1',label:'核验原始数据',source:'tool',status:'completed'}]}}}
+          coreReply:'核验均通过，报告附有原始数据。',
+          taskSteps:[
+            {id:'task-preparation',title:'任务准备',number:1,status:'completed'},
+            {id:'task-execution',title:'执行任务',number:2,status:'completed'},
+            {id:'task-finalization-1',title:'核验与结果整理',number:3,status:'completed'},
+            {id:'validate-source',title:'核对源数据覆盖范围',number:4,status:'completed'},
+          ],
+          activities:[{id:'call1',label:'核验原始数据',source:'tool',status:'completed'},
+            {id:'call2',label:'计算潮流',source:'tool',status:'completed'}]}}}
     ]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>
   </ExecutionDetailsContext.Provider>)
-  expect(within(view.container).getByText('两项核验均通过。')).toBeTruthy()
-  expect(within(view.container).getByText('核验原始数据')).toBeTruthy()
+  expect(within(view.container).getByText('核验均通过，报告附有原始数据。')).toBeTruthy()
+  expect(within(view.container).queryByText('两项核验均通过。')).toBeNull()
+  const process=within(view.container).getByLabelText('执行过程摘要')
+  for(const title of ['任务准备','执行任务','核验与结果整理'])expect(within(process).queryByText(title)).toBeNull()
+  expect(within(process).getByText('核对源数据覆盖范围')).toBeTruthy()
+  for(const title of ['核验原始数据','计算潮流'])expect(within(process).getByText(title).closest('details')).toBeNull()
+  fireEvent.click(within(view.container).getByRole('button',{name:'查看此指令电网图'}))
+  expect(openNetwork).toHaveBeenCalledWith('a1')
   expect(within(view.container).queryByText('完整核验依据。')).toBeNull()
   expect(within(target).getByText('完整核验依据。')).toBeTruthy()
+  view.unmount()
+  target.remove()
+})
+
+it('replays the enterprise core reply and leaves legacy answers in the full reader',()=>{
+  const target=document.createElement('div')
+  document.body.append(target)
+  const event=(seq:number,answer:string,summary?:string)=>({
+    eventId:`event-${seq}`,eventSeq:seq,eventType:'attempt_completed',eventVersion:1,
+    threadId:'thread',runId:'run',attemptId:`attempt-${seq}`,visibility:'public' as const,
+    occurredAt:'2026-11-18T00:00:00Z',payload:{answer,answer_core_summary:summary},
+  })
+  const view=render(<ExecutionDetailsContext.Provider value={{target,open:vi.fn(),inlineSummary:true}}>
+    <CapstoneAssistantThread events={[event(1,'历史正式答复'),event(2,'当前正式答复','当前核心结论')]}
+      disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>
+  </ExecutionDetailsContext.Provider>)
+  expect(within(view.container).getAllByLabelText('答复摘要')).toHaveLength(1)
+  expect(within(view.container).getByText('当前核心结论')).toBeTruthy()
+  expect(within(view.container).getAllByRole('button',{name:'查看正式回答与执行详情'})).toHaveLength(2)
+  for(const answer of ['历史正式答复','当前正式答复']){
+    expect(within(view.container).queryByText(answer)).toBeNull()
+    expect(within(target).getByText(answer)).toBeTruthy()
+  }
   view.unmount()
   target.remove()
 })

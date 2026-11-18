@@ -107,6 +107,7 @@ class DelegatedRuntime:
         self._statuses: dict[str, str] = {}
         self._research_bridge = None
         self.pending_domain_handoff = None
+        self.answer_core_bundle: tuple[str, str] | None = None
 
     def bind_research(self, bridge):
         if self._research_bridge is not None:
@@ -182,6 +183,11 @@ class DelegatedRuntime:
         if getattr(self, '_goal_response_enabled', False):
             from .goal_receipts import goal_response_instruction
             instruction = goal_response_instruction(instruction)
+        core_reply = (self._plan.source == 'native_conversation'
+            and goal['goal_id'] == 'conversation'
+            and (resources.get('submission') or {}).get('_answer_core_summary') is True
+            and 'capstone-pi-task/2' in frozen['capability'].get('task_schemas', ())
+            and not getattr(self, '_goal_response_enabled', False))
         parent = frozen['original_attempt_id']
         task_id = 'pi-' + sha256((parent + '\0' + goal['goal_id']).encode()).hexdigest()
         # Historical text stays historical. No Authority resources or internal
@@ -259,6 +265,7 @@ class DelegatedRuntime:
             research_binding=None if self._research_bridge is None else self._research_bridge.binding,
             domain_tools=granted_tools,
             structural_context=structural,
+            answer_format='formal-and-core/1' if core_reply else None,
             **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
@@ -529,6 +536,12 @@ class DelegatedRuntime:
                                       'reference': reference})
         if result.failure is not None and result.failure.get('code') == 'native_product_delivery_incomplete':
             raise GoalReceiptPersistenceError('required report delivery was not confirmed')
+        if core_reply and result.status == 'completed':
+            from capability_agent.application.answer_format import parse_answer_bundle
+            bundle = parse_answer_bundle(result.answer, runtime_limits={'answer_summary_chars': 480})
+            if bundle.summary:
+                self.answer_core_bundle = (bundle.answer, bundle.summary)
+            return result.status, bundle.answer
         return result.status, result.answer
 
     def bind_artifact_store(self, objects):
@@ -727,6 +740,7 @@ class DelegatedRuntime:
 
     def prompt(self, question, *, on_event, correlation_id=None, on_heartbeat=None):
         del question, correlation_id
+        self.answer_core_bundle = None
         if self._resources.get('assemble_domain_report'):
             from .domain_node_report import assemble_domain_report
             node = str(self._resources.get('node_text') or '')

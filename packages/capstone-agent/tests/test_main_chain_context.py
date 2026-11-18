@@ -118,6 +118,46 @@ def test_open_model_main_chain_carries_management_context_and_both_tool_grants()
     assert 'data_gateway_discover_data_inventory' in request.native_context['policy']['allowed_tools']
 
 
+@pytest.mark.parametrize('summary', ['已完成计算，报告可查计算步骤。', '字' * 481])
+def test_enterprise_main_chain_commits_model_summary_with_formal_answer(summary):
+    executor = governed_executor()
+    execute = executor.execute
+
+    def answer(request, control, emit):
+        return replace(execute(request, control, emit), answer=json.dumps({
+            'answer': '正式回答：报告提供计算步骤。',
+            'summary': summary,
+        }, ensure_ascii=False))
+
+    executor.execute = answer
+    store = _store(executor, 'enterprise-research')
+    result = run_pending_attempt(store, native_runtime_factory(executor),
+        worker_id='native', implementation_family='native')
+    assert result.status == 'completed'
+    request = executor.requests[0]
+    assert request.instruction == '数据网关的业务数据情况'
+    assert type(request).from_document(request.to_document()).answer_format == 'formal-and-core/1'
+    assert request.structural_context['model']['model_context_id'] == 'ctx_ieee39'
+    assert request.structural_context['model']['model_revision'] == _model().model_revision
+    assert request.structural_context['model']['selection_revision'] == _model().selection_revision
+    assert request.structural_context['model']['enabled_profiles'][0]['profile_id'] == 'pandapower-static-analysis'
+    completed = next(event for event in store.read_events('thr_unscoped', 0).events
+                     if event.event_type == 'attempt_completed')
+    assert completed.payload['answer'] == '正式回答：报告提供计算步骤。'
+    assert completed.payload.get('answer_core_summary') == (summary if len(summary) <= 480 else None)
+
+
+def test_core_reply_cannot_survive_a_changed_or_recovered_answer():
+    from types import SimpleNamespace
+
+    from capstone_agent.harness import _core_summary_payload
+
+    runtime = SimpleNamespace(answer_core_bundle=('accepted', 'summary'))
+    assert _core_summary_payload(runtime, 'accepted', 'accepted', False) == {'answer_core_summary': 'summary'}
+    assert _core_summary_payload(runtime, 'accepted', 'rewritten', False) == {}
+    assert _core_summary_payload(runtime, 'accepted', 'accepted', True) == {}
+
+
 def test_enterprise_research_admits_an_attachment_while_a_model_is_open():
     from capstone_agent.artifacts import MemoryObjectStore
     from capstone_agent.thread_resources import ResourceUploads

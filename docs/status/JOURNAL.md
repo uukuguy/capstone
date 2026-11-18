@@ -8140,3 +8140,13 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: b526d771 restores enterprise inline reply and observed progress. 47 focused App checks pass.
 
 - 2026-11-18: PR148 merged at 6d4bc023. Rebuilt dev restores two replies, progress summaries and complete records at 390px.
+
+- 2026-11-18: fb18d93d restores admitted topology actions and compact task steps. 74 scoped App tests pass.
+
+- 2026-11-18: PR150 pairs formal and core replies on enterprise Attempts and projects recorded operations in the main conversation. IEEE 39 enters the native chain with its frozen model context and Domain Pack grant. The first two real replies failed the native answer envelope check. The revised format puts the complete JSON object inside that envelope. Real acceptance remains open.
+
+- 2026-11-18: a76b8321 adds enterprise core replies, frozen-model graph access and the compact process. Focused gates pass locally.
+
+- 2026-11-18: b0f643f3 moves the topology action into the visible receipt. A real IEEE 39 Attempt restores both replies and opens its topology.
+
+- 2026-11-18: 1019c5e0 records the real enterprise acceptance and refreshes the project overview for PR150.

@@ -135,6 +135,13 @@ def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: 
     return payload
 
 
+def _core_summary_payload(runtime: object, answer: str, admitted_answer: str, recovery_attempted: bool) -> dict[str, str]:
+    bundle = getattr(runtime, 'answer_core_bundle', None)
+    if bundle is None or recovery_attempted or bundle[0] != answer or answer != admitted_answer:
+        return {}
+    return {'answer_core_summary': bundle[1]}
+
+
 @dataclass(frozen=True, slots=True)
 class HarnessAttemptResult:
     status: str
@@ -834,6 +841,7 @@ class HarnessAttemptRunner:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
             if candidate is not None:
                 terminal_payload = terminal_payload_for_admission(candidate)
+            terminal_payload.update(_core_summary_payload(self._runtime, answer, admitted_answer, recovery_attempted))
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():

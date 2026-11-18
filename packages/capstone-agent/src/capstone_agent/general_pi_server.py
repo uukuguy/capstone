@@ -1629,6 +1629,12 @@ class NativeTaskRunner:
                                 'Do not calculate voltages, losses, rankings, topology, or contingency outcomes yourself. '
                                 'A failed or missing call is a limit. Continue the rest of the task and write the report. '
                                 'Do not invent a number the tool did not return.')})
+                if request.answer_format == 'formal-and-core/1':
+                    from .pi_delegation import FORMAL_AND_CORE_INSTRUCTION
+                    sdk_config.setdefault('contextFiles', []).append({
+                        'path': 'answer-format',
+                        'content': FORMAL_AND_CORE_INSTRUCTION,
+                    })
                 structural = getattr(request, 'structural_context', None)
                 if structural:
                     from .structural_context import management_note
