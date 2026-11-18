@@ -8152,3 +8152,11 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: 1019c5e0 records the real enterprise acceptance and refreshes the project overview for PR150.
 
 - 2026-11-18: 76841eda drops unbound summaries. Scoped macOS CI passed, and PR150 merged into dev at 958b6e27.
+
+- 2026-11-18: d3bac04d records acceptance and refreshes the control graph. PR151 merged at 028c8d76.
+
+- 2026-11-18: dcea417b fixes frozen result and Goal file selection. Native result admission and Mission typed handoff remain open.
+
+- 2026-11-18: 700be171 records actual Goal bytes and Authority persistence. Native consumer grants remain open.
+
+- 2026-11-18: f72472d6 retains exact Goal inputs through pause and resume. Focused regression tests pass.

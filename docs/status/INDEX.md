@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-18 Harness 跨轮次引用续接候选的部分验收与待接通路径见 [审计](../reviews/2026-11-18-harness-reference-continuity.md) 和 [版本台账](VERSION-CONTROL.md#功能包前沿)。
+
 2026-11-18 企业指令核心回复与执行过程通过真实验收并合入 dev。来源和验收见 [版本台账](VERSION-CONTROL.md#功能包前沿) 和 [项目全景](PROJECT-OVERVIEW.html)。
 
 2026-11-18 企业主会话回复与执行过程可见性修正。真实恢复与 CI 状态见 VERSION-CONTROL。

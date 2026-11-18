@@ -33,6 +33,9 @@ access to a referenced object.
   and read its exact bytes. The original and final downloads matched their
   recorded digests. The final file contained the marker that appeared
   only in the original file.
+- A regression check covers pausing an active Goal iteration without
+  discarding its prior input references. Resume uses the same frozen
+  predecessor as automatic continuation.
 - After a local worker rebuild, a registered `gridctl` read of the
   original result returned the same line ranking from the mounted run
   volume. This was an operator read. The original Thread's native
