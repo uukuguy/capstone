@@ -8218,3 +8218,13 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: PR152 runs macOS Harness gate44335874304 on exact head a59262f5.
 
 - 2026-11-18: Live Goal reused its selected context, and final legacy recovery preserved the original Thread cursor.
+
+- 2026-11-18: cd62c104 records verified Goal and Mission handoffs plus the pending macOS gate.
+
+- 2026-11-18: 88689801 recovers full formal text and its summary from the live instruction response format.
+
+- 2026-11-18: dd80e047 displays a preserved formal answer and warning when supplemental presentation fails.
+
+- 2026-11-18: 2405d2d6 preserves separate answer and summary when model JSON contains literal line breaks.
+
+- 2026-11-19: Final live instruction run saved the formal answer, core summary, result, and two evidence references.

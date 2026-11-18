@@ -207,3 +207,23 @@ The analogous authority grant in `delegation_authority.py` resolves the
 producer's exact terminal event and frozen owner configuration. The
 receiving Pack stages the authorized immutable closure and removes it
 after each read.
+
+## Live instruction reply recovery
+
+In Thread `thr_00da33eafdfec87fefb4`, the worker admitted the additional
+power-flow instruction. The tools completed, then reply presentation
+rejected the separate formal and summary envelopes. The original saved
+stream restores the complete answer and summary without replacing the
+calculation. Malformed supplemental content now leaves the readable formal
+answer visible with a warning. The parser also repairs literal line breaks
+inside the known answer-and-summary JSON object.
+
+A separate live Work admitted its added instruction in
+`attempt_62963243b9ab6d62`, ran power flow, and completed with one result and
+two evidence references. Replay of both saved responses verifies that the
+parser retains the formal text and the model-written summary.
+
+The final local image `7f52be531d78…` completed a fresh live run
+`attempt_b7c3aca64e1c9fae`. It admitted the queued instruction and saved
+the formal answer, a separate 132-character core summary, one result and
+two evidence references. The focused suite passed 268 tests.
