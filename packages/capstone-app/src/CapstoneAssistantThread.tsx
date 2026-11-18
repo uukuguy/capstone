@@ -535,6 +535,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             instruction: instruction?.text??custom.instruction,
             instructionMessageId: instruction?.messageId,
             terminalPhase: event.eventType.replace(/^attempt_/, ''),
+            completionSequence: event.eventSeq,
             ...(capacityNotice?{terminalNotice:capacityNotice,partialText:delivered?answer:partialText}:!delivered ? { terminalNotice: terminalAnswer, partialText } : {}),
             errorCode: typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined,
             startedAt: custom.startedAt || (key ? startedAtByAttempt.get(key) : undefined),
@@ -1011,7 +1012,7 @@ export function ResultProjectionCard({ projection, tableId, onFocusElement, rowS
   </section>
 }
 
-function FoldableAnswer({ id, text, author, finishedAt }: { id: string; text: string; author: string; finishedAt?: string }) {
+function FoldableAnswer({ id, text, author, finishedAt, summary, toolbar }: { id: string; text: string; author: string; finishedAt?: string; summary?: string; toolbar?: ReactNode }) {
   const body = useRef<HTMLDivElement>(null)
   const { collapsed, toggle } = useContext(AnswerReadingContext)
   // The zero-layout fallback is used by server/test rendering. Browsers use the
@@ -1019,6 +1020,7 @@ function FoldableAnswer({ id, text, author, finishedAt }: { id: string; text: st
   const [foldable, setFoldable] = useState(text.length > 220 || text.split('\n').length > 3)
   const [previewHeight, setPreviewHeight] = useState(51.15)
   useLayoutEffect(() => {
+    if (summary !== undefined) return
     const node = body.current
     if (!node) return
     const measure = () => {
@@ -1033,19 +1035,23 @@ function FoldableAnswer({ id, text, author, finishedAt }: { id: string; text: st
     observer?.observe(node)
     window.addEventListener('resize', measure)
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
-  }, [text])
-  const folded = foldable && collapsed.has(id)
+  }, [text, summary])
+  const canFold = summary !== undefined || foldable
+  const folded = canFold && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
     <div className="capstone-answer-header"><span className="capstone-chat-role">{author}</span>
       {finishedAt && <InstructionTime value={finishedAt} completion />}
-      {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
+      {canFold && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
     </div>
+    {toolbar}
     <div className="capstone-answer-body">
-      <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
+      {folded && summary !== undefined ? <div id={`${id}-content`} className="capstone-answer-summary" aria-label="答复摘要">
+        {summary ? <MarkdownMessage>{answerSummaryMarkdown(summary)}</MarkdownMessage> : <p>暂无回答摘要。</p>}
+      </div> : <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
         <MarkdownMessage>{text}</MarkdownMessage>
-      </div>
+      </div>}
     </div>
-    {folded && <span className="visually-hidden">{text.slice(0, 220)}…</span>}
+    {folded && summary === undefined && <span className="visually-hidden">{text.slice(0, 220)}…</span>}
   </div>
 }
 
@@ -1154,20 +1160,16 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
       {(failureResults.length > 0 || Array.isArray(custom?.toolExecutions) && custom.toolExecutions.length > 0) && <InferenceEvidencePanel title="执行记录" attemptId={attemptId} admitted={false} resultRefs={[]} evidenceRefs={[]} projections={[]} failures={failureResults} executions={(custom?.toolExecutions || []) as ToolExecutionRecord[]} />}
     </>} />}
   </>
-  return <MessagePrimitive.Root data-message-id={id} data-execution-id={role==='assistant'?attemptId:undefined} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
-    {inlineExecution && completedAnswer && <div className="capstone-answer-header">
-      <span className="capstone-chat-role">{author}</span>
-      {finishedAt && <InstructionTime value={finishedAt} completion />}
-    </div>}
-    {coreReply && <div className="capstone-chat-body capstone-answer-summary" aria-label="答复摘要"><MarkdownMessage>{answerSummaryMarkdown(coreReply)}</MarkdownMessage></div>}
-    {role === 'assistant' && <div ref={footerRef} className="capstone-chat-footer" onClickCapture={() => { if (footerRef.current) preserveControl(id, footerRef.current) }}>
+  const toolbar = role === 'assistant' ? (<div ref={footerRef} className="capstone-chat-footer" onClickCapture={() => { if (footerRef.current) preserveControl(id, footerRef.current) }}>
       {inlineExecution && statusLabel && <span className="capstone-answer-status">{statusLabel}</span>}
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
       {(hasText || terminalWithoutText) && <ChatActions productAction={productAction} answerLabel={instruction || text.slice(0, 100) || '本次回答'} onCloseEvidence={() => selectPanel(null)} networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => togglePanel('result')} evidenceOpen={activePanel === 'evidence'} onShowEvidence={() => togglePanel('evidence')} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
         attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
         processAvailable={Boolean(startedAt) || (Array.isArray(custom?.modelRequests) && custom.modelRequests.length > 0) || Boolean(custom?.executionGraph) || (Array.isArray(custom?.taskSteps) && custom.taskSteps.length > 0) || Boolean(custom?.researchSnapshot) || failureResults.length > 0 || Boolean(readRecords)}
         onSelectResult={(resultId) => { selectPanel('result'); setPendingResultId(resultId) }} />}
-    </div>}
+    </div>) : null
+  return <MessagePrimitive.Root data-message-id={id} data-execution-id={role==='assistant'?attemptId:undefined} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
+    {!(inlineExecution && completedAnswer) && toolbar}
     <div className="capstone-chat-body">
       {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]} readFile={readInstructionFile} saveFile={saveInstructionFile}/>}
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
@@ -1178,9 +1180,8 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
-      </> : completedAnswer ? (inlineExecution ? <details className="capstone-formal-answer">
-        <summary>正式回答</summary><MarkdownMessage>{text}</MarkdownMessage>
-      </details> : <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt} />) : hasText
+      </> : completedAnswer ? <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt}
+        summary={inlineExecution ? coreReply : undefined} toolbar={inlineExecution ? toolbar : undefined} /> : hasText
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}
     </div>
@@ -1404,8 +1405,16 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
     return [...rows,{id:`user-${submittingThinking.id}`,role:'user' as const,content:submittingThinking.text,metadata:{custom:{source:'optimistic-submit'}}},{id:submittingThinking.id,role:'assistant' as const,content:'',status:{type:'running' as const},metadata:{custom:{source:'optimistic-submit',initialThinking:{text:'',phase:'queued',handedOff:false,startedAt:submittingThinking.at} satisfies InitialThinking,stepStorageKey:submittingThinking.id}}}]
   }, [thinkingPreviews, projectedMessages, events, instructionModels, systemNotices, historyAtLatest,submittingThinking,inputCatalog?.stored_resources])
   const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
-  const [foldState, setFoldState] = useSessionViewState<{ thread: string | undefined; ids: string[] }>('conversation.folds',{ thread: storageKey, ids: [] })
+  const [foldState, setFoldState] = useSessionViewState<{ thread: string | undefined; ids: string[]; through?: number; expanded?: string[] }>('conversation.folds',{ thread: storageKey, ids: [] })
   const collapsedAnswers = new Set(foldState.thread === storageKey ? foldState.ids : [])
+  if (foldState.thread === storageKey && foldState.through !== undefined) {
+    const expanded = new Set(foldState.expanded)
+    for (const message of allMessages) {
+      const sequence = message.metadata?.custom?.completionSequence
+      if (message.id && message.status?.type === 'complete' && typeof sequence === 'number' &&
+          sequence <= foldState.through && !expanded.has(message.id)) collapsedAnswers.add(message.id)
+    }
+  }
   const viewportRef = useRef<HTMLDivElement>(null)
   const savedPosition=useHasSavedSessionPosition('conversation')
   const [restoringSessionPosition,setRestoringSessionPosition]=useState(savedPosition)
@@ -1615,21 +1624,22 @@ export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifa
     setReadingTailSpace(0)
     setFoldState((state) => {
       const ids = new Set(state.thread === storageKey ? state.ids : [])
-      if (ids.has(id)) ids.delete(id); else ids.add(id)
-      return { thread: storageKey, ids:[...ids] }
+      const expanded = new Set(state.thread === storageKey ? state.expanded : [])
+      if (collapsedAnswers.has(id)) { ids.delete(id); expanded.add(id) }
+      else { ids.add(id); expanded.delete(id) }
+      return { thread: storageKey, ids:[...ids], expanded:[...expanded],
+        through: state.thread === storageKey ? state.through : undefined }
     })
   }
   const completedAnswers = allMessages.filter((message) => message.role === 'assistant' && message.status?.type === 'complete' && !message.metadata?.custom?.systemNotice)
   function organizeHistory(fold: boolean) {
-    if (!completedAnswers.some((message) => message.id && collapsedAnswers.has(message.id) !== fold)) return
-    captureHistoryAnchor()
-    setReadingTailSpace(0)
-    const snapshot = completedAnswers.flatMap((message) => message.id ? [message.id] : [])
-    setFoldState((state) => {
-      const ids = new Set(state.thread === storageKey ? state.ids : [])
-      for (const id of snapshot) { if (fold) ids.add(id); else ids.delete(id) }
-      return { thread: storageKey, ids:[...ids] }
-    })
+    if (completedAnswers.some((message) => message.id && collapsedAnswers.has(message.id) !== fold)) {
+      captureHistoryAnchor()
+      setReadingTailSpace(0)
+    }
+    const ids = fold ? completedAnswers.flatMap((message) => message.id ? [message.id] : []) : []
+    const through = fold ? events.reduce((seq, event) => Math.max(seq, event.eventSeq), 0) : undefined
+    setFoldState({ thread: storageKey, ids, through })
   }
   const messages = allMessages
   const [locatingInstruction, setLocatingInstruction] = useState(false)

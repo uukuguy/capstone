@@ -1190,6 +1190,24 @@ describe('CapstoneAssistantThread', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('applies the history command to all existing replies, including older replies loaded later', () => {
+    const first=event('attempt_completed',3,{answer:'已加载正文',answer_core_summary:'已加载摘要'},'attempt_3')
+    const older=event('attempt_completed',1,{answer:'稍后加载正文',answer_core_summary:'稍后加载摘要'},'attempt_1')
+    const newer=event('attempt_completed',4,{answer:'新回答正文',answer_core_summary:'新回答摘要'},'attempt_4')
+    const props={inlineExecution:true,disabled:false,isRunning:false,activity:[],onSend:vi.fn(),onCancel:vi.fn()}
+    const {rerender}=render(<CapstoneAssistantThread {...props} events={[first]}/>)
+    fireEvent.click(screen.getByRole('button',{name:'对话设置'}))
+    fireEvent.click(screen.getByRole('button',{name:'折叠历史回答'}))
+    rerender(<CapstoneAssistantThread {...props} events={[older,first,newer]}/>)
+    expect(screen.getByText('已加载摘要')).toBeTruthy()
+    expect(screen.getByText('稍后加载摘要')).toBeTruthy()
+    expect(screen.getByText('新回答正文')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button',{name:'对话设置'}))
+    fireEvent.click(screen.getByRole('button',{name:'展开历史回答'}))
+    expect(screen.getAllByRole('button',{name:'折叠回答'})).toHaveLength(3)
+    expect(screen.queryByLabelText('答复摘要')).toBeNull()
+  })
+
   it('ignores old mode preferences and keeps short answers and failure recovery visible', () => {
     sessionStorage.setItem('old_reading.readingMode', 'compact')
     render(<CapstoneAssistantThread events={[
@@ -1862,13 +1880,15 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 1, {answer:'已保存的正式回答。'}, 'attempt_1'),
       event('answer_summary_recovered', 2, {answer_core_summary:'补生成的摘要。'}, 'attempt_1'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.queryByLabelText('答复摘要')).toBeNull()
+    fireEvent.click(screen.getByRole('button', {name:'折叠回答'}))
     expect(screen.getByLabelText('答复摘要').textContent).toBe('补生成的摘要。')
-    fireEvent.click(screen.getByText('正式回答'))
+    fireEvent.click(screen.getByRole('button', {name:'展开完整回答'}))
     const viewport = screen.getByRole('region', {name:'会话内容'})
     const body = screen.getByText('已保存的正式回答。')
     expect(viewport.tabIndex).toBe(0)
     expect(viewport.contains(body)).toBe(true)
-    expect(body.closest('.capstone-formal-answer')?.hasAttribute('open')).toBe(true)
+    expect(body.closest('.capstone-answer')?.getAttribute('data-answer-state')).toBe('expanded')
     expect(screen.queryByRole('region', {name:'正式回答正文'})).toBeNull()
     Object.defineProperties(viewport, {scrollHeight:{value:1200},clientHeight:{value:400}})
     fireEvent.keyDown(viewport,{key:'End'})
@@ -1882,6 +1902,7 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread inlineExecution events={[
       event('attempt_completed', 1, {answer:'完整的正式回答。',answer_core_summary:summary}, 'attempt_1'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', {name:'折叠回答'}))
     const block = screen.getByLabelText('答复摘要')
     expect(block.querySelectorAll('li')).toHaveLength(2)
     expect(block.querySelector('strong')?.textContent).toBe('线路 21')

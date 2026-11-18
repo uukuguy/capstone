@@ -13,20 +13,23 @@ it('keeps the full process and reply in the conversation and anchors actions abo
         activities:[{id:'call1',label:'核验原始数据',source:'tool',status:'completed'}]}}}]}
     disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
   const chat=within(view.container)
-  expect(chat.getByLabelText('答复摘要').textContent).toBe('核验通过。')
+  expect(chat.queryByLabelText('答复摘要')).toBeNull()
   expect(chat.queryByLabelText('执行过程摘要')).toBeNull()
   expect(chat.queryByRole('button',{name:'查看执行详情'})).toBeNull()
   const process=chat.getByText('核验原始数据').closest('details')!
-  const formal=chat.getByText('正式回答').closest('details')!
+  const formal=chat.getByText('完整核验依据。').closest('.capstone-answer-content')!
   const action=chat.getByRole('button',{name:'查看此指令电网图'})
   const header=view.container.querySelector('.capstone-answer-header')!
   expect(header.querySelector('time')).toBeTruthy()
-  expect(header.compareDocumentPosition(chat.getByLabelText('答复摘要'))&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(header.compareDocumentPosition(formal)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(formal.compareDocumentPosition(process)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  expect(formal.open).toBe(false)
+  expect(chat.getByRole('button',{name:'折叠回答'}).getAttribute('aria-expanded')).toBe('true')
   expect(action.compareDocumentPosition(formal)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  fireEvent.click(chat.getByText('正式回答'))
-  expect(formal.open).toBe(true)
+  fireEvent.click(chat.getByRole('button',{name:'折叠回答'}))
+  expect(chat.getByLabelText('答复摘要').textContent).toBe('核验通过。')
+  expect(chat.queryByText('完整核验依据。')).toBeNull()
+  fireEvent.click(chat.getByRole('button',{name:'展开完整回答'}))
+  expect(chat.getByText('完整核验依据。')).toBeTruthy()
   expect(chat.getByRole('button',{name:'查看此指令电网图'})).toBe(action)
   fireEvent.click(action)
   expect(openNetwork).toHaveBeenCalledWith('a1')
