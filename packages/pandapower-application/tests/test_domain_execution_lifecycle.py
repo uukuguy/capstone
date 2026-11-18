@@ -44,6 +44,69 @@ def test_host_frozen_model_free_work_scope_survives_attempt_changes():
             'schema': 'capstone-structural-context/1', 'work_scope': '../other'}})
 
 
+def test_authority_verifies_references_before_pack_publishes_them(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from pandapower_domain.authority import PandapowerArtifactAuthority
+
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    service._capabilities = {'published': 'capability'}
+    service._read_only = {'published': True}
+    ref = 'result:sha256:' + 'a' * 64
+    evidence_ref = 'evidence:sha256:' + 'b' * 64
+    service._executors['task'] = SimpleNamespace(invoke=lambda *args, **kwargs: {'result_ref': ref})
+
+    def admit(authority, capability, result, evidence):
+        assert authority.workspace_root == tmp_path / 'task'
+        assert (capability, result, evidence) == ('capability', {'result_ref': ref}, ())
+        return SimpleNamespace(results=(SimpleNamespace(reference=ref),),
+                               evidence=(SimpleNamespace(reference=evidence_ref),))
+
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'admit', admit)
+    response = service.invoke({'task_id': 'task', 'call_id': 'call', 'name': 'published', 'arguments': {}})
+    assert response['authority_references'] == {
+        'authority_id': 'gridctl', 'capability_id': 'capability',
+        'result_refs': [ref], 'evidence_refs': [evidence_ref]}
+
+
+def test_missing_authority_content_cannot_mint_a_receipt(tmp_path):
+    from types import SimpleNamespace
+
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    service._capabilities = {'published': 'capability'}
+    service._executors['task'] = SimpleNamespace(invoke=lambda *args, **kwargs: {
+        'result_ref': 'result:sha256:' + 'a' * 64})
+    response = service.invoke({'task_id': 'task', 'call_id': 'call', 'name': 'published', 'arguments': {}})
+    assert response['ok'] is False
+    assert 'authority_references' not in response
+
+
+def test_readonly_tool_recovers_only_matching_verified_evidence(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from pandapower_domain.authority import PandapowerArtifactAuthority, SimulatorIntegrityError
+
+    service = PandapowerDomainToolService(workspace_root=tmp_path)
+    service._capabilities = {'published': 'capability'}
+    ref = 'result:sha256:' + 'a' * 64
+    linked, unrelated, missing = ('evidence:sha256:' + char * 64 for char in 'bcd')
+    result = {'result_ref': ref, 'context_ref': 'ctx', 'revision_ref': 'rev'}
+    service._executors['work-' + 'a' * 40] = SimpleNamespace(invoke=lambda *args, **kwargs: result)
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'admit', lambda *args:
+        SimpleNamespace(results=(SimpleNamespace(reference=ref),), evidence=()))
+
+    def verify(authority, reference):
+        if reference == missing:
+            raise SimulatorIntegrityError('missing content')
+        return SimpleNamespace(reference=reference,
+            document={**result, 'revision_ref': 'other' if reference == unrelated else 'rev'})
+
+    monkeypatch.setattr(PandapowerArtifactAuthority, 'verify_evidence', verify)
+    response = service.invoke({'task_id': 'task', 'call_id': 'call', 'name': 'published', 'arguments': {},
+        'management': {'schema': 'capstone-structural-context/1', 'work_scope': 'work-' + 'a' * 40,
+                       'prior_evidence_refs': [linked, unrelated, missing]}})
+    assert response['ok'] is True
+    assert response['authority_references']['evidence_refs'] == [linked]
+
+
 def test_service_returns_owner_receipt_on_success_and_failure(tmp_path):
     service = PandapowerDomainToolService(workspace_root=tmp_path)
     service._capabilities = {'published': 'capability'}

@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 from threading import Lock
 from capability_agent.runtime.execution_queue import ExecutionReceiptError
+from pandapower_domain.authority import PandapowerArtifactAuthority, SimulatorIntegrityError
 
 from pandapower_domain.execution import (GridctlExecutor, SimulatorCapabilityError,
     source_execution_queue, execution_receipt_writer)
@@ -107,6 +108,29 @@ class PandapowerToolService:
                     execution_observer=lambda phase: self._queue.record(receipt, phase, provenance='authority_process'))
                 response = ({'ok': True, 'result': result} if isinstance(result, dict)
                     else {'ok': False, 'error': {'message': 'domain tool call failed'}})
+                if isinstance(result, dict):
+                    authority = PandapowerArtifactAuthority(self._root / workspace_id)
+                    verified = authority.admit(capability, result, ())
+                    evidence = {item.reference: item for item in verified.evidence}
+                    result_refs = {item.reference for item in verified.results}
+                    if result_refs and not evidence:
+                        for ref in document.get('management', {}).get('prior_evidence_refs', ()):
+                            try:
+                                item = authority.verify_evidence(ref)
+                            except SimulatorIntegrityError:
+                                # A different Pack or workspace can own a historical handle.
+                                continue
+                            if (item.document.get('result_ref') in result_refs
+                                    and item.document.get('context_ref') == result.get('context_ref')
+                                    and item.document.get('revision_ref') == result.get('revision_ref')):
+                                evidence[ref] = item
+                    if result_refs or evidence:
+                        response['authority_references'] = {
+                            'authority_id': authority.authority_id,
+                            'capability_id': capability,
+                            'result_refs': [item.reference for item in verified.results],
+                            'evidence_refs': list(evidence),
+                        }
             except ExecutionReceiptError:
                 raise
             except SimulatorCapabilityError as error:

@@ -256,9 +256,16 @@ class DelegatedRuntime:
         granted_tools = domain_tool_grant(
             resources.get('application_catalog'), self._claim.model_context) if task_fields else None
         structural = resources.get('structural_context') if task_fields else None
+        from .structural_context import AUTHORITY_REFERENCE_SOURCE, checked_authority_references
+        dependency_results = []
+        for identity in dependencies:
+            if identity in self._general_results:
+                dependency = self._general_results[identity].to_document()
+                dependency['sources'] = [source for source in dependency['sources']
+                                         if source['kind'] != AUTHORITY_REFERENCE_SOURCE]
+                dependency_results.append(dependency)
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
-            instruction, tuple(messages), tuple(self._general_results[identity].to_document()
-                for identity in dependencies if identity in self._general_results),
+            instruction, tuple(messages), tuple(dependency_results),
             frozen['identity'], frozen['timeout_seconds'],
             managed_workspace=self._claim.workspace_name if resources.get('native_context') and task_fields else None,
             native_context=resources.get('native_context'),
@@ -525,10 +532,15 @@ class DelegatedRuntime:
                 raise CapacityExceeded(capacity['dimension'],capacity['actual'],capacity['limit'],
                                        capacity['phase'],mode='debug')
         # Separate receipts stay below the Thread event bound even when a
-        # result has many sources. These are external identities, not evidence.
+        # result has many sources.
         for kind in ('sources', 'artifacts'):
             for reference in document[kind]:
                 metadata = reference['metadata']
+                if (kind == 'sources' and reference['kind'] == AUTHORITY_REFERENCE_SOURCE
+                        and result.status == 'completed'):
+                    self._emit(on_event, {'goal_id': goal['goal_id'],
+                        **checked_authority_references(metadata)})
+                    continue
                 reference = {**reference, 'metadata': bounded_metadata(metadata),
                     'metadata_sha256': sha256(json.dumps(metadata, ensure_ascii=False,
                         sort_keys=True, separators=(',', ':')).encode()).hexdigest()}
@@ -939,10 +951,25 @@ class DelegatedRuntime:
         del claim, tool_events
         if self._resources.get('assemble_domain_report'):
             return AdmittedAttemptAnswer(answer, 'limited', 'limited', diagnostic_codes=('domain_node_reported',))
-        if self._business_admissions:
-            refs = tuple(dict.fromkeys(ref for item in self._business_admissions for ref in item.result_refs))
-            evidence = tuple(dict.fromkeys(ref for item in self._business_admissions for ref in item.evidence_refs))
+        from .structural_context import AUTHORITY_REFERENCE_SOURCE, checked_authority_references
+        native_receipts = [
+            checked_authority_references(source['metadata'])
+            for result in self._general_results.values() if result.status == 'completed'
+            for source in result.to_document()['sources']
+            if source['kind'] == AUTHORITY_REFERENCE_SOURCE
+        ]
+        if self._business_admissions or native_receipts:
+            refs = tuple(dict.fromkeys([
+                *(ref for item in self._business_admissions for ref in item.result_refs),
+                *(ref for item in native_receipts for ref in item['result_refs']),
+            ]))
+            evidence = tuple(dict.fromkeys([
+                *(ref for item in self._business_admissions for ref in item.evidence_refs),
+                *(ref for item in native_receipts for ref in item['evidence_refs']),
+            ]))
             mode, assurance = ('authority_backed', 'lineage_verified') if evidence else ('offline_information', 'deterministic_information')
+            if refs and not evidence:
+                mode, assurance = 'limited', 'limited'
             codes = tuple(dict.fromkeys(code for item in self._business_admissions for code in item.diagnostic_codes))
             projections: dict[str, Mapping[str, object]] = {}
             for admitted in self._business_admissions:
@@ -953,7 +980,9 @@ class DelegatedRuntime:
                     if identity in projections and projections[identity] != item:
                         raise BusinessAdmissionError('admitted result projections conflict')
                     projections[identity] = item
-            return AdmittedAttemptAnswer(answer, mode, assurance, refs, evidence, codes, tuple(projections.values()))
+            unique_receipts = {json.dumps(item, sort_keys=True): item for item in native_receipts}
+            return AdmittedAttemptAnswer(answer, mode, assurance, refs, evidence, codes,
+                tuple(projections.values()), tuple(unique_receipts.values()))
         if self._business_started or result_refs or evidence_refs:
             raise BusinessAdmissionError('professional execution has no admitted result')
         from .harness import AdmittedPartialGoalAnswer

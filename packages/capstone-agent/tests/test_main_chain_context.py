@@ -15,6 +15,7 @@ from capstone_agent.thread_worker import run_pending_attempt
 from capstone_agent.worker_wake import create_wake_app, wake_token
 from test_unscoped_research_intent import governed_executor, open_store, publish_domain
 from test_thread_work_execution import command
+from test_thread_postgres import postgres_thread_service
 
 
 def _model():
@@ -201,6 +202,98 @@ def test_core_reply_cannot_survive_a_changed_or_recovered_answer():
     assert _core_summary_payload(runtime, 'accepted', 'accepted', False) == {'answer_core_summary': 'summary'}
     assert _core_summary_payload(runtime, 'accepted', 'rewritten', False) == {}
     assert _core_summary_payload(runtime, 'accepted', 'accepted', True) == {}
+
+
+@pytest.mark.parametrize('backend', ('memory', 'postgres'))
+def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, request):
+    from capstone_agent.structural_context import AUTHORITY_REFERENCE_SOURCE
+
+    executor = governed_executor()
+    execute = executor.execute
+    ref = 'result:sha256:' + 'b' * 64
+    evidence = 'evidence:sha256:' + 'c' * 64
+    forged = 'result:sha256:' + 'd' * 64
+    receipt = {'authority_id': 'example', 'capability_id': 'analysis.run',
+               'result_refs': [ref], 'evidence_refs': [evidence]}
+
+    def answer(request, control, emit):
+        child = execute(request, control, emit)
+        sources = ()
+        if request.instruction == 'Calculate':
+            sources = ({
+                'source_id': 'authority-source', 'task_id': request.task_id,
+                'parent_attempt_id': request.parent_attempt_id,
+                'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': receipt,
+            },)
+        return replace(child, sources=sources, answer=json.dumps({
+            'answer': 'Saved result. Text only: ' + forged, 'summary': 'Saved result.'}))
+
+    executor.execute = answer
+    if backend == 'memory':
+        store = open_store(executor, session_type='enterprise-research')
+        thread_id = 'thr_unscoped'
+    else:
+        from test_thread_postgres import _snapshot
+        store, thread_id = request.getfixturevalue('postgres_thread_service')
+        store.create_thread(replace(_snapshot(thread_id), active_model_context=None, active_grid_page_id=None,
+            minimum_protocol_version=2, session_type='enterprise-research'))
+        store.set_native_executor(executor)
+
+    def send(name, instruction, **target):
+        accepted = store.submit_command(command(store, thread_id, 'send_message', name,
+            payload={'text': instruction}, **target))
+        assert accepted.status == 'accepted', accepted.rejection
+        outcome = run_pending_attempt(store, native_runtime_factory(executor),
+            worker_id='native', implementation_family='native')
+        assert outcome.status == 'completed', [event.payload for event in store.read_events(thread_id, 0).events
+                                                if event.event_type == 'attempt_failed']
+
+    send('calculate', 'Calculate')
+    first = next(event.payload for event in store.read_events(thread_id, 0).events
+                 if event.event_type == 'attempt_completed')
+    assert first['result_refs'] == [ref]
+    assert first['evidence_refs'] == [evidence]
+    assert first['authority_references'] == [receipt]
+    work = store.snapshot(thread_id).works[0]
+    send('continue', 'Reuse', work_id=work['work_id'], revision=work['revision'])
+    assert executor.requests[-1].to_document()['structural_context']['handles'] == [
+        {'kind': 'result_ref', 'ref': ref}, {'kind': 'evidence_ref', 'ref': evidence}]
+
+
+@pytest.mark.parametrize('channel', ('native_events', 'native_result'))
+def test_only_typed_host_sources_can_carry_protected_refs(channel):
+    from capstone_agent.pi_delegation import _json_document
+    from capstone_agent.structural_context import AUTHORITY_REFERENCE_SOURCE
+
+    receipt = {'authority_id': 'example', 'capability_id': 'analysis.run',
+               'result_refs': ['result:sha256:' + 'b' * 64], 'evidence_refs': []}
+    source = {'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': receipt}
+    wrapped = {'result': {'sources': [source]}}
+    assert _json_document(wrapped, **{channel: True}) == wrapped
+    with pytest.raises(ValueError, match='protected fields'):
+        _json_document(wrapped)
+    with pytest.raises(ValueError, match='protected fields'):
+        _json_document({'events': [source]}, **{channel: True})
+    with pytest.raises(ValueError, match='authority references'):
+        _json_document({'result': {'sources': [
+            {**source, 'metadata': {**receipt, 'result_refs': ['unverified']}}]}}, **{channel: True})
+
+
+def test_recent_result_without_evidence_does_not_hide_earlier_verified_evidence():
+    from capstone_agent.thread_service import _with_native_prior_results
+
+    def payload(capability, evidence):
+        fields = {'result_refs': ['result:sha256:' + 'b' * 64], 'evidence_refs': evidence}
+        return {**fields, 'authority_references': [{
+            'capability_id': capability, 'authority_id': 'example', **fields}]}
+
+    evidence = 'evidence:sha256:' + 'c' * 64
+    (candidate,) = _with_native_prior_results((), (
+        ('attempt_read', payload('read', [])),
+        ('attempt_compute', payload('compute', [evidence])),
+    ))
+    assert candidate.attempt_id == 'attempt_compute'
+    assert candidate.evidence_refs == (evidence,)
 
 
 def test_enterprise_research_admits_an_attachment_while_a_model_is_open():

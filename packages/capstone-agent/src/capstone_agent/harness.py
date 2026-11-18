@@ -40,7 +40,7 @@ AttemptAdmission = Callable[
 
 @dataclass(frozen=True, slots=True)
 class AdmittedAttemptAnswer:
-    """Trusted application decision; native runtime references are not admission."""
+    """Trusted application decision over references verified by their owners."""
 
     answer: str
     mode: str
@@ -49,6 +49,7 @@ class AdmittedAttemptAnswer:
     evidence_refs: tuple[str, ...] = ()
     diagnostic_codes: tuple[str, ...] = ()
     result_projections: tuple[Mapping[str, object], ...] = ()
+    authority_references: tuple[Mapping[str, object], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.answer, str) or not self.answer.strip():
@@ -96,6 +97,14 @@ class AdmittedAttemptAnswer:
             raise ValueError("authority-backed admission requires evidence")
         if self.mode == "offline_information" and (self.result_refs or self.evidence_refs):
             raise ValueError("offline admission must not create run evidence")
+        if self.authority_references:
+            from .structural_context import checked_authority_references
+            require_capacity('context_references', len(self.authority_references), phase='answer_admission')
+            for value in self.authority_references:
+                receipt = checked_authority_references(value)
+                if (not set(receipt['result_refs']).issubset(self.result_refs)
+                        or not set(receipt['evidence_refs']).issubset(self.evidence_refs)):
+                    raise ValueError('authority receipt is outside the answer admission')
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +141,8 @@ def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: 
         'admission': assurance}
     if admission.result_projections:
         payload['result_projections'] = [dict(item) for item in admission.result_projections]
+    if admission.authority_references:
+        payload['authority_references'] = [dict(item) for item in admission.authority_references]
     return payload
 
 

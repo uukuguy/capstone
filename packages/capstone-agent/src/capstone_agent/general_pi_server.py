@@ -28,7 +28,7 @@ from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES, MAX_
 from .general_pi_storage import GeneralPiStorage, request_hash
 from .general_pi_relay import ProviderRelay, forward_provider
 from .bounded_http_loop import run_http
-from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity
+from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity, require_capacity
 
 
 def _checked_investigation_checkpoint(event, record):
@@ -380,7 +380,8 @@ class GeneralPiHost:
                 raise CapacityExceeded('native_task_count', active_count + 1, self._max_tasks,
                                        'native_task_admission', mode=current_capacity().mode)
             record = {'request': request, 'status': 'running', 'events': [], 'result': None,
-                      'cancel': threading.Event(), 'research_sources': [], 'research_call_hashes': {}}
+                      'cancel': threading.Event(), 'research_sources': [], 'research_call_hashes': {},
+                      'authority_references': {}}
             if (request.native_context or {}).get('mission_binding') is not None:
                 from .native_mission import MissionTaskChannel
                 record['mission'] = MissionTaskChannel()
@@ -1123,6 +1124,21 @@ class GeneralPiHost:
                 status, answer = 'failed', ''
                 public_failure = {'code':'native_product_delivery_incomplete','phase':'persistence'}
             saved_artifacts = artifacts
+            if status == 'completed' and record['authority_references']:
+                from .structural_context import AUTHORITY_REFERENCE_SOURCE
+                with self._lock:
+                    receipts = tuple(record['authority_references'].items())
+                verified_sources = [
+                    {'source_id': 'authority-' + sha256(call_id.encode()).hexdigest(),
+                     'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
+                     'kind': AUTHORITY_REFERENCE_SOURCE, 'metadata': metadata}
+                    for call_id, metadata in receipts
+                ]
+                require_capacity('context_references', len(verified_sources), 'authority_reference_persistence')
+                if record.get('graph_context') is not None:
+                    require_capacity('context_references', len(sources) + len(verified_sources),
+                                     'authority_reference_persistence')
+                sources = verified_sources + sources[:limits.context_references - len(verified_sources)]
             result = PiTaskResult.from_document({'schema': 'capstone-pi-task-result/2' if public_failure else 'capstone-pi-task-result/1',
                 'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
                 'executor_identity': self.identity, 'status': status, 'answer': answer,
@@ -2415,6 +2431,20 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if management is not None:
                     body['management'] = management
                 result = invoke_domain_tool(origin, token, body)
+                if result.get('ok') is True and 'authority_references' in result:
+                    from .structural_context import checked_authority_references
+                    verified = checked_authority_references(result['authority_references'])
+                    with host._lock:
+                        record = host._tasks.get(task_id)
+                        if record is None or record['status'] != 'running' or record['cancel'].is_set():
+                            raise ValueError('domain tool result has no active task')
+                        receipts = record['authority_references']
+                        call_id = document['call_id']
+                        if call_id in receipts and receipts[call_id] != verified:
+                            raise ValueError('domain tool call identity changed references')
+                        require_capacity('context_references', len(receipts) + (call_id not in receipts),
+                                         'authority_reference_collection')
+                        receipts[call_id] = verified
                 payload = result.get('result') if result.get('ok') is True else result.get('error')
                 if not isinstance(payload, dict):
                     payload = {'message': 'domain tool call failed'}

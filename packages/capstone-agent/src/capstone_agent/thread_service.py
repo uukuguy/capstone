@@ -604,6 +604,34 @@ def _prior_results_for_context(snapshot: ThreadSnapshot, *, allowed_attempt_ids:
     return tuple(candidates)
 
 
+def _visible_completed_attempts(conversation: ConversationContext,
+                                allowed: set[str] | None) -> list[str]:
+    return [message['attempt_id'] for message in conversation.messages
+            if message['role'] == 'assistant' and message['status'] == 'completed'
+            and (allowed is None or message['attempt_id'] in allowed)]
+
+
+def _with_native_prior_results(prior, terminal_records) -> tuple[PriorResultReference, ...]:
+    from .structural_context import checked_authority_references
+
+    receipts = {}
+    for attempt_id, payload in terminal_records:
+        for value in payload.get('authority_references', ()):
+            receipt = checked_authority_references(value)
+            if (not set(receipt['result_refs']).issubset(payload.get('result_refs', ()))
+                    or not set(receipt['evidence_refs']).issubset(payload.get('evidence_refs', ()))):
+                raise ThreadExecutionError('saved authority receipt is outside the terminal admission')
+            for ref in receipt['result_refs']:
+                existing = receipts.get(ref)
+                if existing is None or (not existing.evidence_refs and receipt['evidence_refs']):
+                    receipts[ref] = PriorResultReference(
+                        ref, tuple(receipt['evidence_refs']), receipt['capability_id'], attempt_id)
+    for item in prior:
+        receipts.setdefault(item.result_ref, item)
+    require_capacity('context_references', len(receipts), phase='prior_results')
+    return tuple(receipts.values())
+
+
 def _result_projection_window(snapshot: ThreadSnapshot, additions: tuple[ResultProjection, ...]) -> ThreadSnapshot:
     """Bound the active catalog, with explicit metadata; the ledger retains all results."""
     catalog = snapshot.result_projections + additions
@@ -2251,6 +2279,16 @@ class InMemoryThreadService(NativeExecutionOwner):
                         and item['task_context'].binding == record['task_context'].binding}
                 previous = (None if record.get('task_context') is not None and record.get('source_attempt_id') is None
                             else _previous_instruction_from_events(self._events, self._attempts, context, record.get('source_attempt_id')))
+                prior = _prior_results_for_context(self._snapshot, allowed_attempt_ids=allowed_attempt_ids)
+                from .structural_context import main_chain_native_binding
+                conversation = record['conversation_context']
+                if main_chain_native_binding(record.get('submission')) and (context is not None or allowed_attempt_ids is not None):
+                    visible = set(_visible_completed_attempts(conversation, allowed_attempt_ids))
+                    prior = _with_native_prior_results(prior, (
+                        (item.attempt_id, item.payload) for item in reversed(self._events)
+                        if item.attempt_id in visible and item.event_type == 'attempt_completed'
+                        and item.event_seq <= conversation.history_cutoff and item.run_id == self._snapshot.run.run_id
+                        and self._attempts[item.attempt_id].get('model_context') == context))
                 return AttemptClaim(
                     thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
                     workspace_name=self._workspace_name,
@@ -2261,7 +2299,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     model_context=context,
                     task_context=record.get('task_context'),
                     started_at=event.occurred_at,
-                    prior_results=_prior_results_for_context(self._snapshot, allowed_attempt_ids=allowed_attempt_ids),
+                    prior_results=prior,
                     previous_instruction=previous,
                     conversation_context=record["conversation_context"],
                     submission=record.get("submission"),
@@ -4552,6 +4590,23 @@ class PostgresThreadService(NativeExecutionOwner):
                 allowed_attempt_ids = {item['attempt_id'] for item in same_work}
             previous = (None if task_context is not None and source is None
                         else _previous_instruction_from_postgres(connection, thread['thread_id'], context, source))
+            prior = _prior_results_for_context(self._snapshot_from_row(thread), allowed_attempt_ids=allowed_attempt_ids)
+            from .structural_context import main_chain_native_binding
+            frozen_conversation = ConversationContext.from_document(conversation)
+            if main_chain_native_binding(attempt_row.get('submission_snapshot')) and (context is not None or allowed_attempt_ids is not None):
+                visible = _visible_completed_attempts(frozen_conversation, allowed_attempt_ids)
+                if visible:
+                    records = connection.execute("""SELECT e.attempt_id, e.payload
+                        FROM capstone_thread_events e
+                        JOIN capstone_thread_attempts a ON a.attempt_id = e.attempt_id
+                        WHERE e.thread_id = %s AND e.run_id = %s AND e.attempt_id = ANY(%s)
+                        AND e.event_seq <= %s AND e.event_type = 'attempt_completed'
+                        AND e.payload ? 'authority_references'
+                        AND a.model_context_snapshot IS NOT DISTINCT FROM %s::jsonb
+                        ORDER BY e.event_seq DESC""",
+                        (thread['thread_id'], thread['run_id'], visible, frozen_conversation.history_cutoff,
+                         None if context is None else Jsonb(context.to_document()))).fetchall()
+                    prior = _with_native_prior_results(prior, ((item['attempt_id'], item['payload']) for item in records))
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
                 event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
@@ -4564,9 +4619,9 @@ class PostgresThreadService(NativeExecutionOwner):
                 model_context=context,
                 task_context=task_context,
                 started_at=event.occurred_at,
-                prior_results=_prior_results_for_context(self._snapshot_from_row(thread), allowed_attempt_ids=allowed_attempt_ids),
+                prior_results=prior,
                 previous_instruction=previous,
-                conversation_context=ConversationContext.from_document(conversation),
+                conversation_context=frozen_conversation,
                 submission=attempt_row.get("submission_snapshot"),
                 application_catalog=application_catalog,
                 research_generation=research_reset["event_id"] if research_reset else None,

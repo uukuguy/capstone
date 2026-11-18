@@ -19,6 +19,27 @@ _MODEL_FIELDS = (
     'selection_revision', 'enabled_profiles',
 )
 
+AUTHORITY_REFERENCE_SOURCE = 'domain_authority_references'
+
+
+def checked_authority_references(value: object) -> dict:
+    if not isinstance(value, Mapping) or set(value) != {
+        'authority_id', 'capability_id', 'result_refs', 'evidence_refs',
+    }:
+        raise ValueError('authority references are invalid')
+    receipt: dict = {key: _token(value[key]) for key in ('authority_id', 'capability_id')}
+    for kind in ('result', 'evidence'):
+        key = kind + '_refs'
+        refs = value[key]
+        if (not isinstance(refs, (list, tuple)) or len(refs) > 64
+                or any(not isinstance(ref, str)
+                       or not re.fullmatch(kind + r':sha256:[0-9a-f]{64}', ref) for ref in refs)):
+            raise ValueError('authority references are invalid')
+        receipt[key] = list(dict.fromkeys(refs))
+    if not (receipt['result_refs'] or receipt['evidence_refs']):
+        raise ValueError('authority references are empty')
+    return receipt
+
 
 def _token(value, *, limit: int = 128) -> str:
     if not isinstance(value, str) or not _TOKEN.fullmatch(value) or len(value) > limit:
@@ -92,15 +113,21 @@ def _checked_work_scope(value):
 def checked_management(value) -> dict:
     """The model identity or Work scope for a Domain Pack workspace."""
 
-    if (not isinstance(value, Mapping) or set(value) not in ({'schema', 'model'}, {'schema', 'work_scope'})
+    if (not isinstance(value, Mapping) or set(value) - {'prior_evidence_refs'} not in ({'schema', 'model'}, {'schema', 'work_scope'})
             or value.get('schema') != 'capstone-structural-context/1'):
         raise ValueError('structural context is invalid')
+    evidence = value.get('prior_evidence_refs', [])
+    if (not isinstance(evidence, (list, tuple)) or len(evidence) > 64
+            or any(not isinstance(ref, str) or not re.fullmatch(r'evidence:sha256:[0-9a-f]{64}', ref)
+                   for ref in evidence)):
+        raise ValueError('structural context is invalid')
+    prior = {'prior_evidence_refs': list(dict.fromkeys(evidence))} if evidence else {}
     if 'work_scope' in value:
-        return {'schema': value['schema'], 'work_scope': _checked_work_scope(value['work_scope'])}
+        return {'schema': value['schema'], 'work_scope': _checked_work_scope(value['work_scope']), **prior}
     model = _checked_model(value.get('model'))
     if model is None:
         raise ValueError('structural context is invalid')
-    return {'schema': 'capstone-structural-context/1', 'model': model}
+    return {'schema': 'capstone-structural-context/1', 'model': model, **prior}
 
 
 def management_for(structural: Mapping | None) -> dict | None:
@@ -109,11 +136,14 @@ def management_for(structural: Mapping | None) -> dict | None:
     if not isinstance(structural, Mapping):
         return None
     checked = checked_structural_context(structural)
+    evidence = list(dict.fromkeys(item['ref'] for item in checked['handles']
+        if item['kind'] == 'evidence_ref' and re.fullmatch(r'evidence:sha256:[0-9a-f]{64}', item['ref'])))
+    prior = {'prior_evidence_refs': evidence} if evidence else {}
     if 'work_scope' in checked:
-        return {'schema': checked['schema'], 'work_scope': checked['work_scope']}
+        return {'schema': checked['schema'], 'work_scope': checked['work_scope'], **prior}
     if checked['model'] is None:
         return None
-    return {'schema': checked['schema'], 'model': checked['model']}
+    return {'schema': checked['schema'], 'model': checked['model'], **prior}
 
 
 def management_note(value: Mapping) -> str:

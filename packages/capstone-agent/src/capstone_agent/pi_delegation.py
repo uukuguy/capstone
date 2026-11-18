@@ -78,7 +78,7 @@ FORMAL_AND_CORE_INSTRUCTION = (
 from .application_capacity import limits, current_capacity, require_capacity
 
 
-def _json_document(value: object, *, native_events: bool = False) -> dict:
+def _json_document(value: object, *, native_events: bool = False, native_result: bool = False) -> dict:
     nodes = 0
 
     def visit(item, depth=0, path=(), presentation=False):
@@ -105,7 +105,17 @@ def _json_document(value: object, *, native_events: bool = False) -> dict:
                 and isinstance(item.get('tool_call_id'), str) and bool(item['tool_call_id'])
                 and item.get('is_error') is not True)
             result = {}
+            wrapped_result = (native_events or native_result) and path[:1] == ('result',)
+            source_path = path[1:] if wrapped_result else path
+            if ((native_result or wrapped_result)
+                    and len(source_path) == 2 and source_path[0] == 'sources'
+                    and type(source_path[1]) is int):
+                from .structural_context import AUTHORITY_REFERENCE_SOURCE, checked_authority_references
+                if item.get('kind') == AUTHORITY_REFERENCE_SOURCE:
+                    result['metadata'] = checked_authority_references(item.get('metadata'))
             for key, child in item.items():
+                if key in result:
+                    continue
                 if electrical_view and key == 'source_view':
                     from .grid_electrical_view import checked_electrical_descriptor
                     child = checked_electrical_descriptor(child)
@@ -417,7 +427,7 @@ class PiTaskResult:
 
     @classmethod
     def from_document(cls, document, request: PiTaskRequest):
-        document = _json_document(document)
+        document = _json_document(document, native_result=True)
         _validate_result(document, request.task_id, request.parent_attempt_id,
                          request.to_document()["executor_identity"])
         return cls(**{k: v for k, v in document.items() if k != "schema"})
@@ -425,7 +435,7 @@ class PiTaskResult:
     def to_document(self):
         return {"schema": "capstone-pi-task-result/2" if self.failure is not None else "capstone-pi-task-result/1", **_json_document(
             {field: getattr(self, field) for field in self.__dataclass_fields__
-             if field != 'failure' or self.failure is not None})}
+             if field != 'failure' or self.failure is not None}, native_result=True)}
 
 
 @runtime_checkable
@@ -643,7 +653,8 @@ class HttpGeneralPiExecutor:
                     raise ValueError('research transport response must be an object')
             else:
                 task_status = method == 'GET' and re.fullmatch(r'/tasks/[^/?]+(?:\?after=[0-9]+)?', path) is not None
-                result = _json_document(result, native_events=task_status)
+                task_recovery = method == 'POST' and re.fullmatch(r'/tasks/[^/?]+/recover', path) is not None
+                result = _json_document(result, native_events=task_status, native_result=task_recovery)
             checkpoint()
             return result
 
@@ -707,7 +718,7 @@ class HttpGeneralPiExecutor:
                 raise ValueError("Pi cancellation status is invalid; task state is unknown")
             status = response["status"]
             if status in STATUSES:
-                document = _json_document(response["result"])
+                document = _json_document(response["result"], native_result=True)
                 _validate_result(document, task_id, document.get("parent_attempt_id"),
                                  _json_document(self.identity))
                 if document["status"] != status:
