@@ -40,3 +40,15 @@ equipment reference on the Task. The target branch is dev.
 - [ ] Record source and verification in the canonical worklist and version
   register. Regenerate and inspect the control graph. Run scoped macOS CI,
   integrate into dev, and verify the actual dev entry point.
+
+## Acceptance receipt
+
+PR #144 checked `42e55f15` in macOS run `44229048684` and merged as
+`f22ea11c`. The actual dev checkout used image `4ba1552b3b12`.
+Both real child executions recorded a successful load of the registered
+verification skill at version 1.0.0. The first result was a verified
+2,007-byte record with result 323. After pause and resume, the second
+generation saved a verified 1,537-byte record with result 221.
+The API rejected an unknown version before changing the revision.
+See the local `runs/mission-registered-skills-20261118/dev-runtime-receipt.json`
+for exact load events and product digests.

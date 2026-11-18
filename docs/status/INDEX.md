@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-18 Mission 注册技能配备经 PR144 合入 dev。真实技能加载、制品和暂停后第二代委派通过。来源见 VERSION-CONTROL。
+
 2026-11-18 Mission 版本化业务资源通过 PR142 合入 dev。版本及验收见 VERSION-CONTROL 和 PROJECT-OVERVIEW。
 
 2026-11-18 持续指令接纳已接受：PR140合入实际dev38a9e77f，定向CI及真实模型/制品/停止后继续通过。
