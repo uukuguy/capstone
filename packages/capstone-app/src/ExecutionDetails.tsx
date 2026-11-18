@@ -13,7 +13,7 @@ export function locateExecutionRecord(reader:HTMLElement,record:HTMLElement){
 }
 
 /** A portal retains the original message runtime and its tool/answer components. */
-export function ExecutionDetailEntry({id,label,status,children,enabled=true,actionLabel='查看执行详情'}:{id:string;label:string;status:string;children:ReactNode;enabled?:boolean;actionLabel?:string}){
+export function ExecutionDetailEntry({id,label,status,children,enabled=true,actionLabel='查看执行详情',secondaryAction}:{id:string;label:string;status:string;children:ReactNode;enabled?:boolean;actionLabel?:string;secondaryAction?:ReactNode}){
   const dock=useContext(ExecutionDetailsContext)
   const record=useRef<HTMLElement>(null)
   if(!enabled||!dock?.target)return <>{children}</>
@@ -25,7 +25,7 @@ export function ExecutionDetailEntry({id,label,status,children,enabled=true,acti
     })
   }
   return <>
-    <div className="execution-receipt"><span>{status}</span><button type="button" onClick={locate}><ListTree aria-hidden="true"/>{actionLabel}</button></div>
+    <div className="execution-receipt"><span>{status}</span><button type="button" onClick={locate}><ListTree aria-hidden="true"/>{actionLabel}</button>{secondaryAction}</div>
     {createPortal(<section ref={record} tabIndex={-1} className="execution-detail-entry" data-execution-id={id} aria-label={label||'执行记录'}>
       <header className="execution-detail-heading"><strong title={label}>执行 · {label||'本次执行'}</strong><span>{status}</span></header>
       <div className="execution-detail-content">{children}</div>

@@ -1183,11 +1183,11 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {processCalls>0&&inlineActivityGroups.size===0&&<p>模型请求 · {processCalls} 次</p>}
     </div>}
     {coreReply && <div className="capstone-chat-body" aria-label="答复摘要"><p>{coreReply}</p></div>}
-    {showInlineSummary && showInstructionNetwork && <div className="capstone-chat-actions">
-      <IconAction label="查看此指令电网图" onClick={showInstructionNetwork}><Network /></IconAction>
-    </div>}
     <ExecutionDetailEntry enabled={role==='assistant'} id={attemptId} label={instruction||'本次执行'}
       actionLabel={showInlineSummary && completedAnswer ? '查看正式回答与执行详情' : undefined}
+      secondaryAction={showInlineSummary && showInstructionNetwork && <button type="button" onClick={showInstructionNetwork}>
+        <Network aria-hidden="true" />查看此指令电网图
+      </button>}
       status={status?.type==='running'?'执行中':custom?.terminalPhase==='cancelled'?'已停止':custom?.terminalPhase==='failed'?'执行失败':custom?.terminalPhase==='interrupted'?'执行中断':'执行已结束'}>
     {executionDock && processContent}
     <div className="capstone-chat-body">
