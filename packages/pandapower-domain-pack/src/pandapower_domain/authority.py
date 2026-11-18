@@ -551,7 +551,8 @@ class PandapowerArtifactAuthority:
         for item in (*verified.context, *verified.results, *verified.evidence):
             path = destination / item.path.relative_to(self.workspace_root)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(item.document, ensure_ascii=False, allow_nan=False), encoding='utf-8')
+            path.write_text(json.dumps(item.document, ensure_ascii=False, separators=(',', ':'),
+                                       allow_nan=False), encoding='utf-8')
         for ref in {item.document['revision_ref'] for item in verified.context}:
             digest = _reference_digest(ref, 'revision', label='revision_ref')
             parts = ('evidence', 'models', f'{digest}.json')

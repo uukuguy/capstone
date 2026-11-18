@@ -46,7 +46,8 @@ def goal_response_instruction(instruction: str) -> str:
         '(continue, wait, complete), summary, next_instruction (nonempty only for continue; '
         'otherwise null), waiting_reason (nonempty only for wait; otherwise null), '
         'product_refs (array of saved product references; use [] when no references are needed). '
-        'Optionally include authority_refs (array of exact saved result or evidence references needed by the next iteration). '
+        'Only for continue, optionally include authority_refs with exact saved result or evidence references needed by the next iteration. '
+        'Omit authority_refs for wait or complete. '
         'Use continue when more useful work remains, wait when input is missing, and complete '
         'only when the objective has been delivered. Save useful products before responding. '
         'Do not add markdown fences or execution identity fields. '
@@ -108,9 +109,12 @@ def parse_goal_proposal(value: object) -> dict:
     if (disposition == 'wait') != (value['waiting_reason'] is not None):
         raise ValueError('waiting reason does not match disposition')
     validate_goal_product_refs(value['product_refs'])
-    if 'authority_refs' in value:
+    if disposition == 'continue' and 'authority_refs' in value:
         validate_goal_authority_refs(value['authority_refs'])
-    return deepcopy(value)
+    result = deepcopy(value)
+    if disposition != 'continue':
+        result.pop('authority_refs', None)
+    return result
 
 
 def validate_goal_product_refs(refs):

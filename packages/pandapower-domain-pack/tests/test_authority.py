@@ -137,6 +137,7 @@ def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path, monke
     target = PandapowerArtifactAuthority(staged)
     assert target.verify_result(result_ref).document == result_body | {'result_ref': result_ref}
     assert target.verify_evidence(evidence_ref).document == evidence_body
+    assert hashlib.sha256(target.verify_evidence(evidence_ref).path.read_bytes()).hexdigest() == evidence_digest
     assert target.verify_context(context_ref).document == context
     assert not (staged / 'evidence' / 'results' / 'unrelated.json').exists()
     with pytest.raises(SimulatorIntegrityError, match='linked result and evidence'):
