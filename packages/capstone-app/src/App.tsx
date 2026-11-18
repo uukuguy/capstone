@@ -761,8 +761,10 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
   const [,refreshLocation]=useState(0)
   useEffect(()=>{const changed=()=>refreshLocation(value=>value+1);window.addEventListener('popstate',changed);return()=>window.removeEventListener('popstate',changed)},[])
   const params = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
-  const defaultWorkspace=typeof window!=='undefined'&&window.location.pathname==='/'&&!params?.has('thread')&&!params?.has('thread-fixture')&&!params?.has('workspace')
-  const enterpriseWorkspace=!!params?.has('workspace')||defaultWorkspace
+  const path = typeof window === 'undefined' ? '/' : window.location.pathname
+  const enterpriseEntry = path === '/enterprise' || path === '/enterprise/'
+  const defaultWorkspace=path==='/'&&!params?.has('thread')&&!params?.has('thread-fixture')&&!params?.has('workspace')
+  const enterpriseWorkspace=enterpriseEntry||!!params?.has('workspace')||defaultWorkspace
   let workspaceName='enterprise',workspaceError=''
   try{workspaceName=currentWorkspaceName()}catch(error){workspaceError=error instanceof Error?error.message:'工作空间名称无效'}
   const liveThreadRoute=params?.get('thread')||'new'
@@ -777,9 +779,8 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
     return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} presentation={workspace ? 'workspace' : undefined}
       navigation={workspace && <nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务会话"><p role="status">离线会话预览</p><a aria-current="page" href={`/?workspace=enterprise&thread-fixture=${fixtureRoute}`}>当前记录会话</a></nav>} />
   }
-  if (enterpriseWorkspace) return <ThreadLiveEntry key={workspaceName} threadId={liveThreadRoute} presentation="workspace" />
+  if (enterpriseWorkspace) return <ThreadLiveEntry key={`${enterpriseEntry ? 'enterprise' : 'conversation'}.${workspaceName}`} threadId={liveThreadRoute} presentation={enterpriseEntry ? 'enterprise' : 'workspace'} />
   if (params?.get('thread')) return <ThreadLiveEntry threadId={liveThreadRoute} />
-  const path = typeof window === 'undefined' ? '/' : window.location.pathname
   if (path !== '/old' && path !== '/old/') return <ThreadLiveEntry threadId="new" />
   return <LegacyCaseApp clientFactory={clientFactory} />
 }

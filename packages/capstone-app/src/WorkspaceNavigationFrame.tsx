@@ -12,18 +12,20 @@ import {useSessionCatalog,mergeSessionPage} from './sessionCatalog'
 import {sessionManagement} from './sessionManagement'
 import {WorkspaceNavigationContext} from './workspaceNavigationContext'
 import './workspaceNavigation.css'
+import './enterpriseWorkspace.css'
 import {WorkspaceGatewayStatus} from './WorkspaceConnectionStatus'
 import type {GatewayConnectionStatus} from './threadInput'
 
 /** The navigation lifetime is the workspace lifetime, never a retained Thread. */
-export default function WorkspaceNavigationFrame({namespace,currentId,children}:{namespace:string;currentId:string;children:ReactNode}){
+export default function WorkspaceNavigationFrame({namespace,currentId,children,enterprise=false}:{namespace:string;currentId:string;children:ReactNode;enterprise?:boolean}){
   const panelId=useId(),toggleRef=useRef<HTMLButtonElement>(null)
+  const layoutStorage=enterprise?'capstone.enterprise-workspace':'capstone.workspace'
   const [open,setOpen]=useState(()=>{
-    try{const saved=localStorage.getItem('capstone.workspace.navigation-open');if(saved!==null)return saved==='true'}catch{/* Use desktop default. */}
+    try{const saved=localStorage.getItem(`${layoutStorage}.navigation-open`);if(saved!==null)return saved==='true'}catch{/* Use desktop default. */}
     return window.innerWidth>760
   })
   const [width,setWidth]=useState(()=>{
-    try{const n=Number(localStorage.getItem('capstone.workspace.navigation-width'));if(n>=180&&n<=360)return n}catch{/* Use default width. */}
+    try{const n=Number(localStorage.getItem(`${layoutStorage}.navigation-width`));if(n>=180&&n<=360)return n}catch{/* Use default width. */}
     return 224
   })
   const [gateway,setGateway]=useState<{threadId:string;value:GatewayConnectionStatus|undefined}>()
@@ -63,12 +65,12 @@ export default function WorkspaceNavigationFrame({namespace,currentId,children}:
     // Selection is deliberately not a catalog invalidation.
   },[transport,revision])
   const actions=useMemo(()=>transport?sessionManagement(transport,()=>setRevision(value=>value+1)):undefined,[transport])
-  const changeOpen=(value:boolean)=>{setOpen(value);try{localStorage.setItem('capstone.workspace.navigation-open',String(value))}catch{/* Keep live state. */}}
-  const resize=(value:number)=>{const next=Math.round(Math.max(180,Math.min(360,value)));setWidth(next);try{localStorage.setItem('capstone.workspace.navigation-width',String(next))}catch{/* Keep live width. */}}
+  const changeOpen=(value:boolean)=>{setOpen(value);try{localStorage.setItem(`${layoutStorage}.navigation-open`,String(value))}catch{/* Keep live state. */}}
+  const resize=(value:number)=>{const next=Math.round(Math.max(180,Math.min(360,value)));setWidth(next);try{localStorage.setItem(`${layoutStorage}.navigation-width`,String(next))}catch{/* Keep live width. */}}
   const close=()=>{changeOpen(false);toggleRef.current?.focus({preventScroll:true})}
-  const context=useMemo(()=>({open,panelId,toggleRef,gateway:gateway?.threadId===currentId?gateway.value:undefined,catalog:sessions,refreshCatalog,toggle:()=>changeOpen(!open)}),[open,panelId,gateway,currentId,sessions,refreshCatalog])
+  const context=useMemo(()=>({enterprise,open,panelId,toggleRef,gateway:gateway?.threadId===currentId?gateway.value:undefined,catalog:sessions,refreshCatalog,toggle:()=>changeOpen(!open)}),[enterprise,open,panelId,gateway,currentId,sessions,refreshCatalog])
   return <WorkspaceNavigationContext.Provider value={context}>
-    <div ref={shell} className={`thread-app-shell thread-conversation-workspace workspace-route-frame${open?' is-navigation-open':''}`} style={{'--navigation-width':`${width}px`} as CSSProperties}>
+    <div ref={shell} className={`thread-app-shell thread-conversation-workspace workspace-route-frame${enterprise?' enterprise-workspace':''}${open?' is-navigation-open':''}`} style={{'--navigation-width':`${width}px`} as CSSProperties}>
       {open&&<button className="workspace-navigation-backdrop" aria-label="关闭会话导航遮罩" tabIndex={-1} onClick={close}/>}
       <aside id={panelId} className="workspace-navigation" hidden={!open} aria-label="工作空间导航">
         {open&&<button type="button" className="workspace-navigation-close" aria-label="收起会话导航" onClick={close}><X size={18} aria-hidden="true"/></button>}

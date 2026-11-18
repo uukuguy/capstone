@@ -8,6 +8,16 @@ beforeEach(() => vi.stubGlobal('fetch', vi.fn(async (url: string | URL) =>
 afterEach(() => { cleanup(); window.history.replaceState({}, '', '/'); vi.unstubAllGlobals() })
 
 describe('Thread fixture entry point', () => {
+  it('opens the enterprise shell with its own path and the selected workspace', async () => {
+    window.history.replaceState({}, '', '/enterprise?workspace=research')
+    sessionStorage.removeItem('capstone.thread.operatorToken')
+    const { container } = render(<App />)
+
+    expect(await screen.findByRole('heading', { name: '新建任务会话' })).toBeTruthy()
+    expect(container.querySelector('.enterprise-workspace')).toBeTruthy()
+    expect(window.location.pathname).toBe('/enterprise')
+    expect(new URLSearchParams(window.location.search).get('workspace')).toBe('research')
+  })
   it('opens the new workspace entry by default at the root path', async () => {
     window.history.replaceState({}, '', '/')
     sessionStorage.removeItem('capstone.thread.operatorToken')
@@ -15,6 +25,7 @@ describe('Thread fixture entry point', () => {
     expect(await screen.findByRole('heading', { name: '新建任务会话' })).toBeTruthy()
     expect(new URLSearchParams(window.location.search).get('workspace')).toMatch(/^空间-[a-f0-9]{8}$/)
     expect(screen.queryByText('案例库')).toBeNull()
+    expect(document.querySelector('.enterprise-workspace')).toBeNull()
   })
   it('opens the fixture workspace without bootstrapping the legacy Case API', async () => {
     window.history.replaceState({}, '', '/?thread-fixture=idle-ieee39')
