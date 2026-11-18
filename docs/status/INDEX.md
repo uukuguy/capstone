@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-18 Mission 版本化业务资源通过 PR142 合入 dev。版本及验收见 VERSION-CONTROL 和 PROJECT-OVERVIEW。
+
 2026-11-18 持续指令接纳已接受：PR140合入实际dev38a9e77f，定向CI及真实模型/制品/停止后继续通过。
 当前为Mission渐进组织交付：feat/mission-foundation-20261118，目标dev。
 941afaee已通过一次提交/两任务/两自动复盘/原字节实测与逐项验收；待定向CI及dev集成。

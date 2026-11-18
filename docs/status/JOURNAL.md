@@ -8102,3 +8102,17 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: Controlled-clock reproduction fails before repair; post-setup grant and explicit expiry assertions pass16 native Mission checks, without runtime changes.
 - 2026-11-18: c5ce1975 fixes relay timing; CI44178954115 reveals the separate execution-authority clock also starts before cold server setup.
 - 2026-11-18: Simulated35-second setup reproduces409; post-setup authorities share an injected clock, and both expiry guards pass17 Mission checks.
+
+- 2026-11-18: 27e857e3 drafts Mission resource admission with frozen versions and delegated read grants for design review.
+
+- 2026-11-18: ef851577 adds exact Thread resource versions. PostgreSQL resource tests and App transport checks pass.
+
+- 2026-11-18: b0b91a78 grants Mission uploads by version. Real child product matches v1 after v2 publication.
+
+- 2026-11-18: f7de9f68 separates prior stop acknowledgements from resumed child observations. Twelve scoped Control tests pass.
+
+- 2026-11-18: d251f400 selects the focused Mission CI gate for the full feature diff.
+
+- 2026-11-18: PR142 merged as 8d402bed after focused macOS CI. Verified source branch closed.
+
+- 2026-11-18: Actual dev 8d402bed rebuilt. Both real Mission products match version 1; generation 2 remains verified.

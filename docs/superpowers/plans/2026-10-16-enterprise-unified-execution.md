@@ -1,5 +1,14 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Mission versioned business resources
+
+Owner capstone-agent, with capstone-control and capstone-app. PR142 merged to
+dev `8d402bed` after focused macOS CI `44223654353`. Delivery covers immutable
+resource versions and destination Work read grants. Local acceptance verified
+exact source bytes in the first delegation and in generation 2 after published
+replacement. An invalid version was rejected before the plan changed.
+[Implementation plan](2026-11-18-mission-versioned-resources.md).
+
 ## Mission conversation — local acceptance complete, 2026-11-18
 
 Owner capstone-control with agent/App adapters. Branch feat/mission-foundation-20261118

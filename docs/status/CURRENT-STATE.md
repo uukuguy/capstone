@@ -23,7 +23,7 @@ invalidate prior history reads; this cache does not own the persistent pin set.
 ## Project snapshot
 
 - Project route: managed
-- Active work package: Mission conversation delivery. capstone-control owns durable Mission/Task coordination and bounded organizer review intents; capstone-agent owns the originating conversation, delegated execution and explicit result-resource grants; capstone-app owns slash-command presentation and the existing workspace. See `docs/superpowers/plans/2026-11-18-mission-conversation.md` for the acceptance boundary. Runtime and integration facts belong to the version register and session checkpoint.
+- Mission ownership: capstone-control owns durable Mission/Task coordination and bounded organizer review intents. capstone-agent owns the originating conversation, delegated execution and version-scoped resource grants. capstone-app owns slash commands and the existing workspace. The canonical worklist and version register record package and integration status.
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
 - Delivery baseline: dev includes recoverable long-task execution, durable workspace pins, standalone Agent Work goals, independent Control delegation and durable instruction intervention with a shared execution reader. Their owning acceptance records and exact deployment sources live in the canonical worklist and version register. Cloud/demo retain separate accepted sources.
 - Release baseline: v1.1.0 accepted on main and tagged; release source and governance returned to dev through PR106.
