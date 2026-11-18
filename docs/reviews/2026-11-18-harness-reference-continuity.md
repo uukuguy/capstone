@@ -8,11 +8,14 @@ separate checks.
 
 | Path | Observed behavior | Status |
 | --- | --- | --- |
-| Native Domain Pack result to a later instruction | IEEE 39 tool execution produced a result. The first Attempt ended with empty admitted result and evidence arrays. The later Attempt received the reference in history text, then the Authority returned `unknown_result` in its task workspace. | The host freezes an isolated Thread, Run and Work scope for model-free native execution. The Domain Pack verifies result and evidence content. The native host forwards the verified receipt to Harness, which stores it in the completed Attempt. The next native instruction reads receipts in its frozen history and model scope. Older Attempt workspace migration remains open. |
+| Native Domain Pack result to a later instruction | IEEE 39 tool execution produced a result. The first Attempt ended with empty admitted result and evidence arrays. The later Attempt received the reference in history text, then the Authority returned `unknown_result` in its task workspace. | The host freezes an isolated Thread, Run and Work scope for model-free native execution. The Domain Pack verifies result and evidence content. The native host forwards the verified receipt to Harness, which stores it in the completed Attempt. The next native instruction reads receipts in its frozen history and model scope. Older workspaces use the separate verified recovery below. |
 | Native Domain Pack result across worker replacement | The hosted pandapower worker used the tool service's temporary directory. The confirmed result was outside the mounted run volume. | Hosted registration uses the existing run directory for the tool workspace unless an explicit path is configured. The local source directories were saved and copied to the existing run volume. |
 | Previously admitted result to native main-chain context | The plan used an empty prior-result list even when the claim carried admitted results. Structural context also used a different visibility filter from the frozen list. | The plan now uses one visible set for both paths. Covered by a regression test. |
 | Older native Attempt | Its completed terminal record has no admitted references. It has a producer execution receipt and an Attempt-scoped private artifact directory. | Recovery selects a completed predecessor in the same frozen Work. The registered worker matches the exact saved receipt, verifies the source artifacts, and issues scoped read inputs without changing the old record. |
 | Gateway operation receipts | Job and preparation handles were lost when the native adapter revoked its task. | The host captures issued handles, stores them in the attempt ledger, and restores grants only under the same registered connection, instance, and catalog revision. Mission carries producer coordinates to dependent tasks and reviews. |
+| Gateway view receipts | A ready view could remain in a connection cache, but later native tasks had no saved grant to read it. | The adapter admits a ready manifest or a successful preparation job's declared read action. It pins the known schema, model, revision, selection and source snapshot. A successful read checks and forwards the exact view identity. A locator may grant an explicit local-view read under the same source version. |
+| Tool-open Domain Pack context | A model could open a context successfully with no calculation, and the terminal receipt dropped that handle. | The Pack verifies the stored context and its revision. Work and Goal can carry the context separately from results and evidence. A Mission grant lets a dependent stage the verified context and revision in a private read workspace. |
+| Mission reference delivery | The background verifier could mark a saved answer or file as verified even when a task required an issued reference. | A task can declare required authority and gateway receipt sources. Missing required receipts fail the delivery, preserve its saved answer and products for review, and prevent dependent dispatch. |
 | Goal product to the next iteration | Settlement checked the proposal's products, then the continuation saved the next instruction and dropped the checked references. Input preparation could select other historical files in the Work. | Newly persisted continuations retain product references. Admission freezes completed files from the exact predecessor and checks their manifests. Historical continuations keep their existing read path. |
 | Goal result to the next iteration | A real automatic continuation carried the admitted result and evidence but received no Application catalog from the native worker. The model could only find gateway and general tools. | When current publication is unavailable, continuation uses the exact completed predecessor catalog from the same Work and model selection. Memory, PostgreSQL and real automatic continuation checks pass. |
 | Mission files and Authority references to a child or review | The file grant freezes the producer, artifact descriptor and digest. The delivery carried only an answer receipt and file descriptors. | Control now carries exact terminal coordinates from verified dependencies to a child and from delivered or verified tasks to a reserved review. The application resolves the receipt in the producer ledger. The Pack checks the content and stages the admitted references in an isolated read workspace. |
@@ -127,13 +130,12 @@ identity and recovery rejected it. The original Thread's event cursor stayed
 the same. A separate memory and PostgreSQL fixture exercised freezing the
 old producer receipt for a later Attempt in the same Work.
 
-The relay covers verified result and evidence handles, plus registered
-gateway job and preparation handles. Model selection has its existing
-frozen management record. Domain tool context handles, gateway view
-handles and other owner-issued reference types still need their own
-versioned readers and admission contracts before they can be transferred.
-The registered issuer establishes ownership, and the grant establishes
-permission.
+The relay covers verified context, result and evidence handles, plus
+registered gateway job, preparation and ready view handles. Model selection
+has its existing frozen management record. Other owner-issued identifiers
+need a registered reader and an admission contract before the relay can
+transfer them. The registered issuer establishes ownership, and the grant
+establishes permission.
 
 The real local-integration gateway issued a preparation handle in
 `attempt_c6630f9cedba96c0`. The next Attempt used that admitted handle
@@ -144,9 +146,52 @@ Mission dependent and review grant propagation. In live Mission
 `goal_5c7f4158883406be5c8cbcb63d038559`, the producer's two open requests
 failed with `invalid_view_request` because the source required an exact
 grid object reference. The source issued no preparation handle. The
-organizer still marked the producer verified. This run leaves live
-cross-Work gateway admission unverified and shows that the review must
-check the tool outcome when the task requires a source-issued handle.
+organizer still marked the producer verified. The new delivery contract
+closes this path when the plan requires a source-issued receipt. The original
+run did not exercise a successful cross-Work gateway admission.
+
+- A real two-instruction Work in `thr_96d0b341e0d34fe89754` opened IEEE 39
+  in `attempt_cce011593caba12f` and saved a context-only receipt.
+  `attempt_6ddddf1c57b00df5` read the dataset catalog through
+  `grid_model_dataset_list` using the exact same digest. The first reply
+  omitted the handle. The second Attempt did not reopen the model or run
+  a calculation.
+- Live Mission `goal_777b9f927ec666f51598c9eeacfcfbd0` declared a required
+  gateway receipt. The real upstream returned the cached failed preparation
+  and issued no usable handle. Control kept the saved answer and recorded
+  `required_reference_receipt_missing`. The dependent tasks stayed pending.
+- Live Mission `goal_551e5dae1b1724acda8d847e9b671091` delivered after A
+  saved a preparation handle and B reused it. The frozen B Attempt
+  `attempt_06be933addd421c4` and organizer review
+  `attempt_mission_d9aaa46b82ebdc60cd38ae4e0a5b01b7` contain the exact
+  same gateway receipt issued by `attempt_e5a6524226a1e226`. Each made
+  one source status call and zero replacement view opens. The upstream
+  preparation failed with `region_root_missing`. This verifies the live
+  cross-Work handle handoff and source read; the source produced no ready view.
+- The canonical rebuild for `b5e95f2f` ran API and all three workers
+  on image `848c98645da0…`. All 17 changed runtime files matched the
+  checkout. Readiness and scoped image/cache maintenance passed. A separate
+  live `grid:north` probe reached the job reader once and also returned
+  `region_root_missing` before the source issued a ready view.
+- An explicit source-issued grid object succeeded where the regional alias
+  failed. The first live run prepared a view, then found a transport defect.
+  Generic Pi result validation rejected the view receipt's model revision.
+  Commit `96b131ae` validates the typed source receipt in the transport and
+  keeps the protected field rejection for ordinary source metadata.
+- After the exact rebuild on image `e34b51eec4c4…`, real Work
+  `thr_7132481de90b52f9e3d0` persisted the ready view and its executable
+  graph descriptor in `attempt_aa75702f8aac8391`. The next Attempt
+  `attempt_374efffbb61a56f6` read `summary_nodes` with the same admitted
+  view and source version. There were zero replacement opens.
+- The dedicated Harness gate passed 1,166 Agent and Control tests, 26
+  Pack tests, and 14 Application tests on the local macOS checkout.
+  Thirty-five conditional cases were skipped. The gate runs with disposable
+  PostgreSQL and keeps the development branch out of the full product suite.
+- The focused run with disposable PostgreSQL passed 441 tests and skipped
+  32 unavailable cases. The Pack authority and execution check passed
+  26 tests. The focused gateway relay rerun passed 54 tests and checked
+  ready manifests, job completion, locator outputs, wrong versions and
+  another connection's grant.
 
 The Mission file grant in `delegation_resources.py` verifies a completed
 producer record and binds the saved artifact version to a consumer Work.

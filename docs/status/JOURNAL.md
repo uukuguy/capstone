@@ -8198,3 +8198,17 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-18: b6b7464c records live Mission, restarted Goal, and standalone evidence verification for later integration.
 
 - 2026-11-18: 1648b7be recovers legacy Authority receipts and persists gateway operation grants across Work and Mission boundaries.
+
+- 2026-11-18: 7174053c verifies legacy ingress and records the live Mission gateway acceptance gap.
+
+- 2026-11-18: a94c3e36 binds view and context references and rejects Task deliveries missing required receipts.
+
+- 2026-11-18: b5e95f2f retains gateway view identity through job completion, locator results, and later reads.
+
+- 2026-11-18: Real Mission passed exact preparation-handle handoff to a dependent and its review; the source returned region_root_missing.
+
+- 2026-11-18: 96b131ae admits typed view metadata through Pi result validation after the real source returned a ready view.
+
+- 2026-11-18: ab387573 scopes CI to Harness consumers; local package boundaries and 1,206 targeted tests passed.
+
+- 2026-11-18: Live ready view replay retained source identity, read summary_nodes, and made zero replacement opens.
