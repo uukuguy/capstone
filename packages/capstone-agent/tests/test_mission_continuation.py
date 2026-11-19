@@ -535,3 +535,76 @@ def test_recovered_origin_delivery_releases_existing_mission_review_once(review_
     saved = host.service.read(workspace, mission['mission_id'])
     assert saved['organizer']['reviews_admitted'] == 1
     assert saved.get('acceptance') is None
+
+
+@pytest.mark.parametrize('outcome', ['verified', 'pause', 'cancel', 'missing_authority'])
+def test_mission_reconciles_child_delivery_after_observing_worker_exit(postgres_thread_service, outcome):
+    from hashlib import sha256
+    from types import SimpleNamespace
+
+    from capstone_control.reconcile import reconcile
+    from capstone_agent.native_owner_recovery import recover_exited_native_deliveries
+    from capstone_agent.pi_delegation import PiTaskResult
+
+    service, thread_id = postgres_thread_service
+    workspace = 'recover_child_' + uuid4().hex[:12]
+    service.create_thread(replace(_snapshot(thread_id), active_model_context=None,
+        active_grid_page_id=None, minimum_protocol_version=2), workspace_name=workspace)
+    service.set_native_executor(native_executor())
+    host = configure_control(service)
+    mission = host.create_mission(workspace, {'schema': 'capstone-control-mission-create/1',
+        'operation_id': 'create', 'objective': 'Recover a child delivery', 'origin': {'thread_id': thread_id}})
+    mission_id = mission['mission_id']
+    task = dict(task_id='inspect', objective='Inspect the saved material',
+        delivery_requirements=['Return a saved answer'], depends_on=[], agent_id='capstone',
+        mode='single', max_attempts=1)
+    if outcome == 'missing_authority':
+        task['required_reference_sources'] = ['authority_source']
+    for kind, payload in [('update_plan', {'acceptance_criteria': ['Inspect findings'], 'tasks': [task]}),
+                          ('ready', {}), ('delegate_next', {})]:
+        goal = host.service.read(workspace, mission_id)
+        host.command_mission(workspace, {'schema': 'capstone-control-mission-command/1',
+            'operation_id': kind, 'mission_id': mission_id, 'expected_revision': goal['revision'],
+            'kind': kind, 'payload': payload})
+    assert reconcile(host.service, host.agent, workspace=workspace, goal_id=mission_id)['errors'] == 0
+    binding = host.service.read(workspace, mission_id)['tasks'][0]['delegation']['binding']
+    try:
+        claim = service.claim_attempt('child', 30)
+        assert claim.thread_id == binding['thread_id']
+        attempt_id = claim.attempt.attempt_id
+        task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
+        identity = {'engine': 'pi'}
+        service.append_runtime_event(claim, event_type='runtime_event', payload={
+            'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'delegated',
+            'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
+            'route_source': 'native_conversation', 'delivery_recovery_format': 'plain',
+        }, visibility='diagnostic')
+        service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+                                     payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+        assert service.interrupt_expired_attempts() == 1
+        assert reconcile(host.service, host.agent, workspace=workspace, goal_id=mission_id)['errors'] == 0
+        assert host.service.read(workspace, mission_id)['tasks'][0]['state'] == 'blocked'
+        if outcome in {'pause', 'cancel'}:
+            goal = host.service.read(workspace, mission_id)
+            host.command_mission(workspace, {'schema': 'capstone-control-mission-command/1',
+                'operation_id': outcome, 'mission_id': mission_id, 'expected_revision': goal['revision'],
+                'kind': outcome, 'payload': {}})
+
+        reply = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Recovered child findings', (), (), {})
+        executor = SimpleNamespace(observe_terminal_task=lambda *_: reply)
+        assert recover_exited_native_deliveries(service, executor) == 1
+        host.tick()
+        goal = host.service.read(workspace, mission_id)
+        saved = goal['tasks'][0]
+        assert saved['generation'] == 1 and saved['delegation']['binding'] == binding
+        if outcome == 'verified':
+            assert saved['state'] == 'verified' and goal['organizer']['state'] == 'pending'
+        elif outcome == 'missing_authority':
+            assert saved['state'] == 'failed' and saved['failure_reason'] == 'required_reference_receipt_missing'
+        else:
+            assert saved['delivery'] is None
+        assert goal.get('acceptance') is None
+        assert service.snapshot(binding['thread_id']).works[0]['latest_attempt_id'] == attempt_id
+        assert reconcile(host.service, host.agent, workspace=workspace, goal_id=mission_id)['processed'] == 0
+    finally:
+        service.delete_thread(binding['thread_id'])

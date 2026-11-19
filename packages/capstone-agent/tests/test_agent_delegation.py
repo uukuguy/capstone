@@ -18,6 +18,15 @@ def delegation():
         deadline_at='2099-01-01T00:00:00Z', context_products=[])
 
 
+def admit_delegated_goal_plan(threads, instruction):
+    from capstone_agent.session_goal_plan import drain_initial_goal_plans
+    assert drain_initial_goal_plans(threads, planner=lambda _: {
+        'schema': 'capstone-session-goal-plan/1', 'criteria': ['Draft verified'],
+        'steps': [{'instruction': instruction + ' using the supplied source.', 'expected_result': 'Saved draft'},
+                  {'instruction': 'Check the saved draft.', 'expected_result': 'Verified draft'}],
+    }) == 1
+
+
 def test_revocation_before_admission_is_persistent_and_does_not_create_thread():
     class NoThread:
         def create_thread(self, *args, **kwargs):
@@ -243,6 +252,7 @@ def test_goal_pause_resume_retains_work_and_consumed_budget(postgres_thread_serv
     binding = agent.delegate('enterprise', d)
     d['binding'] = binding
     try:
+        admit_delegated_goal_plan(threads, d['objective'])
         first = threads.claim_attempt('pause-test', 60)
         assert first is not None
         assert agent.control('enterprise', d, 'pause', 'pause-1')['state'] == 'running'

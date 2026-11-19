@@ -190,7 +190,8 @@ def configure_control(threads, *, wake=None):
         for _ in range(128):
             page=threads.read_attempt_records(binding['thread_id'],work['latest_attempt_id'],after=cursor,limit=128)
             for event in page['events']:
-                if (event['event_id']==answer_ref and event['event_type']=='attempt_completed'
+                if (event['event_id']==answer_ref and event['visibility']=='public'
+                        and event['event_type'] in {'attempt_completed', 'attempt_delivery_recovered'}
                         and str(event['payload'].get('answer','')).strip()):
                     return
             if not page['has_more']:

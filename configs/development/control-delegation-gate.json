@@ -37,6 +37,7 @@
     "packages/capstone-agent/tests/test_agent_delegation.py",
     "packages/capstone-agent/tests/test_control_host.py",
     "packages/capstone-agent/tests/test_delegation_resources.py",
+    "packages/capstone-agent/tests/test_mission_continuation.py",
     "packages/capstone-agent/uv.lock",
     "packages/capstone-app/src/ControlGoalPanel.css",
     "packages/capstone-app/src/ControlGoalPanel.tsx",
