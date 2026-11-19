@@ -10,8 +10,11 @@ owner token and running phase govern writes. Only a recorded exit for the
 current owner allows failure settlement. Confirmed recovery preserves saved
 products and rejects old writes. An exact repeat of a terminal commit is safe.
 Acceptance covers a real missed-contact run, PostgreSQL concurrency, compatible
-stored Attempts and reply restoration. Scoped checks passed. Local real
-verification and dev integration are next.
+stored Attempts and reply restoration. Scoped macOS CI 44436940120 passed and
+PR #156 merged to dev `afe26f91`. The real Attempt `attempt_bf48b3d11e676082`
+remained under the same owner after an injected overdue heartbeat. It saved
+`owner-proof.md` and one terminal reply. The same records were readable
+after the actual dev rebuild.
 
 ## Session Goal planning and execution
 

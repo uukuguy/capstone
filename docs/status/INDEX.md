@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+Attempt 写入与心跳解耦已由 PR156 合入 dev，来源与验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。
+
 会话内 Goal 规划与复盘已由 PR153 合入 dev，实际本机验收见[实施计划](../superpowers/plans/2026-11-19-session-goal-planning.md)和[版本台账](VERSION-CONTROL.md#功能包前沿)。
 
 2026-11-18 Harness 保存工具开启的模型上下文和网关视图，Mission 缺失必需回执时阻止依赖任务。追加指令的回答格式异常保留可识别正文。主会话内联完整执行记录与正式回答，保留原模型图入口。候选验收见 [审计](../reviews/2026-11-18-harness-reference-continuity.md) 和 [版本台账](VERSION-CONTROL.md#功能包前沿)。
