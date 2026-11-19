@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+会话内 Goal 规划与复盘的本机真实验收见[实施计划](../superpowers/plans/2026-11-19-session-goal-planning.md)和[版本台账](VERSION-CONTROL.md#功能包前沿)。
+
 2026-11-18 Harness 保存工具开启的模型上下文和网关视图，Mission 缺失必需回执时阻止依赖任务。追加指令的回答格式异常保留可识别正文。主会话内联完整执行记录与正式回答，保留原模型图入口。候选验收见 [审计](../reviews/2026-11-18-harness-reference-continuity.md) 和 [版本台账](VERSION-CONTROL.md#功能包前沿)。
 
 2026-11-18 企业指令核心回复与执行过程通过真实验收并合入 dev。来源和验收见 [版本台账](VERSION-CONTROL.md#功能包前沿) 和 [项目全景](PROJECT-OVERVIEW.html)。

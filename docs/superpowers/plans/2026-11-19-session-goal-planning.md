@@ -61,3 +61,7 @@ step instruction. Exercise both memory and PostgreSQL service entry points.
 - The scoped local gate passed 263 backend and 209 App tests and the App type check.
   After the review retry change, 107 focused tests passed with disposable PostgreSQL.
   Fault injection verifies the stage and error code survive lease expiry.
+
+- The existing Vivaldi Capstone tab restored the saved completed Goal after a
+  refresh. The plan showed step 2 of 2 and the right pane restored the report.
+  Plan expansion has a scroll limit to keep the report and transcript visible.
