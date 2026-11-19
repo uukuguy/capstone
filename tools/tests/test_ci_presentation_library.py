@@ -50,3 +50,6 @@ def test_renderer_layout_uses_its_direct_consumer_gate():
              'tools/tests/test_presentation_library_render.py', '.github/workflows/verify.yml']
     assert classify(paths) == 'presentation-renderer'
     assert classify([*paths, 'packages/grid-simulator/src/grid_simulator/new_solver.py']) != 'presentation-renderer'
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    scope = next(line for line in workflow.splitlines() if 'case "$gate" in' in line)
+    assert '|presentation-renderer|' in scope
