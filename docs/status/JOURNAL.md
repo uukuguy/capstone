@@ -8322,3 +8322,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: e25de2ac reads durable native receipts after restart while keeping live event cursors process-local.
 - 2026-11-19: PR162 verified matching real terminal receipt and file hashes after native executor restart.
 - 2026-11-19: 561df5ee merges durable native receipt lookup after scoped macOS CI and exact restart verification.
+- 2026-11-19: 2cd4d866 reconnects exact recovered Goal and Mission origin deliveries to their existing review paths.
+- 2026-11-19: 21d3d9e4 separates executable Goal steps from final acceptance after a real recovery exposed an ambiguous wait instruction.
+- 2026-11-19: 6861df87 merges PR164 after real two-step Goal recovery, Mission review admission checks, and scoped macOS CI.

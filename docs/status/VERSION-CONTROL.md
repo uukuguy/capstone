@@ -1286,7 +1286,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR162 已合入。原生执行器同配置重启后可读取已保存回执 | 接通 Goal、Mission 和专业任务各自的交付恢复 |
+| dev | 共同基座与企业工作台集成 | PR164 已合入。恢复交付接回 Goal 复盘和 Mission 发起会话 | 接通 Mission 子任务和专业结果恢复 |
 
 ## 功能包前沿
 
@@ -1294,6 +1294,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| native-workflow-recovery | Goal 与 Mission 交付复盘 | 1 | 已合入 dev。Goal 真实验收；Mission PostgreSQL 验证 | 恢复 Goal 步骤交付；解锁已有 Mission 发起会话审查 | 6861df87 | 接通 Mission 子任务和专业结果恢复 | dev a2d1a0b7 | PR164 保留原中断和 Work 修订保护 | macOS CI 44500563439 通过。真实两步 Goal 完成，Mission 已排队审查只接纳一次。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
 | native-durable-receipt | 原生回执重启恢复 | 1 | 已合入 dev，本机重启验收通过 | 受保护的状态读取从磁盘取回原执行回执和制品 | 561df5ee | 接通 Goal、Mission 和专业任务各自的交付恢复 | dev 2dc7e83c | PR162 按原请求、任务和执行器身份核验 | macOS CI 44495574558 通过。真实原生执行器重启前后回执和制品哈希一致。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
 | native-delivery-recovery | 原生会话交付恢复 | 1 | 已合入 dev，本机真实验收通过 | 从已确认退出的执行恢复正式回答和制品 | cef82ba4 | 已完成持久回执读取 | dev e7c5c4fa | PR160 保留中断历史，行锁保护唯一恢复写入 | 定向 macOS CI 44462572461 通过。真实故障注入补回回答与报告，下载字节与回执一致。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
 | native-owner-recovery-observation | 原生执行终态核对 | 1 | 已合入 dev，本机真实验收通过 | 只读核对已绑定原生任务，记录验证通过的终态 | f612dcc6 | 已接入已确认退出的普通会话交付 | dev 325f2666 | PR158，核对期间原所有者恢复则丢弃观察 | CI 44442555748 通过。真实执行器回执与父 Attempt 匹配，包含一项制品。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
@@ -1382,6 +1383,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| native-workflow-merge-20261119 | PR164 合入、本机开发来源和 Goal 故障注入验收 |
 | native-durable-merge-20261119 | PR162 合入、本机部署来源和重启验收 |
 | native-delivery-merge-20261119 | PR160 合入与本机真实交付恢复验收 |
 | native-observation-merge-20261119 | PR158 合入与本机运行来源 |
@@ -1432,6 +1434,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| native-workflow-merge-20261119 | 6861df87 | main | Goal 与 Mission 交付复盘 | PR164 合入 dev，真实 Goal 验收通过 | 原步骤交付进入独立复盘，已排队 Mission 审查按原契约接纳。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-workflow-recovery |
 | native-durable-merge-20261119 | 561df5ee | main | 原生回执重启恢复 | PR162 合入 dev，真实模型回执重启验收通过 | 同配置重启后读取原回执和文件。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-durable-receipt |
 | native-delivery-merge-20261119 | cef82ba4 | main | 原生会话交付恢复 | PR160 合入 dev，真实模型故障注入通过 | 原指令恢复回答和未发布制品，原中断保留。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-delivery-recovery |
 | native-observation-merge-20261119 | f612dcc6 | main | 原生执行终态核对 | PR158 合入 dev，实际本机重建恢复通过 | 只读绑定核验通过。原所有者恢复时丢弃观察。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-owner-recovery-observation |
@@ -1649,6 +1652,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| native-workflow-merge-20261119 | 开发集成与本机来源 | dev | Goal 步骤恢复后继续复盘；Mission 发起会话恢复后接回已有审查 | PR164 与本机 Goal 故障注入通过 |
 | native-durable-merge-20261119 | 开发集成与本机来源 | dev | 重启后读取原终态回执；核对原文件字节与身份 | PR162 与本机重启验收通过 |
 | native-delivery-merge-20261119 | 开发集成与本机来源 | dev | 恢复原指令的正式回复；验证并发布原制品字节 | PR160 与真实模型故障注入通过 |
 | native-observation-merge-20261119 | 开发集成与本机来源 | dev | 只读核对原生子任务；正式会话交付保留准入 | PR158 与实际 dev 重建通过 |
@@ -2131,7 +2135,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 从实际 dev `561df5ee` 规范重建 | API 与三个 worker 同镜像 5c0fa356652c。产品源码与受检 `e25de2ac` 一致。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。已复查执行器重启后的原回执和制品。 |
+| local-dev | 从实际 dev `6861df87` 规范重建 | API 与三个 worker 同镜像 240e8bb61bfe。产品源码与受检 `21d3d9e4` 一致。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。已复查完成的 Goal 和两份制品。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

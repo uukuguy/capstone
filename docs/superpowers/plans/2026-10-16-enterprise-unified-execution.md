@@ -1,6 +1,35 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Reconnect recovered native delivery to Goal and Mission review
+
+Owner is capstone-agent. PR #164 merged at dev `6861df87`. The recovery transaction
+updates the workflow only when the interrupted Work revision, Attempt and
+frozen Work context still match. The same transaction saves the public reply
+and verified products. The ledger keeps its original interruption event.
+
+A planned Goal passes the saved answer and product references to the regular
+step review. Review selects the exact next instruction or admits completion
+against all acceptance criteria. The review prompt distinguishes the next
+executable step from requirements for final acceptance.
+
+An explicitly bound Mission origin Work can restore its delivery so that
+Control can admit an existing pending organizer review. Control still owns
+the binding, its review budget and acceptance. Recovery of a delegated
+child or an interrupted organizer review requires its own settlement path.
+Changed Work state, user pause and newer execution keep the workflow
+unchanged while the recovered delivery remains in history.
+
+The local gate passed 615 backend checks, 150 App checks and type checking.
+PostgreSQL checks covered a Goal that proceeds to its next planned instruction,
+a paused Goal and one admission of an existing Mission review after recovery.
+Scoped macOS CI 44500563439 passed. A real-model Goal recovered its first reply
+after a fixture-only terminal write failure, ran the second planned instruction
+once, and completed acceptance with two verified files. The report gave a sum
+of 71. A canonical rebuild from dev preserved the completed Goal and both
+download hashes. Local receipt: `runs/native-workflow-recovery/live-goal.json`.
+
+
 ## Durable native receipt lookup after executor restart
 
 Owner is capstone-agent. PR #162 merged to `dev` at `561df5ee`.
