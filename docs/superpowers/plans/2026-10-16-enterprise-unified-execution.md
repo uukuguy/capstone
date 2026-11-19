@@ -1,6 +1,24 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Recover briefing table overflow
+
+Owner is the Capstone native presentation renderer. PR #168 merged to dev
+`49444e8d`. Focused macOS CI 44516985397 passed.
+When the default table and explanation layout does not fit, the renderer
+checks a side-by-side or adaptive stacked layout in the same template. It
+retains the source rows, visible explanation, font sizes and page count.
+The receipt records the adjusted page. Content that cannot fit still returns
+the bounded overflow diagnostic without publishing a substitute file.
+
+The original saved briefing input reproduced a table requiring 3.27 inches
+in a 3.25-inch frame. The new renderer produced ten slides from the same
+input and assets. Page eight used a side-by-side layout. The deck was opened
+and the adjusted page was inspected. The focused local gate passed 95 checks.
+The deployed renderer returned successful PPTX and PDF receipts. Local record:
+`runs/presentation-layout-recovery/deployed-receipt.json`.
+
+
 ## Keep follow-up instructions available after Goal review stops
 
 Owner is capstone-agent and capstone-app. PR #166 merged to dev `c1e86a6e`.

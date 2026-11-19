@@ -4,29 +4,26 @@ Updated 2026-11-19. Active work continues on the managed enterprise execution pl
 
 ## Current baseline
 
-Use the `dev` checkout at `.worktrees/dev-integration-152`. PR #166 merged at
-`c1e86a6e`. A stopped Goal's conversation can take an ordinary instruction
-without changing the earlier Goal plan, review or budget. Goal review shows
-specific validation failures and actions. The setup panel folds execution
-limits. The repository execution contract now calls for recovery and
-independent progress when a local operation fails.
+Use the `dev` checkout at `.worktrees/dev-integration-152`. PR #168 merged at
+`49444e8d`. The native briefing renderer tries alternate table layouts in
+the same template when the original layout cannot fit. It preserves the
+source rows, visible explanation, font sizes and page count. The receipt
+records the adjusted layout. An unsatisfied physical fit still returns a
+specific overflow diagnostic for that operation.
 
-The reported power-flow benchmark session accepted its blocked follow-up once.
-Attempt `attempt_2b5fff9a64dddcb2` used the original conversation, while the older
-Goal stayed at two of eight Attempts. Native execution stopped with
-`native_continuation_no_progress` after saving the HTML report and editable
-slide input. The standard Capstone renderer exported the 10-slide deck from
-the verified inputs. The report and PPTX are in
-`runs/goal-followup-user-session/`. The report lists unresolved analysis
-limits. Scoped macOS CI 44505934884 passed.
+The exact saved content and assets from the reported benchmark session
+reproduced the 3.27-inch table in a 3.25-inch frame. The repaired standard
+renderer exported ten slides, validated page eight visually, and returned
+a successful PDF receipt. See `runs/presentation-layout-recovery/`.
+The local verification passed 95 checks and focused macOS CI 44516985397 passed.
 
 ## Next work
 
-1. Audit independent artifact delivery after a native tool or renderer failure.
-   Preserve saved inputs and continue useful work without repeating computation.
-2. Recover Mission delegated deliveries and interrupted reviews through their
-   Control bindings. Keep Authority evidence in its current-run admission path.
-3. Preserve the root checkout's unrelated files and all other environment
+1. Handle other independent artifact paths when a native tool fails.
+   Preserve verified outputs and saved execution state.
+2. Recover Mission delegated deliveries and interrupted organizer reviews
+   through their Control bindings. Preserve Authority admission.
+3. Preserve the root checkout's unrelated files and other environment
    sources. Use focused development gates.
 
 [Canonical worklist](../superpowers/plans/2026-10-16-enterprise-unified-execution.md).

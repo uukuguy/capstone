@@ -8329,3 +8329,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: a76919d2 records precise Goal review diagnostics and exposes the next useful action.
 - 2026-11-19: c1e86a6e merges the Goal follow-up fix after scoped CI and real-session acceptance.
 - 2026-11-19: Original follow-up ran once. Saved report and slide assets yielded a verified 10-slide PPTX after native export stalled.
+- 2026-11-19: d8b9f8f8 fits briefing tables in alternate layouts and replays the original overflow with unchanged sources.
+- 2026-11-19: d5cf9878 registers the direct renderer verification scope in the workflow selector.
+- 2026-11-19: 49444e8d merges the template overflow recovery after exact original-input replay and scoped macOS CI.

@@ -23,6 +23,8 @@ invalidate prior history reads; this cache does not own the persistent pin set.
 ## Project snapshot
 
 - Project route: managed
+- The native briefing renderer checks alternative table layouts within its
+  template before reporting overflow. The render receipt names adjusted pages.
 - A stopped Goal leaves its plan and review available. Its conversation can
   accept a regular follow-up independently of the saved Goal.
 - Native delivery recovery: PostgreSQL record of the current worker's exit and the original executor receipt govern recovery. An authenticated Pi status read can use a retained terminal receipt after a restart with the same executor identity. The conversation reads the recovered reply and saved files under the original instruction. The ledger retains the original interruption.
