@@ -1,6 +1,32 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Keep follow-up instructions available after Goal review stops
+
+Owner is capstone-agent and capstone-app. PR #166 merged to dev `c1e86a6e`.
+A paused, waiting or terminal Goal permits a new ordinary instruction in
+the same conversation. The instruction uses the normal input and artifact
+contracts. Its outcome leaves the earlier Goal plan, review and execution
+budget intact. Active execution and review still use their existing admission
+rules. The Goal panel makes saved-result review and a new instruction distinct.
+
+The reported case had two completed planned steps. The final review did not
+cover every required criterion. The composer then hit the legacy Goal control
+guard. The fix admits the new instruction independently of that review.
+The reader sees distinct reasons for missing criteria, unsupported references
+and invalid next-step instructions. Execution limits sit in the settings
+disclosure. Local verification passed 267 backend checks and 213 App checks.
+Scoped macOS CI 44505934884 passed. The blocked follow-up was accepted once
+in the original Thread, preserving the Goal at two admitted Attempts.
+The native run later stopped at the no-progress guard. It had saved the HTML
+report and slide specification. Both report bytes and slide dependencies
+were read from the original ledger and verified. The standard renderer
+produced and rendered the 10-page PPTX. The report retains open analysis
+limits. Local receipt: `runs/goal-followup-user-session/delivery.json`.
+Follow-up engineering should preserve independent artifact delivery when
+one requested render or continuation stops making progress.
+
+
 ## Reconnect recovered native delivery to Goal and Mission review
 
 Owner is capstone-agent. PR #164 merged at dev `6861df87`. The recovery transaction

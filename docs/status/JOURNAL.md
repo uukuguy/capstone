@@ -8325,3 +8325,7 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: 2cd4d866 reconnects exact recovered Goal and Mission origin deliveries to their existing review paths.
 - 2026-11-19: 21d3d9e4 separates executable Goal steps from final acceptance after a real recovery exposed an ambiguous wait instruction.
 - 2026-11-19: 6861df87 merges PR164 after real two-step Goal recovery, Mission review admission checks, and scoped macOS CI.
+- 2026-11-19: 0e423362 admits regular follow-ups after Goal review stops and explains recovery actions in the composer.
+- 2026-11-19: a76919d2 records precise Goal review diagnostics and exposes the next useful action.
+- 2026-11-19: c1e86a6e merges the Goal follow-up fix after scoped CI and real-session acceptance.
+- 2026-11-19: Original follow-up ran once. Saved report and slide assets yielded a verified 10-slide PPTX after native export stalled.
