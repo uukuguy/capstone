@@ -739,3 +739,61 @@ def test_native_recovery_observes_bound_result_without_settling_attempt(postgres
     assert public.payload == {'status': 'completed'}
     service.finish_attempt(claim, phase='completed', payload={'answer': 'Original context verified'})
     assert service.native_recovery_candidates() == []
+
+
+def test_recover_native_delivery_after_confirmed_worker_exit(postgres_thread_service):
+    from hashlib import sha256
+    from types import SimpleNamespace
+    from concurrent.futures import ThreadPoolExecutor
+
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.native_artifact_projection import artifact_object_key, native_artifact_page
+    from capstone_agent.native_owner_recovery import recover_exited_native_deliveries
+    from capstone_agent.pi_delegation import PiTaskResult
+
+    service, thread_id = postgres_thread_service
+    service._material_objects = MemoryObjectStore()
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    claim = service.claim_attempt('native-owner', 30)
+    attempt_id = claim.attempt.attempt_id
+    task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
+    identity = {'engine': 'pi', 'config_revision': 'test'}
+    service.append_runtime_event(claim, event_type='runtime_event', payload={
+        'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'delegated',
+        'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
+        'route_source': 'native_conversation', 'delivery_recovery_format': 'plain',
+    }, visibility='diagnostic')
+    digest = sha256(b'report').hexdigest()
+    file_id = 'file-' + sha256(b'report.md').hexdigest()[:16] + '-' + digest
+    artifact = {'artifact_id': file_id, 'task_id': task_id, 'parent_attempt_id': attempt_id,
+                'kind': 'workspace_file', 'metadata': {'path': 'report.md', 'sha256': digest, 'size_bytes': 6}}
+    result = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Recovered delivery', (), (artifact,), {})
+    def read_file(task, artifact_id, *, expected_sha256, expected_size):
+        assert (task, artifact_id, expected_sha256, expected_size) == (task_id, file_id, digest, 6)
+        return b'report'
+
+    executor = SimpleNamespace(observe_terminal_task=lambda *_: result, read_artifact=read_file)
+
+    assert recover_exited_native_deliveries(service, executor) == 0
+    service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+                                 payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+    assert service.interrupt_expired_attempts() == 1
+    invalid_transfer = SimpleNamespace(observe_terminal_task=lambda *_: result,
+                                       read_artifact=lambda *args, **kwargs: b'broken')
+    assert recover_exited_native_deliveries(service, invalid_transfer) == 0
+    assert not native_artifact_page(service, thread_id, attempt_id)['artifacts']
+    assert all(event.event_type != 'attempt_delivery_recovered' for event in service.read_events(thread_id, 0).events)
+    with service._connect() as connection:
+        connection.execute("""UPDATE capstone_thread_events SET occurred_at=clock_timestamp() - interval '61 seconds'
+                              WHERE thread_id=%s AND event_type='attempt_native_delivery_checked'""", (thread_id,))
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        assert sorted(workers.map(lambda _: recover_exited_native_deliveries(service, executor), range(2))) == [0, 1]
+    assert recover_exited_native_deliveries(service, executor) == 0
+    events = service.read_events(thread_id, 0).events
+    assert [event.event_type for event in events if event.event_type in {
+        'attempt_interrupted', 'attempt_completed', 'attempt_delivery_recovered',
+    }] == ['attempt_interrupted', 'attempt_delivery_recovered']
+    assert events[-1].payload['answer'] == 'Recovered delivery'
+    published, = native_artifact_page(service, thread_id, attempt_id, include_presentation=False)['artifacts']
+    assert service._material_objects.get(artifact_object_key(published), 6) == b'report'

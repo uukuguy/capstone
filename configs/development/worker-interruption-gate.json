@@ -48,6 +48,10 @@
     [
       "packages/capstone-agent/src/capstone_agent/native_owner_recovery.py",
       "packages/capstone-agent/tests/test_pi_delegation.py"
+    ],
+    [
+      "packages/capstone-agent/src/capstone_agent/native_owner_recovery.py",
+      "packages/capstone-agent/tests/test_thread_postgres.py"
     ]
   ]
 }

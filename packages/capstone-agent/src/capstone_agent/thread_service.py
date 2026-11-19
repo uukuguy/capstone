@@ -803,8 +803,11 @@ def _previous_instruction_from_events(events: list[EventEnvelope], attempts: Map
 def _previous_instruction_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
                                         context: ModelContextSnapshot | None, source_attempt_id: str | None = None) -> PreviousInstruction | None:
     row = connection.execute("""SELECT a.attempt_id, a.phase, a.instruction,
-        e.payload->>'answer' AS answer, a.model_context_snapshot FROM capstone_thread_events e
+        COALESCE(r.payload->>'answer', e.payload->>'answer') AS answer,
+        a.model_context_snapshot FROM capstone_thread_events e
         JOIN capstone_thread_attempts a ON a.thread_id = e.thread_id AND a.attempt_id = e.attempt_id
+        LEFT JOIN capstone_thread_events r ON r.thread_id=e.thread_id AND r.attempt_id=e.attempt_id
+          AND r.event_type='attempt_delivery_recovered' AND r.visibility='public'
         WHERE e.thread_id = %s AND ((%s::text IS NULL AND e.model_context_id = %s) OR e.attempt_id = %s) AND e.visibility = 'public'
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
         ORDER BY e.event_seq DESC LIMIT 1""", (thread_id, source_attempt_id, None if context is None else context.id, source_attempt_id)).fetchone()
@@ -879,16 +882,19 @@ def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str
 def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
                                 cutoff: int, *, work_id: str | None = None) -> ConversationContext:
     rows = connection.execute("""SELECT e.turn_id, e.attempt_id, e.model_context_id,
-        replace(e.event_type, 'attempt_', '') AS status,
+        CASE WHEN r.event_seq IS NOT NULL THEN 'completed'
+            ELSE replace(e.event_type, 'attempt_', '') END AS status,
         CASE WHEN a.submission_snapshot ? '_mission_review' THEN NULL
             ELSE COALESCE(a.submission_snapshot->'input'->>'text', a.instruction) END AS instruction,
-        e.payload->>'answer' AS answer,
+        COALESCE(r.payload->>'answer', e.payload->>'answer') AS answer,
         e.event_seq, a.model_context_snapshot FROM capstone_thread_events e JOIN capstone_thread_attempts a
         ON a.thread_id = e.thread_id AND a.attempt_id = e.attempt_id
+        LEFT JOIN capstone_thread_events r ON r.thread_id=e.thread_id AND r.attempt_id=e.attempt_id
+          AND r.event_type='attempt_delivery_recovered' AND r.visibility='public' AND r.event_seq <= %s
         WHERE e.thread_id = %s AND e.event_seq <= %s AND e.visibility = 'public'
         AND (%s::text IS NULL OR a.task_context_snapshot->'binding'->>'work_id' = %s)
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
-        ORDER BY e.event_seq DESC LIMIT %s""", (thread_id, cutoff, work_id, work_id, limits.history_turn_count + 1)).fetchall()
+        ORDER BY e.event_seq DESC LIMIT %s""", (cutoff, thread_id, cutoff, work_id, work_id, limits.history_turn_count + 1)).fetchall()
     for row in rows:
         row['admitted_instructions'] = [item['payload'] for item in connection.execute("""SELECT payload
             FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s
@@ -5254,6 +5260,90 @@ class PostgresThreadService(NativeExecutionOwner):
     ) -> bool:
         return self.rollback_context_if_preparation_failed(claim, error_code=error_code)
 
+    @staticmethod
+    def _native_delivery_recovery_rows(connection, attempt_id=None, limit=2):
+        return connection.execute(
+            """SELECT a.*, b.payload AS binding
+               FROM capstone_thread_attempts a
+               JOIN capstone_thread_events i ON i.attempt_id=a.attempt_id AND i.thread_id=a.thread_id
+                 AND i.event_type='attempt_interrupted' AND i.visibility='public'
+                 AND i.payload->>'reason'='worker_exit_recorded'
+               JOIN LATERAL (
+                   SELECT e.payload FROM capstone_thread_events e
+                   WHERE e.thread_id=a.thread_id AND e.attempt_id=a.attempt_id
+                     AND e.event_type='runtime_event' AND e.visibility='diagnostic'
+                     AND e.event_seq < i.event_seq AND e.payload->>'child_status'='started'
+                     AND e.payload->>'route_source'='native_conversation'
+                     AND e.payload->>'goal_id'='conversation'
+                   ORDER BY e.event_seq DESC LIMIT 1
+               ) b ON true
+               WHERE a.phase='interrupted' AND (%s::text IS NULL OR a.attempt_id=%s)
+                 AND b.payload->>'delivery_recovery_format' IN ('plain', 'formal-and-core/1')
+                 AND EXISTS (
+                   SELECT 1 FROM capstone_thread_events d
+                   WHERE d.thread_id=a.thread_id AND d.attempt_id=a.attempt_id
+                     AND d.event_type='attempt_delivery_recovery_owner' AND d.visibility='diagnostic'
+                     AND d.event_seq < i.event_seq
+                     AND d.payload->>'owner_fingerprint'=b.payload->>'owner_fingerprint')
+                 AND NOT EXISTS (
+                   SELECT 1 FROM capstone_thread_events d
+                   WHERE d.thread_id=a.thread_id AND d.attempt_id=a.attempt_id
+                     AND (d.event_type IN ('attempt_cancel_requested', 'attempt_delivery_recovered')
+                          OR (d.event_type='attempt_native_delivery_checked'
+                              AND (d.payload->>'status'='ineligible'
+                                   OR d.occurred_at >= clock_timestamp() - interval '60 seconds'))))
+               ORDER BY i.occurred_at, a.attempt_id LIMIT %s""",
+            (attempt_id, attempt_id, limit)).fetchall()
+
+    def native_delivery_recovery_candidates(self) -> list[dict]:
+        with self._connect() as connection:
+            return self._native_delivery_recovery_rows(connection)
+
+    def record_native_delivery_recovery(self, candidate, status, payload, artifacts) -> bool:
+        thread_id, attempt_id = candidate['thread_id'], candidate['attempt_id']
+        with self._connect() as connection:
+            owner = connection.execute(
+                'SELECT 1 FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s FOR UPDATE',
+                (thread_id, attempt_id)).fetchone()
+            if owner is None:
+                return False
+            rows = self._native_delivery_recovery_rows(connection, attempt_id, limit=1)
+            if not rows or rows[0]['binding'] != candidate['binding']:
+                return False
+            original = rows[0]
+            thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE',
+                                        (thread_id,)).fetchone()
+            thread.update(model_context_id=original['model_context_id'],
+                          selection_revision=original['selection_revision'])
+            attempt = AttemptSnapshot(original['turn_id'], attempt_id, 'interrupted',
+                                      original['model_context_id'], original['runtime_mode'])
+            event_seq = thread['last_event_seq']
+
+            def append(event_type, document, visibility='public'):
+                nonlocal event_seq
+                event_seq += 1
+                self._insert_event(connection, self._make_attempt_event(
+                    thread, attempt, event_seq=event_seq, event_type=event_type,
+                    payload=document, visibility=visibility))
+
+            if status == 'recovered':
+                from .native_artifact_projection import _matches_frozen_descriptor
+                saved = connection.execute(
+                    """SELECT payload->'artifact' AS artifact FROM capstone_thread_events
+                       WHERE thread_id=%s AND attempt_id=%s AND event_type='native_artifact_published'
+                         AND visibility='public' ORDER BY event_seq""", (thread_id, attempt_id)).fetchall()
+                latest = {row['artifact']['artifact_id']: row['artifact'] for row in saved}
+                for artifact in artifacts:
+                    existing = latest.get(artifact['artifact_id'])
+                    if existing is None or not _matches_frozen_descriptor(existing, artifact):
+                        append('native_artifact_published', {'artifact': artifact})
+                append('attempt_delivery_recovered', payload)
+            else:
+                append('attempt_native_delivery_checked', {'status': status}, 'diagnostic')
+            connection.execute('UPDATE capstone_threads SET last_event_seq=%s WHERE thread_id=%s',
+                               (event_seq, thread_id))
+            return status == 'recovered'
+
     def native_recovery_candidates(self, limit: int = 2) -> list[dict]:
         if type(limit) is not int or not 1 <= limit <= 8:
             raise ValueError('invalid native recovery scan limit')
@@ -5385,8 +5475,15 @@ class PostgresThreadService(NativeExecutionOwner):
                     task_context, terminal.attempt_id, 'interrupted')
                 event_seq = self._seal_open_captures_postgres(
                     connection, thread, terminal, thread["last_event_seq"], context=None)
-                event = self._make_attempt_event(
+                owner = self._make_attempt_event(
                     thread, terminal, event_seq=event_seq + 1,
+                    event_type='attempt_delivery_recovery_owner',
+                    payload={'owner_fingerprint': _owner_fingerprint(attempt['lease_token'])},
+                    visibility='diagnostic',
+                )
+                self._insert_event(connection, owner)
+                event = self._make_attempt_event(
+                    thread, terminal, event_seq=owner.event_seq + 1,
                     event_type="attempt_interrupted",
                     payload={**_interruption_details(diagnostics), **work_payload},
                 )

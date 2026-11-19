@@ -501,10 +501,12 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       ensureAssistant(event.attemptId)
       continue
     }
-    if (event.eventType === 'attempt_completed' || event.eventType === 'attempt_failed' || event.eventType === 'attempt_cancelled' || event.eventType === 'attempt_interrupted') {
+    const recoveredDelivery = event.visibility === 'public' && event.eventType === 'attempt_delivery_recovered'
+    if (recoveredDelivery || event.eventType === 'attempt_completed' || event.eventType === 'attempt_failed' || event.eventType === 'attempt_cancelled' || event.eventType === 'attempt_interrupted') {
       const key = event.attemptId || event.turnId
       let message = key ? assistantByAttempt.get(key) : undefined
-      const delivered = event.eventType === 'attempt_completed' ||
+      const completed = recoveredDelivery || event.eventType === 'attempt_completed'
+      const delivered = completed ||
         (event.eventType === 'attempt_failed' && typeof event.payload.outcome === 'object' && event.payload.outcome !== null)
       const answer = delivered && typeof event.payload.answer === 'string'
         ? event.payload.answer
@@ -512,15 +514,15 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       const terminalAnswer = delivered ? answer : terminalContent(event)
       const capacityNotice=event.eventType==='attempt_failed'?capacityFailureNotice(event.payload):undefined
       if (!message && key) message = ensureAssistant(key, key ? startedAtByAttempt.get(key) : undefined)
-      const partialText = event.eventType !== 'attempt_completed' ? message?.content : undefined
+      const partialText = !completed ? message?.content : undefined
       if (message && terminalAnswer && (delivered || !message.content)) {
         message.content = terminalAnswer
-      } else if (message && event.eventType !== 'attempt_completed') {
+      } else if (message && !completed) {
         message.content += `\n\n${terminalAnswer}`
       }
       if (message) {
         const instruction = (key ? instructionByAttempt.get(key) : undefined) || (event.turnId ? instructionByTurn.get(event.turnId) : undefined)
-        const status = event.eventType === 'attempt_completed'
+        const status = completed
           ? { type: 'complete' as const, reason: 'stop' as const }
           : { type: 'incomplete' as const, reason: event.eventType === 'attempt_cancelled' ? 'cancelled' as const : event.eventType === 'attempt_failed' ? 'error' as const : 'other' as const }
         ;(message as unknown as { status?: ThreadMessageLike['status'] }).status = status
@@ -532,7 +534,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             resultRefs: stringRefs(event.payload.result_refs),
             evidenceRefs: stringRefs(event.payload.evidence_refs),
             admission: event.payload.admission,
-            coreReply: event.visibility === 'public' && event.eventType === 'attempt_completed'
+            coreReply: event.visibility === 'public' && completed
               ? (typeof event.payload.answer_core_summary === 'string' ? event.payload.answer_core_summary.trim() : '')
                 || (key ? recoveredSummaries.get(key) : undefined) : undefined,
             toolCount: relatedTools,
@@ -540,9 +542,12 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             selectionRevision: event.selectionRevision || (key ? contextByAttempt.get(key)?.selectionRevision : undefined),
             instruction: instruction?.text??custom.instruction,
             instructionMessageId: instruction?.messageId,
-            terminalPhase: event.eventType.replace(/^attempt_/, ''),
+            terminalPhase: completed ? 'completed' : event.eventType.replace(/^attempt_/, ''),
+            recoveredDelivery,
             completionSequence: event.eventSeq,
-            ...(capacityNotice?{terminalNotice:capacityNotice,partialText:delivered?answer:partialText}:!delivered ? { terminalNotice: terminalAnswer, partialText } : {}),
+            ...(recoveredDelivery ? { terminalNotice: undefined, partialText: undefined }
+              : capacityNotice ? { terminalNotice: capacityNotice, partialText: delivered ? answer : partialText }
+              : !delivered ? { terminalNotice: terminalAnswer, partialText } : {}),
             errorCode: typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined,
             startedAt: custom.startedAt || (key ? startedAtByAttempt.get(key) : undefined),
             finishedAt: event.occurredAt,
@@ -1185,6 +1190,7 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
         <summary>研究记录中的目标</summary>
         <p>{custom.retainedResearchGoal}</p>
       </details>}
+      {custom?.recoveredDelivery === true && <ThreadSystemNotice tone="info">执行中断后已恢复交付。</ThreadSystemNotice>}
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
