@@ -451,6 +451,7 @@ def _prepare_terminal_transition(
         original = next((work for work in snapshot.works if work['work_id'] == work_id), None)
         answer = payload.get('answer')
         if (original and 'goal_plan' in original and 'pending_goal_control' not in original
+                and not original.get('goal_followup')
                 and isinstance(answer, str) and answer.strip()):
             from .structural_context import checked_authority_references
             trusted = [checked_authority_references(item) for item in payload.get('authority_references', ())]

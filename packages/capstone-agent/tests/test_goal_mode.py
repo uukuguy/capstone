@@ -356,9 +356,11 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage,
     progress.update(disposition='complete', summary='Report saved', next_instruction=None,
         criteria=[{'index': 0, 'verdict': 'met', 'refs': ['report.md']}])
     store.finish_attempt(second, phase='completed', payload={'answer': 'Report saved'})
-    assert drain_goal_step_reviews(store, reviewer=lambda *_: {**progress, 'criteria': []}) == 1
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: {
+        key: value for key, value in progress.items() if key != 'criteria'
+    }) == 1
     failed_review = store.snapshot(thread_id).works[0]
-    assert failed_review['goal_mode']['reason'] == 'goal_review_invalid'
+    assert failed_review['goal_mode']['reason'] == 'goal_review_criteria_incomplete'
     assert store.submit_command(command(store, thread_id, 'resume_goal', 'retry_review',
         work_id=failed_review['work_id'], revision=failed_review['revision'], payload={})).status == 'accepted'
     assert store.claim_attempt('worker', 30) is None
@@ -435,3 +437,54 @@ def test_legacy_commands_cannot_bypass_goal_control(goal, kind):
     assert rejection == 'goal_control_required'
     assert updated == snapshot
     assert result is None
+
+
+@pytest.mark.parametrize('storage', ['memory', 'postgres'])
+def test_send_new_instruction_while_goal_review_is_paused(storage, request):
+    from dataclasses import replace
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_postgres import _snapshot
+    from test_thread_work_execution import command, save_work
+    from capstone_agent.session_goal_plan import drain_initial_goal_plans, drain_goal_step_reviews
+
+    if storage == 'postgres':
+        store, thread_id = request.getfixturevalue('postgres_thread_service')
+    else:
+        thread_id = 'thr_goal_followup'
+    snapshot = replace(_snapshot(thread_id), active_model_context=None, active_grid_page_id=None,
+                       minimum_protocol_version=2)
+    if storage == 'postgres':
+        store.create_thread(snapshot)
+    else:
+        store = InMemoryThreadService(snapshot)
+    store.set_native_executor(native_executor())
+    work = save_work(store, thread_id)
+    assert store.submit_command(command(store, thread_id, 'start_goal', 'followup_goal',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': work['goal'], 'max_attempts': 2, 'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
+    assert drain_initial_goal_plans(store, planner=lambda _: {
+        'schema': 'capstone-session-goal-plan/1', 'criteria': ['Report saved'],
+        'steps': [{'instruction': 'Check source', 'expected_result': 'Source verified'},
+                  {'instruction': 'Write report', 'expected_result': 'Report saved'}],
+    }) == 1
+    first = store.claim_attempt('goal_worker', 30)
+    store.finish_attempt(first, phase='completed', payload={'answer': 'Initial findings'})
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: None) == 1
+    paused, = store.snapshot(thread_id).works
+    assert paused['goal_mode']['reason'] == 'goal_review_invalid'
+    instructions = 'Resolve the limits and produce a full report and slides.'
+    submit = command(store, thread_id, 'send_message', 'new_goal_followup',
+        work_id=paused['work_id'], revision=paused['revision'], payload={'text': instructions})
+    receipt = store.submit_command(submit)
+    assert receipt.status == 'accepted'
+    assert store.submit_command(submit) == receipt
+    followup = store.claim_attempt('followup_worker', 30)
+    assert followup.instruction == instructions
+    assert followup.task_context.binding == first.task_context.binding
+    assert any(message['content'] == 'Initial findings' for message in followup.conversation_context.messages)
+    store.finish_attempt(followup, phase='completed', payload={'answer': 'New report and slides'})
+    final, = store.snapshot(thread_id).works
+    assert final['goal_mode'] == paused['goal_mode']
+    assert final['goal_plan'] == paused['goal_plan']
+    assert final['goal_step_review'] == paused['goal_step_review']
+    assert store.claim_attempt('followup_worker', 30) is None

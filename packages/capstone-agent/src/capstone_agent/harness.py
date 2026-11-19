@@ -774,7 +774,8 @@ class HarnessAttemptRunner:
             if claim.task_context is not None:
                 work = next((item for item in self._service.snapshot(claim.thread_id).works
                     if item['work_id'] == claim.task_context.binding.work_id), None)
-                goal_mode = work is not None and 'goal_mode' in work and 'goal_plan' not in work
+                goal_mode = (work is not None and 'goal_mode' in work and 'goal_plan' not in work
+                             and not work.get('goal_followup'))
             prompt = self._runtime.prompt
             if goal_mode:
                 from functools import partial

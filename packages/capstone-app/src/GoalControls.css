@@ -9,7 +9,7 @@
 .goal-controls button:focus-visible,.goal-controls input:focus-visible{outline:2px solid #357d69;outline-offset:2px}
 @media(max-width:720px){.goal-controls button{min-height:44px}.goal-controls label{display:flex}.goal-controls input{flex:1}}
 
-.goal-plan > summary { cursor: pointer; }
+.goal-plan > summary, .goal-settings > summary { cursor: pointer; }
 .goal-plan-body { max-block-size: min(12rem, 24dvh); overflow: auto; overscroll-behavior: contain; }
 .goal-plan-body :is(ol, ul) { padding-inline-start: 1.5em; }
 .goal-plan :focus-visible { outline: 2px solid #357d69; outline-offset: -2px; }

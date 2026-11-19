@@ -126,6 +126,11 @@ before changing deployment, release, or environment behavior.
   authority rules. When a required dependency blocks further progress, return
   the partial result and give the exact blocker. Keep that work available for
   recovery.
+- Treat Capstone as a reasoning system that can continue through partial
+  failures. Apply a block to the affected operation. Keep independent work
+  and new user instructions available. Show the stage, saved work, and
+  available next action in user-facing language. Keep internal codes with the
+  diagnostic record.
 
 ## Public Contracts and Runtime State
 

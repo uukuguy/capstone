@@ -140,6 +140,7 @@ export function commandRejectionCopy(code?: string): string {
     model_preparation_failed: '模型未能打开，当前模型保持不变。请稍后重试。',
     opened_model_limit: '已打开模型数量已达上限。请先关闭暂时不用的模型。',
     attempt_in_progress: '上一条指令仍在运行，请等待完成或先取消。',
+    goal_control_required: '原目标仍在执行或复盘。您可以等它结束，或先暂停目标再发送新指令。输入内容已保留。',
     model_already_active: '此模型已经打开，可以直接继续分析。',
     attempt_active: '上一条指令仍在运行，请等待完成或先取消。',
     run_not_open: '本次会话已关闭，请创建新会话后继续。',
