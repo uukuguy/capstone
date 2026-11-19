@@ -115,6 +115,18 @@ before changing deployment, release, or environment behavior.
   diagnose a valid answer without replacing authority truth; required answer
   or evidence persistence failures remain fatal.
 
+## Replies and Failure Recovery
+
+- Every submitted instruction and task must receive a visible reply. Record
+  what finished, what remains open, and where the user can find saved products.
+  Provide a reply even when the task cannot deliver its full result.
+- Record errors and exceptions as execution diagnostics. Preserve saved work
+  and continue all steps that can still run within their admitted scope.
+  Recovery must use verified progress and must preserve existing evidence and
+  authority rules. When a required dependency blocks further progress, return
+  the partial result and give the exact blocker. Keep that work available for
+  recovery.
+
 ## Public Contracts and Runtime State
 
 - Enterprise resources must support GB-scale and larger files by design.
