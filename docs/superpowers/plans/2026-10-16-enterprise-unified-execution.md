@@ -1,6 +1,21 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Keep independent files available after delivery fails
+
+Owner is the shared agent runtime. PR #170 merged to dev `6ca5d471`.
+Try all independent files before retrying an unavailable transfer. Verify byte
+length and SHA-256. Record a separate diagnostic for a file that fails verification.
+A failed Attempt with saved files has a partial outcome and a formal reply with
+the saved file count. The App keeps the verified files available for download.
+
+The scoped gate passed 662 backend and 150 App checks locally, plus macOS CI
+44528279753. A real native model run created two files. A separate process used
+the actual native receipts and injected corruption in one read. The second
+file was retained with matching content and hash. The formal failure reply is
+covered by the Harness regression test. Local receipt:
+`runs/independent-artifact-delivery/live.json`.
+
 ## Recover briefing table overflow
 
 Owner is the Capstone native presentation renderer. PR #168 merged to dev

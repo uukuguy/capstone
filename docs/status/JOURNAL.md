@@ -8332,3 +8332,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: d8b9f8f8 fits briefing tables in alternate layouts and replays the original overflow with unchanged sources.
 - 2026-11-19: d5cf9878 registers the direct renderer verification scope in the workflow selector.
 - 2026-11-19: 49444e8d merges the template overflow recovery after exact original-input replay and scoped macOS CI.
+
+- 2026-11-19: 068ef884 keeps verified native files available after sibling transfer failure and reports partial delivery.
+- 2026-11-19: 6ca5d471 merges PR170 after real file verification, isolated corruption injection and scoped macOS CI.

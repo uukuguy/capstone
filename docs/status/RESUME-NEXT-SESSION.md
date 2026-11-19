@@ -4,6 +4,12 @@ Updated 2026-11-19. Active work continues on the managed enterprise execution pl
 
 ## Current baseline
 
+PR #170 merged to dev `6ca5d471`. The file delivery loop tries independent
+files before retrying unavailable transfers. A failed Attempt with saved files
+returns a partial response and keeps the files downloadable. The real model
+and isolated read fault check passed; see
+`runs/independent-artifact-delivery/live.json`.
+
 Use the `dev` checkout at `.worktrees/dev-integration-152`. PR #168 merged at
 `49444e8d`. The native briefing renderer tries alternate table layouts in
 the same template when the original layout cannot fit. It preserves the
@@ -19,11 +25,9 @@ The local verification passed 95 checks and focused macOS CI 44516985397 passed.
 
 ## Next work
 
-1. Handle other independent artifact paths when a native tool fails.
-   Preserve verified outputs and saved execution state.
-2. Recover Mission delegated deliveries and interrupted organizer reviews
+1. Recover Mission delegated deliveries and interrupted organizer reviews
    through their Control bindings. Preserve Authority admission.
-3. Preserve the root checkout's unrelated files and other environment
+2. Preserve the root checkout's unrelated files and other environment
    sources. Use focused development gates.
 
 [Canonical worklist](../superpowers/plans/2026-10-16-enterprise-unified-execution.md).

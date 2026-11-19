@@ -20,6 +20,12 @@ catalog, so navigation remounts can reuse them while refreshing. Catalog mutatio
 invalidate prior history reads; this cache does not own the persistent pin set.
 [Acceptance](../reviews/2026-11-16-durable-session-pins-local.md).
 
+## Independent native file delivery
+
+PR #170 merged to dev `6ca5d471`. A file transfer failure leaves verified
+siblings available. The formal response marks partial delivery and gives the
+number of saved files. The execution record retains the failure diagnostic.
+
 ## Project snapshot
 
 - Project route: managed
