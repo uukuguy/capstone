@@ -937,6 +937,19 @@ describe('CapstoneAssistantThread', () => {
     expect(read).toHaveBeenCalledWith('attempt_old', 0)
     expect(onSend).not.toHaveBeenCalled()
   })
+  it('shows the persisted worker reason on an interrupted instruction', () => {
+    const messages = projectAssistantMessages([
+      event('attempt_interrupted', 1, {
+        reason: 'lease_expired', stage: 'worker_execution', error_code: 'worker_execution_failed',
+        answer: '执行进程发生异常，已保存的制品仍可查看。',
+      }, 'attempt_worker_error'),
+    ])
+    expect(messages.find(item => item.id === 'assistant-attempt_worker_error')?.content)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({type: 'text', text: expect.stringContaining('诊断代码：worker_execution_failed')}),
+      ]))
+  })
+
   it('binds semantic invocation receipts to their original task without copying native args', () => {
     const messages = projectAssistantMessages([
       event('attempt_started', 1, {}, 'calculation'),

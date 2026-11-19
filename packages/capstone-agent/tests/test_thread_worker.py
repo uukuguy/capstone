@@ -182,10 +182,9 @@ def test_claim_preparation_does_not_consume_the_worker_lease(monkeypatch) -> Non
     assert clock[0] == 140.0
     assert service.renew_attempt(claim, 30)
 
-    # An actual expired lease must still be rejected; preparation is not renewal.
+    # A slow preparation or a missed heartbeat does not replace the owner.
     clock[0] += 31.0
-    with pytest.raises(thread_service.ThreadExecutionError, match="lease is unavailable"):
-        service.renew_attempt(claim, 30)
+    assert service.renew_attempt(claim, 30)
 
 
 def test_thread_worker_stops_when_requested() -> None:
@@ -673,3 +672,32 @@ def test_prepared_cleanup_records_safe_failure_origin(caplog):
     assert 'origin=' in caplog.text
     assert 'exception_type=OSError' in caplog.text
     assert 'private connection credential' not in caplog.text
+
+
+def test_worker_failure_is_saved_before_lease_expiry(monkeypatch, caplog):
+    import capstone_agent.thread_worker as worker
+
+    service = _service()
+    _submit(service)
+
+    def fail(*args, **kwargs):
+        raise OSError("private worker error details")
+
+    monkeypatch.setattr(worker, '_run_claimed_attempt', fail)
+    with pytest.raises(OSError):
+        run_pending_attempt(service, lambda _: _Runtime(), worker_id="reply-test")
+    attempt_id, = service._attempts
+    marker = next(event for event in service._events
+                  if event.event_type == "attempt_worker_diagnostic")
+    assert marker.attempt_id == attempt_id
+    assert marker.visibility == "diagnostic"
+    assert marker.payload["exception_type"] == "OSError"
+    assert "private worker error details" not in str(marker.payload)
+    assert "private worker error details" not in caplog.text
+
+    service._attempts[attempt_id]["lease_deadline"] = 0
+    assert service.interrupt_expired_attempts() == 1
+    reply = next(event for event in service._events if event.event_type == "attempt_interrupted")
+    assert reply.payload["error_code"] == "worker_execution_failed"
+    assert reply.payload["stage"] == "worker_execution"
+    assert reply.payload["answer"]

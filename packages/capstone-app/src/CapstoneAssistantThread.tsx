@@ -405,8 +405,11 @@ function terminalContent(event: EventEnvelope): string {
   }
   if (event.eventType === 'attempt_cancelled' && event.payload.reason === 'superseded_by_instruction') return '**已中止，切换到新指令。**'
   if (event.eventType === 'attempt_cancelled') return '**本次 Attempt 已取消**\n\n可以修改指令后重新发送。'
-  if (event.payload.error_code === 'terminal_write_failed') {
-    return '**执行结果结算失败**\n\n已保存的制品仍可查看。\n\n诊断代码：terminal_write_failed'
+  const code = event.payload.error_code
+  const answer = event.payload.answer
+  if (event.eventType === 'attempt_interrupted' && typeof code === 'string' && typeof answer === 'string') {
+    const title = code === 'terminal_write_failed' ? '执行结果结算失败' : '执行已中断'
+    return `**${title}**\n\n${answer}\n\n诊断代码：${code}`
   }
   return '**本次 Attempt 已中断**\n\n可以查看执行过程，并在确认模型上下文后重新运行。'
 }
@@ -557,7 +560,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const message = {
       id: `assistant-${key}`,
       role: 'assistant' as const,
-      content: event.payload.error_code === 'terminal_write_failed' ? terminalContent(event)
+      content: event.eventType === 'attempt_interrupted' && typeof event.payload.answer === 'string'
+        && typeof event.payload.error_code === 'string' ? terminalContent(event)
         : `本次 Attempt ${label}。可以查看执行过程，并在确认模型上下文后重新运行。`,
       status: { type: 'incomplete' as const, reason: event.eventType === 'attempt_failed' ? 'error' as const : event.eventType === 'attempt_cancelled' ? 'cancelled' as const : 'other' as const },
       metadata: { custom: { attemptId: key, source: 'capstone-harness', toolCount: events.filter((candidate) => candidate.attemptId === key && candidate.eventType.startsWith('tool_')).length, instruction: instructionByAttempt.get(key)?.text, modelContextId: event.modelContextId || contextByAttempt.get(key)?.modelContextId, selectionRevision: event.selectionRevision || contextByAttempt.get(key)?.selectionRevision, terminalPhase: event.eventType.replace(/^attempt_/, ''), startedAt: startedAtByAttempt.get(key), finishedAt: event.occurredAt, durationMs: durationBetween(startedAtByAttempt.get(key), event.occurredAt) } },

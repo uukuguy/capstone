@@ -106,7 +106,7 @@ def access(service, workspace, origin, *, mission_id=None, claim=None, operation
         if claim is not None:
             leased = connection.execute("""SELECT 1 FROM capstone_thread_attempts
                 WHERE thread_id=%s AND attempt_id=%s AND lease_token=%s
-                AND phase='running' AND lease_deadline > clock_timestamp()""",
+                AND phase='running'""",
                 (claim.thread_id, claim.attempt.attempt_id, claim.lease_token)).fetchone()
             if leased is None:
                 raise ThreadExecutionError('attempt lease is unavailable')

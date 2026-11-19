@@ -142,8 +142,7 @@ def access(service, claim, operation, identity=None):
         thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE',
                                     (claim.thread_id,)).fetchone()
         attempt = connection.execute("""SELECT * FROM capstone_thread_attempts
-            WHERE attempt_id=%s AND thread_id=%s AND lease_token=%s AND phase='running'
-            AND lease_deadline > clock_timestamp()""",
+            WHERE attempt_id=%s AND thread_id=%s AND lease_token=%s AND phase='running'""",
             (claim.attempt.attempt_id, claim.thread_id, claim.lease_token)).fetchone()
         if attempt is None:
             raise ThreadExecutionError('attempt lease is unavailable')

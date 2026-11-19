@@ -1,5 +1,18 @@
 # Unified Enterprise Execution Implementation Plan
 
+
+## Attempt ownership and heartbeat recovery
+
+Owner capstone-agent with the capstone-app status view. Branch
+`fix/worker-interruption-reply-20261119` targets `dev`. A missed heartbeat
+records visible status while retaining the current owner. The Attempt row lock,
+owner token and running phase govern writes. Only a recorded exit for the
+current owner allows failure settlement. Confirmed recovery preserves saved
+products and rejects old writes. An exact repeat of a terminal commit is safe.
+Acceptance covers a real missed-contact run, PostgreSQL concurrency, compatible
+stored Attempts and reply restoration. Scoped checks passed. Local real
+verification and dev integration are next.
+
 ## Session Goal planning and execution
 
 Owner capstone-agent with capstone-app. Branch `feat/session-goal-planning-20261119`
