@@ -43,3 +43,13 @@ def test_template_library_workflow_runs_named_consumers_without_full_workbench_o
         assert required in block
     assert 'check-release' not in block and 'test-capstone-agent' not in block
     assert 'test-pypsa' not in block and 'test-pandapower-application' not in block
+
+
+def test_renderer_layout_uses_its_direct_consumer_gate():
+    paths = ['tools/native_presentation_layout.py', 'tools/native_report.py',
+             'tools/tests/test_presentation_library_render.py', '.github/workflows/verify.yml']
+    assert classify(paths) == 'presentation-renderer'
+    assert classify([*paths, 'packages/grid-simulator/src/grid_simulator/new_solver.py']) != 'presentation-renderer'
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    scope = next(line for line in workflow.splitlines() if 'case "$gate" in' in line)
+    assert '|presentation-renderer|' in scope

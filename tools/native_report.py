@@ -435,6 +435,7 @@ def render_presentation(spec_path, output, *, check_only=False):
 
         block_errors = []
         visible_arguments = []
+        layout_adjustments = []
         for index, content in enumerate(spec['slides']):
             fields(content, ('title','blocks'), ('source_notes','speaker_notes','role','section',
                 *(('argument',) if argument_contract else ())),location=f'slides[{index}]')
@@ -499,6 +500,8 @@ def render_presentation(spec_path, output, *, check_only=False):
                 from native_presentation_layout import render_briefing_slide
                 stats = render_briefing_slide(content,workspace=workspace,page=page,textbox=textbox,
                     wrap=wrap,literal=literal,error=ReportError,title_color=title_ink,location=f'slides[{index}]')
+                if 'layout_adjustment' in stats:
+                    layout_adjustments.append({'slide': len(deck.slides), 'layout': stats['layout_adjustment']})
                 if explanation is not None:
                     visible_arguments.append({'slide':len(deck.slides),
                         'explanation_sha256':hashlib.sha256(explanation.encode('utf-8')).hexdigest()})
@@ -667,6 +670,7 @@ def render_presentation(spec_path, output, *, check_only=False):
                 'slide_roles':['cover',*[s.get('role','content') for s in spec['slides']]]} if template_receipt else {}),
             **({'chapters':chapters,'chapter_ranges':chapter_ranges,'outline_validation':'agenda_sections_in_order'} if chapters else {}),
             **({'visible_arguments':visible_arguments} if argument_contract else {}),
+            **({'layout_adjustments':layout_adjustments} if layout_adjustments else {}),
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)

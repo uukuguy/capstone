@@ -888,6 +888,13 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         retirement = json.loads(manifest.read_text())
         if set(retirement['anchors']).issubset(paths) and set(paths).issubset(retirement['paths']):
             return 'architecture-retirement'
+    if {'tools/native_presentation_layout.py', 'tools/tests/test_presentation_library_render.py'} <= set(paths) and all(
+        path in {'tools/native_presentation_layout.py', 'tools/native_report.py',
+                 'tools/tests/test_presentation_library_render.py',
+                 'tools/tests/test_ci_presentation_library.py', 'tools/ci_scope.py', '.github/workflows/verify.yml'}
+        or _control_path(path) for path in paths
+    ):
+        return 'presentation-renderer'
     if presentation_library_paths(paths):
         return 'presentation-library'
     if execution_lifecycle_paths(paths, deployment=execution_lifecycle_deployment):
