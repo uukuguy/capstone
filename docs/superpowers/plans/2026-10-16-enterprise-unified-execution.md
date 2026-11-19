@@ -10,8 +10,9 @@ refresh. An invalid review can be retried without executing the saved step again
 
 Acceptance requires real planning and two distinct instructions, exact first-step
 product delivery to the second step, per-criterion acceptance and diagnosis of a
-terminal write failure. The first local run reached both delivery records.
-The next action is a real completion check with the revised review admission.
+terminal write failure. The rebuilt local runtime completed two real instructions and four acceptance
+criteria. The second step read the first step’s exact saved source. The next
+action is scoped dev CI and browser verification.
 [Implementation plan](2026-11-19-session-goal-planning.md).
 
 

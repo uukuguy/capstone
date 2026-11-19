@@ -44,3 +44,20 @@ Submit start_goal with a valid objective. Assert the Work exposes pending Goal
 planning and no work Attempt contains that objective as its instruction. Admit a
 valid first plan revision, then assert one Attempt exists with its exact first
 step instruction. Exercise both memory and PostgreSQL service entry points.
+
+
+## Local verification
+
+- The first live test stopped at planner admission because the Provider echoed the
+  objective. A later test saved both deliveries and stopped at final review.
+  The Provider adapter now discards the echoed objective. Final review accepts
+  prior admitted references and retries a failed review from the saved delivery.
+- Local backend source `ef7c3af6`, image `sha256:3b14ae1c13e8f43db9b53eb5e35e1dacb41e3504e76dfd795f0c89d10ba59159`.
+  API and all three workers used the same image and passed readiness.
+- Real Thread `thr_38b08d60160509262c51` completed two instructions. Attempt
+  `attempt_6625351ef31ec970` saved the source. Attempt `attempt_c5ca7c378ecf26b2`
+  read the saved source and published the report with total 71. All four criteria
+  were met. Receipt: `runs/session-goal-planning/live.json` in the feature checkout.
+- The scoped local gate passed 263 backend and 209 App tests and the App type check.
+  After the review retry change, 107 focused tests passed with disposable PostgreSQL.
+  Fault injection verifies the stage and error code survive lease expiry.
