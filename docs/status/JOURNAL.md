@@ -8290,3 +8290,5 @@ check passed. No CI, integration or remote deployment performed.
 - 08:13 PR153 merged to dev 8861d4ae after macOS scoped CI 44426864528 passed.
 
 - 08:19 Actual dev 8861d4ae rebuilt; image 035d309dfdfc ready. Completed Goal and report restored in existing browser tab.
+
+- 08:56 Record mandatory visible replies and recovery from execution errors in AGENTS.md. [086cc59c]
