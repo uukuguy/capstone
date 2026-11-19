@@ -344,6 +344,55 @@ def _interruption_details(diagnostic_events: set[str]) -> dict[str, str]:
     raise ValueError('worker exit record is required')
 
 
+def _stage_goal_step_review(work, attempt_id, answer, product_refs, authority_refs):
+    work['goal_mode'] = {**work['goal_mode'], 'state': 'waiting', 'reason': 'goal_review_pending'}
+    work['goal_step_review'] = {'attempt_id': attempt_id, 'answer': answer[:4096],
+                               'product_refs': list(product_refs[:64]), 'authority_refs': authority_refs}
+    work.pop('goal_continuation', None)
+
+
+def _recover_workflow_delivery(snapshot, original, payload, artifacts):
+    """Restore only the Work revision left by this recorded interruption."""
+    from .enterprise_context import TaskContext
+    from .thread_work import project_work, transition_work
+
+    frozen = original['task_context_snapshot']
+    interrupted = original['interrupted_work']
+    if (frozen is None or not isinstance(interrupted, dict) or snapshot.run.state != 'open'
+            or snapshot.current_attempt is not None or snapshot.pending_selection is not None
+            or snapshot.pending_model_switch is not None):
+        return snapshot, {}
+    context = TaskContext.from_document(frozen)
+    work = next((item for item in snapshot.works if item['work_id'] == context.binding.work_id), None)
+    attempt_id = original['attempt_id']
+    if (work is None or work['status'] != 'interrupted' or work.get('latest_attempt_id') != attempt_id
+            or work['revision'] != interrupted.get('revision') or work['task_context'] != frozen):
+        return snapshot, {}
+    goal = work.get('goal_mode')
+    if goal is not None:
+        eligible = ('goal_plan' in work and 'goal_step_review' not in work
+                    and goal['state'] == 'paused' and goal['reason'] == 'attempt_interrupted'
+                    and goal['last_settled_attempt_id'] == attempt_id)
+    else:
+        submission = original['submission_snapshot'] or {}
+        mission = submission.get('_mission')
+        reference = next((ref for ref in reversed(snapshot.mission_refs)
+                          if ref.get('work_id', work['work_id']) == work['work_id']), None)
+        origin = {'thread_id': snapshot.thread_id}
+        if reference is not None and 'work_id' in reference:
+            origin['work_id'] = reference['work_id']
+        eligible = (work.get('conversation_mode') and '_mission_review' not in submission
+                    and isinstance(mission, dict) and reference is not None
+                    and mission['mission_id'] == reference['mission_id'] and mission['origin'] == origin)
+    if not eligible:
+        return snapshot, {}
+    updated, restored = transition_work(snapshot, context, attempt_id, 'completed')
+    if goal is not None:
+        product_refs = sorted({artifact[key] for artifact in artifacts for key in ('artifact_id', 'file_name')})
+        _stage_goal_step_review(restored, attempt_id, payload['answer'], product_refs, [])
+    return updated, {'work_id': restored['work_id'], 'work': project_work(updated, restored)}
+
+
 def _prepare_terminal_transition(
     snapshot: ThreadSnapshot, claim: AttemptClaim, phase: str, payload: Mapping[str, Any],
     *, saved_product_refs: tuple[str, ...] = (),
@@ -412,13 +461,8 @@ def _prepare_terminal_transition(
             works = []
             for work in updated.works:
                 if work['work_id'] == work_id:
-                    work = {**work, 'goal_mode': {**work['goal_mode'], 'state': 'waiting',
-                                                  'reason': 'goal_review_pending'},
-                            'goal_step_review': {'attempt_id': claim.attempt.attempt_id,
-                                                 'answer': answer[:4096],
-                                                 'product_refs': list(saved_product_refs[:64]),
-                                                 'authority_refs': authority_refs}}
-                    work.pop('goal_continuation', None)
+                    _stage_goal_step_review(work, claim.attempt.attempt_id, answer,
+                                            saved_product_refs, authority_refs)
                     from .thread_work import project_work
                     work_payload['work'] = project_work(updated, work)
                 works.append(work)
@@ -5263,7 +5307,7 @@ class PostgresThreadService(NativeExecutionOwner):
     @staticmethod
     def _native_delivery_recovery_rows(connection, attempt_id=None, limit=2):
         return connection.execute(
-            """SELECT a.*, b.payload AS binding
+            """SELECT a.*, b.payload AS binding, i.payload->'work' AS interrupted_work
                FROM capstone_thread_attempts a
                JOIN capstone_thread_events i ON i.attempt_id=a.attempt_id AND i.thread_id=a.thread_id
                  AND i.event_type='attempt_interrupted' AND i.visibility='public'
@@ -5313,6 +5357,7 @@ class PostgresThreadService(NativeExecutionOwner):
             original = rows[0]
             thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE',
                                         (thread_id,)).fetchone()
+            snapshot = self._snapshot_from_row(thread)
             thread.update(model_context_id=original['model_context_id'],
                           selection_revision=original['selection_revision'])
             attempt = AttemptSnapshot(original['turn_id'], attempt_id, 'interrupted',
@@ -5337,11 +5382,14 @@ class PostgresThreadService(NativeExecutionOwner):
                     existing = latest.get(artifact['artifact_id'])
                     if existing is None or not _matches_frozen_descriptor(existing, artifact):
                         append('native_artifact_published', {'artifact': artifact})
+                if not thread['archived']:
+                    snapshot, work_payload = _recover_workflow_delivery(snapshot, original, payload, artifacts)
+                    payload = {**payload, **work_payload}
                 append('attempt_delivery_recovered', payload)
             else:
                 append('attempt_native_delivery_checked', {'status': status}, 'diagnostic')
-            connection.execute('UPDATE capstone_threads SET last_event_seq=%s WHERE thread_id=%s',
-                               (event_seq, thread_id))
+            connection.execute('UPDATE capstone_threads SET last_event_seq=%s, works=%s WHERE thread_id=%s',
+                               (event_seq, Jsonb(list(snapshot.works)), thread_id))
             return status == 'recovered'
 
     def native_recovery_candidates(self, limit: int = 2) -> list[dict]:

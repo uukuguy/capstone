@@ -18,6 +18,9 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_thread_worker.py \
   packages/capstone-agent/tests/test_thread_recovery_reaper.py \
   packages/capstone-agent/tests/test_instruction_queue.py \
+  packages/capstone-agent/tests/test_goal_mode.py \
+  packages/capstone-agent/tests/test_session_goal_plan.py \
+  packages/capstone-agent/tests/test_mission_continuation.py \
   packages/capstone-agent/tests/test_mission_origin.py \
   packages/capstone-agent/tests/test_pi_delegation.py \
   packages/capstone-agent/tests/test_delegated_runtime.py \
