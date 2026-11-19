@@ -148,3 +148,45 @@ def test_digest_change_and_output_collision_preserve_existing_products(tmp_path)
     assert result.returncode == 2
     assert (tmp_path / 'kept.pptx').read_bytes() == b'old'
     assert not (tmp_path / 'kept.source.zip').exists()
+
+
+@pytest.mark.parametrize('columns,row_count,layout', [
+    (4, 8, 'side_table_adaptive'),
+    (5, 9, 'stacked_table_adaptive'),
+])
+def test_briefing_keeps_table_and_argument_when_fixed_frame_is_too_short(tmp_path, columns, row_count, layout):
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    header = ['case', *'ABCD'[:columns - 1]]
+    rows = [','.join([f'row-{i}', *['7'] * (columns - 1)]) for i in range(1, row_count + 1)]
+    (tmp_path / 'values.csv').write_text(','.join(header) + '\n' + '\n'.join(rows) + '\n')
+    argument = 'All saved cases remain visible.' if columns == 5 else (
+        'The baseline and adjusted results stay in the table. '
+        'The last two cases remain included for comparison.')
+    content = {'schema': 'capstone-presentation/2', 'title': 'Saved comparison', 'slides': [{
+        'title': 'Exact values', 'argument': {'explanation': argument},
+        'blocks': [{'type': 'table', 'csv': 'values.csv', 'max_rows': row_count}],
+    }]}
+    (tmp_path / 'content.json').write_text(json.dumps(content))
+    result = run(tmp_path, '--spec', 'content.json', '--output', 'recovered.pptx',
+                 '--template-id', 'state-grid', '--template', str(TEMPLATE),
+                 '--template-sha256', hashlib.sha256(TEMPLATE.read_bytes()).hexdigest())
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt['renderer']['table_rows'] == row_count
+    assert receipt['renderer']['layout_adjustments'] == [{'slide': 2, 'layout': layout}]
+    deck = Presentation(tmp_path / 'recovered.pptx')
+    table, = [shape for shape in deck.slides[1].shapes if shape.has_table]
+    explanation, = [shape for shape in deck.slides[1].shapes
+                    if shape.has_text_frame and ' '.join(shape.text.split()) == argument]
+    assert table.table.cell(row_count, 0).text == f'row-{row_count}'
+    if layout == 'side_table_adaptive':
+        assert table.left + table.width < explanation.left
+    else:
+        assert table.top + table.height < explanation.top
+    assert explanation.top + explanation.height <= Inches(6.4)
+    assert explanation.text_frame.paragraphs[0].font.size.pt == 22
+    with ZipFile(tmp_path / receipt['bundle']) as archive:
+        assert json.loads(archive.read('content.json')) == content
+        assert archive.read('sources/values.csv') == (tmp_path / 'values.csv').read_bytes()

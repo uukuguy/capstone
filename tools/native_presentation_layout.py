@@ -1,6 +1,7 @@
 """Fit one planned briefing page without splitting or shrinking its content."""
 import csv
 import io
+import math
 import re
 import unicodedata
 from pathlib import Path
@@ -120,7 +121,7 @@ def render_briefing_slide(content, *, workspace, page, textbox, wrap, literal, e
         else:
             raise error('unknown presentation block type')
 
-    def text_lines(width,height):
+    def wrapped_text(width):
         # Reserve glyph-width headroom for Noto's digits/Latin mixed with CJK.
         # Otherwise Office can wrap a prewrapped line again and hit the footer.
         units = max(10,int(width*72/12.5)-2)
@@ -130,7 +131,14 @@ def render_briefing_slide(content, *, workspace, page, textbox, wrap, literal, e
                 lines.append('')
             wrapped = wrap(value,units-4 if bullet else units)
             lines.extend(['• '+wrapped[0]]+['  '+v for v in wrapped[1:]] if bullet else wrapped)
-        limit = max(1,int(height*72/(22*1.2))-1)
+        return lines
+
+    def line_limit(height):
+        return max(1, int(height * 72 / (22 * 1.2)) - 1)
+
+    def text_lines(width,height):
+        lines = wrapped_text(width)
+        limit = line_limit(height)
         if len(lines)>limit:
             fail(f'Visible briefing text needs {len(lines)} lines; the selected composition allows {limit}')
         return lines
@@ -159,14 +167,36 @@ def render_briefing_slide(content, *, workspace, page, textbox, wrap, literal, e
     else:
         _,columns,rows = visual
         side = bool(text) and len(columns)<=4 and len(rows)<=7
+        def measure_table(width):
+            unit_width = max(8, int((width / len(columns) - .16) * 72 / 7))
+            return [max(.36, max(len(wrap(v, unit_width)) for v in row) * 14 * 1.2 / 72 + .13)
+                    for row in [columns, *rows]]
+
         width = 7.8 if side else 11.7
         height = 4.7 if side or not text else 3.25
-        unit_width = max(8,int((width/len(columns)-.16)*72/7))
-        heights = [max(.36,max(len(wrap(v,unit_width)) for v in row)*14*1.2/72+.13)
-                   for row in [columns,*rows]]
+        heights = measure_table(width)
+        lines = wrapped_text(3.6 if side else 11.7)
+        text_x, text_y, text_width, text_height = (8.9, 1.6, 3.6, 4.7) if side else (.8, 5.15, 11.7, 1.25)
+        if text and (sum(heights) > height or len(lines) > line_limit(text_height)):
+            if not side and len(columns) <= 4:
+                side_heights = measure_table(7.8)
+                side_lines = wrapped_text(3.6)
+                if sum(side_heights) <= 4.7 and len(side_lines) <= line_limit(4.7):
+                    width, height, heights, lines = 7.8, 4.7, side_heights, side_lines
+                    text_x, text_y, text_width, text_height = 8.9, 1.6, 3.6, 4.7
+                    stats['layout_adjustment'] = 'side_table_adaptive'
+        if text and (sum(heights) > height or len(lines) > line_limit(text_height)):
+            # Keep the footer, font sizes and complete source content. Fit the
+            # wide table and its argument using the space each actually needs.
+            width = 11.7
+            heights = measure_table(width)
+            lines = wrapped_text(width)
+            text_height = math.ceil((len(lines) + 1) * 22 * 1.2 / 72 * 100) / 100
+            height = 6.35 - 1.65 - .22 - text_height
+            text_x, text_y, text_width = .8, 1.65 + sum(heights) + .22, width
+            stats['layout_adjustment'] = 'stacked_table_adaptive'
         if sum(heights)>height:
-            fail(f'The briefing table needs {sum(heights):.2f} inches; its frame allows {height:.2f}')
-        lines = text_lines(3.6 if side else 11.7,4.7 if side else 1.25) if text else []
+            fail(f'The briefing table needs {sum(heights):.2f} inches; its frame allows {max(0, height):.2f}')
         slide = page(content['title'],content.get('source_notes',[]))
         table = slide.shapes.add_table(len(rows)+1,len(columns),Inches(.8),Inches(1.65),
                                       Inches(width),Inches(sum(heights))).table
@@ -185,8 +215,7 @@ def render_briefing_slide(content, *, workspace, page, textbox, wrap, literal, e
                     paragraph.font.bold=ri==0
                     paragraph.font.color.rgb=RGBColor(255,255,255) if ri==0 else RGBColor(23,43,59)
         if lines:
-            textbox(slide,8.9 if side else .8,1.6 if side else 5.15,3.6 if side else 11.7,
-                    4.7 if side else 1.25,lines,22)
+            textbox(slide,text_x,text_y,text_width,text_height,lines,22)
     if caption_lines:
         textbox(slide,.8,6.4,11.7,.4,caption_lines,12,RGBColor(82,103,116))
     return stats
