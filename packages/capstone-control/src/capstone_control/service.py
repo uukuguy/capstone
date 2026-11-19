@@ -135,12 +135,21 @@ class ControlService:
     def read(self, workspace, goal_id):
         return public(self.store.read(workspace, goal_id))
 
+    def _awaits_recovered_delivery(self, goal, task):
+        observation = task.get('observation') or {}
+        return ('_mission' in goal and goal['state'] in {'waiting_review', 'running', 'waiting'}
+                and self.now() < utc_deadline(goal['deadline_at'])
+                and task['state'] == 'blocked' and task['mode'] == 'single'
+                and observation.get('state') == 'unknown'
+                and task['delegation']['requested_control'] is None)
+
     def pending(self, workspace=None, limit=128, goal_id=None):
-        goals = ([self.read(workspace, goal_id)] if goal_id is not None
+        goals = ([self.store.read(workspace, goal_id)] if goal_id is not None
                  else self.store.list(workspace, limit, active_only=True))
         return [{'goal_id': g['goal_id'], 'workspace': g['workspace'], 'task': deepcopy(t)}
                 for g in goals
-                for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}][:limit]
+                for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}
+                or self._awaits_recovered_delivery(g, t)][:limit]
 
     def delegation_request(self, workspace, goal_id, delegation_id):
         goal = self.read(workspace, goal_id)
@@ -216,7 +225,7 @@ class ControlService:
         return self.store.transact(workspace, goal_id, change,
             event=self._event('delegation.bound', delegation_id=delegation_id))
 
-    def observe(self, workspace, goal_id, delegation_id, observation):
+    def observe(self, workspace, goal_id, delegation_id, observation, *, recovered=False):
         from .contracts import text
         object_fields(observation, {'sequence', 'state', 'summary', 'delivery'})
         if type(observation['sequence']) is not int or observation['sequence'] < 0:
@@ -245,7 +254,9 @@ class ControlService:
                 if observation['sequence'] == old['sequence'] and observation != old:
                     raise Conflict('observation sequence has different content')
                 return goal, public(goal)
-            if task['state'] not in {'running', 'waiting', 'resume_requested', 'revoke_requested'}:
+            accepts_recovery = (recovered and observation['state'] == 'completed'
+                                and self._awaits_recovered_delivery(goal, task))
+            if task['state'] not in {'running', 'waiting', 'resume_requested', 'revoke_requested'} and not accepts_recovery:
                 return goal, public(goal)
             task['observation'] = deepcopy(observation)
             state = observation['state']

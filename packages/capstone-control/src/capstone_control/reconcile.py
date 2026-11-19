@@ -26,8 +26,12 @@ def reconcile(service, agent: AgentPort, *, workspace=None, limit=32, goal_id=No
                 observation = agent.control(owner, delegation, kind,
                     delegation_id + '_' + kind + '_' + str(delegation.get('control_revision', 0)))
             else:
-                observation = agent.observe(owner, delegation)
-            service.observe(owner, goal_id, delegation_id, observation)
+                read_observation = getattr(agent, 'observe_for_reconciliation', agent.observe)
+                observation = read_observation(owner, delegation)
+            recovered = observation.get('recovered') is True
+            if recovered:
+                observation = {key: value for key, value in observation.items() if key != 'recovered'}
+            service.observe(owner, goal_id, delegation_id, observation, recovered=recovered)
             result['processed'] += 1
         except Exception:
             # Retain the intent. No new identity or retry generation is created.

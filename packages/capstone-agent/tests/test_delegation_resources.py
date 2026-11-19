@@ -52,6 +52,9 @@ def test_fresh_thread_admits_original_bytes_without_copying_file_into_goal(postg
     try:
         binding = agent.delegate('enterprise', d)
         assert binding['thread_id'] != source_thread
+        if mode == 'goal':
+            from test_agent_delegation import admit_delegated_goal_plan
+            admit_delegated_goal_plan(service, d['objective'])
         following = service.claim_attempt('next-worker', 60)
         assert following.thread_id == binding['thread_id']
         assert following.submission['input']['text'].startswith(d['objective'])

@@ -193,6 +193,11 @@ class AgentDelegations:
         return current, binding
 
     def observe(self, workspace, delegation):
+        observation = self.observe_for_reconciliation(workspace, delegation)
+        observation.pop('recovered', None)
+        return observation
+
+    def observe_for_reconciliation(self, workspace, delegation):
         workspace = normalize_workspace_name(workspace)
         current, binding = self._bound(workspace, delegation)
         snapshot = self.threads.snapshot(binding['thread_id'])
@@ -211,19 +216,32 @@ class AgentDelegations:
         state = {'ready': 'waiting', 'queued': 'running', 'blocked': 'waiting',
                  'interrupted': 'unknown'}.get(status, status)
         delivery = None
-        if state == 'completed':
+        recovered = False
+        can_recover = (status == 'interrupted' and delegation['schema'] == 'capstone-agent-delegation/2'
+                       and delegation['mode'] == 'single' and not work.get('cancel_requested'))
+        if state == 'completed' or can_recover:
             after, artifacts, terminal, authoritative, gateway = 0, {}, None, False, False
+            # Match the original idempotent start even for older delegations.
+            start_command = 'cmd_' + _digest([binding['thread_id'], 'start'])[:32]
+            original_start = False
+            expected = 'attempt_delivery_recovered' if can_recover else 'attempt_completed'
             for _ in range(128):
                 page = self.threads.read_attempt_records(binding['thread_id'], work['latest_attempt_id'], after=after, limit=128)
                 for event in page['events']:
+                    if (event['event_type'] == 'command_accepted' and event['visibility'] == 'public'
+                            and event['payload'].get('command_id') == start_command
+                            and event['payload'].get('work_id') == binding['work_id']):
+                        original_start = True
                     if event['event_type'] == 'runtime_event' and event['payload'].get('gateway_operations'):
                         gateway = True
-                    if event['event_type'] == 'native_artifact_published':
+                    if event['event_type'] == 'native_artifact_published' and event['visibility'] == 'public':
                         item = event['payload']['artifact']
                         if item['work_id'] == binding['work_id'] and item.get('source_status') == 'completed':
                             artifacts[item['file_name']] = item
-                    if event['event_type'] == 'attempt_completed' and str(event['payload'].get('answer', '')).strip():
+                    if (event['event_type'] == expected and event['visibility'] == 'public'
+                            and str(event['payload'].get('answer', '')).strip()):
                         terminal = event['event_id']
+                        sequence = max(sequence, event['event_seq'] + len(current['control_receipts']))
                         authoritative = bool(event['payload'].get('authority_references'))
                 if not page['has_more']:
                     break
@@ -232,18 +250,22 @@ class AgentDelegations:
                 after = page['next_after']
             else:
                 raise ValueError('Agent observation exceeds bounded page budget')
+            if can_recover and (terminal is None or not original_start):
+                return {'sequence': sequence, 'state': state, 'summary': state, 'delivery': None}
             if terminal is None:
                 raise ValueError('completed Work has no persisted answer')
+            recovered = can_recover
+            state = 'completed'
             delivery = {'answer_ref': terminal, 'products': list(artifacts.values()), 'status': 'completed'}
-            if authoritative and (delegation['schema'] == 'capstone-agent-delegation/2'
+            if not recovered and authoritative and (delegation['schema'] == 'capstone-agent-delegation/2'
                                   or 'authority_source' in delegation.get('required_reference_sources', ())):
                 delivery['authority_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}
-            if gateway and (delegation['schema'] == 'capstone-agent-delegation/2'
+            if not recovered and gateway and (delegation['schema'] == 'capstone-agent-delegation/2'
                             or 'gateway_source' in delegation.get('required_reference_sources', ())):
                 delivery['gateway_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}
         return {'sequence': sequence, 'state': state,
                 'summary': work.get('goal_mode', {}).get('reason') or work.get('blocked_reason') or state,
-                'delivery': delivery}
+                'delivery': delivery, **({'recovered': True} if recovered else {})}
 
     def control(self, workspace, delegation, kind, operation_id):
         workspace = normalize_workspace_name(workspace)
