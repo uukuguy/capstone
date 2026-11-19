@@ -1,5 +1,37 @@
 # Capstone 核心能力演进讨论笔记
 
+## 2026-11-19 — Lock-based Attempt settlement
+
+User decision: a transaction lock protects an Attempt result write. The age
+of a heartbeat must not decide whether a worker can commit the result of a
+long-running instruction. The current PostgreSQL write already takes a row
+lock but also requires an unexpired lease. The sweep also makes an expired
+running Attempt terminal. These are the behaviors to change together.
+
+Proposed implementation: serialize claim changes and terminal writes under
+the existing Attempt row lock. Add a durable owner generation to the claim.
+A terminal transaction accepts only the current generation and a running
+Attempt. An explicit stop or takeover changes the durable state or generation
+under the same lock. A late former owner cannot commit. A retry of an already
+committed terminal write reads its existing result.
+
+Use heartbeats to surface delayed contact and trigger reconciliation. A
+missed heartbeat alone does not prove the executor stopped. Reconcile the
+executor status and published products before a takeover. When the owner
+cannot be confirmed, keep saved work, give the user a visible status, and
+avoid replay of an action whose outcome is unknown. A surviving current
+owner can reconnect and finish. The identity check must apply to artifacts,
+events, Authority results and replies.
+
+Acceptance: delayed or lost heartbeat followed by the same owner completing,
+concurrent terminal writes, an old owner writing after takeover, a lost
+terminal response, a worker death after product publication, and restored
+user replies and product links in the same Thread. Test against PostgreSQL
+and the native worker. Retain compatibility with previously stored Attempts.
+This is the accepted direction and a proposed implementation boundary.
+The runtime still uses the existing lease checks.
+
+
 ## 2026-11-17：Control 工作空间三视角已确认
 
 用户确认任务执行面向提出任务者，采用看板；运行观察面向运维，采用控制面和 Agent
