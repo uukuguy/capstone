@@ -2085,6 +2085,22 @@ describe('CapstoneAssistantThread', () => {
     expect(onRegenerate).toHaveBeenCalledTimes(1)
   })
 
+  it('shows a recovered answer once on the original instruction', () => {
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '生成报告' } }, 'attempt_recovered'),
+      event('assistant_text_delta', 2, { text: '处理中' }, 'attempt_recovered'),
+      event('attempt_interrupted', 3, { error_code: 'worker_execution_failed', answer: '执行进程已退出。' }, 'attempt_recovered'),
+      event('attempt_delivery_recovered', 4, { answer: '报告已保存。' }, 'attempt_recovered'),
+    ]
+    const assistant = projectAssistantMessages(events).filter(message => message.role === 'assistant')
+    expect(assistant).toHaveLength(1)
+    expect(assistant[0]).toMatchObject({
+      content: [{ type: 'text', text: '报告已保存。' }],
+      status: { type: 'complete' },
+      metadata: { custom: { recoveredDelivery: true, terminalNotice: undefined } },
+    })
+  })
+
   it('keeps interrupted retry available while hiding terminal activity when trace is off', async () => {
     const onRegenerate = vi.fn().mockResolvedValue(undefined)
     const events = [

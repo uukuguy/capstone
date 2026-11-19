@@ -332,8 +332,10 @@ def serve_thread_attempts(
                 if drain_mission_reviews(service) and wake_event is not None:
                     wake_event.set()
             if implementation_family == 'native' and callable(getattr(service, 'native_recovery_candidates', None)):
-                from .native_owner_recovery import observe_lost_contact
-                observe_lost_contact(service, getattr(service, '_native_executor', None))
+                from .native_owner_recovery import observe_lost_contact, recover_exited_native_deliveries
+                executor = getattr(service, '_native_executor', None)
+                observe_lost_contact(service, executor)
+                recover_exited_native_deliveries(service, executor)
             if implementation_family == 'native' and callable(getattr(service, 'submit_initial_goal_plan', None)):
                 from .session_goal_plan import drain_goal_step_reviews, drain_initial_goal_plans
                 advanced = drain_goal_step_reviews(service) or drain_initial_goal_plans(service)

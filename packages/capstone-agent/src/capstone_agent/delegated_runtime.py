@@ -282,10 +282,13 @@ class DelegatedRuntime:
             structural_context=structural,
             answer_format='formal-and-core/1' if core_reply else None,
             **task_fields)
+        recoverable = (self._plan.source == 'native_conversation' and goal['goal_id'] == 'conversation'
+                       and not getattr(self, '_goal_response_enabled', False))
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
             'executor_identity': frozen['identity'], 'entrypoint': request.entrypoint,
-            'route_source': self._plan.source})
+            'route_source': self._plan.source,
+            **({'delivery_recovery_format': request.answer_format or 'plain'} if recoverable else {})})
 
         from .task_steps import NativeStepTracker
         from .native_research_bridge import CYCLE_CONTROL_TOOLS
