@@ -54,6 +54,7 @@ def project_work(snapshot, work):
         reason = 'attempt_in_progress'
     projected = deepcopy(work)
     projected.pop('goal_step_review', None)
+    projected.pop('goal_followup', None)
     return {**projected, 'latest_attempt_id': work.get('latest_attempt_id'),
             'consumed_message_count': work.get('consumed_message_count', 0),
             'cancel_requested': work.get('cancel_requested', False),
@@ -84,6 +85,7 @@ def transition_work(snapshot, task_context, attempt_id, status):
         else:
             work['consumed_message_count'] = len(work['messages'])
     if status in {'completed', 'failed', 'cancelled', 'interrupted'}:
+        goal_followup = work.pop('goal_followup', False)
         for item in work.get('instruction_queue', []):
             if item['attempt_id'] != attempt_id:
                 continue
@@ -104,7 +106,7 @@ def transition_work(snapshot, task_context, attempt_id, status):
                 work['goal_plan_pending'] = True
             work.update(goal_mode=goal, goal=goal['objective'], goal_revision=goal['objective_revision'])
             work['task_context'] = replace(task_context, goal_revision=goal['objective_revision']).to_document()
-        elif 'goal_mode' in work:
+        elif 'goal_mode' in work and not goal_followup:
             goal = dict(work['goal_mode'])
             goal.update(state='paused', reason=('goal_receipt_missing' if status == 'completed'
                         else 'attempt_' + status), last_settled_attempt_id=attempt_id)
@@ -126,7 +128,7 @@ def create_attempt(snapshot, work, *, turn_id=None):
     from .thread_protocol import AttemptSnapshot
     if snapshot.current_attempt is not None:
         raise ThreadProtocolError('attempt already active')
-    if 'goal_mode' in work:
+    if 'goal_mode' in work and not work.get('goal_followup'):
         from datetime import datetime, timezone
         from .goal_mode import parse_goal_mode
         goal = parse_goal_mode(work['goal_mode'])
@@ -173,6 +175,8 @@ def prepare_mission_review(snapshot, work_id, *, attempt_id, turn_id):
 
 def work_instruction(work):
     """Keep every unconsumed supplement; a closed conversation retries its saved text."""
+    if work.get('goal_followup'):
+        return work['messages'][-1]
     if 'goal_continuation' in work:
         instruction = work['goal_continuation']['next_instruction']
         return instruction if 'goal_plan' in work else work['goal'] + '\n\nNext step:\n' + instruction
@@ -219,7 +223,7 @@ def parse_command(command):
     return {**deepcopy(command), 'run_id': command.get('run_id')}
 
 
-def apply_work(snapshot, command, *, archived=False):
+def apply_work(snapshot, command, *, archived=False, goal_followup=False):
     """Return a new snapshot and rejection; never queue an unsupported executor."""
     if archived:
         return snapshot, 'thread_archived', None
@@ -410,7 +414,11 @@ def apply_work(snapshot, command, *, archived=False):
         if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
             return snapshot, 'work_limit_reached', None
         return replace(snapshot, works=works), None, work
-    if (target_work is not None and 'goal_mode' in target_work
+    goal = (target_work or {}).get('goal_mode')
+    followup = (goal is not None and command['kind'] == 'send_message'
+                and goal['state'] in {'waiting', 'paused', 'completed', 'failed', 'cancelled'}
+                and goal['reason'] != 'goal_review_pending')
+    if (goal is not None and not (followup or goal_followup)
             and command['kind'] in {'send_message', 'work_message', 'revise_goal', 'start_work'}):
         # Legacy commands cannot change the objective or bypass its execution
         # budget. Goal controls use their own versioned admission contract.
@@ -430,10 +438,12 @@ def apply_work(snapshot, command, *, archived=False):
             prior['consumed_message_count'] = len(prior['messages'])
             staged = replace(snapshot, works=tuple(works))
         saved, rejection, work = apply_work(staged, {**command, 'kind': 'work_message',
-            'payload': {'text': command['payload'].get('text')}}, archived=archived)
+            'payload': {'text': command['payload'].get('text')}}, archived=archived, goal_followup=followup)
         if rejection is not None:
             return snapshot, rejection, None
         assert work is not None
+        if followup:
+            work['goal_followup'] = True
         work['conversation_mode'] = True
         reason = start_unavailable_reason(saved)
         if reason is not None:
@@ -582,7 +592,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'goal_plan_pending', 'goal_plan', 'goal_step_review', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'goal_plan_pending', 'goal_plan', 'goal_step_review', 'goal_followup', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill'}
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -592,6 +602,8 @@ def parse_snapshot(document):
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
         count = work.get('consumed_message_count', 0)
+        if 'goal_followup' in work and (work['goal_followup'] is not True or 'goal_mode' not in work):
+            raise ThreadProtocolError('invalid Goal follow-up state')
         if 'mission_equipment' in work:
             import re
             if (not isinstance(work.get('mission_equipment_binding_revision'), str)

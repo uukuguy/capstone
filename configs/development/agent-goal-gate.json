@@ -6,6 +6,7 @@
     "packages/capstone-agent/tests/test_goal_mode.py"
   ],
   "paths": [
+    "AGENTS.md",
     ".github/workflows/verify.yml",
     "configs/development/agent-goal-gate.json",
     "docs/status/INDEX.md",
@@ -45,6 +46,7 @@
     "packages/capstone-app/src/ThreadWorkExecution.test.tsx",
     "packages/capstone-app/src/goalMode.test.ts",
     "packages/capstone-app/src/goalMode.ts",
+    "packages/capstone-app/src/threadFeedback.ts",
     "packages/capstone-app/src/threadWorkProtocol.ts",
     "tools/ci_scope.py",
     "tools/test_agent_goal.sh",
@@ -58,6 +60,10 @@
     [
       "packages/capstone-agent/src/capstone_agent/session_goal_plan.py",
       "packages/capstone-agent/tests/test_session_goal_plan.py"
+    ],
+    [
+      "packages/capstone-agent/src/capstone_agent/thread_work.py",
+      "packages/capstone-agent/tests/test_goal_mode.py"
     ]
   ]
 }

@@ -7,7 +7,9 @@ afterEach(cleanup)
 it('submits an explicit bounded goal',()=>{
   const submit=vi.fn()
   render(<GoalControls objective="Review report" disabled={false} onControl={submit}/> )
-  fireEvent.click(screen.getByRole('button',{name:'启用持续目标'}))
+  const settings=screen.getByText('执行设置').closest('details')
+  expect(settings?.open).toBe(false)
+  fireEvent.click(screen.getByRole('button',{name:'开始规划目标'}))
   expect(submit).toHaveBeenCalledWith('start_goal',expect.objectContaining({objective:'Review report',max_attempts:8}))
 })
 
@@ -18,9 +20,21 @@ it('shows a paused objective and submits its revision',()=>{
     state:'paused',reason:'user_pause',max_attempts:8,attempts_admitted:1,
     deadline_at:'2099-01-01T00:00:00Z',last_settled_attempt_id:null}}/> )
   expect(screen.getByText(/已暂停/)).toBeTruthy()
+  fireEvent.click(screen.getByText('修改或结束目标'))
   fireEvent.change(screen.getByLabelText('修改目标'),{target:{value:'Review revised report'}})
   fireEvent.click(screen.getByRole('button',{name:'保存目标修改'}))
   expect(submit).toHaveBeenCalledWith('revise_goal_objective',{objective:'Review revised report'})
+})
+
+it('offers saved-result review and a regular follow-up when review failed',()=>{
+  const submit=vi.fn()
+  render(<GoalControls objective="Review report" disabled={false} onControl={submit} goal={{
+    schema:'capstone-work-goal/1',objective:'Review report',objective_revision:1,generation:1,
+    state:'paused',reason:'goal_review_invalid',max_attempts:8,attempts_admitted:2,
+    deadline_at:'2000-01-01T00:00:00Z',last_settled_attempt_id:'attempt_previous'}}/>)
+  expect(screen.getByText(/可直接在消息框发送新指令/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'重新复盘已保存成果'}))
+  expect(submit).toHaveBeenCalledWith('resume_goal',{})
 })
 
 it('shows the saved plan and allows pause during review',()=>{

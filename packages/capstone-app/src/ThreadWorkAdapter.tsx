@@ -500,17 +500,18 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     const objective=goalObjectiveFromInput(text)
     if(objective!==null){
       setGoalDraft(objective||selectedWork?.goal||'')
-      setNotice('请确认持续目标、执行次数和截止时间，再启用。')
+      setNotice('开始后会先规划，再逐步执行。')
       return
     }
-    if(nativeChat&&!pendingMessage){
+    const sendInstruction=nativeChat||!!selectedWork?.goalMode
+    if(sendInstruction&&!pendingMessage){
       if(attachmentsLoading)throw new MessageNotSentError('正在确认待发送附件，请稍后发送。')
       submission={...(submission||{input:{kind:'text',text},context_selection:{include_refs:[],exclude_refs:[]}}),attachment_refs:attachments.map(file=>file.resource_id)}
     }
     const runId = snapshot?.runId ?? professional?.run.runId
     if (!runId) throw new MessageNotSentError('请先连接会话。')
     try {
-      await dispatch(pendingMessage || (nativeChat?buildSendMessageCommand(currentId,runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,selected,selectedWork?.revision||0,text,submission,processReference?.threadId===currentId?processReference.attemptId:undefined):buildWorkCommand(currentId, runId, `cmd_${commandKey()}`, `idem_${commandKey()}`, selected, selectedWork?.revision || 0, text,'work_message',submission?.context_product_refs)))
+      await dispatch(pendingMessage || (sendInstruction?buildSendMessageCommand(currentId,runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,selected,selectedWork?.revision||0,text,submission,processReference?.threadId===currentId?processReference.attemptId:undefined):buildWorkCommand(currentId, runId, `cmd_${commandKey()}`, `idem_${commandKey()}`, selected, selectedWork?.revision || 0, text,'work_message',submission?.context_product_refs)))
     } catch (cause) { throw new MessageNotSentError(cause instanceof Error ? cause.message : '保存结果待确认。') }
   }
   async function start() {
@@ -897,7 +898,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
       {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} plan={selectedWork?.goalPlan} planning={selectedWork?.goalPlanPending} objective={goalDraft??selectedWork?.goal??''}
-        disabled={busy||!!pending||projection.connection!=='live'} onControl={(kind,payload)=>{
+        disabled={busy||!!pending||projection.connection!=='live'} executing={!!currentAttempt} onControl={(kind,payload)=>{
           if(snapshot)void (async()=>{
             let work=selectedWork
             if(!work){
