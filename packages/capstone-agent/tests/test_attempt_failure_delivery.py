@@ -35,12 +35,11 @@ def test_routing_failure_still_persists_a_formal_reply():
 
 
 def test_cancellation_still_persists_a_formal_reply(monkeypatch):
-    from capstone_agent.harness import _AttemptCancelled
-
     service = _thread_service()
     runner = HarnessAttemptRunner(service, HarnessPiClient(Session()))
-    monkeypatch.setattr(runner, "_renew_lease", lambda claim: (_ for _ in ()).throw(_AttemptCancelled()))
-    outcome = runner.run(claim_attempt(service))
+    claim = claim_attempt(service)
+    monkeypatch.setattr(service, "cancel_requested", lambda current: current == claim)
+    outcome = runner.run(claim)
     assert outcome.status == "cancelled"
     assert outcome.answer
     assert service.read_events("thr_harness", 0).events[-1].payload["answer"] == outcome.answer

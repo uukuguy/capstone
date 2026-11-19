@@ -1196,7 +1196,22 @@ class GeneralPiHost:
 
     def read(self, task_id: str, after: int | None = None) -> dict:
         with self._lock:
-            item = self._tasks[task_id]
+            item = self._tasks.get(task_id)
+            if item is None:
+                if after is not None:
+                    raise KeyError(task_id)
+                # A status read can use a durable terminal receipt. Only the
+                # live record owns an event cursor or can acknowledge events.
+                task_workspace(self.root, task_id)
+                saved = self.storage.load(task_id)
+                if saved is None or saved.get('expired') or saved.get('result') is None:
+                    raise KeyError(task_id)
+                request = PiTaskRequest.from_document(saved['request'])
+                if (request.task_id != task_id or request.to_document()['executor_identity'] != self.identity
+                        or request_hash(saved['request']) != saved['request_hash']):
+                    raise ValueError('General Pi durable receipt identity conflict')
+                result = self._receipt_result(request, saved)
+                return {'status': result.status, 'events': [], 'result': result.to_document()}
             if after is not None:
                 if after < 0 or after > item.get('event_sequence', 0):
                     raise ValueError('event acknowledgement is invalid')
