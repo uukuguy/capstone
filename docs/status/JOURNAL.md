@@ -8292,3 +8292,17 @@ check passed. No CI, integration or remote deployment performed.
 - 08:19 Actual dev 8861d4ae rebuilt; image 035d309dfdfc ready. Completed Goal and report restored in existing browser tab.
 
 - 08:56 Record mandatory visible replies and recovery from execution errors in AGENTS.md. [086cc59c]
+
+- 09:10 Preserve worker diagnostics in interrupted replies; 193 backend and 149 App tests passed. [d1d0081b]
+
+- 09:12 User selected lock-based result settlement with owner fencing. Keep heartbeat age separate from write authority. [5ba483ca]
+
+- 09:14 Worker reply candidate d1d0081b rebuilt; API and three workers ready on shared image e854fe8062a4.
+
+- 09:26 Lock Attempt writes by current owner. 312 backend and 149 App tests passed, including PostgreSQL races. [880fa1e5]
+
+- 09:30 Real Attempt bf48b3d11e676082 remained running after heartbeat delay and saved owner-proof.md and one terminal reply.
+
+- 09:31 PR156 merged to dev afe26f91; scoped macOS CI 44436940120 passed.
+
+- 09:35 Actual dev afe26f91 rebuilt on shared image 57a930cfd15d; original contact notice, reply and product restored.
