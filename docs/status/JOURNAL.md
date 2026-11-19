@@ -8335,3 +8335,6 @@ check passed. No CI, integration or remote deployment performed.
 
 - 2026-11-19: 068ef884 keeps verified native files available after sibling transfer failure and reports partial delivery.
 - 2026-11-19: 6ca5d471 merges PR170 after real file verification, isolated corruption injection and scoped macOS CI.
+
+- 2026-11-20: e3d79ab2 reconciles verified Mission child delivery with the original delegation after worker interruption.
+- 2026-11-20: 0c6a68fc merges PR172 after verified real child delivery recovery and scoped macOS CI.

@@ -20,6 +20,12 @@ catalog, so navigation remounts can reuse them while refreshing. Catalog mutatio
 invalidate prior history reads; this cache does not own the persistent pin set.
 [Acceptance](../reviews/2026-11-16-durable-session-pins-local.md).
 
+## Mission child delivery recovery
+
+PR #172 merged to dev `0c6a68fc`. An eligible Mission can verify a saved
+single-task delivery after a recorded worker exit. The delivery stays on
+the original delegation. Previous interruption events remain available.
+
 ## Independent native file delivery
 
 PR #170 merged to dev `6ca5d471`. A file transfer failure leaves verified

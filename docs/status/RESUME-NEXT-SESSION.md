@@ -1,8 +1,13 @@
 # Live Session Checkpoint
 
-Updated 2026-11-19. Active work continues on the managed enterprise execution plan.
+Updated 2026-11-20. Active work continues on the managed enterprise execution plan.
 
 ## Current baseline
+
+PR #172 merged to dev `0c6a68fc`. Mission verified the original child
+answer and file after a test fault interrupted the native terminal write.
+No replacement execution was admitted. See
+`runs/mission-child-delivery-recovery/live.json`.
 
 PR #170 merged to dev `6ca5d471`. The file delivery loop tries independent
 files before retrying unavailable transfers. A failed Attempt with saved files
@@ -25,8 +30,8 @@ The local verification passed 95 checks and focused macOS CI 44516985397 passed.
 
 ## Next work
 
-1. Recover Mission delegated deliveries and interrupted organizer reviews
-   through their Control bindings. Preserve Authority admission.
+1. Recover interrupted Mission organizer reviews through their exact
+   Control bindings. Preserve Authority admission and user stop actions.
 2. Preserve the root checkout's unrelated files and other environment
    sources. Use focused development gates.
 

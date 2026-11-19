@@ -1,6 +1,23 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Recover Mission child delivery after worker exit
+
+Owner is the Control Agent adapter. PR #172 merged to dev `0c6a68fc`.
+Control accepts a recovered single-task delivery through its original
+delegation when the child ledger proves the original start command and
+a recovered answer. A previously observed interruption remains in history.
+An eligible Mission verifies the saved delivery and queues the resulting
+organizer boundary. Pause, cancel, deadline and required reference checks
+still apply. Organizer Attempt recovery remains a separate settlement path.
+
+The scoped gate passed 298 backend and 95 App checks locally. macOS CI
+44639210986 passed. The real native worker saved a child file before a test
+fault blocked the terminal reply write. The Mission verified the recovered
+answer and file under the same delegation generation and Attempt. The file
+download matched the original bytes and SHA-256. See
+`runs/mission-child-delivery-recovery/live.json`.
+
 ## Keep independent files available after delivery fails
 
 Owner is the shared agent runtime. PR #170 merged to dev `6ca5d471`.
