@@ -23,6 +23,8 @@ invalidate prior history reads; this cache does not own the persistent pin set.
 ## Project snapshot
 
 - Project route: managed
+- A stopped Goal leaves its plan and review available. Its conversation can
+  accept a regular follow-up independently of the saved Goal.
 - Native delivery recovery: PostgreSQL record of the current worker's exit and the original executor receipt govern recovery. An authenticated Pi status read can use a retained terminal receipt after a restart with the same executor identity. The conversation reads the recovered reply and saved files under the original instruction. The ledger retains the original interruption.
 - Workflow delivery recovery: A recovered planned Goal step enters its existing review. A recovered bound Mission origin can unblock an existing Control review intent. The original Work revision, Attempt and context govern both transitions.
 - Mission ownership: capstone-control owns durable Mission/Task coordination and bounded organizer review intents. capstone-agent owns the originating conversation, delegated execution and version-scoped resource grants. capstone-app owns slash commands and the existing workspace. The canonical worklist and version register record package and integration status.
