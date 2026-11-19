@@ -8319,3 +8319,6 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: bb82e298 restores verified native replies and files after confirmed worker exit. Focused local checks passed.
 - 2026-11-19: PR160 local fault injection recovered the real model reply and exact file bytes for attempt_871a3b662da37d32.
 - 2026-11-19: cef82ba4 merges PR160 after exact native recovery verification and the scoped macOS gate.
+- 2026-11-19: e25de2ac reads durable native receipts after restart while keeping live event cursors process-local.
+- 2026-11-19: PR162 verified matching real terminal receipt and file hashes after native executor restart.
+- 2026-11-19: 561df5ee merges durable native receipt lookup after scoped macOS CI and exact restart verification.
