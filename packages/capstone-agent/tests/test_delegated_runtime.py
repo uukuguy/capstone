@@ -1330,3 +1330,34 @@ def test_missing_model_runtime_error_stays_a_recorded_domain_gap():
         "Business task was not executed: prerequisites are not complete.\n"
         + DOMAIN_RUNTIME_REQUIRES_MODEL
     )
+
+
+@pytest.mark.parametrize('transient', [False, True])
+def test_independent_files_are_delivered_before_retry_or_failure(monkeypatch, transient):
+    from capstone_agent import delegated_runtime, native_artifact_projection
+    from capstone_agent.pi_delegation import PiArtifactTransportUnavailable
+
+    first = {'artifact_id': 'file-first'}
+    second = {'artifact_id': 'file-second'}
+    transferred = []
+
+    def retain(objects, executor, artifact):
+        transferred.append(artifact)
+        if artifact == first and transferred.count(first) == 1:
+            raise PiArtifactTransportUnavailable('transient') if transient else OSError('invalid bytes')
+
+    monkeypatch.setattr(native_artifact_projection, 'retain_native_artifact', retain)
+    runtime = object.__new__(delegated_runtime.DelegatedRuntime)
+    runtime._artifact_store = runtime._executor = object()
+    runtime.runtime_mode = 'capstone'
+    events = []
+    control = NodeControl(lambda: None, time.monotonic() + 2)
+    if transient:
+        runtime._publish_artifact_descriptors([first, second], 'task', events.append, control)
+        assert transferred == [first, second, first]
+    else:
+        with pytest.raises(OSError, match='invalid bytes'):
+            runtime._publish_artifact_descriptors([first, second], 'task', events.append, control)
+        assert transferred == [first, second]
+    published = [event['payload']['artifact'] for event in events if event['event_type'] == 'native_artifact_published']
+    assert published == ([second, first] if transient else [second])

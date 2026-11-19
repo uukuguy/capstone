@@ -703,6 +703,7 @@ class HarnessAttemptRunner:
         self._result_refs: list[str] = []
         self._evidence_refs: list[str] = []
         self._tool_events: list[Mapping[str, object]] = []
+        self._retained_file_ids: set[str] = set()
         self._runtime_failure_code: str | None = None
         self._runtime_transport_detail = ''
         self._runtime_failure_origin: list[dict] = []
@@ -727,6 +728,7 @@ class HarnessAttemptRunner:
         self._result_refs.clear()
         self._evidence_refs.clear()
         self._tool_events.clear()
+        self._retained_file_ids.clear()
         self._runtime_failure_code = None
         self._runtime_transport_detail = ''
         self._runtime_failure_origin = []
@@ -1068,6 +1070,14 @@ class HarnessAttemptRunner:
         _extend_refs(self._evidence_refs, payload.get("evidence_refs"))
         if event_type == "tool_completed":
             self._tool_events.append(dict(payload))
+        if event_type == 'native_artifact_published' and visibility == 'public':
+            artifact = payload.get('artifact')
+            if (isinstance(artifact, Mapping) and artifact.get('schema') == 'capstone-process-artifact/1'
+                    and artifact.get('scope') == 'instruction' and artifact.get('thread_id') == claim.thread_id
+                    and artifact.get('attempt_id') == claim.attempt.attempt_id
+                    and artifact.get('source_status') in ('completed', 'failed', 'cancelled', 'incomplete')
+                    and isinstance(artifact.get('artifact_id'), str)):
+                self._retained_file_ids.add(artifact['artifact_id'])
         if event_type == 'runtime_event' and payload.get('child_status') == 'failed':
             failure = _capacity_failure(payload.get('failure'))
             if failure is not None:
@@ -1140,10 +1150,12 @@ class HarnessAttemptRunner:
         }
         if candidate is not None:
             answer += "已核验的计算结果和证据已保留；它们不代表整个任务已完成。"
+        if self._retained_file_ids:
+            answer += f" 本次指令有 {len(self._retained_file_ids)} 份独立文件已保存，可从制品入口查看和下载。"
         payload: dict[str, object] = {
             "answer": answer, "error_code": code,
             "result_refs": list(results), "evidence_refs": list(evidence),
-            "outcome": {"status": "partial" if candidate else "blocked",
+            "outcome": {"status": "partial" if candidate or self._retained_file_ids else "blocked",
                         "stage": stage,
                         "recovery": "attempted" if recovery_attempted else "unavailable"},
         }

@@ -576,3 +576,27 @@ def test_exceeding_answer_capacity_delivers_verified_subset_and_keeps_all_receip
     events = service.read_events("thr_harness", 0).events
     assert sum(len(event.payload.get("evidence_refs", [])) for event in events if event.event_type == "tool_completed") == 1025
     assert events[-1].payload["outcome"]["status"] == "partial"
+
+
+def test_failed_delivery_reports_verified_independent_file_as_partial():
+    class PartialFiles(HarnessPiClient):
+        def prompt(self, question, *, on_event, correlation_id, **kwargs):
+            for artifact_id, status in (('file-live', 'running'), ('file-kept', 'failed')):
+                on_event({'event_type': 'native_artifact_published', 'runtime_mode': 'capstone',
+                    'visibility': 'public', 'payload': {'artifact': {
+                        'schema': 'capstone-process-artifact/1', 'scope': 'instruction',
+                        'thread_id': 'thr_harness', 'attempt_id': correlation_id,
+                        'artifact_id': artifact_id, 'source_status': status,
+                    }}})
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone', 'payload': {
+                'child_status': 'failed', 'failure_code': 'native_artifact_persistence_failed'}})
+            raise OSError('The other file is unavailable')
+
+    service = _thread_service()
+    result = HarnessAttemptRunner(service, PartialFiles(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert result.status == 'failed'
+    assert terminal.payload['outcome']['status'] == 'partial'
+    assert '1 份独立文件已保存' in result.answer
+    assert terminal.payload['answer'] == result.answer
+    assert result.evidence_refs == ()

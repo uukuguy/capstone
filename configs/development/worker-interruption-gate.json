@@ -21,6 +21,8 @@
     "packages/capstone-agent/src/capstone_agent/thread_service.py",
     "packages/capstone-agent/src/capstone_agent/thread_worker.py",
     "packages/capstone-agent/tests/test_attempt_lease_deadline.py",
+    "packages/capstone-agent/tests/test_attempt_failure_delivery.py",
+    "packages/capstone-agent/tests/test_delegated_runtime.py",
     "packages/capstone-agent/tests/test_enterprise_normal_chat.py",
     "packages/capstone-agent/tests/test_goal_mode.py",
     "packages/capstone-agent/tests/test_harness.py",
@@ -60,6 +62,10 @@
     [
       "packages/capstone-agent/src/capstone_agent/thread_service.py",
       "packages/capstone-agent/tests/test_mission_continuation.py"
+    ],
+    [
+      "packages/capstone-agent/src/capstone_agent/delegated_runtime.py",
+      "packages/capstone-agent/tests/test_attempt_failure_delivery.py"
     ]
   ]
 }

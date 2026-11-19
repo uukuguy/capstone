@@ -622,36 +622,54 @@ class DelegatedRuntime:
     def _publish_artifact_descriptors(self, artifacts, task_id, on_event, control=None):
         from .native_artifact_projection import retain_native_artifact
         from .pi_delegation import PiArtifactTransportUnavailable
-        for artifact in artifacts:
-            if self._artifact_store is not None:
-                interrupted, delay = False, 0.1
-                while True:
-                    if control is not None:
-                        control.checkpoint()
+        from .native_failure_origin import native_failure_origin
+
+        pending = list(artifacts)
+        interrupted = False
+        first_failure = None
+        delay = 0.1
+        while pending:
+            retry = []
+            for artifact in pending:
+                if control is not None:
+                    control.checkpoint()
+                if self._artifact_store is not None:
                     try:
                         retain_native_artifact(self._artifact_store, self._executor, artifact)
-                        break
-                    except PiArtifactTransportUnavailable:
-                        # Cancellation cleanup preserves available process files,
-                        # but must not enter a new task-lifetime retry loop.
-                        if control is None:
+                    except (InterruptedError, TimeoutError):
+                        raise
+                    except Exception as error:
+                        if isinstance(error, CapacityExceeded) and error.mode == 'debug':
                             raise
-                        if not interrupted:
-                            self._emit(on_event, {'task_id': task_id,
-                                'transport': {'operation': 'artifact_transfer'},
-                                'child_status': 'transport_interrupted'})
-                        interrupted = True
-                        until = time.monotonic() + delay
-                        while time.monotonic() < until:
-                            control.checkpoint()
-                            time.sleep(min(0.025, max(0, until - time.monotonic())))
-                        delay = min(2, delay * 2)
-                if interrupted:
+                        if isinstance(error, PiArtifactTransportUnavailable) and control is not None:
+                            retry.append(artifact)
+                            continue
+                        first_failure = first_failure or error
+                        self._emit(on_event, {'task_id': task_id, 'artifact_id': artifact['artifact_id'],
+                            'transport': {'operation': 'artifact_transfer'},
+                            'child_status': 'artifact_transfer_failed',
+                            'failure_origin': native_failure_origin(error)})
+                        continue
+                on_event({'event_type': 'native_artifact_published', 'runtime_mode': self.runtime_mode,
+                          'visibility': 'public', 'payload': {'artifact': artifact}})
+            pending = retry
+            if pending:
+                if not interrupted:
                     self._emit(on_event, {'task_id': task_id,
                         'transport': {'operation': 'artifact_transfer'},
-                        'child_status': 'transport_restored'})
-            on_event({'event_type': 'native_artifact_published', 'runtime_mode': self.runtime_mode,
-                      'visibility': 'public', 'payload': {'artifact': artifact}})
+                        'child_status': 'transport_interrupted'})
+                interrupted = True
+                until = time.monotonic() + delay
+                while time.monotonic() < until:
+                    control.checkpoint()
+                    time.sleep(min(0.025, max(0, until - time.monotonic())))
+                delay = min(2, delay * 2)
+        if interrupted and first_failure is None:
+            self._emit(on_event, {'task_id': task_id,
+                'transport': {'operation': 'artifact_transfer'},
+                'child_status': 'transport_restored'})
+        if first_failure is not None:
+            raise first_failure
 
     def _business_goal(self, goal, dependencies, control, on_event, heartbeat):
         plan = self._plan
