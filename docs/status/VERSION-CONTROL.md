@@ -1286,7 +1286,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR166 已合入。Goal 复盘停住后仍可执行新指令 | 检查其他执行入口的可继续性与错误提示 |
+| dev | 共同基座与企业工作台集成 | PR168 已合入。PPT 表格溢出时在原模板内调整布局 | 检查其他独立交付的恢复路径 |
 
 ## 功能包前沿
 
@@ -1294,6 +1294,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| presentation-layout-recovery | PPT 表格溢出恢复 | 1 | 已合入 dev。用原失败输入验证通过 | 同模板调整布局，保留全部数据和说明 | 49444e8d | 覆盖其他可独立继续的制品交付 | dev ee228745 | PR168 保存调整页与布局回执 | macOS CI 44516985397 通过。原失败输入导出 10 页 PPTX，PDF 生成成功。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
 | goal-followup-send | 目标停住后继续接收指令 | 1 | 已合入 dev，真实原会话通过提交与运行验证 | 原会话接受新指令，保留原目标复盘记录 | c1e86a6e | 检查其他执行入口的可继续性与错误提示 | dev 1463a385 | PR166 简化设置并显示具体复盘原因 | macOS CI 44505934884 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
 | native-workflow-recovery | Goal 与 Mission 交付复盘 | 1 | 已合入 dev。Goal 真实验收；Mission PostgreSQL 验证 | 恢复 Goal 步骤交付；解锁已有 Mission 发起会话审查 | 6861df87 | 接通 Mission 子任务和专业结果恢复 | dev a2d1a0b7 | PR164 保留原中断和 Work 修订保护 | macOS CI 44500563439 通过。真实两步 Goal 完成，Mission 已排队审查只接纳一次。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
 | native-durable-receipt | 原生回执重启恢复 | 1 | 已合入 dev，本机重启验收通过 | 受保护的状态读取从磁盘取回原执行回执和制品 | 561df5ee | 接通 Goal、Mission 和专业任务各自的交付恢复 | dev 2dc7e83c | PR162 按原请求、任务和执行器身份核验 | macOS CI 44495574558 通过。真实原生执行器重启前后回执和制品哈希一致。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
@@ -1384,6 +1385,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| presentation-layout-merge-20261119 | PR168 合入与原会话溢出重放验收 |
 | goal-followup-merge-20261119 | PR166 解决真实会话无法提交新指令 |
 | native-workflow-merge-20261119 | PR164 合入、本机开发来源和 Goal 故障注入验收 |
 | native-durable-merge-20261119 | PR162 合入、本机部署来源和重启验收 |
@@ -1436,6 +1438,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| presentation-layout-merge-20261119 | 49444e8d | main | PPT 表格溢出恢复 | PR168 合入 dev，原始输入重放通过 | 保留模板和内容，按尺寸自动选择布局。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | presentation-layout-recovery |
 | goal-followup-merge-20261119 | c1e86a6e | main | 目标停住后继续接收指令 | PR166 合入 dev，原会话提交与运行通过 | 局部复盘错误保留原成果，新指令继续执行。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | goal-followup-send |
 | native-workflow-merge-20261119 | 6861df87 | main | Goal 与 Mission 交付复盘 | PR164 合入 dev，真实 Goal 验收通过 | 原步骤交付进入独立复盘，已排队 Mission 审查按原契约接纳。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-workflow-recovery |
 | native-durable-merge-20261119 | 561df5ee | main | 原生回执重启恢复 | PR162 合入 dev，真实模型回执重启验收通过 | 同配置重启后读取原回执和文件。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-durable-receipt |
@@ -1655,6 +1658,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| presentation-layout-merge-20261119 | 开发集成与本机来源 | dev | 表格溢出自动换布局；保留原数据和说明 | PR168 与原会话输入重放通过 |
 | goal-followup-merge-20261119 | 开发集成与本机来源 | dev | 停住的 Goal 允许新指令；复盘原因与后续动作可见 | PR166 与实际会话提交验证通过 |
 | native-workflow-merge-20261119 | 开发集成与本机来源 | dev | Goal 步骤恢复后继续复盘；Mission 发起会话恢复后接回已有审查 | PR164 与本机 Goal 故障注入通过 |
 | native-durable-merge-20261119 | 开发集成与本机来源 | dev | 重启后读取原终态回执；核对原文件字节与身份 | PR162 与本机重启验收通过 |
@@ -2139,7 +2143,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 从实际 dev `c1e86a6e` 规范重建 | API 与三个 worker 同镜像 8675a310c9cf。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。原 Goal 成果与独立续作记录仍可查看。 |
+| local-dev | 从实际 dev `49444e8d` 规范重建 | API 与三个 worker 同镜像 791c1e8ba3b6。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。原失败输入在部署执行器导出 PPTX 与 PDF。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
