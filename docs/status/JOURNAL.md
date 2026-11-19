@@ -8306,3 +8306,13 @@ check passed. No CI, integration or remote deployment performed.
 - 09:31 PR156 merged to dev afe26f91; scoped macOS CI 44436940120 passed.
 
 - 09:35 Actual dev afe26f91 rebuilt on shared image 57a930cfd15d; original contact notice, reply and product restored.
+
+- 10:05 Native terminal observation passed 405 backend and 149 App checks. Parent ownership and settlement stay fenced. [342e9de3]
+
+- 10:12 Match native conversation by accepted route, not entrypoint label. Verified 489 backend and 149 App checks. [801dabbf]
+
+- 10:13 Verified real native task completion and artifact receipt for Attempt c708f442ff68ed09 on the production conversation route.
+
+- 10:17 PR158 merged to dev f612dcc6; exact native-observation macOS CI 44442555748 passed.
+
+- 10:20 Actual dev f612dcc6 rebuilt on shared image 529b3f1a99ad; original native reply and artifact restored.

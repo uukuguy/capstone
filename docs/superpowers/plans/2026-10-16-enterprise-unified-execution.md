@@ -10,7 +10,10 @@ The task identity, parent Attempt, executor identity and owner token must match.
 If the original worker renews contact during the lookup, the result is discarded.
 Missing or unreachable tasks remain unknown. Terminal native status can appear
 in the conversation without advancing or settling the parent Attempt.
-Acceptance covers bounded status reads and durable PostgreSQL observation.
+Scoped macOS CI 44442555748 passed and PR #158 merged to dev `f612dcc6`.
+The read-only observation matched the real native receipt for Attempt
+`attempt_c708f442ff68ed09` and found one artifact. After a canonical dev
+rebuild, the original formal reply and published artifact were readable.
 Import and admission of a recovered answer or unpublished products remains separate.
 
 

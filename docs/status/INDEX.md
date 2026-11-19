@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+原生执行终态核对已由 PR158 合入 dev，来源及真实验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。
+
 Attempt 写入与心跳解耦已由 PR156 合入 dev，来源与验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。
 
 会话内 Goal 规划与复盘已由 PR153 合入 dev，实际本机验收见[实施计划](../superpowers/plans/2026-11-19-session-goal-planning.md)和[版本台账](VERSION-CONTROL.md#功能包前沿)。
