@@ -5,6 +5,16 @@
     "packages/capstone-agent/src/capstone_agent/native_execution_authority.py",
     "packages/capstone-agent/tests/test_native_owned_execution.py"
   ],
+  "anchor_sets": [
+    [
+      "packages/capstone-agent/src/capstone_agent/native_execution_authority.py",
+      "packages/capstone-agent/tests/test_native_owned_execution.py"
+    ],
+    [
+      "packages/capstone-agent/src/capstone_agent/general_pi_server.py",
+      "packages/capstone-agent/tests/test_native_owned_execution.py"
+    ]
+  ],
   "paths": [
     ".github/workflows/verify.yml",
     "configs/development/recoverable-tasks-gate.json",

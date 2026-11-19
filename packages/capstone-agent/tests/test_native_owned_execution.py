@@ -309,3 +309,60 @@ def test_http_client_renews_during_quiet_work_and_stops_when_guard_is_lost(tmp_p
         server.shutdown()
         server.server_close()
         server_thread.join(2)
+
+
+def test_observe_terminal_receipt_and_file_after_restart(tmp_path):
+    import hashlib
+
+    import httpx
+
+    from capstone_agent.general_pi_server import make_server
+    from capstone_agent.pi_delegation import HttpGeneralPiExecutor, PiHTTPFailure
+
+    data = b'retained product\n'
+
+    def run(request, *_):
+        workspace = tmp_path / 'tasks' / request.task_id
+        workspace.mkdir(parents=True, exist_ok=True)
+        (workspace / 'report.txt').write_bytes(data)
+        return 'Saved report', {}
+
+    identity = {'engine': 'pi'}
+    host = GeneralPiHost(root=tmp_path, identity=identity, run_task=run)
+    request = PiTaskRequest('durable', 'parent', 'delegated', 'Write report', (), (), identity, 3)
+    host.submit(request)
+    deadline = time.monotonic() + 3
+    while host.read('durable')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    result = host.read('durable')['result']
+    assert result['status'] == 'completed'
+    pending = PiTaskRequest('pending', 'parent', 'delegated', 'Unknown work', (), (), identity, 3)
+    host.storage.save(pending.to_document(), None)
+    restarted = GeneralPiHost(root=tmp_path, identity=identity,
+                              run_task=lambda *_: pytest.fail('observer started execution'))
+    server = make_server(restarted, control_token='test-control', address=('127.0.0.1', 0))
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        origin = f'http://127.0.0.1:{server.server_port}'
+        client = HttpGeneralPiExecutor(origin, identity=identity, capability={}, control_token='test-control')
+        assert httpx.get(origin + '/tasks/durable').status_code == 401
+        assert httpx.get(origin + '/tasks/durable?after=0',
+                         headers={'Authorization': 'Bearer test-control'}).status_code == 404
+        observed = client.observe_terminal_task('durable', 'parent', identity)
+        assert observed.to_document() == result
+        artifact, = observed.artifacts
+        assert client.read_artifact('durable', artifact['artifact_id'],
+                                    expected_sha256=hashlib.sha256(data).hexdigest(),
+                                    expected_size=len(data)) == data
+        with pytest.raises(ValueError):
+            client.observe_terminal_task('durable', 'other-parent', identity)
+        with pytest.raises(PiHTTPFailure):
+            client.observe_terminal_task('pending', 'parent', identity)
+        assert restarted.storage.load('pending')['result'] is None
+        assert restarted.storage.load('durable')['result'] == result
+        assert not restarted._tasks
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(2)
