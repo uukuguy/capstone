@@ -797,3 +797,80 @@ def test_recover_native_delivery_after_confirmed_worker_exit(postgres_thread_ser
     assert events[-1].payload['answer'] == 'Recovered delivery'
     published, = native_artifact_page(service, thread_id, attempt_id, include_presentation=False)['artifacts']
     assert service._material_objects.get(artifact_object_key(published), 6) == b'report'
+
+
+@pytest.mark.parametrize('workflow', ['goal', 'paused_goal', 'mission'])
+def test_recovered_native_delivery_restores_only_the_exact_workflow(postgres_thread_service, workflow):
+    from dataclasses import replace
+    from hashlib import sha256
+    from types import SimpleNamespace
+
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from capstone_agent.native_owner_recovery import recover_exited_native_deliveries
+    from capstone_agent.pi_delegation import PiTaskResult
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews, drain_initial_goal_plans
+    from capstone_agent.workspace_scope import DEFAULT_WORKSPACE
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_work_execution import command, save_work
+
+    service, thread_id = postgres_thread_service
+    service.create_thread(replace(_snapshot(thread_id), active_model_context=None,
+                                  active_grid_page_id=None, minimum_protocol_version=2))
+    service.set_native_executor(native_executor())
+    if workflow == 'mission':
+        service.attach_mission(DEFAULT_WORKSPACE, 'mission_test', {'thread_id': thread_id})
+        receipt = service.submit_command(command(service, thread_id, 'send_message', 'mission_origin',
+                                                  payload={'text': 'Organize the mission'}))
+    else:
+        work = save_work(service, thread_id)
+        receipt = service.submit_command(command(service, thread_id, 'start_goal', 'goal_start',
+            work_id=work['work_id'], revision=work['revision'], payload={
+                'objective': work['goal'], 'max_attempts': 2, 'deadline_at': '2099-01-01T00:00:00Z'}))
+        assert drain_initial_goal_plans(service, planner=lambda _: {
+            'schema': 'capstone-session-goal-plan/1',
+            'criteria': ['Verified report'],
+            'steps': [{'instruction': 'Check source', 'expected_result': 'Source receipt'},
+                      {'instruction': 'Write report', 'expected_result': 'Saved report'}],
+        }) == 1
+    assert receipt.status == 'accepted'
+    claim = service.claim_attempt('native-owner', 30)
+    attempt_id = claim.attempt.attempt_id
+    task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
+    identity = {'engine': 'pi'}
+    service.append_runtime_event(claim, event_type='runtime_event', payload={
+        'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'delegated',
+        'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
+        'route_source': 'native_conversation', 'delivery_recovery_format': 'plain',
+    }, visibility='diagnostic')
+    service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+                                 payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+    assert service.interrupt_expired_attempts() == 1
+    if workflow == 'paused_goal':
+        work, = service.snapshot(thread_id).works
+        assert service.submit_command(command(service, thread_id, 'pause_goal', 'pause_after_exit',
+            work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    result = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Source checked', (), (), {})
+    executor = SimpleNamespace(observe_terminal_task=lambda *_: result)
+    assert recover_exited_native_deliveries(service, executor) == 1
+    assert recover_exited_native_deliveries(service, executor) == 0
+    work, = service.snapshot(thread_id).works
+    if workflow == 'mission':
+        assert work['status'] == 'completed'
+        assert work['latest_attempt_id'] == attempt_id
+    elif workflow == 'paused_goal':
+        assert work['goal_mode']['reason'] == 'user_pause'
+        assert 'goal_step_review' not in work
+    else:
+        assert work['goal_mode']['reason'] == 'goal_review_pending'
+        assert drain_goal_continuations(service) == 0
+
+        def review(goal, plan, delivery):
+            assert delivery['attempt_id'] == attempt_id and delivery['answer'] == 'Source checked'
+            return {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+                    'summary': 'Source checked', 'next_instruction': 'Write report',
+                    'waiting_reason': None, 'product_refs': []}
+
+        assert drain_goal_step_reviews(service, reviewer=review) == 1
+        assert drain_goal_step_reviews(service, reviewer=review) == 0
+        assert drain_goal_continuations(service) == 1
+        assert service.claim_attempt('native-owner', 30).instruction == 'Write report'

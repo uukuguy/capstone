@@ -499,3 +499,39 @@ def test_postgres_review_reads_original_child_product_and_plans_from_its_bytes(p
         assert len(receipts) == 1 and receipts[0].payload['source']['sha256'] == sha256(data).hexdigest()
     finally:
         service.delete_thread(child_thread)
+
+
+@pytest.mark.parametrize('review_store', ['postgres'], indirect=True)
+def test_recovered_origin_delivery_releases_existing_mission_review_once(review_store):
+    from hashlib import sha256
+    from types import SimpleNamespace
+
+    from capstone_agent.native_owner_recovery import recover_exited_native_deliveries
+    from capstone_agent.pi_delegation import PiTaskResult
+
+    service, thread_id, workspace, _ = review_store
+    host, mission, intent, original = reserved_review(review_store, complete_origin=False, reserve=False)
+    attempt_id = original.attempt.attempt_id
+    task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
+    identity = {'engine': 'pi'}
+    service.append_runtime_event(original, event_type='runtime_event', payload={
+        'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'delegated',
+        'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
+        'route_source': 'native_conversation', 'delivery_recovery_format': 'plain',
+    }, visibility='diagnostic')
+    service.append_runtime_event(original, event_type='attempt_worker_diagnostic',
+                                 payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+    assert service.interrupt_expired_attempts() == 1
+    assert drain_mission_reviews(service, workspace=workspace) == 0
+
+    reply = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Initial plan filed', (), (), {})
+    assert recover_exited_native_deliveries(service, SimpleNamespace(observe_terminal_task=lambda *_: reply)) == 1
+    assert drain_mission_reviews(service, workspace=workspace) == 1
+    assert drain_mission_reviews(service, workspace=workspace) == 0
+    binding, phase = find_review(service, intent)
+    review = service.claim_attempt('mission_reviewer', 30)
+    assert phase == 'accepted' and review.attempt.attempt_id == binding['attempt_id']
+    assert any(message['content'] == 'Initial plan filed' for message in review.conversation_context.messages)
+    saved = host.service.read(workspace, mission['mission_id'])
+    assert saved['organizer']['reviews_admitted'] == 1
+    assert saved.get('acceptance') is None
