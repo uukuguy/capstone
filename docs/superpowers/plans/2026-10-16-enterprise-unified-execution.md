@@ -1,6 +1,28 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Durable native receipt lookup after executor restart
+
+Owner is capstone-agent. PR #162 merged to `dev` at `561df5ee`.
+Scoped macOS CI 44495574558 passed. The authenticated Pi task
+status read can use the saved terminal receipt when the live record is absent.
+The lookup checks the stored request hash and task and executor identity.
+The worker validates the parent Attempt from its frozen binding. The same
+private artifact read verifies the retained file against its saved digest.
+A receipt with an unknown outcome stays unchanged. The restarted host does
+not recreate an event cursor or execute the instruction again.
+
+The HTTP regression covers a fresh host with the same receipt storage, wrong
+parent identity, missing terminal receipt, authentication, and the file bytes.
+The focused local gate passed 603 tests with 33 conditional skips.
+The real model completed Attempt `attempt_fff6b0339cb43271`. The protected
+read returned the same receipt hash and the same 19-byte file after the
+executor process restarted with the same configuration. A separate read
+across an executor identity change was rejected. Local receipt:
+`runs/native-durable-receipt/after-restart.json`. A canonical rebuild from
+the merged dev checkout passed and returned the same hashes.
+
+
 ## Native delivery recovery after a recorded worker exit
 
 Owner is capstone-agent with the capstone-app conversation view. PR #160
@@ -22,8 +44,9 @@ conversation projection. Local receipt:
 `runs/native-delivery-recovery/live.json`. The same reply and bytes were
 read again after the canonical local rebuild from `dev`.
 
-Follow-up acceptance covers durable receipt lookup after executor restart and
-the evidence and review contracts for professional, Goal, and Mission results.
+The section above records durable receipt lookup after executor restart.
+Follow-up acceptance covers the evidence and review contracts for professional,
+Goal, and Mission results.
 
 
 ## Native recovery observation after interrupted contact
