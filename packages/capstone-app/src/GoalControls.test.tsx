@@ -26,13 +26,14 @@ it('shows a paused objective and submits its revision',()=>{
   expect(submit).toHaveBeenCalledWith('revise_goal_objective',{objective:'Review revised report'})
 })
 
-it('offers saved-result review and a regular follow-up when review failed',()=>{
+it.each(['goal_review_invalid','goal_review_criteria_incomplete'])('offers review and follow-up for %s',(reason)=>{
   const submit=vi.fn()
   render(<GoalControls objective="Review report" disabled={false} onControl={submit} goal={{
     schema:'capstone-work-goal/1',objective:'Review report',objective_revision:1,generation:1,
-    state:'paused',reason:'goal_review_invalid',max_attempts:8,attempts_admitted:2,
+    state:'paused',reason,max_attempts:8,attempts_admitted:2,
     deadline_at:'2000-01-01T00:00:00Z',last_settled_attempt_id:'attempt_previous'}}/>)
   expect(screen.getByText(/可直接在消息框发送新指令/)).toBeTruthy()
+  if(reason==='goal_review_criteria_incomplete')expect(screen.getByText(/逐项核实全部验收条件/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'重新复盘已保存成果'}))
   expect(submit).toHaveBeenCalledWith('resume_goal',{})
 })

@@ -356,9 +356,11 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage,
     progress.update(disposition='complete', summary='Report saved', next_instruction=None,
         criteria=[{'index': 0, 'verdict': 'met', 'refs': ['report.md']}])
     store.finish_attempt(second, phase='completed', payload={'answer': 'Report saved'})
-    assert drain_goal_step_reviews(store, reviewer=lambda *_: {**progress, 'criteria': []}) == 1
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: {
+        key: value for key, value in progress.items() if key != 'criteria'
+    }) == 1
     failed_review = store.snapshot(thread_id).works[0]
-    assert failed_review['goal_mode']['reason'] == 'goal_review_invalid'
+    assert failed_review['goal_mode']['reason'] == 'goal_review_criteria_incomplete'
     assert store.submit_command(command(store, thread_id, 'resume_goal', 'retry_review',
         work_id=failed_review['work_id'], revision=failed_review['revision'], payload={})).status == 'accepted'
     assert store.claim_attempt('worker', 30) is None

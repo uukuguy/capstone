@@ -283,7 +283,7 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
         return replace(snapshot, works=works), None, work
     if command['kind'] == 'settle_goal_review':
         from .goal_receipts import apply_terminal_goal_proposal
-        from .session_goal_plan import initial_plan_admission
+        from .session_goal_plan import GoalReviewValidationError, initial_plan_admission
         if not initial_plan_admission.get():
             return snapshot, 'goal_plan_admission_required', None
         if (target_work is None or target_work['revision'] != command['target']['expected_revision']
@@ -304,11 +304,12 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
         except ValueError as error:
             from .native_failure_origin import native_failure_origin
             import logging
+            reason = error.code if isinstance(error, GoalReviewValidationError) else 'goal_review_invalid'
             logging.getLogger(__name__).warning(
-                'Goal review admission failed; attempt_id=%s origin=%s',
-                delivery['attempt_id'], native_failure_origin(error))
+                'Goal review admission failed; attempt_id=%s reason=%s origin=%s',
+                delivery['attempt_id'], reason, native_failure_origin(error))
             work['goal_step_review'] = delivery
-            work['goal_mode'].update(state='paused', reason='goal_review_invalid',
+            work['goal_mode'].update(state='paused', reason=reason,
                                      last_settled_attempt_id=delivery['attempt_id'])
             return staged, None, work
         reviewed = next(item for item in updated.works if item['work_id'] == work['work_id'])

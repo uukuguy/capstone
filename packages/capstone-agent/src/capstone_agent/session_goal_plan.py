@@ -206,13 +206,19 @@ def drain_initial_goal_plans(service, *, planner=request_initial_plan) -> int:
     return admitted
 
 
+class GoalReviewValidationError(ValueError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective: str = "") -> dict:
     """Advance the saved plan using only references the host has admitted."""
     known_refs = set(plan.get("review_refs", ()))
     available = known_refs.union(saved_refs)
     selected = set(progress["product_refs"]).union(progress.get("authority_refs", ()))
     if not selected <= available:
-        raise ValueError("Goal review requires saved references")
+        raise GoalReviewValidationError("goal_review_reference_unavailable", "Goal review requires saved references")
     reviewed = {**plan, "review_refs": sorted(known_refs | selected)}
     if len(reviewed["review_refs"]) > 128:
         raise ValueError("Goal review reference limit exceeded")
@@ -228,16 +234,16 @@ def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective:
             reviewed.update(plan=replacement, plan_revision=plan["plan_revision"] + 1)
             steps = replacement["steps"]
         if step_index + 1 >= len(steps) or progress["next_instruction"] != steps[step_index + 1]["instruction"]:
-            raise ValueError("Goal review must select the saved next instruction")
+            raise GoalReviewValidationError("goal_review_next_step_invalid", "Goal review must select the saved next instruction")
         reviewed["step_index"] = step_index + 1
     elif disposition == "complete":
         criteria = sorted(progress.get("criteria", []), key=lambda item: item["index"])
         expected = list(range(len(plan["plan"]["criteria"])))
         if step_index + 1 != len(steps) or [item["index"] for item in criteria] != expected:
-            raise ValueError("Goal review must verify every criterion after the last step")
+            raise GoalReviewValidationError("goal_review_criteria_incomplete", "Goal review must verify every criterion after the last step")
         for item in criteria:
             if item["verdict"] != "met" or not item["refs"] or not set(item["refs"]) <= available:
-                raise ValueError("Goal criterion requires saved references and a met verdict")
+                raise GoalReviewValidationError("goal_review_criterion_unverified", "Goal criterion requires saved references and a met verdict")
         reviewed["criteria"] = criteria
     return reviewed
 
