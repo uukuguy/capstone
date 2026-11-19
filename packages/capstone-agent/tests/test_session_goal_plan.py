@@ -121,3 +121,22 @@ def test_provider_objective_echo_does_not_change_the_saved_plan(monkeypatch):
     monkeypatch.setattr(session_goal_plan, '_request_plan_model',
         lambda *_: {**proposal(), 'objective': 'Provider echo'})
     assert session_goal_plan.request_initial_plan('Build a benchmark.') == proposal()
+
+
+def test_review_request_marks_the_next_saved_step_separately_from_final_criteria(monkeypatch):
+    import json
+    from capstone_agent import session_goal_plan
+
+    def reviewer(system, content):
+        request = json.loads(content)
+        assert request['step_index'] == 0
+        assert request['next_saved_instruction'] == 'Run the benchmark.'
+        assert 'A final criterion that a later step will address is not a blocker' in system
+        return {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+                'summary': 'Source checked', 'next_instruction': request['next_saved_instruction'],
+                'waiting_reason': None, 'product_refs': ['source.md']}
+
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model', reviewer)
+    result = session_goal_plan.request_step_review(
+        {'objective': 'Build a benchmark.'}, {'plan': proposal()}, {'product_refs': ['source.md']})
+    assert result['disposition'] == 'continue'
