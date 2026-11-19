@@ -84,6 +84,14 @@ def test_interruption_seals_exact_captured_file_for_new_instruction(chat_store, 
     receipt=store.submit_command(command(store,tid,follow_kind,'after_loss',work_id=work['work_id'],
         revision=work['revision'],payload=payload))
     assert receipt.status=='accepted'
+    if follow_kind == 'start_goal':
+        from capstone_agent.session_goal_plan import drain_initial_goal_plans
+        assert drain_initial_goal_plans(store, planner=lambda _: {
+            'schema': 'capstone-session-goal-plan/1',
+            'criteria': ['The recovered draft was read.'],
+            'steps': [{'instruction': 'Read the captured draft bytes.', 'expected_result': 'Original text.'},
+                      {'instruction': 'Confirm the read receipt.', 'expected_result': 'Verified draft read.'}],
+        }) == 1
     following=store.claim_attempt('recovery-test',60)
     assert following.attempt.attempt_id!=claim.attempt.attempt_id
     assert following.submission['_continuation_artifacts']==[{**captured,'source_status':'incomplete'}]

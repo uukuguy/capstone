@@ -773,7 +773,7 @@ class HarnessAttemptRunner:
             if claim.task_context is not None:
                 work = next((item for item in self._service.snapshot(claim.thread_id).works
                     if item['work_id'] == claim.task_context.binding.work_id), None)
-                goal_mode = work is not None and 'goal_mode' in work
+                goal_mode = work is not None and 'goal_mode' in work and 'goal_plan' not in work
             prompt = self._runtime.prompt
             if goal_mode:
                 from functools import partial
@@ -954,8 +954,19 @@ class HarnessAttemptRunner:
             return HarnessAttemptResult("cancelled", answer, "attempt_cancelled")
         except Exception as error:
             if terminal_commit_started:
-                # The write may have committed. Never replace an uncertain
-                # successful terminal write with a second, failed outcome.
+                from .native_failure_origin import native_failure_origin
+                origin = native_failure_origin(error)
+                logging.getLogger(__name__).warning(
+                    'Attempt terminal write failed; attempt_id=%s stage=terminal_write origin=%s',
+                    claim.attempt.attempt_id, origin)
+                try:
+                    self._service.append_runtime_event(claim, event_type='attempt_settlement_diagnostic',
+                        payload={'stage': 'terminal_write', 'error_code': 'terminal_write_failed',
+                                 'failure_origin': origin}, visibility='diagnostic')
+                except Exception:
+                    # The write may have committed or the ledger may be unavailable.
+                    # The sanitized worker log remains available in both cases.
+                    pass
                 raise
             from .native_failure_origin import native_failure_origin
             self._runtime_failure_origin = self._runtime_failure_origin or native_failure_origin(error)

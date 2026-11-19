@@ -826,7 +826,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     goal_manifest = Path(__file__).resolve().parents[1] / 'configs/development/agent-goal-gate.json'
     if goal_manifest.is_file():
         goal = json.loads(goal_manifest.read_text())
-        if set(goal['anchors']).issubset(paths) and all(
+        if any(set(anchors).issubset(paths) for anchors in goal.get('anchor_sets', [goal['anchors']])) and all(
                 path in goal['paths'] or _control_path(path) for path in paths):
             return 'agent-goal'
     pin_manifest = Path(__file__).resolve().parents[1] / 'configs/development/session-pins-gate.json'

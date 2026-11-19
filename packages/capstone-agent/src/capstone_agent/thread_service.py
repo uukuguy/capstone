@@ -309,6 +309,13 @@ def _terminal_result_projections(
     return tuple(projections)
 
 
+def _interruption_details(settlement_failed: bool) -> dict[str, str]:
+    if settlement_failed:
+        return {'reason': 'lease_expired', 'error_code': 'terminal_write_failed',
+                'stage': 'terminal_write', 'answer': '制品发布后，执行结果结算失败。已保存的制品仍可查看。'}
+    return {'reason': 'lease_expired'}
+
+
 def _prepare_terminal_transition(
     snapshot: ThreadSnapshot, claim: AttemptClaim, phase: str, payload: Mapping[str, Any],
     *, saved_product_refs: tuple[str, ...] = (),
@@ -356,9 +363,36 @@ def _prepare_terminal_transition(
             for work in updated.works:
                 if work['work_id'] == original['work_id']:
                     work = {**work, 'goal_mode': source['goal_mode']}
+                    work.pop('goal_continuation', None)
                     if 'goal_continuation' in source:
                         work['goal_continuation'] = source['goal_continuation']
                     work_payload['work'] = work
+                works.append(work)
+            updated = replace(updated, works=tuple(works))
+    if phase == 'completed' and claim.task_context is not None and 'goal_proposal' not in payload:
+        work_id = claim.task_context.binding.work_id
+        original = next((work for work in snapshot.works if work['work_id'] == work_id), None)
+        answer = payload.get('answer')
+        if (original and 'goal_plan' in original and 'pending_goal_control' not in original
+                and isinstance(answer, str) and answer.strip()):
+            from .structural_context import checked_authority_references
+            trusted = [checked_authority_references(item) for item in payload.get('authority_references', ())]
+            authority_refs = sorted({
+                ref for item in trusted for kind in ('context_refs', 'result_refs', 'evidence_refs')
+                for ref in item.get(kind, ()) if kind == 'context_refs' or ref in payload.get(kind, ())
+            })[:64]
+            works = []
+            for work in updated.works:
+                if work['work_id'] == work_id:
+                    work = {**work, 'goal_mode': {**work['goal_mode'], 'state': 'waiting',
+                                                  'reason': 'goal_review_pending'},
+                            'goal_step_review': {'attempt_id': claim.attempt.attempt_id,
+                                                 'answer': answer[:4096],
+                                                 'product_refs': list(saved_product_refs[:64]),
+                                                 'authority_refs': authority_refs}}
+                    work.pop('goal_continuation', None)
+                    from .thread_work import project_work
+                    work_payload['work'] = project_work(updated, work)
                 works.append(work)
             updated = replace(updated, works=tuple(works))
     updated = _result_projection_window(updated, result_projections)
@@ -1370,11 +1404,20 @@ class _StoredCommand:
 
 
 def _work_send_input(snapshot, parsed, provider, capability_catalog):
-    if parsed['kind'] in {'start_goal', 'resume_goal', 'continue_goal'}:
+    if parsed['kind'] in {'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
         from .thread_work import work_instruction
         work = next((item for item in snapshot.works if item['work_id'] == parsed['target']['id']), None)
         if work is not None:
-            text = parsed['payload']['objective'] if parsed['kind'] == 'start_goal' else work_instruction(work)
+            if parsed['kind'] == 'admit_goal_plan':
+                from .session_goal_plan import initial_plan_admission, parse_goal_plan
+                if not initial_plan_admission.get():
+                    return snapshot, None, 'goal_plan_admission_required'
+                try:
+                    text = parse_goal_plan(parsed['payload']['plan'], objective=work['goal'])['steps'][0]['instruction']
+                except (KeyError, ValueError):
+                    return snapshot, None, 'goal_plan_invalid'
+            else:
+                text = parsed['payload']['objective'] if parsed['kind'] == 'start_goal' else work_instruction(work)
             parsed = {**parsed, 'kind': 'send_message', 'payload': {'text': text}}
     if parsed['kind'] == 'start_work':
         from .thread_work import work_instruction
@@ -1417,6 +1460,16 @@ class NativeExecutionOwner(ThreadGatewayOwner):
     _native_binding = None
     _material_objects = None
     _product_index_service = None
+
+    def submit_initial_goal_plan(self, command):
+        from .session_goal_plan import initial_plan_admission
+        if command['kind'] not in {'admit_goal_plan', 'fail_goal_plan', 'settle_goal_review'}:
+            raise ValueError('invalid initial Goal plan command')
+        token = initial_plan_admission.set(True)
+        try:
+            return self.submit_goal_continuation(command)
+        finally:
+            initial_plan_admission.reset(token)
 
     def submit_goal_continuation(self, command):
         saved = self.read_thread_gateway(command['thread_id'])
@@ -1468,12 +1521,17 @@ class NativeExecutionOwner(ThreadGatewayOwner):
 
 
 class InMemoryThreadService(NativeExecutionOwner):
-    def goal_continuation_candidates(self, limit=32):
+    def goal_continuation_candidates(self, limit=32, *, include_planning=False, include_review=False):
         from .goal_continuation import continuation_command
         with self._lock:
             snapshot = self._snapshot
             if (self._archived or snapshot.current_attempt is not None
-                    or not any(continuation_command(snapshot.thread_id, work) for work in snapshot.works)):
+                    or not any(
+                        (work.get('goal_plan_pending') and work['goal_mode']['state'] == 'ready')
+                        if include_planning else
+                        (work.get('goal_step_review') and work['goal_mode']['reason'] == 'goal_review_pending')
+                        if include_review else continuation_command(snapshot.thread_id, work)
+                        for work in snapshot.works)):
                 return []
             return [snapshot.thread_id][:limit]
 
@@ -1768,7 +1826,7 @@ class InMemoryThreadService(NativeExecutionOwner):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         prepared, submission, input_rejection = _work_send_input(
             self._snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
-        if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal'}:
+        if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission,
                 work_id=parsed['target']['id'], resume_goal_inputs=parsed['kind'] in {'resume_goal', 'continue_goal'})
@@ -1789,7 +1847,7 @@ class InMemoryThreadService(NativeExecutionOwner):
             input_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id']) or input_rejection
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
-        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self.read_thread_gateway(parsed['thread_id']))
         event_seq = None
         target = None
@@ -1805,7 +1863,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
-        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal'} and work is not None and work['status'] == 'queued':
+        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
             if selected_model is not None and not self.is_family_available(selected_model.implementation_family):
@@ -2649,9 +2707,11 @@ class InMemoryThreadService(NativeExecutionOwner):
                 record["lease_token"] = None
                 record["lease_deadline"] = None
                 self._seal_open_captures(terminal, record.get('model_context'))
+                settlement_failed = any(item.attempt_id == terminal.attempt_id
+                    and item.event_type == 'attempt_settlement_diagnostic' for item in self._events)
                 event = self._append_event(
                     event_type="attempt_interrupted", attempt=terminal,
-                    payload={"reason": "lease_expired", **work_payload},
+                    payload={**_interruption_details(settlement_failed), **work_payload},
                 )
                 self._snapshot = replace(
                     work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
@@ -3333,16 +3393,19 @@ def _timestamp(value: Any) -> str:
 
 
 class PostgresThreadService(NativeExecutionOwner):
-    def goal_continuation_candidates(self, limit=32):
+    def goal_continuation_candidates(self, limit=32, *, include_planning=False, include_review=False):
         if type(limit) is not int or not 1 <= limit <= 128:
             raise ValueError('invalid goal scan limit')
         with self._connect() as connection:
             rows = connection.execute("""SELECT thread_id FROM capstone_threads
                 WHERE current_attempt IS NULL AND EXISTS (
                     SELECT 1 FROM jsonb_array_elements(works) AS work
-                    WHERE work->'goal_mode'->>'state' = 'ready'
-                    AND work ? 'goal_continuation')
-                ORDER BY thread_id LIMIT %s""", (limit,)).fetchall()
+                    WHERE work->'goal_mode'->>'state' = %s
+                    AND jsonb_exists(work, %s))
+                ORDER BY thread_id LIMIT %s""",
+                ('waiting' if include_review else 'ready',
+                 'goal_step_review' if include_review else
+                 'goal_plan_pending' if include_planning else 'goal_continuation', limit)).fetchall()
         return [row['thread_id'] for row in rows]
 
     def _submit_skill_preferences(self, connection, thread, snapshot, parsed, request_hash):
@@ -3402,7 +3465,7 @@ class PostgresThreadService(NativeExecutionOwner):
             return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
         prepared, submission, input_rejection = _work_send_input(
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
-        if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal'}:
+        if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission,
                 connection=connection, work_id=parsed['target']['id'],
@@ -3426,7 +3489,7 @@ class PostgresThreadService(NativeExecutionOwner):
             input_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id']) or input_rejection
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
-        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal'}:
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self._thread_gateway_row(connection, thread))
         event_seq = None
         target = None
@@ -3443,7 +3506,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
-        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal'} and work is not None and work['status'] == 'queued':
+        if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
             if selected_model is not None and not self.is_family_available(selected_model.implementation_family):
@@ -5180,9 +5243,14 @@ class PostgresThreadService(NativeExecutionOwner):
                     task_context, terminal.attempt_id, 'interrupted')
                 event_seq = self._seal_open_captures_postgres(
                     connection, thread, terminal, thread["last_event_seq"], context=None)
+                settlement_failed = connection.execute(
+                    "SELECT 1 FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s "
+                    "AND event_type='attempt_settlement_diagnostic' LIMIT 1",
+                    (attempt['thread_id'], attempt['attempt_id'])).fetchone() is not None
                 event = self._make_attempt_event(
                     thread, terminal, event_seq=event_seq + 1,
-                    event_type="attempt_interrupted", payload={"reason": "lease_expired", **work_payload},
+                    event_type="attempt_interrupted",
+                    payload={**_interruption_details(settlement_failed), **work_payload},
                 )
                 self._insert_event(connection, event)
                 connection.execute(

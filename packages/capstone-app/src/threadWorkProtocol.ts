@@ -10,6 +10,11 @@ import {parseGoalMode,goalCommand,type GoalMode,type GoalControl} from './goalMo
 import type { AttemptPhase, RuntimeMode } from './threadProtocol'
 
 export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;mode?:'interrupt';state:'pending'|'delivering'|'delivery_unknown'|'admitted'|'withdrawn'}
+export type SessionGoalPlan = {
+  criteria: string[]
+  steps: { instruction: string; expectedResult: string }[]
+  stepIndex: number
+}
 export type WorkRecord = {
   instructionQueue?:QueuedInstruction[]
   instructionQueueAvailable?:boolean
@@ -20,6 +25,8 @@ export type WorkRecord = {
   contextProductRefs?:InputSubmission['context_product_refs']
   conversationMode?: boolean
   goalMode?: GoalMode
+  goalPlan?: SessionGoalPlan
+  goalPlanPending?: boolean
 }
 export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPhase;
   targetModelContextId: string | null; runtimeMode: RuntimeMode; workId: string | null }
@@ -120,12 +127,14 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       if(new Set(instructionQueue.map(entry=>entry.id)).size!==instructionQueue.length)throw new ThreadProtocolError('队列指令身份重复')
       instructionQueue.sort((a,b)=>a.sequence-b.sequence)
     }
+    const goalPlan = work.goal_plan === undefined ? undefined : parseSessionGoalPlan(work.goal_plan)
     return {instructionQueue,instructionQueueAvailable:work.instruction_queue_available===true, ...(work.context_product_refs===undefined?{}:{contextProductRefs:parseContextProductRefs(work.context_product_refs,threadId)}),workId, goal: work.goal, goalRevision: revision(work.goal_revision, 1),
       revision: revision(work.revision, 1), status: work.status as string,
       latestAttemptId: work.latest_attempt_id == null ? null : id(work.latest_attempt_id),
       startAvailable: typeof work.start_available === 'boolean' ? work.start_available : false,
       cancelRequested: work.cancel_requested === true, conversationMode: work.conversation_mode === true,
       ...(work.goal_mode===undefined?{}:{goalMode:parseGoalMode(work.goal_mode)}),
+      goalPlan, goalPlanPending: work.goal_plan_pending === true,
       startUnavailableReason: work.start_unavailable_reason == null ? null : String(work.start_unavailable_reason),
       blockedReason: work.blocked_reason as string | null, messages: work.messages as string[] }
   })
@@ -238,4 +247,23 @@ export function buildModelWorkspaceCommand(threadId: string, runId: string, comm
     target:{kind:'model_workspace',id:id(threadId),expected_revision:revision(expectedRevision)},payload:structuredClone(payload) as Record<string,string>}
   assertCapacity(new TextEncoder().encode(JSON.stringify(command)).byteLength,'command_bytes')
   return command
+}
+
+
+function parseSessionGoalPlan(value: unknown): SessionGoalPlan {
+  const receipt = object(value)
+  const plan = object(receipt.plan)
+  if (receipt.schema !== 'capstone-session-goal-plan-receipt/1' ||
+      plan.schema !== 'capstone-session-goal-plan/1' ||
+      !Array.isArray(plan.criteria) || !plan.criteria.every(item => typeof item === 'string') ||
+      !Array.isArray(plan.steps)) throw new ThreadProtocolError('目标计划无效')
+  const steps = plan.steps.map(value => {
+    const step = object(value)
+    if (typeof step.instruction !== 'string' || typeof step.expected_result !== 'string')
+      throw new ThreadProtocolError('目标步骤无效')
+    return {instruction: step.instruction, expectedResult: step.expected_result}
+  })
+  const stepIndex = receipt.step_index === undefined ? 0 : revision(receipt.step_index, 0)
+  if (stepIndex >= steps.length) throw new ThreadProtocolError('目标步骤位置无效')
+  return {criteria: plan.criteria, steps, stepIndex}
 }
