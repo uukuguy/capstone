@@ -710,8 +710,9 @@ def test_native_recovery_observes_bound_result_without_settling_attempt(postgres
     task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
     identity = {'engine': 'pi', 'config_revision': 'test'}
     service.append_runtime_event(claim, event_type='runtime_event', payload={
-        'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'direct',
+        'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'delegated',
         'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
+        'route_source': 'native_conversation',
     }, visibility='diagnostic')
 
     def expire():

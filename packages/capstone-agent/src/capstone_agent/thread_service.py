@@ -317,7 +317,7 @@ def _owner_fingerprint(token: str) -> str:
 def _owned_runtime_payload(event_type: str, payload, visibility: str, claim) -> dict:
     if visibility == 'diagnostic' and (event_type in _WORKER_EXIT_EVENTS or (
             event_type == 'runtime_event' and payload.get('child_status') == 'started'
-            and payload.get('entrypoint') == 'direct' and payload.get('goal_id') == 'conversation'
+            and payload.get('route_source') == 'native_conversation' and payload.get('goal_id') == 'conversation'
             and payload.get('parent_attempt_id') == claim.attempt.attempt_id)):
         return {**payload, 'owner_fingerprint': _owner_fingerprint(claim.lease_token)}
     return dict(payload)
@@ -5266,8 +5266,8 @@ class PostgresThreadService(NativeExecutionOwner):
                        WHERE e.thread_id=a.thread_id AND e.attempt_id=a.attempt_id
                          AND e.event_type='runtime_event' AND e.visibility='diagnostic'
                          AND e.payload->>'owner_fingerprint'=encode(sha256(convert_to(a.lease_token,'UTF8')),'hex')
-                         AND e.payload->>'child_status'='started' AND e.payload->>'entrypoint'='direct'
-                         AND e.payload->>'goal_id'='conversation'
+                         AND e.payload->>'child_status'='started'
+                         AND e.payload->>'route_source'='native_conversation' AND e.payload->>'goal_id'='conversation'
                        ORDER BY e.event_seq DESC LIMIT 1
                    ) e ON true
                    WHERE a.phase='running' AND a.lease_deadline <= clock_timestamp()

@@ -10,6 +10,7 @@
     "configs/development/worker-interruption-gate.json",
     "docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md",
     "packages/capstone-agent/src/capstone_agent/attempt_lease.py",
+    "packages/capstone-agent/src/capstone_agent/delegated_runtime.py",
     "packages/capstone-agent/src/capstone_agent/harness.py",
     "packages/capstone-agent/src/capstone_agent/instruction_queue.py",
     "packages/capstone-agent/src/capstone_agent/mission_origin.py",
