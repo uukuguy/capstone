@@ -14,13 +14,15 @@ export default function GoalControls({goal,plan,planning,objective,disabled,onCo
     {goal?<>
       <p role="status">持续目标：{planning&&goal.state==='ready'?'正在规划':goal.reason==='goal_review_pending'?'正在复盘':states[goal.state]} · 已执行 {goal.attempts_admitted}/{goal.max_attempts} 次</p>
       <p>{goal.objective}</p>
-      {plan&&<details>
+      {plan&&<details className="goal-plan">
         <summary>目标计划 · 第 {plan.stepIndex+1}/{plan.steps.length} 步</summary>
-        <ol>{plan.steps.map((step,index)=><li key={step.instruction} aria-current={index===plan.stepIndex?'step':undefined}>
-          {step.instruction}<p>预期成果：{step.expectedResult}</p>
-        </li>)}</ol>
-        <p>验收条件</p>
-        <ul>{plan.criteria.map((criterion,index)=><li key={index}>{criterion}</li>)}</ul>
+        <div className="goal-plan-body" tabIndex={0}>
+          <ol>{plan.steps.map((step,index)=><li key={step.instruction} aria-current={index===plan.stepIndex?'step':undefined}>
+            {step.instruction}<p>预期成果：{step.expectedResult}</p>
+          </li>)}</ol>
+          <p>验收条件</p>
+          <ul>{plan.criteria.map((criterion,index)=><li key={index}>{criterion}</li>)}</ul>
+        </div>
       </details>}
       {goal.reason&&goal.reason!=='goal_review_pending'&&<p>{reasons[goal.reason]||goal.reason}</p>}
       {!['completed','failed','cancelled'].includes(goal.state)&&<>
