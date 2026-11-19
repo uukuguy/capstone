@@ -1,6 +1,31 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Native delivery recovery after a recorded worker exit
+
+Owner is capstone-agent with the capstone-app conversation view. PR #160
+merged to `dev` at `cef82ba4`. Scoped macOS CI 44462572461 passed.
+Recover an ordinary
+native reply and its files from the completed receipt bound to the original
+Attempt. Check the recorded worker exit and receipt identity. Verify and save
+the file bytes before appending one delivery event under the Attempt row lock.
+The original interruption remains in history. The conversation displays the
+saved reply under the original instruction.
+
+The local isolated fault injection blocked the normal reply write and file
+publication for one test Thread. The configured Provider finished native
+Attempt `attempt_871a3b662da37d32`. The worker recovered its reply and published
+`native-delivery-proof.md` with the exact expected bytes. The API read back one
+recovery event and the file hash matched the saved descriptor. Focused checks
+covered two recovery writers, corrupt transfer, a running owner, and the
+conversation projection. Local receipt:
+`runs/native-delivery-recovery/live.json`. The same reply and bytes were
+read again after the canonical local rebuild from `dev`.
+
+Follow-up acceptance covers durable receipt lookup after executor restart and
+the evidence and review contracts for professional, Goal, and Mission results.
+
+
 ## Native recovery observation after interrupted contact
 
 Owner capstone-agent with the capstone-app status view. Branch
@@ -14,7 +39,7 @@ Scoped macOS CI 44442555748 passed and PR #158 merged to dev `f612dcc6`.
 The read-only observation matched the real native receipt for Attempt
 `attempt_c708f442ff68ed09` and found one artifact. After a canonical dev
 rebuild, the original formal reply and published artifact were readable.
-Import and admission of a recovered answer or unpublished products remains separate.
+The confirmed-exit delivery path is recorded in the section above.
 
 
 ## Attempt ownership and heartbeat recovery

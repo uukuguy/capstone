@@ -23,6 +23,7 @@ invalidate prior history reads; this cache does not own the persistent pin set.
 ## Project snapshot
 
 - Project route: managed
+- Native delivery recovery: PostgreSQL record of the current worker's exit and the original executor receipt govern recovery. The conversation reads the recovered reply and saved files under the original instruction. The ledger retains the original interruption.
 - Mission ownership: capstone-control owns durable Mission/Task coordination and bounded organizer review intents. capstone-agent owns the originating conversation, delegated execution and version-scoped resource grants. capstone-app owns slash commands and the existing workspace. The canonical worklist and version register record package and integration status.
 - Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`
 - Delivery baseline: dev includes recoverable long-task execution, durable workspace pins, standalone Agent Work goals, independent Control delegation and durable instruction intervention with a shared execution reader. Their owning acceptance records and exact deployment sources live in the canonical worklist and version register. Cloud/demo retain separate accepted sources.

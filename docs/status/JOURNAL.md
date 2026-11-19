@@ -8316,3 +8316,6 @@ check passed. No CI, integration or remote deployment performed.
 - 10:17 PR158 merged to dev f612dcc6; exact native-observation macOS CI 44442555748 passed.
 
 - 10:20 Actual dev f612dcc6 rebuilt on shared image 529b3f1a99ad; original native reply and artifact restored.
+- 2026-11-19: bb82e298 restores verified native replies and files after confirmed worker exit. Focused local checks passed.
+- 2026-11-19: PR160 local fault injection recovered the real model reply and exact file bytes for attempt_871a3b662da37d32.
+- 2026-11-19: cef82ba4 merges PR160 after exact native recovery verification and the scoped macOS gate.

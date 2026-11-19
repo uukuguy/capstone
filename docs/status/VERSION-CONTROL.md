@@ -1286,7 +1286,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR158 已合入。可只读核对已绑定的原生执行终态 | 实际 dev 重建，原正式回复和制品恢复通过 |
+| dev | 共同基座与企业工作台集成 | PR160 已合入。可恢复已确认退出的普通原生会话交付 | 验证执行器重启后的持久回执读取 |
 
 ## 功能包前沿
 
@@ -1294,7 +1294,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| native-owner-recovery-observation | 原生执行终态核对 | 1 | 已合入 dev，本机真实验收通过 | 只读核对已绑定原生任务，记录验证通过的终态 | f612dcc6 | 完成正式交付和未发布制品的恢复准入 | dev 325f2666 | PR158，核对期间原所有者恢复则丢弃观察 | CI 44442555748 通过。真实执行器回执与父 Attempt 匹配，包含一项制品。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
+| native-delivery-recovery | 原生会话交付恢复 | 1 | 已合入 dev，本机真实验收通过 | 从已确认退出的执行恢复正式回答和制品 | cef82ba4 | 验证执行器重启后的持久回执读取 | dev e7c5c4fa | PR160 保留中断历史，行锁保护唯一恢复写入 | 定向 macOS CI 44462572461 通过。真实故障注入补回回答与报告，下载字节与回执一致。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
+| native-owner-recovery-observation | 原生执行终态核对 | 1 | 已合入 dev，本机真实验收通过 | 只读核对已绑定原生任务，记录验证通过的终态 | f612dcc6 | 已接入已确认退出的普通会话交付 | dev 325f2666 | PR158，核对期间原所有者恢复则丢弃观察 | CI 44442555748 通过。真实执行器回执与父 Attempt 匹配，包含一项制品。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
 | attempt-ownership | 执行所有权与心跳解耦 | 1 | 已合入 dev，本机真实验收通过 | 行锁、所有者令牌和执行状态裁决写入；心跳延迟只记录状态 | afe26f91 | 按真实长任务反馈维护 | dev 77ef231c | PR156，避免心跳延迟中断，支持原提交安全重试 | 定向 macOS CI 44436940120 通过；真实任务错过心跳后仍保存原制品与唯一完成回复。[设计与记录](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) |
 | session-goal-planning | 会话内目标规划与复盘 | 1 | 已合入 dev，本机真实验收通过 | 同一会话主 Agent 先规划，Harness 逐条执行，落盘后复盘并逐项验收 | 8861d4ae | 按真实业务反馈维护 | dev 4df0217a | PR153，失败复盘可从已保存成果重试 | 定向 macOS CI 44426864528 通过。两条真实指令、原始制品交付、四项验收及刷新恢复通过。[实施与验收](../superpowers/plans/2026-11-19-session-goal-planning.md) |
 | harness-reference-continuity | Harness 跨轮次引用续接 | 1 | 已合入 dev | 同一 Work、Goal 和 Mission 的版本化上下文、结果、证据、制品、网关操作与视图交接 | dev 4df0217a | 维持现有回归覆盖 | dev 028c8d76 | PR152 受检 b66b6e7b，右栏版本与来源默认折叠 | 定向 macOS CI 44412862176 通过。真实 Work 和 Mission 引用续接已验证。[审计](../reviews/2026-11-18-harness-reference-continuity.md) |
@@ -1380,6 +1381,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| native-delivery-merge-20261119 | PR160 合入与本机真实交付恢复验收 |
 | native-observation-merge-20261119 | PR158 合入与本机运行来源 |
 | attempt-ownership-merge-20261119 | PR156 合入与本机运行来源 |
 | session-goal-merge-20261119 | PR153 合入与两步 Goal 验收 |
@@ -1428,6 +1430,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| native-delivery-merge-20261119 | cef82ba4 | main | 原生会话交付恢复 | PR160 合入 dev，真实模型故障注入通过 | 原指令恢复回答和未发布制品，原中断保留。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-delivery-recovery |
 | native-observation-merge-20261119 | f612dcc6 | main | 原生执行终态核对 | PR158 合入 dev，实际本机重建恢复通过 | 只读绑定核验通过。原所有者恢复时丢弃观察。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | native-owner-recovery-observation |
 | attempt-ownership-merge-20261119 | afe26f91 | main | Attempt 写入锁与心跳解耦 | PR156 合入 dev，实际本机重建恢复通过 | 原所有者在心跳延迟后完成真实任务；并发结算与旧所有者隔离经 PostgreSQL 验证。[设计](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | attempt-ownership |
 | session-goal-merge-20261119 | 8861d4ae | main | 会话内 Goal 规划与复盘 | PR153 合入 dev，实际本机重建恢复通过 | 先保存目标计划，按条执行并复盘。原始成果交付和逐项验收通过。[验收](../superpowers/plans/2026-11-19-session-goal-planning.md) | session-goal-planning |
@@ -1643,6 +1646,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| native-delivery-merge-20261119 | 开发集成与本机来源 | dev | 恢复原指令的正式回复；验证并发布原制品字节 | PR160 与真实模型故障注入通过 |
 | native-observation-merge-20261119 | 开发集成与本机来源 | dev | 只读核对原生子任务；正式会话交付保留准入 | PR158 与实际 dev 重建通过 |
 | attempt-ownership-merge-20261119 | 开发集成与本机来源 | dev | 当前所有者持锁提交；心跳延迟只提示，保留结果和制品 | PR156 与实际 dev 重建通过 |
 | session-goal-merge-20261119 | 开发集成与本机来源 | dev | 同一会话主 Agent 规划并复盘；两步成果与逐项验收恢复 | PR153 与实际 dev 重建通过 |
@@ -2123,7 +2127,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API、三 worker 与 Vite App 均从实际 dev `f612dcc6` 启动。App 产品版本 801dabbf | 后端同镜像 529b3f1a99ad。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。真实原生终态核对通过，原正式回复和制品在重建后可读取。 |
+| local-dev | 从实际 dev `cef82ba4` 规范重建。产品源码与受检 `bb82e298` 一致 | API 与三个 worker 同镜像 9bbdf9c791aa。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。已复查恢复的原正式回复和可下载制品。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
