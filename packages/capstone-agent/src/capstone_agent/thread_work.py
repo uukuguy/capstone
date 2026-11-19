@@ -297,7 +297,13 @@ def apply_work(snapshot, command, *, archived=False):
             updated = apply_terminal_goal_proposal(staged, TaskContext.from_document(work['task_context']),
                 delivery['attempt_id'], command['payload'].get('proposal'), delivery_saved=True,
                 saved_product_refs=tuple(delivery['product_refs']), saved_authority_refs=tuple(delivery['authority_refs']))
-        except ValueError:
+        except ValueError as error:
+            from .native_failure_origin import native_failure_origin
+            import logging
+            logging.getLogger(__name__).warning(
+                'Goal review admission failed; attempt_id=%s origin=%s',
+                delivery['attempt_id'], native_failure_origin(error))
+            work['goal_step_review'] = delivery
             work['goal_mode'].update(state='paused', reason='goal_review_invalid',
                                      last_settled_attempt_id=delivery['attempt_id'])
             return staged, None, work
@@ -371,9 +377,11 @@ def apply_work(snapshot, command, *, archived=False):
             else:
                 if 'goal_mode' not in work:
                     return snapshot, 'goal_unavailable', None
-                goal = control_goal(work['goal_mode'], command['kind'], command['payload'], now=now)
-                if command['kind'] == 'resume_goal' and 'goal_step_review' in work:
-                    goal.update(state='waiting', reason='goal_review_pending')
+                if (command['kind'] == 'resume_goal' and 'goal_step_review' in work
+                        and work['goal_mode']['state'] == 'paused' and not command['payload']):
+                    goal = {**work['goal_mode'], 'state': 'waiting', 'reason': 'goal_review_pending'}
+                else:
+                    goal = control_goal(work['goal_mode'], command['kind'], command['payload'], now=now)
         except ValueError as error:
             raise ThreadProtocolError(str(error)) from error
         if snapshot.current_attempt is not None:

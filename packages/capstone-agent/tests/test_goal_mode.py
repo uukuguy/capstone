@@ -306,7 +306,7 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage,
     work = save_work(store, thread_id)
     receipt = store.submit_command(command(store, thread_id, 'start_goal', 'goal_start',
         work_id=work['work_id'], revision=work['revision'], payload={
-        'objective': work['goal'], 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'}))
+        'objective': work['goal'], 'max_attempts': 2, 'deadline_at': '2099-01-01T00:00:00Z'}))
     assert receipt.status == 'accepted'
     assert store.claim_attempt('worker', 30) is None
     from capstone_agent.session_goal_plan import drain_initial_goal_plans, initial_plan_command
@@ -356,6 +356,12 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage,
     progress.update(disposition='complete', summary='Report saved', next_instruction=None,
         criteria=[{'index': 0, 'verdict': 'met', 'refs': ['report.md']}])
     store.finish_attempt(second, phase='completed', payload={'answer': 'Report saved'})
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: {**progress, 'criteria': []}) == 1
+    failed_review = store.snapshot(thread_id).works[0]
+    assert failed_review['goal_mode']['reason'] == 'goal_review_invalid'
+    assert store.submit_command(command(store, thread_id, 'resume_goal', 'retry_review',
+        work_id=failed_review['work_id'], revision=failed_review['revision'], payload={})).status == 'accepted'
+    assert store.claim_attempt('worker', 30) is None
     assert drain_goal_step_reviews(store, reviewer=lambda *_: progress) == 1
     final = store.snapshot(thread_id).works[0]
     assert final['goal_mode']['state'] == 'completed'

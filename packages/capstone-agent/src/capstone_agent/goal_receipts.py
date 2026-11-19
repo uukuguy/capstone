@@ -188,9 +188,12 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
     work = next(item for item in works if item['work_id'] == context.binding.work_id)
     goal = work['goal_mode']
     progress = parse_goal_proposal(proposal)
+    prior_refs = (work.get('goal_plan') or {}).get('review_refs', ())
+    admitted_products = (tuple(saved_product_refs) + tuple(prior_refs)
+                         if progress['disposition'] == 'complete' else saved_product_refs)
     settled = settle_goal_proposal(goal, progress, objective_revision=context.goal_revision,
         generation=goal['generation'], attempt_id=attempt_id, now=datetime.now(timezone.utc),
-        saved_product_refs=saved_product_refs, delivery_saved=delivery_saved,
+        saved_product_refs=admitted_products, delivery_saved=delivery_saved,
         saved_authority_refs=saved_authority_refs)
     if 'goal_plan' in work:
         from .session_goal_plan import qualify_planned_review

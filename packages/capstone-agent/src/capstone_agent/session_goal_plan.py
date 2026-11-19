@@ -224,7 +224,7 @@ def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective:
             raise ValueError("Goal review must select the saved next instruction")
         reviewed["step_index"] = step_index + 1
     elif disposition == "complete":
-        criteria = progress.get("criteria", [])
+        criteria = sorted(progress.get("criteria", []), key=lambda item: item["index"])
         expected = list(range(len(plan["plan"]["criteria"])))
         if step_index + 1 != len(steps) or [item["index"] for item in criteria] != expected:
             raise ValueError("Goal review must verify every criterion after the last step")
