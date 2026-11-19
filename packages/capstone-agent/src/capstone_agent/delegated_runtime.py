@@ -284,7 +284,8 @@ class DelegatedRuntime:
             **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
-            'executor_identity': frozen['identity'], 'entrypoint': request.entrypoint})
+            'executor_identity': frozen['identity'], 'entrypoint': request.entrypoint,
+            'route_source': self._plan.source})
 
         from .task_steps import NativeStepTracker
         from .native_research_bridge import CYCLE_CONTROL_TOOLS

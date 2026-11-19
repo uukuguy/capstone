@@ -694,3 +694,48 @@ def test_postgres_serializes_terminal_writes_and_rejects_former_owner(postgres_t
     assert replayed.current_attempt is None
     assert len([event for event in service.read_events(thread_id, 0).events
                 if event.event_type == 'attempt_completed']) == 1
+
+
+def test_native_recovery_observes_bound_result_without_settling_attempt(postgres_thread_service):
+    from hashlib import sha256
+    from types import SimpleNamespace
+
+    from capstone_agent.native_owner_recovery import observe_lost_contact
+
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    claim = service.claim_attempt('native-owner', 30)
+    attempt_id = claim.attempt.attempt_id
+    task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
+    identity = {'engine': 'pi', 'config_revision': 'test'}
+    service.append_runtime_event(claim, event_type='runtime_event', payload={
+        'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'delegated',
+        'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
+        'route_source': 'native_conversation',
+    }, visibility='diagnostic')
+
+    def expire():
+        with service._connect() as connection:
+            connection.execute('UPDATE capstone_thread_attempts SET lease_deadline=clock_timestamp() '
+                               "- interval '1 second' WHERE attempt_id=%s", (attempt_id,))
+
+    def read(task, parent, executor):
+        assert (task, parent, executor) == (task_id, attempt_id, identity)
+        return SimpleNamespace(status='completed')
+
+    def contacted(*args):
+        assert service.renew_attempt(claim, 30)
+        return read(*args)
+
+    expire()
+    assert observe_lost_contact(service, SimpleNamespace(observe_terminal_task=contacted)) == 0
+    expire()
+    assert observe_lost_contact(service, SimpleNamespace(observe_terminal_task=read)) == 1
+    assert observe_lost_contact(service, SimpleNamespace(observe_terminal_task=read)) == 0
+    assert service.snapshot(thread_id).current_attempt.attempt_id == attempt_id
+    public, = [event for event in service.read_events(thread_id, 0).events
+               if event.event_type == 'attempt_native_result_observed']
+    assert public.payload == {'status': 'completed'}
+    service.finish_attempt(claim, phase='completed', payload={'answer': 'Original context verified'})
+    assert service.native_recovery_candidates() == []
