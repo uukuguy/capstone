@@ -19,6 +19,7 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_thread_recovery_reaper.py \
   packages/capstone-agent/tests/test_instruction_queue.py \
   packages/capstone-agent/tests/test_mission_origin.py \
+  packages/capstone-agent/tests/test_pi_delegation.py \
   tools/tests/test_ci_worker_interruption.py -q
 npm run check --prefix packages/capstone-app
 npm test --prefix packages/capstone-app -- src/CapstoneAssistantThread.test.tsx

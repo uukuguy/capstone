@@ -315,7 +315,10 @@ def _owner_fingerprint(token: str) -> str:
 
 
 def _owned_runtime_payload(event_type: str, payload, visibility: str, claim) -> dict:
-    if event_type in _WORKER_EXIT_EVENTS and visibility == 'diagnostic':
+    if visibility == 'diagnostic' and (event_type in _WORKER_EXIT_EVENTS or (
+            event_type == 'runtime_event' and payload.get('child_status') == 'started'
+            and payload.get('entrypoint') == 'direct' and payload.get('goal_id') == 'conversation'
+            and payload.get('parent_attempt_id') == claim.attempt.attempt_id)):
         return {**payload, 'owner_fingerprint': _owner_fingerprint(claim.lease_token)}
     return dict(payload)
 
@@ -5250,6 +5253,77 @@ class PostgresThreadService(NativeExecutionOwner):
         self, claim: AttemptClaim, *, error_code: str,
     ) -> bool:
         return self.rollback_context_if_preparation_failed(claim, error_code=error_code)
+
+    def native_recovery_candidates(self, limit: int = 2) -> list[dict]:
+        if type(limit) is not int or not 1 <= limit <= 8:
+            raise ValueError('invalid native recovery scan limit')
+        with self._connect() as connection:
+            return connection.execute(
+                """SELECT a.thread_id, a.attempt_id, a.lease_token, e.payload AS binding
+                   FROM capstone_thread_attempts a
+                   JOIN LATERAL (
+                       SELECT e.payload FROM capstone_thread_events e
+                       WHERE e.thread_id=a.thread_id AND e.attempt_id=a.attempt_id
+                         AND e.event_type='runtime_event' AND e.visibility='diagnostic'
+                         AND e.payload->>'owner_fingerprint'=encode(sha256(convert_to(a.lease_token,'UTF8')),'hex')
+                         AND e.payload->>'child_status'='started' AND e.payload->>'entrypoint'='direct'
+                         AND e.payload->>'goal_id'='conversation'
+                       ORDER BY e.event_seq DESC LIMIT 1
+                   ) e ON true
+                   WHERE a.phase='running' AND a.lease_deadline <= clock_timestamp()
+                     AND NOT EXISTS (
+                       SELECT 1 FROM capstone_thread_events d
+                       WHERE d.thread_id=a.thread_id AND d.attempt_id=a.attempt_id
+                         AND d.event_type='attempt_native_recovery_checked'
+                         AND d.payload->>'owner_fingerprint'=e.payload->>'owner_fingerprint'
+                         AND (d.payload->>'status' <> 'unknown'
+                              OR d.occurred_at >= clock_timestamp() - interval '60 seconds'))
+                   ORDER BY a.lease_deadline, a.attempt_id LIMIT %s""", (limit,)).fetchall()
+
+    def record_native_recovery_observation(self, candidate: dict, status: str) -> bool:
+        if status not in {'completed', 'failed', 'cancelled', 'unknown'}:
+            raise ValueError('invalid native recovery observation')
+        thread_id, attempt_id = candidate['thread_id'], candidate['attempt_id']
+        fingerprint = _owner_fingerprint(candidate['lease_token'])
+        with self._connect() as connection:
+            owner = connection.execute(
+                """SELECT 1 FROM capstone_thread_attempts
+                   WHERE thread_id=%s AND attempt_id=%s AND phase='running'
+                     AND lease_token=%s AND lease_deadline <= clock_timestamp() FOR UPDATE""",
+                (thread_id, attempt_id, candidate['lease_token'])).fetchone()
+            if owner is None:
+                return False
+            exists = connection.execute(
+                """SELECT 1 FROM capstone_thread_events
+                   WHERE thread_id=%s AND attempt_id=%s AND event_type='attempt_native_recovery_checked'
+                     AND payload->>'owner_fingerprint'=%s
+                     AND (payload->>'status' <> 'unknown'
+                          OR occurred_at >= clock_timestamp() - interval '60 seconds')""",
+                (thread_id, attempt_id, fingerprint)).fetchone()
+            if exists is not None:
+                return False
+            thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE',
+                                        (thread_id,)).fetchone()
+            current = thread['current_attempt']
+            if not isinstance(current, dict) or current.get('attempt_id') != attempt_id:
+                return False
+            running = AttemptSnapshot.from_document(current)
+            event = self._make_attempt_event(
+                thread, running, event_seq=thread['last_event_seq'] + 1,
+                event_type='attempt_native_recovery_checked',
+                payload={'status': status, 'task_id': candidate['binding']['task_id'],
+                         'owner_fingerprint': fingerprint}, visibility='diagnostic',
+            )
+            self._insert_event(connection, event)
+            if status != 'unknown':
+                event = self._make_attempt_event(
+                    thread, running, event_seq=event.event_seq + 1,
+                    event_type='attempt_native_result_observed', payload={'status': status},
+                )
+                self._insert_event(connection, event)
+            connection.execute('UPDATE capstone_threads SET last_event_seq=%s WHERE thread_id=%s',
+                               (event.event_seq, thread_id))
+            return True
 
     def interrupt_expired_attempts(self) -> int:
         return self._interrupt_expired_attempts()

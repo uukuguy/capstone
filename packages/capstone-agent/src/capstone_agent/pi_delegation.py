@@ -701,6 +701,32 @@ class HttpGeneralPiExecutor:
             checkpoint()
             raise RuntimeError("Pi executor transport failed; task state may be unknown") from None
 
+    def observe_terminal_task(self, task_id: str, parent_attempt_id: str,
+                              executor_identity: Mapping) -> PiTaskResult | None:
+        """Read an existing result from the frozen executor without starting work."""
+        _id(task_id)
+        _id(parent_attempt_id)
+        identity = _json_document(executor_identity)
+        if identity != _json_document(self.identity):
+            raise ValueError('Pi recovery executor identity changed')
+        response = self._call('GET', '/tasks/' + task_id, timeout=2, total_timeout=3)
+        fields = {'status', 'events', 'result'}
+        if (not fields <= set(response) or set(response) - fields - {'resource_requests', 'range_requests'}
+                or not isinstance(response['events'], list)):
+            raise ValueError('Pi recovery status is invalid')
+        state = response['status']
+        if state in ('queued', 'running') and response['result'] is None:
+            return None
+        if state not in STATUSES:
+            raise ValueError('Pi recovery status is invalid')
+        document = _json_document(response['result'], native_result=True)
+        _validate_result(document, task_id, parent_attempt_id, identity)
+        if document['status'] != state:
+            raise ValueError('Pi recovery status does not match its result')
+        if (document.get('failure') or {}).get('code') == 'native_process_cleanup_unconfirmed':
+            return None
+        return PiTaskResult(**{key: value for key, value in document.items() if key != 'schema'})
+
     def cancel(self, task_id):
         """Request cancellation and confirm a bound terminal state within cleanup budget."""
         _id(task_id)

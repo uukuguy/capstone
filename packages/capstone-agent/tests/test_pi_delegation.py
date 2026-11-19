@@ -719,3 +719,36 @@ def test_native_result_persists_typed_versioned_gateway_view_receipt():
     receipt['operations'][0]['view_identity']['other'] = 'forged'
     with pytest.raises(ValueError, match='gateway view identity'):
         PiTaskResult.from_document(value, request)
+
+
+def test_recovery_observation_reads_only_the_bound_native_task(monkeypatch):
+    request = PiTaskRequest.from_document(request_document(entrypoint='direct'))
+    executor = HttpGeneralPiExecutor('http://executor.invalid',
+        identity=request.executor_identity, capability={})
+    calls = []
+
+    def status(method, path, **kwargs):
+        calls.append((method, path))
+        return {'status': 'completed', 'events': [], 'result': result_document(request)}
+
+    monkeypatch.setattr(executor, '_call', status)
+    result = executor.observe_terminal_task(request.task_id, request.parent_attempt_id,
+                                           request.executor_identity)
+    assert result is not None and result.status == 'completed'
+    assert calls == [('GET', '/tasks/task-1')]
+    with pytest.raises(ValueError, match='host task identity'):
+        executor.observe_terminal_task(request.task_id, 'another-attempt', request.executor_identity)
+    with pytest.raises(ValueError, match='executor identity'):
+        executor.observe_terminal_task(request.task_id, request.parent_attempt_id,
+                                       {'engine': 'pi', 'config_revision': 'different'})
+    assert len(calls) == 2
+
+
+def test_recovery_observation_does_not_infer_exit_from_an_active_task(monkeypatch):
+    request = PiTaskRequest.from_document(request_document(entrypoint='direct'))
+    executor = HttpGeneralPiExecutor('http://executor.invalid',
+        identity=request.executor_identity, capability={})
+    monkeypatch.setattr(executor, '_call',
+        lambda *_args, **_kwargs: {'status': 'running', 'events': [], 'result': None})
+    assert executor.observe_terminal_task(request.task_id, request.parent_attempt_id,
+                                         request.executor_identity) is None

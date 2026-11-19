@@ -390,8 +390,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const legacyWorks=nativeChat?snapshot?.works.filter(work=>!work.conversationMode):snapshot?.works
   const active = selectedWork?.status === 'queued' || selectedWork?.status === 'running'
   const currentAttempt=snapshot?.currentAttempt||professional?.currentAttempt
-  const contactDelayed = currentAttempt && store.publicEvents.some(event =>
-    event.attemptId === currentAttempt.attemptId && event.eventType === 'attempt_contact_delayed')
+  const currentAttemptEvents = currentAttempt ? store.publicEvents.filter(event =>
+    event.attemptId === currentAttempt.attemptId).reverse() : []
+  const ownerStart = currentAttemptEvents.find(event => event.eventType === 'attempt_started')?.eventSeq ?? 0
+  const contactDelayed = currentAttemptEvents.some(event =>
+    event.eventSeq > ownerStart && event.eventType === 'attempt_contact_delayed')
+  const nativeOutcome = currentAttemptEvents.find(event =>
+    event.eventSeq > ownerStart && event.eventType === 'attempt_native_result_observed')?.payload.status
+
 
   const canStop = active && selectedWork.latestAttemptId === currentAttempt?.attemptId
   const queueAvailable=liveConversation&&selectedWork?.instructionQueueAvailable===true
@@ -882,7 +888,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
       {pending?.kind==='withdraw_instruction'&&<button type="button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试撤回请求</button>}
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
-      {contactDelayed&&<p role="status">曾暂时失去执行进程的联系。任务仍保留，已保存的记录和制品仍可查看。</p>}
+      {nativeOutcome==='completed'&&<p role="status">执行器已保存结果，当前会话仍待核对交付。已发布的制品仍可查看。</p>}
+      {(nativeOutcome==='failed'||nativeOutcome==='cancelled')&&<p role="status">执行器已记录{nativeOutcome==='failed'?'失败':'取消'}，当前会话仍待核对。已发布的制品仍可查看。</p>}
+      {contactDelayed&&!nativeOutcome&&<p role="status">曾暂时失去执行进程的联系。任务仍保留，已保存的记录和制品仍可查看。</p>}
       {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||attachmentsLoading||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
       {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}/>)}
       {error && <p role="alert">{error}</p>}

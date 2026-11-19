@@ -1,6 +1,19 @@
 # Unified Enterprise Execution Implementation Plan
 
 
+## Native recovery observation after interrupted contact
+
+Owner capstone-agent with the capstone-app status view. Branch
+`fix/native-owner-recovery-observation-20261119` targets `dev`. A worker can
+read a terminal status from the executor already bound to an overdue Attempt.
+The task identity, parent Attempt, executor identity and owner token must match.
+If the original worker renews contact during the lookup, the result is discarded.
+Missing or unreachable tasks remain unknown. Terminal native status can appear
+in the conversation without advancing or settling the parent Attempt.
+Acceptance covers bounded status reads and durable PostgreSQL observation.
+Import and admission of a recovered answer or unpublished products remains separate.
+
+
 ## Attempt ownership and heartbeat recovery
 
 Owner capstone-agent with the capstone-app status view. Branch

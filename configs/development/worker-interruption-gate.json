@@ -13,12 +13,15 @@
     "packages/capstone-agent/src/capstone_agent/harness.py",
     "packages/capstone-agent/src/capstone_agent/instruction_queue.py",
     "packages/capstone-agent/src/capstone_agent/mission_origin.py",
+    "packages/capstone-agent/src/capstone_agent/native_owner_recovery.py",
+    "packages/capstone-agent/src/capstone_agent/pi_delegation.py",
     "packages/capstone-agent/src/capstone_agent/thread_materials.py",
     "packages/capstone-agent/src/capstone_agent/thread_service.py",
     "packages/capstone-agent/src/capstone_agent/thread_worker.py",
     "packages/capstone-agent/tests/test_attempt_lease_deadline.py",
     "packages/capstone-agent/tests/test_enterprise_normal_chat.py",
     "packages/capstone-agent/tests/test_harness.py",
+    "packages/capstone-agent/tests/test_pi_delegation.py",
     "packages/capstone-agent/tests/test_terminal_transition.py",
     "packages/capstone-agent/tests/test_thread_attempts.py",
     "packages/capstone-agent/tests/test_thread_postgres.py",
@@ -40,6 +43,10 @@
     [
       "packages/capstone-agent/src/capstone_agent/thread_worker.py",
       "packages/capstone-agent/tests/test_worker_interruption_products.py"
+    ],
+    [
+      "packages/capstone-agent/src/capstone_agent/native_owner_recovery.py",
+      "packages/capstone-agent/tests/test_pi_delegation.py"
     ]
   ]
 }
