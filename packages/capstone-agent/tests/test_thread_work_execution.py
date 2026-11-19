@@ -304,14 +304,15 @@ def test_postgres_work_claim_survives_restart(postgres_thread_service):
     assert store.snapshot(thread_id).works[0]['status'] == 'failed'
 
 
-def test_expired_work_can_restart_and_old_claim_cannot_write():
+def test_stopped_work_can_restart_and_old_claim_cannot_write():
     from capstone_agent.thread_service import ThreadExecutionError
     store = InMemoryThreadService(professional_snapshot())
     work = save_work(store, 'thr_work_exec')
     store.submit_command(command(store, 'thr_work_exec', 'start_work', 'first',
         work_id=work['work_id'], revision=work['revision']))
     claim = store.claim_attempt('worker', 30)
-    store._attempts[claim.attempt.attempt_id]['lease_deadline'] = 0
+    store.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+        payload={'stage': 'worker_execution'}, visibility='diagnostic')
     assert store.interrupt_expired_attempts() == 1
     after = store.snapshot('thr_work_exec').to_document()['works'][0]
     assert after['status'] == 'interrupted' and after['start_available']
@@ -378,7 +379,7 @@ def test_production_kernel_builder_opens_real_work_research(tmp_path, monkeypatc
     research.close(failed=True)
 
 
-def test_postgres_expiry_restores_work_and_preserves_unconsumed_input(postgres_thread_service):
+def test_postgres_worker_exit_restores_work_and_preserves_unconsumed_input(postgres_thread_service):
     import psycopg
     from capstone_agent.thread_service import ThreadExecutionError
     store, thread_id = postgres_thread_service
@@ -392,9 +393,8 @@ def test_postgres_expiry_restores_work_and_preserves_unconsumed_input(postgres_t
         work_id=work['work_id'], revision=work['revision']))
     first = store.claim_attempt('worker', 30)
     assert 'supplement A' in first.instruction and 'supplement B' in first.instruction
-    with psycopg.connect(store.dsn) as connection:
-        connection.execute('UPDATE capstone_thread_attempts SET lease_deadline=now()-interval \'1 second\' WHERE attempt_id=%s',
-                           (first.attempt.attempt_id,))
+    store.append_runtime_event(first, event_type='attempt_worker_diagnostic',
+        payload={'stage': 'worker_execution'}, visibility='diagnostic')
     assert store.interrupt_expired_attempts() == 1
     after = store.snapshot(thread_id).to_document()['works'][0]
     assert after['status'] == 'interrupted' and after['start_available']

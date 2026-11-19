@@ -691,46 +691,29 @@ def test_runtime_event_payload_is_bounded_before_persistence() -> None:
         )
 
 
-def test_attempt_lease_can_be_renewed_and_expired_attempt_is_interrupted(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missed_heartbeat_keeps_current_owner_and_records_notice(monkeypatch: pytest.MonkeyPatch) -> None:
     service = _service()
     service.submit_command(_command())
     claim = service.claim_attempt("thread-worker", lease_seconds=1)
     assert claim is not None
-
-    assert service.renew_attempt(claim, lease_seconds=30)
     clock = time.monotonic()
     monkeypatch.setattr(time, "monotonic", lambda: clock + 2)
+
     assert service.interrupt_expired_attempts() == 0
-    assert service.snapshot("thr_attempts").current_attempt is not None
-
-    monkeypatch.setattr(time, "monotonic", lambda: clock + 31)
-    with pytest.raises(ThreadExecutionError, match="lease"):
-        service.append_runtime_event(claim, event_type="assistant_text_delta", payload={"text": "late"})
-    assert service.interrupt_expired_attempts() == 1
     snapshot = service.snapshot("thr_attempts")
-    assert snapshot.current_attempt is None
-    events = service.read_events("thr_attempts", 0).events
-    assert events[-1].event_type == "attempt_interrupted"
-    assert events[-1].payload["reason"] == "lease_expired"
-    assert events[-1].payload["error_code"] == "lease_expired"
-    assert events[-1].payload["answer"]
+    assert snapshot.current_attempt.attempt_id == claim.attempt.attempt_id
+    records = service.read_events("thr_attempts", 0).events
+    notices = [event for event in records if event.event_type == "attempt_contact_delayed"]
+    assert len(notices) == 1
+    assert notices[0].payload["answer"]
+    service.append_runtime_event(claim, event_type="assistant_text_delta", payload={"text": "late"})
+    assert service.renew_attempt(claim, lease_seconds=30)
+    terminal = service.finish_attempt(claim, phase="completed", payload={"answer": "late but owned"})
+    assert terminal.current_attempt is None
+    assert service.read_events("thr_attempts", 0).events[-1].event_type == "attempt_completed"
+    with pytest.raises(ThreadExecutionError, match="lease|owner"):
+        service.finish_attempt(claim, phase="completed", payload={"answer": "conflicting second write"})
 
-    with pytest.raises(ThreadExecutionError, match="lease"):
-        service.finish_attempt(claim, phase="completed", payload={"answer": "late"})
-
-
-def test_snapshot_never_presents_an_expired_running_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
-    service = _service()
-    service.submit_command(_command("cmd_snapshot_expired"))
-    claim = service.claim_attempt("thread-worker", lease_seconds=1)
-    assert claim is not None
-    clock = time.monotonic()
-    monkeypatch.setattr(time, "monotonic", lambda: clock + 2)
-
-    snapshot = service.snapshot("thr_attempts")
-
-    assert snapshot.current_attempt is None
-    assert service.read_events("thr_attempts", 0).events[-1].event_type == "attempt_interrupted"
 
 def test_reopen_same_model_context_creates_fresh_context_at_turn_boundary() -> None:
     service = _model_service()

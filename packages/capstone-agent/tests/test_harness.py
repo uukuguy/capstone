@@ -1004,7 +1004,9 @@ def test_terminal_write_failure_records_stage_and_keeps_published_artifact(monke
                       if event.event_type == 'attempt_settlement_diagnostic')
     assert diagnostic.payload['error_code'] == 'terminal_write_failed'
     assert diagnostic.attempt_id == claim.attempt.attempt_id
-    service._attempts[claim.attempt.attempt_id]['lease_deadline'] = 0
+    assert service.interrupt_expired_attempts() == 0
+    service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+        payload={'stage': 'worker_execution'}, visibility='diagnostic')
     assert service.interrupt_expired_attempts() == 1
     public = next(event for event in service._events if event.event_type == 'attempt_interrupted')
     assert public.payload['stage'] == 'terminal_write'

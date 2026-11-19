@@ -309,15 +309,36 @@ def _terminal_result_projections(
     return tuple(projections)
 
 
+_WORKER_EXIT_EVENTS = {'attempt_settlement_diagnostic', 'attempt_worker_diagnostic'}
+def _owner_fingerprint(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _owned_runtime_payload(event_type: str, payload, visibility: str, claim) -> dict:
+    if event_type in _WORKER_EXIT_EVENTS and visibility == 'diagnostic':
+        return {**payload, 'owner_fingerprint': _owner_fingerprint(claim.lease_token)}
+    return dict(payload)
+
+
+def _terminal_write_identity(claim, phase: str, payload: Mapping[str, Any]) -> str:
+    return hashlib.sha256(_canonical({
+        'thread_id': claim.thread_id, 'attempt_id': claim.attempt.attempt_id,
+        'owner': _owner_fingerprint(claim.lease_token), 'phase': phase, 'payload': dict(payload),
+    }).encode()).hexdigest()
+
+
+_CONTACT_DELAYED = {'reason': 'heartbeat_delayed',
+    'answer': '暂未收到执行进程的心跳。任务仍保留，已保存的记录和制品仍可查看。'}
+
+
 def _interruption_details(diagnostic_events: set[str]) -> dict[str, str]:
     if 'attempt_settlement_diagnostic' in diagnostic_events:
-        return {'reason': 'lease_expired', 'error_code': 'terminal_write_failed',
+        return {'reason': 'worker_exit_recorded', 'error_code': 'terminal_write_failed',
                 'stage': 'terminal_write', 'answer': '执行结果结算失败。已保存的制品仍可查看。'}
     if 'attempt_worker_diagnostic' in diagnostic_events:
-        return {'reason': 'lease_expired', 'error_code': 'worker_execution_failed',
-                'stage': 'worker_execution', 'answer': '执行进程发生异常，随后租约到期。已保存的执行记录和制品仍可查看。'}
-    return {'reason': 'lease_expired', 'error_code': 'lease_expired',
-            'answer': '执行租约到期，系统未收到后续确认。已保存的执行记录和制品仍可查看。'}
+        return {'reason': 'worker_exit_recorded', 'error_code': 'worker_execution_failed',
+                'stage': 'worker_execution', 'answer': '执行进程因异常退出。已保存的执行记录和制品仍可查看。'}
+    raise ValueError('worker exit record is required')
 
 
 def _prepare_terminal_transition(
@@ -2586,9 +2607,10 @@ class InMemoryThreadService(NativeExecutionOwner):
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
         with self._lock:
-            record = self._require_claim(claim)
-            if record["attempt"].phase != "running":
-                raise ThreadExecutionError("attempt is not running")
+            try:
+                record = self._require_claim(claim)
+            except ThreadExecutionError:
+                return False
             record["lease_deadline"] = time.monotonic() + lease_seconds
             return True
 
@@ -2698,8 +2720,22 @@ class InMemoryThreadService(NativeExecutionOwner):
         interrupted = 0
         with self._lock:
             for record in list(self._attempts.values()):
-                deadline = record.get("lease_deadline")
-                if record["attempt"].phase != "running" or deadline is None or deadline > cutoff:
+                token = record.get("lease_token")
+                if record["attempt"].phase != "running" or not token:
+                    continue
+                attempt = record["attempt"]
+                events = [item for item in self._events if item.attempt_id == attempt.attempt_id]
+                owner = _owner_fingerprint(token)
+                diagnostics = {item.event_type for item in events if item.visibility == 'diagnostic'
+                               and item.event_type in _WORKER_EXIT_EVENTS
+                               and item.payload.get('owner_fingerprint') == owner}
+                if 'attempt_worker_diagnostic' not in diagnostics:
+                    deadline = record.get("lease_deadline")
+                    if (deadline is not None and deadline <= cutoff
+                            and not any(item.event_type == 'attempt_contact_delayed' for item in events)):
+                        notice = self._append_event(event_type='attempt_contact_delayed',
+                            attempt=attempt, payload=_CONTACT_DELAYED)
+                        self._snapshot = replace(self._snapshot, last_event_seq=notice.event_seq)
                     continue
                 before = self._snapshot
                 terminal = replace(record["attempt"], phase="interrupted")
@@ -2711,9 +2747,6 @@ class InMemoryThreadService(NativeExecutionOwner):
                 record["lease_token"] = None
                 record["lease_deadline"] = None
                 self._seal_open_captures(terminal, record.get('model_context'))
-                diagnostics = {item.event_type for item in self._events
-                    if item.attempt_id == terminal.attempt_id and item.visibility == 'diagnostic'
-                    and item.event_type in {'attempt_settlement_diagnostic', 'attempt_worker_diagnostic'}}
                 event = self._append_event(
                     event_type="attempt_interrupted", attempt=terminal,
                     payload={**_interruption_details(diagnostics), **work_payload},
@@ -2749,7 +2782,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     return previous
             event = self._append_event(
                 event_type=event_type, attempt=record["attempt"],
-                payload=dict(payload), visibility=visibility,
+                payload=_owned_runtime_payload(event_type, payload, visibility, claim), visibility=visibility,
                 context=record["model_context"],
             )
             self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
@@ -2776,8 +2809,13 @@ class InMemoryThreadService(NativeExecutionOwner):
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
         _validate_bounded_json(payload, name="attempt.payload", maximum=limits.control_document_bytes)
+        write_id = _terminal_write_identity(claim, phase, payload)
         with self._lock:
             before = self._snapshot
+            previous = self._attempts.get(claim.attempt.attempt_id)
+            if (claim.thread_id == before.thread_id and previous is not None
+                    and previous.get('terminal_write_id') == write_id):
+                return before
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
@@ -2808,6 +2846,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                 result_projections=work_snapshot.result_projections,
             )
             self._append_replacement(before, terminal, record)
+            record['terminal_write_id'] = write_id
             snapshot = self._snapshot
         from .session_title_summary import schedule_completed_title
         schedule_completed_title(self, claim, phase, snapshot)
@@ -2861,8 +2900,7 @@ class InMemoryThreadService(NativeExecutionOwner):
             raise ThreadExecutionError("attempt thread is invalid")
         record = self._attempts.get(attempt_id)
         if (record is None or record["lease_token"] != lease_token
-                or record.get("lease_deadline") is None
-                or record["lease_deadline"] <= time.monotonic()):
+                or record["attempt"].phase != "running"):
             raise ThreadExecutionError("attempt lease is unavailable")
         return record
 
@@ -3382,6 +3420,7 @@ ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_conte
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS submission_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS terminal_write_id text;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_skills jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
@@ -4958,7 +4997,6 @@ class PostgresThreadService(NativeExecutionOwner):
             attempt = connection.execute(
                 """SELECT * FROM capstone_thread_attempts
                    WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
-                     AND lease_deadline > clock_timestamp()
                    FOR UPDATE""",
                 (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
@@ -5003,7 +5041,7 @@ class PostgresThreadService(NativeExecutionOwner):
         with self._connect() as connection:
             row = connection.execute("""SELECT intent_input_snapshot FROM capstone_thread_attempts
                 WHERE thread_id = %s AND attempt_id = %s AND lease_token = %s
-                AND phase = 'running' AND lease_deadline > clock_timestamp() FOR UPDATE""",
+                AND phase = 'running' FOR UPDATE""",
                 (claim.thread_id, claim.attempt.attempt_id, claim.lease_token)).fetchone()
             if row is None:
                 raise ThreadExecutionError("attempt lease is unavailable")
@@ -5021,7 +5059,7 @@ class PostgresThreadService(NativeExecutionOwner):
         with self._connect() as connection:
             row = connection.execute("""SELECT intent_decision_snapshot FROM capstone_thread_attempts
                 WHERE thread_id = %s AND attempt_id = %s AND lease_token = %s
-                AND phase = 'running' AND lease_deadline > clock_timestamp() FOR UPDATE""",
+                AND phase = 'running' FOR UPDATE""",
                 (claim.thread_id, claim.attempt.attempt_id, claim.lease_token)).fetchone()
             if row is None:
                 raise ThreadExecutionError('attempt lease is unavailable')
@@ -5040,7 +5078,6 @@ class PostgresThreadService(NativeExecutionOwner):
                 """UPDATE capstone_thread_attempts
                    SET lease_deadline = clock_timestamp() + (%s * interval '1 second')
                    WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
-                     AND lease_deadline > clock_timestamp()
                    RETURNING attempt_id""",
                 (lease_seconds, claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
@@ -5063,7 +5100,7 @@ class PostgresThreadService(NativeExecutionOwner):
             active = connection.execute(
                 """SELECT 1 FROM capstone_thread_attempts
                    WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s
-                     AND phase = 'running' AND lease_deadline > clock_timestamp()""",
+                     AND phase = 'running'""",
                 (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
             if active is None:
@@ -5091,7 +5128,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 """SELECT 1 FROM capstone_thread_attempts a
                    JOIN capstone_threads t ON t.thread_id = a.thread_id
                    WHERE a.attempt_id = %s AND a.thread_id = %s AND a.lease_token = %s
-                     AND a.phase = 'running' AND a.lease_deadline > clock_timestamp()
+                     AND a.phase = 'running'
                      AND t.workspace_name = %s
                      AND t.current_attempt->>'attempt_id' = a.attempt_id
                      AND NOT EXISTS (SELECT 1 FROM capstone_thread_events e
@@ -5109,7 +5146,7 @@ class PostgresThreadService(NativeExecutionOwner):
             attempt = connection.execute(
                 """SELECT 1 FROM capstone_thread_attempts
                    WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s
-                     AND phase = 'running' AND lease_deadline > clock_timestamp()""",
+                     AND phase = 'running'""",
                 (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
             if attempt is None:
@@ -5221,10 +5258,18 @@ class PostgresThreadService(NativeExecutionOwner):
         interrupted = 0
         with self._connect() as connection:
             rows = connection.execute(
-                """SELECT * FROM capstone_thread_attempts
-                   WHERE phase = 'running' AND lease_deadline <= clock_timestamp()
-                """ + (" AND thread_id = %s" if thread_id is not None else "") +
-                " ORDER BY lease_deadline, attempt_id FOR UPDATE SKIP LOCKED",
+                """SELECT a.*, a.lease_deadline <= clock_timestamp() AS contact_delayed
+                   FROM capstone_thread_attempts a
+                   WHERE a.phase = 'running' AND a.lease_token IS NOT NULL AND (
+                      EXISTS (SELECT 1 FROM capstone_thread_events e
+                          WHERE e.thread_id=a.thread_id AND e.attempt_id=a.attempt_id
+                            AND e.visibility='diagnostic' AND e.event_type='attempt_worker_diagnostic'
+                            AND e.payload->>'owner_fingerprint' = encode(sha256(convert_to(a.lease_token,'UTF8')),'hex'))
+                      OR (a.lease_deadline <= clock_timestamp() AND NOT EXISTS (
+                          SELECT 1 FROM capstone_thread_events e WHERE e.thread_id=a.thread_id
+                            AND e.attempt_id=a.attempt_id AND e.event_type='attempt_contact_delayed')))
+                """ + (" AND a.thread_id = %s" if thread_id is not None else "") +
+                " ORDER BY a.lease_deadline, a.attempt_id FOR UPDATE OF a SKIP LOCKED",
                 (thread_id,) if thread_id is not None else (),
             ).fetchall()
             for attempt in rows:
@@ -5237,6 +5282,24 @@ class PostgresThreadService(NativeExecutionOwner):
                 current = thread["current_attempt"]
                 if not isinstance(current, dict) or current.get("attempt_id") != attempt["attempt_id"]:
                     raise ThreadExecutionError("attempt snapshot is inconsistent")
+                markers = {row['event_type'] for row in connection.execute(
+                    """SELECT DISTINCT event_type FROM capstone_thread_events
+                       WHERE thread_id=%s AND attempt_id=%s AND (event_type='attempt_contact_delayed'
+                          OR (visibility='diagnostic' AND event_type=ANY(%s)
+                              AND payload->>'owner_fingerprint'=%s))""",
+                    (attempt['thread_id'], attempt['attempt_id'], sorted(_WORKER_EXIT_EVENTS),
+                     _owner_fingerprint(attempt['lease_token']))).fetchall()}
+                diagnostics = markers & _WORKER_EXIT_EVENTS
+                if 'attempt_worker_diagnostic' not in diagnostics:
+                    if attempt['contact_delayed'] and 'attempt_contact_delayed' not in markers:
+                        notice = self._make_attempt_event(thread, AttemptSnapshot.from_document(current),
+                            event_seq=thread['last_event_seq'] + 1,
+                            event_type='attempt_contact_delayed', payload=_CONTACT_DELAYED)
+                        self._insert_event(connection, notice)
+                        connection.execute(
+                            'UPDATE capstone_threads SET last_event_seq=%s WHERE thread_id=%s',
+                            (notice.event_seq, thread['thread_id']))
+                    continue
                 terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
                 before = self._snapshot_from_row(thread)
                 from .enterprise_context import TaskContext
@@ -5248,10 +5311,6 @@ class PostgresThreadService(NativeExecutionOwner):
                     task_context, terminal.attempt_id, 'interrupted')
                 event_seq = self._seal_open_captures_postgres(
                     connection, thread, terminal, thread["last_event_seq"], context=None)
-                diagnostics = {row['event_type'] for row in connection.execute(
-                    "SELECT DISTINCT event_type FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s "
-                    "AND visibility='diagnostic' AND event_type IN ('attempt_settlement_diagnostic','attempt_worker_diagnostic')",
-                    (attempt['thread_id'], attempt['attempt_id'])).fetchall()}
                 event = self._make_attempt_event(
                     thread, terminal, event_seq=event_seq + 1,
                     event_type="attempt_interrupted",
@@ -5285,7 +5344,6 @@ class PostgresThreadService(NativeExecutionOwner):
             attempt = connection.execute(
                 """SELECT * FROM capstone_thread_attempts
                    WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
-                     AND lease_deadline > clock_timestamp()
                    FOR UPDATE""",
                 (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
@@ -5313,7 +5371,7 @@ class PostgresThreadService(NativeExecutionOwner):
                     return previous
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
-                event_type=event_type, payload=dict(payload), visibility=visibility,
+                event_type=event_type, payload=_owned_runtime_payload(event_type, payload, visibility, claim), visibility=visibility,
                 context=claim.model_context,
             )
             self._insert_event(connection, event)
@@ -5329,15 +5387,16 @@ class PostgresThreadService(NativeExecutionOwner):
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
         _validate_bounded_json(payload, name="attempt.payload", maximum=limits.control_document_bytes)
+        write_id = _terminal_write_identity(claim, phase, payload)
         with self._connect() as connection:
             attempt = connection.execute(
                 """SELECT * FROM capstone_thread_attempts
-                   WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
-                     AND lease_deadline > clock_timestamp()
-                   FOR UPDATE""",
-                (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
+                   WHERE attempt_id = %s AND thread_id = %s FOR UPDATE""",
+                (claim.attempt.attempt_id, claim.thread_id),
             ).fetchone()
-            if attempt is None:
+            replay = attempt is not None and attempt['terminal_write_id'] == write_id
+            if not replay and (attempt is None or attempt['phase'] != 'running'
+                               or attempt['lease_token'] != claim.lease_token):
                 raise ThreadExecutionError("attempt lease is unavailable")
             thread = connection.execute(
                 "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
@@ -5345,6 +5404,8 @@ class PostgresThreadService(NativeExecutionOwner):
             ).fetchone()
             if thread is None:
                 raise ThreadNotFound(claim.thread_id)
+            if replay:
+                return self._snapshot_from_row(thread)
             current = thread["current_attempt"]
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
@@ -5378,9 +5439,9 @@ class PostgresThreadService(NativeExecutionOwner):
             self._insert_event(connection, event)
             connection.execute(
                 """UPDATE capstone_thread_attempts
-                   SET phase = %s, lease_token = NULL, lease_deadline = NULL
+                   SET phase = %s, lease_token = NULL, lease_deadline = NULL, terminal_write_id = %s
                    WHERE attempt_id = %s""",
-                (phase, claim.attempt.attempt_id),
+                (phase, write_id, claim.attempt.attempt_id),
             )
             updated = connection.execute(
                 """UPDATE capstone_threads

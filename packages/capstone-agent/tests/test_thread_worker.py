@@ -182,10 +182,9 @@ def test_claim_preparation_does_not_consume_the_worker_lease(monkeypatch) -> Non
     assert clock[0] == 140.0
     assert service.renew_attempt(claim, 30)
 
-    # An actual expired lease must still be rejected; preparation is not renewal.
+    # A slow preparation or a missed heartbeat does not replace the owner.
     clock[0] += 31.0
-    with pytest.raises(thread_service.ThreadExecutionError, match="lease is unavailable"):
-        service.renew_attempt(claim, 30)
+    assert service.renew_attempt(claim, 30)
 
 
 def test_thread_worker_stops_when_requested() -> None:

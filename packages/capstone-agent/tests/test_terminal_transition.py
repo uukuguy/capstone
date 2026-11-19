@@ -35,8 +35,10 @@ def test_terminal_transition_matches_both_stores_without_mutating_inputs(executi
                  if e.event_type == 'attempt_' + phase)
     assert event.payload == event_payload
     assert finished.last_event_seq == event.event_seq
+    replay = store.finish_attempt(claim, phase=phase, payload=payload)
+    assert replay.last_event_seq == finished.last_event_seq
     with pytest.raises(ThreadExecutionError):
-        store.finish_attempt(claim, phase=phase, payload=payload)
+        store.finish_attempt(claim, phase=phase, payload={'answer': 'Conflicting delivery'})
     restored = store.snapshot(thread)
     assert restored.current_attempt is None
     assert restored.works == finished.works

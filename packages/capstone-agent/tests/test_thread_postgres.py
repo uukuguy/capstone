@@ -243,13 +243,13 @@ def test_postgres_claim_finishes_slow_history_reads_before_minting_lease(
     assert reads == [reader]
     assert service.renew_attempt(claim, lease_seconds=1)
 
-    # Preparation must not change the strict rejection of an expired lease.
+    # A missed heartbeat does not change ownership.
     with psycopg.connect(service.dsn) as connection:
         connection.execute(
             "UPDATE capstone_thread_attempts SET lease_deadline=clock_timestamp()-interval '1 second' WHERE attempt_id=%s",
             (claim.attempt.attempt_id,),
         )
-    assert not service.renew_attempt(claim, lease_seconds=1)
+    assert service.renew_attempt(claim, lease_seconds=1)
 
 
 @pytest.mark.parametrize("switch", [False, True])
@@ -564,7 +564,7 @@ def test_postgres_family_filter_claims_only_matching_threads(
             connection.execute("DELETE FROM capstone_threads WHERE thread_id = %s", (pypsa_id,))
 
 
-def test_postgres_thread_store_interrupts_expired_attempt(
+def test_postgres_thread_store_allows_owner_to_commit_after_missed_heartbeat(
     postgres_thread_service: tuple[PostgresThreadService, str],
 ) -> None:
     service, thread_id = postgres_thread_service
@@ -579,9 +579,12 @@ def test_postgres_thread_store_interrupts_expired_attempt(
             (claim.attempt.attempt_id,),
         )
 
-    assert service.interrupt_expired_attempts() == 1
-    assert service.snapshot(thread_id).current_attempt is None
-    assert service.read_events(thread_id, 0).events[-1].event_type == "attempt_interrupted"
+    assert service.interrupt_expired_attempts() == 0
+    assert service.snapshot(thread_id).current_attempt.attempt_id == claim.attempt.attempt_id
+    assert service.read_events(thread_id, 0).events[-1].event_type == "attempt_contact_delayed"
+    service.append_runtime_event(claim, event_type='assistant_text_delta', payload={'text': 'late'})
+    service.finish_attempt(claim, phase="completed", payload={"answer": "late but owned"})
+    assert service.read_events(thread_id, 0).events[-1].event_type == "attempt_completed"
 
 
 @pytest.mark.parametrize("damage", ["missing", "drift"])
@@ -646,3 +649,48 @@ def test_postgres_application_transition_reconstructs_state_and_is_idempotent(
     fresh = PostgresThreadService(service.dsn)
     assert fresh.snapshot(thread_id).application_state == transition.state
     assert fresh.read_events(thread_id, 0).events[-1].event_type == "case_execution_created"
+
+
+def test_postgres_serializes_terminal_writes_and_rejects_former_owner(postgres_thread_service):
+    from concurrent.futures import ThreadPoolExecutor
+    from dataclasses import replace
+    from threading import Barrier
+
+    from capstone_agent.thread_service import ThreadExecutionError
+
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    former = service.claim_attempt('worker-a', 30)
+    service.append_runtime_event(former, event_type='attempt_worker_diagnostic',
+        payload={'stage': 'worker_execution'}, visibility='diagnostic')
+    with service._connect() as connection:
+        connection.execute(
+            'UPDATE capstone_thread_attempts SET lease_token=%s WHERE attempt_id=%s',
+            ('replacement-owner', former.attempt.attempt_id))
+    owner = replace(former, lease_token='replacement-owner')
+    assert service.interrupt_expired_attempts() == 0
+
+    with pytest.raises(ThreadExecutionError):
+        service.finish_attempt(former, phase='completed', payload={'answer': 'Former owner'})
+
+    barrier = Barrier(2)
+
+    def settle(answer):
+        barrier.wait(timeout=5)
+        try:
+            service.finish_attempt(owner, phase='completed', payload={'answer': answer})
+        except ThreadExecutionError:
+            return None
+        return answer
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(settle, ['First result', 'Second result']))
+    winner, = [result for result in results if result is not None]
+    terminal, = [event for event in service.read_events(thread_id, 0).events
+                 if event.event_type == 'attempt_completed']
+    assert terminal.payload['answer'] == winner
+    replayed = service.finish_attempt(owner, phase='completed', payload={'answer': winner})
+    assert replayed.current_attempt is None
+    assert len([event for event in service.read_events(thread_id, 0).events
+                if event.event_type == 'attempt_completed']) == 1

@@ -767,7 +767,8 @@ class HarnessAttemptRunner:
                 self._persist_plan(claim, plan)
             self._runtime.start()
             lease.check()
-            self._renew_lease(claim)
+            if self._service.cancel_requested(claim):
+                raise _AttemptCancelled
             self._stages.mark_execution_entry()
             goal_mode = False
             if claim.task_context is not None:
@@ -1086,12 +1087,6 @@ class HarnessAttemptRunner:
         event = self._stages.begin_finalization()
         if event is not None:
             self._persist_event(claim, event)
-
-    def _renew_lease(self, claim: AttemptClaim) -> None:
-        if not self._service.renew_attempt(claim, self._lease_seconds):
-            raise RuntimeError("attempt lease is unavailable")
-        if self._service.cancel_requested(claim):
-            raise _AttemptCancelled
 
     def _finish_cancelled(self, claim: AttemptClaim, answer: str) -> None:
         try:

@@ -357,9 +357,8 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     frozen = claim.submission['_native_execution']
     executor.identity = {**executor.identity, 'config_revision': 'different-config'}
     assert claim.submission['_native_execution'] == frozen
-    with psycopg.connect(store.dsn) as connection:
-        connection.execute("UPDATE capstone_thread_attempts SET lease_deadline=clock_timestamp()-interval '1 second' WHERE attempt_id=%s",
-                           (claim.attempt.attempt_id,))
+    restored.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+        payload={'stage': 'worker_execution'}, visibility='diagnostic')
     assert restored.interrupt_expired_attempts() == 1
     assert restored.snapshot(thread_id).works[0]['status'] == 'interrupted'
     assert restored.snapshot(thread_id).works[0]['messages'] == ['Keep this input']

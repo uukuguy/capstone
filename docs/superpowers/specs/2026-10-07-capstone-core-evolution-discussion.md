@@ -9,9 +9,8 @@ lock but also requires an unexpired lease. The sweep also makes an expired
 running Attempt terminal. These are the behaviors to change together.
 
 Proposed implementation: serialize claim changes and terminal writes under
-the existing Attempt row lock. Add a durable owner generation to the claim.
-A terminal transaction accepts only the current generation and a running
-Attempt. An explicit stop or takeover changes the durable state or generation
+the existing Attempt row lock. Use the existing durable claim token as the owner generation. A terminal
+transaction accepts only the current generation and a running Attempt. An explicit stop or takeover changes the durable state or generation
 under the same lock. A late former owner cannot commit. A retry of an already
 committed terminal write reads its existing result.
 
@@ -28,8 +27,12 @@ concurrent terminal writes, an old owner writing after takeover, a lost
 terminal response, a worker death after product publication, and restored
 user replies and product links in the same Thread. Test against PostgreSQL
 and the native worker. Retain compatibility with previously stored Attempts.
-This is the accepted direction and a proposed implementation boundary.
-The runtime still uses the existing lease checks.
+Implementation candidate: current owner checks and row locks now govern durable
+writes. Missed contact records one visible notice. A worker exit marker is
+bound to its current claim token. An exact retry of a terminal write returns
+the saved outcome without publishing another event. When there is no confirmed
+worker exit, the existing Attempt remains available for its current owner.
+A hard process loss with an unknown executor outcome remains pending.
 
 
 ## 2026-11-17：Control 工作空间三视角已确认
