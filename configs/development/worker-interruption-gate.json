@@ -8,11 +8,26 @@
   "paths": [
     ".github/workflows/verify.yml",
     "configs/development/worker-interruption-gate.json",
-    "packages/capstone-agent/src/capstone_agent/thread_service.py",
     "packages/capstone-agent/src/capstone_agent/thread_materials.py",
+    "packages/capstone-agent/src/capstone_agent/thread_service.py",
+    "packages/capstone-agent/src/capstone_agent/thread_worker.py",
+    "packages/capstone-agent/tests/test_thread_attempts.py",
+    "packages/capstone-agent/tests/test_thread_worker.py",
     "packages/capstone-agent/tests/test_worker_interruption_products.py",
+    "packages/capstone-app/src/CapstoneAssistantThread.test.tsx",
+    "packages/capstone-app/src/CapstoneAssistantThread.tsx",
     "tools/ci_scope.py",
     "tools/test_worker_interruption.sh",
     "tools/tests/test_ci_worker_interruption.py"
+  ],
+  "anchor_sets": [
+    [
+      "packages/capstone-agent/src/capstone_agent/thread_materials.py",
+      "packages/capstone-agent/tests/test_worker_interruption_products.py"
+    ],
+    [
+      "packages/capstone-agent/src/capstone_agent/thread_worker.py",
+      "packages/capstone-agent/tests/test_worker_interruption_products.py"
+    ]
   ]
 }

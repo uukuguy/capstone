@@ -309,11 +309,15 @@ def _terminal_result_projections(
     return tuple(projections)
 
 
-def _interruption_details(settlement_failed: bool) -> dict[str, str]:
-    if settlement_failed:
+def _interruption_details(diagnostic_events: set[str]) -> dict[str, str]:
+    if 'attempt_settlement_diagnostic' in diagnostic_events:
         return {'reason': 'lease_expired', 'error_code': 'terminal_write_failed',
-                'stage': 'terminal_write', 'answer': '制品发布后，执行结果结算失败。已保存的制品仍可查看。'}
-    return {'reason': 'lease_expired'}
+                'stage': 'terminal_write', 'answer': '执行结果结算失败。已保存的制品仍可查看。'}
+    if 'attempt_worker_diagnostic' in diagnostic_events:
+        return {'reason': 'lease_expired', 'error_code': 'worker_execution_failed',
+                'stage': 'worker_execution', 'answer': '执行进程发生异常，随后租约到期。已保存的执行记录和制品仍可查看。'}
+    return {'reason': 'lease_expired', 'error_code': 'lease_expired',
+            'answer': '执行租约到期，系统未收到后续确认。已保存的执行记录和制品仍可查看。'}
 
 
 def _prepare_terminal_transition(
@@ -2707,11 +2711,12 @@ class InMemoryThreadService(NativeExecutionOwner):
                 record["lease_token"] = None
                 record["lease_deadline"] = None
                 self._seal_open_captures(terminal, record.get('model_context'))
-                settlement_failed = any(item.attempt_id == terminal.attempt_id
-                    and item.event_type == 'attempt_settlement_diagnostic' for item in self._events)
+                diagnostics = {item.event_type for item in self._events
+                    if item.attempt_id == terminal.attempt_id and item.visibility == 'diagnostic'
+                    and item.event_type in {'attempt_settlement_diagnostic', 'attempt_worker_diagnostic'}}
                 event = self._append_event(
                     event_type="attempt_interrupted", attempt=terminal,
-                    payload={**_interruption_details(settlement_failed), **work_payload},
+                    payload={**_interruption_details(diagnostics), **work_payload},
                 )
                 self._snapshot = replace(
                     work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
@@ -5243,14 +5248,14 @@ class PostgresThreadService(NativeExecutionOwner):
                     task_context, terminal.attempt_id, 'interrupted')
                 event_seq = self._seal_open_captures_postgres(
                     connection, thread, terminal, thread["last_event_seq"], context=None)
-                settlement_failed = connection.execute(
-                    "SELECT 1 FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s "
-                    "AND event_type='attempt_settlement_diagnostic' LIMIT 1",
-                    (attempt['thread_id'], attempt['attempt_id'])).fetchone() is not None
+                diagnostics = {row['event_type'] for row in connection.execute(
+                    "SELECT DISTINCT event_type FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s "
+                    "AND visibility='diagnostic' AND event_type IN ('attempt_settlement_diagnostic','attempt_worker_diagnostic')",
+                    (attempt['thread_id'], attempt['attempt_id'])).fetchall()}
                 event = self._make_attempt_event(
                     thread, terminal, event_seq=event_seq + 1,
                     event_type="attempt_interrupted",
-                    payload={**_interruption_details(settlement_failed), **work_payload},
+                    payload={**_interruption_details(diagnostics), **work_payload},
                 )
                 self._insert_event(connection, event)
                 connection.execute(

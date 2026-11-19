@@ -711,7 +711,9 @@ def test_attempt_lease_can_be_renewed_and_expired_attempt_is_interrupted(monkeyp
     assert snapshot.current_attempt is None
     events = service.read_events("thr_attempts", 0).events
     assert events[-1].event_type == "attempt_interrupted"
-    assert events[-1].payload == {"reason": "lease_expired"}
+    assert events[-1].payload["reason"] == "lease_expired"
+    assert events[-1].payload["error_code"] == "lease_expired"
+    assert events[-1].payload["answer"]
 
     with pytest.raises(ThreadExecutionError, match="lease"):
         service.finish_attempt(claim, phase="completed", payload={"answer": "late"})

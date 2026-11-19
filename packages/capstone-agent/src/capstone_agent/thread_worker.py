@@ -62,7 +62,19 @@ def run_pending_attempt(
                 cast(ThreadExecutionService, writer) if writer is not None else service,
                 runtime_factory, claim, lease, lease_seconds, turn_router,
             )
-        except Exception:
+        except Exception as error:
+            from .native_failure_origin import native_failure_origin
+            diagnostic = {'stage': 'worker_execution', 'error_code': 'worker_execution_failed',
+                          'exception_type': type(error).__name__, 'failure_origin': native_failure_origin(error)}
+            _LOG.warning('Worker execution failed; attempt_id=%s exception_type=%s origin=%s',
+                         claim.attempt.attempt_id, diagnostic['exception_type'], diagnostic['failure_origin'])
+            try:
+                service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+                                             payload=diagnostic, visibility='diagnostic')
+            except Exception:
+                # A terminal commit or lost lease can already have closed this Attempt.
+                # Keep the sanitized log and let the ledger determine the outcome.
+                pass
             if writer is not None and writer.error is not None:
                 # Use the original synchronous service: the failed writer cannot
                 # acknowledge a terminal result through its own flush barrier.

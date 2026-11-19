@@ -11,5 +11,9 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_terminal_transition.py \
   packages/capstone-agent/tests/test_thread_postgres.py \
   packages/capstone-agent/tests/test_enterprise_normal_chat.py \
+  packages/capstone-agent/tests/test_thread_attempts.py \
+  packages/capstone-agent/tests/test_thread_worker.py \
   tools/tests/test_ci_worker_interruption.py -q
+npm run check --prefix packages/capstone-app
+npm test --prefix packages/capstone-app -- src/CapstoneAssistantThread.test.tsx
 git diff --check

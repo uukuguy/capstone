@@ -13,7 +13,7 @@ from test_thread_postgres import postgres_thread_service
 from test_thread_work_execution import command
 
 
-@pytest.mark.parametrize('end', ['expiry', 'explicit'])
+@pytest.mark.parametrize('end', ['expiry', 'worker_failure', 'explicit'])
 @pytest.mark.parametrize('follow_kind', ['send_message', 'start_goal'])
 def test_interruption_seals_exact_captured_file_for_new_instruction(chat_store, end, follow_kind, monkeypatch):
     store, tid = chat_store
@@ -32,7 +32,11 @@ def test_interruption_seals_exact_captured_file_for_new_instruction(chat_store, 
     captured=project_native_artifact_capture(claim,request,event)[0]
     objects.put(artifact_object_key(captured),data,'text/markdown')
     store.append_runtime_event(claim,event_type='native_artifact_published',payload={'artifact':captured})
-    if end=='expiry':
+    if end=='worker_failure':
+        store.append_runtime_event(claim, event_type='attempt_worker_diagnostic', payload={
+            'stage': 'worker_execution', 'error_code': 'worker_execution_failed',
+            'exception_type': 'OSError', 'failure_origin': []}, visibility='diagnostic')
+    if end in {'expiry', 'worker_failure'}:
         if hasattr(store,'_lock'):
             store._attempts[claim.attempt.attempt_id]['lease_deadline']=time.monotonic()-1
         else:
@@ -60,7 +64,12 @@ def test_interruption_seals_exact_captured_file_for_new_instruction(chat_store, 
     versions=[e for e in records if e.event_type=='native_artifact_published']
     assert [e.payload['artifact']['source_status'] for e in versions]==['running','incomplete']
     assert versions[1].payload['artifact']=={**captured,'source_status':'incomplete'}
-    assert versions[1].event_seq < next(e.event_seq for e in records if e.event_type=='attempt_interrupted')
+    interrupted = next(e for e in records if e.event_type=='attempt_interrupted')
+    assert versions[1].event_seq < interrupted.event_seq
+    if end == 'worker_failure':
+        assert interrupted.payload['error_code'] == 'worker_execution_failed'
+        assert interrupted.payload['stage'] == 'worker_execution'
+        assert interrupted.payload['answer']
     assert objects.get(artifact_object_key(captured),len(data))==data
     if hasattr(store,'_lock'):
         files=_process_files(store,snapshot,claim.task_context.binding.work_id,None,None)
