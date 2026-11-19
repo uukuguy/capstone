@@ -8266,3 +8266,27 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-19: 8d4e6702 restores the answer header and folds existing conversation replies to saved summaries.
 
 - 2026-11-19: 196e8222 records single-answer toggling, whole-session folding, and historical-page coverage.
+
+- 07:24 Session Goal plan contract validates criteria and distinct instructions; six focused tests passed. [2cea7d5b]
+
+- 07:34 Bind initial Goal plans to current session identity; reject stale planner results. Eleven focused tests passed. [c8e72a55]
+
+- 07:46 Admit Goal first instruction from a saved plan; 167 memory/PostgreSQL checks and App types passed. [d8eca79f]
+
+- 07:53 Planned Goals review durable steps, verify criteria and retain settlement diagnostics. 236 backend and 17 App checks passed. [755446b8]
+
+- 07:56 Normalize a real planner objective echo, surface settlement errors, and select scoped Goal CI. [3f0eb9e2]
+
+- 07:57 Scoped Goal gate passed with 263 backend and 209 App checks, including interrupted product recovery. [dd14f975]
+
+- 08:02 Real Goal ran two steps and read exact source bytes. Fixed review admission and retry; 107 checks passed. [ef7c3af6]
+
+- 08:03 Register session Goal work package, acceptance and current verification boundary. [dfbf5a33]
+
+- 08:06 Real Goal thr_38b08d60160509262c51 completed two instructions and four criteria with exact product handoff. [a2eeafbb]
+
+- 08:09 Reused the Capstone tab to verify saved Goal recovery and bounded plan expansion. [c6ec6771]
+
+- 08:13 PR153 merged to dev 8861d4ae after macOS scoped CI 44426864528 passed.
+
+- 08:19 Actual dev 8861d4ae rebuilt; image 035d309dfdfc ready. Completed Goal and report restored in existing browser tab.

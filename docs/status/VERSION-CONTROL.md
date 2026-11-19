@@ -1286,7 +1286,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR140已合入38a9e77f；主会话持续掌控与右栏执行详情接受；发布基线1.1.0保留 | Mission941afaee真实闭环已通过，待定向CI集成；云端/demo不变 |
+| dev | 共同基座与企业工作台集成 | PR152 与 PR153 已合入。会话 Goal 按计划逐条执行并复盘 | 实际 dev 本机重建、Goal 与报告恢复通过。云端及 demo 保持原部署 |
 
 ## 功能包前沿
 
@@ -1294,7 +1294,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| session-goal-planning | 会话内目标规划与复盘 | 1 | 本机真实验收通过 | 同一会话主 Agent 先规划，Harness 逐条执行，落盘后复盘并逐项验收 | feat/session-goal-planning-20261119 / PR153 | 复核最终定向 CI 后合入 dev | dev 4df0217a | 本机执行来源 ef7c3af6。Goal 复盘失败可从已保存成果重试 | 两条真实指令、原始制品交付、四项验收及既有浏览器刷新通过。[实施与验收](../superpowers/plans/2026-11-19-session-goal-planning.md) |
+| session-goal-planning | 会话内目标规划与复盘 | 1 | 已合入 dev，本机真实验收通过 | 同一会话主 Agent 先规划，Harness 逐条执行，落盘后复盘并逐项验收 | 8861d4ae | 按真实业务反馈维护 | dev 4df0217a | PR153，失败复盘可从已保存成果重试 | 定向 macOS CI 44426864528 通过。两条真实指令、原始制品交付、四项验收及刷新恢复通过。[实施与验收](../superpowers/plans/2026-11-19-session-goal-planning.md) |
 | harness-reference-continuity | Harness 跨轮次引用续接 | 1 | 已合入 dev | 同一 Work、Goal 和 Mission 的版本化上下文、结果、证据、制品、网关操作与视图交接 | dev 4df0217a | 维持现有回归覆盖 | dev 028c8d76 | PR152 受检 b66b6e7b，右栏版本与来源默认折叠 | 定向 macOS CI 44412862176 通过。真实 Work 和 Mission 引用续接已验证。[审计](../reviews/2026-11-18-harness-reference-continuity.md) |
 | enterprise-core-reply-20261118 | 企业指令核心回复与执行过程 | 1 | 已合入 dev，本地真实验收通过 | 主会话展示核心摘要和具体执行操作，右栏保留正式回答；已打开模型按冻结版本引用 | dev | 根据后续真实任务反馈维护 | dev ba6dba8e / PR150 | 按实际步骤和工具调用展示过程；关联模型拓扑和正式回答 | PR150 合入 958b6e27，macOS 定向 CI 通过。IEEE 39 真实潮流收敛，下载校验 Markdown 记录，刷新恢复摘要及全文入口。[设计](../superpowers/specs/2026-11-18-enterprise-core-reply-design.md) |
 | enterprise-data | 生产数据研究接入 | 1 | 首期已合入；会话级取源本地验证通过 | enterprise-research动态发现生产数据工具，保存来源与报告，按会话冻结实例 | dev d3c69284 | 后续按具体业务反馈推进 | origin/dev196e865a | 主提供方动态契约与续接；会话级实例、契约版本、模型视图及回执一致 | 联调A与研发B会话隔离，真实CSV5行及下载哈希通过；未做云端发布。[验证报告](../reports/2026-10-31-session-gateway-binding.md) |
@@ -1423,6 +1423,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| session-goal-merge-20261119 | 8861d4ae | main | 会话内 Goal 规划与复盘 | PR153 合入 dev，实际本机重建恢复通过 | 先保存目标计划，按条执行并复盘。原始成果交付和逐项验收通过。[验收](../superpowers/plans/2026-11-19-session-goal-planning.md) | session-goal-planning |
 | harness-reference-local-20261118 | fab62528 | feature | Harness 引用续接 | 本机真实 Work 与 Mission 验收通过 | 原模型上下文与网关视图续接、依赖回执核验、指令电网图对焦。[验证](../reviews/2026-11-18-harness-reference-continuity.md) | harness-reference-continuity |
 | enterprise-inline-reply-20261118 | 6d4bc023 | dev | 企业主会话回复与进展 | PR148、macOS CI 和真实会话复验通过 | 主会话显示真实答复摘录和已记录进展，右栏保留完整记录。[验收](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md#main-conversation-correction) | shared-agent |
 | enterprise-workspace-entry-20261118 | 68857937 | dev | 独立企业工作台入口 | PR146，macOS App CI 和本机真实验收通过 | 独立路由和布局偏好、复用会话与制品。[实施计划](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md) | shared-agent |
@@ -1540,7 +1541,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
-| dev-head | dev | main | dev · 当前研发位置 | PR140合入38a9e77f，CI44156164744及实际本机真实改向/停止恢复通过 | 动态绑定实际dev并连接真实祖先；持续指令控制、执行详情与历史阅读接受，Mission另行验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| dev-head | dev | main | dev · 当前研发位置 | PR153 已集成，会话 Goal 本机验收通过 | 动态绑定实际 dev 并连接已核对的祖先，保留运行来源和控制记录。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-active | ce185a14 | feature | Deep Research · 历史后端产品字节来源 | ready及清理通过，已随PR67合入 | 历史产品来源ce185a14，API/worker镜像180c53ffb617、native1b8533cf1b06；清理195305-28422，与dev32d72c28产品相同，当前运行另见ed0节点。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
 | gateway-failure-merge | f397fbef | main | dev · 网关目录与失败诊断 | PR66 已合入，固定里程碑 | 网关目录、范围约束与失败诊断修复。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-head | de648f58 | feature | 统一轻量循环 · 已合入来源 | PR67 已合入，必需 CI 通过 | de648f58 受检；统一入口及按需 Deep Research；历史间歇失败诊断保留。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
@@ -1635,6 +1636,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| session-goal-merge-20261119 | 开发集成与本机来源 | dev | 同一会话主 Agent 规划并复盘；两步成果与逐项验收恢复 | PR153 与实际 dev 重建通过 |
 | harness-reference-local-20261118 | 本机验证候选 | fix/harness-reference-continuity-20261118 | 续接原模型上下文和视图；Mission 依赖使用原网关回执 | 真实 Work 和 Mission 通过 |
 | enterprise-inline-reply-20261118 | 已合入 dev | dev · PR148 | 主会话可读真实回复；主线显示执行进展并链接完整记录 | CI 与真实会话复验通过 |
 | enterprise-workspace-entry-20261118 | 已合入 dev | dev · PR146 | 独立企业路由与布局偏好；复用真实会话、输入及成果 | macOS CI 和本机桌面、窄屏验收通过 |
@@ -1770,7 +1772,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | 主会话持续指令控制与右栏执行详情已集成；任务看板、历史阅读与持久置顶保留 | PR140合入38a9e77f；macOS CI44156164744与实际5173真实验收通过 |
+| dev-head | 当前研发位置 | dev | 会话 Goal 规划与复盘已集成；本机运行来源单独记录 | PR153 定向 CI 与本机两步 Goal 验收通过 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -2112,7 +2114,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API 与三 worker 的已核对运行源码 `fab62528`；Vite App 使用 `8d4e6702` | 同后端镜像 10ac6fd60fc6；就绪与缓存维护通过 | App http://127.0.0.1:5173/enterprise；真实上下文、就绪视图和 Mission 续接。[验收](../reviews/2026-11-18-harness-reference-continuity.md) |
+| local-dev | API、三 worker 与 Vite App 均从实际 dev `8861d4ae` 启动。App 产品版本 c6ec6771 | 后端同镜像 035d309dfdfc。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。已完成的两步 Goal、报告和四项验收恢复通过。[验收](../superpowers/plans/2026-11-19-session-goal-planning.md) |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
