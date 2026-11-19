@@ -1,5 +1,20 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Session Goal planning and execution
+
+Owner capstone-agent with capstone-app. Branch `feat/session-goal-planning-20261119`
+targets `dev` from PR #152. The main Agent plans and reviews in the same session.
+Harness executes one admitted instruction. Mission can coordinate multiple Agents
+across sessions. The Goal plan, stage results and accepted references survive
+refresh. An invalid review can be retried without executing the saved step again.
+
+Acceptance requires real planning and two distinct instructions, exact first-step
+product delivery to the second step, per-criterion acceptance and diagnosis of a
+terminal write failure. The first local run reached both delivery records.
+The next action is a real completion check with the revised review admission.
+[Implementation plan](2026-11-19-session-goal-planning.md).
+
+
 ## Dedicated enterprise workspace entry
 
 Owner capstone-app. PR146 merged to dev `68857937` after scoped macOS App
