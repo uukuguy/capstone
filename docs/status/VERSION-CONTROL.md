@@ -1286,7 +1286,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR172 已合入。恢复 Mission 子任务的原交付 | 恢复中断的 Mission 组织者复盘 |
+| dev | 共同基座与企业工作台集成 | PR174 退役独立研究模式。指令、Goal 和 Mission 承接执行 | 恢复中断的 Mission 组织者复盘 |
 
 ## 功能包前沿
 
@@ -1294,6 +1294,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| research-mode-retirement | 退役独立研究模式 | 1 | 已合入 dev。真实制品验证通过 | 移除入口与暂停计划，保留历史记录 | db141b0a | 恢复组织者复盘 | dev 7e006983 | PR174 旧请求沿普通链路执行 | macOS CI 44650512239 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#retire-the-separate-research-mode) |
 | mission-child-delivery-recovery | Mission 子任务交付恢复 | 1 | 已合入 dev。真实子任务故障注入通过 | 原委派和原执行接回核验 | 0c6a68fc | 恢复组织者复盘 | dev 6a78ae9b | PR172 保留原委派代次 | macOS CI 44639210986 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#recover-mission-child-delivery-after-worker-exit) |
 | native-independent-files | 独立文件交付 | 1 | 已合入 dev。真实文件读取故障注入通过 | 保留已验证文件并记录单份文件错误 | 6ca5d471 | 恢复 Mission 委派与复盘 | dev 61d0bdd3 | PR170 正式回复说明部分交付 | macOS CI 44528279753 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#keep-independent-files-available-after-delivery-fails) |
 | presentation-layout-recovery | PPT 表格溢出恢复 | 1 | 已合入 dev。用原失败输入验证通过 | 同模板调整布局，保留全部数据和说明 | 49444e8d | 覆盖其他可独立继续的制品交付 | dev ee228745 | PR168 保存调整页与布局回执 | macOS CI 44516985397 通过。原失败输入导出 10 页 PPTX，PDF 生成成功。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) |
@@ -1387,6 +1388,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| research-mode-retirement-merge-20261120 | PR174 合入并移除独立研究入口 |
 | mission-child-delivery-merge-20261120 | PR172 合入与真实子任务交付恢复验收 |
 | native-independent-files-merge-20261119 | PR170 合入与原生独立文件交付验收 |
 | presentation-layout-merge-20261119 | PR168 合入与原会话溢出重放验收 |
@@ -1442,6 +1444,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| research-mode-retirement-merge-20261120 | db141b0a | main | 退役独立研究模式 | PR174 已合入 dev，真实文件验证通过 | 去掉旧入口与模式提示；历史记录可读。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#retire-the-separate-research-mode) | research-mode-retirement |
 | mission-child-delivery-merge-20261120 | 0c6a68fc | main | Mission 子任务交付恢复 | PR172 合入 dev，真实子任务验证通过 | 原委派接回已保存回答和文件；保留暂停、取消和来源核验。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#recover-mission-child-delivery-after-worker-exit) | mission-child-delivery-recovery |
 | native-independent-files-merge-20261119 | 6ca5d471 | main | 独立文件交付 | PR170 合入 dev，真实文件故障注入通过 | 单份文件失败时继续保存其余文件；正式回复列出保存数量。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#keep-independent-files-available-after-delivery-fails) | native-independent-files |
 | presentation-layout-merge-20261119 | 49444e8d | main | PPT 表格溢出恢复 | PR168 合入 dev，原始输入重放通过 | 保留模板和内容，按尺寸自动选择布局。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | presentation-layout-recovery |
@@ -1664,6 +1667,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| research-mode-retirement-merge-20261120 | 开发集成与本机来源 | dev | 移除研究模式入口；历史回执可读 | PR174 定向检查及真实文件下载通过 |
 | mission-child-delivery-merge-20261120 | 开发集成与本机来源 | dev | 原 Mission 委派恢复交付；组织者复盘接收核验边界 | PR172 定向检查和真实文件恢复通过 |
 | native-independent-files-merge-20261119 | 开发集成与本机来源 | dev | 独立文件继续交付；正式回复说明已保存文件 | PR170 定向检查和真实文件读取通过 |
 | presentation-layout-merge-20261119 | 开发集成与本机来源 | dev | 表格溢出自动换布局；保留原数据和说明 | PR168 与原会话输入重放通过 |
@@ -1851,6 +1855,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 174 | research-mode-retirement | fix/retire-research-mode-20261120 | dev | MERGED | 合入 db141b0a，受检 77ff408a。macOS CI 44650512239 和真实制品验证通过。 |
 | 172 | mission-child-delivery-recovery | fix/mission-delegated-delivery-recovery-20261120 | dev | MERGED | 合入 0c6a68fc，受检 e3d79ab2。macOS CI 44639210986 通过。真实文件和原委派核验通过。 |
 | 152 | harness-reference-continuity | fix/harness-reference-continuity-20261118 | dev | OPEN | 初次 macOS 作业 44335874304 已取消。追加指令答复修复提交后重新走定向 CI。 |
 | 119 | shared-agent | docs/harness-cancellation-acceptance-20261115 | dev | MERGED | fffc881e；受检0e1fb9f2；获批macOS docs CI43723280469通过111秒；现有取消/新指令/API重启与刷新证据，无运行代码变化 |
@@ -2152,7 +2157,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 从实际 dev `0c6a68fc` 规范重建 | API 与三个 worker 同镜像 b008c20d53ad。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。真实 Mission 子任务恢复后核验原文件。 |
+| local-dev | 从实际 dev `db141b0a` 规范重建 | API 与三个 worker 同镜像 4c63d011a09f。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。旧字段兼容与真实制品下载通过。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

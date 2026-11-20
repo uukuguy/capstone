@@ -64,7 +64,7 @@ Dependency: data-gateway owner supplies released schema/tool publication and rep
 
 - [ ] Compare the published contract with the proposal; record differences and update adapters. Preserve old topology-v1 compatibility.
 - [ ] Admit only exact registered semantic tools and schemas. Keep gateway authentication/backend selection out of model/browser payloads.
-- [ ] Select overview/electrical topology/power-flow/optimization at an ordinary agent loop step. Do not introduce another mandatory model classifier or Deep Research startup.
+- [ ] Select overview/electrical topology/power-flow/optimization in the ordinary instruction loop. Keep the choice with the executing agent.
 - [ ] Bind returned view descriptors to the current instruction and verified source receipt. Preserve model and device mappings when displaying calculation results.
 - [ ] Test unsupported purpose vs unchecked readiness vs source gaps; no implicit purpose downgrade, build, solver run or repeated readiness probes.
 

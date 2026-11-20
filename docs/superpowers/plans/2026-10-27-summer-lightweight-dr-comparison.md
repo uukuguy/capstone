@@ -1,4 +1,6 @@
-# Summer research: ordinary loop and Deep Research comparison
+# Completed comparative trial
+
+Historical record. The separate research mode was retired on 2026-11-20.
 
 User-authorized local business trial. Submit through the existing Vivaldi
 Capstone tab, using a separate new conversation for each mode. The task text,
