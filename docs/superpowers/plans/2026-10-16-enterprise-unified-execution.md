@@ -71,6 +71,21 @@ missing reference authorization, and independence of execution completion and
 user acceptance. Then add Goal and Mission adapters and explicit cross-session
 handoff. Those adapters and the shared user-facing projection remain open.
 
+### Ordinary Work task state accepted
+
+PR #178 merged at `36380406`. Scoped macOS CI `44702425603` passed.
+A real enterprise follow-up changed the draft label and preserved an unresolved
+signed-source requirement. The existing conversation settings displayed
+the report and recorded the user's decision against the exact version.
+The decision left the original report intact and started no execution.
+The PostgreSQL checks cover stale decisions, command replay, restart,
+and state persistence after a recorded worker exit.
+
+Goal should project its admitted plan and review from the Work ledger.
+Mission should project its admitted tasks and deliveries from Control.
+Cross-session continuation needs a version-bound grant from the owning
+application. Each adapter must preserve its existing reference admission.
+
 ## Retire the separate research mode
 
 PR #174 merged at `db141b0a`. macOS CI 44650512239 passed. The composer no
