@@ -8360,3 +8360,11 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20 16:27: 9eea8ef7 keeps task status in conversation settings. Browser verified version-bound acceptance and retained blockers.
 
 - 2026-11-20 16:32: PR178 merged at 36380406 after browser acceptance and scoped macOS CI 44702425603.
+
+- 2026-11-20 17:30: ae7ba63b shows open task items with their answer and removes routine conversation approval. 222 App tests passed.
+
+- 2026-11-20 17:33: fb73ff29 displays task gaps at conversation text size. Real browser follow-up completed without an approval receipt.
+
+- 2026-11-20 17:35: cf7438a3 removes approval actions from saved Goal results. Goal and Mission now show usable results directly.
+
+- 2026-11-20 17:41: PR180 merged at 8093ef56 after scoped macOS CI 44711900479 and real browser continuation.
