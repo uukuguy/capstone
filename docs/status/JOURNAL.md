@@ -8368,3 +8368,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20 17:35: cf7438a3 removes approval actions from saved Goal results. Goal and Mission now show usable results directly.
 
 - 2026-11-20 17:41: PR180 merged at 8093ef56 after scoped macOS CI 44711900479 and real browser continuation.
+
+- 2026-11-20 PR182 merged at f5096933. Rebuilt actual dev, verified managed skill context and a workbook with three computed caches.
