@@ -2,6 +2,14 @@
 
 Updated 2026-11-20. Active work continues on the managed enterprise execution plan.
 
+## Task status presentation
+
+PR #180 merged to dev at `8093ef56`. Scoped macOS CI `44711900479` passed.
+Reported gaps appear under the answer that recorded them. Routine approval
+actions were removed from the conversation, Goal and Mission. A real browser
+follow-up changed a draft label while signed release remained blocked.
+There was no decision receipt. See `runs/task-state-presentation/receipt.json`.
+
 ## Shared task-state foundation
 
 PR #178 merged to `dev` at `36380406`. Commit `848426b8` saves ordinary execution outcomes in versioned
