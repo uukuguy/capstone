@@ -839,6 +839,28 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     instructionLabel={shownDiagram.schema==='capstone-network-view/2.0'
       && !shownDiagram.layer.focus_ids.length && !shownDiagram.layer.annotations
       ? '模型全图 · 无已保存焦点' : '本次指令的关注视图'}/>:<p role="status">{taskDiagramLoad==='loading'?'正在载入指令电网图…':taskDiagramLoad==='unavailable'?'此指令没有可用的电网图。':'选择一条指令查看电网图。'}</p>,description:'本次执行使用的注册模型和版本。'}]:[]
+  const taskState = liveConversation ? selectedWork?.taskState : undefined
+  const taskDecisionLabel = taskState?.decision === 'accept' ? '已验收' : taskState?.decision === 'request_changes' ? '要求修改' : '待用户验收'
+  const taskDecisionDisabled = busy || !!pending || !!currentAttempt || projection.connection !== 'live'
+  const taskStateControls = taskState && <details>
+    <summary className="thread-settings-section">任务状态 · {taskDecisionLabel}</summary>
+    {taskState.report && <div className="thread-settings-section">
+      <strong>执行记录</strong>
+      {([['completed', '已完成'], ['open', '未完成'], ['defects', '缺陷'], ['blockers', '阻塞']] as const).map(([kind, label]) => {
+        const items = taskState.report?.[kind]
+        return items?.length ? <div key={kind}><strong>{label}</strong><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null
+      })}
+    </div>}
+    {pending?.kind === 'record_task_decision' ? <button type="button" className="thread-settings-item"
+      disabled={busy || projection.connection !== 'live'} onClick={() => void dispatch(pending).catch(() => undefined)}>重试验收请求</button>
+      : <>
+        <button type="button" className="thread-settings-item" disabled={taskDecisionDisabled}
+          onClick={() => void recordTaskDecision('accept').catch(() => undefined)}>验收本轮结果</button>
+        <button type="button" className="thread-settings-item" disabled={taskDecisionDisabled}
+          onClick={() => void recordTaskDecision('request_changes').catch(() => undefined)}>标记需要修改</button>
+      </>}
+  </details>
+
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
@@ -901,17 +923,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||attachmentsLoading||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
       {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}/>)}
       {error && <p role="alert">{error}</p>}
-      {liveConversation && selectedWork?.taskState && <details>
-        <summary>任务状态 · {selectedWork.taskState.decision === 'accept' ? '已验收' : selectedWork.taskState.decision === 'request_changes' ? '要求修改' : '待用户验收'}</summary>
-        {([['completed', '已完成'], ['open', '未完成'], ['defects', '缺陷'], ['blockers', '阻塞']] as const).map(([kind, label]) => {
-          const items = selectedWork.taskState?.report?.[kind]
-          return items?.length ? <div key={kind}><strong>{label}</strong><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null
-        })}
-        <button type="button" disabled={busy || !!pending || !!currentAttempt || projection.connection !== 'live'}
-          onClick={() => void recordTaskDecision('accept').catch(() => undefined)}>验收本轮结果</button>
-        <button type="button" disabled={busy || !!pending || !!currentAttempt || projection.connection !== 'live'}
-          onClick={() => void recordTaskDecision('request_changes').catch(() => undefined)}>标记需要修改</button>
-      </details>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
       {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} plan={selectedWork?.goalPlan} planning={selectedWork?.goalPlanPending} objective={goalDraft??selectedWork?.goal??''}
@@ -949,7 +960,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         attachments={attachments} onResourceUploaded={()=>setAttachmentReload(value=>value+1)} onRemoveAttachment={async id=>{
           await transport.cancelResourceUpload(currentId,id.replace('resource_','upload_'))
           setAttachments(files=>files.filter(file=>file.resource_id!==id))
-        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
+        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}{taskStateControls}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||!!missionPending||uploadBusy}
       welcomeGateway={sharedNavigation?sharedNavigation.gateway:welcomeGateway}
