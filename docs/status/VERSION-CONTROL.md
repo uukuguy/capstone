@@ -1294,6 +1294,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| task-state-continuation | 普通指令任务状态 | 1 | 已合入 dev，真实两轮与浏览器验收通过 | 保存任务状态，绑定确切版本，独立记录用户决定 | 36380406 | 接入 Goal、Mission 和授权交接 | dev ff920371 | PR178 保留未完成项与执行中断 | macOS CI 44702425603 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
 | mission-organizer-recovery | Mission 复盘恢复 | 1 | 已合入 dev，真实复盘故障注入通过 | 在原 Control 绑定下结算已保存答复，保留中断与用户停止 | 01f7a07c | 定义共享任务状态契约 | dev ad849272 | PR176 不重复接纳复盘 | macOS CI 44674377200 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#mission-organizer-recovery-accepted) |
 | research-mode-retirement | 退役独立研究模式 | 1 | 已合入 dev。真实制品验证通过 | 移除入口与暂停计划，保留历史记录 | db141b0a | 恢复组织者复盘 | dev 7e006983 | PR174 旧请求沿普通链路执行 | macOS CI 44650512239 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#retire-the-separate-research-mode) |
 | mission-child-delivery-recovery | Mission 子任务交付恢复 | 1 | 已合入 dev。真实子任务故障注入通过 | 原委派和原执行接回核验 | 0c6a68fc | 恢复组织者复盘 | dev 6a78ae9b | PR172 保留原委派代次 | macOS CI 44639210986 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#recover-mission-child-delivery-after-worker-exit) |
@@ -1389,6 +1390,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| task-state-continuation-merge-20261120 | PR178 合入普通指令任务状态 |
 | mission-organizer-recovery-merge-20261120 | PR176 合入与真实复盘恢复 |
 | research-mode-retirement-merge-20261120 | PR174 合入并移除独立研究入口 |
 | mission-child-delivery-merge-20261120 | PR172 合入与真实子任务交付恢复验收 |
@@ -1446,6 +1448,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| task-state-continuation-merge-20261120 | 36380406 | main | 普通指令任务状态 | PR178 合入 dev，真实两轮与用户决定验证通过 | 绑定准确状态版本，保留未完成事项。[验收](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) | task-state-continuation |
 | mission-organizer-recovery-merge-20261120 | 01f7a07c | main | Mission 复盘恢复 | PR176 合入 dev，真实复盘故障注入通过 | 原绑定结算已保存回答，保留中断历史。[验收](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#mission-organizer-recovery-accepted) | mission-organizer-recovery |
 | research-mode-retirement-merge-20261120 | db141b0a | main | 退役独立研究模式 | PR174 已合入 dev，真实文件验证通过 | 去掉旧入口与模式提示；历史记录可读。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#retire-the-separate-research-mode) | research-mode-retirement |
 | mission-child-delivery-merge-20261120 | 0c6a68fc | main | Mission 子任务交付恢复 | PR172 合入 dev，真实子任务验证通过 | 原委派接回已保存回答和文件；保留暂停、取消和来源核验。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#recover-mission-child-delivery-after-worker-exit) | mission-child-delivery-recovery |
@@ -1670,6 +1673,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| task-state-continuation-merge-20261120 | 开发集成与本机来源 | dev | 保留任务状态版本；记录显式用户验收 | PR178 定向检查与浏览器验证通过 |
 | mission-organizer-recovery-merge-20261120 | 开发集成与本机来源 | dev | 在原绑定恢复复盘；保留暂停和取消 | PR176 定向检查和真实复盘恢复通过 |
 | research-mode-retirement-merge-20261120 | 开发集成与本机来源 | dev | 移除研究模式入口；历史回执可读 | PR174 定向检查及真实文件下载通过 |
 | mission-child-delivery-merge-20261120 | 开发集成与本机来源 | dev | 原 Mission 委派恢复交付；组织者复盘接收核验边界 | PR172 定向检查和真实文件恢复通过 |
@@ -1859,6 +1863,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 178 | task-state-continuation | feat/task-state-continuation-20261120 | dev | MERGED | 合入 36380406，受检 9eea8ef7。macOS CI 44702425603 通过，验证普通指令续接和显式验收。 |
 | 176 | mission-organizer-recovery | fix/mission-organizer-recovery-20261120 | dev | MERGED | 合入 01f7a07c，受检 1c67994c。macOS CI 44674377200 通过，真实复盘按原绑定结算。 |
 | 174 | research-mode-retirement | fix/retire-research-mode-20261120 | dev | MERGED | 合入 db141b0a，受检 77ff408a。macOS CI 44650512239 和真实制品验证通过。 |
 | 172 | mission-child-delivery-recovery | fix/mission-delegated-delivery-recovery-20261120 | dev | MERGED | 合入 0c6a68fc，受检 e3d79ab2。macOS CI 44639210986 通过。真实文件和原委派核验通过。 |
@@ -2162,7 +2167,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 从实际 dev `01f7a07c` 规范重建 | API 与三个 worker 同镜像 8b37800929fc。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。真实复盘恢复回执保存在原任务中。 |
+| local-dev | 从实际 dev `36380406` 规范重建 | API 与三个 worker 同镜像 a6446c8aa0f6 | App http://127.0.0.1:5174/enterprise。任务状态和版本绑定验收可查。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

@@ -8348,3 +8348,15 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20 12:32: PR176 merged at 01f7a07c after live organizer recovery and scoped macOS CI 44674377200.
 
 - 2026-11-20 14:46: 848426b8 persists ordinary task-state revisions. PostgreSQL verified restart and exact follow-up binding.
+
+- 2026-11-20 14:49: Real two-instruction continuation passed after rebuild. e042a223 routes PR178 to scoped Thread ledger CI.
+
+- 2026-11-20 15:10: 1a0a87b8 carries bounded business reports and keeps previous open items if a later reply omits them.
+
+- 2026-11-20 15:12: Real enterprise follow-up kept the signed-source blocker after direction changed. Scoped local tests passed 181.
+
+- 2026-11-20 15:52: 3750dcc4 records decision receipts and interrupted Work state. Fresh PostgreSQL gate passed 139 tests.
+
+- 2026-11-20 16:27: 9eea8ef7 keeps task status in conversation settings. Browser verified version-bound acceptance and retained blockers.
+
+- 2026-11-20 16:32: PR178 merged at 36380406 after browser acceptance and scoped macOS CI 44702425603.
