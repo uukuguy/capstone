@@ -14,6 +14,8 @@
 
 # 多线版本控制
 
+2026-11-21 Goal、Mission 和跨会话续作由 capstone-agent、capstone-control 和 capstone-app 共同交付。[PR186](https://github.com/uukuguy/capstone/pull/186) 合入 dev `f9edde5e`，受检 `acb8bb7f`。定向 [macOS CI](https://github.com/uukuguy/capstone/actions/runs/44801937892)、404 项 Python 检查和 68 项 App 检查通过。真实 Goal、Mission、跨会话读取与制品交付通过。来源引用按工作区和版本冻结，历史证据保留原归属。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#goal-mission-and-cross-session-continuation)。
+
 2026-11-21 原生 Office 转换由 capstone-agent 负责。分支 `fix/native-office-task-profile-20261121`，候选 `198de9fa`，[PR184](https://github.com/uukuguy/capstone/pull/184) 目标 dev。边界为每任务私有配置目录及实际 PPTX/XLSX 转换；230 项本地聚焦检查通过。候选镜像真实直调转换通过。此前四条超时文件任务重放均正常完成；PPTX 保真通过，XLSX 缓存 100、97、0.97；两条安装组均自主加载。[定向 macOS CI](https://github.com/uukuguy/capstone/actions/runs/44771236802) 通过；受检 48dbcf00，合入 dev f15f3bb5。功能分支已关闭。已运行的本地候选 198de9fa 与合并后的运行输入逐路径核对一致。
 
 2026-11-20 托管技能接入由 capstone-agent 负责。受检版本 `b6f02ea4`，macOS CI 44753942044 通过，耗时 2 分 49 秒。[PR182](https://github.com/uukuguy/capstone/pull/182) 合入 dev `f5096933`。范围包括隔离安装权限、PPTX 校验、XLSX 重算和任务内按需发现。实际 dev 规范重建和 5174 工作台 API 路径已验证。真实模型从上下文读出技能身份和加载入口，第二条指令交付三个缓存值正确的工作簿；该次用 Calc 直接完成。功能分支已关闭，精确候选提交保留。默认预装和云端发布不在此批范围内。
@@ -1290,7 +1292,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR174 退役独立研究模式。指令、Goal 和 Mission 承接执行 | 恢复中断的 Mission 组织者复盘 |
+| dev | 共同基座与企业工作台集成 | PR186 共享 Goal、Mission 和普通指令的任务状态 | 支持按版本续作和历史回看 |
 
 ## 功能包前沿
 
@@ -1298,6 +1300,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| shared-task-continuation | Goal、Mission 与跨会话续作 | 1 | 已合入 dev，本机真实任务验证通过 | 共享状态、原会话记录和版本化交接 | f9edde5e | 维护已交付路径 | dev af8f2859 | PR186 同工作区按指定版本续作 | macOS CI 44801937892 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#goal-mission-and-cross-session-continuation) |
 | task-state-presentation | 回答内任务缺口 | 1 | 已合入 dev，真实浏览器续接通过 | 在原回答下显示缺口，日常会话无验收入口 | 8093ef56 | 延续 Goal、Mission 状态接入 | dev 90a65f81 | PR180 成果可用即可继续工作 | macOS CI 44711900479 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
 | task-state-continuation | 普通指令任务状态 | 1 | 已合入 dev，真实两轮与浏览器验收通过 | 保存任务状态，绑定确切版本，独立记录用户决定 | 36380406 | 接入 Goal、Mission 和授权交接 | dev ff920371 | PR178 保留未完成项与执行中断 | macOS CI 44702425603 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
 | mission-organizer-recovery | Mission 复盘恢复 | 1 | 已合入 dev，真实复盘故障注入通过 | 在原 Control 绑定下结算已保存答复，保留中断与用户停止 | 01f7a07c | 定义共享任务状态契约 | dev ad849272 | PR176 不重复接纳复盘 | macOS CI 44674377200 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#mission-organizer-recovery-accepted) |
@@ -1395,6 +1398,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| shared-task-continuation-merge-20261121 | PR186 接通 Goal、Mission 和跨会话续作 |
 | task-state-presentation-merge-20261120 | PR180 修正任务缺口的呈现与续接 |
 | task-state-continuation-merge-20261120 | PR178 合入普通指令任务状态 |
 | mission-organizer-recovery-merge-20261120 | PR176 合入与真实复盘恢复 |
@@ -1454,6 +1458,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| shared-task-continuation-merge-20261121 | f9edde5e | main | Goal 与 Mission 任务续作 | PR186 合入，真实任务与 macOS CI 通过 | 按已记录版本继续 Goal、Mission；历史证据保留原归属 | shared-task-continuation |
+| shared-task-continuation-source-20261121 | acb8bb7f | feature | 跨会话版本化交接 | local-dev 运行及浏览器验证通过 | 只读历史与来源版本绑定；精确恢复已保存答复 | shared-task-continuation |
 | native-office-profile-merge-20261121 | f15f3bb5 | main | 原生 Office 转换恢复 | PR184 定向 macOS CI 通过 | 按任务初始化私有配置；保留 Office 渲染和重算的正常入口 | shared-agent |
 | native-office-profile-20261121 | 198de9fa | feature | 原生任务私有 Office 配置 | 候选本机转换通过 | 在隔离任务 UID 下建立私有配置目录，普通命令可渲染和重算 | shared-agent |
 | managed-skill-merge-20261120 | f5096933 | main | 托管技能按需发现 | PR182 定向 CI 通过，已合入 dev | 安装写权限修复；区分托管与内置加载；镜像验证公式缓存 | shared-agent |
@@ -1683,8 +1689,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| shared-task-continuation-merge-20261121 | 开发集成 | dev | Goal 和 Mission 共用任务状态；续作保留已记录交付 | PR186、真实任务与 macOS CI 通过 |
+| shared-task-continuation-source-20261121 | 本机研发运行来源 | feat/shared-task-continuation-20261121 | 原记录只读；按来源版本交接 | 真实续作与同镜像检查通过 |
 | native-office-profile-merge-20261121 | 开发集成 | dev | 任务 UID 私有配置；普通命令转换通过 | PR184 与四条真实文件重放通过 |
-| native-office-profile-20261121 | 本地研发运行来源 | fix/native-office-task-profile-20261121 | 每个任务预建私有配置；PPTX 渲染和 XLSX 重算 | 两条真实转换和四条完整重放通过 |
+| native-office-profile-20261121 | 既有本地研发来源 | fix/native-office-task-profile-20261121 | 每个任务预建私有配置；PPTX 渲染和 XLSX 重算 | 两条真实转换和四条完整重放通过 |
 | managed-skill-merge-20261120 | 开发集成 | dev | 修复托管安装；任务按需发现并独立验证文件 | PR182、实际 dev 重建和真实 XLSX 交付通过 |
 | task-state-presentation-merge-20261120 | 开发集成与本机来源 | dev | 缺口随回答显示；直接追加指令 | PR180 定向检查与浏览器实测通过 |
 | task-state-continuation-merge-20261120 | 开发集成与本机来源 | dev | 保留任务状态版本；记录显式用户验收 | PR178 定向检查与浏览器验证通过 |
@@ -1877,6 +1885,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 186 | shared-task-continuation | feat/shared-task-continuation-20261121 | dev | MERGED | 合入 f9edde5e；受检 acb8bb7f，macOS CI 44801937892 通过。按版本交接与只读回放通过。 |
 | 184 | shared-agent | fix/native-office-task-profile-20261121 | dev | MERGED | 合入 f15f3bb5；受检 48dbcf00，macOS CI 44771236802 通过。首轮全仓类型检查 44769540944 有未改文件错误；改用直接消费者门禁。 |
 | 182 | shared-agent | fix/capstone-managed-skill-discovery-20261120 | dev | MERGED | 合入 f5096933，受检 b6f02ea4。定向 macOS CI 44753942044 通过 2 分 49 秒。首轮 44752496516 的传输测试返回 403，已调整测试租约注册时机。 |
 | 180 | task-state-presentation | fix/task-state-presentation-20261120 | dev | MERGED | 合入 8093ef56，受检 cf7438a3。macOS CI 44711900479 和真实浏览器续接通过。 |
@@ -2184,7 +2193,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端和 App 产品来源 `198de9fa`，App 工作区 f15f3bb5 | API 与三个 worker 同镜像 34a7cd85a2ad；原生执行器 ef446e113d7d；就绪与缓存维护通过 | App http://127.0.0.1:5174/。实际任务能直接转换 PPTX 和 XLSX。 |
+| local-dev | 后端和 App 产品来源 `acb8bb7f`，App 工作区 f9edde5e | API 与三个 worker 同镜像 724d0a59b5cf；原生执行器 25ad4703e7b8；就绪与缓存维护通过 | App http://127.0.0.1:5174/。真实 Goal、Mission 和跨会话交接通过。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

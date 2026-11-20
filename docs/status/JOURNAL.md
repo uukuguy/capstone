@@ -8372,3 +8372,8 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20 PR182 merged at f5096933. Rebuilt actual dev, verified managed skill context and a workbook with three computed caches.
 
 - 2026-11-21 PR184 merged at f15f3bb5. Verified isolated Office conversion and four completed live replays on its equivalent runtime source.
+
+- 2026-11-21 bfea7322: Connect Goal and Mission task state and freeze authorized handoffs for exact recovery.
+- 2026-11-21 1d45371b: Isolate historical reads and admit handoff commands through the composer to preserve exact continuation.
+- 2026-11-21 acb8bb7f: Recover saved Goal handoff replies without changing the paused plan.
+- 2026-11-21 f9edde5e: Merge verified Goal, Mission and handoffs to dev after macOS CI 44801937892.
