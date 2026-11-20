@@ -130,7 +130,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
         <p>期限：{new Date(goal.deadline_at).toLocaleString()}</p>
         <ControlWorkspaceViews goal={goal} disabled={disabled} readEvents={readEvents}
           taskControls={<>
-<h4>最终验收条件</h4><ul>{goal.acceptance_criteria.map((c,i)=><li key={i}>{c}</li>)}</ul>
+<h4>{goal.mission?'完成条件':'最终验收条件'}</h4><ul>{goal.acceptance_criteria.map((c,i)=><li key={i}>{c}</li>)}</ul>
         <div className="control-goal-actions">
           {goal.mission&&<button disabled={disabled} onClick={()=>{navigateSession(goal.mission!.origin.thread_id);setOpen(false)}}>返回 Mission 来源会话</button>}
           {['ready','running','waiting'].includes(goal.state)&&<button disabled={disabled} onClick={()=>control('pause')}>暂停目标</button>}
@@ -140,7 +140,7 @@ function ControlGoalPanelState({transport,onOpenThread}:{transport:Transport;onO
             saveDraft({objective:goal.objective,criteria:goal.acceptance_criteria.join('\n'),maxDelegations:goal.max_delegations,deadline:goal.deadline_at,
               stages:goal.tasks.map(t=>({objective:t.objective,files:t.required_products.join(', '),mode:t.mode,maxAttempts:t.max_attempts}))});setForm('revise')
           }}>修改目标与阶段</button>}
-          {goal.state==='delivered'&&(!goal.mission||goal.mission.planConcluded===true&&goal.mission.allTasksVerified)&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
+          {goal.state==='delivered'&&!goal.mission&&<button disabled={disabled} onClick={()=>control('accept',{products})}>接受当前成果版本</button>}
         </div>
         {goal.acceptance&&<p role="status">已接受此目标版本及所列成果版本。</p>}
           </>}

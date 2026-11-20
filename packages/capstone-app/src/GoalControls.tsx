@@ -17,8 +17,8 @@ export default function GoalControls({goal,plan,planning,objective,disabled,exec
   const reviewReasons:Record<string,string>={
     goal_review_reference_unavailable:'复盘引用了无法核对的制品或证据。',
     goal_review_next_step_invalid:'复盘提出的下一步与保存的计划不匹配。',
-    goal_review_criteria_incomplete:'复盘还没有逐项核实全部验收条件。',
-    goal_review_criterion_unverified:'至少有一项验收条件缺少可核对的证据。',
+    goal_review_criteria_incomplete:'复盘还没有逐项核实全部完成条件。',
+    goal_review_criterion_unverified:'至少有一项完成条件缺少可核对的证据。',
   }
   return <section className="goal-controls" aria-label="持续目标">
     {goal?<>
@@ -30,7 +30,7 @@ export default function GoalControls({goal,plan,planning,objective,disabled,exec
           <ol>{plan.steps.map((step,index)=><li key={step.instruction} aria-current={index===plan.stepIndex?'step':undefined}>
             {step.instruction}<p>预期成果：{step.expectedResult}</p>
           </li>)}</ol>
-          <p>验收条件</p>
+          <p>完成条件</p>
           <ul>{plan.criteria.map((criterion,index)=><li key={index}>{criterion}</li>)}</ul>
         </div>
       </details>}

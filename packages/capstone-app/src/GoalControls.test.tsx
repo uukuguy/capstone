@@ -33,7 +33,7 @@ it.each(['goal_review_invalid','goal_review_criteria_incomplete'])('offers revie
     state:'paused',reason,max_attempts:8,attempts_admitted:2,
     deadline_at:'2000-01-01T00:00:00Z',last_settled_attempt_id:'attempt_previous'}}/>)
   expect(screen.getByText(/可直接在消息框发送新指令/)).toBeTruthy()
-  if(reason==='goal_review_criteria_incomplete')expect(screen.getByText(/逐项核实全部验收条件/)).toBeTruthy()
+  if(reason==='goal_review_criteria_incomplete')expect(screen.getByText(/逐项核实全部完成条件/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'重新复盘已保存成果'}))
   expect(submit).toHaveBeenCalledWith('resume_goal',{})
 })
