@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { parseWorkSnapshot, buildWorkCommand, buildStartWorkCommand, buildSendMessageCommand, parseStoredWorkCommand } from './threadWorkProtocol'
 import {parseProductRef} from './threadProducts'
 import {buildModelWorkspaceCommand, buildTaskDecisionCommand} from './threadWorkProtocol'
+import {readPendingCommands, writePendingCommands} from './threadSessionState'
 
 export function workSnapshot() {
   return { schema: 'capstone-thread-snapshot/2', thread_id: 'thr_work',
@@ -19,6 +20,9 @@ describe('Work protocol', () => {
       'work_one', 4, 'attempt_one', 'accept')
     expect(parseStoredWorkCommand(command, 'thr_work')).toEqual(command)
     expect(() => parseStoredWorkCommand({...command, payload: {decision: 'accept'}}, 'thr_work')).toThrow()
+    writePendingCommands('legacy-task-decision', [command])
+    expect(readPendingCommands('legacy-task-decision', 'thr_work')).toEqual([])
+    writePendingCommands('legacy-task-decision', [])
   })
   it('recovers queued instruction and withdrawal commands with their original retry identity', () => {
     for (const [kind,payload] of [['queue_instruction',{text:'请先检查来源'}],['withdraw_instruction',{instruction_id:'ins_one'}]] as const) {

@@ -80,7 +80,7 @@ export function readPendingCommands(key: string | undefined, threadId: string): 
     assertCapacity(new TextEncoder().encode(text).byteLength,'command_bytes')
     const documents: unknown = JSON.parse(text)
     if (!Array.isArray(documents) || documents.length > 1) return []
-    return documents.map((item) => {
+    return documents.filter(item => item?.kind !== 'record_task_decision').map((item) => {
       if (item?.schema === 'capstone-command/2') return parseStoredWorkCommand(item, threadId)
       if (!item || typeof item !== 'object' || item.schema !== 'capstone-command/1'
           || item.thread_id !== threadId || typeof item.expected_event_seq !== 'number'

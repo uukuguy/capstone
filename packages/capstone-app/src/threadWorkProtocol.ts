@@ -16,11 +16,6 @@ export type SessionGoalPlan = {
   stepIndex: number
 }
 export type TaskDecision = 'accept' | 'request_changes'
-type TaskState = {
-  revisionRef: string
-  decision?: TaskDecision
-  report?: Record<'completed' | 'open' | 'defects' | 'blockers', string[]>
-}
 export type WorkRecord = {
   instructionQueue?:QueuedInstruction[]
   instructionQueueAvailable?:boolean
@@ -33,7 +28,6 @@ export type WorkRecord = {
   goalMode?: GoalMode
   goalPlan?: SessionGoalPlan
   goalPlanPending?: boolean
-  taskState?: TaskState
 }
 export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPhase;
   targetModelContextId: string | null; runtimeMode: RuntimeMode; workId: string | null }
@@ -78,35 +72,6 @@ function parseRuntime(value: unknown): RuntimeMode {
 function parseTaskDecision(value: unknown): TaskDecision {
   if (value === 'accept' || value === 'request_changes') return value
   throw new ThreadProtocolError('任务验收决定无效')
-}
-
-function parseTaskState(work: Record<string, unknown>, threadId: string, workId: string): TaskState | undefined {
-  if (work.task_state === undefined && work.task_decision === undefined) return
-  const state = object(work.task_state)
-  const task = object(state.task)
-  const revisionRef = id(state.revision_ref)
-  if (state.schema !== 'capstone-task-state/1' || task.thread_id !== threadId || task.work_id !== workId) {
-    throw new ThreadProtocolError('任务状态关联无效')
-  }
-  const parsed: TaskState = {revisionRef}
-  if (work.task_decision !== undefined) {
-    const receipt = object(work.task_decision)
-    if (receipt.revision_ref !== revisionRef) throw new ThreadProtocolError('任务验收版本无效')
-    parsed.decision = parseTaskDecision(receipt.decision)
-  }
-  if (state.business_report !== undefined) {
-    const raw = object(state.business_report)
-    const report: NonNullable<TaskState['report']> = {completed: [], open: [], defects: [], blockers: []}
-    for (const key of ['completed', 'open', 'defects', 'blockers'] as const) {
-      const items = raw[key]
-      if (!Array.isArray(items) || items.length > 8 || items.some(item => typeof item !== 'string' || !item.trim() || Array.from(item).length > 160)) {
-        throw new ThreadProtocolError('任务状态事项无效')
-      }
-      report[key] = items as string[]
-    }
-    parsed.report = report
-  }
-  return parsed
 }
 
 export function parseWorkSnapshot(value: unknown): WorkSnapshot {
@@ -176,7 +141,6 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       cancelRequested: work.cancel_requested === true, conversationMode: work.conversation_mode === true,
       ...(work.goal_mode===undefined?{}:{goalMode:parseGoalMode(work.goal_mode)}),
       goalPlan, goalPlanPending: work.goal_plan_pending === true,
-      taskState: parseTaskState(work, threadId, workId),
       startUnavailableReason: work.start_unavailable_reason == null ? null : String(work.start_unavailable_reason),
       blockedReason: work.blocked_reason as string | null, messages: work.messages as string[] }
   })

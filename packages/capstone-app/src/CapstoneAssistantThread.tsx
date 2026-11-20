@@ -414,6 +414,18 @@ function terminalContent(event: EventEnvelope): string {
   return '**本次 Attempt 已中断**\n\n可以查看执行过程，并在确认模型上下文后重新运行。'
 }
 
+function reportedTaskIssues(work: unknown, attemptId?: string) {
+  const state = (work as {task_state?: {schema?: unknown; revision_ref?: unknown;
+    business_report_source?: unknown; business_report?: Record<string, unknown>}} | undefined)?.task_state
+  if (!attemptId || state?.schema !== 'capstone-task-state/1'
+      || state.revision_ref !== attemptId || state.business_report_source !== attemptId) return []
+  return ([['open', '未完成'], ['defects', '缺陷'], ['blockers', '阻塞']] as const).flatMap(([field, label]) => {
+    const items = state.business_report?.[field]
+    return Array.isArray(items) ? items.slice(0, 8).flatMap(text =>
+      typeof text === 'string' && text.trim() && Array.from(text.trim()).length <= 160 ? [{label, text: text.trim()}] : []) : []
+  })
+}
+
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = [], previews:readonly ThinkingPreview[]=[]): ThreadMessageLike[] {
   const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
   const recoveredSummaries = new Map(events.flatMap(event =>
@@ -528,9 +540,11 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         ;(message as unknown as { status?: ThreadMessageLike['status'] }).status = status
         const custom = ((message.metadata as { custom?: Record<string, unknown> } | undefined)?.custom || {})
         const relatedTools = events.filter((candidate) => candidate.attemptId === key && candidate.eventType.startsWith('tool_')).length
+        const taskIssues = event.visibility === 'public' ? reportedTaskIssues(event.payload.work, event.attemptId) : []
         ;(message as unknown as { metadata?: unknown }).metadata = {
           custom: {
             ...custom,
+            ...(taskIssues.length ? {taskIssues} : {}),
             resultRefs: stringRefs(event.payload.result_refs),
             evidenceRefs: stringRefs(event.payload.evidence_refs),
             admission: event.payload.admission,
@@ -1087,6 +1101,7 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
   useLayoutEffect(() => restoreAnchor(id), [id, restoreAnchor])
   const status = useAuiState((state) => state.message.status)
   const custom = useAuiState((state) => state.message.metadata?.custom) as Record<string, unknown> | undefined
+  const taskIssues = custom?.taskIssues as ReturnType<typeof reportedTaskIssues> | undefined
   const author = custom?.runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'
   const rawText=messageText({content})
   const text=role==='assistant'&&rawText.split(/\r?\n/,1)[0].trim().startsWith('//')
@@ -1199,6 +1214,10 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}
     </div>
+    {role === 'assistant' && !!taskIssues?.length && <aside className="capstone-task-issues" aria-label="本轮仍需处理">
+      <strong>本轮仍需处理</strong>
+      <ul>{taskIssues.map(({label, text}, index) => <li key={index}><strong>{label}：</strong>{text}</li>)}</ul>
+    </aside>}
     {processContent}
     {completedAnswer && onOpenTaskResults && <div className="capstone-result-products">{taskResultCollections(attemptResultProjections, attemptId).map(collection => <button key={collection.id} type="button" className="capstone-result-product" onClick={() => onOpenTaskResults(collection)} aria-label={`打开${collection.title}`}><Activity aria-hidden="true" /><span><strong>{collection.title}</strong><small>本次指令 · {collection.results.length} 项分析结果</small></span><span aria-hidden="true">↗</span></button>)}</div>}
     {role==='assistant'&&onOpenNativeArtifact&&attemptFiles.length>0&&<InstructionFiles files={attemptFiles} onOpen={onOpenNativeArtifact}/>}

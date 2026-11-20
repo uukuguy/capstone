@@ -1908,6 +1908,20 @@ describe('CapstoneAssistantThread', () => {
     expect(viewport.scrollTop).toBe(0)
   })
 
+  it('shows reported gaps only under the answer that recorded them', () => {
+    const report = {completed: ['草稿已保存'], open: ['补充签署件'], defects: [], blockers: ['正式提交缺少授权']}
+    const work = {task_state: {schema: 'capstone-task-state/1', revision_ref: 'attempt_1',
+      business_report_source: 'attempt_1', business_report: report}}
+    render(<CapstoneAssistantThread inlineExecution events={[
+      event('attempt_completed', 1, {answer:'本轮已生成草稿。', work}, 'attempt_1'),
+      event('attempt_completed', 2, {answer:'普通问答。'}, 'attempt_2'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const first = screen.getByText('本轮已生成草稿。').closest('.capstone-chat-message') as HTMLElement
+    expect(within(first).getByText('补充签署件')).toBeTruthy()
+    expect(screen.getAllByText('正式提交缺少授权')).toHaveLength(1)
+    expect(screen.queryByText('待用户验收')).toBeNull()
+  })
+
   it('renders an independently generated summary as readable Markdown', () => {
     const summary = '潮流已收敛。\n\n- **线路 21**：73.37%\n- **线路 11**：67.15%'
     render(<CapstoneAssistantThread inlineExecution events={[

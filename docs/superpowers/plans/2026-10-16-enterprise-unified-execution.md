@@ -73,6 +73,14 @@ handoff. Those adapters and the shared user-facing projection remain open.
 
 ### Ordinary Work task state accepted
 
+Product presentation correction. The task-state record supports recovery and
+handoff. Show material open items, defects and blockers below the answer that
+reported them. Ordinary replies need no status prompt. Users can send another
+instruction directly. The conversation has no routine approval action.
+Previously recorded decisions remain available in the ledger. Mission results
+can be used when available. Only the step that requires a missing input,
+permission or business decision must wait.
+
 PR #178 merged at `36380406`. Scoped macOS CI `44702425603` passed.
 A real enterprise follow-up changed the draft label and preserved an unresolved
 signed-source requirement. The existing conversation settings displayed
