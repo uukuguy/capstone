@@ -8370,3 +8370,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20 17:41: PR180 merged at 8093ef56 after scoped macOS CI 44711900479 and real browser continuation.
 
 - 2026-11-20 PR182 merged at f5096933. Rebuilt actual dev, verified managed skill context and a workbook with three computed caches.
+
+- 2026-11-21 PR184 merged at f15f3bb5. Verified isolated Office conversion and four completed live replays on its equivalent runtime source.
