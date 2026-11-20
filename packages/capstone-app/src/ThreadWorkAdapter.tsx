@@ -21,7 +21,7 @@ import {resultProjectionHistoryText} from './threadSystemNotices'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import { commandKey } from './commandKey'
 import { commandRejectionCopy } from './threadFeedback'
-import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
+import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, buildTaskDecisionCommand, parseStoredWorkCommand, parseWorkSnapshot, type TaskDecision, type WorkCommand } from './threadWorkProtocol'
 import { HttpThreadTransport,ThreadTransportError } from './threadHttpTransport'
 import type { ThreadListPage } from './threadManagement'
 import { CapstoneThreadClient } from './threadClient'
@@ -412,7 +412,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       const receipt = await store.dispatch(command)
       if (!mounted.current) return
       if (receipt.status === 'rejected') {
-        if (receipt.rejection === 'revision_conflict') await store.refreshWorkSnapshot().catch(() => undefined)
+        if (receipt.rejection === 'revision_conflict' || receipt.rejection === 'task_state_revision_conflict') await store.refreshWorkSnapshot().catch(() => undefined)
         throw new CommandRejectedError(receipt.rejection === 'product_context_unavailable' ? '引用的成果暂时无法加入本轮资料。指令未执行，请检查引用后重试。' : commandRejectionCopy(receipt.rejection))
       }
       if (receipt.status !== 'accepted') throw new Error('操作结果待确认，请重试原请求。')
@@ -426,6 +426,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message'||command.kind==='queue_instruction') { drafts.current[selected] = ''; persist(selected) }
       setNotice(command.kind==='queue_instruction'?'':command.kind==='withdraw_instruction'?'撤回已确认。':command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
+      if (command.kind === 'record_task_decision') setNotice('已记录本轮结果的验收决定。')
       await store.refreshWorkSnapshot().catch(cause => { if (mounted.current) setError(cause.message) })
       if (!mounted.current) return
       if (command.target.kind==='work' && selected === 'new' && typeof receipt.target?.id === 'string' && receipt.target.id !== 'new') {
@@ -436,6 +437,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       if (mounted.current && !(cause instanceof CommandRejectedError) && canReconnect(cause)) setReload(value => value + 1)
       throw cause
     } finally { writing.current = false; if (mounted.current) setBusy(false) }
+  }
+  async function recordTaskDecision(decision: TaskDecision) {
+    if (!snapshot || !selectedWork?.taskState) return
+    await dispatch(buildTaskDecisionCommand(currentId, snapshot.runId, `cmd_${commandKey()}`, `idem_${commandKey()}`,
+      selectedWork.workId, selectedWork.revision, selectedWork.taskState.revisionRef, decision))
   }
   async function changeModel(kind:'open_model'|'activate_model'|'close_model',payload:Record<string,string>) {
     if(!snapshot||!modelWorkspace)throw new Error('请先同步模型目录。')
@@ -895,6 +901,17 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||attachmentsLoading||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
       {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}/>)}
       {error && <p role="alert">{error}</p>}
+      {liveConversation && selectedWork?.taskState && <details>
+        <summary>任务状态 · {selectedWork.taskState.decision === 'accept' ? '已验收' : selectedWork.taskState.decision === 'request_changes' ? '要求修改' : '待用户验收'}</summary>
+        {([['completed', '已完成'], ['open', '未完成'], ['defects', '缺陷'], ['blockers', '阻塞']] as const).map(([kind, label]) => {
+          const items = selectedWork.taskState?.report?.[kind]
+          return items?.length ? <div key={kind}><strong>{label}</strong><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null
+        })}
+        <button type="button" disabled={busy || !!pending || !!currentAttempt || projection.connection !== 'live'}
+          onClick={() => void recordTaskDecision('accept').catch(() => undefined)}>验收本轮结果</button>
+        <button type="button" disabled={busy || !!pending || !!currentAttempt || projection.connection !== 'live'}
+          onClick={() => void recordTaskDecision('request_changes').catch(() => undefined)}>标记需要修改</button>
+      </details>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
       {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} plan={selectedWork?.goalPlan} planning={selectedWork?.goalPlanPending} objective={goalDraft??selectedWork?.goal??''}

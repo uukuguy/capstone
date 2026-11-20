@@ -4,7 +4,7 @@ import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it } from 'vitest'
 import { parseWorkSnapshot, buildWorkCommand, buildStartWorkCommand, buildSendMessageCommand, parseStoredWorkCommand } from './threadWorkProtocol'
 import {parseProductRef} from './threadProducts'
-import {buildModelWorkspaceCommand} from './threadWorkProtocol'
+import {buildModelWorkspaceCommand, buildTaskDecisionCommand} from './threadWorkProtocol'
 
 export function workSnapshot() {
   return { schema: 'capstone-thread-snapshot/2', thread_id: 'thr_work',
@@ -14,6 +14,12 @@ export function workSnapshot() {
 }
 
 describe('Work protocol', () => {
+  it('preserves the exact task revision when a decision request is replayed', () => {
+    const command = buildTaskDecisionCommand('thr_work', 'run_work', 'cmd_accept', 'idem_accept',
+      'work_one', 4, 'attempt_one', 'accept')
+    expect(parseStoredWorkCommand(command, 'thr_work')).toEqual(command)
+    expect(() => parseStoredWorkCommand({...command, payload: {decision: 'accept'}}, 'thr_work')).toThrow()
+  })
   it('recovers queued instruction and withdrawal commands with their original retry identity', () => {
     for (const [kind,payload] of [['queue_instruction',{text:'请先检查来源'}],['withdraw_instruction',{instruction_id:'ins_one'}]] as const) {
       const command={schema:'capstone-command/2',thread_id:'thr_work',run_id:'run_work',command_id:'cmd_queue',idempotency_key:'idem_queue',kind,target:{kind:'work',id:'work_one',expected_revision:2},payload}

@@ -128,6 +128,7 @@ export function commandRejectionCopy(code?: string): string {
     session_skill_selection_conflict: '本轮同时选择并排除了同一方法，指令未执行。请保留一种选择后发送，输入内容已保留。',
     skill_exclusion_invalid: '会话方法配置已变化，本次指令未执行。请在本轮技能中清除排除项并重新选择，输入内容已保留。',
     revision_conflict: '任务已更新，本次请求未执行。输入内容已保留，请同步最新状态后重试。',
+    task_state_revision_conflict: '任务结果版本已变化。请查看当前结果后重新提交验收决定。',
     stale_event_seq: '页面状态已变化，本次指令未发送。请等待同步完成后重试，输入内容已保留。',
     context_change_pending: '模型或能力正在切换，请等待完成后再发送。',
     worker_unavailable: '所选模型的服务尚未就绪，请稍后重试或选择其他模型。',

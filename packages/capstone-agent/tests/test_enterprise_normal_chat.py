@@ -227,6 +227,35 @@ def test_business_items_remain_open_without_user_acceptance(chat_store):
     assert next_state['business_report'] == state['business_report']
     assert next_state['business_report_source'] == claim.attempt.attempt_id
 
+    work = store.snapshot(thread_id).works[0]
+    stale = command(store, thread_id, 'record_task_decision', 'stale_accept',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'revision_ref': state['revision_ref'], 'decision': 'accept'})
+    assert store.submit_command(stale).rejection == 'task_state_revision_conflict'
+    accept = command(store, thread_id, 'record_task_decision', 'accept',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'revision_ref': next_state['revision_ref'], 'decision': 'accept'})
+    receipt = store.submit_command(accept)
+    assert receipt.status == 'accepted'
+    assert store.submit_command(accept) == receipt
+    updated = store.snapshot(thread_id).works[0]
+    assert updated['task_state'] == next_state
+    assert updated['task_decision'] == {
+        'revision_ref': next_state['revision_ref'], 'decision': 'accept', 'command_id': 'cmd_accept'}
+    assert store.snapshot(thread_id).current_attempt is None
+    if isinstance(store, PostgresThreadService):
+        store = PostgresThreadService(store.dsn)
+        store.set_native_executor(native_executor())
+        assert store.snapshot(thread_id).works[0]['task_decision'] == updated['task_decision']
+    changes = command(store, thread_id, 'record_task_decision', 'request_changes',
+        work_id=updated['work_id'], revision=updated['revision'],
+        payload={'revision_ref': next_state['revision_ref'], 'decision': 'request_changes'})
+    assert store.submit_command(changes).status == 'accepted'
+    assert store.snapshot(thread_id).works[0]['task_decision']['decision'] == 'request_changes'
+    original = [event for event in store.read_events(thread_id, 0).events
+                if event.payload.get('command_id') == accept['command_id']]
+    assert original[0].payload['work']['task_decision']['decision'] == 'accept'
+
 
 @pytest.mark.parametrize('terminal', ['cancelled', 'failed', 'interrupted'])
 def test_new_conversation_instruction_does_not_replay_prior_unfinished_input(chat_store, terminal):
@@ -417,6 +446,8 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     with pytest.raises(ThreadExecutionError, match='lease'):
         restored.finish_attempt(claim, phase='completed', payload={'answer': 'late'})
     work = restored.snapshot(thread_id).works[0]
+    assert work['task_state']['execution']['phase'] == 'interrupted'
+    assert work['task_state']['open_items'] == [{'kind': 'execution_incomplete', 'reason': 'interrupted'}]
     executor.identity = frozen['identity']
     restored.set_native_executor(executor)
     next_request = command(restored, thread_id, 'send_message', 'after_expiry', work_id=work['work_id'],
@@ -424,6 +455,7 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     assert restored.submit_command(next_request).status == 'accepted'
     current = restored.claim_attempt('replacement', 30, 'native')
     assert current.instruction == 'Continue'
+    assert current.task_context.task_state_ref == work['task_state']['revision_ref']
     assert any(message['content'] == 'Keep this input' and message['status'] == 'interrupted'
                for message in current.conversation_context.to_document()['messages'])
     with pytest.raises(ThreadExecutionError, match='lease'):

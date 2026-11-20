@@ -15,6 +15,12 @@ export type SessionGoalPlan = {
   steps: { instruction: string; expectedResult: string }[]
   stepIndex: number
 }
+export type TaskDecision = 'accept' | 'request_changes'
+type TaskState = {
+  revisionRef: string
+  decision?: TaskDecision
+  report?: Record<'completed' | 'open' | 'defects' | 'blockers', string[]>
+}
 export type WorkRecord = {
   instructionQueue?:QueuedInstruction[]
   instructionQueueAvailable?:boolean
@@ -27,6 +33,7 @@ export type WorkRecord = {
   goalMode?: GoalMode
   goalPlan?: SessionGoalPlan
   goalPlanPending?: boolean
+  taskState?: TaskState
 }
 export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPhase;
   targetModelContextId: string | null; runtimeMode: RuntimeMode; workId: string | null }
@@ -46,7 +53,7 @@ export type WorkSnapshot = {
 }
 export type WorkCommand = {
   schema: 'capstone-command/2'; thread_id: string; run_id: string
-  command_id: string; idempotency_key: string; kind: 'queue_instruction' | 'withdraw_instruction' | 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'open_model' | 'activate_model' | 'close_model' | GoalControl
+  command_id: string; idempotency_key: string; kind: 'queue_instruction' | 'withdraw_instruction' | 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'record_task_decision' | 'open_model' | 'activate_model' | 'close_model' | GoalControl
   target: { kind: 'work' | 'model_workspace'; id: string; expected_revision: number }
   payload: ({ text: string; source_attempt_id?: string } & Partial<InputSubmission>) | Record<string, string|number>
 }
@@ -66,6 +73,40 @@ function parseRuntime(value: unknown): RuntimeMode {
   if (value === undefined || value === 'capstone') return 'capstone'
   if (value === 'pi_reference') return value
   throw new ThreadProtocolError('工作运行模式无效')
+}
+
+function parseTaskDecision(value: unknown): TaskDecision {
+  if (value === 'accept' || value === 'request_changes') return value
+  throw new ThreadProtocolError('任务验收决定无效')
+}
+
+function parseTaskState(work: Record<string, unknown>, threadId: string, workId: string): TaskState | undefined {
+  if (work.task_state === undefined && work.task_decision === undefined) return
+  const state = object(work.task_state)
+  const task = object(state.task)
+  const revisionRef = id(state.revision_ref)
+  if (state.schema !== 'capstone-task-state/1' || task.thread_id !== threadId || task.work_id !== workId) {
+    throw new ThreadProtocolError('任务状态关联无效')
+  }
+  const parsed: TaskState = {revisionRef}
+  if (work.task_decision !== undefined) {
+    const receipt = object(work.task_decision)
+    if (receipt.revision_ref !== revisionRef) throw new ThreadProtocolError('任务验收版本无效')
+    parsed.decision = parseTaskDecision(receipt.decision)
+  }
+  if (state.business_report !== undefined) {
+    const raw = object(state.business_report)
+    const report: NonNullable<TaskState['report']> = {completed: [], open: [], defects: [], blockers: []}
+    for (const key of ['completed', 'open', 'defects', 'blockers'] as const) {
+      const items = raw[key]
+      if (!Array.isArray(items) || items.length > 8 || items.some(item => typeof item !== 'string' || !item.trim() || Array.from(item).length > 160)) {
+        throw new ThreadProtocolError('任务状态事项无效')
+      }
+      report[key] = items as string[]
+    }
+    parsed.report = report
+  }
+  return parsed
 }
 
 export function parseWorkSnapshot(value: unknown): WorkSnapshot {
@@ -135,6 +176,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       cancelRequested: work.cancel_requested === true, conversationMode: work.conversation_mode === true,
       ...(work.goal_mode===undefined?{}:{goalMode:parseGoalMode(work.goal_mode)}),
       goalPlan, goalPlanPending: work.goal_plan_pending === true,
+      taskState: parseTaskState(work, threadId, workId),
       startUnavailableReason: work.start_unavailable_reason == null ? null : String(work.start_unavailable_reason),
       blockedReason: work.blocked_reason as string | null, messages: work.messages as string[] }
   })
@@ -202,6 +244,12 @@ export function buildCancelWorkCommand(threadId: string, runId: string, commandI
   return { ...buildStartWorkCommand(threadId, runId, commandId, idempotencyKey, workId, expectedRevision), kind: 'cancel_work' }
 }
 
+export function buildTaskDecisionCommand(threadId: string, runId: string, commandId: string, idempotencyKey: string,
+  workId: string, expectedRevision: number, revisionRef: string, decision: TaskDecision): WorkCommand {
+  return {...buildStartWorkCommand(threadId, runId, commandId, idempotencyKey, workId, expectedRevision),
+    kind: 'record_task_decision', payload: {revision_ref: id(revisionRef), decision: parseTaskDecision(decision)}}
+}
+
 export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCommand {
   const command = object(value)
   const target = object(command.target)
@@ -211,6 +259,10 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
     return buildModelWorkspaceCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),revision(target.expected_revision),command.kind as 'open_model'|'activate_model'|'close_model',payload)
   }
   if (target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
+  if (command.kind === 'record_task_decision' && Object.keys(payload).length === 2) {
+    return buildTaskDecisionCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key),
+      id(target.id), revision(target.expected_revision, 1), id(payload.revision_ref), parseTaskDecision(payload.decision))
+  }
   if(command.kind==='queue_instruction'||command.kind==='withdraw_instruction'){
     const field=command.kind==='queue_instruction'?'text':'instruction_id'
     const interrupt=command.kind==='queue_instruction'&&payload.mode==='interrupt'
