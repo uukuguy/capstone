@@ -369,12 +369,14 @@ def _recover_workflow_delivery(snapshot, original, payload, artifacts):
             or work['revision'] != interrupted.get('revision') or work['task_context'] != frozen):
         return snapshot, {}
     goal = work.get('goal_mode')
-    if goal is not None:
+    submission = original['submission_snapshot'] or {}
+    handoff = '_task_handoff' in submission
+    goal_step = goal is not None and not handoff
+    if goal_step:
         eligible = ('goal_plan' in work and 'goal_step_review' not in work
                     and goal['state'] == 'paused' and goal['reason'] == 'attempt_interrupted'
                     and goal['last_settled_attempt_id'] == attempt_id)
     else:
-        submission = original['submission_snapshot'] or {}
         mission = submission.get('_mission')
         reference = next((ref for ref in reversed(snapshot.mission_refs)
                           if ref.get('work_id', work['work_id']) == work['work_id']), None)
@@ -383,12 +385,18 @@ def _recover_workflow_delivery(snapshot, original, payload, artifacts):
             origin['work_id'] = reference['work_id']
         bound_mission = (isinstance(mission, dict) and reference is not None
                          and mission['mission_id'] == reference['mission_id'] and mission['origin'] == origin)
-        eligible = (work.get('conversation_mode') and '_mission_review' not in submission
-                    and (bound_mission or '_task_handoff' in submission))
+        eligible = ('_mission_review' not in submission and
+                    ((work.get('conversation_mode') and bound_mission)
+                     or (handoff and (work.get('conversation_mode') or goal is not None))))
     if not eligible:
         return snapshot, {}
+    if goal is not None and handoff:
+        # Handoffs on Goal Work enter as standalone user follow-ups.
+        snapshot = replace(snapshot, works=tuple(
+            {**item, 'goal_followup': True} if item['work_id'] == work['work_id'] else item
+            for item in snapshot.works))
     updated, restored = transition_work(snapshot, context, attempt_id, 'completed')
-    if goal is not None:
+    if goal_step:
         product_refs = sorted({artifact[key] for artifact in artifacts for key in ('artifact_id', 'file_name')})
         _stage_goal_step_review(restored, attempt_id, payload['answer'], product_refs, [])
     attempt = AttemptSnapshot(original['turn_id'], attempt_id, 'completed', None, snapshot.runtime_mode)

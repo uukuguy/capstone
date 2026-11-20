@@ -126,3 +126,45 @@ def test_postgres_restart_and_concurrent_continuation(postgres_thread_service):
         handoff = freeze_task_handoff(connection, {'thread_id': 'thr_distinct', 'workspace_name': 'enterprise'}, source)
     assert handoff['state']['workflow']['objective'] == 'Inspect model'
     assert handoff['state']['workflow']['plan']['steps'][0]['instruction'] == 'Write draft'
+
+
+def test_recovered_goal_handoff_reply_preserves_saved_plan():
+    from dataclasses import replace
+    from capstone_agent.thread_service import InMemoryThreadService, _recover_workflow_delivery
+    from capstone_agent.thread_work import settle_early_task_state
+    from test_thread_work_execution import professional_snapshot, save_work, command
+
+    store = InMemoryThreadService(professional_snapshot())
+    thread_id = 'thr_work_exec'
+    initial = save_work(store, thread_id)
+    assert store.submit_command(command(store, thread_id, 'start_goal', 'start',
+        work_id=initial['work_id'], revision=initial['revision'], payload={
+            'objective': 'Inspect model', 'max_attempts': 3,
+            'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
+    _admit_initial_plan(store)
+    first = store.claim_attempt('worker', 30)
+    _review_saved_step(store, first)
+    ready = store.snapshot(thread_id)
+    work = ready.works[0]
+    assert store.submit_command(command(store, thread_id, 'pause_goal', 'pause',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    paused = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'send_message', 'followup',
+        work_id=paused['work_id'], revision=paused['revision'], payload={'text': 'Continue a separate task'})).status == 'accepted'
+    claim = store.claim_attempt('worker', 30)
+    attempt = replace(claim.attempt, phase='interrupted')
+    source = {'thread_id': 'thr_other', 'work_id': 'work_other', 'work_revision': 3, 'revision_ref': 'attempt_other'}
+    submission = {'_task_handoff': {**source, 'state': {}}}
+    interrupted, payload = settle_early_task_state(
+        replace(store.snapshot(thread_id), current_attempt=None), claim.task_context, attempt, submission)
+    original = {'attempt_id': attempt.attempt_id, 'turn_id': attempt.turn_id,
+                'task_context_snapshot': claim.task_context.to_document(), 'submission_snapshot': submission,
+                'interrupted_work': payload['work']}
+    restored, _ = _recover_workflow_delivery(interrupted, original, {'answer': 'Saved result'}, ())
+    assert restored.works[0]['task_state']['execution']['phase'] == 'completed'
+    assert restored.works[0]['task_state']['handoff'] == source
+    assert restored.works[0]['goal_mode'] == paused['goal_mode']
+    assert restored.works[0]['goal_plan'] == paused['goal_plan']
+    assert 'goal_step_review' not in restored.works[0]
+    advanced = replace(interrupted, works=({**interrupted.works[0], 'revision': payload['work']['revision'] + 1},))
+    assert _recover_workflow_delivery(advanced, original, {'answer':'Saved result'}, ()) == (advanced, {})
