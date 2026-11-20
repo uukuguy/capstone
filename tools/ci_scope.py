@@ -790,6 +790,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
                 source + 'resources/investigation-skills.mjs',
                 agent + 'tests/fixtures/investigation-skills.test.mjs',
                 agent + 'tests/test_managed_resource_task.py',
+                agent + 'tests/test_managed_resource_transport.py',
             } for path in paths):
         return 'managed-skills'
     retirement_manifest = Path(__file__).resolve().parents[1] / 'configs/development/research-mode-retirement-gate.json'

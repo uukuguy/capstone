@@ -16,7 +16,6 @@ def test_protected_control_and_task_scopes_share_the_same_service(context,tmp_pa
     runner.managed_resource_service.task_is_open=lambda task:True
     runner.task_resource_inputs={'one':tmp_path/'inputs'}
     host._tasks['one']={'request':SimpleNamespace(managed_workspace='trusted')}
-    relay.register('one','task-grant',time.monotonic()+10)
     server=make_server(host,control_token='control',address=('127.0.0.1',0),runner=runner)
     thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     try:
@@ -27,8 +26,9 @@ def test_protected_control_and_task_scopes_share_the_same_service(context,tmp_pa
             assert response.status_code==200
             assert response.json()['result']['allowed_actions']
             task={'operation':'list','document':{}}
+            relay.register('one','task-grant',time.monotonic()+60)
             response=client.post('/managed-resource-tasks/one',json=task,headers={'Authorization':'Bearer task-grant'})
-            assert response.status_code==200 and response.json()['ok'] is True
+            assert response.status_code==200 and response.json()['ok'] is True, response.json()
             response=client.post('/managed-resource-tasks/one',json={**task,'workspace':'other'},headers={'Authorization':'Bearer task-grant'})
             assert response.status_code==400
             assert client.post('/managed-resource-tasks/one',json=task,headers={'Authorization':'Bearer wrong'}).status_code==403
