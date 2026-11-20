@@ -81,6 +81,7 @@ def _select_work(snapshot, intent):
 def _submission(service, prior, intent, grants, authority_inputs=(), gateway_inputs=()):
     from .mission_equipment import origin_binding, registry_revision
     source = deepcopy(prior or {})
+    source.pop('_task_handoff', None)
     mission = source.get('_mission')
     if (not isinstance(mission, dict) or mission.get('mission_id') != intent['mission_id']
             or mission.get('origin') != intent['origin'] or not source.get('_native_execution')):

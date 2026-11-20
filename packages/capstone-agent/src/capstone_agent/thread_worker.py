@@ -101,7 +101,12 @@ def _run_claimed_attempt(
         claim = replace(claim, resource_reader=resource_reader_for(service, claim))
     task_state_ref = None if claim.task_context is None else claim.task_context.task_state_ref
     historical_attempt = task_state_ref or (None if previous is None else previous.attempt_id)
-    if historical_attempt is not None:
+    handoff = (claim.submission or {}).get('_task_handoff')
+    if handoff is not None:
+        claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
+            service, handoff['thread_id'], handoff['revision_ref'], handoff=handoff,
+            workspace_name=claim.workspace_name))
+    elif historical_attempt is not None:
         claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
             service, claim.thread_id, historical_attempt))
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)

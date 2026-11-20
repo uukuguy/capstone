@@ -46,6 +46,19 @@ def start_unavailable_reason(snapshot):
     return _application_context_lock(snapshot) or ('case_execution_active' if _application_case_active(snapshot) else None)
 
 
+def goal_task_workflow(work):
+    goal = work.get('goal_mode')
+    if goal is None:
+        return None
+    plan = work.get('goal_plan', {})
+    return {'kind': 'goal', 'work_revision': work['revision'],
+            'objective_revision': goal['objective_revision'], 'generation': goal['generation'],
+            'state': goal['state'], 'reason': goal['reason'],
+            'plan_revision': plan.get('plan_revision'), 'step_index': plan.get('step_index'),
+            'criteria': deepcopy(plan.get('criteria', [])),
+            'review_refs': deepcopy(plan.get('review_refs', []))}
+
+
 def project_work(snapshot, work):
     from .instruction_queue import supported
     reason = start_unavailable_reason(snapshot)
@@ -56,6 +69,9 @@ def project_work(snapshot, work):
     projected = deepcopy(work)
     projected.pop('goal_step_review', None)
     projected.pop('goal_followup', None)
+    workflow = goal_task_workflow(work)
+    if workflow is not None and 'task_state' in projected:
+        projected['task_state']['workflow'] = workflow
     return {**projected, 'latest_attempt_id': work.get('latest_attempt_id'),
             'consumed_message_count': work.get('consumed_message_count', 0),
             'cancel_requested': work.get('cancel_requested', False),
@@ -78,29 +94,41 @@ def checked_business_report(value):
 
 
 def settle_task_state(snapshot, work_payload, task_context, attempt, phase, submission, business_report=None):
-    if task_context is None or '_mission' in (submission or {}):
+    if task_context is None:
         return snapshot, work_payload
     work_id = task_context.binding.work_id
     work = next((item for item in snapshot.works if item['work_id'] == work_id), None)
-    if work is None or not work.get('conversation_mode') or 'goal_mode' in work:
+    if work is None or not (work.get('conversation_mode') or 'goal_mode' in work):
         return snapshot, work_payload
     previous = work.get('task_state')
+    predecessor = None if previous is None else previous['revision_ref']
+    if predecessor == attempt.attempt_id:
+        predecessor = previous['previous_revision_ref']
     state = {
         'schema': 'capstone-task-state/1',
         'task': {'thread_id': snapshot.thread_id, 'work_id': work_id},
         'revision_ref': attempt.attempt_id,
-        'previous_revision_ref': None if previous is None else previous['revision_ref'],
+        'previous_revision_ref': predecessor,
         'execution': {'attempt_id': attempt.attempt_id, 'turn_id': attempt.turn_id, 'phase': phase},
         'acceptance': 'undecided',
         'open_items': [] if phase == 'completed' else [{'kind': 'execution_incomplete', 'reason': phase}],
     }
+    handoff = (submission or {}).get('_task_handoff')
+    if handoff is not None:
+        from .task_handoff import MISSION_FIELDS, SELECTION_FIELDS, parse_task_handoff
+        state['handoff'] = parse_task_handoff({
+            field: handoff[field] for field in handoff.keys() & (SELECTION_FIELDS | MISSION_FIELDS)})
+    elif previous is not None and 'handoff' in previous:
+        state['handoff'] = previous['handoff']
     report = checked_business_report(business_report)
     if report is not None:
         state['business_report'] = report
         state['business_report_source'] = attempt.attempt_id
-    elif previous is not None and 'business_report' in previous:
-        state['business_report'] = previous['business_report']
-        state['business_report_source'] = previous['business_report_source']
+    else:
+        report_source = handoff['state'] if handoff is not None else previous
+        if report_source is not None and 'business_report' in report_source:
+            state['business_report'] = report_source['business_report']
+            state['business_report_source'] = report_source['business_report_source']
     settled = {**work, 'task_state': state}
     settled.pop('task_decision', None)
     snapshot = replace(snapshot, works=tuple(
@@ -169,6 +197,11 @@ def work_event_payload(snapshot, task_context, attempt_id, status):
     return updated, ({} if work is None else {'work_id': work['work_id'], 'work': project_work(updated, work)})
 
 
+def settle_early_task_state(snapshot, task_context, attempt, submission):
+    updated, payload = work_event_payload(snapshot, task_context, attempt.attempt_id, attempt.phase)
+    return settle_task_state(updated, payload, task_context, attempt, attempt.phase, submission)
+
+
 def create_attempt(snapshot, work, *, turn_id=None, bind_task_state=False):
     """Adapt one explicit Work start to the existing accepted Attempt contract."""
     from .thread_protocol import AttemptSnapshot
@@ -187,7 +220,7 @@ def create_attempt(snapshot, work, *, turn_id=None, bind_task_state=False):
     model = snapshot.active_model_context
     context = replace(TaskContext.from_document(work['task_context']),
                       model_contexts=() if model is None else (model,))
-    if bind_task_state and 'task_state' in work:
+    if (bind_task_state or 'goal_mode' in work) and 'task_state' in work:
         context = replace(context, task_state_ref=work['task_state']['revision_ref'])
     work['task_context'] = context.to_document()
     attempt = AttemptSnapshot(turn_id or 'turn_' + token, 'attempt_' + token, 'accepted',
@@ -214,7 +247,8 @@ def prepare_mission_review(snapshot, work_id, *, attempt_id, turn_id):
             or snapshot.pending_model_switch is not None or snapshot.pending_selection is not None):
         return None
     context = replace(TaskContext.from_document(work['task_context']),
-                      snapshot_id='task_' + secrets.token_hex(10))
+                      snapshot_id='task_' + secrets.token_hex(10),
+                      task_state_ref=work.get('task_state', {}).get('revision_ref'))
     work.update(status='queued', blocked_reason=None, latest_attempt_id=attempt_id,
                 revision=work['revision'] + 1, task_context=context.to_document())
     attempt = AttemptSnapshot(turn_id, attempt_id, 'accepted', None, snapshot.runtime_mode)
@@ -262,8 +296,13 @@ def parse_command(command):
         if not initial_plan_admission.get():
             raise ThreadProtocolError('Goal plan commands are internal')
     if command['kind'] == 'send_message' and (set(command['payload']) - {
-            'text', 'input', 'context_selection', 'resource_profile', 'enabled_profiles', 'source_attempt_id', 'material_refs', 'context_product_refs', 'attachment_refs', 'deep_research', 'llm_profile_id', 'excluded_session_skills'}):
+            'text', 'input', 'context_selection', 'resource_profile', 'enabled_profiles', 'source_attempt_id', 'material_refs', 'context_product_refs', 'attachment_refs', 'deep_research', 'llm_profile_id', 'excluded_session_skills', 'task_handoff'}):
         raise ThreadProtocolError('invalid message input fields')
+    if command['kind'] == 'send_message' and 'task_handoff' in command['payload']:
+        from .task_handoff import parse_task_handoff
+        parse_task_handoff(command['payload']['task_handoff'])
+        if 'source_attempt_id' in command['payload']:
+            raise ThreadProtocolError('task handoff cannot be combined with another history source')
     _validate_json(command['payload'], name='command.payload')
     require_capacity('command_bytes', len(_canonical(command).encode()), phase='command')
     if len(_canonical(command).encode()) > limits.command_bytes:
@@ -674,13 +713,16 @@ def parse_snapshot(document):
             from .thread_protocol import _identifier
             state = work['task_state']
             if (not isinstance(state, dict)
-                    or set(state) - {'business_report', 'business_report_source'} != {
+                    or set(state) - {'business_report', 'business_report_source', 'handoff', 'workflow'} != {
                         'schema', 'task', 'revision_ref', 'previous_revision_ref',
                         'execution', 'acceptance', 'open_items'}
                     or state['schema'] != 'capstone-task-state/1'
                     or state['task'] != {'thread_id': snapshot.thread_id, 'work_id': work['work_id']}
                     or state['acceptance'] != 'undecided'):
                 raise ThreadProtocolError('invalid task state')
+            if 'handoff' in state:
+                from .task_handoff import parse_task_handoff
+                parse_task_handoff(state['handoff'])
             execution = state['execution']
             if (not isinstance(execution, dict) or set(execution) != {'attempt_id', 'turn_id', 'phase'}
                     or execution['attempt_id'] != state['revision_ref']
@@ -789,6 +831,9 @@ def parse_snapshot(document):
                 raise ThreadProtocolError('invalid Work goal mode') from error
             if goal['objective'] != work['goal'] or goal['objective_revision'] != work['goal_revision']:
                 raise ThreadProtocolError('inconsistent Work goal objective')
+        state = work.get('task_state', {})
+        if 'workflow' in state and ('goal_mode' not in work or state['workflow'] != goal_task_workflow(work)):
+            raise ThreadProtocolError('invalid Goal task workflow')
         if 'context_product_refs' in work:
             refs = checked_work_product_refs(work['context_product_refs'])
             if any(item['ref']['thread_id'] != snapshot.thread_id for item in refs):
@@ -812,4 +857,7 @@ def parse_snapshot(document):
         raise ThreadProtocolError('invalid Work snapshot identity or bounds')
     stored = tuple({key: deepcopy(value) for key, value in work.items()
                     if key not in {'start_available', 'start_unavailable_reason', 'instruction_queue_available'}} for work in document['works'])
+    for work in stored:
+        if 'task_state' in work:
+            work['task_state'].pop('workflow', None)
     return replace(snapshot, minimum_protocol_version=2, works=stored)

@@ -26,6 +26,12 @@ def test_intent_creation_and_goal_alias_share_identity_and_thread_link(chat_stor
         mission = created.json()
         assert mission['state'] == 'planning' and mission['tasks'] == []
         assert mission['acceptance'] is None and not mission['plan_complete']
+        state = mission['task_state']
+        assert state['schema'] == 'capstone-task-state/1'
+        assert state['task'] == {'mission_id': mission['mission_id']}
+        assert state['revision_ref'] == str(mission['revision'])
+        assert state['workflow']['plan_revision'] == mission['plan_revision']
+        assert state['open_items'] == [{'kind': 'mission_plan_incomplete'}]
         assert mission['mission_id'] == mission['goal_id']
         retried = client.post('/api/v1/control/missions', headers=_auth(), json=request(thread_id))
         assert retried.json() == mission

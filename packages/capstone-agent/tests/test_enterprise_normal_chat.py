@@ -170,7 +170,9 @@ def test_normal_conversation_stop_uses_existing_cancel_and_keeps_unconsumed_inpu
     else:
         assert result.status == 'cancelled'
     assert store.snapshot(thread_id).works[0]['messages'] == ['Continue explaining']
-    assert store.snapshot(thread_id).works[0]['status'] == 'cancelled'
+    work = store.snapshot(thread_id).works[0]
+    assert work['status'] == 'cancelled'
+    assert work['task_state']['execution']['phase'] == 'cancelled'
 
 
 def test_native_failure_is_failed_instead_of_a_completed_placeholder(chat_store):
@@ -676,3 +678,77 @@ print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','content':[
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+@pytest.mark.parametrize('include_mission', [False, True])
+def test_cross_session_handoff_freezes_same_workspace_task_version(postgres_thread_service, tmp_path, include_mission, monkeypatch):
+    store, thread_id = postgres_thread_service
+    source_id, foreign_id = thread_id + '_source', thread_id + '_foreign'
+    executor = native_executor()
+    store.set_native_executor(executor)
+    for identity, workspace in ((source_id, 'enterprise'), (thread_id, 'enterprise'),
+                                (foreign_id, 'other')):
+        snapshot = _snapshot(identity)
+        store.create_thread(replace(snapshot, run=replace(snapshot.run, run_id='run_' + identity),
+                                    active_model_context=None, active_grid_page_id=None, minimum_protocol_version=2),
+                            workspace_name=workspace)
+
+    def forbidden(*args):
+        raise AssertionError('handoff must not select a business runtime')
+    factory = IntentRuntimeFactory(forbidden, forbidden, forbidden, general_executor=executor,
+                                   native_research_root=tmp_path)
+    try:
+        first = command(store, source_id, 'send_message', 'source', payload={'text': 'Original instruction'})
+        assert store.submit_command(first).status == 'accepted'
+        assert run_pending_attempt(store, factory, worker_id='native-test', implementation_family='native').status == 'completed'
+        work = store.snapshot(source_id).works[0]
+        source = {'thread_id': source_id, 'work_id': work['work_id'],
+                  'work_revision': work['revision'], 'revision_ref': work['task_state']['revision_ref']}
+        mission = None
+        if include_mission:
+            from capstone_agent.control_host import configure_control
+            host = configure_control(store)
+            mission = host.create_mission('enterprise', {
+                'schema': 'capstone-control-mission-create/1', 'operation_id': source_id,
+                'objective': 'Continue investigation', 'origin': {'thread_id': source_id, 'work_id': work['work_id']},
+            })
+            source.update(mission_id=mission['mission_id'], mission_revision=mission['revision'])
+        denied = [(foreign_id, source, 'foreign'),
+                  (thread_id, {**source, 'work_revision': work['revision'] - 1}, 'stale')]
+        if mission is not None:
+            denied.append((thread_id, {**source, 'mission_revision': mission['revision'] + 1}, 'future_mission'))
+        for target, selector, key in denied:
+            receipt = store.submit_command(command(store, target, 'send_message', key,
+                payload={'text': 'Continue', 'task_handoff': selector}))
+            assert receipt.rejection == 'task_handoff_unavailable'
+            assert store.snapshot(target).works == ()
+        followup = command(store, thread_id, 'send_message', 'handoff',
+                           payload={'text': 'Continue with a new analysis', 'task_handoff': source})
+        assert store.submit_command(followup).status == 'accepted'
+        # Source can advance after admission. The worker still receives the frozen record.
+        assert store.submit_command(command(store, source_id, 'record_task_decision', 'decision',
+            work_id=work['work_id'], revision=work['revision'],
+            payload={'decision': 'request_changes', 'revision_ref': source['revision_ref']})).status == 'accepted'
+        reopened = PostgresThreadService(store.dsn)
+        reopened.set_native_executor(executor)
+        read_snapshot = reopened.snapshot
+        def target_snapshot(identity):
+            assert identity != source_id, 'historical reads must not trigger source maintenance'
+            return read_snapshot(identity)
+        monkeypatch.setattr(reopened, 'snapshot', target_snapshot)
+        result = run_pending_attempt(reopened, factory, worker_id='native-test', implementation_family='native')
+        assert result.status == 'completed'
+        assert reopened.snapshot(thread_id).works[0]['task_state']['handoff'] == source
+        pages = executor.requests[-1].native_context['selected_task_records']
+        assert pages[0]['instruction'] == 'Original instruction'
+        from capstone_agent.native_task_context import public_document
+        assert public_document(pages[0]['task_handoff']['state']) == work['task_state']
+        assert pages[0]['historical_only'] is True
+        assert all(page['thread_id'] == source_id for page in pages)
+        if mission is not None:
+            assert public_document(pages[0]['task_handoff']['mission_state']) == mission['task_state']
+            assert '_mission' not in executor.requests[-1].native_context
+    finally:
+        import psycopg
+        with psycopg.connect(store.dsn) as connection:
+            connection.execute('DELETE FROM capstone_threads WHERE thread_id = ANY(%s)', ([source_id, foreign_id],))

@@ -89,6 +89,16 @@ it('restores the exact draft and skill after an uncertain submission and remount
   expect(screen.queryByRole('button', { name: '移除技能 skill-a' })).toBeNull()
 })
 
+it('passes an explicit task continuation through the composer command menu', async () => {
+  const onSend = vi.fn(async () => {})
+  render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async () => {}} inputCatalog={catalog} />)
+  const text = '/continue-from thr_source/work_a/3/attempt_a\nContinue the draft'
+  fireEvent.change(screen.getByRole('textbox', {name:'Thread 指令'}), {target:{value:text}})
+  fireEvent.click(screen.getByRole('button', {name:'发送指令'}))
+  await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', text, expect.anything()))
+  expect(screen.queryByRole('dialog', {name:'未知命令'})).toBeNull()
+})
+
 it('unknown commands require a literal choice and do not silently submit', async () => {
   const onSend = vi.fn(async () => {})
   render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async () => {}} inputCatalog={catalog} />)

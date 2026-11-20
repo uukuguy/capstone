@@ -39,6 +39,26 @@ The live receipt is in `runs/mission-organizer-recovery/live.json`.
 The next package defines the versioned task-state contract and its first
 consumer. User acceptance remains an explicit decision.
 
+### Goal, Mission and cross-session continuation
+
+Goal publishes its latest Attempt outcome with the current Work, objective,
+plan, step and review references. An automatic step or a later user direction
+can read the preceding Attempt. Mission publishes the current Control revision,
+its plan revision, organizer condition, unfinished tasks and versioned delivery
+and verification records. An organizer can read its preceding Attempt after a
+restart. Neither projection adds a user action between steps.
+
+From a settled source, copy the continuation reference and paste it in another
+session in the same workspace. Write the new instruction on the next line.
+For a Mission, copy the reference from its status panel to select the Control
+revision as well. The application freezes the Work and Attempt revision, the
+optional Mission revision, and the source event boundary when it accepts the
+command. The new execution can read the versioned state and the original
+public execution records, including admitted output references. Authority and
+material access continue to use the destination's grants and current-run rules.
+Later instructions can continue from the destination Work. The source
+conversation and its delivery records remain in their original session.
+
 ### Shared task-state contract and first consumer
 
 Owner is the enterprise application. The existing Attempt `TaskContext`
