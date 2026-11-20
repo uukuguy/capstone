@@ -77,6 +77,9 @@ FORMAL_AND_CORE_INSTRUCTION = (
     '正式回答及摘要只能陈述有依据的事实。若未读取适用的限值、规则或基准，'
     '只报告观察值和已执行的检查，不得给出越限、合规或通过判断。'
     '保留影响结论的限制。不要添加正式回答中没有的信息。'
+    '有具体交付项时可加入 task_state_report。使用 completed、open、defects、blockers 四个数组，'
+    '每个数组最多八条短文本，每条最多 160 字。保留仍未解决的已知事项。'
+    '只记录正式回答支持的事项。空类别填空数组。用户验收由用户决定。'
 )
 
 from .application_capacity import limits, current_capacity, require_capacity

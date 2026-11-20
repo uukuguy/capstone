@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 
 from capstone_agent.intent_runtime import IntentRuntimeFactory
-from capstone_agent.thread_service import InMemoryThreadService
+from capstone_agent.thread_service import InMemoryThreadService, PostgresThreadService
 from capstone_agent.thread_worker import run_pending_attempt
 from test_native_pack_preparation import executor as resource_executor
 from test_thread_postgres import _snapshot, postgres_thread_service
@@ -54,9 +54,17 @@ def test_send_message_runs_and_followup_uses_same_work_history(chat_store, tmp_p
     result = run_pending_attempt(store, factory, worker_id='native-test', implementation_family='native')
     assert result.status == 'completed', [e.payload for e in store.read_events(thread_id, 0).events if e.event_type == 'attempt_failed']
     work = store.snapshot(thread_id).to_document()['works'][0]
+    state = work['task_state']
+    assert state['execution']['phase'] == 'completed'
+    assert state['acceptance'] == 'undecided'
+    if isinstance(store, PostgresThreadService):
+        store = PostgresThreadService(store.dsn)
+        store.set_native_executor(executor)
+        assert store.snapshot(thread_id).works[0]['task_state'] == state
     second = command(store, thread_id, 'send_message', 'second', work_id=work['work_id'],
                      revision=work['revision'], payload={'text': 'Explain that answer'})
     assert store.submit_command(second).status == 'accepted'
+    assert store.snapshot(thread_id).works[0]['task_context']['task_state_ref'] == state['revision_ref']
     result = run_pending_attempt(store, factory, worker_id='native-test', implementation_family='native')
     assert result.status == 'completed'
     assert len(executor.requests) == 2
@@ -65,11 +73,15 @@ def test_send_message_runs_and_followup_uses_same_work_history(chat_store, tmp_p
     assert store.snapshot(thread_id).works[0]['task_context']['binding'] == work['task_context']['binding']
     completed = [event for event in store.read_events(thread_id, 0).events if event.event_type == 'attempt_completed']
     assert len(completed) == 2
+    assert completed[0].payload['work']['task_state'] == state
+    assert completed[1].payload['work']['task_state']['previous_revision_ref'] == state['revision_ref']
     assert all(not event.payload.get('result_refs') and not event.payload.get('evidence_refs') for event in completed)
     research = [event for event in store.read_events(thread_id, 0).events if event.event_type == 'research_state_updated']
     assert len(research) == 2
     assert {event.payload['research_id'] for event in research} == {work['task_context']['binding']['research_id']}
     assert executor.requests[1].to_document()['native_context']['selected_task_records']
+    assert executor.requests[1].to_document()['native_context']['selected_task_source'] == {
+        'thread_id': thread_id, 'attempt_id': state['revision_ref']}
     assert executor.requests[0].to_document()['native_context']['policy']['external_lookup_enabled'] is False
     extra = store.submit_command(command(store, thread_id, 'send_message', 'second_new', payload={'text': 'New again'}))
     assert extra.status == 'rejected'
@@ -174,6 +186,75 @@ def test_native_failure_is_failed_instead_of_a_completed_placeholder(chat_store)
     assert result.status == 'failed'
     assert store.snapshot(thread_id).works[0]['status'] == 'failed'
     assert store.snapshot(thread_id).works[0]['messages'] == ['Hello']
+    saved = store.snapshot(thread_id).works[0]
+    task_state = saved['task_state']
+    assert task_state['acceptance'] == 'undecided'
+    assert task_state['open_items'] == [{'kind': 'execution_incomplete', 'reason': 'failed'}]
+    assert store.submit_command(command(store, thread_id, 'send_message', 'after_failed',
+        work_id=saved['work_id'], revision=saved['revision'],
+        payload={'text': 'Continue with a smaller scope'})).status == 'accepted'
+    claim = store.claim_attempt('followup', 30, implementation_family='native')
+    assert claim is not None
+    assert claim.task_context.task_state_ref == task_state['revision_ref']
+
+
+def test_business_items_remain_open_without_user_acceptance(chat_store):
+    store, thread_id = chat_store
+    store.set_native_executor(native_executor())
+    assert store.submit_command(command(store, thread_id, 'send_message', 'business_state',
+        payload={'text': 'Prepare the draft and record missing inputs'})).status == 'accepted'
+    claim = store.claim_attempt('business_state', 30, implementation_family='native')
+    store.finish_attempt(claim, phase='completed', payload={
+        'answer': 'The draft is ready. The signed source is missing.',
+        'task_state_report': {
+            'completed': ['Draft prepared'],
+            'open': ['Obtain the signed source'],
+            'defects': [],
+            'blockers': ['Source has not been provided'],
+        },
+    })
+    work = store.snapshot(thread_id).works[0]
+    state = work['task_state']
+    assert state['acceptance'] == 'undecided'
+    assert state['business_report']['open'] == ['Obtain the signed source']
+    assert state['business_report']['blockers'] == ['Source has not been provided']
+    assert store.submit_command(command(store, thread_id, 'send_message', 'business_followup',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'text': 'Continue working on the draft'})).status == 'accepted'
+    following = store.claim_attempt('business_followup', 30, implementation_family='native')
+    store.finish_attempt(following, phase='completed', payload={'answer': 'The draft has a new title.'})
+    next_state = store.snapshot(thread_id).works[0]['task_state']
+    assert next_state['business_report'] == state['business_report']
+    assert next_state['business_report_source'] == claim.attempt.attempt_id
+
+    work = store.snapshot(thread_id).works[0]
+    stale = command(store, thread_id, 'record_task_decision', 'stale_accept',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'revision_ref': state['revision_ref'], 'decision': 'accept'})
+    assert store.submit_command(stale).rejection == 'task_state_revision_conflict'
+    accept = command(store, thread_id, 'record_task_decision', 'accept',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'revision_ref': next_state['revision_ref'], 'decision': 'accept'})
+    receipt = store.submit_command(accept)
+    assert receipt.status == 'accepted'
+    assert store.submit_command(accept) == receipt
+    updated = store.snapshot(thread_id).works[0]
+    assert updated['task_state'] == next_state
+    assert updated['task_decision'] == {
+        'revision_ref': next_state['revision_ref'], 'decision': 'accept', 'command_id': 'cmd_accept'}
+    assert store.snapshot(thread_id).current_attempt is None
+    if isinstance(store, PostgresThreadService):
+        store = PostgresThreadService(store.dsn)
+        store.set_native_executor(native_executor())
+        assert store.snapshot(thread_id).works[0]['task_decision'] == updated['task_decision']
+    changes = command(store, thread_id, 'record_task_decision', 'request_changes',
+        work_id=updated['work_id'], revision=updated['revision'],
+        payload={'revision_ref': next_state['revision_ref'], 'decision': 'request_changes'})
+    assert store.submit_command(changes).status == 'accepted'
+    assert store.snapshot(thread_id).works[0]['task_decision']['decision'] == 'request_changes'
+    original = [event for event in store.read_events(thread_id, 0).events
+                if event.payload.get('command_id') == accept['command_id']]
+    assert original[0].payload['work']['task_decision']['decision'] == 'accept'
 
 
 @pytest.mark.parametrize('terminal', ['cancelled', 'failed', 'interrupted'])
@@ -365,6 +446,8 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     with pytest.raises(ThreadExecutionError, match='lease'):
         restored.finish_attempt(claim, phase='completed', payload={'answer': 'late'})
     work = restored.snapshot(thread_id).works[0]
+    assert work['task_state']['execution']['phase'] == 'interrupted'
+    assert work['task_state']['open_items'] == [{'kind': 'execution_incomplete', 'reason': 'interrupted'}]
     executor.identity = frozen['identity']
     restored.set_native_executor(executor)
     next_request = command(restored, thread_id, 'send_message', 'after_expiry', work_id=work['work_id'],
@@ -372,6 +455,7 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     assert restored.submit_command(next_request).status == 'accepted'
     current = restored.claim_attempt('replacement', 30, 'native')
     assert current.instruction == 'Continue'
+    assert current.task_context.task_state_ref == work['task_state']['revision_ref']
     assert any(message['content'] == 'Keep this input' and message['status'] == 'interrupted'
                for message in current.conversation_context.to_document()['messages'])
     with pytest.raises(ThreadExecutionError, match='lease'):

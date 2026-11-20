@@ -11,10 +11,12 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_terminal_transition.py \
   packages/capstone-agent/tests/test_thread_postgres.py \
   packages/capstone-agent/tests/test_enterprise_normal_chat.py \
+  packages/capstone-agent/tests/test_enterprise_context.py \
   packages/capstone-agent/tests/test_thread_attempts.py \
   packages/capstone-agent/tests/test_attempt_lease_deadline.py \
   packages/capstone-agent/tests/test_attempt_failure_delivery.py \
   packages/capstone-agent/tests/test_harness.py \
+  packages/capstone-agent/tests/test_main_chain_context.py::test_verified_native_receipt_reaches_same_work_without_text_refs \
   packages/capstone-agent/tests/test_thread_work_execution.py \
   packages/capstone-agent/tests/test_thread_worker.py \
   packages/capstone-agent/tests/test_thread_recovery_reaper.py \
@@ -27,5 +29,5 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_delegated_runtime.py \
   tools/tests/test_ci_worker_interruption.py -q
 npm run check --prefix packages/capstone-app
-npm test --prefix packages/capstone-app -- src/CapstoneAssistantThread.test.tsx
+npm test --prefix packages/capstone-app -- src/CapstoneAssistantThread.test.tsx src/ThreadWorkExecution.test.tsx src/threadWorkProtocol.test.ts
 git diff --check

@@ -99,9 +99,11 @@ def _run_claimed_attempt(
     if manifests:
         from .continuation_resources import resource_reader_for
         claim = replace(claim, resource_reader=resource_reader_for(service, claim))
-    if previous is not None:
+    task_state_ref = None if claim.task_context is None else claim.task_context.task_state_ref
+    historical_attempt = task_state_ref or (None if previous is None else previous.attempt_id)
+    if historical_attempt is not None:
         claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
-            service, claim.thread_id, previous.attempt_id))
+            service, claim.thread_id, historical_attempt))
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
         def check_intent() -> None:

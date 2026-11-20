@@ -195,6 +195,7 @@ class DelegatedRuntime:
             and (resources.get('submission') or {}).get('_answer_core_summary') is True
             and 'capstone-pi-task/2' in frozen['capability'].get('task_schemas', ())
             and not getattr(self, '_goal_response_enabled', False))
+        track_business_state = core_reply and '_mission' not in (resources.get('submission') or {})
         parent = frozen['original_attempt_id']
         task_id = 'pi-' + sha256((parent + '\0' + goal['goal_id']).encode()).hexdigest()
         # Historical text stays historical. No Authority resources or internal
@@ -568,6 +569,15 @@ class DelegatedRuntime:
         if core_reply and result.status == 'completed':
             from capability_agent.application.answer_format import parse_answer_bundle
             bundle = parse_answer_bundle(result.answer, runtime_limits={'answer_summary_chars': 480})
+            if track_business_state:
+                from .thread_work import checked_business_report
+                try:
+                    raw = json.loads(result.answer)
+                except ValueError:
+                    raw = None
+                report = checked_business_report(raw.get('task_state_report')) if isinstance(raw, dict) else None
+                if report is not None and isinstance(raw.get('answer'), str) and raw['answer'].strip() == bundle.answer:
+                    self.task_state_report = (bundle.answer, report)
             if bundle.summary:
                 self.answer_core_bundle = (bundle.answer, bundle.summary)
             return result.status, bundle.answer

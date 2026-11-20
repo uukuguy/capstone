@@ -21,7 +21,7 @@ import {resultProjectionHistoryText} from './threadSystemNotices'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import { commandKey } from './commandKey'
 import { commandRejectionCopy } from './threadFeedback'
-import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
+import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, buildTaskDecisionCommand, parseStoredWorkCommand, parseWorkSnapshot, type TaskDecision, type WorkCommand } from './threadWorkProtocol'
 import { HttpThreadTransport,ThreadTransportError } from './threadHttpTransport'
 import type { ThreadListPage } from './threadManagement'
 import { CapstoneThreadClient } from './threadClient'
@@ -412,7 +412,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       const receipt = await store.dispatch(command)
       if (!mounted.current) return
       if (receipt.status === 'rejected') {
-        if (receipt.rejection === 'revision_conflict') await store.refreshWorkSnapshot().catch(() => undefined)
+        if (receipt.rejection === 'revision_conflict' || receipt.rejection === 'task_state_revision_conflict') await store.refreshWorkSnapshot().catch(() => undefined)
         throw new CommandRejectedError(receipt.rejection === 'product_context_unavailable' ? '引用的成果暂时无法加入本轮资料。指令未执行，请检查引用后重试。' : commandRejectionCopy(receipt.rejection))
       }
       if (receipt.status !== 'accepted') throw new Error('操作结果待确认，请重试原请求。')
@@ -426,6 +426,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message'||command.kind==='queue_instruction') { drafts.current[selected] = ''; persist(selected) }
       setNotice(command.kind==='queue_instruction'?'':command.kind==='withdraw_instruction'?'撤回已确认。':command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
+      if (command.kind === 'record_task_decision') setNotice('已记录本轮结果的验收决定。')
       await store.refreshWorkSnapshot().catch(cause => { if (mounted.current) setError(cause.message) })
       if (!mounted.current) return
       if (command.target.kind==='work' && selected === 'new' && typeof receipt.target?.id === 'string' && receipt.target.id !== 'new') {
@@ -436,6 +437,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       if (mounted.current && !(cause instanceof CommandRejectedError) && canReconnect(cause)) setReload(value => value + 1)
       throw cause
     } finally { writing.current = false; if (mounted.current) setBusy(false) }
+  }
+  async function recordTaskDecision(decision: TaskDecision) {
+    if (!snapshot || !selectedWork?.taskState) return
+    await dispatch(buildTaskDecisionCommand(currentId, snapshot.runId, `cmd_${commandKey()}`, `idem_${commandKey()}`,
+      selectedWork.workId, selectedWork.revision, selectedWork.taskState.revisionRef, decision))
   }
   async function changeModel(kind:'open_model'|'activate_model'|'close_model',payload:Record<string,string>) {
     if(!snapshot||!modelWorkspace)throw new Error('请先同步模型目录。')
@@ -833,6 +839,28 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     instructionLabel={shownDiagram.schema==='capstone-network-view/2.0'
       && !shownDiagram.layer.focus_ids.length && !shownDiagram.layer.annotations
       ? '模型全图 · 无已保存焦点' : '本次指令的关注视图'}/>:<p role="status">{taskDiagramLoad==='loading'?'正在载入指令电网图…':taskDiagramLoad==='unavailable'?'此指令没有可用的电网图。':'选择一条指令查看电网图。'}</p>,description:'本次执行使用的注册模型和版本。'}]:[]
+  const taskState = liveConversation ? selectedWork?.taskState : undefined
+  const taskDecisionLabel = taskState?.decision === 'accept' ? '已验收' : taskState?.decision === 'request_changes' ? '要求修改' : '待用户验收'
+  const taskDecisionDisabled = busy || !!pending || !!currentAttempt || projection.connection !== 'live'
+  const taskStateControls = taskState && <details>
+    <summary className="thread-settings-section">任务状态 · {taskDecisionLabel}</summary>
+    {taskState.report && <div className="thread-settings-section">
+      <strong>执行记录</strong>
+      {([['completed', '已完成'], ['open', '未完成'], ['defects', '缺陷'], ['blockers', '阻塞']] as const).map(([kind, label]) => {
+        const items = taskState.report?.[kind]
+        return items?.length ? <div key={kind}><strong>{label}</strong><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null
+      })}
+    </div>}
+    {pending?.kind === 'record_task_decision' ? <button type="button" className="thread-settings-item"
+      disabled={busy || projection.connection !== 'live'} onClick={() => void dispatch(pending).catch(() => undefined)}>重试验收请求</button>
+      : <>
+        <button type="button" className="thread-settings-item" disabled={taskDecisionDisabled}
+          onClick={() => void recordTaskDecision('accept').catch(() => undefined)}>验收本轮结果</button>
+        <button type="button" className="thread-settings-item" disabled={taskDecisionDisabled}
+          onClick={() => void recordTaskDecision('request_changes').catch(() => undefined)}>标记需要修改</button>
+      </>}
+  </details>
+
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
@@ -932,7 +960,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         attachments={attachments} onResourceUploaded={()=>setAttachmentReload(value=>value+1)} onRemoveAttachment={async id=>{
           await transport.cancelResourceUpload(currentId,id.replace('resource_','upload_'))
           setAttachments(files=>files.filter(file=>file.resource_id!==id))
-        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
+        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}{taskStateControls}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||!!missionPending||uploadBusy}
       welcomeGateway={sharedNavigation?sharedNavigation.gateway:welcomeGateway}

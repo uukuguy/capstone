@@ -236,7 +236,12 @@ def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, re
                 'parent_attempt_id': request.parent_attempt_id, 'kind': GATEWAY_OPERATION_SOURCE,
                 'metadata': operation},)
         return replace(child, sources=sources, answer=json.dumps({
-            'answer': 'Saved result. Text only: ' + forged, 'summary': 'Saved result.'}))
+            'answer': 'Saved result. The signed source is missing. Text only: ' + forged,
+            'summary': 'Saved result.',
+            'task_state_report': {
+                'completed': ['Saved result'], 'open': ['Read the signed source'],
+                'defects': [], 'blockers': ['The signed source is missing'],
+            }}))
 
     executor.execute = answer
     if backend == 'memory':
@@ -264,6 +269,7 @@ def test_verified_native_receipt_reaches_same_work_without_text_refs(backend, re
     assert first['result_refs'] == [ref]
     assert first['evidence_refs'] == [evidence, independent]
     assert first['authority_references'] == [receipt, evidence_receipt]
+    assert first['work']['task_state']['business_report']['open'] == ['Read the signed source']
     assert any(event.payload.get('gateway_operations') == operation
                for event in store.read_events(thread_id, 0).events)
     work = store.snapshot(thread_id).works[0]

@@ -11,6 +11,7 @@ from .application_capacity import limits, require_capacity
 
 
 WORK_STATUSES = {'ready', 'queued', 'running', 'completed', 'failed', 'cancelled', 'interrupted', 'blocked'}
+TASK_DECISIONS = ('accept', 'request_changes')
 
 
 def checked_work_product_refs(value):
@@ -60,6 +61,51 @@ def project_work(snapshot, work):
             'cancel_requested': work.get('cancel_requested', False),
             'instruction_queue_available': snapshot.active_model_context is None and supported(snapshot.native_execution),
             'start_available': reason is None, 'start_unavailable_reason': reason}
+
+
+def checked_business_report(value):
+    fields = ('completed', 'open', 'defects', 'blockers')
+    if not isinstance(value, dict) or set(value) != set(fields):
+        return None
+    report = {}
+    for field in fields:
+        items = value[field]
+        if not isinstance(items, list) or len(items) > 8 or any(
+                not isinstance(item, str) or not 0 < len(item.strip()) <= 160 for item in items):
+            return None
+        report[field] = [item.strip() for item in items]
+    return report
+
+
+def settle_task_state(snapshot, work_payload, task_context, attempt, phase, submission, business_report=None):
+    if task_context is None or '_mission' in (submission or {}):
+        return snapshot, work_payload
+    work_id = task_context.binding.work_id
+    work = next((item for item in snapshot.works if item['work_id'] == work_id), None)
+    if work is None or not work.get('conversation_mode') or 'goal_mode' in work:
+        return snapshot, work_payload
+    previous = work.get('task_state')
+    state = {
+        'schema': 'capstone-task-state/1',
+        'task': {'thread_id': snapshot.thread_id, 'work_id': work_id},
+        'revision_ref': attempt.attempt_id,
+        'previous_revision_ref': None if previous is None else previous['revision_ref'],
+        'execution': {'attempt_id': attempt.attempt_id, 'turn_id': attempt.turn_id, 'phase': phase},
+        'acceptance': 'undecided',
+        'open_items': [] if phase == 'completed' else [{'kind': 'execution_incomplete', 'reason': phase}],
+    }
+    report = checked_business_report(business_report)
+    if report is not None:
+        state['business_report'] = report
+        state['business_report_source'] = attempt.attempt_id
+    elif previous is not None and 'business_report' in previous:
+        state['business_report'] = previous['business_report']
+        state['business_report_source'] = previous['business_report_source']
+    settled = {**work, 'task_state': state}
+    settled.pop('task_decision', None)
+    snapshot = replace(snapshot, works=tuple(
+        settled if item['work_id'] == work_id else item for item in snapshot.works))
+    return snapshot, {**work_payload, 'work': project_work(snapshot, settled)}
 
 
 def transition_work(snapshot, task_context, attempt_id, status):
@@ -123,7 +169,7 @@ def work_event_payload(snapshot, task_context, attempt_id, status):
     return updated, ({} if work is None else {'work_id': work['work_id'], 'work': project_work(updated, work)})
 
 
-def create_attempt(snapshot, work, *, turn_id=None):
+def create_attempt(snapshot, work, *, turn_id=None, bind_task_state=False):
     """Adapt one explicit Work start to the existing accepted Attempt contract."""
     from .thread_protocol import AttemptSnapshot
     if snapshot.current_attempt is not None:
@@ -141,6 +187,8 @@ def create_attempt(snapshot, work, *, turn_id=None):
     model = snapshot.active_model_context
     context = replace(TaskContext.from_document(work['task_context']),
                       model_contexts=() if model is None else (model,))
+    if bind_task_state and 'task_state' in work:
+        context = replace(context, task_state_ref=work['task_state']['revision_ref'])
     work['task_context'] = context.to_document()
     attempt = AttemptSnapshot(turn_id or 'turn_' + token, 'attempt_' + token, 'accepted',
                               None if model is None else model.id, snapshot.runtime_mode)
@@ -242,6 +290,25 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
         return snapshot, 'case_execution_active', None
     target_work = next((item for item in snapshot.works
                         if item['work_id'] == command['target']['id']), None)
+    if command['kind'] == 'record_task_decision':
+        from .thread_protocol import _identifier
+        payload = command['payload']
+        if set(payload) != {'revision_ref', 'decision'} or payload['decision'] not in TASK_DECISIONS:
+            raise ThreadProtocolError('invalid task decision')
+        source = _identifier(payload['revision_ref'], name='task_decision.revision_ref')
+        if target_work is None:
+            return snapshot, 'work_not_found', None
+        if target_work['revision'] != command['target']['expected_revision']:
+            return snapshot, 'revision_conflict', None
+        state = target_work.get('task_state')
+        if state is None or state['revision_ref'] != source:
+            return snapshot, 'task_state_revision_conflict', None
+        work = {**target_work, 'revision': target_work['revision'] + 1,
+                'task_decision': {**payload, 'command_id': command['command_id']}}
+        works = tuple(work if item['work_id'] == work['work_id'] else item for item in snapshot.works)
+        if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
+            return snapshot, 'work_limit_reached', None
+        return replace(snapshot, works=works), None, work
     if command['kind'] in {'queue_instruction', 'withdraw_instruction'}:
         from .instruction_queue import submit, withdraw
         if target_work is None:
@@ -594,6 +661,7 @@ def parse_snapshot(document):
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
         optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'goal_plan_pending', 'goal_plan', 'goal_step_review', 'goal_followup', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill'}
+        optional.update(('task_state', 'task_decision'))
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -602,6 +670,44 @@ def parse_snapshot(document):
                 or not isinstance(work['messages'], list) or not (0 if work.get('conversation_mode') else 1) <= len(work['messages']) <= limits.work_message_count
                 or any(not isinstance(message, str) or not message.strip() for message in work['messages'])):
             raise ThreadProtocolError('invalid Work state')
+        if 'task_state' in work:
+            from .thread_protocol import _identifier
+            state = work['task_state']
+            if (not isinstance(state, dict)
+                    or set(state) - {'business_report', 'business_report_source'} != {
+                        'schema', 'task', 'revision_ref', 'previous_revision_ref',
+                        'execution', 'acceptance', 'open_items'}
+                    or state['schema'] != 'capstone-task-state/1'
+                    or state['task'] != {'thread_id': snapshot.thread_id, 'work_id': work['work_id']}
+                    or state['acceptance'] != 'undecided'):
+                raise ThreadProtocolError('invalid task state')
+            execution = state['execution']
+            if (not isinstance(execution, dict) or set(execution) != {'attempt_id', 'turn_id', 'phase'}
+                    or execution['attempt_id'] != state['revision_ref']
+                    or execution['phase'] not in ('completed', 'failed', 'cancelled', 'interrupted')
+                    or state['previous_revision_ref'] == state['revision_ref']):
+                raise ThreadProtocolError('invalid task state execution')
+            _identifier(state['revision_ref'], name='task_state.revision_ref')
+            _identifier(execution['turn_id'], name='task_state.turn_id')
+            if state['previous_revision_ref'] is not None:
+                _identifier(state['previous_revision_ref'], name='task_state.previous_revision_ref')
+            expected_open = [] if execution['phase'] == 'completed' else [
+                {'kind': 'execution_incomplete', 'reason': execution['phase']}]
+            if state['open_items'] != expected_open:
+                raise ThreadProtocolError('invalid task state open items')
+            if 'business_report' in state or 'business_report_source' in state:
+                if checked_business_report(state.get('business_report')) is None:
+                    raise ThreadProtocolError('invalid task state business report')
+                _identifier(state.get('business_report_source'), name='task_state.business_report_source')
+        if 'task_decision' in work:
+            from .thread_protocol import _identifier
+            decision = work['task_decision']
+            if (not isinstance(decision, dict)
+                    or set(decision) != {'command_id', 'decision', 'revision_ref'}
+                    or decision['decision'] not in TASK_DECISIONS
+                    or decision['revision_ref'] != work.get('task_state', {}).get('revision_ref')):
+                raise ThreadProtocolError('invalid task decision receipt')
+            _identifier(decision['command_id'], name='task_decision.command_id')
         count = work.get('consumed_message_count', 0)
         if 'goal_followup' in work and (work['goal_followup'] is not True or 'goal_mode' not in work):
             raise ThreadProtocolError('invalid Goal follow-up state')

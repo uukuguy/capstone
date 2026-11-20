@@ -53,6 +53,7 @@ class TaskContext:
     snapshot_id: str
     model_contexts: tuple[ModelContextSnapshot, ...] = ()
     resource_refs: tuple[str, ...] = ()
+    task_state_ref: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.binding, WorkBinding):
@@ -60,6 +61,8 @@ class TaskContext:
         if type(self.goal_revision) is not int or self.goal_revision < 1:
             raise ValueError("invalid goal revision")
         _identity(self.snapshot_id, "task snapshot identity")
+        if self.task_state_ref is not None:
+            _identity(self.task_state_ref, "task state revision")
         if not isinstance(self.model_contexts, tuple) or any(
             not isinstance(model, ModelContextSnapshot) for model in self.model_contexts
         ):
@@ -72,15 +75,18 @@ class TaskContext:
             raise ValueError("invalid task resource references")
 
     def to_document(self) -> dict[str, object]:
-        return {"binding": self.binding.to_document(), "goal_revision": self.goal_revision,
+        document = {"binding": self.binding.to_document(), "goal_revision": self.goal_revision,
                 "snapshot_id": self.snapshot_id,
                 "model_contexts": [model.to_document() for model in self.model_contexts],
                 "resource_refs": list(self.resource_refs)}
+        if self.task_state_ref is not None:
+            document["task_state_ref"] = self.task_state_ref
+        return document
 
     @classmethod
     def from_document(cls, value: object) -> "TaskContext":
         fields = {"binding", "goal_revision", "snapshot_id", "model_contexts", "resource_refs"}
-        if not isinstance(value, Mapping) or set(value) != fields:
+        if not isinstance(value, Mapping) or not fields <= set(value) <= fields | {"task_state_ref"}:
             raise ValueError("invalid task context")
         if (type(value["goal_revision"]) is not int or not isinstance(value["snapshot_id"], str)
                 or not isinstance(value["model_contexts"], list)
@@ -89,4 +95,4 @@ class TaskContext:
         return cls(WorkBinding.from_document(value["binding"]), value["goal_revision"],
                    value["snapshot_id"],
                    tuple(ModelContextSnapshot.from_document(model) for model in value["model_contexts"]),
-                   tuple(value["resource_refs"]))
+                   tuple(value["resource_refs"]), value.get("task_state_ref"))

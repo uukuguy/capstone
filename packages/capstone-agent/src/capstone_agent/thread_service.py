@@ -407,8 +407,10 @@ def _prepare_terminal_transition(
     existing_result_ids = {item.result_id for item in snapshot.result_projections}
     if any(item.result_id in existing_result_ids for item in result_projections):
         raise ThreadProtocolError("result projection already exists")
-    event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
-    from .thread_work import work_event_payload
+    business_report = payload.get('task_state_report')
+    public_payload = {key: value for key, value in payload.items() if key != 'task_state_report'}
+    event_payload, projection_parts = _terminal_result_delivery(public_payload, result_projections)
+    from .thread_work import settle_task_state, work_event_payload
     updated, work_payload = work_event_payload(
         replace(snapshot, current_attempt=None), claim.task_context,
         claim.attempt.attempt_id, phase)
@@ -468,6 +470,8 @@ def _prepare_terminal_transition(
                     work_payload['work'] = project_work(updated, work)
                 works.append(work)
             updated = replace(updated, works=tuple(works))
+    updated, work_payload = settle_task_state(
+        updated, work_payload, claim.task_context, claim.attempt, phase, claim.submission, business_report)
     updated = _result_projection_window(updated, result_projections)
     return updated, {**event_payload, **work_payload}, projection_parts
 
@@ -1959,7 +1963,9 @@ class InMemoryThreadService(NativeExecutionOwner):
                 if selected_model is not None:
                     staged._activate_pending_model_switch(turn_id)
                     staged._activate_pending_selection(turn_id)
-                updated, attempt, task_context, instruction = create_attempt(staged._snapshot, work, turn_id=turn_id)
+                updated, attempt, task_context, instruction = create_attempt(
+                    staged._snapshot, work, turn_id=turn_id,
+                    bind_task_state=parsed['kind'] == 'send_message')
                 self._events = staged._events
                 self._model_workspace = staged._model_workspace
         if rejection is None:
@@ -2793,10 +2799,13 @@ class InMemoryThreadService(NativeExecutionOwner):
                     continue
                 before = self._snapshot
                 terminal = replace(record["attempt"], phase="interrupted")
-                from .thread_work import work_event_payload
+                from .thread_work import settle_task_state, work_event_payload
                 work_snapshot, work_payload = work_event_payload(
                     replace(self._snapshot, current_attempt=None), record.get('task_context'),
                     terminal.attempt_id, 'interrupted')
+                work_snapshot, work_payload = settle_task_state(
+                    work_snapshot, work_payload, record.get('task_context'),
+                    terminal, 'interrupted', record.get('submission'))
                 record["attempt"] = terminal
                 record["lease_token"] = None
                 record["lease_deadline"] = None
@@ -3618,7 +3627,9 @@ class PostgresThreadService(NativeExecutionOwner):
                 refreshed = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s', (snapshot.thread_id,)).fetchone()
                 assert refreshed is not None
                 thread = refreshed
-                updated, attempt, task_context, instruction = create_attempt(updated, work, turn_id=turn_id)
+                updated, attempt, task_context, instruction = create_attempt(
+                    updated, work, turn_id=turn_id,
+                    bind_task_state=parsed['kind'] == 'send_message')
         if rejection is None:
             assert work is not None
             if gateway_state is not None:
@@ -5516,12 +5527,14 @@ class PostgresThreadService(NativeExecutionOwner):
                 terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
                 before = self._snapshot_from_row(thread)
                 from .enterprise_context import TaskContext
-                from .thread_work import work_event_payload
+                from .thread_work import settle_task_state, work_event_payload
                 task_context = (None if attempt.get('task_context_snapshot') is None
                                 else TaskContext.from_document(attempt['task_context_snapshot']))
                 work_snapshot, work_payload = work_event_payload(
                     replace(before, current_attempt=None),
                     task_context, terminal.attempt_id, 'interrupted')
+                work_snapshot, work_payload = settle_task_state(
+                    work_snapshot, work_payload, task_context, terminal, 'interrupted', attempt.get('submission_snapshot'))
                 event_seq = self._seal_open_captures_postgres(
                     connection, thread, terminal, thread["last_event_seq"], context=None)
                 owner = self._make_attempt_event(
