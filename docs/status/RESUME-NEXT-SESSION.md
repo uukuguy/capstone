@@ -2,16 +2,13 @@
 
 Updated 2026-11-20. Active work continues on the managed enterprise execution plan.
 
-## Mission organizer recovery candidate
+## Mission organizer recovery
 
-Branch `fix/mission-organizer-recovery-20261120` targets `dev`. Candidate
-`08ebc478` settles a saved native review on its original Control binding.
-The focused run passed 86 tests. Three cases skipped the PostgreSQL-only
-recovery path in the memory fixture. A follow-up run passed seven recovery
-cases, including concurrent processing of the same saved receipt.
-The canonical local rebuild completed and the API is ready. Next, verify
-a real model review with an interruption before terminal write, then run
-scoped CI and integrate through a dev PR.
+PR #176 merged at `01f7a07c`; scoped macOS CI `44674377200` passed.
+A live model review recovered after a fault before the terminal write.
+Control settled it under the original binding and kept the interruption.
+See `runs/mission-organizer-recovery/live.json`. PostgreSQL cases cover
+pause, cancel and concurrent receipt processing.
 
 The task-context agreement is in the canonical worklist. Shared task
 revisions and authorized cross-session handoff remain separate delivery work.
@@ -48,8 +45,8 @@ The local verification passed 95 checks and focused macOS CI 44516985397 passed.
 
 ## Next work
 
-1. Verify the Mission organizer recovery candidate with a real model review
-   and the original Control binding. Preserve Authority admission and user stop.
+1. Define the versioned task-state contract and its first consumer.
+   Keep execution completion and user acceptance independent.
 2. Preserve the root checkout's unrelated files and other environment
    sources. Use focused development gates.
 

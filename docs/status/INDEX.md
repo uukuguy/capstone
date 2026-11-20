@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-20 Mission 复盘恢复经 PR176 合入 dev。真实复盘中断后按原绑定结算。共享任务上下文为后续交付。见[版本台账](VERSION-CONTROL.md#功能包前沿)。
+
 PR174 的独立研究模式退役与验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。
 
 PR172 的 Mission 子任务恢复与验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。
