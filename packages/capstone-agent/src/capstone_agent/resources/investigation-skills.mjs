@@ -37,10 +37,10 @@ export function createSkillRecordTool(skills){
     version:'sha256:'+createHash('sha256').update(readFileSync(skill.filePath)).digest('hex')}]));
   const loaded=new Set();
   const fail=code=>({isError:true,content:[{type:'text',text:code}]});
-  return {name:'agent_skill',label:'Use task skill',
-    description:'Load an admitted skill by exact name, or report a meaningful public application phase after loading. Loading returns the method. Reports are model statements, not host verification. refs and tool_call_ids link reported work; they do not grant authority. Do not report private reasoning. Available skills: '+skills.map(s=>s.name+': '+s.description).join('; '),
+  return {name:'agent_skill',label:'Use bundled task skill',
+    description:'Load or report use of a bundled method listed in the name schema. For a workspace managed skill, use agent_managed_resource with load_skill and its resource ID and version. Loading returns the method. Reports are model statements, not host verification. refs and tool_call_ids link reported work; they do not grant authority. Do not report private reasoning. Available bundled methods: '+skills.map(s=>s.name+': '+s.description).join('; '),
     parameters:{type:'object',additionalProperties:false,required:['name','operation'],properties:{
-      name:{type:'string',minLength:1,maxLength:128},operation:{type:'string',enum:['load','report']},
+      name:{type:'string',enum:[...admitted.keys()]},operation:{type:'string',enum:['load','report']},
       phase:{type:'string',minLength:1,maxLength:80},summary:{type:'string',minLength:1,maxLength:600},
       refs:{type:'array',maxItems:32,items:{type:'string',minLength:1,maxLength:256}},
       tool_call_ids:{type:'array',maxItems:32,items:{type:'string',minLength:1,maxLength:256}}}},
