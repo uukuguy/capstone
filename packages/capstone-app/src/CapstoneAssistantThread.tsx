@@ -1214,7 +1214,7 @@ function ChatMessage({ inlineExecution = false, selectedNetworkAttempt, networkA
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}
     </div>
-    {role === 'assistant' && !!taskIssues?.length && <aside className="capstone-chat-activity" aria-label="本轮仍需处理">
+    {role === 'assistant' && !!taskIssues?.length && <aside className="capstone-task-issues" aria-label="本轮仍需处理">
       <strong>本轮仍需处理</strong>
       <ul>{taskIssues.map(({label, text}, index) => <li key={index}><strong>{label}：</strong>{text}</li>)}</ul>
     </aside>}
