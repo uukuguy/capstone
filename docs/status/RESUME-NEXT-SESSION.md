@@ -4,6 +4,10 @@ Updated 2026-11-20. Active work continues on the managed enterprise execution pl
 
 ## Current baseline
 
+PR #174 merged to dev `db141b0a`. The workbench has one instruction path
+alongside Goal and Mission. The separate research rollout is closed. A real
+legacy request saved the expected file and returned the ordinary result.
+
 PR #172 merged to dev `0c6a68fc`. Mission verified the original child
 answer and file after a test fault interrupted the native terminal write.
 No replacement execution was admitted. See

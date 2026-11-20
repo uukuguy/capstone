@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+PR174 的独立研究模式退役与验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。
+
 PR172 的 Mission 子任务恢复与验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。
 
 原生执行终态核对已由 PR158 合入 dev，来源及真实验收见[版本台账](VERSION-CONTROL.md#功能包前沿)。

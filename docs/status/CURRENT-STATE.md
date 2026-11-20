@@ -20,6 +20,13 @@ catalog, so navigation remounts can reuse them while refreshing. Catalog mutatio
 invalidate prior history reads; this cache does not own the persistent pin set.
 [Acceptance](../reviews/2026-11-16-durable-session-pins-local.md).
 
+## Supported execution paths
+
+PR #174 merged to dev `db141b0a`. The supported paths are ordinary
+instructions, session Goals and Missions. The separate research selector
+and rollout are closed. Historical conversation events and saved products
+remain readable.
+
 ## Mission child delivery recovery
 
 PR #172 merged to dev `0c6a68fc`. An eligible Mission can verify a saved

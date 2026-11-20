@@ -1,4 +1,6 @@
-# User-selected Deep Research
+# Historical design for a retired research mode
+
+Retired on 2026-11-20. See the [current execution plan](../plans/2026-10-16-enterprise-unified-execution.md#retire-the-separate-research-mode). The original design follows for historical reference.
 
 The user chose explicit per-instruction control after observing that prose
 requests for DR were not reliably honored. This supersedes autonomous escalation

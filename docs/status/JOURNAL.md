@@ -8338,3 +8338,7 @@ check passed. No CI, integration or remote deployment performed.
 
 - 2026-11-20: e3d79ab2 reconciles verified Mission child delivery with the original delegation after worker interruption.
 - 2026-11-20: 0c6a68fc merges PR172 after verified real child delivery recovery and scoped macOS CI.
+
+- 2026-11-20: a250911c retires the separate research mode and closes its rollout plans.
+- 2026-11-20: 77ff408a restores the workflow condition order required by existing governance checks.
+- 2026-11-20: db141b0a merges PR174 after legacy submission, real file download and scoped macOS verification.

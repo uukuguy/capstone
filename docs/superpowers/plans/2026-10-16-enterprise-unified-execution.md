@@ -2,6 +2,13 @@
 
 ## Retire the separate research mode
 
+PR #174 merged at `db141b0a`. macOS CI 44650512239 passed. The composer no
+longer sends a research-mode selection. A legacy field can be read during
+command replay and never selects a separate execution mode. The real local
+test submitted the legacy field, saved and downloaded the requested native
+file, and checked that the formal answer gave the result without an internal
+mode banner. Receipt: `runs/research-mode-retirement/live.json`.
+
 Ordinary instructions, Goals and Missions are the supported execution paths.
 Use discovered evidence and gaps to guide further research within those paths.
 Historical research reports and saved session records remain readable.
