@@ -1508,14 +1508,20 @@ class NativeTaskRunner:
                         *sdk_config['applicationPolicy']['allowed_tools'], 'agent_skill'})}
                 if request.managed_workspace is not None and self.managed_resource_service is not None:
                     from .resource_permissions import ResourcePrincipal
+                    principal = ResourcePrincipal('workspace:' + request.managed_workspace, ())
                     actions=self.managed_resource_service.store.permissions.allowed_actions(
-                        ResourcePrincipal('workspace:'+request.managed_workspace,()),request.managed_workspace)
+                        principal, request.managed_workspace)
                     if actions:
                         self.managed_resource_service.open_task(request.task_id)
                         sdk_config['managedResources']={'url':self.relay_origin+'/managed-resource-tasks/'+request.task_id,
                             'grant':grant,'allowed_actions':actions}
                         sdk_config['applicationPolicy']={**sdk_config['applicationPolicy'],'allowed_tools':sorted({
                             *sdk_config['applicationPolicy']['allowed_tools'],'agent_managed_resource'})}
+                        if 'resources.use' in actions:
+                            guidance = self.managed_resource_service.skill_guidance(principal, request.managed_workspace)
+                            if guidance:
+                                sdk_config.setdefault('contextFiles', []).append({
+                                    'path': 'workspace-managed-skills', 'content': guidance})
 
                 if self.experimental_llm_pool and native.get('deep_research') is False:
                     from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY

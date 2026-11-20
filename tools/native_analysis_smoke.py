@@ -200,6 +200,21 @@ def exercise(directory):
         assert workbook.active['B4'].value == 6
         workbook.close()
     verified.append('excel')
+    formula_path = directory / 'formulas.xlsx'
+    workbook = openpyxl.Workbook()
+    workbook.active['A1'] = '=SUM(40,60)'
+    workbook.save(formula_path)
+    workbook.close()
+    recalculated = directory / 'recalculated'
+    recalculated.mkdir()
+    command(['libreoffice', '-env:UserInstallation=' + (directory / 'calc-profile').as_uri(),
+        '--headless', '--convert-to', 'xlsx', '--outdir', str(recalculated), str(formula_path)], cwd=directory)
+    workbook = openpyxl.load_workbook(recalculated / formula_path.name, read_only=True, data_only=True)
+    try:
+        assert workbook.active['A1'].value == 100
+    finally:
+        workbook.close()
+    verified.append('excel_recalculation')
     frame.to_parquet(directory / 'data.parquet', index=False, engine='pyarrow')
     pd.testing.assert_frame_equal(frame, pd.read_parquet(directory / 'data.parquet'))
     verified.append('parquet')

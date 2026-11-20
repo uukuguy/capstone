@@ -112,9 +112,11 @@ def create_managed_resource_service(root, *, network_policy, environment):
                 shutil.copytree(package, private / 'package', symlinks=True)
                 document['package'] = str(private / 'package')
             for path in [private, *private.rglob('*')]:
-                os.chown(path, uid, uid, follow_symlinks=False)
+                # Set modes while the executor still owns the files. Its
+                # container has CAP_CHOWN but does not have CAP_FOWNER.
                 if not path.is_symlink():
                     path.chmod(0o700 if path.is_dir() or path.stat().st_mode & 0o111 else 0o600)
+                os.chown(path, uid, uid, follow_symlinks=False)
             arguments = ['/usr/bin/setpriv', f'--reuid={uid}', f'--regid={uid}', '--clear-groups', '--no-new-privs', command, *argv[1:]]
             child_environment = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(home), 'TMPDIR': str(home),
                 'LANG': 'C.UTF-8', 'PYTHONPATH': '/opt/general', 'GIT_TERMINAL_PROMPT': '0', 'PYTHONDONTWRITEBYTECODE': '1'}

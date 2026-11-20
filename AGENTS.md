@@ -183,6 +183,32 @@ counts, prices, limits, versions, or deployment state here.
 
 ## Working in This Repository
 
+### Capstone skill installation and loading
+
+- For a skill added to one workspace, use **Settings → Skills/MCP**, the
+  Capstone `/api/v1/managed-resources` API, or the granted
+  `agent_managed_resource` tool. Read the workspace catalog and operation
+  contracts before installing. Use an exact upstream Git commit and the
+  declared package subdirectory. Verify the operation receipt and the enabled
+  resource ID and version in the target workspace. In a task, call
+  `agent_managed_resource` with `load_skill` for that exact ID and version,
+  then read the admitted read-only `SKILL.md`. See the
+  [managed resource design](docs/superpowers/specs/2026-11-02-managed-resource-installation-design.md).
+- For a skill shipped with the Capstone executor, use its versioned
+  [runtime configuration](configs/runtime/general-pi/settings.json) and
+  repository skill sources under `configs/runtime/general-pi/`. The executor
+  applies task scope and session skill preferences. The model sees admitted
+  names and descriptions and loads relevant instructions on demand with
+  `agent_skill`, operation `load`. A workspace managed-resource preinstall
+  manifest is a separate deployment mechanism with exact version pins.
+- Do not install Capstone skills with a generic agent installer or by copying
+  files into a user's Pi or Codex skill directories or a task workspace.
+  If installation fails, keep the request ID and report the Capstone entry
+  point, workspace, source revision and returned status. Check an uncertain
+  operation by its original request ID before retrying. Keep experimental
+  bypasses out of supported installation verification. Report catalog
+  availability, actual task loading and successful use as separate observations.
+
 - Enforce mechanically decidable behavior in code, not through an LLM's
   interpretation of prompts. This includes namespace conversion, schema and
   permission checks, reference ownership, version checks, pagination boundaries,

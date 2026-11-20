@@ -8,6 +8,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 
+def test_managed_skill_scope_excludes_unrelated_product_changes():
+    from tools.ci_scope import classify as classify_changes
+    paths = ['AGENTS.md', '.github/workflows/verify.yml', 'configs/runtime/native-analysis.json',
+             'packages/capstone-agent/src/capstone_agent/managed_resource_service.py']
+    assert classify_changes(paths) == 'managed-skills'
+    assert classify_changes(paths, target='main') == 'release'
+    assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
+
 
 @pytest.fixture
 def accepted_release_repo(tmp_path):

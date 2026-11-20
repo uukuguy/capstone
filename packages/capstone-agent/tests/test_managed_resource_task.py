@@ -5,6 +5,25 @@ from capstone_agent.managed_resource_service import ManagedResourceService
 from test_managed_resource_installation import context, installer, request, P
 
 
+def test_task_skill_guidance_is_bounded_and_workspace_scoped(context, monkeypatch):
+    engine=installer(context);store,_,_=context
+    item=engine.install(P,'w','install','example',request())['result']
+    service=ManagedResourceService(store,engine)
+    guidance=service.skill_guidance(P,'w')
+    assert 'agent_managed_resource' in guidance and 'load_skill' in guidance
+    assert item['version'] in guidance and '"resource_id":"example"' in guidance
+    assert 'SKILL.md' not in guidance and 'package_ref' not in guidance
+    assert service.skill_guidance(P,'other') == ''
+    monkeypatch.setattr(engine,'publication',lambda _: {'skills':[
+        {'name':'large','description':'资料'*20000},
+        {'name':'small','description':'A short entry'}]})
+    bounded=service.skill_guidance(P,'w')
+    assert len(bounded.encode('utf-8')) <= 8192
+    assert 'A short entry' in bounded and 'partial' in bounded
+    store.set_enabled(P,'w','example',False,item['version'])
+    assert service.skill_guidance(P,'w') == ''
+
+
 def test_skill_load_is_versioned_readonly_and_revocation_blocks_next_call(context,tmp_path):
     engine=installer(context);store,_,_=context
     item=engine.install(P,'w','install','example',request())['result']

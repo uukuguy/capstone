@@ -89,6 +89,11 @@
       "category": "documents"
     },
     {
+      "requirement": "defusedxml==0.7.1",
+      "module": "defusedxml.ElementTree",
+      "category": "documents"
+    },
+    {
       "requirement": "beautifulsoup4",
       "module": "bs4",
       "category": "html"
@@ -131,6 +136,7 @@
     "zip",
     "poppler-utils",
     "libreoffice-impress",
+    "libreoffice-calc",
     "fonts-noto-cjk"
   ],
   "commands": [

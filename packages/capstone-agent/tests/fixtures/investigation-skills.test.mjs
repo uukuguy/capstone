@@ -13,6 +13,7 @@ test('skill records require an admitted load and distinguish reported use from v
   try{
     const path=join(root,'SKILL.md');await writeFile(path,'# Method\nUse evidence.');
     const tool=createSkillRecordTool([{name:'method',description:'Investigate',filePath:path}]);
+    assert.deepEqual(tool.parameters.properties.name.enum,['method']);
     assert.equal((await tool.execute('before',{name:'method',operation:'report',summary:'Testing'})).isError,true);
     assert.equal((await tool.execute('unknown',{name:'other',operation:'load'})).isError,true);
     const loaded=await tool.execute('load',{name:'method',operation:'load'});
