@@ -14,6 +14,8 @@
 
 # 多线版本控制
 
+2026-11-20 托管技能接入由 capstone-agent 负责。受检版本 `b6f02ea4`，macOS CI 44753942044 通过，耗时 2 分 49 秒。[PR182](https://github.com/uukuguy/capstone/pull/182) 合入 dev `f5096933`。范围包括隔离安装权限、PPTX 校验、XLSX 重算和任务内按需发现。实际 dev 规范重建和 5174 工作台 API 路径已验证。真实模型从上下文读出技能身份和加载入口，第二条指令交付三个缓存值正确的工作簿；该次用 Calc 直接完成。功能分支已关闭，精确候选提交保留。默认预装和云端发布不在此批范围内。
+
 2026-11-18 企业主会话回复与执行过程修正经 PR148 合入 dev `6d4bc023`。受检来源 `b526d771`，macOS 定向 CI `44239399878` 通过。原有真实 Mission 的两条回答、过程摘要和右栏记录已核对。47 项定向 App 检查通过。
 
 2026-11-18 企业工作台入口首包经 PR146 合入 dev `68857937`。受检来源 `fa68bf31`，macOS App CI `44236252574` 通过。新增 `/enterprise`，复用现有会话、输入、执行详情和成果。104 项 App 定向检查、真实提交与停止、只读刷新、1440px 和 390px 布局验收通过。[实施计划](../superpowers/plans/2026-11-18-enterprise-workspace-entry.md)。
@@ -1450,6 +1452,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| managed-skill-merge-20261120 | f5096933 | main | 托管技能按需发现 | PR182 定向 CI 通过，已合入 dev | 安装写权限修复；区分托管与内置加载；镜像验证公式缓存 | shared-agent |
 | task-state-presentation-merge-20261120 | 8093ef56 | main | 回答内任务缺口 | PR180 合入 dev，真实续接通过 | 说明缺口，用户可直接发下一条指令。[验收](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) | task-state-presentation |
 | task-state-continuation-merge-20261120 | 36380406 | main | 普通指令任务状态 | PR178 合入 dev，真实两轮与用户决定验证通过 | 绑定准确状态版本，保留未完成事项。[验收](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) | task-state-continuation |
 | mission-organizer-recovery-merge-20261120 | 01f7a07c | main | Mission 复盘恢复 | PR176 合入 dev，真实复盘故障注入通过 | 原绑定结算已保存回答，保留中断历史。[验收](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#mission-organizer-recovery-accepted) | mission-organizer-recovery |
@@ -1676,6 +1679,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| managed-skill-merge-20261120 | 开发集成 | dev | 修复托管安装；任务按需发现并独立验证文件 | PR182、实际 dev 重建和真实 XLSX 交付通过 |
 | task-state-presentation-merge-20261120 | 开发集成与本机来源 | dev | 缺口随回答显示；直接追加指令 | PR180 定向检查与浏览器实测通过 |
 | task-state-continuation-merge-20261120 | 开发集成与本机来源 | dev | 保留任务状态版本；记录显式用户验收 | PR178 定向检查与浏览器验证通过 |
 | mission-organizer-recovery-merge-20261120 | 开发集成与本机来源 | dev | 在原绑定恢复复盘；保留暂停和取消 | PR176 定向检查和真实复盘恢复通过 |
@@ -1867,6 +1871,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 182 | shared-agent | fix/capstone-managed-skill-discovery-20261120 | dev | MERGED | 合入 f5096933，受检 b6f02ea4。定向 macOS CI 44753942044 通过 2 分 49 秒。首轮 44752496516 的传输测试返回 403，已调整测试租约注册时机。 |
 | 180 | task-state-presentation | fix/task-state-presentation-20261120 | dev | MERGED | 合入 8093ef56，受检 cf7438a3。macOS CI 44711900479 和真实浏览器续接通过。 |
 | 178 | task-state-continuation | feat/task-state-continuation-20261120 | dev | MERGED | 合入 36380406，受检 9eea8ef7。macOS CI 44702425603 通过，验证普通指令续接和显式验收。 |
 | 176 | mission-organizer-recovery | fix/mission-organizer-recovery-20261120 | dev | MERGED | 合入 01f7a07c，受检 1c67994c。macOS CI 44674377200 通过，真实复盘按原绑定结算。 |
@@ -2172,7 +2177,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 从实际 dev `8093ef56` 规范重建 | API 与三个 worker 同镜像 5a62b5e4e711。就绪与缓存维护通过 | App http://127.0.0.1:5174/enterprise。任务缺口随回答显示，可直接追加指令。 |
+| local-dev | 后端从实际 dev `f5096933` 规范重建；App 产品来源 `97ce4243`，工作区 f5096933 | API 与三个 worker 同镜像 41e5ae920f8e；原生执行器 50d89a7abb74；就绪与缓存维护通过 | App http://127.0.0.1:5174/。保留安装记录、数据库和运行数据。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
