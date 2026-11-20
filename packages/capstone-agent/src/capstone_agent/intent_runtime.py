@@ -273,7 +273,7 @@ def _general_contexts(request, decision, current_object_id=None) -> dict:
 def _heavy_instruction(claim: AttemptClaim) -> bool:
     """Choose reasoning depth from explicit controls; never discard context."""
     submission = claim.submission or {}
-    if claim.kind == 'send_professional' or submission.get('deep_research') is True:
+    if claim.kind == 'send_professional':
         return True
     raw = submission.get('input')
     if isinstance(raw, Mapping) and raw.get('kind') == 'skill_invocation':

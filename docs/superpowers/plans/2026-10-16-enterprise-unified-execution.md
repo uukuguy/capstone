@@ -1,5 +1,12 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Retire the separate research mode
+
+Ordinary instructions, Goals and Missions are the supported execution paths.
+Use discovered evidence and gaps to guide further research within those paths.
+Historical research reports and saved session records remain readable.
+The separate research rollout and direct-delivery plan are closed.
+
 
 ## Recover Mission child delivery after worker exit
 
@@ -690,9 +697,9 @@ App58通过，类型与doctor通过；真实本地重建验证和PR71合入dev�
 [实施计划](2026-10-28-tool-composition.md)与
 [真实验证](../../reports/2026-10-28-tool-composition-validation.md)。
 PR71集成待必需开发CI；不把本地功能验证当作整体提速或云发布接受。
-DR现由用户在输入区明确选择，仅影响下一条指令，默认关闭；覆盖下文旧的自动升级候选。
+历史记录：曾采用逐指令选择。该模式已退役。
 
-2026-10-26当前交付：默认轻量智能体循环，Deep Research 默认不启动，允许每轮自主升级。
+2026-10-26 历史交付：统一智能体循环曾包含研究模式切换。该模式已退役。
 取消新建会话分类选择；过程记录根据实际 Thinking、工具与已接纳任务组织事件切换。
 实现候选在 feat/unified-agent-loop（PR67）：271d752c、2b67b2e3、6f61185f。
 针对性 Python190、graph/SDK133、App41、类型检查通过；本地真实验收及dev整合尚待完成。

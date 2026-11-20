@@ -208,11 +208,9 @@ it('keeps catalog LLM choices per session and across sends while DR resets',asyn
   expect((screen.getByRole('menuitemradio',{name:/Custom.*未配置/}) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('menuitemradio',{name:/Intranet/}))
   expect(within(screen.getByRole('region',{name:'当前会话连接'})).getByText('dsv4')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button',{name:'深度研究'}))
   fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'first'}})
   fireEvent.keyDown(screen.getByRole('textbox',{name:'Thread 指令'}),{key:'Enter',code:'Enter'})
-  await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','first',expect.objectContaining({llm_profile_id:'internal',deep_research:false})))
-  await waitFor(()=>expect(screen.getByRole('button',{name:'深度研究'}).getAttribute('aria-pressed')).toBe('false'))
+  await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','first',expect.objectContaining({llm_profile_id:'internal'})))
   expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Intranet')
   rerender(<CapstoneAssistantThread key="two" {...props} storageKey="llm-session-two"/>)
   expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Commercial')
@@ -2220,7 +2218,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.change(input, { target: { value: '第一行\n第二行' } })
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 })
 
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.any(Object)))
   })
 
   it('keeps a stable composer action footprint while the input is empty', async () => {
@@ -2246,7 +2244,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.change(input, { target: { value: '第一行\n第二行' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
 
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.any(Object)))
   })
 })
 

@@ -58,12 +58,11 @@ function fixture(extra={}){
 }
 const record=action_id=>({action_id,outcome:'completed',outputs:[{slot:'value',observation_refs:[],artifact_refs:[],summary:'Actual result',scope:'Observed inputs'}],limitations:[]});
 const registered=controller=>{const tools=[];controller.register({registerTool:tool=>tools.push(tool)});return Object.fromEntries(tools.map(tool=>[tool.name,tool]));};
-test('explicit DR cannot silently settle as an unorganized answer',async()=>{
+test('a retired selection cannot force a planning turn',async()=>{
   const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},isolatedTaskExecution:true,lightweightTaskNodes:true,deepResearch:true}}});
   try{
     const pending=await f.controller.continuationState();
-    assert.equal(pending.actionId,'user-selected-deep-research');
-    assert.match(pending.prompt,/agent_research_plan/);
+    assert.equal(pending,null);
   }finally{await f.controller.close();}
 });
 test('typed producer inputs imply scheduler dependencies without another planning turn',async()=>{

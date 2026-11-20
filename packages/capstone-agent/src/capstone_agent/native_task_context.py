@@ -368,7 +368,6 @@ def native_context_for(claim, binding):
             review=checked_review(public_document(submission['_mission_review']))
     from .native_llm_pool import LLM_CALL_POOL_POLICY, LLM_CALL_POOL_TOOLS, registered_llm_call_pool
     llm_pool = (binding['application_profile']['profile_id'] == 'enterprise-research'
-                and submission.get('deep_research') is False
                 and registered_llm_call_pool(public_document(binding['capability'].get('llm_call_pool'))))
     if llm_pool:
         tools.update(LLM_CALL_POOL_TOOLS)
@@ -435,7 +434,7 @@ def native_context_for(claim, binding):
         **({'mission_review': review} if review is not None else {}),
         **({'mission_equipment': selection} if selection is not None else {}),
         **({'gateway_binding': frozen_gateway} if gateway.get('session_binding') is not None or frozen_gateway['instance_id'] else {}),
-        **({'deep_research': submission['deep_research']} if 'deep_research' in submission else {}),
+        'deep_research': False,  # Wire compatibility with older native executors.
         **({'llm_selection': submission['llm_selection']} if 'llm_selection' in submission else {}),
         **({'systematic_diagnosis': DIAGNOSIS_POLICY} if diagnosis == DIAGNOSIS_POLICY else {}),
         **({'tool_composition': COMPOSITION_POLICY} if composition else {}),

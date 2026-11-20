@@ -351,7 +351,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         assert 'unavailable' in domain_status
         assert 'not evidence that source data is absent' in domain_status
         assert 'domainTools' not in captured[0]
-    assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
+    assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is not True)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
     cached_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'gateway-contract-context')
@@ -417,9 +417,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert actual.get('nodeReviewMode') == 'advisory'
     assert 'nodeReviewMode' not in captured[0]['settings'].get('retry', {})
     assert captured[0]['runtimeEnvironment'] == runner.environment_context
-    assert actual['adaptiveAgentLoop'] is (not choice if choice is not None else version in {'1.19.0', '1.20.0'})
-    if choice is not None:
-        assert actual['deepResearch'] is choice
+    assert actual['adaptiveAgentLoop'] is True
+    assert actual['deepResearch'] is False
+    assert all('Deep Research' not in prompt for prompt in captured[0]['appendSystemPrompt'])
     assert actual['isolatedTaskExecution'] is (version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'})
     assert actual['goalDrivenExecution'] is (version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'})
     assert actual['lightweightTaskNodes'] is (version in {'1.17.0', '1.18.0', '1.19.0', '1.20.0'})

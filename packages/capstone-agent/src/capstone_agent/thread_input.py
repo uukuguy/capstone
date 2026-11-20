@@ -52,10 +52,9 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
         if mode == 'capstone':
             from .workbench_llm_profiles import ProfileRegistry
             result['llm_selection'] = ProfileRegistry().freeze(payload.get('llm_profile_id'))
-        if 'deep_research' in payload:
-            if type(payload['deep_research']) is not bool or payload['deep_research'] and mode != 'capstone':
-                raise InputRejected('deep_research_invalid')
-            result['deep_research'] = payload['deep_research']
+        # Older clients may resend this field. It does not select execution.
+        if 'deep_research' in payload and type(payload['deep_research']) is not bool:
+            raise InputRejected('invalid_input')
         if 'context_product_refs' in payload:
             from .thread_products import checked_selections
             result['context_product_refs'] = checked_selections(payload['context_product_refs'])
@@ -100,7 +99,7 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
     payload = command['payload']
     if {'professional_resource', '_professional_backend', '_professional_selection'} & payload.keys():
         return None, 'input_invalid'
-    if not {'input', 'context_selection', 'resource_profile', 'context_product_refs', 'deep_research', 'llm_profile_id', 'excluded_session_skills'} & payload.keys() and not (snapshot.session_skills or {}).get('skills'):
+    if not {'input', 'context_selection', 'resource_profile', 'context_product_refs', 'llm_profile_id', 'excluded_session_skills'} & payload.keys() and not (snapshot.session_skills or {}).get('skills'):
         return None, None  # Existing clients retain their accepted legacy contract.
     context = snapshot.active_model_context
     selected = payload.get('resource_profile')

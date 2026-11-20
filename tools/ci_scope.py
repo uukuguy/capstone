@@ -778,6 +778,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    retirement_manifest = Path(__file__).resolve().parents[1] / 'configs/development/research-mode-retirement-gate.json'
+    if retirement_manifest.is_file():
+        retirement = json.loads(retirement_manifest.read_text())
+        if set(retirement['anchors']).issubset(paths) and all(
+                path in retirement['paths'] or _control_path(path) for path in paths):
+            return 'research-mode-retirement'
     reference_manifest = Path(__file__).resolve().parents[1] / 'configs/development/harness-references-gate.json'
     if reference_manifest.is_file():
         references = json.loads(reference_manifest.read_text())
