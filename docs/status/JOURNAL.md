@@ -8344,3 +8344,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20: db141b0a merges PR174 after legacy submission, real file download and scoped macOS verification.
 
 - 2026-11-20 12:11: 08ebc478 reconciles saved organizer delivery on its original Attempt. PostgreSQL checks preserve pause, cancellation and admission count.
+
+- 2026-11-20 12:32: PR176 merged at 01f7a07c after live organizer recovery and scoped macOS CI 44674377200.

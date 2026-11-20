@@ -27,6 +27,18 @@ Acceptance requires an interrupted live review, recovery under the same binding,
 and proof that user stop prevents automatic continuation. Shared task versions
 and cross-session handoff remain subsequent delivery work.
 
+### Mission organizer recovery accepted
+
+PR #176 merged at `01f7a07c`. Scoped macOS CI `44674377200` passed in
+3 minutes 34 seconds. An isolated live fault interrupted the real review
+after the native result was saved. Control settled the recovered reply
+under the original binding and retained the interruption. The PostgreSQL
+tests cover repeated and concurrent processing, pause, and cancellation.
+The live receipt is in `runs/mission-organizer-recovery/live.json`.
+
+The next package defines the versioned task-state contract and its first
+consumer. User acceptance remains an explicit decision.
+
 ## Retire the separate research mode
 
 PR #174 merged at `db141b0a`. macOS CI 44650512239 passed. The composer no
