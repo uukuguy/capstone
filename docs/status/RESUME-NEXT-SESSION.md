@@ -2,6 +2,15 @@
 
 Updated 2026-11-20. Active work continues on the managed enterprise execution plan.
 
+## Goal, Mission and explicit handoff
+
+PR #186 merged into dev `f9edde5e`. Scoped macOS CI `44801937892` passed for
+`acb8bb7f`. The three items are implemented and locally verified. The
+browser restored a handoff answer and the resulting file after reload.
+The real Goal and Mission handoffs read their exact selected revisions.
+See the [worklist](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#goal-mission-and-cross-session-continuation) and the ignored receipt
+`runs/shared-task-continuation/verified-live.json`.
+
 ## Task status presentation
 
 PR #180 merged to dev at `8093ef56`. Scoped macOS CI `44711900479` passed.
@@ -29,7 +38,7 @@ PostgreSQL tests cover replay, stale revisions, restart and exact
 continuation after interruption. Scoped macOS CI `44702425603` passed.
 The browser confirmed acceptance against the original revision while
 the missing approval form remained open.
-Goal and Mission adapters and authorized cross-session handoff remain open.
+PR #186 delivered the adapters and explicit handoff.
 
 ## Mission organizer recovery
 
@@ -74,8 +83,7 @@ The local verification passed 95 checks and focused macOS CI 44516985397 passed.
 
 ## Next work
 
-1. Project Goal plan and review state into the shared task contract.
-   Keep execution completion and user acceptance independent.
+1. The three task continuation items are delivered. Take the next user direction.
 2. Preserve the root checkout's unrelated files and other environment
    sources. Use focused development gates.
 

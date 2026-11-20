@@ -20,6 +20,15 @@ catalog, so navigation remounts can reuse them while refreshing. Catalog mutatio
 invalidate prior history reads; this cache does not own the persistent pin set.
 [Acceptance](../reviews/2026-11-16-durable-session-pins-local.md).
 
+## Durable task continuation
+
+A settled Work or session Goal has a versioned task state. The Mission
+projection tracks the Control revision, unfinished tasks and delivery checks.
+The user can copy a continuation reference into another session in the same
+workspace and supply the next instruction. The selected version and original
+execution records remain available for read-only lookup. New execution uses the
+destination grants. The conversation can proceed as soon as the user directs it.
+
 ## Supported execution paths
 
 PR #174 merged to dev `db141b0a`. The supported paths are ordinary

@@ -59,6 +59,10 @@ material access continue to use the destination's grants and current-run rules.
 Later instructions can continue from the destination Work. The source
 conversation and its delivery records remain in their original session.
 
+PR #186 merged at `f9edde5e`. Scoped macOS CI `44801937892` passed.
+The live receipt records the original and new files and both versioned workflow handoffs.
+
+
 ### Shared task-state contract and first consumer
 
 Owner is the enterprise application. The existing Attempt `TaskContext`
@@ -89,7 +93,7 @@ exact saved result and changes direction, and recovery from the same task state
 after restart. Test exact binding, duplicate terminal writes, stale revisions,
 missing reference authorization, and independence of execution completion and
 user acceptance. Then add Goal and Mission adapters and explicit cross-session
-handoff. Those adapters and the shared user-facing projection remain open.
+handoff. PR #186 delivers those adapters and the shared user-facing projection.
 
 ### Ordinary Work task state accepted
 
