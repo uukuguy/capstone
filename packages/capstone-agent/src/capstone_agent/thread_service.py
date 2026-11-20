@@ -468,6 +468,9 @@ def _prepare_terminal_transition(
                     work_payload['work'] = project_work(updated, work)
                 works.append(work)
             updated = replace(updated, works=tuple(works))
+    if claim.task_context is not None and '_mission' not in (claim.submission or {}):
+        from .thread_work import settle_task_state
+        updated, work_payload = settle_task_state(updated, work_payload, claim, phase)
     updated = _result_projection_window(updated, result_projections)
     return updated, {**event_payload, **work_payload}, projection_parts
 
@@ -1959,7 +1962,9 @@ class InMemoryThreadService(NativeExecutionOwner):
                 if selected_model is not None:
                     staged._activate_pending_model_switch(turn_id)
                     staged._activate_pending_selection(turn_id)
-                updated, attempt, task_context, instruction = create_attempt(staged._snapshot, work, turn_id=turn_id)
+                updated, attempt, task_context, instruction = create_attempt(
+                    staged._snapshot, work, turn_id=turn_id,
+                    bind_task_state=parsed['kind'] == 'send_message')
                 self._events = staged._events
                 self._model_workspace = staged._model_workspace
         if rejection is None:
@@ -3618,7 +3623,9 @@ class PostgresThreadService(NativeExecutionOwner):
                 refreshed = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s', (snapshot.thread_id,)).fetchone()
                 assert refreshed is not None
                 thread = refreshed
-                updated, attempt, task_context, instruction = create_attempt(updated, work, turn_id=turn_id)
+                updated, attempt, task_context, instruction = create_attempt(
+                    updated, work, turn_id=turn_id,
+                    bind_task_state=parsed['kind'] == 'send_message')
         if rejection is None:
             assert work is not None
             if gateway_state is not None:

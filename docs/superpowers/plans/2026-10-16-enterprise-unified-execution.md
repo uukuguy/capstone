@@ -39,6 +39,38 @@ The live receipt is in `runs/mission-organizer-recovery/live.json`.
 The next package defines the versioned task-state contract and its first
 consumer. User acceptance remains an explicit decision.
 
+### Shared task-state contract and first consumer
+
+Owner is the enterprise application. The existing Attempt `TaskContext`
+continues to freeze Work identity, model selection and resource grants.
+The durable task-state revision records delivery and unresolved work. Reuse
+the existing Work, Attempt and Control ledgers for writes and replay. A
+second writable task ledger would require duplicate settlement and recovery.
+
+The projection has a stable task reference and an immutable revision reference.
+It links each completed item, unresolved item, defect or blocker to the
+execution and exact admitted sources that support it. It carries the latest
+explicit user direction and decision separately from the execution outcome.
+An execution can finish with open items. A task with no recorded user decision
+has an undecided acceptance state. Keep original messages and replies in
+the existing event ledger and refer to them by their exact coordinates.
+
+Start with same-Work continuation after an ordinary instruction. In the
+transaction that settles its Attempt, commit a task-state revision with the
+outcome and admitted references. On the next instruction, resolve the last
+committed revision in that Work and freeze the selected revision in the
+new Attempt. Preserve it on retries and use the existing authorization checks
+when resolving an underlying reference. Older Work can start from its first
+newly committed task-state revision. Historical messages remain available.
+
+Acceptance for this slice requires a real instruction that saves a usable
+result and records an uncompleted item, a second instruction that uses the
+exact saved result and changes direction, and recovery from the same task state
+after restart. Test exact binding, duplicate terminal writes, stale revisions,
+missing reference authorization, and independence of execution completion and
+user acceptance. Then add Goal and Mission adapters and explicit cross-session
+handoff. Those adapters and the shared user-facing projection remain open.
+
 ## Retire the separate research mode
 
 PR #174 merged at `db141b0a`. macOS CI 44650512239 passed. The composer no
