@@ -16,6 +16,7 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_attempt_lease_deadline.py \
   packages/capstone-agent/tests/test_attempt_failure_delivery.py \
   packages/capstone-agent/tests/test_harness.py \
+  packages/capstone-agent/tests/test_main_chain_context.py::test_verified_native_receipt_reaches_same_work_without_text_refs \
   packages/capstone-agent/tests/test_thread_work_execution.py \
   packages/capstone-agent/tests/test_thread_worker.py \
   packages/capstone-agent/tests/test_thread_recovery_reaper.py \

@@ -862,6 +862,9 @@ class HarnessAttemptRunner:
             if candidate is not None:
                 terminal_payload = terminal_payload_for_admission(candidate)
             terminal_payload.update(_core_summary_payload(self._runtime, answer, admitted_answer, recovery_attempted))
+            task_report = getattr(self._runtime, 'task_state_report', None)
+            if task_report is not None and not recovery_attempted and task_report[0] == answer == admitted_answer:
+                terminal_payload['task_state_report'] = task_report[1]
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():

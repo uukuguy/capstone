@@ -62,7 +62,21 @@ def project_work(snapshot, work):
             'start_available': reason is None, 'start_unavailable_reason': reason}
 
 
-def settle_task_state(snapshot, work_payload, claim, phase):
+def checked_business_report(value):
+    fields = ('completed', 'open', 'defects', 'blockers')
+    if not isinstance(value, dict) or set(value) != set(fields):
+        return None
+    report = {}
+    for field in fields:
+        items = value[field]
+        if not isinstance(items, list) or len(items) > 8 or any(
+                not isinstance(item, str) or not 0 < len(item.strip()) <= 160 for item in items):
+            return None
+        report[field] = [item.strip() for item in items]
+    return report
+
+
+def settle_task_state(snapshot, work_payload, claim, phase, business_report=None):
     work_id = claim.task_context.binding.work_id
     work = next((item for item in snapshot.works if item['work_id'] == work_id), None)
     if work is None or not work.get('conversation_mode') or 'goal_mode' in work:
@@ -78,6 +92,13 @@ def settle_task_state(snapshot, work_payload, claim, phase):
         'acceptance': 'undecided',
         'open_items': [] if phase == 'completed' else [{'kind': 'execution_incomplete', 'reason': phase}],
     }
+    report = checked_business_report(business_report)
+    if report is not None:
+        state['business_report'] = report
+        state['business_report_source'] = attempt.attempt_id
+    elif previous is not None and 'business_report' in previous:
+        state['business_report'] = previous['business_report']
+        state['business_report_source'] = previous['business_report_source']
     settled = {**work, 'task_state': state}
     snapshot = replace(snapshot, works=tuple(
         settled if item['work_id'] == work_id else item for item in snapshot.works))
@@ -631,8 +652,9 @@ def parse_snapshot(document):
             from .thread_protocol import _identifier
             state = work['task_state']
             if (not isinstance(state, dict)
-                    or set(state) != {'schema', 'task', 'revision_ref', 'previous_revision_ref',
-                                      'execution', 'acceptance', 'open_items'}
+                    or set(state) - {'business_report', 'business_report_source'} != {
+                        'schema', 'task', 'revision_ref', 'previous_revision_ref',
+                        'execution', 'acceptance', 'open_items'}
                     or state['schema'] != 'capstone-task-state/1'
                     or state['task'] != {'thread_id': snapshot.thread_id, 'work_id': work['work_id']}
                     or state['acceptance'] != 'undecided'):
@@ -651,6 +673,10 @@ def parse_snapshot(document):
                 {'kind': 'execution_incomplete', 'reason': execution['phase']}]
             if state['open_items'] != expected_open:
                 raise ThreadProtocolError('invalid task state open items')
+            if 'business_report' in state or 'business_report_source' in state:
+                if checked_business_report(state.get('business_report')) is None:
+                    raise ThreadProtocolError('invalid task state business report')
+                _identifier(state.get('business_report_source'), name='task_state.business_report_source')
         count = work.get('consumed_message_count', 0)
         if 'goal_followup' in work and (work['goal_followup'] is not True or 'goal_mode' not in work):
             raise ThreadProtocolError('invalid Goal follow-up state')

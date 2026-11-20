@@ -407,7 +407,9 @@ def _prepare_terminal_transition(
     existing_result_ids = {item.result_id for item in snapshot.result_projections}
     if any(item.result_id in existing_result_ids for item in result_projections):
         raise ThreadProtocolError("result projection already exists")
-    event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
+    business_report = payload.get('task_state_report')
+    public_payload = {key: value for key, value in payload.items() if key != 'task_state_report'}
+    event_payload, projection_parts = _terminal_result_delivery(public_payload, result_projections)
     from .thread_work import work_event_payload
     updated, work_payload = work_event_payload(
         replace(snapshot, current_attempt=None), claim.task_context,
@@ -470,7 +472,7 @@ def _prepare_terminal_transition(
             updated = replace(updated, works=tuple(works))
     if claim.task_context is not None and '_mission' not in (claim.submission or {}):
         from .thread_work import settle_task_state
-        updated, work_payload = settle_task_state(updated, work_payload, claim, phase)
+        updated, work_payload = settle_task_state(updated, work_payload, claim, phase, business_report)
     updated = _result_projection_window(updated, result_projections)
     return updated, {**event_payload, **work_payload}, projection_parts
 

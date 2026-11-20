@@ -198,6 +198,36 @@ def test_native_failure_is_failed_instead_of_a_completed_placeholder(chat_store)
     assert claim.task_context.task_state_ref == task_state['revision_ref']
 
 
+def test_business_items_remain_open_without_user_acceptance(chat_store):
+    store, thread_id = chat_store
+    store.set_native_executor(native_executor())
+    assert store.submit_command(command(store, thread_id, 'send_message', 'business_state',
+        payload={'text': 'Prepare the draft and record missing inputs'})).status == 'accepted'
+    claim = store.claim_attempt('business_state', 30, implementation_family='native')
+    store.finish_attempt(claim, phase='completed', payload={
+        'answer': 'The draft is ready. The signed source is missing.',
+        'task_state_report': {
+            'completed': ['Draft prepared'],
+            'open': ['Obtain the signed source'],
+            'defects': [],
+            'blockers': ['Source has not been provided'],
+        },
+    })
+    work = store.snapshot(thread_id).works[0]
+    state = work['task_state']
+    assert state['acceptance'] == 'undecided'
+    assert state['business_report']['open'] == ['Obtain the signed source']
+    assert state['business_report']['blockers'] == ['Source has not been provided']
+    assert store.submit_command(command(store, thread_id, 'send_message', 'business_followup',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'text': 'Continue working on the draft'})).status == 'accepted'
+    following = store.claim_attempt('business_followup', 30, implementation_family='native')
+    store.finish_attempt(following, phase='completed', payload={'answer': 'The draft has a new title.'})
+    next_state = store.snapshot(thread_id).works[0]['task_state']
+    assert next_state['business_report'] == state['business_report']
+    assert next_state['business_report_source'] == claim.attempt.attempt_id
+
+
 @pytest.mark.parametrize('terminal', ['cancelled', 'failed', 'interrupted'])
 def test_new_conversation_instruction_does_not_replay_prior_unfinished_input(chat_store, terminal):
     store, thread_id = chat_store
