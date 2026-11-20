@@ -720,8 +720,6 @@ def parse_snapshot(document):
                     or state['task'] != {'thread_id': snapshot.thread_id, 'work_id': work['work_id']}
                     or state['acceptance'] != 'undecided'):
                 raise ThreadProtocolError('invalid task state')
-            if 'workflow' in state and state['workflow'] != goal_task_workflow(work):
-                raise ThreadProtocolError('invalid Goal task workflow')
             if 'handoff' in state:
                 from .task_handoff import parse_task_handoff
                 parse_task_handoff(state['handoff'])
@@ -833,6 +831,9 @@ def parse_snapshot(document):
                 raise ThreadProtocolError('invalid Work goal mode') from error
             if goal['objective'] != work['goal'] or goal['objective_revision'] != work['goal_revision']:
                 raise ThreadProtocolError('inconsistent Work goal objective')
+        state = work.get('task_state', {})
+        if 'workflow' in state and ('goal_mode' not in work or state['workflow'] != goal_task_workflow(work)):
+            raise ThreadProtocolError('invalid Goal task workflow')
         if 'context_product_refs' in work:
             refs = checked_work_product_refs(work['context_product_refs'])
             if any(item['ref']['thread_id'] != snapshot.thread_id for item in refs):

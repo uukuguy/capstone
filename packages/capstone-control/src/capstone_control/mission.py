@@ -149,6 +149,8 @@ def task_state(mission):
         'workflow': {'kind': 'mission', 'plan_revision': mission['plan_revision'],
                      'objective_revision': mission['objective_revision'],
                      'origin': deepcopy(mission['origin']),
+                     'objective': mission['objective'],
+                     'criteria': deepcopy(mission['acceptance_criteria']),
                      'plan_conclusion_status': mission['plan_conclusion_status'],
                      'organizer': deepcopy(organizer),
                      'deliveries': [{'task_id': task['task_id'], 'task_revision': task['revision'],

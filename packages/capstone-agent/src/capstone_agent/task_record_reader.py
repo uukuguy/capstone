@@ -18,7 +18,8 @@ from capability_agent._safe_files import ensure_bound_directory, write_bound_tex
 class AttemptRecordStore(Protocol):
     def read_attempt_records(self, thread_id: str, attempt_id: str, *,
                              after: int = 0, limit: int = 32,
-                             observations_only: bool = False) -> dict[str, Any]: ...
+                             observations_only: bool = False,
+                            workspace_name: str | None = None) -> dict[str, Any]: ...
 
 
 PUBLIC_TASK_OBSERVATION_TYPES = frozenset({
@@ -42,11 +43,12 @@ def _historical_observation(event):
 class SelectedTaskRecordReader:
     """Keep source access fixed while allowing bounded forward pagination."""
 
-    def __init__(self, store: AttemptRecordStore, thread_id: str, attempt_id: str, *, handoff=None) -> None:
+    def __init__(self, store: AttemptRecordStore, thread_id: str, attempt_id: str, *, handoff=None, workspace_name: str | None = None) -> None:
         self._store = store
         self._thread_id = thread_id
         self._attempt_id = attempt_id
         self._handoff = handoff
+        self._workspace_name = workspace_name
 
     def publish(self, directory: Path) -> Path:
         """Copy terminal public pages into this attempt's private tool input."""
@@ -73,8 +75,9 @@ class SelectedTaskRecordReader:
     def read(self, *, after: int = 0, limit: int = 32) -> dict[str, Any]:
         if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 128:
             raise ValueError("historical task cursor is invalid")
+        workspace = {} if self._workspace_name is None else {'workspace_name': self._workspace_name}
         page = self._store.read_attempt_records(
-            self._thread_id, self._attempt_id, after=after, limit=limit, observations_only=True,
+            self._thread_id, self._attempt_id, after=after, limit=limit, observations_only=True, **workspace,
         )
         if (page.get("schema") != "capstone-attempt-records/1"
                 or page.get("thread_id") != self._thread_id

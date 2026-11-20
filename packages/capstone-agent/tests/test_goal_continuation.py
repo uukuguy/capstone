@@ -117,3 +117,12 @@ def test_postgres_restart_and_concurrent_continuation(postgres_thread_service):
     restored = PostgresThreadService(store.dsn).snapshot(thread_id)
     assert restored.works[0]['goal_mode']['state'] == 'completed'
     assert restored.works[0]['goal_mode']['attempts_admitted'] == 2
+
+    from capstone_agent.task_handoff import freeze_task_handoff
+    work = restored.works[0]
+    source = {'thread_id': thread_id, 'work_id': work['work_id'], 'work_revision': work['revision'],
+              'revision_ref': second.attempt.attempt_id}
+    with store._connect() as connection:
+        handoff = freeze_task_handoff(connection, {'thread_id': 'thr_distinct', 'workspace_name': 'enterprise'}, source)
+    assert handoff['state']['workflow']['objective'] == 'Inspect model'
+    assert handoff['state']['workflow']['plan']['steps'][0]['instruction'] == 'Write draft'

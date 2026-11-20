@@ -62,3 +62,27 @@ def test_active_work_saves_and_withdraws_supplement_without_replacing_attempt():
                    payload=dict(instruction_id='supplement'))
     assert service.submit_command(command).status == 'accepted'
     assert service.snapshot('thr_queue').works[0]['instruction_queue'][0]['state'] == 'withdrawn'
+
+
+def test_interrupt_replacement_uses_destination_state_instead_of_repeating_handoff():
+    from dataclasses import replace
+    from capstone_agent.instruction_queue import prepare_replacement
+    from capstone_agent.thread_protocol import AttemptSnapshot, RunSnapshot, ThreadSnapshot
+    from capstone_agent.thread_service import InMemoryThreadService
+    from test_thread_work_execution import save_work
+
+    snapshot = ThreadSnapshot('thr_queue', RunSnapshot('run_queue', 'open'), None, None, None, 0, 0,
+                              minimum_protocol_version=2)
+    store = InMemoryThreadService(snapshot)
+    work = save_work(store, snapshot.thread_id)
+    attempt = AttemptSnapshot('turn_source', 'attempt_destination', 'running', None, 'capstone')
+    queue = submit([], 'next_instruction', 'Change direction', attempt.attempt_id, mode='interrupt')
+    current = {**work, 'conversation_mode': True, 'status': 'running',
+               'latest_attempt_id': attempt.attempt_id, 'instruction_queue': queue}
+    before = replace(snapshot, works=(current,), current_attempt=attempt)
+    settled = {**current, 'status': 'interrupted', 'task_state': {'revision_ref': attempt.attempt_id}}
+    terminal = replace(snapshot, works=(settled,))
+    _, _, context, submission, _ = prepare_replacement(
+        before, terminal, attempt.attempt_id, {'_task_handoff': {'revision_ref': 'attempt_cross_session'}})
+    assert context.task_state_ref == attempt.attempt_id
+    assert '_task_handoff' not in submission

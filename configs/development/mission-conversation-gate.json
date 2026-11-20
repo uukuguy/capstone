@@ -95,7 +95,10 @@
     "packages/capstone-agent/tests/test_goal_continuation.py",
     "packages/capstone-app/src/threadFeedback.ts",
     "packages/capstone-app/src/threadWorkProtocol.test.ts",
-    "packages/capstone-agent/src/capstone_agent/resources/general-context.mjs"
+    "packages/capstone-agent/src/capstone_agent/resources/general-context.mjs",
+    "packages/capstone-agent/src/capstone_agent/instruction_queue.py",
+    "packages/capstone-app/src/ThreadInputControls.test.tsx",
+    "packages/capstone-agent/tests/test_instruction_queue.py"
   ],
   "continuation_anchors": [
     "packages/capstone-agent/src/capstone_agent/task_handoff.py",

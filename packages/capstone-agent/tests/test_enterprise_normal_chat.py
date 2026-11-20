@@ -681,7 +681,7 @@ print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','content':[
 
 
 @pytest.mark.parametrize('include_mission', [False, True])
-def test_cross_session_handoff_freezes_same_workspace_task_version(postgres_thread_service, tmp_path, include_mission):
+def test_cross_session_handoff_freezes_same_workspace_task_version(postgres_thread_service, tmp_path, include_mission, monkeypatch):
     store, thread_id = postgres_thread_service
     source_id, foreign_id = thread_id + '_source', thread_id + '_foreign'
     executor = native_executor()
@@ -731,6 +731,11 @@ def test_cross_session_handoff_freezes_same_workspace_task_version(postgres_thre
             payload={'decision': 'request_changes', 'revision_ref': source['revision_ref']})).status == 'accepted'
         reopened = PostgresThreadService(store.dsn)
         reopened.set_native_executor(executor)
+        read_snapshot = reopened.snapshot
+        def target_snapshot(identity):
+            assert identity != source_id, 'historical reads must not trigger source maintenance'
+            return read_snapshot(identity)
+        monkeypatch.setattr(reopened, 'snapshot', target_snapshot)
         result = run_pending_attempt(reopened, factory, worker_id='native-test', implementation_family='native')
         assert result.status == 'completed'
         assert reopened.snapshot(thread_id).works[0]['task_state']['handoff'] == source

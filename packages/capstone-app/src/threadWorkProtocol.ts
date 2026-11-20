@@ -26,10 +26,15 @@ function parseTaskHandoff(value:unknown):TaskHandoff {
     ...(hasMission ? {mission_id:id(row.mission_id),mission_revision:revision(row.mission_revision,1)} : {})}
 }
 
+const handoffCommand = '/continue-from'
+export function isHandoffInstruction(text:string):boolean {
+  return text === handoffCommand || text.startsWith(handoffCommand + ' ')
+}
+
 export function handoffInstruction(text:string):{text:string;source:TaskHandoff}|null {
-  if (!text.startsWith('/continue-from ')) return null
+  if (!isHandoffInstruction(text)) return null
   const [header,...instruction] = text.split('\n')
-  const fields = header.slice('/continue-from '.length).trim().split('/')
+  const fields = header.slice(handoffCommand.length).trim().split('/')
   const [thread_id,work_id,work_revision,revision_ref,mission_id,missionRevision] = fields
   const nextText = instruction.join('\n').trim()
   if (![4,6].includes(fields.length) || !/^[1-9][0-9]*$/.test(work_revision) || !nextText

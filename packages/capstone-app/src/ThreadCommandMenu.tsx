@@ -6,6 +6,7 @@ import ThreadContextPanel from './ThreadContextPanel'
 import LlmProfileMenu from './LlmProfileMenu'
 import {missionObjectiveFromInput} from './missions'
 import {goalObjectiveFromInput} from './goalMode'
+import {isHandoffInstruction} from './threadWorkProtocol'
 
 const commands = [{ text: '/skills', label: '查看已安装技能' }, { text: '/context', label: '查看与选择上下文' }, {text:'/goal',label:'设置持续目标与执行预算'},{text:'/mission',label:'用初步意图创建 Mission'}]
 const skillLabels: Record<string, {name: string; description: string}> = {
@@ -72,7 +73,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   }
   function consumeCommand(): boolean {
     if (draft.literal) return false
-    if(goalObjectiveFromInput(text)!==null||missionObjectiveFromInput(text)!==null)return false
+    if(goalObjectiveFromInput(text)!==null||missionObjectiveFromInput(text)!==null||isHandoffInstruction(text))return false
     const command = parseInputCommand(text)
     if (!command) return false
     if (disabled) return true

@@ -103,9 +103,9 @@ def _run_claimed_attempt(
     historical_attempt = task_state_ref or (None if previous is None else previous.attempt_id)
     handoff = (claim.submission or {}).get('_task_handoff')
     if handoff is not None:
-        service.require_workspace(handoff['thread_id'], claim.workspace_name)
         claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
-            service, handoff['thread_id'], handoff['revision_ref'], handoff=handoff))
+            service, handoff['thread_id'], handoff['revision_ref'], handoff=handoff,
+            workspace_name=claim.workspace_name))
     elif historical_attempt is not None:
         claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
             service, claim.thread_id, historical_attempt))

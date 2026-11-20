@@ -381,9 +381,10 @@ def _recover_workflow_delivery(snapshot, original, payload, artifacts):
         origin = {'thread_id': snapshot.thread_id}
         if reference is not None and 'work_id' in reference:
             origin['work_id'] = reference['work_id']
+        bound_mission = (isinstance(mission, dict) and reference is not None
+                         and mission['mission_id'] == reference['mission_id'] and mission['origin'] == origin)
         eligible = (work.get('conversation_mode') and '_mission_review' not in submission
-                    and isinstance(mission, dict) and reference is not None
-                    and mission['mission_id'] == reference['mission_id'] and mission['origin'] == origin)
+                    and (bound_mission or '_task_handoff' in submission))
     if not eligible:
         return snapshot, {}
     updated, restored = transition_work(snapshot, context, attempt_id, 'completed')
@@ -671,7 +672,8 @@ class ThreadService(Protocol):
     def read_events(self, thread_id: str, after_event_seq: int, *, protocol_version: int = 2) -> EventPage: ...
 
     def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
-                             limit: int = 32, observations_only: bool = False) -> dict[str, Any]: ...
+                             limit: int = 32, observations_only: bool = False,
+                             workspace_name: str | None = None) -> dict[str, Any]: ...
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt: ...
 
@@ -1834,12 +1836,15 @@ class InMemoryThreadService(NativeExecutionOwner):
             return network_context_page(self._snapshot, events)
 
     def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
-                             limit: int = 32, observations_only: bool = False) -> dict[str, Any]:
+                             limit: int = 32, observations_only: bool = False,
+                             workspace_name: str | None = None) -> dict[str, Any]:
         _validate_attempt_cursor(attempt_id, after, limit)
         if type(observations_only) is not bool:
             raise ThreadProtocolError("observation filter is invalid")
         with self._lock:
             self._check_thread(thread_id)
+            if workspace_name is not None and normalize_workspace_name(workspace_name) != self._workspace_name:
+                raise ThreadNotFound(thread_id)
             record = self._attempts.get(attempt_id)
             if record is None:
                 raise ThreadNotFound(attempt_id)
@@ -4106,15 +4111,22 @@ class PostgresThreadService(NativeExecutionOwner):
         return page
 
     def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
-                             limit: int = 32, observations_only: bool = False) -> dict[str, Any]:
+                             limit: int = 32, observations_only: bool = False,
+                             workspace_name: str | None = None) -> dict[str, Any]:
         _validate_attempt_cursor(attempt_id, after, limit)
         if type(observations_only) is not bool:
             raise ThreadProtocolError("observation filter is invalid")
-        self.snapshot(thread_id)
+        if workspace_name is None:
+            self.snapshot(thread_id)
+        else:
+            workspace_name = normalize_workspace_name(workspace_name)
         with self._connect() as connection:
             attempt = connection.execute(
-                "SELECT instruction, model_context_snapshot FROM capstone_thread_attempts "
-                "WHERE thread_id = %s AND attempt_id = %s", (thread_id, attempt_id),
+                "SELECT a.instruction, a.model_context_snapshot FROM capstone_thread_attempts a "
+                "JOIN capstone_threads t ON t.thread_id = a.thread_id "
+                "WHERE a.thread_id = %s AND a.attempt_id = %s "
+                "AND (%s::text IS NULL OR t.workspace_name = %s)",
+                (thread_id, attempt_id, workspace_name, workspace_name),
             ).fetchone()
             if attempt is None:
                 raise ThreadNotFound(attempt_id)

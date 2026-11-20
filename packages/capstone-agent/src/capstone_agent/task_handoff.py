@@ -52,7 +52,8 @@ def freeze_task_handoff(connection, target, value, *, control=None):
     task_state = deepcopy(state)
     workflow = goal_task_workflow(work)
     if workflow is not None:
-        task_state['workflow'] = workflow
+        task_state['workflow'] = {**workflow, 'objective': work['goal'],
+                                  'plan': deepcopy(work.get('goal_plan', {}).get('plan'))}
     mission_state = None
     if 'mission_id' in selection:
         mission_id = selection['mission_id']
