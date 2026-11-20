@@ -352,7 +352,7 @@ jobs:
         timeout-minutes: 6
         run: |
           test "$(readlink CLAUDE.md)" = AGENTS.md
-          uv run --project packages/capstone-agent python -m pytest packages/capstone-agent/tests/test_managed_resource*.py packages/capstone-agent/tests/test_general_pi_server.py tools/tests/test_ci_scope.py tools/tests/test_image_layer_order.py -q
+          uv run --project packages/capstone-agent python -m pytest packages/capstone-agent/tests/test_managed_resource*.py packages/capstone-agent/tests/test_general_pi_executor.py packages/capstone-agent/tests/test_general_pi_server.py tools/tests/test_ci_scope.py tools/tests/test_image_layer_order.py -q
           node --test packages/capstone-agent/tests/fixtures/investigation-skills.test.mjs packages/capstone-agent/tests/js/managed-resource-tools.test.mjs
       - name: Verify formal applications
         if: steps.scope.outputs.gate == 'product'
