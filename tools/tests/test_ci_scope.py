@@ -17,6 +17,14 @@ def test_managed_skill_scope_excludes_unrelated_product_changes():
     assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
 
 
+def test_native_profile_scope_requires_launcher_and_regression_test():
+    from tools.ci_scope import classify as classify_changes
+    launcher = 'packages/capstone-agent/src/capstone_agent/general_pi_executor.py'
+    regression = 'packages/capstone-agent/tests/test_general_pi_executor.py'
+    assert classify_changes([launcher, regression]) == 'managed-skills'
+    assert classify_changes([launcher]) == 'conversation-runtime'
+
+
 @pytest.fixture
 def accepted_release_repo(tmp_path):
     def git(*args):

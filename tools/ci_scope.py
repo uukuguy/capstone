@@ -782,8 +782,9 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     source = agent + 'src/capstone_agent/'
     managed_skill_anchors = {source + 'managed_resource_runtime.py', source + 'managed_resource_service.py',
                              source + 'resources/managed-resource-tools.mjs'}
-    if managed_skill_anchors.intersection(paths) and all(
-            _control_path(path) or path in managed_skill_anchors | {
+    native_profile_paths = {source + 'general_pi_executor.py', agent + 'tests/test_general_pi_executor.py'}
+    if (managed_skill_anchors.intersection(paths) or native_profile_paths.issubset(paths)) and all(
+            _control_path(path) or path in managed_skill_anchors | native_profile_paths | {
                 '.github/workflows/verify.yml', 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py',
                 'configs/runtime/native-analysis.json', 'configs/runtime/native-analysis.lock.txt',
                 'tools/native_analysis_smoke.py', source + 'general_pi_server.py',
