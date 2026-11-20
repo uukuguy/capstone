@@ -83,9 +83,9 @@ class ControlService:
         from .mission_reviews import acknowledge
         return acknowledge(self,workspace,mission_id,review_id,binding)
 
-    def finish_mission_review(self,workspace,mission_id,review_id,*,attempt_id,phase):
+    def finish_mission_review(self,workspace,mission_id,review_id,*,attempt_id,phase,recovered=False):
         from .mission_reviews import finish
-        return finish(self,workspace,mission_id,review_id,attempt_id,phase)
+        return finish(self,workspace,mission_id,review_id,attempt_id,phase,recovered=recovered)
 
     def block_mission_review(self,workspace,mission_id,review_id,reason):
         from .mission_reviews import block

@@ -35,6 +35,12 @@ def eligible(goal):
             and not organizer(goal)['suspended'])
 
 
+def recovery_allowed(service, goal, review_id):
+    return (organizer(goal)['current_review_id'] == review_id
+            and goal['state'] not in {'paused','pausing','cancelled','cancelling','accepted','delivered'}
+            and service.now() < utc_deadline(goal['deadline_at']))
+
+
 def record_for(goal, review_id):
     found=next((item for item in organizer(goal)['records'] if item['intent']['review_id']==review_id),None)
     if found is None:
@@ -103,8 +109,12 @@ def pending(service, workspace=None, limit=32):
     for goal in goals:
         if '_mission' not in goal:
             continue
-        for record in organizer(goal)['records']:
-            if record['state'] in {'reserved','running'} or record['state']=='pending' and eligible(goal):
+        state = organizer(goal)
+        for record in state['records']:
+            recovering = (record['state'] == 'interrupted'
+                          and goal.get('reason') == 'organizer_interrupted'
+                          and recovery_allowed(service, goal, record['intent']['review_id']))
+            if recovering or record['state'] in {'reserved','running'} or record['state']=='pending' and eligible(goal):
                 result.append(deepcopy(record['intent']))
     return result[:limit]
 
@@ -175,17 +185,31 @@ def acknowledge(service, workspace, mission_id, review_id, binding):
     return transact(service,workspace,mission_id,review_id,'bound',apply)
 
 
-def finish(service,workspace,mission_id,review_id,attempt_id,phase):
+def finish(service,workspace,mission_id,review_id,attempt_id,phase,*,recovered=False):
     if phase not in {'completed','failed','cancelled','interrupted'}:
         raise ValueError('terminal organizer Attempt phase required')
     def apply(goal,record):
-        if record.get('finish'):
-            if record['finish']['attempt_id']!=attempt_id or record['finish']['phase']!=phase:
-                raise Conflict('Mission review terminal identity changed')
-            return deepcopy(record['finish'])
         if not record['binding'] or record['binding']['attempt_id']!=attempt_id:
             raise Conflict('Mission review terminal is not bound to this Attempt')
         state=organizer(goal)
+        previous = record.get('finish')
+        if previous and (previous['phase'] == phase
+                         or phase == 'interrupted' and record.get('interruption')):
+            return deepcopy(previous)
+        if recovered:
+            if phase != 'completed' or previous and previous['phase'] != 'interrupted':
+                raise Conflict('Mission review recovery requires the original interrupted Attempt')
+            if not recovery_allowed(service, goal, review_id):
+                return deepcopy(previous)
+            if previous:
+                if goal.get('reason') != 'organizer_interrupted':
+                    return deepcopy(previous)
+                state['suspended'] = False
+                goal['reason'] = None
+            record['interruption'] = dict(review_id=review_id, attempt_id=attempt_id,
+                                          phase='interrupted', state='interrupted')
+        elif previous:
+            raise Conflict('Mission review terminal identity changed')
         outcome=phase
         if phase=='completed' and progress(goal)==record['progress_before']:
             outcome='no_progress'
@@ -194,6 +218,8 @@ def finish(service,workspace,mission_id,review_id,attempt_id,phase):
         if phase in {'cancelled','interrupted','failed'}:
             state['suspended']=True
             goal['reason']='organizer_'+phase
+        if phase == 'interrupted':
+            return deepcopy(record['finish'])
         next_boundary=state.pop('next_boundary',None)
         state['next_boundary']=None
         if next_boundary is not None and eligible(goal):
