@@ -2,6 +2,20 @@
 
 Updated 2026-11-20. Active work continues on the managed enterprise execution plan.
 
+## Mission organizer recovery candidate
+
+Branch `fix/mission-organizer-recovery-20261120` targets `dev`. Candidate
+`08ebc478` settles a saved native review on its original Control binding.
+The focused run passed 86 tests. Three cases skipped the PostgreSQL-only
+recovery path in the memory fixture. A follow-up run passed seven recovery
+cases, including concurrent processing of the same saved receipt.
+The canonical local rebuild completed and the API is ready. Next, verify
+a real model review with an interruption before terminal write, then run
+scoped CI and integrate through a dev PR.
+
+The task-context agreement is in the canonical worklist. Shared task
+revisions and authorized cross-session handoff remain separate delivery work.
+
 ## Current baseline
 
 PR #174 merged to dev `db141b0a`. The workbench has one instruction path
@@ -34,8 +48,8 @@ The local verification passed 95 checks and focused macOS CI 44516985397 passed.
 
 ## Next work
 
-1. Recover interrupted Mission organizer reviews through their exact
-   Control bindings. Preserve Authority admission and user stop actions.
+1. Verify the Mission organizer recovery candidate with a real model review
+   and the original Control binding. Preserve Authority admission and user stop.
 2. Preserve the root checkout's unrelated files and other environment
    sources. Use focused development gates.
 

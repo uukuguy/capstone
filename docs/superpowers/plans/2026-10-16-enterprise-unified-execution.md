@@ -1,5 +1,32 @@
 # Unified Enterprise Execution Implementation Plan
 
+## Durable task context and user decisions
+
+Accepted design. Ordinary instructions, Goals and Missions share a versioned
+task context for continuation, recovery and authorized handoff between sessions.
+Keep the original conversation durable and link to exact messages and executions
+for inspection. Restore from the structured record and read the original
+conversation on demand.
+
+The record carries task identity, revision, current user direction and
+constraints, completed and open items, defects and blockers, exact result and
+evidence references, the execution binding and recovery position, and explicit
+user decisions. Each execution records what it delivered and what remains.
+Continue from the admitted version and preserve earlier versions for replay.
+Cross-session access requires an explicit grant. Authority references retain
+their owners, versions and admission rules.
+
+Execution completion and user acceptance are independent. A review can record
+findings and propose next steps. The user can accept, redirect, pause or stop
+the task. New instructions can continue work after execution completes.
+
+First delivery slice: recover an interrupted Mission organizer review through
+its original Control binding. Verify the saved result and any required sources
+before settlement. Retain unresolved items and honor user pause and stop.
+Acceptance requires an interrupted live review, recovery under the same binding,
+and proof that user stop prevents automatic continuation. Shared task versions
+and cross-session handoff remain subsequent delivery work.
+
 ## Retire the separate research mode
 
 PR #174 merged at `db141b0a`. macOS CI 44650512239 passed. The composer no
