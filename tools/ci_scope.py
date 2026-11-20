@@ -826,7 +826,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     control_manifest = Path(__file__).resolve().parents[1] / 'configs/development/control-delegation-gate.json'
     if control_manifest.is_file():
         control = json.loads(control_manifest.read_text())
-        if set(control['anchors']).issubset(paths) and all(
+        if any(set(control[key]).issubset(paths) for key in ('anchors', 'recovery_anchors')) and all(
                 path in control['paths'] or _control_path(path) for path in paths):
             return 'control-delegation'
     goal_manifest = Path(__file__).resolve().parents[1] / 'configs/development/agent-goal-gate.json'

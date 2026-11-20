@@ -145,14 +145,22 @@ def find_review(service, intent):
                 raise ThreadProtocolError('Mission review identity was reused with different source')
             return _binding(intent, record['task_context'].binding.work_id, attempt_id), record['attempt'].phase
     with service._connect() as connection:
-        record = connection.execute("""SELECT phase,submission_snapshot,task_context_snapshot
-            FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s""",
+        record = connection.execute("""SELECT a.phase,a.submission_snapshot,a.task_context_snapshot,
+            a.phase='interrupted' AND EXISTS (
+                SELECT 1 FROM capstone_thread_events recovery
+                WHERE recovery.thread_id=a.thread_id AND recovery.attempt_id=a.attempt_id
+                  AND recovery.event_type='attempt_delivery_recovered'
+                  AND recovery.visibility='public'
+                  AND length(btrim(recovery.payload->>'answer')) > 0
+            ) AS recovered
+            FROM capstone_thread_attempts a WHERE a.thread_id=%s AND a.attempt_id=%s""",
             (thread_id, attempt_id)).fetchone()
         if record is None:
             return None
         if (record['submission_snapshot'] or {}).get('_mission_review') != intent:
             raise ThreadProtocolError('Mission review identity was reused with different source')
-        return _binding(intent, record['task_context_snapshot']['binding']['work_id'], attempt_id), record['phase']
+        phase = 'recovered' if record['recovered'] else record['phase']
+        return _binding(intent, record['task_context_snapshot']['binding']['work_id'], attempt_id), phase
 
 
 def _origin_ready(service, intent):
@@ -338,7 +346,13 @@ def drain_mission_reviews(service, limit=32, *, workspace=None):
                 existing = (binding, 'accepted')
             binding, phase = existing
             host.service.acknowledge_mission_review(workspace, mission_id, review_id, binding)
-            if phase in TERMINAL:
+            if phase == 'recovered':
+                settled = host.service.finish_mission_review(workspace, mission_id, review_id,
+                    attempt_id=binding['attempt_id'], phase='completed', recovered=True)
+                if settled is None:
+                    host.service.finish_mission_review(workspace, mission_id, review_id,
+                        attempt_id=binding['attempt_id'], phase='interrupted')
+            elif phase in TERMINAL:
                 host.service.finish_mission_review(workspace, mission_id, review_id,
                     attempt_id=binding['attempt_id'], phase=phase)
         except MissionReviewBlocked as error:

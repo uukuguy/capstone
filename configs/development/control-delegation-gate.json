@@ -5,6 +5,10 @@
     "packages/capstone-control/src/capstone_control/service.py",
     "packages/capstone-agent/src/capstone_agent/agent_delegation.py"
   ],
+  "recovery_anchors": [
+    "packages/capstone-control/src/capstone_control/mission_reviews.py",
+    "packages/capstone-agent/src/capstone_agent/mission_continuation.py"
+  ],
   "paths": [
     ".github/workflows/verify.yml",
     "Dockerfile",
@@ -29,6 +33,7 @@
     "packages/capstone-agent/src/capstone_agent/control_host.py",
     "packages/capstone-agent/src/capstone_agent/delegation_resources.py",
     "packages/capstone-agent/src/capstone_agent/host_api.py",
+    "packages/capstone-agent/src/capstone_agent/mission_continuation.py",
     "packages/capstone-agent/src/capstone_agent/native_hosted_worker.py",
     "packages/capstone-agent/src/capstone_agent/native_task_context.py",
     "packages/capstone-agent/src/capstone_agent/thread_materials.py",
@@ -38,6 +43,7 @@
     "packages/capstone-agent/tests/test_control_host.py",
     "packages/capstone-agent/tests/test_delegation_resources.py",
     "packages/capstone-agent/tests/test_mission_continuation.py",
+    "packages/capstone-agent/tests/test_thread_worker.py",
     "packages/capstone-agent/uv.lock",
     "packages/capstone-app/src/ControlGoalPanel.css",
     "packages/capstone-app/src/ControlGoalPanel.tsx",
@@ -51,11 +57,13 @@
     "packages/capstone-control/pyproject.toml",
     "packages/capstone-control/src/capstone_control/__init__.py",
     "packages/capstone-control/src/capstone_control/contracts.py",
+    "packages/capstone-control/src/capstone_control/mission_reviews.py",
     "packages/capstone-control/src/capstone_control/reconcile.py",
     "packages/capstone-control/src/capstone_control/service.py",
     "packages/capstone-control/src/capstone_control/store.py",
     "packages/capstone-control/tests/test_contracts.py",
     "packages/capstone-control/tests/test_controls.py",
+    "packages/capstone-control/tests/test_mission_reviews.py",
     "packages/capstone-control/tests/test_postgres.py",
     "packages/capstone-control/tests/test_reconcile.py",
     "packages/capstone-control/tests/test_service.py",

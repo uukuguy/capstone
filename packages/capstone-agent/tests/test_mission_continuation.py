@@ -260,6 +260,60 @@ def test_restart_and_lost_acknowledgement_do_not_duplicate_review_attempt(review
     assert host.service.read_mission(workspace, mission['mission_id'])['organizer']['reviews_admitted'] == 1
 
 
+@pytest.mark.parametrize('stop_action', [None, 'pause', 'cancel'])
+def test_late_organizer_receipt_uses_original_control_binding(review_store, stop_action):
+    from concurrent.futures import ThreadPoolExecutor
+    from hashlib import sha256
+    from types import SimpleNamespace
+
+    from capstone_agent.native_owner_recovery import recover_exited_native_deliveries
+    from capstone_agent.pi_delegation import PiTaskResult
+
+    service, _, workspace, _ = review_store
+    if not isinstance(service, PostgresThreadService):
+        pytest.skip('native receipt recovery uses the PostgreSQL ledger')
+    host, mission, intent, _ = reserved_review(review_store)
+    mission_id = mission['mission_id']
+    assert drain_mission_reviews(service, workspace=workspace) == 1
+    binding, _ = find_review(service, intent)
+    claim = service.claim_attempt('organizer_worker', 30)
+    attempt_id = binding['attempt_id']
+    assert claim.attempt.attempt_id == attempt_id
+    task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
+    identity = {'engine': 'pi'}
+    service.append_runtime_event(claim, event_type='runtime_event', payload={
+        'task_id': task_id, 'parent_attempt_id': attempt_id, 'entrypoint': 'delegated',
+        'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
+        'route_source': 'native_conversation', 'delivery_recovery_format': 'plain',
+    }, visibility='diagnostic')
+    service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+                                 payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+    assert service.interrupt_expired_attempts() == 1
+    assert drain_mission_reviews(service, workspace=workspace) == 0
+    if stop_action:
+        goal = host.service.read(workspace, mission_id)
+        host.command_mission(workspace, dict(schema='capstone-control-mission-command/1',
+            operation_id=stop_action, mission_id=mission_id, expected_revision=goal['revision'],
+            kind=stop_action, payload={}))
+
+    reply = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Saved review', (), (), {})
+    assert recover_exited_native_deliveries(service, SimpleNamespace(observe_terminal_task=lambda *_: reply)) == 1
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts = [pool.submit(drain_mission_reviews, service, workspace=workspace) for _ in range(2)]
+        assert [attempt.result(timeout=8) for attempt in attempts] == [0, 0]
+    assert drain_mission_reviews(service, workspace=workspace) == 0
+    goal = host.service.store.read(workspace, mission_id)
+    organizer = goal['_mission']['organizer']
+    record, = organizer['records']
+    assert record['binding'] == binding and organizer['reviews_admitted'] == 1
+    if stop_action:
+        assert record['finish']['phase'] == 'interrupted'
+        assert goal['state'] in {'paused', 'pausing', 'cancelled', 'cancelling'}
+    else:
+        assert record['interruption']['phase'] == 'interrupted'
+        assert record['finish']['phase'] == 'completed'
+
+
 def test_review_cancelled_before_claim_never_calls_native_model(review_store, tmp_path):
     from capstone_agent.intent_runtime import IntentRuntimeFactory
     from capstone_agent.thread_worker import run_pending_attempt

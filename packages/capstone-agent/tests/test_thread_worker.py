@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from threading import Event, Thread
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,6 +10,33 @@ from capstone_agent.thread_service import InMemoryThreadService, ThreadModelDesc
 from capstone_agent.thread_protocol import ThreadSnapshot
 from capstone_agent.thread_worker import run_pending_attempt, serve_thread_attempts
 from capstone_agent.turn_router import DefaultTurnRouter, FakeDecisionRouter
+
+
+def test_native_worker_recovers_saved_delivery_before_settling_mission_review(monkeypatch):
+    from capstone_agent import mission_continuation, native_owner_recovery, thread_worker
+
+    stop = Event()
+    calls = []
+    times = iter([0, 11])
+    monkeypatch.setattr(thread_worker, 'time', SimpleNamespace(monotonic=lambda: next(times)))
+    monkeypatch.setattr(native_owner_recovery, 'observe_lost_contact', lambda *_: None)
+    monkeypatch.setattr(native_owner_recovery, 'recover_exited_native_deliveries',
+                        lambda *_: calls.append('recover'))
+
+    def settle(_):
+        calls.append('settle')
+        return 0
+
+    monkeypatch.setattr(mission_continuation, 'drain_mission_reviews', settle)
+    monkeypatch.setattr(thread_worker, 'run_pending_attempt', lambda *_, **__: stop.set())
+    service = SimpleNamespace(
+        interrupt_expired_attempts=lambda: calls.append('interrupt'),
+        control_host=SimpleNamespace(tick=lambda: None),
+        native_recovery_candidates=lambda: [],
+    )
+    serve_thread_attempts(service, lambda _: None, stop_event=stop,
+                          implementation_family='native', poll_seconds=0.001)
+    assert calls == ['interrupt', 'recover', 'settle']
 
 
 def _service() -> InMemoryThreadService:

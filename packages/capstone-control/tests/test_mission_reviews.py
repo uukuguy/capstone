@@ -73,6 +73,27 @@ def test_two_phase_organizer_uses_boundaries_and_explicit_plan_conclusion():
     assert mission['plan_conclusion']['plan_revision']==mission['plan_revision']
 
 
+def test_interrupted_review_can_settle_recovered_delivery_under_original_binding():
+    control = service()
+    mission = complete_task(control, plan(control))
+    mission_id = mission['mission_id']
+    intent = control.pending_mission_reviews('team')[0]
+    review_id = intent['review_id']
+    control.reserve_mission_review('team', mission_id, review_id)
+    binding = dict(thread_id=intent['origin']['thread_id'], work_id='work_review',
+                   attempt_id='review_attempt_1')
+    control.acknowledge_mission_review('team', mission_id, review_id, binding)
+    control.finish_mission_review('team', mission_id, review_id,
+                                  attempt_id=binding['attempt_id'], phase='interrupted')
+    assert control.pending_mission_reviews('team') == [intent]
+    recovered = control.finish_mission_review('team', mission_id, review_id,
+        attempt_id=binding['attempt_id'], phase='completed', recovered=True)
+    assert recovered['state'] == 'no_progress'
+    assert control.pending_mission_reviews('team') == []
+    assert control.finish_mission_review('team', mission_id, review_id,
+        attempt_id=binding['attempt_id'], phase='completed', recovered=True) == recovered
+
+
 def test_review_restart_budget_no_progress_and_stops_are_durable():
     control=service()
     mission=complete_task(control,plan(control))

@@ -8342,3 +8342,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20: a250911c retires the separate research mode and closes its rollout plans.
 - 2026-11-20: 77ff408a restores the workflow condition order required by existing governance checks.
 - 2026-11-20: db141b0a merges PR174 after legacy submission, real file download and scoped macOS verification.
+
+- 2026-11-20 12:11: 08ebc478 reconciles saved organizer delivery on its original Attempt. PostgreSQL checks preserve pause, cancellation and admission count.
