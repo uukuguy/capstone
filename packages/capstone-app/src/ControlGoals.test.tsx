@@ -50,6 +50,15 @@ it('opens the existing delegated Thread instead of building another chat',async(
   expect(open).toHaveBeenCalledWith('thr_one','work_one')
 })
 
+it('shows a delivered goal without a final acceptance action', async () => {
+  const api = transport([{...goal(), state: 'delivered'}])
+  render(<ControlGoals transport={api} onOpenThread={vi.fn()}/>)
+  fireEvent.click(screen.getByRole('button', {name: '任务执行'}))
+  await screen.findByText(/成果可用 · 目标版本/)
+  expect(screen.queryByRole('button', {name: '接受当前成果版本'})).toBeNull()
+  expect(api.controlGoalCommand).not.toHaveBeenCalled()
+})
+
 it('directs new creation to the conversation while preserving an existing pending legacy operation',async()=>{
   const body=buildControlGoal({objective:'Produce report',criteria:'Review final file',maxDelegations:4,deadline:'2099-01-01T00:00:00Z',stages:[{objective:'Save a draft',files:'draft.md',mode:'single',maxAttempts:1}]},'create_original')
   localStorage.setItem('capstone.control.enterprise.pending',JSON.stringify({kind:'create',body}))
