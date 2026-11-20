@@ -18,3 +18,11 @@ def test_worker_reply_uses_the_interruption_gate():
              'packages/capstone-agent/tests/test_worker_interruption_products.py',
              'packages/capstone-app/src/CapstoneAssistantThread.tsx']
     assert classify(paths) == 'worker-interruption'
+
+
+def test_task_state_continuation_uses_thread_ledger_gate():
+    paths = ['packages/capstone-agent/src/capstone_agent/' + name + '.py'
+             for name in ('enterprise_context', 'thread_service', 'thread_work', 'thread_worker')]
+    paths.append('packages/capstone-agent/tests/test_enterprise_normal_chat.py')
+    assert classify(paths) == 'worker-interruption'
+    assert classify(paths + ['packages/grid-simulator/src/grid_simulator/engine.py']) != 'worker-interruption'

@@ -8346,3 +8346,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-20 12:11: 08ebc478 reconciles saved organizer delivery on its original Attempt. PostgreSQL checks preserve pause, cancellation and admission count.
 
 - 2026-11-20 12:32: PR176 merged at 01f7a07c after live organizer recovery and scoped macOS CI 44674377200.
+
+- 2026-11-20 14:46: 848426b8 persists ordinary task-state revisions. PostgreSQL verified restart and exact follow-up binding.
