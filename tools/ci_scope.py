@@ -778,6 +778,20 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    agent = 'packages/capstone-agent/'
+    source = agent + 'src/capstone_agent/'
+    managed_skill_anchors = {source + 'managed_resource_runtime.py', source + 'managed_resource_service.py',
+                             source + 'resources/managed-resource-tools.mjs'}
+    if managed_skill_anchors.intersection(paths) and all(
+            _control_path(path) or path in managed_skill_anchors | {
+                '.github/workflows/verify.yml', 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py',
+                'configs/runtime/native-analysis.json', 'configs/runtime/native-analysis.lock.txt',
+                'tools/native_analysis_smoke.py', source + 'general_pi_server.py',
+                source + 'resources/investigation-skills.mjs',
+                agent + 'tests/fixtures/investigation-skills.test.mjs',
+                agent + 'tests/test_managed_resource_task.py',
+            } for path in paths):
+        return 'managed-skills'
     retirement_manifest = Path(__file__).resolve().parents[1] / 'configs/development/research-mode-retirement-gate.json'
     if retirement_manifest.is_file():
         retirement = json.loads(retirement_manifest.read_text())
