@@ -1753,6 +1753,8 @@ class NativeTaskRunner:
                     sdk_config.setdefault('contextFiles', []).append({'path': 'session-material-status',
                         'content': 'These user-supplied file names were not staged; do not claim to have read them: '
                             + json.dumps(native['material_notices'], ensure_ascii=False)})
+                if native['selected_task_records'] and 'task_handoff' in native['selected_task_records'][0]:
+                    sdk_config['context']['task_handoff_selected'] = True
                 sdk_config['context']['records_truncated'] = native['records_truncated']
                 sdk_config['context']['selected_task_source'] = native['selected_task_source']
                 policy_text = native['policy']['system_policy']

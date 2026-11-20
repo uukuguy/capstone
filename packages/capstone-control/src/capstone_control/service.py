@@ -42,6 +42,8 @@ def public(goal):
             suspended=review.get('suspended',False))
         if review.get('disposition') and (current is None or current['state'] not in {'pending','reserved','running'}):
             result['organizer'].update(state='waiting',reason=review['disposition']['reason'])
+        from .mission import task_state
+        result['task_state'] = task_state(result)
     return result
 
 

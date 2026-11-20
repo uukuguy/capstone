@@ -592,7 +592,7 @@ def test_recovered_origin_delivery_releases_existing_mission_review_once(review_
 
 
 @pytest.mark.parametrize('outcome', ['verified', 'pause', 'cancel', 'missing_authority'])
-def test_mission_reconciles_child_delivery_after_observing_worker_exit(postgres_thread_service, outcome):
+def test_mission_reconciles_child_delivery_after_observing_worker_exit(postgres_thread_service, outcome, monkeypatch):
     from hashlib import sha256
     from types import SimpleNamespace
 
@@ -606,6 +606,8 @@ def test_mission_reconciles_child_delivery_after_observing_worker_exit(postgres_
         active_grid_page_id=None, minimum_protocol_version=2), workspace_name=workspace)
     service.set_native_executor(native_executor())
     host = configure_control(service)
+    list_goals = host.service.store.list
+    monkeypatch.setattr(host.service.store, 'list', lambda **options: list_goals(workspace=workspace, **options))
     mission = host.create_mission(workspace, {'schema': 'capstone-control-mission-create/1',
         'operation_id': 'create', 'objective': 'Recover a child delivery', 'origin': {'thread_id': thread_id}})
     mission_id = mission['mission_id']

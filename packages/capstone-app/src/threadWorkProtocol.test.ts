@@ -2,7 +2,7 @@ import {afterEach} from 'vitest'
 afterEach(()=>initializeApplicationCapacity())
 import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it } from 'vitest'
-import { parseWorkSnapshot, buildWorkCommand, buildStartWorkCommand, buildSendMessageCommand, parseStoredWorkCommand } from './threadWorkProtocol'
+import { parseWorkSnapshot, buildWorkCommand, buildStartWorkCommand, buildSendMessageCommand, parseStoredWorkCommand, handoffInstruction } from './threadWorkProtocol'
 import {parseProductRef} from './threadProducts'
 import {buildModelWorkspaceCommand, buildTaskDecisionCommand} from './threadWorkProtocol'
 import {readPendingCommands, writePendingCommands} from './threadSessionState'
@@ -110,4 +110,16 @@ it.each(['work_message','revise_goal'] as const)('preserves row refs in recovera
  const command=buildWorkCommand('thr_work','run_work','cmd_row','idem_row','work_one',1,'分析所选行',kind,[selection])
  expect(parseStoredWorkCommand(JSON.parse(JSON.stringify(command)),'thr_work')).toEqual(command)
  expect(command.payload).toEqual({text:'分析所选行',context_product_refs:[selection]})
+})
+
+
+it('parses an explicit instruction and its exact cross-session source', () => {
+  expect(handoffInstruction('Continue the analysis')).toBeNull()
+  const instruction = '/continue-from thr_source/work_a/3/attempt_a/goal_a/2\nReview the saved findings'
+  expect(handoffInstruction(instruction)).toEqual({text:'Review the saved findings',source:{
+    thread_id:'thr_source',work_id:'work_a',work_revision:3,revision_ref:'attempt_a',
+    mission_id:'goal_a',mission_revision:2,
+  }})
+  expect(() => handoffInstruction('/continue-from thr_source/work_a/3/attempt_a')).toThrow()
+  expect(() => handoffInstruction('/continue-from thr_source/work_a/3/attempt_a/goal_a\nContinue')).toThrow()
 })

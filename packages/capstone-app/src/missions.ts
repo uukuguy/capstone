@@ -1,7 +1,8 @@
 import {ThreadProtocolError} from './threadProtocol'
 export type MissionRef={missionId:string;workId?:string}
 export type MissionCreate={schema:'capstone-control-mission-create/1';operation_id:string;objective:string;origin:{thread_id:string;work_id?:string}}
-export type Mission={missionId:string;objective:string;state:string;revision:number;planComplete:boolean;planConcluded?:boolean;allTasksVerified?:boolean;organizerState?:string;reason?:string;conclusionStatus?:string;origin:{thread_id:string;work_id?:string}}
+export type MissionOpenItem={kind:string;objective?:string;state?:string}
+export type Mission={openItems?:MissionOpenItem[];missionId:string;objective:string;state:string;revision:number;planComplete:boolean;planConcluded?:boolean;allTasksVerified?:boolean;organizerState?:string;reason?:string;conclusionStatus?:string;origin:{thread_id:string;work_id?:string}}
 const object=(value:unknown):Record<string,unknown>=>{if(!value||typeof value!=='object'||Array.isArray(value))throw new ThreadProtocolError('Mission 记录无效');return value as Record<string,unknown>}
 const id=(value:unknown):string=>{if(typeof value!=='string'||!/^[a-z][a-z0-9_-]{0,127}$/.test(value))throw new ThreadProtocolError('Mission 身份无效');return value}
 export function missionObjectiveFromInput(text:string):string|null{const match=/^\/mission(?:\s+([\s\S]*))?$/.exec(text);return match?(match[1]||'').trim():null}
@@ -42,10 +43,20 @@ export function parseMission(value:unknown,workspace:string,threadId:string):Mis
   if(row.plan_concluded!==undefined&&typeof row.plan_concluded!=='boolean')throw new ThreadProtocolError('Mission 计划结论无效')
   const organizer=row.organizer===undefined?undefined:object(row.organizer)
   if(organizer&&typeof organizer.state!=='string')throw new ThreadProtocolError('Mission 复盘状态无效')
+  const state = row.task_state === undefined ? undefined : object(row.task_state)
+  if (state && (state.schema !== 'capstone-task-state/1' || object(state.task).mission_id !== row.mission_id ||
+      state.revision_ref !== String(row.revision) || !Array.isArray(state.open_items)))
+    throw new ThreadProtocolError('Mission 任务状态与版本不符')
+  const openItems = (state?.open_items as unknown[] | undefined)?.map(value => {
+    const item = object(value)
+    if (typeof item.kind !== 'string') throw new ThreadProtocolError('Mission 未完成事项无效')
+    return {kind:item.kind,objective:typeof item.objective === 'string' ? item.objective : undefined,
+      state:typeof item.state === 'string' ? item.state : undefined}
+  })
   const satisfied=typedConclusionSatisfied(row)
   const conclusion=row.plan_conclusion?object(row.plan_conclusion):undefined
   const conclusionStatus=conclusion?(!Array.isArray(conclusion.criteria_verdicts)?'legacy_unverified':conclusion.plan_revision!==row.plan_revision?'stale':satisfied?'satisfied':'incomplete'):row.plan_concluded===true?'legacy_unverified':undefined
-  return {missionId:id(row.mission_id),objective:row.objective,state:row.state,revision:row.revision as number,planComplete:row.plan_complete,planConcluded:row.plan_concluded===true&&satisfied,...(typeof row.reason==='string'?{reason:row.reason}:{}),conclusionStatus,...(organizer?{organizerState:organizer.state as string}:{}),allTasksVerified:Array.isArray(row.tasks)&&row.tasks.length>0&&row.tasks.every(task=>object(task).state==='verified'),origin:{thread_id:id(origin.thread_id),...(origin.work_id===undefined?{}:{work_id:id(origin.work_id)})}}
+  return {openItems,missionId:id(row.mission_id),objective:row.objective,state:row.state,revision:row.revision as number,planComplete:row.plan_complete,planConcluded:row.plan_concluded===true&&satisfied,...(typeof row.reason==='string'?{reason:row.reason}:{}),conclusionStatus,...(organizer?{organizerState:organizer.state as string}:{}),allTasksVerified:Array.isArray(row.tasks)&&row.tasks.length>0&&row.tasks.every(task=>object(task).state==='verified'),origin:{thread_id:id(origin.thread_id),...(origin.work_id===undefined?{}:{work_id:id(origin.work_id)})}}
 }
 const missionLabels:Record<string,string>={planning:'规划中',waiting_review:'等待任务结果复盘',ready:'待执行',running:'执行中',waiting:'待你回复',paused:'已暂停',pausing:'正在暂停',accepted:'已接受',cancelled:'已撤销',cancelling:'正在撤销',failed:'需处理',blocked:'需处理',revising:'正在调整'}
 export function missionStateLabel(mission:Mission):string{

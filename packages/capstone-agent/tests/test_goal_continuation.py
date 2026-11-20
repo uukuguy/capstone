@@ -73,10 +73,16 @@ def test_service_runs_two_attempts_without_another_user_instruction():
     _admit_initial_plan(store)
     first = store.claim_attempt('worker', 30)
     _review_saved_step(store, first)
+    state = store.snapshot('thr_work_exec').works[0]['task_state']
+    assert state['revision_ref'] == first.attempt.attempt_id
+    projected = store.snapshot('thr_work_exec').to_document()['works'][0]['task_state']['workflow']
+    assert projected['kind'] == 'goal'
+    assert projected['step_index'] == 1
     assert drain_goal_continuations(store) == 1
     assert drain_goal_continuations(store) == 0
     second = store.claim_attempt('worker', 30)
     assert second is not None and second.attempt.attempt_id != first.attempt.attempt_id
+    assert second.task_context.task_state_ref == state['revision_ref']
     assert 'Review draft' in second.instruction
     _review_saved_step(store, second, complete=True)
     assert drain_goal_continuations(store) == 0

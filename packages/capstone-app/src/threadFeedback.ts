@@ -121,6 +121,7 @@ export function toolFailureCopy(code?: string): string {
 
 export function commandRejectionCopy(code?: string): string {
   const messages: Record<string, string> = {
+    task_handoff_unavailable: '无法读取所选续作版本。请确认两个会话属于同一工作区，并从原会话重新复制引用。',
     session_skill_unavailable: '会话方法已不可用，本次指令未执行。请打开“会话技能”读取最新配置并重新选择，或在本轮技能中排除该方法后再发送。输入内容已保留。',
     session_skill_content_changed: '会话方法的内容已变化，本次指令未执行。请打开“会话技能”读取最新配置，移除后重新选择以确认新内容。输入内容已保留。',
     session_skill_reselect_required: '旧会话方法尚未确认内容版本，本次指令未执行。请在“会话技能”中移除后重新选择，或在本轮技能中排除后发送。输入内容已保留。',

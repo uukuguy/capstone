@@ -354,7 +354,7 @@ def _stage_goal_step_review(work, attempt_id, answer, product_refs, authority_re
 def _recover_workflow_delivery(snapshot, original, payload, artifacts):
     """Restore only the Work revision left by this recorded interruption."""
     from .enterprise_context import TaskContext
-    from .thread_work import project_work, transition_work
+    from .thread_work import project_work, settle_task_state, transition_work
 
     frozen = original['task_context_snapshot']
     interrupted = original['interrupted_work']
@@ -390,7 +390,10 @@ def _recover_workflow_delivery(snapshot, original, payload, artifacts):
     if goal is not None:
         product_refs = sorted({artifact[key] for artifact in artifacts for key in ('artifact_id', 'file_name')})
         _stage_goal_step_review(restored, attempt_id, payload['answer'], product_refs, [])
-    return updated, {'work_id': restored['work_id'], 'work': project_work(updated, restored)}
+    attempt = AttemptSnapshot(original['turn_id'], attempt_id, 'completed', None, snapshot.runtime_mode)
+    return settle_task_state(updated, {'work_id': restored['work_id'], 'work': project_work(updated, restored)},
+                             context, attempt, 'completed', original['submission_snapshot'],
+                             payload.get('task_state_report'))
 
 
 def _prepare_terminal_transition(
@@ -1511,7 +1514,8 @@ def _work_send_input(snapshot, parsed, provider, capability_catalog):
                 **({'context_product_refs':work['context_product_refs']} if work.get('context_product_refs') else {})}}
     if parsed['kind'] != 'send_message':
         return snapshot, None, None
-    message = {**parsed, 'kind': 'send_auto', 'payload': {**parsed['payload'],
+    message = {**parsed, 'kind': 'send_auto', 'payload': {
+        **{key: value for key, value in parsed['payload'].items() if key != 'task_handoff'},
         'input': parsed['payload'].get('input', {'kind': 'text', 'text': parsed['payload'].get('text')})}}
     rejection = _admission_rejection(message)
     if snapshot.active_model_context is None and 'enabled_profiles' in message['payload']:
@@ -1909,6 +1913,8 @@ class InMemoryThreadService(NativeExecutionOwner):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         prepared, submission, input_rejection = _work_send_input(
             self._snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
+        if input_rejection is None and 'task_handoff' in parsed['payload']:
+            input_rejection = 'task_handoff_unavailable'
         if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission,
@@ -2519,10 +2525,10 @@ class InMemoryThreadService(NativeExecutionOwner):
                     continue
                 if context != self._snapshot.active_model_context:
                     terminal = replace(record["attempt"], phase="interrupted")
-                    from .thread_work import work_event_payload
-                    work_snapshot, work_payload = work_event_payload(
+                    from .thread_work import settle_early_task_state
+                    work_snapshot, work_payload = settle_early_task_state(
                         replace(self._snapshot, current_attempt=None), record.get('task_context'),
-                        terminal.attempt_id, 'interrupted')
+                        terminal, record.get('submission'))
                     record["attempt"] = terminal
                     event = self._append_event(
                         event_type="attempt_interrupted", attempt=terminal,
@@ -2855,11 +2861,11 @@ class InMemoryThreadService(NativeExecutionOwner):
         record = self._attempts[current.attempt_id]
         if record['attempt'].phase != 'accepted' or record['lease_token'] is not None:
             return
-        from .thread_work import work_event_payload
+        from .thread_work import settle_early_task_state
         terminal = replace(current, phase='cancelled')
-        updated, payload = work_event_payload(
+        updated, payload = settle_early_task_state(
             replace(self._snapshot, current_attempt=None), record.get('task_context'),
-            current.attempt_id, 'cancelled')
+            terminal, record.get('submission'))
         event = self._append_event(event_type='attempt_cancelled', attempt=terminal,
                                    payload=payload, context=record.get('model_context'))
         record['attempt'] = terminal
@@ -3572,6 +3578,15 @@ class PostgresThreadService(NativeExecutionOwner):
             return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
         prepared, submission, input_rejection = _work_send_input(
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
+        if input_rejection is None and 'task_handoff' in parsed['payload']:
+            from .task_handoff import freeze_task_handoff
+            host = getattr(self, 'control_host', None)
+            handoff = freeze_task_handoff(connection, thread, parsed['payload']['task_handoff'],
+                                          control=None if host is None else host.service)
+            if handoff is None:
+                input_rejection = 'task_handoff_unavailable'
+            else:
+                submission = {**(submission or {}), '_task_handoff': handoff}
         if input_rejection is None and parsed['kind'] in {'send_message', 'start_work', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             from .thread_materials import freeze_material_submission
             submission, input_rejection = freeze_material_submission(self, prepared, parsed['payload'], submission,
@@ -4857,12 +4872,12 @@ class PostgresThreadService(NativeExecutionOwner):
         if attempt is None:
             return
         from .enterprise_context import TaskContext
-        from .thread_work import work_event_payload
+        from .thread_work import settle_early_task_state
         task_context = (TaskContext.from_document(attempt['task_context_snapshot'])
                         if attempt.get('task_context_snapshot') is not None else None)
-        updated, payload = work_event_payload(replace(snapshot, current_attempt=None),
-            task_context, current.attempt_id, 'cancelled')
         terminal = replace(current, phase='cancelled')
+        updated, payload = settle_early_task_state(replace(snapshot, current_attempt=None),
+            task_context, terminal, attempt['submission_snapshot'])
         event = self._make_attempt_event(thread, terminal,
             event_seq=thread['last_event_seq'] + 1, event_type='attempt_cancelled', payload=payload)
         self._insert_event(connection, event)
@@ -4915,12 +4930,12 @@ class PostgresThreadService(NativeExecutionOwner):
             ):
                 terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
                 from .enterprise_context import TaskContext
-                from .thread_work import work_event_payload
+                from .thread_work import settle_early_task_state
                 saved_task = (None if attempt_row.get('task_context_snapshot') is None
                               else TaskContext.from_document(attempt_row['task_context_snapshot']))
-                work_snapshot, work_payload = work_event_payload(
+                work_snapshot, work_payload = settle_early_task_state(
                     replace(self._snapshot_from_row(thread), current_attempt=None),
-                    saved_task, terminal.attempt_id, 'interrupted')
+                    saved_task, terminal, attempt_row.get('submission_snapshot'))
                 event = self._make_attempt_event(
                     thread, terminal, event_seq=thread["last_event_seq"] + 1,
                     event_type="attempt_interrupted",

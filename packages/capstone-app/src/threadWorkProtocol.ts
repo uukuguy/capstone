@@ -15,6 +15,30 @@ export type SessionGoalPlan = {
   steps: { instruction: string; expectedResult: string }[]
   stepIndex: number
 }
+export type TaskHandoff = {thread_id:string;work_id:string;work_revision:number;revision_ref:string;mission_id?:string;mission_revision?:number}
+
+function parseTaskHandoff(value:unknown):TaskHandoff {
+  const row = object(value)
+  const hasMission = row.mission_id !== undefined || row.mission_revision !== undefined
+  if (Object.keys(row).length !== (hasMission ? 6 : 4)) throw new ThreadProtocolError('续作引用无效')
+  return {thread_id:id(row.thread_id),work_id:id(row.work_id),
+    work_revision:revision(row.work_revision,1),revision_ref:id(row.revision_ref),
+    ...(hasMission ? {mission_id:id(row.mission_id),mission_revision:revision(row.mission_revision,1)} : {})}
+}
+
+export function handoffInstruction(text:string):{text:string;source:TaskHandoff}|null {
+  if (!text.startsWith('/continue-from ')) return null
+  const [header,...instruction] = text.split('\n')
+  const fields = header.slice('/continue-from '.length).trim().split('/')
+  const [thread_id,work_id,work_revision,revision_ref,mission_id,missionRevision] = fields
+  const nextText = instruction.join('\n').trim()
+  if (![4,6].includes(fields.length) || !/^[1-9][0-9]*$/.test(work_revision) || !nextText
+      || (fields.length === 6 && !/^[1-9][0-9]*$/.test(missionRevision)))
+    throw new ThreadProtocolError('请在续作引用下另起一行填写新指令。')
+  return {text:nextText,source:parseTaskHandoff({thread_id,work_id,work_revision:Number(work_revision),revision_ref,
+    ...(mission_id === undefined ? {} : {mission_id,mission_revision:Number(missionRevision)})})}
+}
+
 export type TaskDecision = 'accept' | 'request_changes'
 export type WorkRecord = {
   instructionQueue?:QueuedInstruction[]
@@ -28,6 +52,7 @@ export type WorkRecord = {
   goalMode?: GoalMode
   goalPlan?: SessionGoalPlan
   goalPlanPending?: boolean
+  taskStateRevision?: string
 }
 export type WorkAttempt = { turnId: string; attemptId: string; phase: AttemptPhase;
   targetModelContextId: string | null; runtimeMode: RuntimeMode; workId: string | null }
@@ -49,7 +74,7 @@ export type WorkCommand = {
   schema: 'capstone-command/2'; thread_id: string; run_id: string
   command_id: string; idempotency_key: string; kind: 'queue_instruction' | 'withdraw_instruction' | 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'record_task_decision' | 'open_model' | 'activate_model' | 'close_model' | GoalControl
   target: { kind: 'work' | 'model_workspace'; id: string; expected_revision: number }
-  payload: ({ text: string; source_attempt_id?: string } & Partial<InputSubmission>) | Record<string, string|number>
+  payload: ({ text: string; source_attempt_id?: string; task_handoff?: TaskHandoff } & Partial<InputSubmission>) | Record<string, string|number>
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ThreadProtocolError('工作记录无效')
@@ -140,6 +165,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       startAvailable: typeof work.start_available === 'boolean' ? work.start_available : false,
       cancelRequested: work.cancel_requested === true, conversationMode: work.conversation_mode === true,
       ...(work.goal_mode===undefined?{}:{goalMode:parseGoalMode(work.goal_mode)}),
+      taskStateRevision: work.task_state == null ? undefined : id(object(work.task_state).revision_ref),
       goalPlan, goalPlanPending: work.goal_plan_pending === true,
       startUnavailableReason: work.start_unavailable_reason == null ? null : String(work.start_unavailable_reason),
       blockedReason: work.blocked_reason as string | null, messages: work.messages as string[] }
@@ -161,7 +187,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
 }
 
 export function buildSendMessageCommand(threadId: string, runId: string, commandId: string, idempotencyKey: string,
-                                       workId: string, expectedRevision: number, text: string, submission?: InputSubmission, sourceAttemptId?: string): WorkCommand {
+                                       workId: string, expectedRevision: number, text: string, submission?: InputSubmission, sourceAttemptId?: string, handoff?: TaskHandoff): WorkCommand {
   const command: WorkCommand = {...buildWorkCommand(threadId, runId, commandId, idempotencyKey, workId, expectedRevision, text), kind: 'send_message'}
   if (submission) {
     if(submission.llm_profile_id!==undefined&&!validLlmProfileId(submission.llm_profile_id))throw new ThreadProtocolError('LLM 选择无效')
@@ -179,6 +205,10 @@ export function buildSendMessageCommand(threadId: string, runId: string, command
     command.payload = {text, ...structuredClone(submission)}
   }
   if (sourceAttemptId !== undefined) command.payload = {...command.payload, text, source_attempt_id: id(sourceAttemptId)}
+  if (handoff !== undefined) {
+    if (sourceAttemptId !== undefined || handoff.thread_id === threadId) throw new ThreadProtocolError('请选择另一会话的一个续作来源。')
+    command.payload = {...command.payload, text, task_handoff:parseTaskHandoff(handoff)}
+  }
   assertCapacity(new TextEncoder().encode(JSON.stringify(command)).byteLength,'command_bytes')
   return command
 }
@@ -239,11 +269,12 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
       id(target.id),revision(target.expected_revision,1),command.kind as GoalControl,payload as Record<string,string|number>)
   }
   if (command.kind === 'send_message' && typeof payload.text === 'string'
-      && Object.keys(payload).every(key => ['text', 'input', 'context_selection', 'resource_profile', 'source_attempt_id', 'material_refs','context_product_refs','attachment_refs','deep_research','llm_profile_id'].includes(key))) {
-    const {text, source_attempt_id, ...submission} = payload
+      && Object.keys(payload).every(key => ['text', 'input', 'context_selection', 'resource_profile', 'source_attempt_id', 'task_handoff', 'material_refs','context_product_refs','attachment_refs','deep_research','llm_profile_id'].includes(key))) {
+    const {text, source_attempt_id, task_handoff, ...submission} = payload
     return buildSendMessageCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision), text,
       Object.keys(submission).length ? submission as InputSubmission : undefined,
-      source_attempt_id === undefined ? undefined : id(source_attempt_id))
+      source_attempt_id === undefined ? undefined : id(source_attempt_id),
+      task_handoff === undefined ? undefined : parseTaskHandoff(task_handoff))
   }
   if (command.kind === 'start_work' && Object.keys(payload).length === 0) return buildStartWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision))
   if (command.kind === 'cancel_work' && Object.keys(payload).length === 0) return buildCancelWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision))

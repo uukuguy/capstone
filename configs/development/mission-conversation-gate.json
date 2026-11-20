@@ -88,6 +88,17 @@
     "tools/test_mission_conversation.sh",
     "tools/tests/test_ci_mission_conversation.py",
     "tools/ci_scope.py",
-    ".github/workflows/verify.yml"
+    ".github/workflows/verify.yml",
+    "packages/capstone-agent/src/capstone_agent/task_handoff.py",
+    "packages/capstone-agent/src/capstone_agent/task_record_reader.py",
+    "packages/capstone-agent/tests/test_enterprise_normal_chat.py",
+    "packages/capstone-agent/tests/test_goal_continuation.py",
+    "packages/capstone-app/src/threadFeedback.ts",
+    "packages/capstone-app/src/threadWorkProtocol.test.ts",
+    "packages/capstone-agent/src/capstone_agent/resources/general-context.mjs"
+  ],
+  "continuation_anchors": [
+    "packages/capstone-agent/src/capstone_agent/task_handoff.py",
+    "packages/capstone-control/src/capstone_control/mission.py"
   ]
 }

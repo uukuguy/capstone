@@ -21,7 +21,7 @@ import {resultProjectionHistoryText} from './threadSystemNotices'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import { commandKey } from './commandKey'
 import { commandRejectionCopy } from './threadFeedback'
-import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
+import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, handoffInstruction, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
 import { HttpThreadTransport,ThreadTransportError } from './threadHttpTransport'
 import type { ThreadListPage } from './threadManagement'
 import { CapstoneThreadClient } from './threadClient'
@@ -485,6 +485,15 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   async function send(text: string,submission?:InputSubmission) {
     if((missionPending||missionObjectiveFromInput(text)!==null)&&(!pendingMessage||missionPending))return submitMission(text,submission)
 
+    let handoff
+    try { handoff = pendingMessage ? null : handoffInstruction(text) }
+    catch (cause) { throw new MessageNotSentError(cause instanceof Error ? cause.message : '续作引用无效。') }
+    if (handoff) {
+      if (concurrentSend || processReference || submission?.input.kind === 'skill_invocation')
+        throw new MessageNotSentError('请在会话空闲时发送续作指令，并移除另选的执行记录或技能。')
+      text = handoff.text
+      if (submission) submission = {...submission,input:{kind:'text',text}}
+    }
     if(pendingMessage?.kind==='queue_instruction'){
       try{await dispatch(pendingMessage);return}catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'发送结果待确认。')}
     }
@@ -498,13 +507,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         return
       }catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'发送结果待确认。')}
     }
-    const objective=goalObjectiveFromInput(text)
+    const objective=handoff ? null : goalObjectiveFromInput(text)
     if(objective!==null){
       setGoalDraft(objective||selectedWork?.goal||'')
       setNotice('开始后会先规划，再逐步执行。')
       return
     }
-    const sendInstruction=nativeChat||!!selectedWork?.goalMode
+    const sendInstruction=nativeChat||!!selectedWork?.goalMode||!!handoff
     if(sendInstruction&&!pendingMessage){
       if(attachmentsLoading)throw new MessageNotSentError('正在确认待发送附件，请稍后发送。')
       submission={...(submission||{input:{kind:'text',text},context_selection:{include_refs:[],exclude_refs:[]}}),attachment_refs:attachments.map(file=>file.resource_id)}
@@ -512,8 +521,20 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     const runId = snapshot?.runId ?? professional?.run.runId
     if (!runId) throw new MessageNotSentError('请先连接会话。')
     try {
-      await dispatch(pendingMessage || (sendInstruction?buildSendMessageCommand(currentId,runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,selected,selectedWork?.revision||0,text,submission,processReference?.threadId===currentId?processReference.attemptId:undefined):buildWorkCommand(currentId, runId, `cmd_${commandKey()}`, `idem_${commandKey()}`, selected, selectedWork?.revision || 0, text,'work_message',submission?.context_product_refs)))
+      await dispatch(pendingMessage || (sendInstruction?buildSendMessageCommand(currentId,runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,selected,selectedWork?.revision||0,text,submission,processReference?.threadId===currentId?processReference.attemptId:undefined,handoff?.source):buildWorkCommand(currentId, runId, `cmd_${commandKey()}`, `idem_${commandKey()}`, selected, selectedWork?.revision || 0, text,'work_message',submission?.context_product_refs)))
     } catch (cause) { throw new MessageNotSentError(cause instanceof Error ? cause.message : '保存结果待确认。') }
+  }
+  const handoffAvailable = selectedWork?.taskStateRevision && !['queued','running'].includes(selectedWork.status)
+  async function copyHandoff(missionId?:string, missionRevision?:number) {
+    if (!handoffAvailable || !selectedWork) return
+    const source = [currentId,selectedWork.workId,selectedWork.revision,selectedWork.taskStateRevision]
+    if (missionId && missionRevision) source.push(missionId,missionRevision)
+    try {
+      await navigator.clipboard.writeText(`/continue-from ${source.join('/')}`)
+      setNotice('已复制续作引用。请粘贴到另一会话，在下一行写新指令。')
+    } catch {
+      setNotice('浏览器未能复制续作引用。')
+    }
   }
   async function start() {
     if (!selectedWork || !snapshot || ((recovery||nativeChat) && pending?.kind !== 'start_work')) return
@@ -877,6 +898,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         window.dispatchEvent(new Event('capstone-session-renamed'))
       }:undefined} />
       <div className="thread-chat-heading-meta">
+        {handoffAvailable && <button type="button" className="thread-control-button"
+          onClick={() => void copyHandoff()}>复制续作引用</button>}
         {nativeChat&&(pending?.kind==='send_message'||pending?.kind==='queue_instruction')&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
         {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}
         {pendingCommand?.schema === 'capstone-command/1' && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void recoverLegacyCommand()}>重试原对话请求</button>}
@@ -894,7 +917,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {(nativeOutcome==='failed'||nativeOutcome==='cancelled')&&<p role="status">执行器已记录{nativeOutcome==='failed'?'失败':'取消'}，当前会话仍待核对。已发布的制品仍可查看。</p>}
       {contactDelayed&&!nativeOutcome&&<p role="status">曾暂时失去执行进程的联系。任务仍保留，已保存的记录和制品仍可查看。</p>}
       {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||attachmentsLoading||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
-      {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}/>)}
+      {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}
+        onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>)}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}

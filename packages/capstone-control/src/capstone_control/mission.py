@@ -127,6 +127,37 @@ def dispatch_ready(service, goal):
                 raise InvalidTransition('Mission equipment reference is not admitted by the application')
 
 
+def task_state(mission):
+    revision = mission['revision']
+    organizer = mission['organizer']
+    open_items = [] if mission['plan_complete'] else [{'kind': 'mission_plan_incomplete'}]
+    for task in mission['tasks']:
+        if task['state'] != 'verified':
+            open_items.append({'kind': 'mission_task', 'task_id': task['task_id'],
+                               'revision': task['revision'], 'state': task['state'], 'objective': task['objective'],
+                               'reason': task.get('failure_reason')})
+    if organizer.get('reason'):
+        open_items.append({'kind': 'organizer', 'reason': organizer['reason']})
+    return {
+        'schema': 'capstone-task-state/1',
+        'task': {'mission_id': mission['mission_id']},
+        'revision_ref': str(revision),
+        'previous_revision_ref': str(revision - 1) if revision > 1 else None,
+        'execution': {'phase': mission['state']},
+        'acceptance': 'accepted' if mission.get('acceptance') else 'undecided',
+        'open_items': open_items,
+        'workflow': {'kind': 'mission', 'plan_revision': mission['plan_revision'],
+                     'objective_revision': mission['objective_revision'],
+                     'origin': deepcopy(mission['origin']),
+                     'plan_conclusion_status': mission['plan_conclusion_status'],
+                     'organizer': deepcopy(organizer),
+                     'deliveries': [{'task_id': task['task_id'], 'task_revision': task['revision'],
+                                     'delivery': deepcopy(task['delivery']),
+                                     'verification': deepcopy(task.get('verification'))}
+                                    for task in mission['tasks'] if task.get('delivery')]},
+    }
+
+
 def projection(service, goal):
     result = public(goal)
     result.update(schema='capstone-control-mission/1', mission_id=goal['goal_id'])
