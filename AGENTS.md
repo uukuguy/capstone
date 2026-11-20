@@ -369,9 +369,12 @@ counts, prices, limits, versions, or deployment state here.
 - Keep `README.md` and `README.zh-CN.md` aligned when shared product facts,
   commands, headings, or references change. Write for readers; move detailed
   procedures into the runbook and volatile status into `docs/status/`.
-- An isolated worktree is an implementation aid. Unless the user requests
-  branch-only delivery, integrate accepted development changes into the dev checkout
-  and verify its real entry point. Preserve deferred work and user data.
+- Use temporary branches and isolated worktrees for implementation. Unless the
+  user requests branch-only delivery, run the required focused checks and merge
+  the finished change promptly through a PR into `dev`. Sync the main development
+  checkout to `dev` and verify the actual entry point before reporting delivery.
+  Merging `dev` into a temporary branch only updates that branch. After confirming
+  the merge and preserving any remaining work, close the temporary branch.
 - A fresh worktree lacks ignored runtimes. Before testing Pi, `gridctl`, or
   JavaScript tools there, run `make setup`, `make install-pi`, and
   `make doctor`. Missing managed runtimes are setup failures, not product
