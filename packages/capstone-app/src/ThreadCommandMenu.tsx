@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode,type RefObject } from 'react'
 import { useAui, useAuiState } from '@assistant-ui/react'
-import { Brain, Sparkles, CircleCheck, CircleAlert } from 'lucide-react'
+import { Sparkles, CircleCheck, CircleAlert } from 'lucide-react'
 import { parseInputCommand, skillCompatible, inputDraftError, type InputCatalog, type InputDraft, type SkillChoice, type SkillRole } from './threadInput'
 import ThreadContextPanel from './ThreadContextPanel'
 import LlmProfileMenu from './LlmProfileMenu'
@@ -96,7 +96,6 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   const inputTools = <div className="thread-input-tools">
       <LlmProfileMenu catalog={catalog?.llm_profiles} value={draft.llm_profile_id} disabled={disabled||loading} onChange={id=>{if(onBeforeChange?.()!==false)onChange({...draft,llm_profile_id:id})}}/>
 
-      {draft.mode==='capstone'&&<button disabled type="button" className="thread-settings-trigger thread-deep-research-toggle" aria-label="深度研究" aria-pressed={false} title="深度研究暂未开放"><Brain aria-hidden="true"/>深度研究</button>}
       <button type="button" className="thread-settings-trigger" aria-label="技能目录" title="查看已安装技能" aria-expanded={panel==='skills'} onClick={()=>panel==='skills'?close():open('skills')}><Sparkles aria-hidden="true" size={16}/><span>技能目录</span></button>
     </div>
   return <div ref={root} className="thread-input-controls" style={panelHeight === undefined ? undefined : { '--thread-input-panel-space': `${panelHeight}px` } as CSSProperties} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}

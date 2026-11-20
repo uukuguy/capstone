@@ -1749,7 +1749,16 @@ class NativeTaskRunner:
                             + json.dumps(native['material_notices'], ensure_ascii=False)})
                 sdk_config['context']['records_truncated'] = native['records_truncated']
                 sdk_config['context']['selected_task_source'] = native['selected_task_source']
-                sdk_config['appendSystemPrompt'] = [*sdk_config.get('appendSystemPrompt', []), native['policy']['system_policy']]
+                policy_text = native['policy']['system_policy']
+                if 'deep_research' in native:
+                    from .native_task_context import POLICY_TEXT, resolve_research_policy
+                    if resolve_research_policy(policy_text) is not None:
+                        policy_text = POLICY_TEXT + (
+                            ' Continue useful authorized work until the request is satisfied. '
+                            'Use discovered evidence and concrete gaps to guide further investigation. '
+                            'Verify saved outputs and report any remaining limits. '
+                            'Describe the work and its results in progress updates and the answer.')
+                sdk_config['appendSystemPrompt'] = [*sdk_config.get('appendSystemPrompt', []), policy_text]
                 from .native_research_bridge import CYCLE_CONTROL_TOOLS, SPLIT_CYCLE_CONTROL_TOOLS, LEGACY_CYCLE_CONTROL_TOOLS, GRAPH_CONTROL_TOOLS
                 control_tools = set(native['policy']['allowed_tools']).intersection(set(CYCLE_CONTROL_TOOLS) | set(GRAPH_CONTROL_TOOLS))
                 if control_tools:
@@ -1760,7 +1769,10 @@ class NativeTaskRunner:
                     if publication is None or control_tools != set(expected_controls):
                         raise ValueError('native research control interface is inconsistent')
                     from enterprise_research import ResearchPolicy
-                    sdk_config['researchGuidance'] = ResearchPolicy(publication.pack_version, variant=publication.variant).progress_guidance()
+                    sdk_config['researchGuidance'] = (
+                        'Report the current purpose, verified observations and material gaps.'
+                        if 'deep_research' in native else
+                        ResearchPolicy(publication.pack_version, variant=publication.variant).progress_guidance())
                     selected_runtime = sdk_config.get('settings', {}).get('researchRuntime')
                     sdk_config['researchRuntime'] = json.loads(json.dumps(selected_runtime or {}))
                     sdk_config['researchRuntime']['deliveryReview'] = {
@@ -1777,8 +1789,8 @@ class NativeTaskRunner:
                         sdk_config['researchRuntime']['lightweightTaskNodes'] = publication.lightweight_task_nodes
                         sdk_config['researchRuntime']['adaptiveAgentLoop'] = publication.adaptive_agent_loop
                         if 'deep_research' in native:
-                            sdk_config['researchRuntime']['deepResearch'] = native['deep_research']
-                            sdk_config['researchRuntime']['adaptiveAgentLoop'] = not native['deep_research']
+                            sdk_config['researchRuntime']['deepResearch'] = False
+                            sdk_config['researchRuntime']['adaptiveAgentLoop'] = True
                         if publication.work_edition:
                             if document.get('research_binding', {}).get('graph_work_edition') != publication.work_edition:
                                 raise ValueError('graph work policy and protected binding differ')

@@ -41,20 +41,20 @@ def context(selected, choice=False):
         selected_task_reader=None), selected)
 
 
-def test_actual_binding_admits_exact_lightweight_pool_without_extra_execution_grants():
+@pytest.mark.parametrize('legacy_choice', [True, False, None])
+def test_actual_binding_admits_exact_lightweight_pool_without_extra_execution_grants(legacy_choice):
     selected = binding()
     assert validate_binding(selected) == selected
-    native = context(selected)
+    native = context(selected, legacy_choice)
     assert native['llm_call_pool'] == POLICY
     assert set(native['policy']['allowed_tools']) == {'read', 'bash', 'edit', 'write'} | TOOLS
     assert checked_native_context(native) == native
 
 
 @pytest.mark.parametrize('profile,publication,choice', [
-    ('enterprise-research', True, True), ('enterprise-research', True, None),
     ('enterprise-research', False, False), ('general-chat', True, False),
 ])
-def test_pool_is_absent_without_explicit_lightweight_application_selection(profile, publication, choice):
+def test_pool_is_absent_without_registered_enterprise_support(profile, publication, choice):
     native = context(binding(profile, publication), choice)
     assert 'llm_call_pool' not in native
     assert not TOOLS.intersection(native['policy']['allowed_tools'])

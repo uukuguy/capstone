@@ -47,7 +47,7 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
   const status=()=>({schema:policy.schema,results:[],pool:state()});
   const tools=[{
     name:llmCallToolNames[0],executionRole:'orchestrator',label:'提交并行分析',
-    description:'Submit independent text analysis calls to the instruction-owned LLM pool and return immediately. Supply actual observations explicitly. Calls have no tools or external lookup. Dependencies receive actual successful returned answers. Continue independent work, then collect. This does not enable Deep Research. Never resubmit an uncertain running call; inspect or cancel it first.',
+    description:'Submit independent text analysis calls to the instruction-owned LLM pool and return immediately. Supply actual observations explicitly. Calls have no tools or external lookup. Dependencies receive actual successful returned answers. Continue independent work, then collect. Never resubmit an uncertain running call; inspect or cancel it first.',
     parameters:{type:'object',additionalProperties:false,required:['calls'],properties:{calls:{type:'array',minItems:1,maxItems:policy.max_jobs,items:{type:'object',additionalProperties:false,required:['id','instruction','input'],properties:{
       id:{type:'string',minLength:1,maxLength:128},instruction:{type:'string',minLength:1,maxLength:policy.max_input_chars},
       input:{type:'string',maxLength:policy.max_input_chars,description:'Explicit observed data or text, including source/version/units/limitations needed for this analysis. Not a file path to read.'},

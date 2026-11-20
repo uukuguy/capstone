@@ -219,8 +219,8 @@ def test_ordinary_instruction_stops_after_one_short_understanding(tmp_path):
     assert gate.requests[0]['history_truncated'] is False
 
 
-@pytest.mark.parametrize('deep_research,expected_level', [(False, 'low'), (True, 'medium')])
-def test_business_understanding_uses_the_full_frozen_request_exactly_once(deep_research, expected_level):
+@pytest.mark.parametrize('deep_research', [False, True])
+def test_business_understanding_uses_the_full_frozen_request_exactly_once(deep_research):
     executor = governed_executor()
     store = open_store(executor)
     publish_domain(store, families=('pandapower', 'pypsa'))
@@ -232,7 +232,7 @@ def test_business_understanding_uses_the_full_frozen_request_exactly_once(deep_r
     factory.plan_intent(claim, NodeControl(lambda: None, time.monotonic() + 30),
         store.freeze_attempt_input, freeze_decision=store.freeze_attempt_decision)
     assert gate.recognitions == 1
-    assert gate.thinking_level == expected_level
+    assert gate.thinking_level == 'low'
     assert gate.requests == [store.freeze_attempt_input(claim)['request']]
     assert {obj['object_id'] for obj in gate.requests[0]['objects']} == {'pandapower-case', 'pypsa-case'}
 
