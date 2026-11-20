@@ -237,6 +237,10 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
     context_tokens = policy['context_window_tokens'] if policy else limits.model_context_tokens
     output_tokens = policy['max_output_tokens'] if policy else limits.model_output_tokens
     workspace.mkdir(mode=0o700, parents=True, exist_ok=False)
+    # Tools such as LibreOffice need an existing config directory for an
+    # isolated UID without a user account.
+    user_config = workspace / '.config'
+    user_config.mkdir(mode=0o700)
     agent = workspace / '.agent'
     agent.mkdir(mode=0o700)
     for path in (config_root.iterdir() if sdk_config is None else ()):
@@ -263,6 +267,7 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
         settings['compaction'] = {**settings.get('compaction', {}), **compaction_settings(policy)}
         settings_file.write_text(json.dumps(settings))
     environment = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(workspace),
+                   'XDG_CONFIG_HOME': str(user_config),
                    'LANG': 'C.UTF-8', 'PI_CODING_AGENT_DIR': str(agent), 'PI_OFFLINE': '1'}
     argv = (*command, '--mode', 'rpc', '--provider', 'capstone-general', '--model', model,
             '--approve', '--offline', '--session-dir', str(agent / 'sessions'),

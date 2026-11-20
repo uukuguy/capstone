@@ -705,8 +705,12 @@ def test_native_launch_keeps_general_tools_and_native_discovery(tmp_path):
     assert '--mode' in argv and 'rpc' in argv
     assert not {'--no-builtin-tools', '--no-skills', '--no-extensions', '--no-context-files'} & set(argv)
     assert '--system-prompt' not in argv
-    assert set(env) <= {'PATH', 'HOME', 'LANG', 'PI_CODING_AGENT_DIR', 'PI_OFFLINE'}
+    assert set(env) <= {'PATH', 'HOME', 'LANG', 'PI_CODING_AGENT_DIR', 'PI_OFFLINE', 'XDG_CONFIG_HOME'}
     assert env['HOME'] == str(tmp_path / 'task')
+    profile = Path(env['XDG_CONFIG_HOME'])
+    assert profile == tmp_path / 'task/.config'
+    assert profile.is_dir()
+    assert profile.stat().st_mode & 0o777 == 0o700
     models = json.loads((tmp_path / 'task/.agent/models.json').read_text())
     assert models['providers']['capstone-general']['baseUrl'].endswith('/provider/task')
     assert models['providers']['capstone-general']['apiKey'] == 'task-grant'
