@@ -76,6 +76,7 @@ def project_work(snapshot, work):
             'attempt_id': current.attempt_id,
             'turn_id': current.turn_id,
             'phase': current.phase,
+            'work_revision': work['revision'],
             'task_state_ref': work['task_context'].get('task_state_ref'),
         }
     workflow = goal_task_workflow(work)

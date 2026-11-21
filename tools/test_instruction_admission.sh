@@ -9,5 +9,5 @@ node --test packages/capstone-agent/tests/general-sdk-steering.test.mjs
 node --test --test-name-pattern='compaction transport' packages/capstone-agent/tests/fixtures/tool-composition.test.mjs
 uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_server.py -k compaction
 npm run check --prefix packages/capstone-app
-npm test --prefix packages/capstone-app -- src/ExecutionDetails.test.tsx src/InstructionStatus.test.tsx src/threadWorkProtocol.test.ts src/ThreadWorkExecution.test.tsx src/CapstoneAssistantThread.test.tsx
+npm test --prefix packages/capstone-app -- src/ExecutionDetails.test.tsx src/InstructionStatus.test.tsx src/threadWorkProtocol.test.ts src/threadHttpTransport.test.ts src/ThreadWorkExecution.test.tsx src/CapstoneAssistantThread.test.tsx
 git diff --check

@@ -123,3 +123,18 @@ it('parses an explicit instruction and its exact cross-session source', () => {
   expect(() => handoffInstruction('/continue-from thr_source/work_a/3/attempt_a')).toThrow()
   expect(() => handoffInstruction('/continue-from thr_source/work_a/3/attempt_a/goal_a\nContinue')).toThrow()
 })
+
+it('builds a version-bound live takeover command and restores it from the pending queue', async ()=>{
+  const {buildInstructionTakeoverCommand,parseInstructionTakeover,takeoverInstruction} = await import('./threadWorkProtocol')
+  const source = {thread_id:'thr_source',work_id:'work_source',work_revision:3,revision_ref:'attempt_source'}
+  const snapshot = parseInstructionTakeover({takeover:{source,turn_id:'turn_source',phase:'running',
+    answer:null,answer_truncated:false}})
+  expect(snapshot?.source).toEqual(source)
+  expect(takeoverInstruction('/takeover-from thr_source/work_source/3/attempt_source')).toEqual(source)
+  expect(()=>takeoverInstruction('/takeover-from thr_source/work_source/0/attempt_source')).toThrow()
+  const command = buildInstructionTakeoverCommand('thr_target','run_target','cmd_guide','key_guide',
+    'takeover_instruction',source,'Keep the new constraint')
+  expect(parseStoredWorkCommand(command,'thr_target')).toEqual(command)
+  expect(()=>parseInstructionTakeover({takeover:{source,turn_id:'turn_source',phase:'invalid',
+    answer:null,answer_truncated:false}})).toThrow()
+})

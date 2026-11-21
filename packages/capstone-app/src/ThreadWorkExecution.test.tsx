@@ -38,6 +38,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
   const commands: WorkCommand[] = []
   let attemptsCreated = 0
   let snapshots = 0
+  let takeover:Record<string,unknown>|null=null
   let openedModel = false
   function projection() {
     const reason = modelFree ? 'execution_unavailable' : attempt ? 'attempt_in_progress' : null
@@ -143,10 +144,21 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
       return response({ schema: 'capstone-thread-events/1', thread_id: 'thr_work', after_event_seq: after,
         next_event_seq: events.length, has_more: false, events: events.filter(row => Number(row.event_seq) > after) })
     }
+    if(parsed.pathname.endsWith('/instruction-takeover'))return response({takeover})
     if (parsed.pathname.endsWith('/commands')) {
       const command = JSON.parse(String(init?.body)) as WorkCommand; commands.push(command)
       const previous = receipts.get(command.idempotency_key)
       if (previous) return response(previous)
+      if(command.kind==='reserve_instruction_takeover'||command.kind==='takeover_instruction'){
+        const {source}=command.payload as {source:unknown}
+        takeover={source,turn_id:'turn_source',phase:'running',answer:null,answer_truncated:false}
+        const accepted=append(command.kind==='reserve_instruction_takeover'?'instruction_takeover_reserved':'instruction_takeover_guidance',{source})
+        const receipt={schema:'capstone-command-receipt/1',command_id:command.command_id,
+          idempotency_key:command.idempotency_key,thread_id:'thr_work',run_id:'run_work',status:'accepted',accepted_event_seq:accepted}
+        receipts.set(command.idempotency_key,receipt)
+        return response(receipt)
+      }
+
       if (command.kind === 'open_model') {
         openedModel = true
         const accepted = append('model_workspace_changed',{kind:command.kind})
@@ -939,4 +951,22 @@ it('keeps untyped old work sessions in recovery in the real workspace route',asy
  expect(screen.queryByRole('button',{name:'继续编辑此专业任务'})).toBeNull()
  expect(screen.queryByRole('button',{name:'开始任务'})).toBeNull()
  expect(server.commands).toHaveLength(0)
+})
+
+
+it('uses the native conversation composer for reservation and takeover guidance',async()=>{
+  const server=authority({native:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="takeover-composer" />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'/takeover-from thr_source/work_source/3/attempt_source'}})
+  await waitFor(()=>expect(screen.getByRole<HTMLButtonElement>('button',{name:'发送'}).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands[0]?.kind).toBe('reserve_instruction_takeover'))
+  expect(await screen.findByText('接管的指令')).toBeTruthy()
+  fireEvent.change(input,{target:{value:'请保留输入限制'}})
+  await waitFor(()=>expect(screen.getByRole<HTMLButtonElement>('button',{name:'发送'}).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands[1]?.kind).toBe('takeover_instruction'))
+  expect(server.commands[1]?.payload).toMatchObject({text:'请保留输入限制',source:{work_revision:3}})
 })

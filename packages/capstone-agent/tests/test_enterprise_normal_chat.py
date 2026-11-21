@@ -57,6 +57,7 @@ def test_send_message_runs_and_followup_uses_same_work_history(chat_store, tmp_p
         'attempt_id': queued['current_attempt']['attempt_id'],
         'turn_id': queued['current_attempt']['turn_id'],
         'phase': 'accepted',
+        'work_revision': queued['works'][0]['revision'],
         'task_state_ref': None,
     }
     result = run_pending_attempt(store, factory, worker_id='native-test', implementation_family='native')
@@ -790,3 +791,103 @@ def test_cross_session_handoff_freezes_same_workspace_task_version(postgres_thre
         import psycopg
         with psycopg.connect(store.dsn) as connection:
             connection.execute('DELETE FROM capstone_threads WHERE thread_id = ANY(%s)', ([source_id, foreign_id],))
+
+
+def test_takeover_source_requires_current_revision_workspace_and_exclusive_lock(chat_store):
+    store, thread_id = chat_store
+    if not isinstance(store, PostgresThreadService):
+        pytest.skip('Takeover requires the PostgreSQL execution ledger')
+    from capstone_agent.task_handoff import lock_takeover_source
+    from capstone_agent.thread_service import DEFAULT_WORKSPACE
+    store.set_native_executor(native_executor())
+    assert store.submit_command(command(store, thread_id, 'send_message', 'takeover',
+        payload={'text': 'Keep this task running'})).status == 'accepted'
+    snapshot = store.snapshot(thread_id).to_document()
+    checkpoint = snapshot['works'][0]['execution_checkpoint']
+    selector = {'thread_id': thread_id, 'work_id': snapshot['works'][0]['work_id'],
+                'work_revision': checkpoint['work_revision'], 'revision_ref': checkpoint['attempt_id']}
+    with store._connect() as owner, store._connect() as contender:
+        assert lock_takeover_source(contender, 'foreign', selector) is None
+        assert lock_takeover_source(contender, DEFAULT_WORKSPACE,
+            {**selector, 'work_revision': selector['work_revision'] + 1}) is None
+        contender.rollback()
+        assert lock_takeover_source(owner, DEFAULT_WORKSPACE, selector)['phase'] == 'accepted'
+        assert lock_takeover_source(contender, DEFAULT_WORKSPACE, selector) is None
+    with store._connect() as successor:
+        assert lock_takeover_source(successor, DEFAULT_WORKSPACE, selector)['phase'] == 'accepted'
+
+
+def test_takeover_reservation_survives_commit_and_denies_second_destination(postgres_thread_service):
+    store, thread_id = postgres_thread_service
+    target_id, rival_id = thread_id + '_target', thread_id + '_rival'
+    executor = native_executor()
+    executor.capability.update(instruction_schemas=['capstone-native-instruction/1'],
+        execution_authority_schemas=['capstone-execution-authority/1'], instruction_limit=16)
+    store.set_native_executor(executor)
+    for identity in (thread_id, target_id, rival_id):
+        original = _snapshot(identity)
+        store.create_thread(replace(original, run=replace(original.run, run_id='run_' + identity),
+            active_model_context=None, active_grid_page_id=None, minimum_protocol_version=2))
+    try:
+        receipt = store.submit_command(command(store, thread_id, 'send_message', 'reserve',
+            payload={'text': 'Continue this instruction'}))
+        assert receipt.status == 'accepted'
+        work = store.snapshot(thread_id).to_document()['works'][0]
+        selector = {'thread_id': thread_id, 'work_id': work['work_id'],
+                    'work_revision': work['revision'], 'revision_ref': work['execution_checkpoint']['attempt_id']}
+        request = command(store, target_id, 'reserve_instruction_takeover', 'takeover',
+            payload={'source': selector})
+        reservation = store.submit_command(request)
+        assert reservation.status == 'accepted'
+        reopened = PostgresThreadService(store.dsn)
+        assert reopened.submit_command(request) == reservation
+        events = [event for event in reopened.read_events(target_id, 0).events
+                  if event.event_type == 'instruction_takeover_reserved']
+        assert len(events) == 1 and events[0].event_seq == reservation.accepted_event_seq
+        assert events[0].payload['source'] == selector
+        rejected = reopened.submit_command(command(reopened, rival_id,
+            'reserve_instruction_takeover', 'rival_takeover', payload={'source': selector}))
+        assert rejected.rejection == 'instruction_takeover_unavailable'
+        assert store.snapshot(thread_id).current_attempt.attempt_id == selector['revision_ref']
+        original_guidance = command(reopened, thread_id, 'queue_instruction', 'former_owner',
+            work_id=selector['work_id'], revision=selector['work_revision'], payload={'text': 'Do not admit'})
+        assert reopened.submit_command(original_guidance).rejection == 'instruction_takeover_unavailable'
+        followup = command(reopened, target_id, 'takeover_instruction', 'guide',
+            payload={'source': selector, 'text': 'Use the updated constraint'})
+        assert reopened.submit_command(followup).status == 'accepted'
+        assert reopened.submit_command(followup).status == 'accepted'
+        claim = store.claim_attempt('native', 30, 'native')
+        pending = store.peek_instructions(claim)
+        assert len(pending) == 1 and pending[0]['text'] == 'Use the updated constraint'
+        assert claim.attempt.attempt_id == selector['revision_ref']
+        assert store.snapshot(target_id).current_attempt is None
+        view = reopened.instruction_takeover(target_id)
+        assert view['source']['revision_ref'] == claim.attempt.attempt_id
+        assert view['phase'] == 'running'
+        assert reopened.instruction_takeover(rival_id) is None
+        store.finish_attempt(claim, phase='completed', payload={'answer': 'Continuation result'})
+        settled = reopened.instruction_takeover(target_id)
+        assert settled['phase'] == 'completed'
+        assert settled['answer'] == 'Continuation result'
+        assert settled['source']['work_revision'] > selector['work_revision']
+        reopened.set_native_executor(executor)
+        next_request = command(reopened, target_id, 'continue_instruction_takeover', 'continue_takeover',
+            payload={'source': settled['source'], 'text': 'Use the existing Continuation result.'})
+        rival_continuation = command(reopened, rival_id, 'continue_instruction_takeover', 'rival_continue',
+            payload=next_request['payload'])
+        assert reopened.submit_command(rival_continuation).rejection == 'instruction_takeover_unavailable'
+        continuation = reopened.submit_command(next_request)
+        assert continuation.status == 'accepted', continuation.rejection
+        assert reopened.submit_command(next_request) == continuation
+        def forbidden(*args):
+            raise AssertionError('takeover continuation must stay on the native route')
+        factory = IntentRuntimeFactory(forbidden, forbidden, forbidden, general_executor=executor)
+        outcome = run_pending_attempt(reopened, factory, worker_id='continuation', implementation_family='native')
+        assert outcome.status == 'completed'
+        target_state = reopened.snapshot(target_id).works[0]['task_state']
+        assert target_state['handoff'] == settled['source']
+        assert target_state['instruction_command_id'] == next_request['command_id']
+
+    finally:
+        with store._connect() as connection:
+            connection.execute('DELETE FROM capstone_threads WHERE thread_id = ANY(%s)', ([target_id, rival_id],))

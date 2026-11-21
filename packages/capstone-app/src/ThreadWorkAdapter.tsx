@@ -21,7 +21,7 @@ import {resultProjectionHistoryText} from './threadSystemNotices'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import { commandKey } from './commandKey'
 import { commandRejectionCopy } from './threadFeedback'
-import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, handoffInstruction, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
+import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, buildInstructionTakeoverCommand, instructionTakeoverActive, takeoverInstruction, handoffInstruction, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
 import { HttpThreadTransport,ThreadTransportError } from './threadHttpTransport'
 import type { ThreadListPage } from './threadManagement'
 import { CapstoneThreadClient } from './threadClient'
@@ -196,6 +196,25 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [instructionLocation,setInstructionLocation]=useState<{attemptId:string;nonce:number}>()
   const locationGeneration=useRef(0)
   const [reload, setReload] = useState(0)
+  const [takeoverReload,setTakeoverReload]=useState(0)
+  const [takeover,setTakeover]=useState<Awaited<ReturnType<HttpThreadTransport['getInstructionTakeover']>>>(null)
+  useEffect(()=>{
+    if(currentId==='new'||!snapshot)return
+    const controller=new AbortController()
+    let timer:ReturnType<typeof setTimeout>|undefined
+    let tracking=false
+    async function refresh(){
+      try{
+        const state=await transport.getInstructionTakeover(currentId,controller.signal)
+        if(controller.signal.aborted)return
+        setTakeover(state)
+        tracking=!!state&&instructionTakeoverActive(state.phase)
+        if(tracking)timer=setTimeout(()=>void refresh(),1500)
+      }catch{if(tracking&&!controller.signal.aborted)timer=setTimeout(()=>void refresh(),4000)}
+    }
+    void refresh()
+    return ()=>{controller.abort();clearTimeout(timer)}
+  },[transport,currentId,snapshot?.threadId,reload,takeoverReload])
   const [selected, setSelected] = useState('new')
   const [initialText, setInitialText] = useState('')
   const [restoredKey, setRestoredKey] = useState('')
@@ -483,6 +502,24 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     try{await dispatch(operation.command!);rememberMission(undefined)}catch(cause){if(cause instanceof CommandRejectedError)rememberMission({...operation,command:undefined});throw new MessageNotSentError(cause instanceof Error?cause.message:'规划请求结果待确认。请重试原请求。')}
   }
   async function send(text: string,submission?:InputSubmission) {
+    const pendingTakeover=pending?.kind==='reserve_instruction_takeover'||pending?.kind==='takeover_instruction'||pending?.kind==='continue_instruction_takeover'?pending:undefined
+    try{
+      const source=pendingTakeover?null:takeoverInstruction(text)
+      const received=takeover&&(!snapshot?.works.some(work=>work.conversationMode)||instructionTakeoverActive(takeover.phase))?takeover:null
+      if(pendingTakeover||source||received){
+        if(!snapshot||recovery||attachments.length||attachmentsLoading||processReference||submission?.input.kind==='skill_invocation'){
+          throw new Error('接管仅支持文本指令，请移除附件、引用或技能。')
+        }
+        const cmd=pendingTakeover??buildInstructionTakeoverCommand(currentId,snapshot.runId,
+          `cmd_${commandKey()}`,`idem_${commandKey()}`,
+          source?'reserve_instruction_takeover':instructionTakeoverActive(received!.phase)?'takeover_instruction':'continue_instruction_takeover',
+          source??received!.source,source?undefined:text)
+        await dispatch(cmd)
+        setTakeoverReload(n=>n+1)
+        return
+      }
+    }catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'接管请求待确认。')}
+
     if((missionPending||missionObjectiveFromInput(text)!==null)&&(!pendingMessage||missionPending))return submitMission(text,submission)
 
     let handoff
@@ -525,6 +562,15 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     } catch (cause) { throw new MessageNotSentError(cause instanceof Error ? cause.message : '保存结果待确认。') }
   }
   const handoffAvailable = selectedWork?.taskStateRevision && !['queued','running'].includes(selectedWork.status)
+  const activeTakeoverSource=selectedWork?.conversationMode&&!selectedWork.goalMode&&snapshot?.currentAttempt?.workId===selectedWork.workId
+    &&instructionTakeoverActive(snapshot.currentAttempt.phase)?selectedWork:null
+  async function copyTakeover(){
+    if(!activeTakeoverSource||!currentAttempt)return
+    try{
+      await navigator.clipboard.writeText(`/takeover-from ${[currentId,activeTakeoverSource.workId,activeTakeoverSource.revision,currentAttempt.attemptId].join('/')}`)
+      setNotice('已复制接管引用。请在另一会话粘贴并发送。')
+    }catch{setNotice('浏览器未能复制接管引用。')}
+  }
   async function copyHandoff(missionId?:string, missionRevision?:number) {
     if (!handoffAvailable || !selectedWork) return
     const source = [currentId,selectedWork.workId,selectedWork.revision,selectedWork.taskStateRevision]
@@ -898,6 +944,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         window.dispatchEvent(new Event('capstone-session-renamed'))
       }:undefined} />
       <div className="thread-chat-heading-meta">
+        {activeTakeoverSource&&<button type="button" className="thread-control-button" onClick={()=>void copyTakeover()}>复制接管引用</button>}
+        {(pending?.kind==='reserve_instruction_takeover'||pending?.kind==='takeover_instruction'||pending?.kind==='continue_instruction_takeover')&&
+          <button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'}
+            onClick={()=>void send('').catch(()=>{})}>重试接管请求</button>}
         {handoffAvailable && <button type="button" className="thread-control-button"
           onClick={() => void copyHandoff()}>复制续作引用</button>}
         {nativeChat&&(pending?.kind==='send_message'||pending?.kind==='queue_instruction')&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
@@ -907,6 +957,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           aria-describedby={!selectedWork.startAvailable ? 'work-start-reason' : undefined} onClick={() => void start()}>{pending?.kind === 'start_work' ? '重试执行请求' : '开始任务'}</button>}
       </div>
     </div>
+      {takeover&&<div role="status">
+        <strong>接管的指令</strong> · {statusCopy[takeover.phase]||takeover.phase}
+        {takeover.answer&&<p>{takeover.answer}{takeover.answerTruncated?'…':''}</p>}
+        <button type="button" className="thread-control-button" onClick={()=>navigateSession(takeover.source.thread_id)}>查看原执行</button>
+      </div>}
       {inspectedProductAttempt&&<AnswerDetailSheet title="执行详情" answerLabel="所选成果的来源指令" onClose={()=>setInspectedProductAttempt(undefined)}><AttemptRecordPanel attemptId={inspectedProductAttempt} read={(id,after)=>client.attemptRecords(currentId,id,after)}/></AnswerDetailSheet>}
       {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。{canResumeProfessional&&<button type="button" disabled={busy||!!pending} onClick={()=>{const target=snapshot!.works.filter(work=>!work.conversationMode).find(work=>work.contextProductRefs?.length)??snapshot!.works.filter(work=>!work.conversationMode).at(-1);if(target){selectWork(target.workId);setProfessionalEdit(true)}}}>继续编辑此专业任务</button>}</p>}
       {viewingLegacy&&<p role="status">正在查看历史保存记录，可保留草稿、确认原请求及停止已有执行。返回当前对话后可继续发送。</p>}

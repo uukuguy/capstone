@@ -3505,6 +3505,7 @@ ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snaps
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS submission_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS terminal_write_id text;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS takeover_target_thread_id text;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_skills jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
@@ -3585,12 +3586,79 @@ class PostgresThreadService(NativeExecutionOwner):
             (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
         return receipt
 
-    def _submit_work(self, connection, thread, snapshot, parsed, request_hash):
+    def _submit_takeover_command(self, connection, thread, snapshot, parsed, request_hash):
+        from .task_handoff import lock_takeover_source, parse_task_handoff, reserve_instruction_takeover
+
+        steering = parsed['kind'] == 'takeover_instruction'
+        fields = {'source', 'text'} if steering else {'source'}
+        if (parsed['target'] != {'kind': 'work', 'id': 'new', 'expected_revision': 0}
+                or set(parsed['payload']) != fields):
+            raise ThreadProtocolError('invalid Instruction takeover target')
+        source = parse_task_handoff(parsed['payload']['source'])
+        rejection = 'instruction_takeover_unavailable'
+        if parsed.get('run_id') in {None, snapshot.run.run_id}:
+            if steering:
+                locked = lock_takeover_source(connection, thread['workspace_name'], source)
+                if (locked is not None and locked['takeover_target_thread_id'] == snapshot.thread_id
+                        and not thread['archived'] and snapshot.run.state == 'open'):
+                    source_row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s',
+                                                    (source['thread_id'],)).fetchone()
+                    identity = 'cmd_takeover_' + hashlib.sha256(
+                        f"{snapshot.thread_id}:{parsed['command_id']}".encode()).hexdigest()
+                    forwarded = {**parsed, 'kind': 'queue_instruction', 'thread_id': source['thread_id'],
+                        'run_id': source_row['run_id'], 'command_id': identity, 'idempotency_key': identity,
+                        'target': {'kind': 'work', 'id': source['work_id'], 'expected_revision': source['work_revision']},
+                        'payload': {'text': parsed['payload']['text']}}
+                    outcome = self._submit_work(connection, source_row, self._snapshot_from_row(source_row),
+                                                forwarded, request_hash, takeover_target=snapshot.thread_id)
+                    rejection = outcome.rejection
+            elif reserve_instruction_takeover(connection, thread['workspace_name'], snapshot.thread_id, source):
+                rejection = None
+        accepted = rejection is None
+        event_seq = None
+        if accepted:
+            event_seq = snapshot.last_event_seq + 1
+            self._insert_event(connection, EventEnvelope(
+                event_id='evt_' + secrets.token_hex(8), event_seq=event_seq,
+                event_type='instruction_takeover_guidance' if steering else 'instruction_takeover_reserved',
+                event_version=1, thread_id=snapshot.thread_id,
+                run_id=snapshot.run.run_id, turn_id=None, attempt_id=None, model_context_id=None,
+                selection_revision=None, occurred_at=_now(), visibility='public',
+                payload={'command_id': parsed['command_id'], 'source': source}))
+            connection.execute('UPDATE capstone_threads SET last_event_seq=%s WHERE thread_id=%s',
+                               (event_seq, snapshot.thread_id))
+        receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id},
+            status='accepted' if accepted else 'rejected', accepted_event_seq=event_seq,
+            rejection=rejection)
+        connection.execute('''INSERT INTO capstone_thread_commands
+            (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)''',
+            (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
+        return receipt
+
+    def _submit_work(self, connection, thread, snapshot, parsed, request_hash, *, takeover_target=None):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
                                        (snapshot.thread_id, parsed['command_id'])).fetchone()
         if duplicate:
             return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
+        if parsed['kind'] in {'reserve_instruction_takeover', 'takeover_instruction'}:
+            return self._submit_takeover_command(connection, thread, snapshot, parsed, request_hash)
+        if parsed['kind'] == 'continue_instruction_takeover':
+            from .task_handoff import parse_task_handoff
+            if set(parsed['payload']) != {'source', 'text'}:
+                raise ThreadProtocolError('invalid Instruction takeover continuation')
+            source = parse_task_handoff(parsed['payload']['source'])
+            settled = connection.execute("""
+                SELECT 1 FROM capstone_thread_attempts attempt
+                JOIN capstone_threads source ON source.thread_id=attempt.thread_id
+                WHERE source.workspace_name=%s AND attempt.thread_id=%s AND attempt.attempt_id=%s
+                  AND attempt.takeover_target_thread_id=%s
+                  AND attempt.phase IN ('completed', 'interrupted', 'failed', 'cancelled')
+            """, (thread['workspace_name'], source['thread_id'], source['revision_ref'], snapshot.thread_id)).fetchone()
+            if settled is None or 'mission_id' in source:
+                return self._receipt(parsed, status='rejected', rejection='instruction_takeover_unavailable')
+            parsed = {**parsed, 'kind': 'send_message',
+                      'payload': {'text': parsed['payload']['text'], 'task_handoff': source}}
         prepared, submission, input_rejection = _work_send_input(
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
         if input_rejection is None and 'task_handoff' in parsed['payload']:
@@ -3620,10 +3688,13 @@ class PostgresThreadService(NativeExecutionOwner):
         catalog_source = _goal_catalog_source(prepared, parsed)
         if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
             from .instruction_queue import enqueue_rejection
-            saved = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s',
+            saved = connection.execute('''SELECT submission_snapshot, takeover_target_thread_id
+                FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s''',
                 (snapshot.thread_id, prepared.current_attempt.attempt_id)).fetchone()
             frozen = {} if saved is None else saved['submission_snapshot'] or {}
             input_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id']) or input_rejection
+            if saved is not None and saved['takeover_target_thread_id'] != takeover_target:
+                input_rejection = 'instruction_takeover_unavailable'
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
@@ -3923,6 +3994,43 @@ class PostgresThreadService(NativeExecutionOwner):
         if row is None:
             raise ThreadNotFound(thread_id)
         return self._snapshot_from_row(row)
+
+    def instruction_takeover(self, thread_id: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute("""
+                SELECT source.thread_id, attempt.attempt_id, attempt.turn_id, attempt.phase,
+                    attempt.task_context_snapshot->'binding'->>'work_id' AS work_id,
+                    COALESCE(terminal.payload->'work'->>'revision', item.work->>'revision') AS work_revision,
+                    left(terminal.payload->>'answer', 4096) AS answer,
+                    length(terminal.payload->>'answer') > 4096 AS answer_truncated
+                FROM capstone_threads destination
+                JOIN LATERAL (
+                    SELECT payload FROM capstone_thread_events
+                    WHERE thread_id=destination.thread_id AND event_type='instruction_takeover_reserved'
+                    ORDER BY event_seq DESC LIMIT 1
+                ) reservation ON true
+                JOIN capstone_thread_attempts attempt
+                  ON attempt.attempt_id=reservation.payload->'source'->>'revision_ref'
+                  AND attempt.takeover_target_thread_id=destination.thread_id
+                JOIN capstone_threads source ON source.thread_id=attempt.thread_id
+                  AND source.workspace_name=destination.workspace_name
+                JOIN LATERAL jsonb_array_elements(source.works) AS item(work)
+                  ON item.work->>'work_id'=attempt.task_context_snapshot->'binding'->>'work_id'
+                LEFT JOIN LATERAL (
+                    SELECT payload FROM capstone_thread_events
+                    WHERE thread_id=source.thread_id AND attempt_id=attempt.attempt_id AND visibility='public'
+                      AND event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled',
+                                         'attempt_interrupted', 'attempt_delivery_recovered')
+                    ORDER BY event_seq DESC LIMIT 1
+                ) terminal ON true
+                WHERE destination.thread_id=%s
+            """, (thread_id,)).fetchone()
+        if row is None:
+            return None
+        return {'source': {'thread_id': row['thread_id'], 'work_id': row['work_id'],
+                           'work_revision': int(row['work_revision']), 'revision_ref': row['attempt_id']},
+                'turn_id': row['turn_id'], 'phase': row['phase'],
+                'answer': row['answer'], 'answer_truncated': bool(row['answer_truncated'])}
 
     def catalog(self, thread_id: str) -> dict[str, object]:
         self.snapshot(thread_id)

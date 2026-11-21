@@ -11,7 +11,7 @@ import { parseThreadDescriptor, parseThreadListPage, type ThreadListPage, type T
 import { fetchWithReadRetry } from './httpRetry'
 import { parseAttemptRecords } from './attemptRecords'
 import { parseProcessProducts } from './processProducts'
-import type { WorkCommand } from './threadWorkProtocol'
+import {parseInstructionTakeover,type WorkCommand} from './threadWorkProtocol'
 import {parseNativeArtifact,parseNativeArtifacts,type NativeArtifact} from './nativeArtifacts'
 import {compareRowIds,parseProductIndex,parseProductRef,parseProductResolution,parseContextProductRefs,type ProductQuery,type ProductRef} from './threadProducts'
 import {object,parseSeries,parseComparison,type SeriesCommand} from './productSeries'
@@ -306,6 +306,12 @@ export class HttpThreadTransport implements ThreadTransport {
 
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown> {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}`, { signal })
+  }
+
+  async getInstructionTakeover(threadId:string,signal?:AbortSignal) {
+    return parseInstructionTakeover(await this.request(
+      `${this.resourcePath}/${encodeURIComponent(threadId)}/instruction-takeover`, {signal},
+    ))
   }
 
   getInputCatalog(threadId: string, signal?: AbortSignal): Promise<unknown> {

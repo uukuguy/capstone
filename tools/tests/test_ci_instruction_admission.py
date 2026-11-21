@@ -37,3 +37,19 @@ def test_compaction_and_recovery_have_a_focused_development_gate():
     assert classify(paths) == 'instruction-admission'
     assert classify(paths, target='main') == 'release'
     assert classify(paths + ['packages/grid-simulator/src/new.py']) != 'instruction-admission'
+
+
+def test_instruction_takeover_covers_host_api_and_app_transport():
+    paths = [
+        'packages/capstone-agent/src/capstone_agent/thread_service.py',
+        'packages/capstone-agent/src/capstone_agent/thread_work.py',
+        'packages/capstone-agent/tests/test_enterprise_normal_chat.py',
+        'packages/capstone-agent/src/capstone_agent/host_api.py',
+        'packages/capstone-agent/src/capstone_agent/task_handoff.py',
+        'packages/capstone-app/src/ThreadWorkAdapter.tsx',
+        'packages/capstone-app/src/threadHttpTransport.ts',
+        'packages/capstone-app/src/threadWorkProtocol.ts',
+        'packages/capstone-app/src/threadWorkProtocol.test.ts',
+    ]
+    assert classify(paths) == 'instruction-admission'
+    assert classify(paths, target='main') == 'release'
