@@ -1292,7 +1292,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 持续任务上下文与主会话集成 | PR207 合入 Instruction 接管保留、指导和续作修复 | 源记录争用下接管与续作已通过真实候选复验 |
+| dev | 持续任务上下文与主会话集成 | PR209 合入有界交接答复摘录 | 低上下文续作通过，实际 local-dev 已重建 |
 
 ## 功能包前沿
 
@@ -1399,6 +1399,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| handoff-compaction-local-dev-20261122 | PR209 合入有界交接答复并重建 local-dev |
 | instruction-takeover-local-dev-20261122 | PR207 合入跨会话接管修复 |
 | continuous-task-local-dev-20261121 | 实际 local-dev 已验证部署来源 |
 | goal-criteria-merge-20261121 | PR203 合入 Goal 验收条件修复并复验同题三入口 |
@@ -1466,6 +1467,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| handoff-compaction-local-dev-20261122 | 0da14433 | main | 有界交接答复 | PR209 合入；候选 9eb72e38 通过定向 CI、低上下文续作 | 绑定公开完成事件与有限长摘录 | continuous-task-context |
 | instruction-takeover-local-dev-20261122 | 6dde7eae | main | Instruction 跨会话接管 | PR207 已合入，0c01a89d 通过定向 CI 和真实受控行锁、常规接管 | 保留接管权、接纳指导及唤醒续作 | continuous-task-context |
 | continuous-task-local-dev-20261121 | 7404a5cf | main | 持续任务 local-dev | 规范重建就绪，真实三入口产物摘要一致 | Instruction、Goal、Mission 正式本机入口 | continuous-task-context |
 | goal-criteria-merge-20261121 | e959a65c | main | Goal 验收条件修复 | PR203 合入 dev；65a8d56d 通过 macOS CI 和同题三入口文件复验 | 保留用户明确条件，执行时核验所需计算 | continuous-task-context |
@@ -1865,6 +1867,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | mission-entry-merge-20261121 | dev 集成里程碑 | dev | 显式 Mission 首轮登记与执行；应用自动复盘和结算交付 | PR200 合入。候选 c5e97e91 通过 macOS CI 44917196539 和真实文件下载校验 |
 | goal-history-merge-20261121 | dev 集成里程碑 | dev | Goal 可重用已登记的旧产物；复盘后持续执行已接纳步骤 | PR199 合入。候选 eea759ba 通过 macOS CI 44916120177 和真实三步 Goal 下载校验 |
 | goal-criteria-merge-20261121 | dev 集成里程碑 | dev | Goal 计划保留用户明确条件；同题三入口均完成真实交付 | PR203 合入。候选 65a8d56d 通过 macOS CI 44918704560 和三份文件摘要校验 |
+| handoff-compaction-local-dev-20261122 | 本机研发部署来源 | dev | 有界摘录绑定已保存的完成事件；低上下文续作读回原任务和补充指导 | 候选 9eb72e38 通过定向 CI 44928261529 和真实同源续作 |
 | instruction-takeover-local-dev-20261122 | dev 集成里程碑 | dev | 接管保留和指导等待短暂行锁；续作命令唤醒原生 worker | 候选 0c01a89d 通过定向 CI 44925279516 和两条真实接管链路 |
 | continuous-task-local-dev-20261121 | 本机三入口验收来源 | dev | 真实三入口均完成交付；API 和 worker 共同使用已验证镜像 | 本机规范重建，三份下载文件摘要一致 |
 | dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR205 确认 local-dev 实施范围，实际三入口 API 复验通过 |
@@ -2224,7 +2227,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端构建来源 `6dde7eae`，App 产品来源 `0c01a89d` | API 与 worker 同镜像 850516bbf393；规范重建、就绪与缓存维护通过 | App http://127.0.0.1:5173/。实际保留接管权及提交指导均在源行锁释放后获准，新会话按原任务结果续作。 |
+| local-dev | 后端构建来源 `0da14433`，App 产品来源 `9eb72e38` | API 与 worker 同镜像 f4b7b1987525；规范重建、就绪与缓存维护通过 | App http://127.0.0.1:5173/。低上下文隔离探针按同一源版本读回双标记。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
