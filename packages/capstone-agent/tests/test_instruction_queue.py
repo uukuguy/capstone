@@ -83,6 +83,10 @@ def test_interrupt_replacement_uses_destination_state_instead_of_repeating_hando
     settled = {**current, 'status': 'interrupted', 'task_state': {'revision_ref': attempt.attempt_id}}
     terminal = replace(snapshot, works=(settled,))
     _, _, context, submission, _ = prepare_replacement(
-        before, terminal, attempt.attempt_id, {'_task_handoff': {'revision_ref': 'attempt_cross_session'}})
+        before, terminal, attempt.attempt_id, {
+            '_task_handoff': {'revision_ref': 'attempt_cross_session'},
+            '_instruction_command_id': 'cmd_original',
+        })
     assert context.task_state_ref == attempt.attempt_id
     assert '_task_handoff' not in submission
+    assert submission['_instruction_command_id'] == 'next_instruction'
