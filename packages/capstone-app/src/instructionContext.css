@@ -66,3 +66,7 @@
 .context-category-detail dt { overflow-wrap:anywhere; }
 .capstone-chat-message[data-context-linked="true"] { box-shadow:inset 3px 0 #669e86; }
 .context-linked-label { display:inline-block; color:#245e4d; background:#e8f3ed; border-radius:4px; padding:2px 5px; font-size:10px; }
+
+.context-content-items { margin:6px 0; padding:0; list-style:none; }
+.context-content-items li+li { border-top:1px solid var(--ctx-line); }
+.context-content-items details pre { margin:6px 0; max-block-size:16rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; color:#264238; }

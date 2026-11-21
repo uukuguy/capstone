@@ -141,6 +141,7 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
         if(!Number.isSafeInteger(turn)||turn<1)throw new TypeError('Invalid host model turn number');
         const capturedModel=snapshotOptions(model),capturedContext=snapshotOptions(context),capturedOptions=snapshotOptions(options);
         const output=channel(),id=`request-${++sequence}`;
+        Object.defineProperty(output, Symbol.for("capstone.modelRequestId"), {value:id});
         const entry={id,chainId,metadata:{...selected,model_turn_number:turn,...(kind==='main'?{title:`LLM ${turn}`}:{})},depends:chain.last?[chain.last]:[],output,
           model:capturedModel,context:capturedContext,options:capturedOptions,controller:new AbortController(),
           callerSignal:options.signal,listenerAttached:false,started:false,cancelReason:undefined,outcome:undefined};

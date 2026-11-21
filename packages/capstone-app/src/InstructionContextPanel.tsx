@@ -17,13 +17,15 @@ function rowTitle(row:ContextObservation) {
   return row.kind==='compaction'?'上下文压缩':row.kind==='analysis'?'分析调用':row.kind==='summary'?'压缩调用':'模型调用'
 }
 
-export default function InstructionContextPanel({rows,attempt,labels,onShowSession,onLocate,onScope,onSelection}:{
+export default function InstructionContextPanel({rows,attempt,requested,labels,onShowSession,onLocate,onScope,onSelection,readToolExcerpt}:{
   rows:readonly ContextObservation[]
   attempt?:string
+  requested?:{id:string;nonce:number}
   labels:Record<string,string>
   onShowSession:()=>void
   onLocate:(attemptId:string)=>void
   onScope:(attempt?:string)=>void
+  readToolExcerpt?:(sourceId:string,attemptId:string)=>string|undefined
   onSelection:(selection?:{attemptId:string;label:string})=>void
 }){
   const detailRef=useRef<HTMLElement>(null)
@@ -33,6 +35,11 @@ export default function InstructionContextPanel({rows,attempt,labels,onShowSessi
   const instruction=attempt && rows.find(row=>row.attemptId===attempt)?.instructionId
   const shown=attempt ? rows.filter(row=>instruction ? row.instructionId===instruction : row.attemptId===attempt) : rows
   const latest=shown.filter(row=>row.kind==='main').at(-1)??shown.at(-1)
+  useEffect(()=>{
+    if(!requested)return
+    setSelection({id:requested.id,scope:attempt})
+    requestAnimationFrame(()=>detailRef.current?.scrollIntoView?.({block:'nearest'}))
+  },[requested,attempt])
   const current=(selection?.scope===attempt&&shown.find(row=>row.id===selection?.id))||latest
   const modelCalls=shown.filter(row=>row.kind!=='compaction')
   const series=modelCalls.slice(-12)
@@ -147,9 +154,13 @@ export default function InstructionContextPanel({rows,attempt,labels,onShowSessi
               <div className="context-section-title"><h4>{selectedCategory.name} · {tokens(selectedCategory.value)} token</h4>
                 <button type="button" onClick={()=>setCategory(undefined)}>收起</button></div>
               {categoryItems?<><p>{categoryItems.items.length<categoryItems.total?`显示用量最大的 ${categoryItems.items.length} / ${categoryItems.total} 项`:`共 ${categoryItems.total} 项`} · 估算</p>
-                {categoryItems.items.length>0&&<dl>{categoryItems.items.map(item=><div key={item.index}>
-                  <dt>{item.name??itemLabels[item.kind]}{selectedCategory.id!=='system'&&<small> #{item.index}</small>}</dt><dd>{tokens(item.tokens)}</dd>
-                </div>)}</dl>}</>:<p>这次请求记录了分类合计，条目未记录。</p>}
+                {categoryItems.items.length>0&&<ul className="context-content-items">{categoryItems.items.map(item=>{
+                  const excerpt=item.sourceId&&current?readToolExcerpt?.(item.sourceId,current.attemptId):undefined
+                  return <li key={item.index}><details>
+                    <summary>{item.name??itemLabels[item.kind]}{selectedCategory.id!=='system'&&<small> #{item.index}</small>} · {tokens(item.tokens)} token</summary>
+                    {excerpt?<><small>已保存的工具返回片段</small><pre>{excerpt}</pre></>:<p>此请求未记录可读的原文。</p>}
+                  </details></li>
+                })}</ul>}</>:<p>这次请求记录了分类合计，条目未记录。</p>}
             </section>}
           </>}
           {!!Object.keys(current.usage??{}).length&&<details><summary>Provider 用量明细</summary><dl>

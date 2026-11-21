@@ -1335,7 +1335,7 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
   function measure(context) {
     const groups = {system:[],tools:[],messages:[],tool_results:[]};
     const safeName = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(value) ? value : undefined;
-    const add = (group, kind, bytes, name) => groups[group].push({kind, bytes, ...(name ? {name} : {})});
+    const add = (group, kind, bytes, name, source_id) => groups[group].push({kind, bytes, ...(name ? {name} : {}), ...(source_id ? {source_id} : {})});
     if (size(context.systemPrompt)) add('system','system',size(context.systemPrompt));
     for (const tool of context.tools ?? []) {
       add('tools','tool',size(tool.name)+size(tool.description)+size(JSON.stringify(tool.parameters ?? {})),safeName(tool.name));
@@ -1348,7 +1348,8 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
         bytes += size(part.text) + size(part.thinking);
         if (part.type === 'toolCall') bytes += size(part.name) + size(JSON.stringify(part.arguments ?? {}));
       }
-      add(group,kind,bytes,kind==='toolResult' ? safeName(message.toolName) : undefined);
+      const source=kind==='toolResult'&&typeof message.toolCallId==='string'&&/^[A-Za-z0-9_.:-]{1,128}$/.test(message.toolCallId)?message.toolCallId:undefined;
+      add(group,kind,bytes,kind==='toolResult' ? safeName(message.toolName) : undefined,source);
     }
     const estimated_input={}, input_items={};
     for(const [group,items] of Object.entries(groups)){
@@ -1378,7 +1379,6 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
         details={...measure(context),
           ...(Number.isSafeInteger(window)&&window>0&&window<=100_000_000?{window_tokens:window}:{})};
       }catch{/* Leave unmeasured fields absent. */}
-      publish('started',details);
       const capture=stream=>Promise.resolve().then(()=>stream.result()).then(message=>{
         const usage=Object.fromEntries(['input','output','cacheRead','cacheWrite']
           .filter(key=>Number.isSafeInteger(message?.usage?.[key])&&message.usage[key]>=0&&message.usage[key]<=100_000_000)
@@ -1387,10 +1387,13 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
       }).catch(()=>publish('failed',details));
       try{
         const stream=target.streamSimple(model,context,options);
+        const dispatchId=stream?.[Symbol.for("capstone.modelRequestId")];
+        if(typeof dispatchId==='string'&&/^request-[1-9][0-9]{0,8}$/.test(dispatchId))details.dispatch_id=dispatchId;
+        publish('started',details);
         if(typeof stream?.then==='function')stream.then(capture,()=>publish('failed',details));
         else capture(stream);
         return stream;
-      }catch(error){publish('failed',details);throw error;}
+      }catch(error){publish('started',details);publish('failed',details);throw error;}
     };
   }});
 }

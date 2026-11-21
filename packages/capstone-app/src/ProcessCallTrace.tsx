@@ -87,11 +87,12 @@ export function modelCallMs(call: Omit<ProcessModelCall, 'id'>, now?: number): n
 }
 
 /** Neutral presentation: adapters supply admitted identities, never inferred causality. */
-export default function ProcessCallTrace({ models, tools, compactions = [], now, active = true, compact = false, expandedTools = false, expandedThinking = false, renderToolDetails, focusRequest }: {
+export default function ProcessCallTrace({ models, tools, compactions = [], now, active = true, compact = false, expandedTools = false, expandedThinking = false, renderToolDetails, focusRequest, modelContextAction }: {
   models: readonly ProcessModelCall[]; tools: readonly ProcessToolCall[]; now?: number; active?: boolean;
   compactions?:readonly ProcessCompaction[];
   renderToolDetails?: (tool: ProcessToolCall) => ReactNode;
   focusRequest?: ProcessTraceFocus;
+  modelContextAction?: (dispatchId:string)=>ReactNode;
   compact?: boolean;
   expandedTools?: boolean;
   expandedThinking?: boolean;
@@ -118,7 +119,7 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
   const hasQueue=dispatches.some(request=>['queued','waiting_dependencies'].includes(request.status))||dispatches.length>0&&poolCalls.some(job=>['queued','waiting_dependencies','running'].includes(job.status)&&!dispatches.some(request=>request.childId===job.id&&request.parentToolCallId===job.parentToolCallId))
   const renderPool=(parentId:string)=>{
     const actual=dispatches.filter(request=>request.association==='analysis'&&request.parentToolCallId===parentId)
-    if(actual.length)return <RequestPoolExecutions requests={actual} active={active} now={now}/>
+    if(actual.length)return <RequestPoolExecutions contextAction={modelContextAction} requests={actual} active={active} now={now}/>
     const children=poolCalls.filter(call=>call.parentToolCallId===parentId&&(!dispatches.length||!['queued','waiting_dependencies','running'].includes(call.status)))
     if(!children.length)return null
     const summary=summarizeLlmPoolCalls(children)
@@ -224,9 +225,9 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
       <div className="capstone-call-nested"><ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking??'',startedAt:model.thinking?model.thinkingStartedAt:undefined,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{selected.length>1?(()=>{const batch=selected[0]?.toolBatch;const exactBatch=batch&&batch.call_ids.length===model.toolCallIds?.length&&selected.every(tool=>tool.toolBatch?.batch_id===batch.batch_id&&batch.call_ids.includes(tool.id));const summary=exactBatch?{elapsedMs:batch.elapsed_ms}:receiptBatchSummary((model.toolCallIds??[]).map(id=>selected.find(tool=>tool.id===id)?.executionReceipt));return <div className="capstone-parallel-group" role="group" aria-label={`${batchTitle} · ${model.toolCallIds!.length} 项`}><BatchHeading title={batchTitle} count={model.toolCallIds!.length} summary={summary} callerElapsedMs={model.toolCallIds!.length===selected.length?batchElapsedMs(selected,active,now):undefined} running={active&&selected.some(tool=>tool.status==='running')}/>{selected.map(tool=>renderTool(tool))}</div>})():selected.map(tool=>renderTool(tool))}</div>}</div>
 
       {!issue && linked && model.toolCallIds!.length > selected.length && <p className="capstone-call-pending">等待工具记录 · {model.toolCallIds!.length - selected.length}项</p>}
-      {mainDispatches.length>0&&<RequestPoolExecutions requests={mainDispatches} active={active} now={now}/>}
+      {mainDispatches.length>0&&<RequestPoolExecutions contextAction={modelContextAction} requests={mainDispatches} active={active} now={now}/>}
     </section></li>
-  })}{unassociated.some(request=>request.startedAtMs!==undefined)&&<li><RequestPoolExecutions label="未关联模型请求" requests={unassociated} active={active} now={now}/></li>}{hasQueue&&<li><RequestPoolQueue requests={dispatches} jobs={poolCalls}/></li>}</ol>
+  })}{unassociated.some(request=>request.startedAtMs!==undefined)&&<li><RequestPoolExecutions contextAction={modelContextAction} label="未关联模型请求" requests={unassociated} active={active} now={now}/></li>}{hasQueue&&<li><RequestPoolQueue requests={dispatches} jobs={poolCalls}/></li>}</ol>
 }
 import ServiceBusCallDetails from './ServiceBusCallDetails'
 import type {ServiceBusCalls} from './serviceBusCalls'

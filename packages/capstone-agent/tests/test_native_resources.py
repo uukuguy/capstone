@@ -428,7 +428,7 @@ const events=[];
 const context={systemPrompt:'private policy',tools:[{name:'read',parameters:{type:'object'}}],
  messages:[{role:'user',content:'private question'},{role:'toolResult',content:[{type:'text',text:'private result'}]}]};
 const message={stopReason:'stop',usage:{input:10,cacheRead:2,cacheWrite:3,output:4}};
-const stream={result:async()=>message};
+const stream={result:async()=>message,[Symbol.for('capstone.modelRequestId')]:'request-3'};
 const raw={streamSimple(model,prompt){if(prompt!==context)throw Error('context changed');return stream;}};
 const observed=observeModelContext(raw,'main',()=> 'ctx-1',event=>events.push(event));
 if(observed.streamSimple({contextWindow:2048},context)!==stream)throw Error('stream changed');
@@ -440,6 +440,7 @@ console.log(JSON.stringify(events));
     assert result.returncode == 0, result.stderr
     start, end = json.loads(result.stdout)
     assert start['request_id'] == end['request_id'] == 'ctx-1'
+    assert start['dispatch_id'] == end['dispatch_id'] == 'request-3'
     assert start['window_tokens'] == 2048
     assert start['estimated_input']['tool_results'] > 0
     assert start['input_items']['tools']['items'][0]['name'] == 'read'

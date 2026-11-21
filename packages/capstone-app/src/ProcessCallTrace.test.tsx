@@ -168,7 +168,9 @@ it('moves actual main requests out of the bottom queue only at dispatch and excl
  const view=render(<ProcessCallTrace compact models={[model]} tools={[]} active now={900}/>)
  expect(screen.queryByRole('group',{name:'LLM 调用 1'})).toBeNull();expect(screen.getByLabelText('模型请求等待队列')).toBeVisible()
  expect(screen.queryByLabelText('进行中')).toBeNull()
- view.rerender(<ProcessCallTrace compact models={[{...model,requestPool:[{...queued,status:'running',startedAtMs:800}]}]} tools={[]} active now={900}/>)
+ view.rerender(<ProcessCallTrace compact models={[{...model,requestPool:[{...queued,status:'running',startedAtMs:800}]}]} tools={[]} active now={900}
+  modelContextAction={dispatchId=><button type="button">上下文 {dispatchId}</button>}/>)
+ expect(screen.getByRole('button',{name:'上下文 request-1'})).toBeVisible()
  expect(screen.queryByLabelText('模型请求等待队列')).toBeNull()
  expect(screen.getAllByText('0.1s').length).toBeGreaterThan(0)
  expect(document.querySelector<HTMLDetailsElement>('.capstone-model-request')!.open).toBe(true)

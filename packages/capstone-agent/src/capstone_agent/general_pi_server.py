@@ -735,6 +735,11 @@ class GeneralPiHost:
                         and event.get('kind') in ('main', 'analysis', 'summary')
                         and event.get('state') in ('started', 'completed', 'failed')):
                     counts = {key: event[key] for key in ('request_id', 'kind', 'state')}
+                    dispatch_id = event.get('dispatch_id')
+                    if isinstance(dispatch_id, str) and re.fullmatch(r'request-[1-9][0-9]{0,8}', dispatch_id):
+                        dispatch = record.get('model_request_pool_bindings', {}).get(dispatch_id)
+                        if dispatch is not None:
+                            counts['dispatch_id'] = dispatch_id
                     window = event.get('window_tokens')
                     if type(window) is int and 0 < window <= 100_000_000:
                         counts['window_tokens'] = window
@@ -770,6 +775,9 @@ class GeneralPiHost:
                                 name = item.get('name')
                                 if category in ('tools', 'tool_results') and isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,100}', name):
                                     row['name'] = name
+                                source_id = item.get('source_id')
+                                if category == 'tool_results' and isinstance(source_id, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', source_id):
+                                    row['source_id'] = source_id
                                 valid.append(row)
                             admitted[category] = {'total_items': total, 'items': valid}
                         counts['input_items'] = admitted
