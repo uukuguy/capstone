@@ -269,6 +269,10 @@ test('direct saved discovery can be paged without another upstream call',()=>fix
 }));
 
 test('compaction transport exposes lifecycle without summary or raw errors',()=>{
+ const completed=rpcEvent({type:'compaction_end',reason:'threshold',result:{
+  firstKeptEntryId:'entry_abc',tokensBefore:5200,summary:'PRIVATE'}});
+ assert.deepEqual(completed,{type:'compaction_end',reason:'threshold',status:'completed',willRetry:false,
+  first_kept_entry_id:'entry_abc',tokens_before:5200});
  assert.deepEqual(rpcEvent({type:'compaction_start',reason:'threshold',messages:['PRIVATE']}),{type:'compaction_start',reason:'threshold'});
  for(const [extra,status] of [[{result:{summary:'PRIVATE'}},'completed'],[{aborted:true},'cancelled'],[{errorMessage:'PRIVATE'},'failed'],[{},'skipped']]){
   assert.deepEqual(rpcEvent({type:'compaction_end',reason:'overflow',willRetry:true,...extra}),{type:'compaction_end',reason:'overflow',status,willRetry:true});

@@ -532,9 +532,16 @@ function modelFailureCode(message) {
 export function rpcEvent(event) {
   if(event.type==='compaction_start'||event.type==='compaction_end'){
     const reason=['manual','threshold','overflow'].includes(event.reason)?event.reason:'unknown';
-    return {type:event.type,reason,...(event.type==='compaction_end'?{
-      status:event.aborted?'cancelled':event.errorMessage?'failed':event.result?'completed':'skipped',
-      willRetry:event.willRetry===true}: {})};
+    if(event.type==='compaction_start')return {type:event.type,reason};
+    const status=event.aborted?'cancelled':event.errorMessage?'failed':event.result?'completed':'skipped';
+    const frame={type:event.type,reason,status,willRetry:event.willRetry===true};
+    const {firstKeptEntryId,tokensBefore}=event.result??{};
+    if(status==='completed'&&typeof firstKeptEntryId==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(firstKeptEntryId)
+      &&Number.isSafeInteger(tokensBefore)&&tokensBefore>=0&&tokensBefore<=2147483647){
+      frame.first_kept_entry_id=firstKeptEntryId;
+      frame.tokens_before=tokensBefore;
+    }
+    return frame;
   }
   if(event.type==='auto_retry_start')return {type:event.type,attempt:event.attempt,maxAttempts:event.maxAttempts,delayMs:event.delayMs,errorCode:modelFailureCode(event.errorMessage)};
   if(event.type==='auto_retry_end')return {type:event.type,attempt:event.attempt,success:event.success};

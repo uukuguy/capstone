@@ -600,7 +600,8 @@ def test_compaction_lifecycle_survives_host_without_becoming_model_turn(tmp_path
     def run(request, cancelled, emit):
         emit({'type': 'compaction_start', 'reason': 'threshold', 'private': 'PRIVATE'})
         emit({'type': 'compaction_end', 'reason': 'threshold', 'status': 'completed',
-              'willRetry': False, 'result': {'summary': 'PRIVATE'}})
+              'willRetry': False, 'result': {'summary': 'PRIVATE'},
+              'first_kept_entry_id': 'entry_abc', 'tokens_before': 5200})
         emit({'type': 'compaction_start', 'reason': 'threshold'})
         emit({'type': 'compaction_end', 'reason': 'threshold', 'status': 'failed'})
         return 'Answer', {}
@@ -615,6 +616,9 @@ def test_compaction_lifecycle_survives_host_without_becoming_model_turn(tmp_path
     assert [event['runtime_phase']['state'] for event in events] == ['started', 'completed', 'started', 'failed']
     assert [event['runtime_phase']['compaction_index'] for event in events] == [1, 1, 2, 2]
     assert events[-1]['runtime_phase']['elapsed_ms'] >= 0
+    assert events[1]['runtime_phase']['first_kept_entry_id'] == 'entry_abc'
+    assert events[1]['runtime_phase']['tokens_before'] == 5200
+    assert 'first_kept_entry_id' not in events[-1]['runtime_phase']
     assert 'PRIVATE' not in str(events)
 
 

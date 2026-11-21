@@ -16,6 +16,11 @@ def project_runtime_action(event: Mapping[str, Any]) -> dict[str, Any] | None:
             return None
         if kind == 'compaction_end':
             phase['will_retry'] = event.get('willRetry') is True
+            entry, tokens = event.get('first_kept_entry_id'), event.get('tokens_before')
+            if (phase['state'] == 'completed' and isinstance(entry, str)
+                    and re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', entry)
+                    and type(tokens) is int and 0 <= tokens <= 2**31 - 1):
+                phase.update(first_kept_entry_id=entry, tokens_before=tokens)
         return {'type': 'runtime_phase', 'runtime_phase': phase}
     if kind in {'auto_retry_start', 'auto_retry_end'}:
         attempt = event.get('attempt')

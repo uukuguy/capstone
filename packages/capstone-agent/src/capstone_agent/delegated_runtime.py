@@ -416,7 +416,8 @@ class DelegatedRuntime:
                 **({'investigation_checkpoint': investigation_checkpoint} if investigation_checkpoint is not None else {}),
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
                 **({'runtime_phase': {key: cast(Mapping, runtime_phase)[key] for key in
-                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in cast(Mapping, runtime_phase)}
+                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry', 'first_kept_entry_id', 'tokens_before')
+                    if key in cast(Mapping, runtime_phase)}
                     | ({'compaction_index': compaction_index}
                        if type(compaction_index) is int and 0 < compaction_index <= 2**31-1 else {})}
                     if phase_progress else {}),
