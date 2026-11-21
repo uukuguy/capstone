@@ -353,7 +353,8 @@ def test_wait_rejects_dependent_work_without_an_executable_predecessor():
     assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
 
 
-def test_missing_required_file_is_a_saved_failure_and_queues_review():
+@pytest.mark.parametrize('products', [[], [{'file_name': 'required.txt', 'delivery_status': 'limited'}]])
+def test_missing_required_file_is_a_saved_failure_and_queues_review(products):
     control = service()
     mission = create(control, acceptance_criteria=['Save the requested file'])
     mission = command(control, mission, 'prepare_task',
@@ -363,12 +364,13 @@ def test_missing_required_file_is_a_saved_failure_and_queues_review():
     delegation = mission['tasks'][0]['delegation']['delegation_id']
     control.deliver('team', mission['mission_id'], delegation,
         {'thread_id': 'task_thread', 'work_id': 'task_work'},
-        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'})
+        {'answer_ref': 'saved_answer', 'products': products, 'status': 'completed'})
     intent = control.pending_mission_reviews('team')[0]
     saved = intent['boundary']['tasks'][0]
     assert saved['state'] == 'failed'
     assert saved['failure_reason'] == 'required_product_missing'
     assert saved['delivery']['answer_ref'] == 'saved_answer'
+    assert saved['delivery']['products'] == products
 
 
 

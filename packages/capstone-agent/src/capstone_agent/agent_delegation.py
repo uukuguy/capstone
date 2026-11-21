@@ -223,6 +223,9 @@ class AgentDelegations:
                 text = request['objective'] + '\n\n交付要求：\n' + '\n'.join(request['delivery_requirements'])
                 if request.get('required_products'):
                     text += '\n必须保存的成果文件：' + json.dumps(request['required_products'], ensure_ascii=False)
+                    text += ('\n只有达到原指令要求的文件才能使用这些必需成果名称。'
+                             '发现源材料不可用或无法生成成果时，在答复中说明实际缺口。'
+                             '可另存有用的诊断或部分成果，但不要用必需成果名称保存说明、占位文件或替代内容。')
                 if request.get('required_reference_sources'):
                     text += '\n必须交付已注册工具签发的引用回执：' + json.dumps(request['required_reference_sources'])
                 self._command(thread, None, 'work_message', 'create-work', {'text': text})

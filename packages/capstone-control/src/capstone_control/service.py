@@ -311,7 +311,8 @@ class ControlService:
         elif '_mission' in goal and content.get('outcome') == 'partial':
             failure = 'child_goal_partial_delivery'
         elif '_mission' in goal:
-            names = {product.get('file_name') for product in content['products'] if isinstance(product, dict)}
+            names = {product.get('file_name') for product in content['products']
+                     if isinstance(product, dict) and product.get('delivery_status') != 'limited'}
             if set(task.get('required_products', ())) - names:
                 failure = 'required_product_missing'
         task.update(state='failed' if failure else 'delivered', delivery=content)

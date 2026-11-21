@@ -60,7 +60,7 @@ CRITERION_VERDICT = {**obj(dict(criterion_index=dict(type='integer',minimum=0),
     'allOf':[{'if':{'properties':{'status':{'const':'met'}}},'then':{'properties':{'evidence':{'minItems':1}}}}]}
 CATALOG = {
     'agent_mission_read': dict(description='Read the Mission associated with this conversation and its currently registered equipment references and agents. Use their exact identities and revisions; availability does not require initialization or selection. Planning is not execution or acceptance.', inputSchema=obj({})),
-    'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve unrelated Tasks; planning does not dispatch work.',
+    'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve Tasks, execution modes and dependencies the user explicitly requires, including required records of failures. Keep unrelated Tasks. Planning does not dispatch work.',
         inputSchema=obj(dict(expected_revision=REVISION, acceptance_criteria=dict(type='array', items=TEXT, maxItems=64),
                              tasks=dict(type='array', items=TASK, maxItems=64),
                              removed_task_ids=dict(type='array',items=IDENTITY,maxItems=64,uniqueItems=True)),
