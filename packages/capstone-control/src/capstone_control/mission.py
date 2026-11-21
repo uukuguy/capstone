@@ -264,7 +264,8 @@ def update_tasks(goal, proposed):
     goal['tasks'] = combined
 
 
-def command(service, workspace, document, actor, *, validate_task_equipment=False, excluded_skills=()):
+def command(service, workspace, document, actor, *, validate_task_equipment=False, excluded_skills=(),
+            model_turn=None):
     object_fields(document, {'schema', 'operation_id', 'mission_id', 'expected_revision', 'kind', 'payload'})
     if document['schema'] != 'capstone-control-mission-command/1':
         raise ContractError('unsupported Mission command schema')
@@ -286,6 +287,15 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
             return goal, old['receipt']
         if goal['revision'] != document['expected_revision']:
             raise Conflict('stale Mission revision')
+        if model_turn is not None and kind == 'wait' and payload.get('until') == 'user':
+            raise InvalidTransition('Continue executable work or report missing input in a partial delivery.')
+        if model_turn == 'review':
+            if kind == 'update_plan' and payload.get('acceptance_criteria') != goal['acceptance_criteria']:
+                raise InvalidTransition('Autonomous review must preserve the current acceptance criteria. Report unmet criteria in a partial delivery.')
+            if kind == 'pause' and not any(task['state'] in {'dispatching', 'running', 'waiting',
+                                                            'resume_requested', 'revoke_requested'}
+                                           for task in goal['tasks']):
+                raise InvalidTransition('A settled task does not require pause. Replace failed work with a new task, continue ready work, or conclude with saved results.')
         if kind in {'prepare_task', 'update_plan', 'ready'}:
             reopen_partial = (kind == 'update_plan' and goal['state'] == 'delivered'
                               and goal['reason'] == 'partial_delivery')

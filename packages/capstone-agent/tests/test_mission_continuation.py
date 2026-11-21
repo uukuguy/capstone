@@ -710,3 +710,23 @@ def test_autonomous_mission_cannot_suspend_for_user_input(review_store):
             'reason': 'The source file is missing',
         }, operation_id='ask_user')
     assert host.read_mission(workspace, mission['mission_id'], claim=claim) == current
+
+
+def test_review_plan_receipt_replays_after_user_changes_criteria(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    mission_id = mission['mission_id']
+    current = host.read_mission(workspace, mission_id, claim=claim)
+    arguments = {'expected_revision': current['revision'], 'tasks': [],
+                 'acceptance_criteria': current['acceptance_criteria']}
+    operation = 'agent_mission_update_plan'
+    original = host.mission_operation(claim, operation, arguments, operation_id='review_plan')
+    updated = host.command_mission(workspace, {
+        'schema': 'capstone-control-mission-command/1', 'operation_id': 'user_guidance',
+        'mission_id': mission_id, 'expected_revision': original['mission']['revision'],
+        'kind': 'update_plan', 'payload': {'tasks': [], 'acceptance_criteria': ['Check the updated result']},
+    })
+    assert host.mission_operation(claim, operation, arguments, operation_id='review_plan') == original
+    assert host.read_mission(workspace, mission_id)['revision'] == updated['mission']['revision']

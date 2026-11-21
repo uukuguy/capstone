@@ -63,6 +63,7 @@ class ControlHost:
         mission_id = command['mission_id']
         mission = self.read_mission(workspace, mission_id, claim=claim)
         excluded_skills = () if claim is None else (claim.submission or {}).get('session_skills', {}).get('excluded', ())
+        model_turn = None if claim is None else ('review' if (claim.submission or {}).get('_mission_review') else 'instruction')
 
         def apply():
             if mission.get('origin') is not None and command['kind'] == 'update_plan':
@@ -75,7 +76,7 @@ class ControlHost:
                         raise ActiveMissionConflict(other)
             return self.service.command_mission(workspace, command, actor=actor,
                                                 validate_task_equipment=validate_task_equipment,
-                                                excluded_skills=excluded_skills)
+                                                excluded_skills=excluded_skills, model_turn=model_turn)
 
         if mission.get('origin') is None:
             return apply()
@@ -110,11 +111,6 @@ class ControlHost:
         if name == 'agent_mission_control':
             if set(arguments) != {'expected_revision', 'action'} or arguments['action'] not in {'pause', 'resume', 'cancel'}:
                 raise ValueError('unsupported Mission control')
-            if (arguments['action'] == 'pause' and (claim.submission or {}).get('_mission_review')
-                    and not any(task['state'] in {'dispatching', 'running', 'waiting',
-                                                 'resume_requested', 'revoke_requested'}
-                                for task in mission['tasks'])):
-                raise InvalidTransition('A settled task does not require pause. Replace failed work with a new task, continue ready work, or conclude with saved results.')
             return self.command_mission(workspace, {
                 'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
                 'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
@@ -136,11 +132,6 @@ class ControlHost:
         if name not in kinds or 'expected_revision' not in arguments:
             raise ValueError('unsupported Mission operation')
         payload = {key: value for key, value in arguments.items() if key != 'expected_revision'}
-        if name == 'agent_mission_wait' and payload.get('until') == 'user':
-            raise InvalidTransition('Continue executable work or report missing input in a partial delivery.')
-        if (name == 'agent_mission_update_plan' and (claim.submission or {}).get('_mission_review')
-                and payload.get('acceptance_criteria') != mission['acceptance_criteria']):
-            raise InvalidTransition('Autonomous review must preserve the current acceptance criteria. Report unmet criteria in a partial delivery.')
         return self.command_mission(workspace, {
             'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
             'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
