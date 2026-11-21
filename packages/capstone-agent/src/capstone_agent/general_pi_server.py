@@ -1764,6 +1764,9 @@ class NativeTaskRunner:
                             + json.dumps(native['material_notices'], ensure_ascii=False)})
                 if native['selected_task_records'] and 'task_handoff' in native['selected_task_records'][0]:
                     sdk_config['context']['task_handoff_selected'] = True
+                    completed_answer = native['selected_task_records'][0]['task_handoff'].get('completed_answer')
+                    if completed_answer is not None:
+                        sdk_config['context']['task_handoff_completed_answer'] = completed_answer
                 sdk_config['context']['records_truncated'] = native['records_truncated']
                 sdk_config['context']['selected_task_source'] = native['selected_task_source']
                 policy_text = native['policy']['system_policy']

@@ -815,7 +815,8 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     instruction_manifest = Path(__file__).resolve().parents[1] / 'configs/development/instruction-admission-gate.json'
     if instruction_manifest.is_file():
         instruction = json.loads(instruction_manifest.read_text())
-        if any(set(instruction[key]).issubset(paths) for key in ('anchors', 'recovery_anchors', 'takeover_anchors')) and all(
+        if any(set(instruction[key]).issubset(paths)
+               for key in ('anchors', 'recovery_anchors', 'takeover_anchors', 'handoff_anchors')) and all(
                 path in instruction['paths'] or _control_path(path) for path in paths):
             return 'instruction-admission'
     details_manifest = Path(__file__).resolve().parents[1] / 'configs/development/execution-details-gate.json'

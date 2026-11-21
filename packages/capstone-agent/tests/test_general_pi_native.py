@@ -102,6 +102,30 @@ def test_native_context_scopes_resources_to_each_instruction_without_discarding_
         assert rule in policy
 
 
+def test_native_handoff_projects_completed_answer_as_historical_input(tmp_path):
+    from pathlib import Path
+
+    source = {'thread_id': 'thr_source', 'attempt_id': 'attempt_source'}
+    excerpt = {'event_seq': 12, 'text': 'Saved answer', 'truncated': False}
+    (tmp_path / 'context.json').write_text(json.dumps({
+        'messages': [], 'dependency_results': [], 'task_handoff_selected': True,
+        'selected_task_source': source, 'task_handoff_completed_answer': excerpt,
+    }))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
+    result = subprocess.run(['node', '--input-type=module', '-e',
+        'const {default:register}=await import(process.argv[1]); '
+        'const events={};register({on:(name,fn)=>{events[name]=fn}}); '
+        'console.log(JSON.stringify(await events.context({messages:[{role:"user",content:"Continue"}]})));',
+        extension.as_uri()], cwd=tmp_path, capture_output=True, text=True, check=True)
+    historical, current = json.loads(result.stdout)['messages']
+    document = json.loads(historical['content'])
+    assert historical['role'] == 'user'
+    assert document['selected_task_handoff'] == source
+    assert document['source_completed_answer'] == excerpt
+    assert 'historical' in document['notice']
+    assert current == {'role': 'user', 'content': 'Continue'}
+
+
 @pytest.mark.parametrize('status', ['failed', 'cancelled', 'interrupted'])
 @pytest.mark.parametrize('historical,current', [
     ('Investigate the old CSV and continue until the report is complete.', 'Calculate 1 + 1 only.'),
