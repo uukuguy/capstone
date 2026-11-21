@@ -205,6 +205,30 @@ def test_concurrent_creates_admit_one_active_mission_per_thread(chat_store):
     assert len(threads.snapshot(thread_id).mission_refs) == 2
 
 
+def test_partial_delivery_allows_new_mission_without_reopening_old_mission(chat_store):
+    from capstone_agent.mission_origin import ActiveMissionConflict
+
+    threads, thread_id = chat_store
+    host = configure_control(threads)
+    original = host.create_mission('enterprise', request(thread_id, 'partial_original'))
+
+    def close_partial(goal):
+        goal.update(state='delivered', reason='partial_delivery')
+        return goal, None
+
+    host.service.store.transact('enterprise', original['mission_id'], close_partial)
+    following = host.create_mission('enterprise', request(thread_id, 'after_partial'))
+    assert following['mission_id'] != original['mission_id']
+
+    with pytest.raises(ActiveMissionConflict) as conflict:
+        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+            operation_id='reopen_original', mission_id=original['mission_id'],
+            expected_revision=original['revision'], kind='update_plan',
+            payload={'acceptance_criteria': ['Updated check'], 'tasks': []}))
+    assert conflict.value.mission_id == following['mission_id']
+    assert host.read_mission('enterprise', original['mission_id'])['reason'] == 'partial_delivery'
+
+
 def test_conflicting_create_retains_same_operation_retry(chat_store):
     threads, thread_id = chat_store
     with TestClient(_app(threads), base_url='http://localhost') as client:

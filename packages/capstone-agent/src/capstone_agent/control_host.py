@@ -59,12 +59,24 @@ class ControlHost:
 
     def command_mission(self, workspace, command, *, actor='application:trusted', claim=None,
                         validate_task_equipment=False):
-        from .mission_origin import access
-        mission = self.read_mission(workspace, command['mission_id'], claim=claim)
+        from .mission_origin import ActiveMissionConflict, access
+        mission_id = command['mission_id']
+        mission = self.read_mission(workspace, mission_id, claim=claim)
         excluded_skills = () if claim is None else (claim.submission or {}).get('session_skills', {}).get('excluded', ())
-        apply = lambda: self.service.command_mission(workspace, command, actor=actor,
-                                                     validate_task_equipment=validate_task_equipment,
-                                                     excluded_skills=excluded_skills)
+
+        def apply():
+            if mission.get('origin') is not None and command['kind'] == 'update_plan':
+                current = self.service.read_mission(workspace, mission_id)
+                if (current['revision'] == command['expected_revision']
+                        and current['state'] == 'delivered' and current.get('reason') == 'partial_delivery'):
+                    active = self.service.store.active_missions_for_thread(workspace, current['origin']['thread_id'])
+                    other = next((identity for identity in active if identity != mission_id), None)
+                    if other is not None:
+                        raise ActiveMissionConflict(other)
+            return self.service.command_mission(workspace, command, actor=actor,
+                                                validate_task_equipment=validate_task_equipment,
+                                                excluded_skills=excluded_skills)
+
         if mission.get('origin') is None:
             return apply()
         return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply,
