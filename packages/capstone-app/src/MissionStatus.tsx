@@ -14,10 +14,29 @@ const reasonLabels:Record<string,string>={
   required_product_missing:'缺少所需产物',
 }
 
-export default function MissionStatus({transport,threadId,missionId,onCopyHandoff}:{
-  transport:HttpThreadTransport;threadId:string;missionId:string;onCopyHandoff?:(id:string,revision:number)=>void
+export function useMissionProgress(transport:HttpThreadTransport,threadId:string,missionId?:string) {
+  const key=missionId&&`${threadId}:${missionId}`
+  const [state,setState]=useState<{key:string;mission?:Mission;error?:string}>()
+  useEffect(()=>{
+    if(!missionId||!key)return
+    let active=true
+    const read=()=>void transport.mission(missionId,threadId)
+      .then(mission=>{if(active)setState({key,mission})})
+      .catch(()=>{if(active)setState(previous=>({key,mission:previous?.key===key?previous.mission:undefined,error:'状态暂不可用'}))})
+    read()
+    const timer=window.setInterval(read,4000)
+    return()=>{active=false;window.clearInterval(timer)}
+  },[transport,threadId,missionId,key])
+  const mission=state?.key===key?state?.mission:undefined
+  const error=state?.key===key?state?.error:undefined
+  return {mission,label:error||(mission?missionStateLabel(mission):'正在读取')}
+}
+
+export default function MissionStatus({transport,missionId,progress,onCopyHandoff}:{
+  transport:HttpThreadTransport;missionId:string;progress:ReturnType<typeof useMissionProgress>;
+  onCopyHandoff?:(id:string,revision:number)=>void
 }){
-  const [mission,setMission]=useState<Mission>(),[error,setError]=useState('')
+  const {mission,label}=progress
   const [download,setDownload]=useState<string>(),[downloadError,setDownloadError]=useState('')
   async function saveProduct(file:NativeArtifact){
     setDownload(file.artifact_id)
@@ -36,18 +55,14 @@ export default function MissionStatus({transport,threadId,missionId,onCopyHandof
       setDownload(undefined)
     }
   }
-  useEffect(()=>{
-    let active=true
-    const read=()=>void transport.mission(missionId,threadId).then(row=>{if(active){setMission(row);setError('')}}).catch(()=>{if(active)setError('Mission 状态暂不可用')})
-    setMission(undefined);read();const timer=window.setInterval(read,4000)
-    return()=>{active=false;window.clearInterval(timer)}
-  },[transport,threadId,missionId])
   const tasks=mission?.tasks||[]
   const taskPositions=new Map(tasks.map((task,index)=>[task.id,index+1]))
   const taskGaps=new Map(mission?.openItems?.map(item=>[item.taskId,item.reason]))
   const openItems=mission?.openItems?.filter(item=>item.kind!=='organizer'&&!taskPositions.has(item.taskId||''))||[]
-  return <details className="mission-status">
-    <summary>Mission · {error||(!mission?'正在读取':missionStateLabel(mission))}</summary>
+  const verifiedProducts=[...new Map(mission?.criteria?.flatMap(criterion=>
+    (criterion.products||[]).map(file=>[file.artifact_id,file] as const))).values()]
+  return <details className="mission-status" open>
+    <summary>Mission · {label}</summary>
     <div className="mission-status-body" tabIndex={0}>
     <p>{mission?.objective||missionId}</p>
     {tasks.length>0 && <ol aria-label="Mission 执行计划">{tasks.map(task=>{
@@ -69,12 +84,15 @@ export default function MissionStatus({transport,threadId,missionId,onCopyHandof
       <ul>{mission.criteria.map((criterion,index)=><li key={index}>
         <p>{criterion.label} · {criterionLabels[criterion.status||'unknown']}</p>
         {criterion.explanation && <small>{criterion.explanation}</small>}
-        {criterion.products?.map(file=><button key={file.artifact_id} type="button" className="thread-control-button"
-          disabled={!!download} onClick={()=>void saveProduct(file)}>
-          {download===file.artifact_id?'正在核验并下载':`下载 ${file.file_name}`}
-        </button>)}
       </li>)}</ul>
-      {downloadError && <p role="alert">{downloadError}</p>}
+    </section>}
+    {verifiedProducts.length>0&&<section aria-label="已核验成果">
+      <p>已核验成果</p>
+      <div className="mission-product-actions">{verifiedProducts.map(file=><button key={file.artifact_id} type="button"
+        className="thread-control-button" disabled={!!download} onClick={()=>void saveProduct(file)}>
+        {download===file.artifact_id?'正在核验并下载':`下载 ${file.file_name}`}
+      </button>)}</div>
+      {downloadError&&<p role="alert">{downloadError}</p>}
     </section>}
     {mission && onCopyHandoff && <button type="button" className="thread-control-button"
       onClick={() => onCopyHandoff(mission.missionId,mission.revision)}>复制 Mission 续作引用</button>}

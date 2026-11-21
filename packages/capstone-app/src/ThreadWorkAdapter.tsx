@@ -1,5 +1,5 @@
 import GoalControls from './GoalControls'
-import MissionStatus from './MissionStatus'
+import MissionStatus, {useMissionProgress} from './MissionStatus'
 import {missionObjectiveFromInput,type MissionCreate} from './missions'
 import InstructionStatus from './InstructionStatus'
 import {NetworkView} from './NetworkView'
@@ -567,6 +567,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     const objective=handoff ? null : goalObjectiveFromInput(text)
     if(objective!==null){
       setGoalDraft(objective||selectedWork?.goal||'')
+      setResourceView('task-plan')
+      setProductsOpen(true)
       setNotice('开始后会先规划，再逐步执行。')
       return
     }
@@ -921,6 +923,29 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     instructionLabel={shownDiagram.schema==='capstone-network-view/2.0'
       && !shownDiagram.layer.focus_ids.length && !shownDiagram.layer.annotations
       ? '模型全图 · 无已保存焦点' : '本次指令的关注视图'}/>:<p role="status">{taskDiagramLoad==='loading'?'正在载入指令电网图…':taskDiagramLoad==='unavailable'?'此指令没有可用的电网图。':'选择一条指令查看电网图。'}</p>,description:'本次执行使用的注册模型和版本。'}]:[]
+  const missionRef=snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).at(-1)
+  const missionProgress=useMissionProgress(transport,currentId,missionRef?.missionId)
+  const goal=selectedWork?.goalMode
+  const handleGoalControl:React.ComponentProps<typeof GoalControls>['onControl']=(kind,payload)=>{
+    if(!snapshot)return
+    void (async()=>{
+      let work=selectedWork
+      if(!work){
+        await dispatch(buildWorkCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,'new',0,String(payload.objective)))
+        work=store.state.workSnapshot?.works.at(-1)
+      }
+      if(!work)throw new Error('目标记录尚未保存，请重试。')
+      await dispatch(goalCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,work.workId,work.revision,kind,payload))
+      setGoalDraft(null)
+    })().catch(cause=>setError(cause instanceof Error?cause.message:'目标未提交'))
+  }
+  const goalControlsDisabled=busy||!!pending||projection.connection!=='live'
+  const taskPlan=goal||goalDraft!==null||missionRef ? <>
+    {(goal||goalDraft!==null)&&<GoalControls placement="details" key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={goal} plan={selectedWork?.goalPlan} planning={selectedWork?.goalPlanPending} objective={goalDraft??selectedWork?.goal??''} disabled={goalControlsDisabled} executing={!!currentAttempt} onControl={handleGoalControl}/>}
+    {missionRef&&<MissionStatus key={missionRef.missionId} transport={transport} missionId={missionRef.missionId}
+      progress={missionProgress} onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>}
+  </> : undefined
+  const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
@@ -930,12 +955,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     </>}
     headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError||projection.synchronizationError} recovering={connectionRecovering} pending={!!pending}/>}
     navigationFooter={<WorkspaceGatewayStatus transport={transport} threadId={currentId} onConnection={setWelcomeGateway} locked={Boolean(snapshot?.works.some(work=>work.messages.length>0))}/>}
-    resourcePanel={client.supportsProductIndex?productsPanel:nativeChat&&client.supportsProcessProducts?processPanel:undefined}
-    resourceViews={client.supportsProductIndex?[...taskDiagramViews,...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'制品',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:nativeChat?[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
+    resourcePanel={client.supportsProductIndex?productsPanel:nativeChat&&client.supportsProcessProducts?processPanel:taskPlan}
+    resourceViews={client.supportsProductIndex?[...taskViews,...taskDiagramViews,...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物。'},...(nativeChat&&client.supportsProcessProducts?[{id:'process-products',label:'过程记录',content:processPanel,description:'按指令查看保存的执行记录。'}]:[]),...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:nativeChat?[...taskViews,{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedArtifact(undefined)}} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
-      {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:undefined}
+      {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:taskViews}
     selectedResourceView={resourceView} onResourceViewChange={selectResourceView}
-    resourceLabel={resourceView==='task-diagram'?'电网图':resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'制品':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
+    resourceLabel={resourceView==='task-plan'?'任务计划':resourceView==='task-diagram'?'电网图':resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'成果':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
     sidebar={<nav className="thread-session-navigation" aria-label="任务与会话">
       <ControlGoalPanel transport={transport} onOpenThread={(thread,work)=>{
         const storageKey=`${namespace}.${thread}.work-draft`
@@ -953,7 +978,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       <SessionNavigation items={sessions?.threads||[]} currentId={currentId} storageKey={namespace} actions={sessionManagement(transport,change=>{if(change)setSessions(previous=>previous?{...previous,threads:previous.threads.filter(item=>item.threadId!==change.remove)}:null);setListReload(value=>value+1)})} />
     </nav>}
     workspaceActions={currentId !== 'new' && <><SessionAdjacentControls items={sessions?.threads||[]} currentId={currentId} storageKey={namespace}/><button type="button" className="thread-control-button thread-session-refresh" aria-label="刷新任务" title="刷新会话状态，不重新执行任务" onClick={() => setReload(value => value + 1)}><RefreshCw aria-hidden="true" size={16} /></button></>}
-    heading={<><div className="thread-chat-heading"><SessionHeading title={(snapshot?.sessionTitle&&displaySessionTitle(snapshot.sessionTitle))||(nativeChat?(snapshot.sessionType&&sessionTypeNames[snapshot.sessionType])||'工作会话':'历史任务会话')}
+    heading={<div className="thread-chat-heading"><SessionHeading title={(snapshot?.sessionTitle&&displaySessionTitle(snapshot.sessionTitle))||(nativeChat?(snapshot.sessionType&&sessionTypeNames[snapshot.sessionType])||'工作会话':'历史任务会话')}
       subtitle={nativeChat?undefined:selectedWork ? `修订 ${selectedWork.goalRevision} · ${selectedWork.cancelRequested ? '停止请求中' : statusCopy[selectedWork.status] || selectedWork.status}` : '对话与任务记录'}
       onSave={snapshot?async text=>{
         const request=commandKey()
@@ -964,19 +989,18 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         window.dispatchEvent(new Event('capstone-session-renamed'))
       }:undefined} />
       <div className="thread-chat-heading-meta">
-        {activeTakeoverSource&&<button type="button" className="thread-control-button" onClick={()=>void copyTakeover()}>复制接管引用</button>}
         {(pending?.kind==='reserve_instruction_takeover'||pending?.kind==='takeover_instruction'||pending?.kind==='continue_instruction_takeover')&&
           <button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'}
             onClick={()=>void send('').catch(()=>{})}>重试接管请求</button>}
-        {handoffAvailable && <button type="button" className="thread-control-button"
-          onClick={() => void copyHandoff()}>复制续作引用</button>}
         {nativeChat&&(pending?.kind==='send_message'||pending?.kind==='queue_instruction')&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
         {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}
         {pendingCommand?.schema === 'capstone-command/1' && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void recoverLegacyCommand()}>重试原对话请求</button>}
         {selectedWork && ((!recovery&&!nativeChat) || pending?.kind === 'start_work') && <button type="button" className="thread-primary-button" disabled={busy || (!!pending && pending.kind !== 'start_work') || (!selectedWork.startAvailable && pending?.kind !== 'start_work') || projection.connection !== 'live'}
           aria-describedby={!selectedWork.startAvailable ? 'work-start-reason' : undefined} onClick={() => void start()}>{pending?.kind === 'start_work' ? '重试执行请求' : '开始任务'}</button>}
       </div>
-    </div>
+    </div>}
+  >
+    <div className="thread-work-status">
       {takeover&&<div role="status">
         <strong>接管的指令</strong> · {statusCopy[takeover.phase]||takeover.phase}
         {takeover.answer&&<p>{takeover.answer}{takeover.answerTruncated?'…':''}</p>}
@@ -984,7 +1008,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       </div>}
       {inspectedProductAttempt&&<AnswerDetailSheet title="执行详情" answerLabel="所选成果的来源指令" onClose={()=>setInspectedProductAttempt(undefined)}><AttemptRecordPanel attemptId={inspectedProductAttempt} read={(id,after)=>client.attemptRecords(currentId,id,after)}/></AnswerDetailSheet>}
       {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。{canResumeProfessional&&<button type="button" disabled={busy||!!pending} onClick={()=>{const target=snapshot!.works.filter(work=>!work.conversationMode).find(work=>work.contextProductRefs?.length)??snapshot!.works.filter(work=>!work.conversationMode).at(-1);if(target){selectWork(target.workId);setProfessionalEdit(true)}}}>继续编辑此专业任务</button>}</p>}
-      {viewingLegacy&&<p role="status">正在查看历史保存记录，可保留草稿、确认原请求及停止已有执行。返回当前对话后可继续发送。</p>}
       {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
       {pending?.kind==='withdraw_instruction'&&<button type="button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试撤回请求</button>}
       {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
@@ -995,29 +1018,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
-      {(selectedWork?.goalMode||goalDraft!==null) && <GoalControls key={`${currentId}:${selectedWork?.workId||'new'}:${goalDraft??''}`} goal={selectedWork?.goalMode} plan={selectedWork?.goalPlan} planning={selectedWork?.goalPlanPending} objective={goalDraft??selectedWork?.goal??''}
-        disabled={busy||!!pending||projection.connection!=='live'} executing={!!currentAttempt} onControl={(kind,payload)=>{
-          if(snapshot)void (async()=>{
-            let work=selectedWork
-            if(!work){
-              await dispatch(buildWorkCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,'new',0,String(payload.objective)))
-              work=store.state.workSnapshot?.works.at(-1)
-            }
-            if(!work)throw new Error('目标记录尚未保存，请重试。')
-            await dispatch(goalCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,
-              work.workId,work.revision,kind,payload))
-            setGoalDraft(null)
-          })().catch(cause=>setError(cause instanceof Error?cause.message:'目标未提交'))
-        }}/>}
-      {notice && <p role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
       {conversation.hasUnattributedHistory && <p role="status">部分历史执行记录尚未确认任务归属。可加载更早的记录后查看。</p>}
-    </>}
-  >
-    {snapshot?.missionRefs?.filter(ref=>!ref.workId||ref.workId===selectedWork?.workId).slice(-1).map(ref=><MissionStatus key={ref.missionId} transport={transport} threadId={currentId} missionId={ref.missionId}
-      onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>)}
+    </div>
     {restoredKey === key && (snapshot || professional || currentId === 'new') && <CapstoneAssistantThread inlineExecution={nativeChat} nativeArtifactProjections={indexedArtifacts} resultHistoryNotice={resultProjectionHistoryText(professional)} key={liveConversation?`${key}.conversation`:`${key}.${selected}`} events={conversation.events}
       productReferenceReader={(ref,signal)=>client.resolveProduct(ref,signal)} requestedProductReference={requestedReference?.selection.ref.thread_id===currentId?requestedReference:undefined}
-      projectedMessages={conversation.messages} composerMode={liveConversation?undefined:'text'} composerLabel={viewingLegacy?'历史记录草稿':nativeChat?undefined:selected === 'new' ? '任务目标' : '补充任务资料'}
+      projectedMessages={conversation.messages} composerMode={viewingLegacy?'recovery':nativeChat?undefined:'text'} composerLabel={viewingLegacy?'历史记录草稿':nativeChat?undefined:selected === 'new' ? '任务目标' : '补充任务资料'}
       thinkingPreviews={store.thinkingPreviews} instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
       onOpenInstructionProducts={scope=>{markManualView();setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)}}
       onOpenNativeArtifact={nativeChat?openArtifact:undefined}
@@ -1027,19 +1032,30 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation}
       networkAttemptIds={[...new Set([...instructionViews.keys(),...instructionModelPages.keys(),...taskDiagrams.keys(),...taskDiagramSources.keys()])]} onShowNetwork={showInstructionNetwork}
       acceptedDraft={nativeChat?acceptedDraft:undefined}
-      composerControls={liveConversation?(historyActions,inputActions)=><>{modelWorkspace&&<ThreadModelDirectory models={projection.catalog?.models||[]} currentModelId={snapshot?.modelContext?.modelId||''} target={modelTarget} onTargetChange={setModelTarget} disabled={busy||active||!!currentAttempt||!!missionPending||projection.connection!=='live'} pending={!!pending} workspace={modelWorkspace} allowEmpty={snapshot?.sessionType==='enterprise-research'||snapshot?.sessionType==='general-chat'} onSwitch={modelId=>void changeModel('open_model',{model_id:modelId})} onActivate={entryId=>void changeModel('activate_model',{entry_id:entryId})} onClose={entryId=>void changeModel('close_model',{entry_id:entryId})}/>}
-      <ThreadMaterialUpload threadId={currentId} upload={(file,signal)=>client.uploadThreadMaterial(currentId,file,signal)} resourceUpload={(file,options)=>transport.uploadThreadResource(currentId,file,options)} cancelResource={id=>transport.cancelResourceUpload(currentId,id)} disabled={busy||active||!!pending||!!missionPending} remainingFiles={Math.max(0,applicationCapacity('inline_material_count')-materials.length)} remainingBytes={materials.length>=applicationCapacity('inline_material_count')?0:remainingMaterialBytes} onBusyChange={setUploadBusy} onUploaded={material=>{inputActions.addMaterial(material.material_id);setCatalogReload(value=>value+1)}}
+      composerControls={nativeChat?(historyActions,inputActions)=><>{modelWorkspace&&<ThreadModelDirectory models={projection.catalog?.models||[]} currentModelId={snapshot?.modelContext?.modelId||''} target={modelTarget} onTargetChange={setModelTarget} disabled={viewingLegacy||busy||active||!!currentAttempt||!!missionPending||projection.connection!=='live'} pending={!!pending} workspace={modelWorkspace} allowEmpty={snapshot?.sessionType==='enterprise-research'||snapshot?.sessionType==='general-chat'} onSwitch={modelId=>void changeModel('open_model',{model_id:modelId})} onActivate={entryId=>void changeModel('activate_model',{entry_id:entryId})} onClose={entryId=>void changeModel('close_model',{entry_id:entryId})}/>}
+      <ThreadMaterialUpload threadId={currentId} upload={(file,signal)=>client.uploadThreadMaterial(currentId,file,signal)} resourceUpload={(file,options)=>transport.uploadThreadResource(currentId,file,options)} cancelResource={id=>transport.cancelResourceUpload(currentId,id)} disabled={viewingLegacy||busy||active||!!pending||!!missionPending} remainingFiles={Math.max(0,applicationCapacity('inline_material_count')-materials.length)} remainingBytes={materials.length>=applicationCapacity('inline_material_count')?0:remainingMaterialBytes} onBusyChange={setUploadBusy} onUploaded={material=>{inputActions.addMaterial(material.material_id);setCatalogReload(value=>value+1)}}
         attachments={attachments} onResourceUploaded={()=>setAttachmentReload(value=>value+1)} onRemoveAttachment={async id=>{
           await transport.cancelResourceUpload(currentId,id.replace('resource_','upload_'))
           setAttachments(files=>files.filter(file=>file.resource_id!==id))
-        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}<ManagedResourcesPanel transport={transport} enabled={Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
+        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}<ManagedResourcesPanel transport={transport} enabled={!viewingLegacy&&Boolean(inputCatalog)&&inputCatalog?.resource_management?.enabled!==false}/></ThreadSettingsMenu></>:undefined}
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
-      inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||!!missionPending||uploadBusy}
+      inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={viewingLegacy||busy||active||!!pending||!!missionPending||uploadBusy}
       welcomeGateway={sharedNavigation?sharedNavigation.gateway:welcomeGateway}
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?(pendingMessage||missionPending)?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={missionPending?.text??initialText} onDraftChange={onDraftChange}
       storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&!concurrentSend&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage||!!missionPending}
       allowConcurrentSend={queueAvailable}
-      composerStatus={queueAvailable?<InstructionStatus active={active} interruptOnSend={interruptOnSend} onInterruptChange={selectedWork?.goalMode?undefined:setInterruptOnSend} stopping={!!selectedWork?.cancelRequested} waiting={currentAttempt?.phase==='waiting'} queue={selectedWork?.instructionQueue||[]} disabled={busy||!!pending||projection.connection!=='live'} canStop={canStop} onStop={()=>void cancel()} onWithdraw={instructionId=>{if(snapshot&&selectedWork)void dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'withdraw_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{instruction_id:instructionId}}).catch(()=>{})}}/>:undefined}
+      composerStatus={<>
+        {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
+        {notice&&<p className="thread-composer-notice" role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
+        {(goal||missionRef||activeTakeoverSource||handoffAvailable)&&<div className="thread-task-strip" aria-label="当前任务">
+          {goal&&<GoalControls placement="summary" goal={goal} planning={selectedWork?.goalPlanPending} objective={goal.objective} disabled={goalControlsDisabled} executing={!!currentAttempt} onControl={handleGoalControl}/>}
+          {missionRef&&<span role="status">Mission · {missionProgress.label}</span>}
+          {(goal||missionRef)&&<button type="button" className="thread-control-button" onClick={()=>selectResourceView('task-plan')}>查看任务计划</button>}
+          {activeTakeoverSource&&<button type="button" className="thread-control-button" onClick={()=>void copyTakeover()}>复制接管引用</button>}
+          {handoffAvailable&&<button type="button" className="thread-control-button" onClick={()=>void copyHandoff()}>复制续作引用</button>}
+        </div>}
+        {queueAvailable?<InstructionStatus active={active} interruptOnSend={interruptOnSend} onInterruptChange={selectedWork?.goalMode?undefined:setInterruptOnSend} stopping={!!selectedWork?.cancelRequested} waiting={currentAttempt?.phase==='waiting'} queue={selectedWork?.instructionQueue||[]} disabled={busy||!!pending||projection.connection!=='live'} canStop={canStop} onStop={()=>void cancel()} onWithdraw={instructionId=>{if(snapshot&&selectedWork)void dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'withdraw_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{instruction_id:instructionId}}).catch(()=>{})}}/>:null}
+      </>}
       isRunning={active} canCancel={canStop}
       cancelLabel={pending?.kind === 'cancel_work' ? '重试停止请求' : selectedWork?.cancelRequested ? '停止请求中' : '停止任务'}
       cancelDisabled={busy || projection.connection !== 'live' || (!!pending && pending.kind !== 'cancel_work') || (selectedWork?.cancelRequested === true && pending?.kind !== 'cancel_work')}

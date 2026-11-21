@@ -6,3 +6,4 @@
 .mission-status-body li + li { margin-top:8px; }
 .mission-status p { margin:4px 0; overflow-wrap:anywhere; white-space:pre-wrap; }
 .mission-status small { display:block; line-height:1.5; overflow-wrap:anywhere; }
+.mission-product-actions { display:flex; flex-wrap:wrap; gap:6px; margin-block:6px 10px; }
