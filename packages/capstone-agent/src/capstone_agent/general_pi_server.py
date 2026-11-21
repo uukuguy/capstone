@@ -2479,13 +2479,15 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= limits.control_document_bytes:
-                    return self.send_json(413, {'error': 'mission_tool_request_invalid'})
-                receipt = host.mission_request(task_id, json.loads(self.rfile.read(length)))
-                return self.send_json(200, receipt if receipt is not None else {'pending': True})
+                    status, body = 413, {'error': 'mission_tool_request_invalid'}
+                else:
+                    receipt = host.mission_request(task_id, json.loads(self.rfile.read(length)))
+                    status, body = 200, receipt if receipt is not None else {'pending': True}
             except (ValueError, KeyError, PermissionError, ValidationError):
-                return self.send_json(409, {'error': 'mission_tool_request_rejected'})
+                status, body = 409, {'error': 'mission_tool_request_rejected'}
             finally:
                 runner.relay.release(lease)
+            return self.send_json(status, body)
 
         def relay_domain_tools(self):
             parts = self.path.split('/')
