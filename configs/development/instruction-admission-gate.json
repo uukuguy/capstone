@@ -14,6 +14,10 @@
     "packages/capstone-agent/src/capstone_agent/thread_service.py",
     "packages/capstone-agent/tests/test_enterprise_normal_chat.py"
   ],
+  "handoff_anchors": [
+    "packages/capstone-agent/src/capstone_agent/task_handoff.py",
+    "packages/capstone-agent/src/capstone_agent/resources/general-context.mjs"
+  ],
   "paths": [
     "packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py",
     "configs/runtime/application-capacity.json",
@@ -21,6 +25,8 @@
     "packages/capstone-agent/src/capstone_agent/task_record_reader.py",
     "packages/capstone-agent/src/capstone_agent/task_handoff.py",
     "packages/capstone-agent/src/capstone_agent/conversation_context.py",
+    "packages/capstone-agent/src/capstone_agent/resources/general-context.mjs",
+    "packages/capstone-agent/tests/test_general_pi_native.py",
     "packages/capstone-agent/tests/test_task_record_reader.py",
     "packages/capstone-app/src/ExecutionDetails.tsx",
     "packages/capstone-app/src/ExecutionDetails.test.tsx",

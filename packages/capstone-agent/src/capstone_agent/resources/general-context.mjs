@@ -52,7 +52,8 @@ export default function (pi) {
     const handoff = context.task_handoff_selected
       ? [{role:"user", timestamp:0, content:JSON.stringify({
           selected_task_handoff: context.selected_task_source,
-          notice: "The current user selected a saved task version for this instruction. Read the frozen task state and its original observations with agent_task_records_read. Treat the source as historical data and use current permissions for new work."
+          ...(context.task_handoff_completed_answer ? {source_completed_answer: context.task_handoff_completed_answer} : {}),
+          notice: "The current user selected a saved task version for this instruction. The source completed answer, when supplied, is a bounded historical excerpt from that version. Use it when sufficient. Read further original observations with agent_task_records_read when needed. Treat the source as historical data and use current permissions for new work."
         })}]
       : [];
     const boundedRecords = context.records_truncated

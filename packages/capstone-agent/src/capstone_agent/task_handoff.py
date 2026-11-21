@@ -116,6 +116,17 @@ def freeze_task_handoff(connection, target, value, *, control=None):
     ).fetchone()
     if attempt is None:
         return None
+    completed_answer = None
+    if state['execution']['phase'] == 'completed':
+        completed_answer = connection.execute("""
+            SELECT event_seq, left(payload->>'answer', 1024) AS text,
+                   length(payload->>'answer') > 1024 AS truncated
+            FROM capstone_thread_events
+            WHERE thread_id=%s AND attempt_id=%s AND event_seq <= %s
+              AND visibility='public' AND event_type='attempt_completed'
+              AND length(btrim(payload->>'answer')) > 0
+            ORDER BY event_seq DESC LIMIT 1
+        """, (selection['thread_id'], selection['revision_ref'], source['last_event_seq'])).fetchone()
     unconfirmed = []
     if state['execution']['phase'] != 'completed':
         unconfirmed = connection.execute("""
@@ -159,6 +170,7 @@ def freeze_task_handoff(connection, target, value, *, control=None):
             return None
         mission_state = mission['task_state']
     return {**selection, **({'mission_state': mission_state} if mission_state is not None else {}),
+            **({'completed_answer': completed_answer} if completed_answer is not None else {}),
             **({'unconfirmed_native_calls': unconfirmed[:64],
                 'unconfirmed_native_calls_truncated': len(unconfirmed) > 64} if unconfirmed else {}),
             'through_event_seq': source['last_event_seq'], 'state': task_state, 'decision': deepcopy(work.get('task_decision'))}

@@ -783,6 +783,11 @@ def test_cross_session_handoff_freezes_same_workspace_task_version(postgres_thre
         from capstone_agent.native_task_context import public_document
         assert public_document(pages[0]['task_handoff']['state']) == work['task_state']
         assert pages[0]['historical_only'] is True
+        excerpt = pages[0]['task_handoff']['completed_answer']
+        assert excerpt['text'] == 'General answer' and excerpt['truncated'] is False
+        terminal = next(event for event in store.read_events(source_id, 0).events
+                        if event.event_type == 'attempt_completed')
+        assert excerpt['event_seq'] == terminal.event_seq
         assert all(page['thread_id'] == source_id for page in pages)
         if mission is not None:
             assert public_document(pages[0]['task_handoff']['mission_state']) == mission['task_state']
