@@ -16,6 +16,7 @@ export type SessionGoalPlan = {
   stepIndex: number
 }
 export type TaskHandoff = {thread_id:string;work_id:string;work_revision:number;revision_ref:string;mission_id?:string;mission_revision?:number}
+type InstructionTakeoverKind = 'reserve_instruction_takeover' | 'takeover_instruction' | 'continue_instruction_takeover'
 
 function parseTaskHandoff(value:unknown):TaskHandoff {
   const row = object(value)
@@ -75,11 +76,39 @@ export type WorkSnapshot = {
   professionalSnapshot?: ThreadSnapshot
   toDocument: () => Record<string, unknown>
 }
+type WorkInputPayload = {text:string;source_attempt_id?:string;task_handoff?:TaskHandoff} & Partial<InputSubmission>
+
 export type WorkCommand = {
   schema: 'capstone-command/2'; thread_id: string; run_id: string
-  command_id: string; idempotency_key: string; kind: 'queue_instruction' | 'withdraw_instruction' | 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'record_task_decision' | 'open_model' | 'activate_model' | 'close_model' | GoalControl
+  command_id: string; idempotency_key: string; kind: 'queue_instruction' | 'withdraw_instruction' | 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'record_task_decision' | 'open_model' | 'activate_model' | 'close_model' | GoalControl | InstructionTakeoverKind
   target: { kind: 'work' | 'model_workspace'; id: string; expected_revision: number }
-  payload: ({ text: string; source_attempt_id?: string; task_handoff?: TaskHandoff } & Partial<InputSubmission>) | Record<string, string|number>
+  payload: WorkInputPayload | Record<string, string|number> | ({source:TaskHandoff} & Partial<WorkInputPayload>)
+}
+
+export function buildInstructionTakeoverCommand(threadId:string,runId:string,commandId:string,idempotencyKey:string,
+  kind:InstructionTakeoverKind,selection:unknown,text?:unknown):WorkCommand {
+  const source=parseTaskHandoff(selection)
+  if(source.thread_id===threadId||source.mission_id!==undefined)throw new ThreadProtocolError('接管来源无效')
+  if(kind==='reserve_instruction_takeover' ? text!==undefined :
+     typeof text!=='string'||!text.trim()||exceedsCapacity(text.length,'input_text_chars')){
+    throw new ThreadProtocolError('接管指令无效')
+  }
+  return {schema:'capstone-command/2',thread_id:id(threadId),run_id:id(runId),
+    command_id:id(commandId),idempotency_key:id(idempotencyKey),kind,
+    target:{kind:'work',id:'new',expected_revision:0},
+    payload:typeof text==='string'?{source,text}:{source}}
+}
+
+export function parseInstructionTakeover(value:unknown){
+  const body=object(value)
+  if(body.takeover===null)return null
+  const state=object(body.takeover)
+  const phase=state.phase
+  if(typeof phase!=='string'||!['accepted','running','waiting','committing','completed','failed','cancelled','interrupted'].includes(phase)
+     ||(state.answer!==null&&(typeof state.answer!=='string'||state.answer.length>8192))
+     ||typeof state.answer_truncated!=='boolean')throw new ThreadProtocolError('接管状态无效')
+  return {source:parseTaskHandoff(state.source),turnId:id(state.turn_id),phase:phase as AttemptPhase,
+    answer:state.answer,answerTruncated:state.answer_truncated}
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ThreadProtocolError('工作记录无效')
@@ -258,6 +287,14 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
     return buildModelWorkspaceCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),revision(target.expected_revision),command.kind as 'open_model'|'activate_model'|'close_model',payload)
   }
   if (target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
+  if(command.kind==='reserve_instruction_takeover'||command.kind==='takeover_instruction'||command.kind==='continue_instruction_takeover'){
+    if(target.id!=='new'||target.expected_revision!==0||
+      Object.keys(payload).length!==(command.kind==='reserve_instruction_takeover'?1:2)){
+      throw new ThreadProtocolError('接管命令身份无效')
+    }
+    return buildInstructionTakeoverCommand(threadId,id(command.run_id),id(command.command_id),
+      id(command.idempotency_key),command.kind,payload.source,payload.text)
+  }
   if (command.kind === 'record_task_decision' && Object.keys(payload).length === 2) {
     return buildTaskDecisionCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key),
       id(target.id), revision(target.expected_revision, 1), id(payload.revision_ref), parseTaskDecision(payload.decision))
