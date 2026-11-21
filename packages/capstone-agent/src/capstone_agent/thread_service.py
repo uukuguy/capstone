@@ -2031,6 +2031,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                             stored_submission['_application_catalog'] = catalog
                 from .mission_origin import bind_submission
                 stored_submission = bind_submission(updated, work['work_id'], stored_submission, instruction=instruction)
+                if parsed['kind'] == 'send_message':
+                    stored_submission = {**(stored_submission or {}), '_instruction_command_id': parsed['command_id']}
                 self._attempts[attempt.attempt_id] = {
                     'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
                     'lease_token': None, 'lease_deadline': None, 'model_context': updated.active_model_context,
@@ -3714,6 +3716,8 @@ class PostgresThreadService(NativeExecutionOwner):
                             submission['_application_catalog'] = source['catalog']
                 from .mission_origin import bind_submission
                 submission = bind_submission(updated, work['work_id'], submission, instruction=instruction)
+                if parsed['kind'] == 'send_message':
+                    submission = {**(submission or {}), '_instruction_command_id': parsed['command_id']}
                 connection.execute("""INSERT INTO capstone_thread_attempts
                     (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
                      selection_revision,model_context_snapshot,conversation_context_snapshot,

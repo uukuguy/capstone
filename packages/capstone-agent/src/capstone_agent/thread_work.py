@@ -122,6 +122,9 @@ def settle_task_state(snapshot, work_payload, task_context, attempt, phase, subm
         'acceptance': 'undecided',
         'open_items': [] if phase == 'completed' else [{'kind': 'execution_incomplete', 'reason': phase}],
     }
+    instruction_command = (submission or {}).get('_instruction_command_id')
+    if instruction_command is not None:
+        state['instruction_command_id'] = instruction_command
     handoff = (submission or {}).get('_task_handoff')
     if handoff is not None:
         from .task_handoff import MISSION_FIELDS, SELECTION_FIELDS, parse_task_handoff
@@ -722,13 +725,16 @@ def parse_snapshot(document):
             from .thread_protocol import _identifier
             state = work['task_state']
             if (not isinstance(state, dict)
-                    or set(state) - {'business_report', 'business_report_source', 'handoff', 'workflow'} != {
+                    or set(state) - {'business_report', 'business_report_source', 'handoff', 'workflow',
+                                     'instruction_command_id'} != {
                         'schema', 'task', 'revision_ref', 'previous_revision_ref',
                         'execution', 'acceptance', 'open_items'}
                     or state['schema'] != 'capstone-task-state/1'
                     or state['task'] != {'thread_id': snapshot.thread_id, 'work_id': work['work_id']}
                     or state['acceptance'] != 'undecided'):
                 raise ThreadProtocolError('invalid task state')
+            if 'instruction_command_id' in state:
+                _identifier(state['instruction_command_id'], name='task_state.instruction_command_id')
             if 'handoff' in state:
                 from .task_handoff import parse_task_handoff
                 parse_task_handoff(state['handoff'])

@@ -65,13 +65,14 @@ def test_send_message_runs_and_followup_uses_same_work_history(chat_store, tmp_p
     assert 'execution_checkpoint' not in work
     state = work['task_state']
     assert state['execution']['phase'] == 'completed'
+    assert state['instruction_command_id'] == first['command_id']
     assert state['acceptance'] == 'undecided'
     if isinstance(store, PostgresThreadService):
         store = PostgresThreadService(store.dsn)
         store.set_native_executor(executor)
         assert store.snapshot(thread_id).works[0]['task_state'] == state
     second = command(store, thread_id, 'send_message', 'second', work_id=work['work_id'],
-                     revision=work['revision'], payload={'text': 'Explain that answer'})
+                     revision=work['revision'], payload={'text': 'Explain that answer using only our earlier discussion'})
     assert store.submit_command(second).status == 'accepted'
     assert store.snapshot(thread_id).works[0]['task_context']['task_state_ref'] == state['revision_ref']
     result = run_pending_attempt(store, factory, worker_id='native-test', implementation_family='native')
@@ -83,6 +84,7 @@ def test_send_message_runs_and_followup_uses_same_work_history(chat_store, tmp_p
     completed = [event for event in store.read_events(thread_id, 0).events if event.event_type == 'attempt_completed']
     assert len(completed) == 2
     assert completed[0].payload['work']['task_state'] == state
+    assert completed[1].payload['work']['task_state']['instruction_command_id'] == second['command_id']
     assert completed[1].payload['work']['task_state']['previous_revision_ref'] == state['revision_ref']
     assert all(not event.payload.get('result_refs') and not event.payload.get('evidence_refs') for event in completed)
     research = [event for event in store.read_events(thread_id, 0).events if event.event_type == 'research_state_updated']
