@@ -592,6 +592,12 @@ def create_host_app(
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
+        @app.get("/api/v1/threads/{thread_id}/instruction-takeover")
+        def get_instruction_takeover(thread_id: str, request: Request):
+            require_private_thread(request)
+            read_takeover = getattr(thread_service, 'instruction_takeover', None)
+            return {'takeover': None if read_takeover is None else read_takeover(thread_id)}
+
         @app.get("/api/v1/threads/{thread_id}/catalog")
         def get_thread_catalog(thread_id: str, request: Request):
             require_private_thread(request)

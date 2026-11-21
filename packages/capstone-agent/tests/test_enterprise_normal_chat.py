@@ -861,6 +861,16 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         assert len(pending) == 1 and pending[0]['text'] == 'Use the updated constraint'
         assert claim.attempt.attempt_id == selector['revision_ref']
         assert store.snapshot(target_id).current_attempt is None
+        view = reopened.instruction_takeover(target_id)
+        assert view['source']['revision_ref'] == claim.attempt.attempt_id
+        assert view['phase'] == 'running'
+        assert reopened.instruction_takeover(rival_id) is None
+        store.finish_attempt(claim, phase='completed', payload={'answer': 'Continuation result'})
+        settled = reopened.instruction_takeover(target_id)
+        assert settled['phase'] == 'completed'
+        assert settled['answer'] == 'Continuation result'
+        assert settled['source']['work_revision'] > selector['work_revision']
+
     finally:
         with store._connect() as connection:
             connection.execute('DELETE FROM capstone_threads WHERE thread_id = ANY(%s)', ([target_id, rival_id],))

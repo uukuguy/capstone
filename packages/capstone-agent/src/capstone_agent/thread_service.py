@@ -3979,6 +3979,43 @@ class PostgresThreadService(NativeExecutionOwner):
             raise ThreadNotFound(thread_id)
         return self._snapshot_from_row(row)
 
+    def instruction_takeover(self, thread_id: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute("""
+                SELECT source.thread_id, attempt.attempt_id, attempt.turn_id, attempt.phase,
+                    attempt.task_context_snapshot->'binding'->>'work_id' AS work_id,
+                    COALESCE(terminal.payload->'work'->>'revision', item.work->>'revision') AS work_revision,
+                    left(terminal.payload->>'answer', 4096) AS answer,
+                    length(terminal.payload->>'answer') > 4096 AS answer_truncated
+                FROM capstone_threads destination
+                JOIN LATERAL (
+                    SELECT payload FROM capstone_thread_events
+                    WHERE thread_id=destination.thread_id AND event_type='instruction_takeover_reserved'
+                    ORDER BY event_seq DESC LIMIT 1
+                ) reservation ON true
+                JOIN capstone_thread_attempts attempt
+                  ON attempt.attempt_id=reservation.payload->'source'->>'revision_ref'
+                  AND attempt.takeover_target_thread_id=destination.thread_id
+                JOIN capstone_threads source ON source.thread_id=attempt.thread_id
+                  AND source.workspace_name=destination.workspace_name
+                JOIN LATERAL jsonb_array_elements(source.works) AS item(work)
+                  ON item.work->>'work_id'=attempt.task_context_snapshot->'binding'->>'work_id'
+                LEFT JOIN LATERAL (
+                    SELECT payload FROM capstone_thread_events
+                    WHERE thread_id=source.thread_id AND attempt_id=attempt.attempt_id AND visibility='public'
+                      AND event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled',
+                                         'attempt_interrupted', 'attempt_delivery_recovered')
+                    ORDER BY event_seq DESC LIMIT 1
+                ) terminal ON true
+                WHERE destination.thread_id=%s
+            """, (thread_id,)).fetchone()
+        if row is None:
+            return None
+        return {'source': {'thread_id': row['thread_id'], 'work_id': row['work_id'],
+                           'work_revision': int(row['work_revision']), 'revision_ref': row['attempt_id']},
+                'turn_id': row['turn_id'], 'phase': row['phase'],
+                'answer': row['answer'], 'answer_truncated': bool(row['answer_truncated'])}
+
     def catalog(self, thread_id: str) -> dict[str, object]:
         self.snapshot(thread_id)
         return _thread_catalog_document(self._model_catalog, self._capability_catalog, _resolve_available_families(self._available_families))

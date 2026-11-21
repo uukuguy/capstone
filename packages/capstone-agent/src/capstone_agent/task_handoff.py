@@ -52,11 +52,16 @@ def reserve_instruction_takeover(connection, workspace, target_thread_id, value)
     if selection['thread_id'] == target_thread_id:
         return False
     target = connection.execute("""
-        SELECT 1 FROM capstone_threads
+        SELECT 1 FROM capstone_threads destination
         WHERE thread_id=%s AND workspace_name=%s AND run_state='open'
           AND NOT archived AND current_attempt IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM capstone_thread_attempts active
+              WHERE active.takeover_target_thread_id=destination.thread_id
+                AND active.attempt_id<>%s AND active.phase IN ('accepted', 'running', 'waiting', 'committing')
+          )
         FOR UPDATE SKIP LOCKED
-    """, (target_thread_id, workspace)).fetchone()
+    """, (target_thread_id, workspace, selection['revision_ref'])).fetchone()
     if target is None:
         return False
     source = lock_takeover_source(connection, workspace, selection)
