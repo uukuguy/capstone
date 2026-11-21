@@ -307,6 +307,8 @@ class ControlService:
         failure = None
         if set(task.get('required_reference_sources', ())) - content.keys():
             failure = 'required_reference_receipt_missing'
+        elif '_mission' in goal and content.get('outcome') == 'partial':
+            failure = 'child_goal_partial_delivery'
         elif '_mission' in goal:
             names = {product.get('file_name') for product in content['products'] if isinstance(product, dict)}
             if set(task.get('required_products', ())) - names:

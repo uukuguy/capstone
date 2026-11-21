@@ -37,11 +37,13 @@ def validate_delivery(value, binding):
     fields = {'answer_ref', 'products', 'status'}
     source_fields = {'authority_source', 'gateway_source'}
     if isinstance(value, dict):
-        fields.update(source_fields.intersection(value))
+        fields.update((source_fields | {'outcome'}).intersection(value))
     object_fields(value, fields)
     identity(value['answer_ref'])
     if value['status'] != 'completed' or not isinstance(value['products'], list):
         raise ContractError('completed persisted delivery required')
+    if 'outcome' in value and value['outcome'] != 'partial':
+        raise ContractError('unsupported delivery outcome')
     for field in source_fields.intersection(value):
         source = authority_source(value[field])
         if (binding is None or any(source[key] != binding[key] for key in ('thread_id', 'work_id'))

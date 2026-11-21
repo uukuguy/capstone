@@ -312,6 +312,8 @@ class AgentDelegations:
             if delegation['mode'] == 'goal':
                 artifacts = goal_delivery_products(self.threads, binding, work, artifacts)
             delivery = {'answer_ref': terminal, 'products': artifacts, 'status': 'completed'}
+            if work.get('goal_mode', {}).get('reason') == 'partial_delivery':
+                delivery['outcome'] = 'partial'
             if not recovered and authoritative and (delegation['schema'] == 'capstone-agent-delegation/2'
                                   or 'authority_source' in delegation.get('required_reference_sources', ())):
                 delivery['authority_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}

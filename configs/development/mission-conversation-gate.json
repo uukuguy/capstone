@@ -81,6 +81,7 @@
     "packages/capstone-app/src/threadWorkProtocol.ts",
     "packages/capstone-control/src/capstone_control/mission.py",
     "packages/capstone-control/src/capstone_control/service.py",
+    "packages/capstone-control/src/capstone_control/contracts.py",
     "packages/capstone-control/src/capstone_control/store.py",
     "packages/capstone-control/tests/test_missions.py",
     "packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs",

@@ -342,3 +342,21 @@ def test_missing_required_file_is_a_saved_failure_and_queues_review():
     assert saved['state'] == 'failed'
     assert saved['failure_reason'] == 'required_product_missing'
     assert saved['delivery']['answer_ref'] == 'saved_answer'
+
+
+
+def test_partial_child_goal_keeps_saved_results_without_certifying_the_task():
+    control = service()
+    mission = create(control, acceptance_criteria=['Verify the child result'])
+    child = {**task(), 'mode': 'goal', 'max_attempts': 4}
+    mission = command(control, mission, 'prepare_task', {'task': child}, 'prepare')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    control.deliver('team', mission['mission_id'], delegation,
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed', 'outcome': 'partial'})
+    task_result = control.pending_mission_reviews('team')[0]['boundary']['tasks'][0]
+    assert task_result['state'] == 'failed'
+    assert task_result['failure_reason'] == 'child_goal_partial_delivery'
+    assert task_result['delivery']['answer_ref'] == 'saved_answer'
