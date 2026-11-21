@@ -664,3 +664,20 @@ def test_mission_reconciles_child_delivery_after_observing_worker_exit(postgres_
         assert reconcile(host.service, host.agent, workspace=workspace, goal_id=mission_id)['processed'] == 0
     finally:
         service.delete_thread(binding['thread_id'])
+
+
+def test_settled_organizer_review_cannot_pause_itself(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    current = host.read_mission(workspace, mission['mission_id'], claim=claim)
+    with pytest.raises(ValueError, match='settled task'):
+        host.mission_operation(claim, 'agent_mission_control',
+            {'expected_revision': current['revision'], 'action': 'pause'}, operation_id='self_pause')
+    assert host.read_mission(workspace, mission['mission_id'])['revision'] == current['revision']
+    stopped = host.command_mission(workspace, {
+        'schema': 'capstone-control-mission-command/1', 'operation_id': 'explicit_pause',
+        'mission_id': mission['mission_id'], 'expected_revision': current['revision'],
+        'kind': 'pause', 'payload': {}})
+    assert stopped['mission']['state'] == 'paused'

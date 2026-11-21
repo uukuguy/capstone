@@ -110,6 +110,11 @@ class ControlHost:
         if name == 'agent_mission_control':
             if set(arguments) != {'expected_revision', 'action'} or arguments['action'] not in {'pause', 'resume', 'cancel'}:
                 raise ValueError('unsupported Mission control')
+            if (arguments['action'] == 'pause' and (claim.submission or {}).get('_mission_review')
+                    and not any(task['state'] in {'dispatching', 'running', 'waiting',
+                                                 'resume_requested', 'revoke_requested'}
+                                for task in mission['tasks'])):
+                raise InvalidTransition('A settled task does not require pause. Replace failed work with a new task, continue ready work, or conclude with saved results.')
             return self.command_mission(workspace, {
                 'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
                 'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
