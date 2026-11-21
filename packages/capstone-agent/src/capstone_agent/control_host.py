@@ -136,6 +136,9 @@ class ControlHost:
         if name not in kinds or 'expected_revision' not in arguments:
             raise ValueError('unsupported Mission operation')
         payload = {key: value for key, value in arguments.items() if key != 'expected_revision'}
+        if (name == 'agent_mission_update_plan' and (claim.submission or {}).get('_mission_review')
+                and payload.get('acceptance_criteria') != mission['acceptance_criteria']):
+            raise InvalidTransition('Autonomous review must preserve the current acceptance criteria. Report unmet criteria in a partial delivery.')
         return self.command_mission(workspace, {
             'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
             'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],

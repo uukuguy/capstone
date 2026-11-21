@@ -681,3 +681,18 @@ def test_settled_organizer_review_cannot_pause_itself(review_store):
         'mission_id': mission['mission_id'], 'expected_revision': current['revision'],
         'kind': 'pause', 'payload': {}})
     assert stopped['mission']['state'] == 'paused'
+
+
+def test_autonomous_mission_review_cannot_replace_acceptance_criteria(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    current = host.read_mission(workspace, mission['mission_id'], claim=claim)
+    assert current['acceptance_criteria']
+    with pytest.raises(ValueError, match='preserve the current acceptance criteria'):
+        host.mission_operation(claim, 'agent_mission_update_plan', {
+            'expected_revision': current['revision'], 'tasks': [],
+            'acceptance_criteria': ['Accept a different result'],
+        }, operation_id='replace_criteria')
+    assert host.read_mission(workspace, mission['mission_id'], claim=claim) == current

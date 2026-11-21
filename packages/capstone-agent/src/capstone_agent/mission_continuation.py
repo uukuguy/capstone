@@ -53,6 +53,7 @@ def review_instruction(intent):
     return ('Review the admitted Mission boundary with the registered Mission tools. '
             'Continue any executable independent tasks, or conclude with saved results and any gaps. '
             'For a settled failed task, update the plan by removing it and proposing a new task ID if repair is possible. '
+            'Preserve the current acceptance criteria exactly. If an explicit requirement cannot be met, report it in a partial conclusion. '
             'Do not pause a settled plan to replan. '
             'This is an application continuation, not a new user message.\n' +
             json.dumps(source, ensure_ascii=False, sort_keys=True))
