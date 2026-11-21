@@ -1,5 +1,5 @@
 import InstructionContextPanel, {contextIndicator} from './InstructionContextPanel'
-import {projectInstructionContexts} from './instructionContext'
+import {contextToolExcerpt,projectInstructionContexts} from './instructionContext'
 import GoalControls from './GoalControls'
 import MissionStatus, {useMissionProgress} from './MissionStatus'
 import {missionObjectiveFromInput,type MissionCreate} from './missions'
@@ -182,6 +182,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const historicalDiagrams=useRef(new Map<string,NonNullable<ReturnType<typeof parseNetworkView>>>())
   const [taskDiagramLoad,setTaskDiagramLoad]=useState<'loading'|'unavailable'>()
   const [linkedContext,setLinkedContext]=useState<{attemptId:string;label:string}>()
+  const [requestedContext,setRequestedContext]=useState<{id:string;nonce:number}>()
   const [contextAttempt,setContextAttempt]=useSessionViewState<string|undefined>('context.attempt',undefined)
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
@@ -810,7 +811,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const contexts=projectInstructionContexts(sessionEvents)
   const latestContext=contexts.filter(row=>row.kind==='main').at(-1)
   const contextAttempts=new Set(contexts.map(row=>row.attemptId))
-  function openContext(attempt?:string) {
+  function openContext(attempt?:string,id?:string) {
+    setRequestedContext(id?{id,nonce:Date.now()}:undefined)
     setContextAttempt(attempt)
     selectResourceView('instruction-context')
   }
@@ -973,7 +975,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     if(typeof workId==='string'&&workId!==selected&&snapshot?.works.some(work=>work.workId===workId))selectWork(workId)
     void locateInstruction(origin,true)
   }
-  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onScope={openContext} onSelection={setLinkedContext}/> : undefined
+  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
   const contextViews=contextPanel?[{id:'instruction-context',label:'上下文',content:contextPanel,description:'按指令追踪模型请求、输入构成和压缩。'}]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
@@ -1041,6 +1043,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {restoredKey === key && (snapshot || professional || currentId === 'new') && <CapstoneAssistantThread inlineExecution={nativeChat} nativeArtifactProjections={indexedArtifacts} resultHistoryNotice={resultProjectionHistoryText(professional)} key={liveConversation?`${key}.conversation`:`${key}.${selected}`} events={conversation.events}
       productReferenceReader={(ref,signal)=>client.resolveProduct(ref,signal)} requestedProductReference={requestedReference?.selection.ref.thread_id===currentId?requestedReference:undefined}
       onOpenInstructionContext={openContext} contextAttempts={contextAttempts}
+      resolveRequestContext={(attempt,dispatch)=>contexts.find(row=>row.attemptId===attempt&&row.dispatchId===dispatch)?.id}
       linkedContextAttempt={productsOpen&&resourceView==='instruction-context'?linkedContext?.attemptId:undefined}
       linkedContextOrigin={productsOpen&&resourceView==='instruction-context'&&linkedContext?contextOrigin(linkedContext.attemptId):undefined}
       linkedContextLabel={linkedContext?.label}

@@ -6,11 +6,12 @@ export const contextCategories = {
   system:'系统提示', tools:'工具定义', messages:'会话消息', tool_results:'工具返回',
 } as const
 export type Category = keyof typeof contextCategories
-type ContextItem={kind:string;index:number;tokens:number;name?:string}
+type ContextItem={kind:string;index:number;tokens:number;name?:string;sourceId?:string}
 type ContextItems={total:number;items:ContextItem[]}
 type Usage = Partial<Record<'input'|'output'|'cacheRead'|'cacheWrite', number>>
 export type ContextObservation = {
   id:string
+  dispatchId?:string
   instructionId:string
   attemptId:string
   sequence:number
@@ -53,7 +54,8 @@ function contextItems(value:unknown):ContextObservation['items'] {
         ||!count(item.tokens)||seen.has(item.index))return []
       seen.add(item.index)
       const name=(key==='tools'||key==='tool_results')&&typeof item.name==='string'&&/^[A-Za-z0-9_.:-]{1,100}$/.test(item.name)?item.name:undefined
-      return [{kind:item.kind,index:item.index,tokens:item.tokens,name}]
+      const sourceId=key==='tool_results'&&typeof item.source_id==='string'&&/^[A-Za-z0-9_.:-]{1,128}$/.test(item.source_id)?item.source_id:undefined
+      return [{kind:item.kind,index:item.index,tokens:item.tokens,name,sourceId}]
     })
     result[key]={total,items}
   }
@@ -87,6 +89,8 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
       if(typeof raw.request_id!=='string'||!/^ctx-[1-9][0-9]{0,8}$/.test(raw.request_id)
         ||(raw.kind!=='main'&&raw.kind!=='analysis'&&raw.kind!=='summary')||typeof raw.state!=='string')continue
       const prior=observed.get(raw.request_id)
+      const dispatchId=typeof raw.dispatch_id==='string'&&/^request-[1-9][0-9]{0,8}$/.test(raw.dispatch_id)?raw.dispatch_id:undefined
+      if(prior&&dispatchId&&prior.dispatchId&&dispatchId!==prior.dispatchId)continue
       if(prior&&(prior.kind!==raw.kind||prior.state!=='started'||!['completed','failed'].includes(raw.state)))continue
       if(!prior&&raw.state!=='started')continue
       const usage=numericFields(raw.usage,['input','output','cacheRead','cacheWrite'] as const)
@@ -94,7 +98,7 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
       const estimate=Object.keys(categories).length ? Object.values(categories).reduce((total,value)=>total+value,0) : undefined
       const measured=raw.state==='completed'?inputUsage(usage):undefined
       observed.set(raw.request_id,{
-        id:attemptId+':'+raw.request_id,instructionId,attemptId,sequence:prior?.sequence??event.eventSeq,
+        id:attemptId+':'+raw.request_id,dispatchId:dispatchId??prior?.dispatchId,instructionId,attemptId,sequence:prior?.sequence??event.eventSeq,
         kind:raw.kind,state:raw.state,windowTokens:count(raw.window_tokens)&&raw.window_tokens>0?raw.window_tokens:prior?.windowTokens,
         categories,items:contextItems(raw.input_items),usage,inputTokens:measured??estimate,basis:measured!==undefined?'provider':estimate!==undefined?'estimate':undefined,
       })
@@ -128,4 +132,18 @@ export function contextTokenLabel(value:number) {
 
 export function contextPercent(row:ContextObservation) {
   return row.inputTokens===undefined||row.windowTokens===undefined ? undefined : Math.round(row.inputTokens/row.windowTokens*100)
+}
+
+/** Resolve only a public, unambiguous observation already admitted to this conversation. */
+export function contextToolExcerpt(events:readonly EventEnvelope[],sourceId:string,attemptId:string):string|undefined {
+  const matches=events.filter(event=>event.visibility==='public'&&event.eventType==='runtime_event'
+    &&event.payload.native_type==='tool_execution_end'&&event.payload.tool_call_id===sourceId)
+  const owned=matches.filter(event=>event.attemptId===attemptId)
+  const candidates=owned.length?owned:matches
+  if(candidates.length!==1)return undefined
+  const excerpt=object(candidates[0].payload.activity).output_excerpt
+  if(typeof excerpt!=='string'||!excerpt.trim())return undefined
+  if(/(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(excerpt))
+    return '输出包含受保护配置或凭据信息，已隐藏。'
+  return excerpt.slice(0,601)
 }

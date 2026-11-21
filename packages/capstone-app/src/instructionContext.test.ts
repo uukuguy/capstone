@@ -1,12 +1,12 @@
 import {expect,it} from 'vitest'
 import type {EventEnvelope} from './threadProtocol'
-import {projectInstructionContexts} from './instructionContext'
+import {contextToolExcerpt,projectInstructionContexts} from './instructionContext'
 
 it('keeps explicit requests and compaction with the right retry and omits private observations',()=>{
   const event=(eventSeq:number,attemptId:string,turnId:string,payload:Record<string,unknown>,visibility='public')=>({
     eventSeq,eventId:'evt_'+eventSeq,attemptId,turnId,visibility,eventType:'runtime_event',payload,
   }) as EventEnvelope
-  const start={request_id:'ctx-1',kind:'main',state:'started',window_tokens:10000,estimated_input:{system:1000,tools:200}}
+  const start={request_id:'ctx-1',dispatch_id:'request-71',kind:'main',state:'started',window_tokens:10000,estimated_input:{system:1000,tools:200}}
   const events=[
     event(2,'one','turn-a',{model_context_usage:start}),
     event(3,'one','turn-a',{model_context_usage:{...start,state:'completed',usage:{input:100,cacheRead:1000,cacheWrite:100,output:35}}}),
@@ -22,4 +22,16 @@ it('keeps explicit requests and compaction with the right retry and omits privat
   ])
   expect(rows[2].basis).toBe('estimate')
   expect(rows).toHaveLength(4)
+  expect(rows[0].dispatchId).toBe('request-71')
+})
+
+it('reads an exact saved tool excerpt, without exposing private or ambiguous events',()=>{
+  const item={eventId:'evt_tool',eventSeq:1,eventVersion:1,threadId:'thread-a',runId:'run-a',turnId:'turn-a',occurredAt:'2026-11-22T00:00:00Z',eventType:'runtime_event',attemptId:'attempt-a',visibility:'public',payload:{
+    native_type:'tool_execution_end',tool_call_id:'call_1',activity:{output_excerpt:'Saved file contents'},
+  }} satisfies EventEnvelope
+  expect(contextToolExcerpt([item],'call_1','attempt-a')).toBe('Saved file contents')
+  expect(contextToolExcerpt([{...item,payload:{...item.payload,activity:{output_excerpt:'api_key: example'}}}],'call_1','attempt-a'))
+    .toBe('输出包含受保护配置或凭据信息，已隐藏。')
+  expect(contextToolExcerpt([{...item,visibility:'diagnostic'}],'call_1','attempt-a')).toBeUndefined()
+  expect(contextToolExcerpt([item,{...item,attemptId:'attempt-b'}],'call_1','other')).toBeUndefined()
 })

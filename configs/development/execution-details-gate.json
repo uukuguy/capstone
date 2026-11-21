@@ -48,6 +48,9 @@
     "packages/capstone-agent/tests/test_native_resources.py",
     "docs/superpowers/plans/2026-11-22-instruction-context-inspector.md",
     "packages/capstone-agent/src/capstone_agent/general_pi_executor.py",
-    "packages/capstone-agent/tests/test_general_pi_executor.py"
+    "packages/capstone-agent/tests/test_general_pi_executor.py",
+    "packages/capstone-agent/src/capstone_agent/resources/model-request-pool.mjs",
+    "packages/capstone-app/src/ProcessCallTrace.tsx",
+    "packages/capstone-app/src/RequestPoolQueue.tsx"
   ]
 }
