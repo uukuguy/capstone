@@ -210,6 +210,10 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
                 proposal = parse_goal_proposal(response)
             except ValueError as error:
                 raise GoalReviewValidationError("goal_review_schema_invalid", str(error)) from error
+            if next_instruction is not None and proposal["disposition"] == "complete":
+                # A review cannot conclude while an admitted step is still pending.
+                proposal.update(disposition="continue", next_instruction=next_instruction)
+                proposal.pop("criteria", None)
             if (proposal["disposition"] == "continue"
                     and not set(proposal["product_refs"]) <= {*delivery.get("product_refs", ()), *prior_products}):
                 raise GoalReviewValidationError("goal_review_reference_unavailable",
@@ -313,8 +317,11 @@ def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective:
     elif disposition in {"complete", "partial"}:
         criteria = sorted(progress.get("criteria", []), key=lambda item: item["index"])
         expected = list(range(len(plan["plan"]["criteria"])))
-        if (disposition == "complete" and step_index + 1 != len(steps)) or [item["index"] for item in criteria] != expected:
-            raise GoalReviewValidationError("goal_review_criteria_incomplete", "Goal review must verify every criterion after the last step")
+        if disposition == "complete" and step_index + 1 != len(steps):
+            raise GoalReviewValidationError("goal_review_step_pending", "Complete only after the last admitted step")
+        if [item["index"] for item in criteria] != expected:
+            raise GoalReviewValidationError("goal_review_criteria_incomplete",
+                                            f"Verify every criterion with the exact indices {expected}.")
         for item in criteria:
             if (not set(item["refs"]) <= available or item["verdict"] == "met" and not item["refs"]
                     or disposition == "complete" and item["verdict"] != "met"):
