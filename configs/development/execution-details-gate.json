@@ -51,6 +51,7 @@
     "packages/capstone-agent/tests/test_general_pi_executor.py",
     "packages/capstone-agent/src/capstone_agent/resources/model-request-pool.mjs",
     "packages/capstone-app/src/ProcessCallTrace.tsx",
+    "packages/capstone-app/src/ProcessCallTrace.test.tsx",
     "packages/capstone-app/src/RequestPoolQueue.tsx"
   ]
 }
