@@ -138,6 +138,22 @@ def test_plan_request_preserves_required_verification_when_partial_delivery_is_a
     assert session_goal_plan.request_initial_plan(objective) == proposal()
 
 
+def test_initial_plan_keeps_literal_checks_and_explicit_numeric_limits(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    objective = 'Write the exact supplied text and one newline. Use at most two local files.'
+
+    def planner(system, content):
+        assert content == objective
+        assert 'Preserve numeric requirements explicitly stated by the user' in system
+        assert 'Compare exact literals directly' in system
+        assert 'do not add derived lengths or counts' in system
+        return proposal()
+
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model', planner)
+    assert session_goal_plan.request_initial_plan(objective) == proposal()
+
+
 def test_initial_plan_repairs_invalid_criteria_without_user_input(monkeypatch):
     from capstone_agent import session_goal_plan
 
