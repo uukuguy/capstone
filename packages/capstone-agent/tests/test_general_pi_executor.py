@@ -32,6 +32,20 @@ print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','stopReason
     assert any(event['type'] == 'general_pi_instruction_consumed' for event in events)
 
 
+def test_process_forwards_context_observation_without_changing_answer(tmp_path):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    script = tmp_path / 'context.py'
+    script.write_text("""import sys,json
+json.loads(sys.stdin.readline())
+print(json.dumps({'type':'model_context_usage','request_id':'ctx-1','kind':'main','state':'started'}),flush=True)
+print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','stopReason':'stop','content':[{'type':'text','text':'Done'}]}]}),flush=True)
+""")
+    events = []
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    assert process.run('Work', timeout=5, cancelled=lambda: False, on_event=events.append) == 'Done'
+    assert [event['request_id'] for event in events if event['type'] == 'model_context_usage'] == ['ctx-1']
+
+
 @pytest.fixture(autouse=True)
 def single_child_cleanup(monkeypatch):
     # This module's RPC fixtures create one child and no descendants. The macOS test
