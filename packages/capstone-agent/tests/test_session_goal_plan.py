@@ -140,3 +140,20 @@ def test_review_request_marks_the_next_saved_step_separately_from_final_criteria
     result = session_goal_plan.request_step_review(
         {'objective': 'Build a benchmark.'}, {'plan': proposal()}, {'product_refs': ['source.md']})
     assert result['disposition'] == 'continue'
+
+
+def test_partial_goal_review_records_unmet_criteria_and_explanation():
+    from capstone_agent.goal_receipts import parse_goal_proposal
+    from capstone_agent.session_goal_plan import qualify_planned_review
+
+    bound = {'plan': proposal(), 'step_index': 0, 'review_refs': ['source.md']}
+    value = parse_goal_proposal({'schema': 'capstone-work-goal-proposal/1', 'disposition': 'partial',
+        'summary': 'The authority did not publish the missing record.', 'next_instruction': None,
+        'waiting_reason': None, 'product_refs': ['source.md'],
+        'criteria': [{'index': 0, 'verdict': 'unmet', 'refs': []}]})
+    reviewed = qualify_planned_review(bound, value, ())
+    assert reviewed['criteria'] == value['criteria']
+    assert reviewed['closure_summary'] == value['summary']
+    value['criteria'][0]['refs'] = ['unadmitted.md']
+    with pytest.raises(ValueError, match='saved references'):
+        qualify_planned_review(bound, value, ())

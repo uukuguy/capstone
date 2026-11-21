@@ -94,7 +94,7 @@ def parse_goal_proposal(value: object) -> dict:
     if value['schema'] != 'capstone-work-goal-proposal/1':
         raise ValueError('unsupported goal proposal schema')
     disposition = value['disposition']
-    if not isinstance(disposition, str) or disposition not in {'continue', 'wait', 'complete'}:
+    if not isinstance(disposition, str) or disposition not in {'continue', 'wait', 'complete', 'partial'}:
         raise ValueError('invalid goal disposition')
     for name in ('summary', 'next_instruction', 'waiting_reason'):
         text = value[name]
@@ -116,7 +116,7 @@ def parse_goal_proposal(value: object) -> dict:
         raise ValueError('invalid Goal plan revision')
     if 'criteria' in value:
         criteria = value['criteria']
-        if (disposition != 'complete' or not isinstance(criteria, list) or not 1 <= len(criteria) <= 32):
+        if (disposition not in {'complete', 'partial'} or not isinstance(criteria, list) or not 1 <= len(criteria) <= 32):
             raise ValueError('invalid Goal criterion review')
         for item in criteria:
             if (not isinstance(item, dict) or set(item) != {'index', 'verdict', 'refs'}
@@ -166,10 +166,10 @@ def settle_goal_proposal(value: object, proposal: object, *, objective_revision:
     if not set(progress.get('authority_refs', ())) <= set(saved_authority_refs):
         raise ValueError('goal references unadmitted authority content')
     goal['last_settled_attempt_id'] = attempt_id
-    if progress['disposition'] == 'complete':
+    if progress['disposition'] in {'complete', 'partial'}:
         if delivery_saved is not True:
             raise ValueError('goal delivery is not saved')
-        goal.update(state='completed', reason=None)
+        goal.update(state='completed', reason='partial_delivery' if progress['disposition'] == 'partial' else None)
     elif progress['disposition'] == 'wait':
         goal.update(state='waiting', reason=progress['waiting_reason'][:512])
     elif goal['attempts_admitted'] >= goal['max_attempts']:
@@ -188,9 +188,11 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
     work = next(item for item in works if item['work_id'] == context.binding.work_id)
     goal = work['goal_mode']
     progress = parse_goal_proposal(proposal)
+    if progress['disposition'] == 'partial' and 'goal_plan' not in work:
+        raise ValueError('partial Goal delivery requires a planned review')
     prior_refs = (work.get('goal_plan') or {}).get('review_refs', ())
     admitted_products = (tuple(saved_product_refs) + tuple(prior_refs)
-                         if progress['disposition'] == 'complete' else saved_product_refs)
+                         if progress['disposition'] in {'complete', 'partial'} else saved_product_refs)
     settled = settle_goal_proposal(goal, progress, objective_revision=context.goal_revision,
         generation=goal['generation'], attempt_id=attempt_id, now=datetime.now(timezone.utc),
         saved_product_refs=admitted_products, delivery_saved=delivery_saved,

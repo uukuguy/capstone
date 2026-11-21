@@ -56,6 +56,7 @@ def goal_task_workflow(work):
             'state': goal['state'], 'reason': goal['reason'],
             'plan_revision': plan.get('plan_revision'), 'step_index': plan.get('step_index'),
             'criteria': deepcopy(plan.get('criteria', [])),
+            **({'closure_summary': plan['closure_summary']} if 'closure_summary' in plan else {}),
             'review_refs': deepcopy(plan.get('review_refs', []))}
 
 

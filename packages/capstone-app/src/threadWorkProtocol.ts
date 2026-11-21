@@ -14,6 +14,8 @@ export type SessionGoalPlan = {
   criteria: string[]
   steps: { instruction: string; expectedResult: string }[]
   stepIndex: number
+  criterionVerdicts?:Record<number,'met'|'unmet'|'unknown'>
+  closureSummary?:string
 }
 export type TaskHandoff = {thread_id:string;work_id:string;work_revision:number;revision_ref:string;mission_id?:string;mission_revision?:number}
 type InstructionTakeoverKind = 'reserve_instruction_takeover' | 'takeover_instruction' | 'continue_instruction_takeover'
@@ -368,5 +370,18 @@ function parseSessionGoalPlan(value: unknown): SessionGoalPlan {
   })
   const stepIndex = receipt.step_index === undefined ? 0 : revision(receipt.step_index, 0)
   if (stepIndex >= steps.length) throw new ThreadProtocolError('目标步骤位置无效')
-  return {criteria: plan.criteria, steps, stepIndex}
+  const criterionVerdicts:SessionGoalPlan['criterionVerdicts']={}
+  if(receipt.criteria!==undefined){
+    if(!Array.isArray(receipt.criteria)||receipt.criteria.length>plan.criteria.length)throw new ThreadProtocolError('目标校验记录无效')
+    for(const value of receipt.criteria){
+      const item=object(value),index=revision(item.index)
+      if(index>=plan.criteria.length||criterionVerdicts[index]||
+          (item.verdict!=='met'&&item.verdict!=='unmet'&&item.verdict!=='unknown'))throw new ThreadProtocolError('目标校验记录无效')
+      criterionVerdicts[index]=item.verdict
+    }
+  }
+  const summary=receipt.closure_summary
+  if(summary!==undefined&&(typeof summary!=='string'||!summary.trim()||Array.from(summary).length>8192))throw new ThreadProtocolError('目标结束说明无效')
+  return {criteria: plan.criteria, steps, stepIndex,...(receipt.criteria===undefined?{}:{criterionVerdicts}),
+    ...(typeof summary==='string'?{closureSummary:summary}:{})}
 }
