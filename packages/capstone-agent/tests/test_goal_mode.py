@@ -357,6 +357,7 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, closure,
         if closure == 'wait':
             assert progress['waiting_reason'] in final['goal_plan']['closure_summary']
         assert final['goal_plan']['criteria'] == expected_criteria
+        assert claim.attempt.attempt_id in final['goal_plan']['review_refs']
         assert drain_goal_continuations(reader) == 0
         assert reader.claim_attempt('worker', 30) is None
         return

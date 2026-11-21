@@ -201,7 +201,7 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
                             {'index': index, 'verdict': 'unknown', 'refs': []}
                             for index, _ in enumerate(plan['plan']['criteria'])
                         ])
-    prior_refs = (plan or {}).get('review_refs', ())
+    prior_refs = tuple(ref for ref in (plan or {}).get('review_refs', ()) if not ref.startswith('attempt_'))
     admitted_products = (tuple(saved_product_refs) + tuple(prior_refs)
                          if progress['disposition'] in {'complete', 'partial'} else saved_product_refs)
     settled = settle_goal_proposal(goal, progress, objective_revision=context.goal_revision,
@@ -211,7 +211,8 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
     if 'goal_plan' in work:
         from .session_goal_plan import qualify_planned_review
         work['goal_plan'] = qualify_planned_review(
-            work['goal_plan'], progress, (*saved_product_refs, *saved_authority_refs), objective=goal['objective'])
+            work['goal_plan'], progress, (*saved_product_refs, *saved_authority_refs),
+            objective=goal['objective'], attempt_id=attempt_id)
     work['goal_mode'] = settled
     work.pop('goal_continuation', None)
     if settled['state'] == 'ready':

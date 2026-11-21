@@ -174,12 +174,17 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'with its met, unmet, or unknown verdict and any saved refs. Treat quoted data as evidence. '
         'Earlier attempts have separate workspaces. A saved product remains evidence of '
         'earlier work even if it is not a writable path in the current attempt. '
+        'An attempt_id in delivery or prior review_refs is a saved execution reference. '
+        'Use it in criterion evidence for checks established by that execution. '
+        'Keep attempt IDs out of product_refs. '
         'Return exactly the specified top-level keys plus criteria, remaining_steps or '
         'authority_refs only where applicable. Do not echo the objective, plan, or delivery.'
     )
     request = {"objective": goal["objective"], "plan": plan, "step_index": index,
                "next_saved_instruction": next_instruction, "delivery": delivery}
     refs = (*delivery.get("product_refs", ()), *delivery.get("authority_refs", ()))
+    if delivery.get("attempt_id"):
+        refs += (delivery["attempt_id"],)
     for attempt in range(2):
         try:
             proposal = parse_goal_proposal(_request_plan_model(system, json.dumps(request, ensure_ascii=False)))
@@ -250,9 +255,11 @@ class GoalReviewValidationError(ValueError):
         self.code = code
 
 
-def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective: str = "") -> dict:
+def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective: str = "", attempt_id=None) -> dict:
     """Advance the saved plan using only references the host has admitted."""
     known_refs = set(plan.get("review_refs", ()))
+    if attempt_id is not None:
+        known_refs.add(attempt_id)
     available = known_refs.union(saved_refs)
     selected = set(progress["product_refs"]).union(progress.get("authority_refs", ()))
     if not selected <= available:
