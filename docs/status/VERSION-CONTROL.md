@@ -1292,7 +1292,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 持续任务上下文与主会话集成 | PR195–197 合入 Mission 自主交付、Goal 跨轮核验和主会话呈现 | 集成版本正在进行三机制综合验收 |
+| dev | 持续任务上下文与主会话集成 | PR195–197 合入 Mission 自主交付、Goal 跨轮核验和主会话呈现；PR199 合入 Goal 历史产物续接 | 同题 Instruction、Goal 下载校验通过；Mission 显式入口在 PR200 复验 |
 
 ## 功能包前沿
 
@@ -1300,7 +1300,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| continuous-task-context | 持续任务上下文 | 1 | 工作包 1–4、6 已合入 dev。工具配备已在隔离环境实测 | 持久上下文、压缩恢复、Goal 自主归档、Mission 直办与混合委派、主会话呈现 | 4fe6a488 | 验收同一集成版本的三种机制及云端试用 | dev 87d7b03f | PR190–193、PR195–197 | [实施计划](../superpowers/plans/2026-11-21-continuous-task-context.md)。验收回执在 runs/continuous-task-context。 |
+| continuous-task-context | 持续任务上下文 | 1 | 工作包 1–4、6 已合入 dev。工具配备已在隔离环境实测 | 持久上下文、压缩恢复、Goal 自主归档、Mission 直办与混合委派、主会话呈现 | c5b9d0ac | 验收 Mission 显式入口、同版三机制和云端试用 | dev 87d7b03f | PR190–193、PR195–197、PR199 合入；PR200 验证中 | [实施计划](../superpowers/plans/2026-11-21-continuous-task-context.md)。真实三步 Goal 自主完成并校验下载；同题 Mission 在旧入口停在规划。 |
 | shared-task-continuation | Goal、Mission 与跨会话续作 | 1 | 已合入 dev，本机真实任务验证通过 | 共享状态、原会话记录和版本化交接 | f9edde5e | 维护已交付路径 | dev af8f2859 | PR186 同工作区按指定版本续作 | macOS CI 44801937892 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#goal-mission-and-cross-session-continuation) |
 | task-state-presentation | 回答内任务缺口 | 1 | 已合入 dev，真实浏览器续接通过 | 在原回答下显示缺口，日常会话无验收入口 | 8093ef56 | 延续 Goal、Mission 状态接入 | dev 90a65f81 | PR180 成果可用即可继续工作 | macOS CI 44711900479 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
 | task-state-continuation | 普通指令任务状态 | 1 | 已合入 dev，真实两轮与浏览器验收通过 | 保存任务状态，绑定确切版本，独立记录用户决定 | 36380406 | 接入 Goal、Mission 和授权交接 | dev ff920371 | PR178 保留未完成项与执行中断 | macOS CI 44702425603 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
@@ -1399,6 +1399,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| goal-history-merge-20261121 | PR199 合入三步 Goal 历史产物续接 |
 | mission-autonomous-merge-20261121 | PR195 合入 Mission 直办、混合委派与部分交付 |
 | continuous-task-context-merge-20261121 | PR193 合入 Goal 自主修订、旁支恢复和部分交付 |
 | shared-task-continuation-merge-20261121 | PR186 接通 Goal、Mission 和跨会话续作 |
@@ -1461,6 +1462,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| goal-history-merge-20261121 | c5b9d0ac | main | Goal 历史产物续接 | PR199 合入 dev；eea759ba 通过 macOS 和真实三步 Goal 下载校验 | 复用已登记的旧产物，按已接纳步骤推进至结束 | continuous-task-context |
 | mission-autonomous-merge-20261121 | 3ac3ff4b | main | Mission 自主交付 | PR195 合入 dev，c91304d1 通过 macOS 与真实隔离验收 | 主会话直办与混合子会话，保存独立成果和局部缺口 | continuous-task-context |
 | continuous-task-context-merge-20261121 | 004f8dd7 | main | 持续任务上下文与 Goal 自主交付 | PR190–193 合入 dev，真实 Goal 三条路径通过 | 持久上下文、压缩、跨会话接管；自主修订、恢复、部分归档 | continuous-task-context |
 | continuous-task-context-source-20261121 | 62eab867 | feature | Goal 本机验收来源 | macOS CI 44902108149 和真实交付通过 | 主会话控制命令；执行回执和产物校验 | continuous-task-context |
@@ -1852,7 +1854,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | Goal 跨轮产物复盘已合入；主会话可查看任务依赖、指导与核验成果 | PR195–197 已合入并通过定向 CI，集成版本正在验收 |
+| goal-history-merge-20261121 | dev 集成里程碑 | dev | Goal 可重用已登记的旧产物；复盘后持续执行已接纳步骤 | PR199 合入。候选 eea759ba 通过 macOS CI 44916120177 和真实三步 Goal 下载校验 |
+| dev-head | 当前研发位置 | dev | Goal 支持历史产物续接；主会话可查看任务依赖、指导与核验成果 | PR199 已合入，真实三步 Goal 通过；Mission 同版综合验收继续 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
