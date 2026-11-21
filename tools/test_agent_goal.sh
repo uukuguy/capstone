@@ -8,6 +8,7 @@ uv run --project packages/capstone-agent pytest \
   packages/capstone-agent/tests/test_goal_mode.py \
   packages/capstone-agent/tests/test_goal_receipts.py \
   packages/capstone-agent/tests/test_goal_continuation.py \
+  packages/capstone-agent/tests/test_thread_materials.py \
   packages/capstone-agent/tests/test_worker_interruption_products.py \
   packages/capstone-agent/tests/test_thread_work.py \
   packages/capstone-agent/tests/test_thread_work_execution.py \

@@ -138,6 +138,40 @@ def test_plan_request_preserves_required_verification_when_partial_delivery_is_a
     assert session_goal_plan.request_initial_plan(objective) == proposal()
 
 
+def test_initial_plan_repairs_invalid_criteria_without_user_input(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    requests = []
+    objective = 'Build a benchmark.'
+
+    def planner(system, content):
+        requests.append((system, content))
+        return {**proposal(), 'criteria': [{'text': 'Verified report'}]} if len(requests) == 1 else proposal()
+
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model', planner)
+    assert session_goal_plan.request_initial_plan(objective) == proposal()
+    assert [content for _, content in requests] == [objective, objective]
+    assert 'Goal plan text is required' in requests[1][0]
+
+
+def test_premature_completion_runs_the_next_saved_step(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    proposed = {
+        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'complete',
+        'summary': 'The source is verified.', 'next_instruction': None,
+        'waiting_reason': None, 'product_refs': ['source.md'],
+        'criteria': [{'index': 0, 'verdict': 'met', 'refs': ['source.md']}],
+    }
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model', lambda *_: proposed)
+    result = session_goal_plan.request_step_review(
+        {'objective': 'Build a benchmark.'}, {'plan': proposal()}, {'product_refs': ['source.md']})
+    assert result['disposition'] == 'continue'
+    assert result['next_instruction'] == 'Run the benchmark.'
+    assert result['product_refs'] == ['source.md']
+    assert 'criteria' not in result
+
+
 def test_review_request_marks_the_next_saved_step_separately_from_final_criteria(monkeypatch):
     import json
     from capstone_agent import session_goal_plan
@@ -188,7 +222,7 @@ def test_review_repairs_invalid_criteria_before_settlement(monkeypatch):
     assert requests[1]["repair"] == "invalid Goal criterion review"
 
 
-def test_review_repairs_a_continuation_that_selects_only_a_prior_product(monkeypatch):
+def test_review_accepts_a_continuation_with_admitted_prior_product(monkeypatch):
     import json
     from capstone_agent import session_goal_plan
 
@@ -199,13 +233,13 @@ def test_review_repairs_a_continuation_that_selects_only_a_prior_product(monkeyp
 
     def reviewer(system, content):
         requests.append(json.loads(content))
-        return {**valid, "product_refs": ["prior.md"]} if len(requests) == 1 else valid
+        return {**valid, "product_refs": ["prior.md"]}
 
     monkeypatch.setattr(session_goal_plan, "_request_plan_model", reviewer)
     assert session_goal_plan.request_step_review(
         {"objective": "Build a benchmark."}, {"plan": proposal(), "review_refs": ["prior.md"]},
-        {"product_refs": ["current.md"]}) == valid
-    assert "current delivery" in requests[1]["repair"]
+        {"product_refs": ["current.md"]}) == {**valid, "product_refs": ["prior.md"]}
+    assert len(requests) == 1
 
 
 def test_review_keeps_saved_products_when_both_model_proposals_are_invalid(monkeypatch):

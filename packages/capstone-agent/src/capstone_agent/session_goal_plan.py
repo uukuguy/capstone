@@ -114,10 +114,10 @@ def _request_plan_model(system: str, content: str) -> dict:
 
 
 def request_initial_plan(objective: str) -> dict:
-    response = _request_plan_model(
+    system = (
         'Plan the objective for one main Agent in one conversation. '
         'Return a single JSON object with schema "capstone-session-goal-plan/1", '
-        'criteria (a list of verifiable acceptance conditions), and steps (a list '
+        'criteria (a list of nonempty strings, one verifiable acceptance condition each), and steps (a list '
         'of objects with instruction and expected_result). Give at least two distinct '
         'executable instructions in the user’s language. Order dependencies and keep '
         'the first step focused. Do not execute any steps. '
@@ -130,20 +130,25 @@ def request_initial_plan(objective: str) -> dict:
         'Unless the user specifies a location, judge saved product existence across the whole Goal. '
         'Do not require a file to be recreated in the final attempt workspace. '
         'Output exactly these three top-level keys, schema, criteria, steps. '
-        'Do not include an objective field, step IDs, commentary, or Markdown fences.',
-        objective,
+        'Do not include an objective field, step IDs, commentary, or Markdown fences.'
     )
-    if isinstance(response, dict) and 'objective' in response:
-        # The application owns the objective. A provider may echo it as
-        # descriptive metadata. It has no place in the admitted proposal.
-        response = {key: value for key, value in response.items() if key != 'objective'}
-    return parse_goal_plan(response, objective=objective)
+    for attempt in range(2):
+        response = _request_plan_model(system, objective)
+        if isinstance(response, dict) and 'objective' in response:
+            # The application owns the objective. A provider may echo it as metadata.
+            response = {key: value for key, value in response.items() if key != 'objective'}
+        try:
+            return parse_goal_plan(response, objective=objective)
+        except ValueError as error:
+            if attempt:
+                raise
+            system += f' The previous proposal was rejected. Correct this validation error: {error}.'
 
 
 def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
     import json
 
-    from .goal_receipts import parse_goal_proposal
+    from .goal_receipts import parse_goal_proposal, reviewed_product_refs
 
     index = plan.get("step_index", 0)
     steps = plan["plan"]["steps"]
@@ -158,12 +163,13 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'Use explicit literals and other inputs supplied in the latest objective. '
         'If an instruction failed because the executor misread a supplied input as missing, '
         'continue with a clarified repair instruction and the remaining executable steps. '
-        'For continue with the saved plan, the host supplies next_instruction. Cite only current '
-        'references. If a new finding requires a change, add remaining_steps with '
+        'For continue with the saved plan, the host supplies next_instruction. '
+        'If a new finding requires a change, add remaining_steps with '
         'the replacement suffix (instruction and expected_result on each step), '
         'and use its first instruction as next_instruction. Preserve the objective '
-        'and all acceptance criteria. Cite only current '
-        'product_refs needed for it. Optional authority_refs must use current admitted '
+        'and all acceptance criteria. Select only saved products needed for the next step, '
+        'from the current delivery or prior_saved_product_refs. Prefer an exact artifact ID '
+        'when several products share a file name. Optional authority_refs must use current admitted '
         'references. Use wait only for an already pending operation with an expected result. '
         'Missing user input with no executable work remaining calls for a partial review. '
         'For wait, give the pending operation and expected result. Otherwise use null for '
@@ -186,8 +192,10 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'Return exactly the specified top-level keys plus criteria, remaining_steps or '
         'authority_refs only where applicable. Do not echo the objective, plan, or delivery.'
     )
+    prior_products = reviewed_product_refs(plan)
     request = {"objective": goal["objective"], "plan": plan, "step_index": index,
                "next_saved_instruction": next_instruction,
+               "prior_saved_product_refs": list(prior_products),
                "prior_saved_evidence_refs": list(plan.get("review_refs", ())), "delivery": delivery}
     refs = (*delivery.get("product_refs", ()), *delivery.get("authority_refs", ()))
     if delivery.get("attempt_id"):
@@ -202,10 +210,14 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
                 proposal = parse_goal_proposal(response)
             except ValueError as error:
                 raise GoalReviewValidationError("goal_review_schema_invalid", str(error)) from error
+            if next_instruction is not None and proposal["disposition"] == "complete":
+                # A review cannot conclude while an admitted step is still pending.
+                proposal.update(disposition="continue", next_instruction=next_instruction)
+                proposal.pop("criteria", None)
             if (proposal["disposition"] == "continue"
-                    and not set(proposal["product_refs"]) <= set(delivery.get("product_refs", ()))):
+                    and not set(proposal["product_refs"]) <= {*delivery.get("product_refs", ()), *prior_products}):
                 raise GoalReviewValidationError("goal_review_reference_unavailable",
-                    "A continuation may select only products admitted in the current delivery.")
+                    "A continuation may select only products admitted in the current delivery or prior_saved_product_refs.")
             qualify_planned_review(plan, proposal, refs, objective=goal["objective"])
             return proposal
         except ValueError as error:
@@ -305,8 +317,11 @@ def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective:
     elif disposition in {"complete", "partial"}:
         criteria = sorted(progress.get("criteria", []), key=lambda item: item["index"])
         expected = list(range(len(plan["plan"]["criteria"])))
-        if (disposition == "complete" and step_index + 1 != len(steps)) or [item["index"] for item in criteria] != expected:
-            raise GoalReviewValidationError("goal_review_criteria_incomplete", "Goal review must verify every criterion after the last step")
+        if disposition == "complete" and step_index + 1 != len(steps):
+            raise GoalReviewValidationError("goal_review_step_pending", "Complete only after the last admitted step")
+        if [item["index"] for item in criteria] != expected:
+            raise GoalReviewValidationError("goal_review_criteria_incomplete",
+                                            f"Verify every criterion with the exact indices {expected}.")
         for item in criteria:
             if (not set(item["refs"]) <= available or item["verdict"] == "met" and not item["refs"]
                     or disposition == "complete" and item["verdict"] != "met"):

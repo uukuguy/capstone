@@ -225,6 +225,30 @@ def test_continuation_reuses_latest_file_versions_across_terminal_attempts(chat_
         'chart.png': b'old-chart', 'metrics.csv': b'new-metrics', 'analysis.py': b'print(42)'}
 
 
+def test_goal_reuses_admitted_prior_product_and_rejects_ambiguous_names(monkeypatch):
+    from capstone_agent import thread_materials
+
+    first = {'file_name': 'result.txt', 'artifact_id': 'first', 'source_status': 'completed'}
+    second = {**first, 'artifact_id': 'second'}
+    sources = {'attempt_first': [first], 'attempt_second': [second], 'attempt_current': []}
+
+    def process_files(_service, _snapshot, work_id, attempt_id, _connection):
+        assert work_id == 'work_goal'
+        return sources[attempt_id]
+
+    monkeypatch.setattr(thread_materials, '_process_files', process_files)
+    select = thread_materials._goal_product_files
+    work = {'work_id': 'work_goal', 'goal_plan': {'review_refs': ['attempt_first', 'result.txt', 'first']}}
+    continuation = {'predecessor_attempt_id': 'attempt_current', 'product_refs': ['result.txt']}
+    assert select(None, None, work, continuation, None) == [first]
+    work['goal_plan']['review_refs'].append('attempt_second')
+    assert select(None, None, work, continuation, None) is None
+    continuation['product_refs'] = ['first']
+    assert select(None, None, work, continuation, None) == [first]
+    continuation['product_refs'] = ['second']
+    assert select(None, None, work, continuation, None) is None
+
+
 @pytest.mark.parametrize('name,media', [('report.html', 'text/html'), ('chart.svg', 'image/svg+xml'), ('metrics.json', 'application/json')])
 def test_utf8_generated_document_is_frozen_as_readonly_material(chat_store, name, media):
     store, thread_id = chat_store

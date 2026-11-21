@@ -184,6 +184,35 @@ def _process_files(service, snapshot, work_id, source_id, connection):
     return list(reversed(list(latest.values())))
 
 
+def _goal_product_files(service, snapshot, work, continuation, connection):
+    def files(attempt_id):
+        return [source for source in _process_files(service, snapshot, work['work_id'], attempt_id, connection)
+                if source['source_status'] == 'completed']
+
+    predecessor = continuation['predecessor_attempt_id']
+    current = files(predecessor)
+    historical = None
+    selected = {}
+    for ref in continuation['product_refs']:
+        matches = {item['artifact_id']: item for item in current
+                   if ref in (item['artifact_id'], item['file_name'])}
+        if not matches:
+            from .goal_receipts import reviewed_product_refs
+            plan = work.get('goal_plan', {})
+            if ref not in reviewed_product_refs(plan):
+                return None
+            if historical is None:
+                historical = [item for attempt_id in plan.get('review_refs', ())
+                              if attempt_id.startswith('attempt_') and attempt_id != predecessor
+                              for item in files(attempt_id)]
+            matches = {item['artifact_id']: item for item in historical
+                       if ref in (item['artifact_id'], item['file_name'])}
+        if len(matches) != 1:
+            return None
+        selected.update(matches)
+    return list(selected.values())
+
+
 def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
     """Reuse an explicit durable adoption of these exact process bytes.
 
@@ -282,14 +311,9 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
     notices, deferred = [], []
     if goal_refs is not None:
         if goal_refs:
-            sources = _process_files(service, snapshot, work_id, continuation['predecessor_attempt_id'], connection)
-            for ref in goal_refs:
-                matches = [source for source in sources if ref in (source['artifact_id'], source['file_name'])
-                           and source['source_status'] == 'completed']
-                if len(matches) != 1:
-                    return submission, 'product_context_unavailable'
-                if matches[0] not in deferred:
-                    deferred.append(matches[0])
+            deferred = _goal_product_files(service, snapshot, work, continuation, connection)
+            if deferred is None:
+                return submission, 'product_context_unavailable'
     elif not payload.get('context_product_refs'):
         for source in _process_files(service, snapshot, work_id, payload.get('source_attempt_id'), connection):
             # History supplies exact immutable references, never implicit file bodies.
