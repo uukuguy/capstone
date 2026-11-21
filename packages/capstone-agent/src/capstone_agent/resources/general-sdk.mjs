@@ -1333,19 +1333,31 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
   const estimate = bytes => Math.min(100_000_000, Math.ceil(bytes / 4));
   const size = text => typeof text === 'string' ? Buffer.byteLength(text) : 0;
   function measure(context) {
-    const counts = {system:size(context.systemPrompt),tools:0,messages:0,tool_results:0};
+    const groups = {system:[],tools:[],messages:[],tool_results:[]};
+    const safeName = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(value) ? value : undefined;
+    const add = (group, kind, bytes, name) => groups[group].push({kind, bytes, ...(name ? {name} : {})});
+    if (size(context.systemPrompt)) add('system','system',size(context.systemPrompt));
     for (const tool of context.tools ?? []) {
-      counts.tools += size(tool.name) + size(tool.description) + size(JSON.stringify(tool.parameters ?? {}));
+      add('tools','tool',size(tool.name)+size(tool.description)+size(JSON.stringify(tool.parameters ?? {})),safeName(tool.name));
     }
     for (const message of context.messages ?? []) {
-      const key = message.role === 'toolResult' ? 'tool_results' : 'messages';
-      if (typeof message.content === 'string') counts[key] += size(message.content);
-      else for (const part of message.content ?? []) {
-        counts[key] += size(part.text) + size(part.thinking);
-        if (part.type === 'toolCall') counts[key] += size(part.name) + size(JSON.stringify(part.arguments ?? {}));
+      const group = message.role === 'toolResult' ? 'tool_results' : 'messages';
+      const kind = ['user','assistant','toolResult'].includes(message.role) ? message.role : 'message';
+      let bytes=size(message.content);
+      if (Array.isArray(message.content)) for (const part of message.content) {
+        bytes += size(part.text) + size(part.thinking);
+        if (part.type === 'toolCall') bytes += size(part.name) + size(JSON.stringify(part.arguments ?? {}));
       }
+      add(group,kind,bytes,kind==='toolResult' ? safeName(message.toolName) : undefined);
     }
-    return Object.fromEntries(Object.entries(counts).map(([key,bytes])=>[key,estimate(bytes)]));
+    const estimated_input={}, input_items={};
+    for(const [group,items] of Object.entries(groups)){
+      estimated_input[group]=estimate(items.reduce((total,item)=>total+item.bytes,0));
+      const ranked=items.map(({bytes,...item},index)=>({...item,tokens:estimate(bytes),index:index+1}))
+        .sort((a,b)=>b.tokens-a.tokens||a.index-b.index);
+      input_items[group]={total_items:ranked.length,items:ranked.slice(0,12)};
+    }
+    return {estimated_input,input_items};
   }
   return new Proxy(runtime,{get(target,key){
     if(key!=='streamSimple'){
@@ -1363,7 +1375,7 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
       };
       let details={};
       try{
-        details={estimated_input:measure(context),
+        details={...measure(context),
           ...(Number.isSafeInteger(window)&&window>0&&window<=100_000_000?{window_tokens:window}:{})};
       }catch{/* Leave unmeasured fields absent. */}
       publish('started',details);

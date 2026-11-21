@@ -5,7 +5,9 @@ import {projectProcessModelRequests} from './processModelRequests'
 export const contextCategories = {
   system:'系统提示', tools:'工具定义', messages:'会话消息', tool_results:'工具返回',
 } as const
-type Category = keyof typeof contextCategories
+export type Category = keyof typeof contextCategories
+type ContextItem={kind:string;index:number;tokens:number;name?:string}
+type ContextItems={total:number;items:ContextItem[]}
 type Usage = Partial<Record<'input'|'output'|'cacheRead'|'cacheWrite', number>>
 export type ContextObservation = {
   id:string
@@ -18,6 +20,7 @@ export type ContextObservation = {
   windowTokens?:number
   basis?:'provider'|'estimate'
   categories?:Partial<Record<Category,number>>
+  items?:Partial<Record<Category,ContextItems>>
   usage?:Usage
   reason?:string
   firstKeptEntryId?:string
@@ -32,6 +35,29 @@ function numericFields<Key extends string>(value:unknown, keys:readonly Key[]):P
   const fields=object(value)
   const entries=keys.flatMap(key=>count(fields[key])?[[key, fields[key]] as const]:[])
   return Object.fromEntries(entries) as Partial<Record<Key,number>>
+}
+
+const itemKinds:Record<Category,readonly string[]> = {
+  system:['system'],tools:['tool'],messages:['user','assistant','message'],tool_results:['toolResult'],
+}
+function contextItems(value:unknown):ContextObservation['items'] {
+  const result:Partial<Record<Category,ContextItems>>={}
+  for(const key of Object.keys(contextCategories) as Category[]){
+    const raw=object(object(value)[key])
+    if(!count(raw.total_items)||!Array.isArray(raw.items)||raw.items.length>Math.min(raw.total_items,12))continue
+    const total=raw.total_items
+    const seen=new Set<number>()
+    const items=raw.items.flatMap((candidate):ContextItem[]=>{
+      const item=object(candidate)
+      if(typeof item.kind!=='string'||!itemKinds[key].includes(item.kind)||!count(item.index)||!item.index||item.index>total
+        ||!count(item.tokens)||seen.has(item.index))return []
+      seen.add(item.index)
+      const name=(key==='tools'||key==='tool_results')&&typeof item.name==='string'&&/^[A-Za-z0-9_.:-]{1,100}$/.test(item.name)?item.name:undefined
+      return [{kind:item.kind,index:item.index,tokens:item.tokens,name}]
+    })
+    result[key]={total,items}
+  }
+  return result
 }
 
 function inputUsage(usage:Usage) {
@@ -70,7 +96,7 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
       observed.set(raw.request_id,{
         id:attemptId+':'+raw.request_id,instructionId,attemptId,sequence:prior?.sequence??event.eventSeq,
         kind:raw.kind,state:raw.state,windowTokens:count(raw.window_tokens)&&raw.window_tokens>0?raw.window_tokens:prior?.windowTokens,
-        categories,usage,inputTokens:measured??estimate,basis:measured!==undefined?'provider':estimate!==undefined?'estimate':undefined,
+        categories,items:contextItems(raw.input_items),usage,inputTokens:measured??estimate,basis:measured!==undefined?'provider':estimate!==undefined?'estimate':undefined,
       })
     }
     rows.push(...observed.values())
