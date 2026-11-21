@@ -190,7 +190,18 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
     progress = parse_goal_proposal(proposal)
     if progress['disposition'] == 'partial' and 'goal_plan' not in work:
         raise ValueError('partial Goal delivery requires a planned review')
-    prior_refs = (work.get('goal_plan') or {}).get('review_refs', ())
+    plan = work.get('goal_plan')
+    if plan is not None and progress['disposition'] == 'wait':
+        # A planned review runs after the active attempt has settled. Its
+        # free-text reason cannot establish an operation that will resume it.
+        summary = progress['summary'][:4095]
+        reason = progress['waiting_reason'][:4095]
+        progress.update(disposition='partial', summary=f'{summary}\n{reason}',
+                        waiting_reason=None, criteria=[
+                            {'index': index, 'verdict': 'unknown', 'refs': []}
+                            for index, _ in enumerate(plan['plan']['criteria'])
+                        ])
+    prior_refs = (plan or {}).get('review_refs', ())
     admitted_products = (tuple(saved_product_refs) + tuple(prior_refs)
                          if progress['disposition'] in {'complete', 'partial'} else saved_product_refs)
     settled = settle_goal_proposal(goal, progress, objective_revision=context.goal_revision,
