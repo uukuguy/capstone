@@ -75,6 +75,39 @@ def _request(value):
     return deepcopy({key: item for key, item in value.items() if key not in {'binding', 'requested_control', 'control_revision'}})
 
 
+def read_saved_attempt_delivery(threads, binding, attempt_id, *, start_command=None,
+                                expected='attempt_completed'):
+    """Read the exact Attempt's saved answer and completed product descriptors."""
+    after, artifacts, terminal, authoritative, gateway, sequence = 0, {}, None, False, False, 0
+    original_start = False
+    for _ in range(128):
+        page = threads.read_attempt_records(binding['thread_id'], attempt_id, after=after, limit=128)
+        for event in page['events']:
+            if (event['event_type'] == 'command_accepted' and event['visibility'] == 'public'
+                    and event['payload'].get('command_id') == start_command
+                    and event['payload'].get('work_id') == binding['work_id']):
+                original_start = True
+            if event['event_type'] == 'runtime_event' and event['payload'].get('gateway_operations'):
+                gateway = True
+            if event['event_type'] == 'native_artifact_published' and event['visibility'] == 'public':
+                item = event['payload']['artifact']
+                if item['work_id'] == binding['work_id'] and item.get('source_status') == 'completed':
+                    artifacts[item['file_name']] = item
+            if (event['event_type'] == expected and event['visibility'] == 'public'
+                    and str(event['payload'].get('answer', '')).strip()):
+                terminal = event['event_id']
+                sequence = event['event_seq']
+                authoritative = bool(event['payload'].get('authority_references'))
+        if not page['has_more']:
+            break
+        if page['next_after'] <= after:
+            raise ValueError('Agent observation cursor did not advance')
+        after = page['next_after']
+    else:
+        raise ValueError('Agent observation exceeds bounded page budget')
+    return terminal, list(artifacts.values()), sequence, original_start, authoritative, gateway
+
+
 class AgentDelegations:
     def __init__(self, threads, registry, *, wake=None):
         self.threads, self.registry, self.wake = threads, registry, wake
@@ -220,43 +253,19 @@ class AgentDelegations:
         can_recover = (status == 'interrupted' and delegation['schema'] == 'capstone-agent-delegation/2'
                        and delegation['mode'] == 'single' and not work.get('cancel_requested'))
         if state == 'completed' or can_recover:
-            after, artifacts, terminal, authoritative, gateway = 0, {}, None, False, False
             # Match the original idempotent start even for older delegations.
             start_command = 'cmd_' + _digest([binding['thread_id'], 'start'])[:32]
-            original_start = False
             expected = 'attempt_delivery_recovered' if can_recover else 'attempt_completed'
-            for _ in range(128):
-                page = self.threads.read_attempt_records(binding['thread_id'], work['latest_attempt_id'], after=after, limit=128)
-                for event in page['events']:
-                    if (event['event_type'] == 'command_accepted' and event['visibility'] == 'public'
-                            and event['payload'].get('command_id') == start_command
-                            and event['payload'].get('work_id') == binding['work_id']):
-                        original_start = True
-                    if event['event_type'] == 'runtime_event' and event['payload'].get('gateway_operations'):
-                        gateway = True
-                    if event['event_type'] == 'native_artifact_published' and event['visibility'] == 'public':
-                        item = event['payload']['artifact']
-                        if item['work_id'] == binding['work_id'] and item.get('source_status') == 'completed':
-                            artifacts[item['file_name']] = item
-                    if (event['event_type'] == expected and event['visibility'] == 'public'
-                            and str(event['payload'].get('answer', '')).strip()):
-                        terminal = event['event_id']
-                        sequence = max(sequence, event['event_seq'] + len(current['control_receipts']))
-                        authoritative = bool(event['payload'].get('authority_references'))
-                if not page['has_more']:
-                    break
-                if page['next_after'] <= after:
-                    raise ValueError('Agent observation cursor did not advance')
-                after = page['next_after']
-            else:
-                raise ValueError('Agent observation exceeds bounded page budget')
+            terminal, artifacts, terminal_seq, original_start, authoritative, gateway = read_saved_attempt_delivery(
+                self.threads, binding, work['latest_attempt_id'], start_command=start_command, expected=expected)
+            sequence = max(sequence, terminal_seq + len(current['control_receipts']))
             if can_recover and (terminal is None or not original_start):
                 return {'sequence': sequence, 'state': state, 'summary': state, 'delivery': None}
             if terminal is None:
                 raise ValueError('completed Work has no persisted answer')
             recovered = can_recover
             state = 'completed'
-            delivery = {'answer_ref': terminal, 'products': list(artifacts.values()), 'status': 'completed'}
+            delivery = {'answer_ref': terminal, 'products': artifacts, 'status': 'completed'}
             if not recovered and authoritative and (delegation['schema'] == 'capstone-agent-delegation/2'
                                   or 'authority_source' in delegation.get('required_reference_sources', ())):
                 delivery['authority_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}
