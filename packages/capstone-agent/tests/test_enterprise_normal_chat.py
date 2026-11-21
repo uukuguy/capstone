@@ -818,9 +818,6 @@ def test_takeover_source_requires_current_revision_workspace_and_exclusive_lock(
 
 
 def test_takeover_reservation_survives_commit_and_denies_second_destination(postgres_thread_service):
-    from capstone_agent.task_handoff import reserve_instruction_takeover
-    from capstone_agent.thread_service import DEFAULT_WORKSPACE
-
     store, thread_id = postgres_thread_service
     target_id, rival_id = thread_id + '_target', thread_id + '_rival'
     store.set_native_executor(native_executor())
@@ -835,12 +832,19 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         work = store.snapshot(thread_id).to_document()['works'][0]
         selector = {'thread_id': thread_id, 'work_id': work['work_id'],
                     'work_revision': work['revision'], 'revision_ref': work['execution_checkpoint']['attempt_id']}
-        with store._connect() as owner:
-            assert reserve_instruction_takeover(owner, DEFAULT_WORKSPACE, target_id, selector)
+        request = command(store, target_id, 'reserve_instruction_takeover', 'takeover',
+            payload={'source': selector})
+        reservation = store.submit_command(request)
+        assert reservation.status == 'accepted'
         reopened = PostgresThreadService(store.dsn)
-        with reopened._connect() as contender:
-            assert not reserve_instruction_takeover(contender, DEFAULT_WORKSPACE, rival_id, selector)
-            assert reserve_instruction_takeover(contender, DEFAULT_WORKSPACE, target_id, selector)
+        assert reopened.submit_command(request) == reservation
+        events = [event for event in reopened.read_events(target_id, 0).events
+                  if event.event_type == 'instruction_takeover_reserved']
+        assert len(events) == 1 and events[0].event_seq == reservation.accepted_event_seq
+        assert events[0].payload['source'] == selector
+        rejected = reopened.submit_command(command(reopened, rival_id,
+            'reserve_instruction_takeover', 'rival_takeover', payload={'source': selector}))
+        assert rejected.rejection == 'instruction_takeover_unavailable'
         assert store.snapshot(thread_id).current_attempt.attempt_id == selector['revision_ref']
         assert store.snapshot(target_id).current_attempt is None
     finally:

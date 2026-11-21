@@ -3586,12 +3586,42 @@ class PostgresThreadService(NativeExecutionOwner):
             (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
         return receipt
 
+    def _submit_takeover_reservation(self, connection, thread, snapshot, parsed, request_hash):
+        from .task_handoff import parse_task_handoff, reserve_instruction_takeover
+
+        if (parsed['target'] != {'kind': 'work', 'id': 'new', 'expected_revision': 0}
+                or set(parsed['payload']) != {'source'}):
+            raise ThreadProtocolError('invalid Instruction takeover target')
+        source = parse_task_handoff(parsed['payload']['source'])
+        accepted = (parsed.get('run_id') in {None, snapshot.run.run_id}
+                    and reserve_instruction_takeover(connection, thread['workspace_name'], snapshot.thread_id, source))
+        event_seq = None
+        if accepted:
+            event_seq = snapshot.last_event_seq + 1
+            self._insert_event(connection, EventEnvelope(
+                event_id='evt_' + secrets.token_hex(8), event_seq=event_seq,
+                event_type='instruction_takeover_reserved', event_version=1, thread_id=snapshot.thread_id,
+                run_id=snapshot.run.run_id, turn_id=None, attempt_id=None, model_context_id=None,
+                selection_revision=None, occurred_at=_now(), visibility='public',
+                payload={'command_id': parsed['command_id'], 'source': source}))
+            connection.execute('UPDATE capstone_threads SET last_event_seq=%s WHERE thread_id=%s',
+                               (event_seq, snapshot.thread_id))
+        receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id},
+            status='accepted' if accepted else 'rejected', accepted_event_seq=event_seq,
+            rejection=None if accepted else 'instruction_takeover_unavailable')
+        connection.execute('''INSERT INTO capstone_thread_commands
+            (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)''',
+            (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
+        return receipt
+
     def _submit_work(self, connection, thread, snapshot, parsed, request_hash):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
                                        (snapshot.thread_id, parsed['command_id'])).fetchone()
         if duplicate:
             return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
+        if parsed['kind'] == 'reserve_instruction_takeover':
+            return self._submit_takeover_reservation(connection, thread, snapshot, parsed, request_hash)
         prepared, submission, input_rejection = _work_send_input(
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
         if input_rejection is None and 'task_handoff' in parsed['payload']:
