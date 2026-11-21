@@ -146,6 +146,9 @@ def test_review_request_marks_the_next_saved_step_separately_from_final_criteria
         assert request['step_index'] == 0
         assert request['next_saved_instruction'] == 'Run the benchmark.'
         assert 'A final criterion that a later step will address is not a blocker' in system
+        assert 'Use explicit literals and other inputs supplied in the latest objective' in system
+        assert 'continue with a clarified repair instruction' in system
+        assert 'Missing user input with no executable work remaining calls for a partial review' in system
         return {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
                 'summary': 'Source checked', 'next_instruction': request['next_saved_instruction'],
                 'waiting_reason': None, 'product_refs': ['source.md']}
