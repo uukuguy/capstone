@@ -815,3 +815,34 @@ def test_takeover_source_requires_current_revision_workspace_and_exclusive_lock(
         assert lock_takeover_source(contender, DEFAULT_WORKSPACE, selector) is None
     with store._connect() as successor:
         assert lock_takeover_source(successor, DEFAULT_WORKSPACE, selector)['phase'] == 'accepted'
+
+
+def test_takeover_reservation_survives_commit_and_denies_second_destination(postgres_thread_service):
+    from capstone_agent.task_handoff import reserve_instruction_takeover
+    from capstone_agent.thread_service import DEFAULT_WORKSPACE
+
+    store, thread_id = postgres_thread_service
+    target_id, rival_id = thread_id + '_target', thread_id + '_rival'
+    store.set_native_executor(native_executor())
+    for identity in (thread_id, target_id, rival_id):
+        original = _snapshot(identity)
+        store.create_thread(replace(original, run=replace(original.run, run_id='run_' + identity),
+            active_model_context=None, active_grid_page_id=None, minimum_protocol_version=2))
+    try:
+        receipt = store.submit_command(command(store, thread_id, 'send_message', 'reserve',
+            payload={'text': 'Continue this instruction'}))
+        assert receipt.status == 'accepted'
+        work = store.snapshot(thread_id).to_document()['works'][0]
+        selector = {'thread_id': thread_id, 'work_id': work['work_id'],
+                    'work_revision': work['revision'], 'revision_ref': work['execution_checkpoint']['attempt_id']}
+        with store._connect() as owner:
+            assert reserve_instruction_takeover(owner, DEFAULT_WORKSPACE, target_id, selector)
+        reopened = PostgresThreadService(store.dsn)
+        with reopened._connect() as contender:
+            assert not reserve_instruction_takeover(contender, DEFAULT_WORKSPACE, rival_id, selector)
+            assert reserve_instruction_takeover(contender, DEFAULT_WORKSPACE, target_id, selector)
+        assert store.snapshot(thread_id).current_attempt.attempt_id == selector['revision_ref']
+        assert store.snapshot(target_id).current_attempt is None
+    finally:
+        with store._connect() as connection:
+            connection.execute('DELETE FROM capstone_threads WHERE thread_id = ANY(%s)', ([target_id, rival_id],))

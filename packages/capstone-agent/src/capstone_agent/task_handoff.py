@@ -46,6 +46,30 @@ def lock_takeover_source(connection, workspace, value):
           selection['work_id'], selection['work_id'], str(selection['work_revision']))).fetchone()
 
 
+def reserve_instruction_takeover(connection, workspace, target_thread_id, value):
+    """Reserve one destination while keeping the source worker's lease intact."""
+    selection = parse_task_handoff(value)
+    if selection['thread_id'] == target_thread_id:
+        return False
+    target = connection.execute("""
+        SELECT 1 FROM capstone_threads
+        WHERE thread_id=%s AND workspace_name=%s AND run_state='open'
+          AND NOT archived AND current_attempt IS NULL
+        FOR UPDATE SKIP LOCKED
+    """, (target_thread_id, workspace)).fetchone()
+    if target is None:
+        return False
+    source = lock_takeover_source(connection, workspace, selection)
+    if source is None:
+        return False
+    return connection.execute("""
+        UPDATE capstone_thread_attempts SET takeover_target_thread_id=%s
+        WHERE attempt_id=%s
+          AND (takeover_target_thread_id IS NULL OR takeover_target_thread_id=%s)
+        RETURNING attempt_id
+    """, (target_thread_id, source['attempt_id'], target_thread_id)).fetchone() is not None
+
+
 def freeze_task_handoff(connection, target, value, *, control=None):
     selection = parse_task_handoff(value)
     if selection['thread_id'] == target['thread_id']:

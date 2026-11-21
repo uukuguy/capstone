@@ -3505,6 +3505,7 @@ ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snaps
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS submission_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS terminal_write_id text;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS takeover_target_thread_id text;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_skills jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
