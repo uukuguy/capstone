@@ -183,6 +183,26 @@ def test_review_repairs_invalid_criteria_before_settlement(monkeypatch):
     assert requests[1]["repair"]
 
 
+def test_review_repairs_a_continuation_that_selects_only_a_prior_product(monkeypatch):
+    import json
+    from capstone_agent import session_goal_plan
+
+    requests = []
+    valid = {"schema": "capstone-work-goal-proposal/1", "disposition": "continue",
+             "summary": "Proceed with the current source.", "next_instruction": "Run the benchmark.",
+             "waiting_reason": None, "product_refs": ["current.md"]}
+
+    def reviewer(system, content):
+        requests.append(json.loads(content))
+        return {**valid, "product_refs": ["prior.md"]} if len(requests) == 1 else valid
+
+    monkeypatch.setattr(session_goal_plan, "_request_plan_model", reviewer)
+    assert session_goal_plan.request_step_review(
+        {"objective": "Build a benchmark."}, {"plan": proposal(), "review_refs": ["prior.md"]},
+        {"product_refs": ["current.md"]}) == valid
+    assert "current delivery" in requests[1]["repair"]
+
+
 def test_partial_goal_review_records_unmet_criteria_and_explanation():
     from capstone_agent.goal_receipts import parse_goal_proposal
     from capstone_agent.session_goal_plan import qualify_planned_review

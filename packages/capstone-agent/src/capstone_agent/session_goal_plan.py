@@ -181,6 +181,10 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
     for attempt in range(2):
         try:
             proposal = parse_goal_proposal(_request_plan_model(system, json.dumps(request, ensure_ascii=False)))
+            if (proposal["disposition"] == "continue"
+                    and not set(proposal["product_refs"]) <= set(delivery.get("product_refs", ()))):
+                raise GoalReviewValidationError("goal_review_reference_unavailable",
+                    "A continuation may select only products admitted in the current delivery.")
             qualify_planned_review(plan, proposal, refs, objective=goal["objective"])
             return proposal
         except ValueError as error:
