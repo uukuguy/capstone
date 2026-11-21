@@ -88,16 +88,18 @@ test('model context restores compacted admitted instructions without replaying p
  const queued=[];
  const agent={transformContext:async messages=>messages.slice()};
  const session={agent,subscribe(fn){observe=fn;return ()=>{};},async steer(text){queued.push(text);}};
- const steering=createInstructionSteering(session,{},()=>{});
+ const original={role:'user',content:'Prepare the report in Chinese',timestamp:0};
+ const steering=createInstructionSteering(session,{input:{kind:'text',text:original.content}},()=>{});
+ observe({type:'message_end',message:original});
  for(const [id,text] of [['first','Use only the approved inputs'],['next','Pending instruction']]){
   await steering.accept(JSON.stringify({type:'steer',instruction_id:id,text}));
  }
  const admitted={role:'user',content:queued[0],timestamp:1};
  observe({type:'message_end',message:admitted});
- assert.deepEqual(await agent.transformContext([admitted]),[admitted]);
+ assert.deepEqual(await agent.transformContext([original,admitted]),[original,admitted]);
  const recent={role:'user',content:'Use the revised format',timestamp:2};
  for(let pass=0;pass<2;pass++){
-  assert.deepEqual(await agent.transformContext([recent]),[admitted,recent]);
+  assert.deepEqual(await agent.transformContext([recent]),[original,admitted,recent]);
  }
  steering.close();
  assert.deepEqual(await agent.transformContext([recent]),[recent]);

@@ -604,6 +604,8 @@ export function createInstructionSteering(session,config,emit) {
   const instructionLimit=config.instructionLimit??capacities.native_instruction_count;
   if(!Number.isSafeInteger(instructionLimit)||instructionLimit<1)throw new TypeError('Invalid native instruction limit');
   let closed=false;
+  const originalText=config.input?.kind==='text'?config.input.text:null;
+  let originalInstruction;
   const userText=message=>{
     if(message?.role!=='user')return '';
     const content=message.content;
@@ -617,6 +619,7 @@ export function createInstructionSteering(session,config,emit) {
     const missing=Array.from(entries.values())
       .filter(entry=>entry.admitted&&!present.has(entry.message))
       .map(entry=>entry.admitted);
+    if(originalInstruction&&!present.has(originalText))missing.unshift(originalInstruction);
     return missing.length?[...missing,...context]:context;
   };
   const unsubscribe=session.subscribe(event=>{
@@ -624,6 +627,9 @@ export function createInstructionSteering(session,config,emit) {
     // sets streamingMessage, so it cannot certify durable context admission.
     if(event.type!=='message_end'||event.message?.role!=='user')return;
     const text=userText(event.message);
+    if(!originalInstruction&&originalText&&text===originalText){
+      originalInstruction={role:'user',content:text,timestamp:event.message.timestamp};
+    }
     for(const [id,entry] of entries)if(!entry.admitted&&text===entry.message){
       entry.admitted={role:'user',content:entry.message,timestamp:event.message.timestamp};
       emit({type:'general_pi_instruction_consumed',instruction_id:id});
