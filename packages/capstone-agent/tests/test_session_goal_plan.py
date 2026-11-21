@@ -123,6 +123,20 @@ def test_provider_objective_echo_does_not_change_the_saved_plan(monkeypatch):
     assert session_goal_plan.request_initial_plan('Build a benchmark.') == proposal()
 
 
+def test_plan_request_preserves_required_verification_when_partial_delivery_is_allowed(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    objective = 'Verify the signed approval. Save a partial report if the signature is unavailable.'
+
+    def planner(system, content):
+        assert content == objective
+        assert 'Keep the original verification requirement as an acceptance criterion' in system
+        return proposal()
+
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model', planner)
+    assert session_goal_plan.request_initial_plan(objective) == proposal()
+
+
 def test_review_request_marks_the_next_saved_step_separately_from_final_criteria(monkeypatch):
     import json
     from capstone_agent import session_goal_plan
@@ -132,6 +146,9 @@ def test_review_request_marks_the_next_saved_step_separately_from_final_criteria
         assert request['step_index'] == 0
         assert request['next_saved_instruction'] == 'Run the benchmark.'
         assert 'A final criterion that a later step will address is not a blocker' in system
+        assert 'Use explicit literals and other inputs supplied in the latest objective' in system
+        assert 'continue with a clarified repair instruction' in system
+        assert 'Missing user input with no executable work remaining calls for a partial review' in system
         return {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
                 'summary': 'Source checked', 'next_instruction': request['next_saved_instruction'],
                 'waiting_reason': None, 'product_refs': ['source.md']}
@@ -140,3 +157,85 @@ def test_review_request_marks_the_next_saved_step_separately_from_final_criteria
     result = session_goal_plan.request_step_review(
         {'objective': 'Build a benchmark.'}, {'plan': proposal()}, {'product_refs': ['source.md']})
     assert result['disposition'] == 'continue'
+
+
+def test_review_repairs_invalid_criteria_before_settlement(monkeypatch):
+    import json
+    from capstone_agent import session_goal_plan
+
+    requests = []
+    plan = {"plan": proposal(), "step_index": 1, "review_refs": ["report.md"]}
+    valid = {"schema": "capstone-work-goal-proposal/1", "disposition": "complete",
+             "summary": "Report verified.", "next_instruction": None, "waiting_reason": None,
+             "product_refs": [], "criteria": [
+                 {"index": index, "verdict": "met", "refs": ["report.md"]}
+                 for index, _ in enumerate(plan["plan"]["criteria"])]}
+
+    def reviewer(system, content):
+        requests.append(json.loads(content))
+        return {**valid, "criteria": []} if len(requests) == 1 else valid
+
+    monkeypatch.setattr(session_goal_plan, "_request_plan_model", reviewer)
+    assert session_goal_plan.request_step_review(
+        {"objective": "Build a benchmark."}, plan, {"product_refs": []}) == valid
+    assert len(requests) == 2
+    assert "repair" not in requests[0]
+    assert requests[1]["repair"]
+
+
+def test_review_repairs_a_continuation_that_selects_only_a_prior_product(monkeypatch):
+    import json
+    from capstone_agent import session_goal_plan
+
+    requests = []
+    valid = {"schema": "capstone-work-goal-proposal/1", "disposition": "continue",
+             "summary": "Proceed with the current source.", "next_instruction": "Run the benchmark.",
+             "waiting_reason": None, "product_refs": ["current.md"]}
+
+    def reviewer(system, content):
+        requests.append(json.loads(content))
+        return {**valid, "product_refs": ["prior.md"]} if len(requests) == 1 else valid
+
+    monkeypatch.setattr(session_goal_plan, "_request_plan_model", reviewer)
+    assert session_goal_plan.request_step_review(
+        {"objective": "Build a benchmark."}, {"plan": proposal(), "review_refs": ["prior.md"]},
+        {"product_refs": ["current.md"]}) == valid
+    assert "current delivery" in requests[1]["repair"]
+
+
+def test_review_keeps_saved_products_when_both_model_proposals_are_invalid(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    calls = []
+
+    def invalid_review(*args):
+        calls.append(args)
+        return {"unexpected_field": "not a valid proposal"}
+
+    monkeypatch.setattr(session_goal_plan, "_request_plan_model", invalid_review)
+    plan = proposal()
+    result = session_goal_plan.request_step_review(
+        {"objective": "Build a benchmark."}, {"plan": plan}, {"product_refs": ["report.md"]})
+    assert len(calls) == 2
+    assert result["disposition"] == "partial"
+    assert result["product_refs"] == ["report.md"]
+    assert result["criteria"] == [
+        {"index": index, "verdict": "unknown", "refs": []}
+        for index, _ in enumerate(plan["criteria"])]
+
+
+def test_partial_goal_review_records_unmet_criteria_and_explanation():
+    from capstone_agent.goal_receipts import parse_goal_proposal
+    from capstone_agent.session_goal_plan import qualify_planned_review
+
+    bound = {'plan': proposal(), 'step_index': 0, 'review_refs': ['source.md']}
+    value = parse_goal_proposal({'schema': 'capstone-work-goal-proposal/1', 'disposition': 'partial',
+        'summary': 'The authority did not publish the missing record.', 'next_instruction': None,
+        'waiting_reason': None, 'product_refs': ['source.md'],
+        'criteria': [{'index': 0, 'verdict': 'unmet', 'refs': []}]})
+    reviewed = qualify_planned_review(bound, value, ())
+    assert reviewed['criteria'] == value['criteria']
+    assert reviewed['closure_summary'] == value['summary']
+    value['criteria'][0]['refs'] = ['unadmitted.md']
+    with pytest.raises(ValueError, match='saved references'):
+        qualify_planned_review(bound, value, ())

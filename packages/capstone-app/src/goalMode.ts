@@ -5,6 +5,18 @@ export function goalObjectiveFromInput(text:string):string|null{
   return match?(match[1]||'').trim():null
 }
 
+export function goalControlFromInput(text:string):{kind:GoalControl;payload:Record<string,string>}|null{
+  const action=/^\/goal\s+(resume|pause|revise)(?:\s+([\s\S]*))?$/.exec(text.trim())
+  if(!action)return null
+  const objective=action[2]?.trim()
+  if(action[1]==='revise'){
+    if(!objective)throw new ThreadProtocolError('请在 /goal revise 后写明修改后的目标。')
+    return {kind:'revise_goal_objective',payload:{objective}}
+  }
+  if(objective)throw new ThreadProtocolError('目标暂停和恢复命令无需附加内容。')
+  return {kind:action[1]==='resume'?'resume_goal':'pause_goal',payload:{}}
+}
+
 export type GoalMode={schema:'capstone-work-goal/1';objective:string;objective_revision:number;
   generation:number;state:string;reason:string|null;max_attempts:number;attempts_admitted:number;
   deadline_at:string;last_settled_attempt_id:string|null}

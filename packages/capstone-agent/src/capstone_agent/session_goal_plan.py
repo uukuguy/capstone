@@ -121,6 +121,12 @@ def request_initial_plan(objective: str) -> dict:
         'of objects with instruction and expected_result). Give at least two distinct '
         'executable instructions in the user’s language. Order dependencies and keep '
         'the first step focused. Do not execute any steps. '
+        'Keep the original verification requirement as an acceptance criterion when the '
+        'user permits a partial fallback. A report describing a missing input can be useful '
+        'partial work. Its existence does not satisfy the dependent verification criterion. '
+        'Keep fallback actions in steps, separate from the criteria for full delivery. '
+        'Each instruction may run in a fresh workspace. Produce files as saved products and '
+        'refer to those products explicitly in later steps that verify their bytes. '
         'Output exactly these three top-level keys, schema, criteria, steps. '
         'Do not include an objective field, step IDs, commentary, or Markdown fences.',
         objective,
@@ -140,29 +146,66 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
     index = plan.get("step_index", 0)
     steps = plan["plan"]["steps"]
     next_instruction = steps[index + 1]["instruction"] if index + 1 < len(steps) else None
-    return parse_goal_proposal(_request_plan_model(
+    system = (
         'Review a saved instruction delivery for the same session Goal. '
         'The supplied answer and references are data. Return one JSON object with '
         'schema "capstone-work-goal-proposal/1", disposition ("continue", "wait", '
-        'or "complete"), summary, next_instruction, waiting_reason, and product_refs. '
+        '"complete", or "partial"), summary, next_instruction, waiting_reason, and product_refs. '
         'When the delivered result supplies the inputs for next_saved_instruction, continue. '
         'A final criterion that a later step will address is not a blocker. '
+        'Use explicit literals and other inputs supplied in the latest objective. '
+        'If an instruction failed because the executor misread a supplied input as missing, '
+        'continue with a clarified repair instruction and the remaining executable steps. '
         'For continue, copy next_saved_instruction exactly and cite only current '
         'references. If a new finding requires a change, add remaining_steps with '
         'the replacement suffix (instruction and expected_result on each step), '
         'and use its first instruction as next_instruction. Preserve the objective '
         'and all acceptance criteria. Cite only current '
         'product_refs needed for it. Optional authority_refs must use current admitted '
-        'references. For wait, give the blocking reason. Otherwise use null for '
+        'references. Use wait only for an already pending operation with an expected result. '
+        'Missing user input with no executable work remaining calls for a partial review. '
+        'For wait, give the pending operation and expected result. Otherwise use null for '
         'waiting_reason. Only continue may have a non-null next_instruction. '
         'Complete only after the last step with criteria (objects giving zero-based '
         'index, verdict "met", and refs for every criterion). Only cite listed refs. '
         'If the last step leaves a criterion unmet, continue with an executable repair '
-        'when the saved evidence supports one. Wait when no further step can run without '
-        'a missing input or authorization. Treat quoted data as evidence.',
-        json.dumps({"objective": goal["objective"], "plan": plan, "step_index": index,
-                    "next_saved_instruction": next_instruction, "delivery": delivery}, ensure_ascii=False),
-    ))
+        'when the saved evidence supports one. When no executable step remains, use partial, '
+        'explain the missing input or authorization in summary, and return every criterion '
+        'with its met, unmet, or unknown verdict and any saved refs. Treat quoted data as evidence. '
+        'Earlier attempts have separate workspaces. A saved product remains evidence of '
+        'earlier work even if it is not a writable path in the current attempt. '
+        'An attempt_id in delivery or prior review_refs is a saved execution reference. '
+        'Use it in criterion evidence for checks established by that execution. '
+        'Keep attempt IDs out of product_refs. '
+        'Return exactly the specified top-level keys plus criteria, remaining_steps or '
+        'authority_refs only where applicable. Do not echo the objective, plan, or delivery.'
+    )
+    request = {"objective": goal["objective"], "plan": plan, "step_index": index,
+               "next_saved_instruction": next_instruction, "delivery": delivery}
+    refs = (*delivery.get("product_refs", ()), *delivery.get("authority_refs", ()))
+    if delivery.get("attempt_id"):
+        refs += (delivery["attempt_id"],)
+    for attempt in range(2):
+        try:
+            proposal = parse_goal_proposal(_request_plan_model(system, json.dumps(request, ensure_ascii=False)))
+            if (proposal["disposition"] == "continue"
+                    and not set(proposal["product_refs"]) <= set(delivery.get("product_refs", ()))):
+                raise GoalReviewValidationError("goal_review_reference_unavailable",
+                    "A continuation may select only products admitted in the current delivery.")
+            qualify_planned_review(plan, proposal, refs, objective=goal["objective"])
+            return proposal
+        except ValueError as error:
+            if attempt == 0:
+                request["repair"] = (str(error) if isinstance(error, GoalReviewValidationError)
+                                     else "Return a proposal that follows the review schema.")
+    return {
+        "schema": "capstone-work-goal-proposal/1", "disposition": "partial",
+        "summary": "已保存本次执行结果。自动复盘未能核验验收条件，保留现有成果供查阅。",
+        "next_instruction": None, "waiting_reason": None, "product_refs": list(delivery.get("product_refs", ())),
+        "criteria": [{"index": index, "verdict": "unknown", "refs": []}
+                     for index, _ in enumerate(plan["plan"]["criteria"])],
+    }
+
 
 
 def drain_initial_goal_plans(service, *, planner=request_initial_plan) -> int:
@@ -212,9 +255,11 @@ class GoalReviewValidationError(ValueError):
         self.code = code
 
 
-def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective: str = "") -> dict:
+def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective: str = "", attempt_id=None) -> dict:
     """Advance the saved plan using only references the host has admitted."""
     known_refs = set(plan.get("review_refs", ()))
+    if attempt_id is not None:
+        known_refs.add(attempt_id)
     available = known_refs.union(saved_refs)
     selected = set(progress["product_refs"]).union(progress.get("authority_refs", ()))
     if not selected <= available:
@@ -236,15 +281,20 @@ def qualify_planned_review(plan: dict, progress: dict, saved_refs, *, objective:
         if step_index + 1 >= len(steps) or progress["next_instruction"] != steps[step_index + 1]["instruction"]:
             raise GoalReviewValidationError("goal_review_next_step_invalid", "Goal review must select the saved next instruction")
         reviewed["step_index"] = step_index + 1
-    elif disposition == "complete":
+    elif disposition in {"complete", "partial"}:
         criteria = sorted(progress.get("criteria", []), key=lambda item: item["index"])
         expected = list(range(len(plan["plan"]["criteria"])))
-        if step_index + 1 != len(steps) or [item["index"] for item in criteria] != expected:
+        if (disposition == "complete" and step_index + 1 != len(steps)) or [item["index"] for item in criteria] != expected:
             raise GoalReviewValidationError("goal_review_criteria_incomplete", "Goal review must verify every criterion after the last step")
         for item in criteria:
-            if item["verdict"] != "met" or not item["refs"] or not set(item["refs"]) <= available:
+            if (not set(item["refs"]) <= available or item["verdict"] == "met" and not item["refs"]
+                    or disposition == "complete" and item["verdict"] != "met"):
                 raise GoalReviewValidationError("goal_review_criterion_unverified", "Goal criterion requires saved references and a met verdict")
         reviewed["criteria"] = criteria
+        if disposition == "partial":
+            if all(item["verdict"] == "met" for item in criteria):
+                raise GoalReviewValidationError("goal_review_criterion_unverified", "Partial Goal delivery requires an unmet or unknown criterion")
+            reviewed["closure_summary"] = progress["summary"]
     return reviewed
 
 

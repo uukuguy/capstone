@@ -54,3 +54,16 @@ it('shows the saved plan and allows pause during review',()=>{
   fireEvent.click(screen.getByRole('button',{name:'暂停目标'}))
   expect(submit).toHaveBeenCalledWith('pause_goal',{})
 })
+
+it('shows partial closure and the saved reason without a resume action',()=>{
+  render(<GoalControls objective="Build report" disabled={false} onControl={vi.fn()} goal={{
+    schema:'capstone-work-goal/1',objective:'Build report',objective_revision:1,generation:1,
+    state:'completed',reason:'partial_delivery',max_attempts:8,attempts_admitted:1,
+    deadline_at:'2099-01-01T00:00:00Z',last_settled_attempt_id:'attempt_first'}}
+    plan={{stepIndex:0,criteria:['保留源记录'],criterionVerdicts:{0:'unmet'},closureSummary:'源系统尚未发布所需记录。',
+      steps:[{instruction:'Check sources',expectedResult:'Source receipt'}]}}/>)
+  expect(screen.getByRole('status').textContent).toContain('部分完成')
+  expect(screen.getByText('源系统尚未发布所需记录。')).toBeTruthy()
+  expect(screen.getByText('保留源记录 · 未满足')).toBeTruthy()
+  expect(screen.queryByRole('button',{name:'恢复目标'})).toBeNull()
+})

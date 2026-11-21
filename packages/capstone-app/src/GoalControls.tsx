@@ -13,6 +13,7 @@ export default function GoalControls({goal,plan,planning,objective,disabled,exec
   const resumeLimit=goal&&!reviewRetry&&(goal.attempts_admitted>=goal.max_attempts?'原目标已用完执行次数。':Date.parse(goal.deadline_at)<=Date.now()?'原目标已到截止时间。':undefined)
   const canSendFollowup=goal&&['paused','waiting','completed','failed','cancelled'].includes(goal.state)&&goal.reason!=='goal_review_pending'
   const states:Record<string,string>={ready:'等待执行',running:'执行中',waiting:'等待输入',paused:'已暂停',completed:'已完成',failed:'执行失败',cancelled:'已取消'}
+  const verdicts={met:'已满足',unmet:'未满足',unknown:'待核实'}
   const reasons:Record<string,string>={user_pause:'用户暂停',objective_revised:'目标已修改，请恢复执行',attempt_budget_exhausted:'已达到执行次数上限',deadline_elapsed:'已到截止时间',goal_planning_failed:'目标规划失败，可恢复后重新规划',goal_review_pending:'本步成果已保存，正在复盘',goal_review_invalid:'复盘结果未通过校验。已保存的回复和制品仍可查看。',goal_receipt_missing:'缺少有效进度回执',attempt_interrupted:'执行中断，需要检查后恢复',attempt_failed:'本次执行失败，可检查已有成果后恢复',attempt_cancelled:'执行已停止'}
   const reviewReasons:Record<string,string>={
     goal_review_reference_unavailable:'复盘引用了无法核对的制品或证据。',
@@ -22,7 +23,7 @@ export default function GoalControls({goal,plan,planning,objective,disabled,exec
   }
   return <section className="goal-controls" aria-label="持续目标">
     {goal?<>
-      <p role="status">持续目标：{planning&&goal.state==='ready'?'正在规划':goal.reason==='goal_review_pending'?'正在复盘':states[goal.state]} · 已执行 {goal.attempts_admitted}/{goal.max_attempts} 次</p>
+      <p role="status">持续目标：{planning&&goal.state==='ready'?'正在规划':goal.reason==='goal_review_pending'?'正在复盘':goal.reason==='partial_delivery'?'部分完成':states[goal.state]} · 已执行 {goal.attempts_admitted}/{goal.max_attempts} 次</p>
       <p>{goal.objective}</p>
       {plan&&<details className="goal-plan">
         <summary>目标计划 · 第 {plan.stepIndex+1}/{plan.steps.length} 步</summary>
@@ -31,10 +32,14 @@ export default function GoalControls({goal,plan,planning,objective,disabled,exec
             {step.instruction}<p>预期成果：{step.expectedResult}</p>
           </li>)}</ol>
           <p>完成条件</p>
-          <ul>{plan.criteria.map((criterion,index)=><li key={index}>{criterion}</li>)}</ul>
+          <ul>{plan.criteria.map((criterion,index)=>{
+            const verdict=plan.criterionVerdicts?.[index]
+            return <li key={index}>{criterion}{verdict&&<> · {verdicts[verdict]}</>}</li>
+          })}</ul>
         </div>
       </details>}
-      {goal.reason&&goal.reason!=='goal_review_pending'&&<p>{reviewReasons[goal.reason]||reasons[goal.reason]||goal.reason}</p>}
+      {goal.reason==='partial_delivery'&&plan?.closureSummary&&<p>{plan.closureSummary}</p>}
+      {goal.reason&&goal.reason!=='goal_review_pending'&&goal.reason!=='partial_delivery'&&<p>{reviewReasons[goal.reason]||reasons[goal.reason]||goal.reason}</p>}
       {canSendFollowup&&<p>要继续其他工作，可直接在消息框发送新指令。</p>}
       {!['completed','failed','cancelled'].includes(goal.state)&&<details className="goal-settings">
         <summary>修改或结束目标</summary>
