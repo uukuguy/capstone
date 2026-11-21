@@ -746,6 +746,33 @@ class GeneralPiHost:
                         if isinstance(raw, dict):
                             counts[field] = {key: raw[key] for key in keys
                                 if type(raw.get(key)) is int and 0 <= raw[key] <= 100_000_000}
+                    groups = event.get('input_items')
+                    if isinstance(groups, dict):
+                        admitted = {}
+                        for category, kinds in (
+                            ('system', ('system',)), ('tools', ('tool',)),
+                            ('messages', ('user', 'assistant', 'message')), ('tool_results', ('toolResult',)),
+                        ):
+                            group = groups.get(category)
+                            if not isinstance(group, dict):
+                                continue
+                            total, items = group.get('total_items'), group.get('items')
+                            if (type(total) is not int or not 0 <= total <= 100_000_000
+                                    or not isinstance(items, list) or len(items) > min(total, 12)):
+                                continue
+                            valid = []
+                            for item in items:
+                                if (not isinstance(item, dict) or item.get('kind') not in kinds
+                                        or type(item.get('index')) is not int or not 1 <= item['index'] <= total
+                                        or type(item.get('tokens')) is not int or not 0 <= item['tokens'] <= 100_000_000):
+                                    continue
+                                row = {key: item[key] for key in ('kind', 'index', 'tokens')}
+                                name = item.get('name')
+                                if category in ('tools', 'tool_results') and isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,100}', name):
+                                    row['name'] = name
+                                valid.append(row)
+                            admitted[category] = {'total_items': total, 'items': valid}
+                        counts['input_items'] = admitted
                     payload = {'type': kind, 'model_context_usage': counts}
             elif kind == 'model_request_pool':
                 from .native_model_request_pool import checked_model_request_pool

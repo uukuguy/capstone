@@ -181,6 +181,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const diagramRequest=useRef<AbortController | undefined>(undefined)
   const historicalDiagrams=useRef(new Map<string,NonNullable<ReturnType<typeof parseNetworkView>>>())
   const [taskDiagramLoad,setTaskDiagramLoad]=useState<'loading'|'unavailable'>()
+  const [linkedContext,setLinkedContext]=useState<{attemptId:string;label:string}>()
   const [contextAttempt,setContextAttempt]=useSessionViewState<string|undefined>('context.attempt',undefined)
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
@@ -845,7 +846,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     const primary=newFiles.find(file=>file.presentation_role==='primary')
     if(primary)openArtifact(primary,false)
   },[client.supportsProductIndex,nativeChat,projection.eventSeq,selected])
-  async function locateInstruction(attemptId:string) {
+  async function locateInstruction(attemptId:string,keepPanel=false) {
     const generation=++locationGeneration.current
     const found=()=>store.publicEvents.some(event=>event.attemptId===attemptId&&event.eventType==='command_accepted')
     try{
@@ -854,7 +855,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         if(!mounted.current||generation!==locationGeneration.current)return
       }
       if(!mounted.current||generation!==locationGeneration.current)return
-      if(found()){markManualView();setInstructionLocation({attemptId,nonce:generation});setProductsOpen(false)}
+      if(found()){markManualView();setInstructionLocation({attemptId,nonce:generation});if(!keepPanel)setProductsOpen(false)}
       else setNotice('原指令尚未加载，可继续读取更早的历史。')
     }catch(cause){rethrowDebugCapacity(cause);if(mounted.current&&generation===locationGeneration.current)setError('原指令暂时无法定位，请重试。')}
   }
@@ -957,13 +958,22 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       progress={missionProgress} onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>}
   </> : undefined
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
+  function contextOrigin(attempt:string) {
+    const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId
+    if(!instruction)return attempt
+    const origin=sessionEvents.find(event=>event.turnId===instruction&&event.attemptId&&
+      event.eventType==='command_accepted'&&(typeof event.payload.text==='string'||
+        typeof (event.payload.payload as Record<string,unknown>|undefined)?.text==='string'))
+    return origin?.attemptId??attempt
+  }
   function locateContextInstruction(attempt:string) {
-    const admission=sessionEvents.find(event=>event.attemptId===attempt&&event.eventType==='command_accepted')
+    const origin=contextOrigin(attempt)
+    const admission=sessionEvents.find(event=>event.attemptId===origin&&event.eventType==='command_accepted')
     const workId=admission?.payload.work_id
     if(typeof workId==='string'&&workId!==selected&&snapshot?.works.some(work=>work.workId===workId))selectWork(workId)
-    void locateInstruction(attempt)
+    void locateInstruction(origin,true)
   }
-  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction}/> : undefined
+  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onScope={openContext} onSelection={setLinkedContext}/> : undefined
   const contextViews=contextPanel?[{id:'instruction-context',label:'上下文',content:contextPanel,description:'按指令追踪模型请求、输入构成和压缩。'}]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
@@ -1031,6 +1041,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {restoredKey === key && (snapshot || professional || currentId === 'new') && <CapstoneAssistantThread inlineExecution={nativeChat} nativeArtifactProjections={indexedArtifacts} resultHistoryNotice={resultProjectionHistoryText(professional)} key={liveConversation?`${key}.conversation`:`${key}.${selected}`} events={conversation.events}
       productReferenceReader={(ref,signal)=>client.resolveProduct(ref,signal)} requestedProductReference={requestedReference?.selection.ref.thread_id===currentId?requestedReference:undefined}
       onOpenInstructionContext={openContext} contextAttempts={contextAttempts}
+      linkedContextAttempt={productsOpen&&resourceView==='instruction-context'?linkedContext?.attemptId:undefined}
+      linkedContextOrigin={productsOpen&&resourceView==='instruction-context'&&linkedContext?contextOrigin(linkedContext.attemptId):undefined}
+      linkedContextLabel={linkedContext?.label}
       projectedMessages={conversation.messages} composerMode={viewingLegacy?'recovery':nativeChat?undefined:'text'} composerLabel={viewingLegacy?'历史记录草稿':nativeChat?undefined:selected === 'new' ? '任务目标' : '补充任务资料'}
       thinkingPreviews={store.thinkingPreviews} instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
       onOpenInstructionProducts={scope=>{markManualView();setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)}}

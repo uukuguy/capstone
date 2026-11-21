@@ -442,5 +442,7 @@ console.log(JSON.stringify(events));
     assert start['request_id'] == end['request_id'] == 'ctx-1'
     assert start['window_tokens'] == 2048
     assert start['estimated_input']['tool_results'] > 0
+    assert start['input_items']['tools']['items'][0]['name'] == 'read'
+    assert start['input_items']['messages']['items'][0]['kind'] == 'user'
     assert end['usage'] == {'input': 10, 'output': 4, 'cacheRead': 2, 'cacheWrite': 3}
     assert 'private' not in result.stdout
