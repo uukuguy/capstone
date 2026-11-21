@@ -19,8 +19,8 @@ const skillLabels: Record<string, {name: string; description: string}> = {
   'anthropic-explore-data': {name: '数据体检', description: '检查数据结构、缺失、重复和分布，提出后续分析建议。'},
   'powerskills-pandapower': {name: '电网分析', description: '辅助检查电网模型、潮流结果与运行约束。'},
 }
-export default function ThreadCommandMenu({ children, catalog, loading, onRefresh, draft, onChange, disabled, onBeforeChange,contextTriggerRef,onRemoveMaterial }: {
-  children: ReactNode | ((tools: ReactNode) => ReactNode); catalog?: InputCatalog; loading?: boolean; onRefresh?: () => void; draft: InputDraft; onChange: (value: InputDraft) => void; disabled?: boolean; onBeforeChange?: () => boolean
+export default function ThreadCommandMenu({ children, catalog, loading, passthrough=false, onRefresh, draft, onChange, disabled, onBeforeChange,contextTriggerRef,onRemoveMaterial }: {
+  children: ReactNode | ((tools: ReactNode) => ReactNode); catalog?: InputCatalog; loading?: boolean; onRefresh?: () => void; draft: InputDraft; onChange: (value: InputDraft) => void; disabled?: boolean; passthrough?:boolean; onBeforeChange?: () => boolean
   contextTriggerRef?:RefObject<HTMLButtonElement|null>;onRemoveMaterial?:(id:string)=>Promise<void>
 }) {
   const aui = useAui()
@@ -73,7 +73,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   }
   function consumeCommand(): boolean {
     if (draft.literal) return false
-    if(goalObjectiveFromInput(text)!==null||missionObjectiveFromInput(text)!==null||isHandoffInstruction(text)||isTakeoverInstruction(text))return false
+    if(passthrough||goalObjectiveFromInput(text)!==null||missionObjectiveFromInput(text)!==null||isHandoffInstruction(text)||isTakeoverInstruction(text))return false
     const command = parseInputCommand(text)
     if (!command) return false
     if (disabled) return true
@@ -97,7 +97,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   const inputTools = <div className="thread-input-tools">
       <LlmProfileMenu catalog={catalog?.llm_profiles} value={draft.llm_profile_id} disabled={disabled||loading} onChange={id=>{if(onBeforeChange?.()!==false)onChange({...draft,llm_profile_id:id})}}/>
 
-      <button type="button" className="thread-settings-trigger" aria-label="技能目录" title="查看已安装技能" aria-expanded={panel==='skills'} onClick={()=>panel==='skills'?close():open('skills')}><Sparkles aria-hidden="true" size={16}/><span>技能目录</span></button>
+      <button type="button" className="thread-settings-trigger" aria-label="技能目录" title="查看已安装技能" aria-expanded={panel==='skills'} disabled={disabled} onClick={()=>panel==='skills'?close():open('skills')}><Sparkles aria-hidden="true" size={16}/><span>技能目录</span></button>
     </div>
   return <div ref={root} className="thread-input-controls" style={panelHeight === undefined ? undefined : { '--thread-input-panel-space': `${panelHeight}px` } as CSSProperties} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
     onClickCapture={event => {

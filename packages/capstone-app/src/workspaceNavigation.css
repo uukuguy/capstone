@@ -5,8 +5,17 @@
 .workspace-catalog-status { position: absolute; inset-inline: 18px; bottom: 88px; padding: 8px; border-radius: 4px; background: #304338; font-size: 11px; }
 .workspace-navigation-gateway { height: 34px; }
 .workspace-navigation-gateway > .workspace-connections-slot { height: 100%; }
-.workspace-session-records { display: flex; flex: none; align-items: center; gap: 8px; overflow-x: auto; padding-block: 8px; }
-.workspace-session-records h2 { margin: 0; font-size: 12px; }
+.workspace-session-records { display: flex; flex: none; align-items: center; gap: 8px; overflow-x: auto; padding: 8px 12px; }
+.workspace-session-records h2 { flex: none; margin: 0; font-size: 12px; white-space: nowrap; }
+.workspace-session-records button { flex: 0 0 auto; max-inline-size: min(36ch, 55%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 10px; border: 1px solid #cbd8d1; border-radius: 6px; color: #36554a; background: #fff; font: inherit; font-size: 12px; }
+.workspace-session-records button[aria-pressed='true'] { border-color: #719588; background: #edf3ef; }
+.thread-work-status { flex: none; min-width: 0; max-block-size: 28dvh; overflow: auto; overflow-wrap: anywhere; color: #36554a; font-size: 12px; }
+.thread-work-status:empty { display: none; }
+.thread-work-status > p { margin: 4px 12px; }
+.thread-task-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 4px 0 7px; color: #36554a; font-size: 12px; }
+.thread-task-strip > .thread-control-button { min-height: 28px; border-radius: 6px; }
+.thread-composer-notice { margin: 4px 0; color: #36554a; font-size: 12px; }
+.thread-task-strip:empty { display: none; }
 @media (pointer: coarse) { .workspace-navigation-gateway { height: 44px; } }
 @media (max-width: 760px) {
   .workspace-route-frame.is-navigation-open > .workspace-route-content { grid-column: 1; }

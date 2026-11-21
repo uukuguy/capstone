@@ -47,6 +47,15 @@
   padding-block-start: 8px;
 }
 
+.enterprise-workspace .capstone-assistant-runtime-label {
+  order: 1;
+  padding-block: 7px;
+}
+
+.enterprise-workspace .capstone-composer-root textarea { resize: none; }
+
+.enterprise-workspace .capstone-composer-toolbar { min-width: 0; flex: 1; }
+
 @media (max-width: 760px) {
   .enterprise-workspace .workspace-topbar {
     grid-template-columns: auto minmax(0, 1fr) auto;
