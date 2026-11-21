@@ -1,5 +1,8 @@
-.mission-status { min-width:0; max-width:100%; font-size:12px; color:inherit; }
+.mission-status { flex:none; min-width:0; width:100%; max-width:760px; margin-inline:auto; box-sizing:border-box; font-size:12px; color:inherit; }
 .mission-status summary { min-height:44px; align-content:center; cursor:pointer; }
-.mission-status summary:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+.mission-status :is(summary, .mission-status-body):focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+.mission-status-body { max-height:min(55dvh, 34rem); overflow:auto; padding:0 4px 8px; }
+.mission-status-body :is(ol,ul) { padding-inline-start:20px; }
+.mission-status-body li + li { margin-top:8px; }
 .mission-status p { margin:4px 0; overflow-wrap:anywhere; white-space:pre-wrap; }
-.mission-status small { display:block; line-height:1.5; }
+.mission-status small { display:block; line-height:1.5; overflow-wrap:anywhere; }
