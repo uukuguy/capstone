@@ -24,4 +24,6 @@ PR199 合入 Goal 历史产物续接。受检源码 `eea759ba` 的真实三步 G
 
 当前实施范围为 local-dev。Railway 已废弃。云端部署和用户试用属于独立发布工作。
 
+实际 local-dev 已从 `7404a5cf` 规范重建，API 和 worker 同镜像并就绪。真实 Provider 的同题三入口均完成，三份下载文件逐字节一致。验收回执保存在 `runs/continuous-task-context/local-dev-7404a5cf/`。
+
 首个可执行切片为工作包 1 的“空目标自由 Instruction → 用户补充边界 → 关键点保存 → 刷新读回”。从该切片确定可复用的数据字段与最小迁移范围。
