@@ -1399,6 +1399,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 保留原因 |
 | --- | --- |
+| continuous-task-local-dev-20261121 | 实际 local-dev 已验证部署来源 |
 | goal-criteria-merge-20261121 | PR203 合入 Goal 验收条件修复并复验同题三入口 |
 | mission-entry-merge-20261121 | PR200 合入显式 Mission 自主结算 |
 | goal-history-merge-20261121 | PR199 合入三步 Goal 历史产物续接 |
@@ -1464,6 +1465,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| continuous-task-local-dev-20261121 | 7404a5cf | main | 持续任务 local-dev | 规范重建就绪，真实三入口产物摘要一致 | Instruction、Goal、Mission 正式本机入口 | continuous-task-context |
 | goal-criteria-merge-20261121 | e959a65c | main | Goal 验收条件修复 | PR203 合入 dev；65a8d56d 通过 macOS CI 和同题三入口文件复验 | 保留用户明确条件，执行时核验所需计算 | continuous-task-context |
 | mission-entry-merge-20261121 | f4233672 | main | 显式 Mission 自主结算 | PR200 合入 dev；c5e97e91 通过 macOS CI 和真实 Provider 交付验证 | 显式入口登记任务并触发应用复盘；校验已保存文件 | continuous-task-context |
 | goal-history-merge-20261121 | c5b9d0ac | main | Goal 历史产物续接 | PR199 合入 dev；eea759ba 通过 macOS 和真实三步 Goal 下载校验 | 复用已登记的旧产物，按已接纳步骤推进至结束 | continuous-task-context |
@@ -1861,7 +1863,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | mission-entry-merge-20261121 | dev 集成里程碑 | dev | 显式 Mission 首轮登记与执行；应用自动复盘和结算交付 | PR200 合入。候选 c5e97e91 通过 macOS CI 44917196539 和真实文件下载校验 |
 | goal-history-merge-20261121 | dev 集成里程碑 | dev | Goal 可重用已登记的旧产物；复盘后持续执行已接纳步骤 | PR199 合入。候选 eea759ba 通过 macOS CI 44916120177 和真实三步 Goal 下载校验 |
 | goal-criteria-merge-20261121 | dev 集成里程碑 | dev | Goal 计划保留用户明确条件；同题三入口均完成真实交付 | PR203 合入。候选 65a8d56d 通过 macOS CI 44918704560 和三份文件摘要校验 |
-| dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR203 已合入，隔离环境同题三入口真实交付通过；实际 local-dev 验收继续 |
+| continuous-task-local-dev-20261121 | 本机研发部署来源 | dev | 真实三入口均完成交付；API 和 worker 共同使用已验证镜像 | 本机规范重建，三份下载文件摘要一致 |
+| dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR205 确认 local-dev 实施范围，实际三入口 API 复验通过 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -2218,7 +2221,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端和 App 产品来源 `62eab867`，App 工作区 004f8dd7 | API 与三个 worker 同镜像 fd4e734551b5；规范重建、就绪与缓存维护通过 | App http://127.0.0.1:5173/。真实 Goal 修订、旁支恢复和部分交付通过。 |
+| local-dev | 后端构建来源 `7404a5cf`，App 产品来源 `65a8d56d` | API 与 worker 同镜像 5a670f86d9e9；规范重建、就绪与缓存维护通过 | App http://127.0.0.1:5173/。实际 API 的同题三入口均完成，下载文件摘要一致。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
