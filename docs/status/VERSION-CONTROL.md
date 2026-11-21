@@ -1292,7 +1292,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 持续任务上下文与主会话集成 | PR203 合入 Goal 验收条件修复 | 同版三入口真实交付文件摘要一致；云端验收未执行 |
+| dev | 持续任务上下文与主会话集成 | PR203 合入 Goal 验收条件修复 | 同版三入口真实交付文件摘要一致；继续验收实际 local-dev |
 
 ## 功能包前沿
 
@@ -1300,7 +1300,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| continuous-task-context | 持续任务上下文 | 1 | 工作包 1–4、6 已合入 dev。工具配备已在隔离环境实测 | 持久上下文、压缩恢复、Goal 自主归档、Mission 直办与混合委派、主会话呈现 | e959a65c | 完成云开发与试用验收 | dev 87d7b03f | PR190–193、PR195–197、PR199、PR200、PR203 合入 | [实施计划](../superpowers/plans/2026-11-21-continuous-task-context.md)。候选 65a8d56d 的同题三机制均完成，原文件摘要一致。 |
+| continuous-task-context | 持续任务上下文 | 1 | 工作包 1–4、6 已合入 dev。工具配备已在隔离环境实测 | 持久上下文、压缩恢复、Goal 自主归档、Mission 直办与混合委派、主会话呈现 | e959a65c | 完成实际 local-dev 验收 | dev 87d7b03f | PR190–193、PR195–197、PR199、PR200、PR203 合入 | [实施计划](../superpowers/plans/2026-11-21-continuous-task-context.md)。候选 65a8d56d 的同题三机制均完成，原文件摘要一致。 |
 | shared-task-continuation | Goal、Mission 与跨会话续作 | 1 | 已合入 dev，本机真实任务验证通过 | 共享状态、原会话记录和版本化交接 | f9edde5e | 维护已交付路径 | dev af8f2859 | PR186 同工作区按指定版本续作 | macOS CI 44801937892 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#goal-mission-and-cross-session-continuation) |
 | task-state-presentation | 回答内任务缺口 | 1 | 已合入 dev，真实浏览器续接通过 | 在原回答下显示缺口，日常会话无验收入口 | 8093ef56 | 延续 Goal、Mission 状态接入 | dev 90a65f81 | PR180 成果可用即可继续工作 | macOS CI 44711900479 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
 | task-state-continuation | 普通指令任务状态 | 1 | 已合入 dev，真实两轮与浏览器验收通过 | 保存任务状态，绑定确切版本，独立记录用户决定 | 36380406 | 接入 Goal、Mission 和授权交接 | dev ff920371 | PR178 保留未完成项与执行中断 | macOS CI 44702425603 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
@@ -1861,7 +1861,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | mission-entry-merge-20261121 | dev 集成里程碑 | dev | 显式 Mission 首轮登记与执行；应用自动复盘和结算交付 | PR200 合入。候选 c5e97e91 通过 macOS CI 44917196539 和真实文件下载校验 |
 | goal-history-merge-20261121 | dev 集成里程碑 | dev | Goal 可重用已登记的旧产物；复盘后持续执行已接纳步骤 | PR199 合入。候选 eea759ba 通过 macOS CI 44916120177 和真实三步 Goal 下载校验 |
 | goal-criteria-merge-20261121 | dev 集成里程碑 | dev | Goal 计划保留用户明确条件；同题三入口均完成真实交付 | PR203 合入。候选 65a8d56d 通过 macOS CI 44918704560 和三份文件摘要校验 |
-| dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR203 已合入，同题三入口真实交付通过；云端验收仍开放 |
+| dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR203 已合入，隔离环境同题三入口真实交付通过；实际 local-dev 验收继续 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
