@@ -69,6 +69,15 @@ def project_work(snapshot, work):
     projected = deepcopy(work)
     projected.pop('goal_step_review', None)
     projected.pop('goal_followup', None)
+    current = snapshot.current_attempt
+    if (work.get('conversation_mode') and current is not None
+            and work.get('latest_attempt_id') == current.attempt_id):
+        projected['execution_checkpoint'] = {
+            'attempt_id': current.attempt_id,
+            'turn_id': current.turn_id,
+            'phase': current.phase,
+            'task_state_ref': work['task_context'].get('task_state_ref'),
+        }
     workflow = goal_task_workflow(work)
     if workflow is not None and 'task_state' in projected:
         projected['task_state']['workflow'] = workflow
@@ -700,7 +709,7 @@ def parse_snapshot(document):
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
         optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'goal_plan_pending', 'goal_plan', 'goal_step_review', 'goal_followup', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill'}
-        optional.update(('task_state', 'task_decision'))
+        optional.update(('task_state', 'task_decision', 'execution_checkpoint'))
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']
@@ -856,7 +865,8 @@ def parse_snapshot(document):
             or len(json.dumps(document['works'], ensure_ascii=False).encode()) > limits.work_state_bytes):
         raise ThreadProtocolError('invalid Work snapshot identity or bounds')
     stored = tuple({key: deepcopy(value) for key, value in work.items()
-                    if key not in {'start_available', 'start_unavailable_reason', 'instruction_queue_available'}} for work in document['works'])
+                    if key not in {'start_available', 'start_unavailable_reason',
+                                   'instruction_queue_available', 'execution_checkpoint'}} for work in document['works'])
     for work in stored:
         if 'task_state' in work:
             work['task_state'].pop('workflow', None)

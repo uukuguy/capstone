@@ -51,9 +51,18 @@ def test_send_message_runs_and_followup_uses_same_work_history(chat_store, tmp_p
     assert queued['active_model_context'] is None
     assert queued['current_attempt']['target_model_context_id'] is None
     assert queued['current_attempt']['work_id'] == receipt.target['id']
+    reader = PostgresThreadService(store.dsn) if isinstance(store, PostgresThreadService) else store
+    checkpoint = reader.snapshot(thread_id).to_document()['works'][0]['execution_checkpoint']
+    assert checkpoint == {
+        'attempt_id': queued['current_attempt']['attempt_id'],
+        'turn_id': queued['current_attempt']['turn_id'],
+        'phase': 'accepted',
+        'task_state_ref': None,
+    }
     result = run_pending_attempt(store, factory, worker_id='native-test', implementation_family='native')
     assert result.status == 'completed', [e.payload for e in store.read_events(thread_id, 0).events if e.event_type == 'attempt_failed']
     work = store.snapshot(thread_id).to_document()['works'][0]
+    assert 'execution_checkpoint' not in work
     state = work['task_state']
     assert state['execution']['phase'] == 'completed'
     assert state['acceptance'] == 'undecided'
