@@ -817,7 +817,8 @@ def test_takeover_source_requires_current_revision_workspace_and_exclusive_lock(
         assert lock_takeover_source(successor, DEFAULT_WORKSPACE, selector)['phase'] == 'accepted'
 
 
-def test_takeover_reservation_survives_commit_and_denies_second_destination(postgres_thread_service):
+@pytest.mark.parametrize('contended', [False, True])
+def test_takeover_reservation_survives_commit_and_denies_second_destination(postgres_thread_service, contended):
     store, thread_id = postgres_thread_service
     target_id, rival_id = thread_id + '_target', thread_id + '_rival'
     executor = native_executor()
@@ -837,7 +838,29 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
                     'work_revision': work['revision'], 'revision_ref': work['execution_checkpoint']['attempt_id']}
         request = command(store, target_id, 'reserve_instruction_takeover', 'takeover',
             payload={'source': selector})
-        reservation = store.submit_command(request)
+        def submit(service, command_document):
+            if not contended:
+                return service.submit_command(command_document)
+            from concurrent.futures import ThreadPoolExecutor
+            from time import monotonic, sleep
+
+            with ThreadPoolExecutor(max_workers=1) as pool, store._connect() as writer:
+                writer.execute('SELECT 1 FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread_id,))
+                writer_pid = writer.info.backend_pid
+                future = pool.submit(service.submit_command, command_document)
+                deadline = monotonic() + 1
+                with store._connect() as observer:
+                    while not future.done() and monotonic() < deadline:
+                        blocked = observer.execute(
+                            'SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE %s = ANY(pg_blocking_pids(pid))) AS blocked',
+                            (writer_pid,)).fetchone()['blocked']
+                        if blocked:
+                            break
+                        sleep(0.01)
+                writer.rollback()
+                return future.result(timeout=5)
+
+        reservation = submit(store, request)
         assert reservation.status == 'accepted'
         reopened = PostgresThreadService(store.dsn)
         assert reopened.submit_command(request) == reservation
@@ -854,7 +877,7 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         assert reopened.submit_command(original_guidance).rejection == 'instruction_takeover_unavailable'
         followup = command(reopened, target_id, 'takeover_instruction', 'guide',
             payload={'source': selector, 'text': 'Use the updated constraint'})
-        assert reopened.submit_command(followup).status == 'accepted'
+        assert submit(reopened, followup).status == 'accepted'
         assert reopened.submit_command(followup).status == 'accepted'
         claim = store.claim_attempt('native', 30, 'native')
         pending = store.peek_instructions(claim)
@@ -876,9 +899,19 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         rival_continuation = command(reopened, rival_id, 'continue_instruction_takeover', 'rival_continue',
             payload=next_request['payload'])
         assert reopened.submit_command(rival_continuation).rejection == 'instruction_takeover_unavailable'
-        continuation = reopened.submit_command(next_request)
-        assert continuation.status == 'accepted', continuation.rejection
-        assert reopened.submit_command(next_request) == continuation
+        from fastapi.testclient import TestClient
+        from test_thread_http_api import _app, _auth
+
+        wakes = []
+        with TestClient(_app(reopened, wake_worker=lambda: wakes.append('wake') or True),
+                        base_url='http://localhost') as client:
+            headers = {**_auth(), 'Capstone-Thread-Version': '2'}
+            url = f'/api/v1/threads/{target_id}/commands'
+            continuation = client.post(url, json=next_request, headers=headers)
+            assert continuation.status_code == 202 and continuation.json()['status'] == 'accepted'
+            replay = client.post(url, json=next_request, headers=headers)
+            assert replay.json() == continuation.json()
+            assert wakes == ['wake', 'wake']
         def forbidden(*args):
             raise AssertionError('takeover continuation must stay on the native route')
         factory = IntentRuntimeFactory(forbidden, forbidden, forbidden, general_executor=executor)

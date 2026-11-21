@@ -9,6 +9,11 @@
     "packages/capstone-agent/src/capstone_agent/thread_work.py",
     "packages/capstone-agent/tests/test_enterprise_normal_chat.py"
   ],
+  "takeover_anchors": [
+    "packages/capstone-agent/src/capstone_agent/task_handoff.py",
+    "packages/capstone-agent/src/capstone_agent/thread_service.py",
+    "packages/capstone-agent/tests/test_enterprise_normal_chat.py"
+  ],
   "paths": [
     "packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py",
     "configs/runtime/application-capacity.json",

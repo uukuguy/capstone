@@ -809,14 +809,21 @@ def create_host_app(
                         refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
                         if callable(refresh_binding):
                             await run_in_threadpool(refresh_binding)
-                receipt = (await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
-                           if scoped_gateway is not None else service.submit_command(command))
+                if scoped_gateway is not None:
+                    receipt = await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
+                elif kind in ('reserve_instruction_takeover', 'takeover_instruction'):
+                    receipt = await run_in_threadpool(service.submit_command, command)
+                else:
+                    receipt = service.submit_command(command)
                 if receipt.rejection == 'protocol_upgrade_required':
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
                 if receipt.status == 'accepted':
                     if kind in {'open_model', 'activate_model', 'switch_model', 'reopen_model_context'}:
                         await run_in_threadpool(request_model_preparation, thread_id)
-                    if command.get('schema') != 'capstone-command/2' or kind in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal'}:
+                    if command.get('schema') != 'capstone-command/2' or kind in {
+                        'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal',
+                        'continue_instruction_takeover',
+                    }:
                         background_tasks.add_task(request_worker, thread_id, force=True)
                 return receipt.to_document()
             except ThreadNotFound:

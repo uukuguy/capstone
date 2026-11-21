@@ -22,7 +22,7 @@ def parse_task_handoff(value):
     return dict(value)
 
 
-def lock_takeover_source(connection, workspace, value):
+def lock_takeover_source(connection, workspace, value, *, skip_locked=True):
     """Lock the selected live Instruction within its workspace for a transfer."""
     selection = parse_task_handoff(value)
     if 'mission_id' in selection:
@@ -41,9 +41,24 @@ def lock_takeover_source(connection, workspace, value):
           AND item.work->'conversation_mode'='true'::jsonb
           AND NOT (item.work ? 'goal_mode')
           AND item.work->'cancel_requested' IS DISTINCT FROM 'true'::jsonb
-        FOR UPDATE OF a, t SKIP LOCKED
-    """, (selection['thread_id'], workspace, selection['revision_ref'],
+        FOR UPDATE OF a, t
+    """ + (' SKIP LOCKED' if skip_locked else ''), (selection['thread_id'], workspace, selection['revision_ref'],
           selection['work_id'], selection['work_id'], str(selection['work_revision']))).fetchone()
+
+
+def lock_takeover_command_source(connection, workspace, value):
+    """Wait briefly for routine writes before treating a transfer as unavailable."""
+    from psycopg.errors import LockNotAvailable
+
+    try:
+        with connection.transaction():
+            previous = connection.execute("SHOW lock_timeout").fetchone()['lock_timeout']
+            connection.execute("SELECT set_config('lock_timeout', '750ms', true)")
+            source = lock_takeover_source(connection, workspace, value, skip_locked=False)
+            connection.execute("SELECT set_config('lock_timeout', %s, true)", (previous,))
+            return source
+    except LockNotAvailable:
+        return None
 
 
 def reserve_instruction_takeover(connection, workspace, target_thread_id, value):
@@ -64,7 +79,7 @@ def reserve_instruction_takeover(connection, workspace, target_thread_id, value)
     """, (target_thread_id, workspace, selection['revision_ref'])).fetchone()
     if target is None:
         return False
-    source = lock_takeover_source(connection, workspace, selection)
+    source = lock_takeover_command_source(connection, workspace, selection)
     if source is None:
         return False
     return connection.execute("""
