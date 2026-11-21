@@ -791,3 +791,27 @@ def test_cross_session_handoff_freezes_same_workspace_task_version(postgres_thre
         import psycopg
         with psycopg.connect(store.dsn) as connection:
             connection.execute('DELETE FROM capstone_threads WHERE thread_id = ANY(%s)', ([source_id, foreign_id],))
+
+
+def test_takeover_source_requires_current_revision_workspace_and_exclusive_lock(chat_store):
+    store, thread_id = chat_store
+    if not isinstance(store, PostgresThreadService):
+        pytest.skip('Takeover requires the PostgreSQL execution ledger')
+    from capstone_agent.task_handoff import lock_takeover_source
+    from capstone_agent.thread_service import DEFAULT_WORKSPACE
+    store.set_native_executor(native_executor())
+    assert store.submit_command(command(store, thread_id, 'send_message', 'takeover',
+        payload={'text': 'Keep this task running'})).status == 'accepted'
+    snapshot = store.snapshot(thread_id).to_document()
+    checkpoint = snapshot['works'][0]['execution_checkpoint']
+    selector = {'thread_id': thread_id, 'work_id': snapshot['works'][0]['work_id'],
+                'work_revision': checkpoint['work_revision'], 'revision_ref': checkpoint['attempt_id']}
+    with store._connect() as owner, store._connect() as contender:
+        assert lock_takeover_source(contender, 'foreign', selector) is None
+        assert lock_takeover_source(contender, DEFAULT_WORKSPACE,
+            {**selector, 'work_revision': selector['work_revision'] + 1}) is None
+        contender.rollback()
+        assert lock_takeover_source(owner, DEFAULT_WORKSPACE, selector)['phase'] == 'accepted'
+        assert lock_takeover_source(contender, DEFAULT_WORKSPACE, selector) is None
+    with store._connect() as successor:
+        assert lock_takeover_source(successor, DEFAULT_WORKSPACE, selector)['phase'] == 'accepted'

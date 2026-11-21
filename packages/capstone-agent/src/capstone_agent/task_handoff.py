@@ -22,6 +22,30 @@ def parse_task_handoff(value):
     return dict(value)
 
 
+def lock_takeover_source(connection, workspace, value):
+    """Lock the selected live Instruction within its workspace for a transfer."""
+    selection = parse_task_handoff(value)
+    if 'mission_id' in selection:
+        raise ThreadProtocolError('Instruction takeover cannot select a Mission')
+    return connection.execute("""
+        SELECT a.attempt_id, a.turn_id, a.phase, t.last_event_seq
+        FROM capstone_threads t JOIN capstone_thread_attempts a
+          ON a.thread_id=t.thread_id AND a.run_id=t.run_id
+        CROSS JOIN LATERAL jsonb_array_elements(t.works) AS item(work)
+        WHERE t.thread_id=%s AND t.workspace_name=%s AND t.run_state='open' AND NOT t.archived
+          AND a.attempt_id=%s AND a.phase IN ('accepted', 'running', 'waiting')
+          AND t.current_attempt->>'attempt_id'=a.attempt_id
+          AND a.task_context_snapshot->'binding'->>'work_id'=%s
+          AND item.work->>'work_id'=%s AND item.work->>'revision'=%s
+          AND item.work->>'latest_attempt_id'=a.attempt_id
+          AND item.work->'conversation_mode'='true'::jsonb
+          AND NOT (item.work ? 'goal_mode')
+          AND item.work->'cancel_requested' IS DISTINCT FROM 'true'::jsonb
+        FOR UPDATE OF a, t SKIP LOCKED
+    """, (selection['thread_id'], workspace, selection['revision_ref'],
+          selection['work_id'], selection['work_id'], str(selection['work_revision']))).fetchone()
+
+
 def freeze_task_handoff(connection, target, value, *, control=None):
     selection = parse_task_handoff(value)
     if selection['thread_id'] == target['thread_id']:
