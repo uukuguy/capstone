@@ -131,6 +131,7 @@ def test_plan_request_preserves_required_verification_when_partial_delivery_is_a
     def planner(system, content):
         assert content == objective
         assert 'Keep the original verification requirement as an acceptance criterion' in system
+        assert 'judge saved product existence across the whole Goal' in system
         return proposal()
 
     monkeypatch.setattr(session_goal_plan, '_request_plan_model', planner)
@@ -149,13 +150,16 @@ def test_review_request_marks_the_next_saved_step_separately_from_final_criteria
         assert 'Use explicit literals and other inputs supplied in the latest objective' in system
         assert 'continue with a clarified repair instruction' in system
         assert 'Missing user input with no executable work remaining calls for a partial review' in system
+        assert 'A verified saved product can satisfy a product-existence criterion' in system
+        assert request['prior_saved_evidence_refs'] == ['earlier.txt']
         return {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
                 'summary': 'Source checked', 'next_instruction': 'Run the benchmark again.',
                 'waiting_reason': None, 'product_refs': ['source.md']}
 
     monkeypatch.setattr(session_goal_plan, '_request_plan_model', reviewer)
     result = session_goal_plan.request_step_review(
-        {'objective': 'Build a benchmark.'}, {'plan': proposal()}, {'product_refs': ['source.md']})
+        {'objective': 'Build a benchmark.'}, {'plan': proposal(), 'review_refs': ['earlier.txt']},
+        {'product_refs': ['source.md']})
     assert result['disposition'] == 'continue'
     assert result['next_instruction'] == 'Run the benchmark.'
 

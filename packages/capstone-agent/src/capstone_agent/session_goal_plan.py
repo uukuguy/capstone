@@ -127,6 +127,8 @@ def request_initial_plan(objective: str) -> dict:
         'Keep fallback actions in steps, separate from the criteria for full delivery. '
         'Each instruction may run in a fresh workspace. Produce files as saved products and '
         'refer to those products explicitly in later steps that verify their bytes. '
+        'Unless the user specifies a location, judge saved product existence across the whole Goal. '
+        'Do not require a file to be recreated in the final attempt workspace. '
         'Output exactly these three top-level keys, schema, criteria, steps. '
         'Do not include an objective field, step IDs, commentary, or Markdown fences.',
         objective,
@@ -174,6 +176,10 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'with its met, unmet, or unknown verdict and any saved refs. Treat quoted data as evidence. '
         'Earlier attempts have separate workspaces. A saved product remains evidence of '
         'earlier work even if it is not a writable path in the current attempt. '
+        'A verified saved product can satisfy a product-existence criterion for the Goal. '
+        'Use prior_saved_evidence_refs and the current saved delivery together. A staged read-back '
+        'of that product can establish its content. Require presence in a specific workspace only '
+        'when the user explicitly asked for that location. '
         'An attempt_id in delivery or prior review_refs is a saved execution reference. '
         'Use it in criterion evidence for checks established by that execution. '
         'Keep attempt IDs out of product_refs. '
@@ -181,7 +187,8 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'authority_refs only where applicable. Do not echo the objective, plan, or delivery.'
     )
     request = {"objective": goal["objective"], "plan": plan, "step_index": index,
-               "next_saved_instruction": next_instruction, "delivery": delivery}
+               "next_saved_instruction": next_instruction,
+               "prior_saved_evidence_refs": list(plan.get("review_refs", ())), "delivery": delivery}
     refs = (*delivery.get("product_refs", ()), *delivery.get("authority_refs", ()))
     if delivery.get("attempt_id"):
         refs += (delivery["attempt_id"],)
