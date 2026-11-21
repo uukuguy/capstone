@@ -150,8 +150,9 @@ class ControlService:
                  else self.store.list(workspace, limit, active_only=True))
         return [{'goal_id': g['goal_id'], 'workspace': g['workspace'], 'task': deepcopy(t)}
                 for g in goals
-                for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}
-                or self._awaits_recovered_delivery(g, t)][:limit]
+                for t in g['tasks'] if not t.get('origin_attempt_id') and (
+                    t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}
+                    or self._awaits_recovered_delivery(g, t))][:limit]
 
     def delegation_request(self, workspace, goal_id, delegation_id):
         goal = self.read(workspace, goal_id)

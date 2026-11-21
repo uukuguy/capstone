@@ -206,3 +206,31 @@ def test_task_replanning_requires_confirmed_pause_and_preserves_prior_delegation
     assert mission['tasks'][0]['state'] == 'pending'
     assert mission['tasks'][0]['delegation'] is None
     assert mission['tasks'][0]['delegation_history'][0]['delegation_id'] == delegation['delegation_id']
+
+
+def test_trusted_origin_binding_records_exact_attempt_without_child_dispatch():
+    from capstone_control.service import InvalidTransition
+
+    control = service()
+    mission = create(control, acceptance_criteria=['Check the answer'])
+    mission = command(control, mission, 'prepare_task', {'task': task()}, 'prepare_direct')
+    payload = {'thread_id': mission['origin']['thread_id'], 'work_id': 'origin_work',
+               'attempt_id': 'origin_attempt', 'task_id': 'task_1'}
+    document = {'schema': 'capstone-control-mission-command/1', 'operation_id': 'bind_direct',
+                'mission_id': mission['mission_id'], 'expected_revision': mission['revision'],
+                'kind': 'bind_origin_execution', 'payload': payload}
+    with pytest.raises(InvalidTransition):
+        control.command_mission('team', document, actor='agent:origin_attempt')
+    receipt = control.command_mission('team', document, actor='application:mission-origin')
+    direct = receipt['mission']
+    assert direct['state'] == 'running'
+    assert direct['delegations_admitted'] == 0
+    assert direct['tasks'][0]['origin_attempt_id'] == 'origin_attempt'
+    assert direct['tasks'][0]['delegation']['binding'] == {
+        'thread_id': payload['thread_id'], 'work_id': payload['work_id']}
+    assert control.command_mission('team', document, actor='application:mission-origin') == receipt
+    binding = direct['tasks'][0]['delegation']['binding']
+    assert control.pending('team', goal_id=direct['mission_id']) == []
+    delivered = control.deliver('team', direct['mission_id'], direct['tasks'][0]['delegation']['delegation_id'],
+        binding, {'answer_ref': 'saved_origin_answer', 'products': [], 'status': 'completed'})
+    assert delivered['tasks'][0]['delivery']['answer_ref'] == 'saved_origin_answer'
