@@ -126,6 +126,7 @@ const TOOL_LABELS: Record<string, string> = {
   agent_mission_read: '读取 Mission 状态',
   agent_mission_prepare_task: '准备子任务',
   agent_mission_update_plan: '更新任务计划',
+  agent_mission_bind_origin_execution: '登记主会话直办',
   agent_mission_ready: '提交任务执行',
   agent_mission_wait: '等待后续指令',
   agent_mission_conclude: '核对任务成果',
