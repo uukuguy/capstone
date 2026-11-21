@@ -29,6 +29,7 @@ def test_compaction_and_recovery_have_a_focused_development_gate():
              agent + 'src/capstone_agent/general_pi_server.py',
              agent + 'src/capstone_agent/delegated_runtime.py',
              agent + 'src/capstone_agent/resources/general-sdk.mjs',
+             agent + 'src/capstone_agent/task_handoff.py',
              agent + 'tests/fixtures/tool-composition.test.mjs',
              agent + 'tests/test_delegated_runtime.py',
              agent + 'tests/test_general_pi_server.py',

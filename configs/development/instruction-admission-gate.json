@@ -14,6 +14,7 @@
     "configs/runtime/application-capacity.json",
     "configs/runtime/capacity-policy.json",
     "packages/capstone-agent/src/capstone_agent/task_record_reader.py",
+    "packages/capstone-agent/src/capstone_agent/task_handoff.py",
     "packages/capstone-agent/src/capstone_agent/conversation_context.py",
     "packages/capstone-agent/tests/test_task_record_reader.py",
     "packages/capstone-app/src/ExecutionDetails.tsx",
