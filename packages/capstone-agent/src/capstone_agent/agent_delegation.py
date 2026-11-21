@@ -141,6 +141,18 @@ def goal_delivery_products(threads, binding, work, final_products):
     return list(products.values())
 
 
+def delegation_state(work):
+    goal = work.get('goal_mode')
+    if goal:
+        # Planning, a queued next step, and saved-step review all have an
+        # automatic owner. They do not require user input.
+        if goal['state'] == 'ready' or (goal['state'] == 'waiting' and goal.get('reason') == 'goal_review_pending'):
+            return 'running'
+        return goal['state']
+    return {'ready': 'waiting', 'queued': 'running', 'blocked': 'waiting',
+            'interrupted': 'unknown'}.get(work['status'], work['status'])
+
+
 class AgentDelegations:
     def __init__(self, threads, registry, *, wake=None):
         self.threads, self.registry, self.wake = threads, registry, wake
@@ -279,8 +291,7 @@ class AgentDelegations:
             return {'sequence': sequence, 'state': 'unknown',
                     'summary': '委托目标已在执行侧修改，请在长期目标中核对。', 'delivery': None}
         status = work.get('goal_mode', {}).get('state', work['status'])
-        state = {'ready': 'waiting', 'queued': 'running', 'blocked': 'waiting',
-                 'interrupted': 'unknown'}.get(status, status)
+        state = delegation_state(work)
         delivery = None
         recovered = False
         can_recover = (status == 'interrupted' and delegation['schema'] == 'capstone-agent-delegation/2'

@@ -296,3 +296,16 @@ def test_goal_delivery_keeps_admitted_products_from_earlier_attempts(monkeypatch
     assert agent_delegation.goal_delivery_products(None, binding, work, [current]) == [early, current]
     work['goal_mode']['generation'] = 2
     assert agent_delegation.goal_delivery_products(None, binding, work, [current]) == [current]
+
+
+@pytest.mark.parametrize('state,reason,expected', [
+    ('ready', None, 'running'),
+    ('waiting', 'goal_review_pending', 'running'),
+    ('waiting', 'missing_source', 'waiting'),
+    ('paused', 'user_paused', 'paused'),
+    ('completed', None, 'completed'),
+])
+def test_delegation_state_distinguishes_autonomous_goal_progress(state, reason, expected):
+    from capstone_agent.agent_delegation import delegation_state
+
+    assert delegation_state({'goal_mode': {'state': state, 'reason': reason}}) == expected
