@@ -187,7 +187,11 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         refs += (delivery["attempt_id"],)
     for attempt in range(2):
         try:
-            proposal = parse_goal_proposal(_request_plan_model(system, json.dumps(request, ensure_ascii=False)))
+            response = _request_plan_model(system, json.dumps(request, ensure_ascii=False))
+            try:
+                proposal = parse_goal_proposal(response)
+            except ValueError as error:
+                raise GoalReviewValidationError("goal_review_schema_invalid", str(error)) from error
             if (proposal["disposition"] == "continue"
                     and not set(proposal["product_refs"]) <= set(delivery.get("product_refs", ()))):
                 raise GoalReviewValidationError("goal_review_reference_unavailable",
@@ -198,6 +202,13 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
             if attempt == 0:
                 request["repair"] = (str(error) if isinstance(error, GoalReviewValidationError)
                                      else "Return a proposal that follows the review schema.")
+            else:
+                import logging
+
+                reason = error.code if isinstance(error, GoalReviewValidationError) else "goal_review_response_invalid"
+                logging.getLogger(__name__).warning(
+                    "Goal review fell back to partial delivery; attempt_id=%s reason=%s",
+                    delivery.get("attempt_id"), reason)
     return {
         "schema": "capstone-work-goal-proposal/1", "disposition": "partial",
         "summary": "已保存本次执行结果。自动复盘未能核验验收条件，保留现有成果供查阅。",

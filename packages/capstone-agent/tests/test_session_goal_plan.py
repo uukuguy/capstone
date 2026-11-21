@@ -180,7 +180,7 @@ def test_review_repairs_invalid_criteria_before_settlement(monkeypatch):
         {"objective": "Build a benchmark."}, plan, {"product_refs": []}) == valid
     assert len(requests) == 2
     assert "repair" not in requests[0]
-    assert requests[1]["repair"]
+    assert requests[1]["repair"] == "invalid Goal criterion review"
 
 
 def test_review_repairs_a_continuation_that_selects_only_a_prior_product(monkeypatch):
