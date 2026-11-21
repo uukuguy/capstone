@@ -3643,6 +3643,22 @@ class PostgresThreadService(NativeExecutionOwner):
             return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
         if parsed['kind'] in {'reserve_instruction_takeover', 'takeover_instruction'}:
             return self._submit_takeover_command(connection, thread, snapshot, parsed, request_hash)
+        if parsed['kind'] == 'continue_instruction_takeover':
+            from .task_handoff import parse_task_handoff
+            if set(parsed['payload']) != {'source', 'text'}:
+                raise ThreadProtocolError('invalid Instruction takeover continuation')
+            source = parse_task_handoff(parsed['payload']['source'])
+            settled = connection.execute("""
+                SELECT 1 FROM capstone_thread_attempts attempt
+                JOIN capstone_threads source ON source.thread_id=attempt.thread_id
+                WHERE source.workspace_name=%s AND attempt.thread_id=%s AND attempt.attempt_id=%s
+                  AND attempt.takeover_target_thread_id=%s
+                  AND attempt.phase IN ('completed', 'interrupted', 'failed', 'cancelled')
+            """, (thread['workspace_name'], source['thread_id'], source['revision_ref'], snapshot.thread_id)).fetchone()
+            if settled is None or 'mission_id' in source:
+                return self._receipt(parsed, status='rejected', rejection='instruction_takeover_unavailable')
+            parsed = {**parsed, 'kind': 'send_message',
+                      'payload': {'text': parsed['payload']['text'], 'task_handoff': source}}
         prepared, submission, input_rejection = _work_send_input(
             snapshot, parsed, self._input_catalog_provider, self._capability_catalog)
         if input_rejection is None and 'task_handoff' in parsed['payload']:

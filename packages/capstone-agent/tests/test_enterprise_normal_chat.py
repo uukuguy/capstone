@@ -870,6 +870,23 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         assert settled['phase'] == 'completed'
         assert settled['answer'] == 'Continuation result'
         assert settled['source']['work_revision'] > selector['work_revision']
+        reopened.set_native_executor(executor)
+        next_request = command(reopened, target_id, 'continue_instruction_takeover', 'continue_takeover',
+            payload={'source': settled['source'], 'text': 'Use the existing Continuation result.'})
+        rival_continuation = command(reopened, rival_id, 'continue_instruction_takeover', 'rival_continue',
+            payload=next_request['payload'])
+        assert reopened.submit_command(rival_continuation).rejection == 'instruction_takeover_unavailable'
+        continuation = reopened.submit_command(next_request)
+        assert continuation.status == 'accepted', continuation.rejection
+        assert reopened.submit_command(next_request) == continuation
+        def forbidden(*args):
+            raise AssertionError('takeover continuation must stay on the native route')
+        factory = IntentRuntimeFactory(forbidden, forbidden, forbidden, general_executor=executor)
+        outcome = run_pending_attempt(reopened, factory, worker_id='continuation', implementation_family='native')
+        assert outcome.status == 'completed'
+        target_state = reopened.snapshot(target_id).works[0]['task_state']
+        assert target_state['handoff'] == settled['source']
+        assert target_state['instruction_command_id'] == next_request['command_id']
 
     finally:
         with store._connect() as connection:
