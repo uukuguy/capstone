@@ -143,7 +143,7 @@ def request_initial_plan(objective: str) -> dict:
 def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
     import json
 
-    from .goal_receipts import parse_goal_proposal
+    from .goal_receipts import parse_goal_proposal, reviewed_product_refs
 
     index = plan.get("step_index", 0)
     steps = plan["plan"]["steps"]
@@ -158,12 +158,13 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'Use explicit literals and other inputs supplied in the latest objective. '
         'If an instruction failed because the executor misread a supplied input as missing, '
         'continue with a clarified repair instruction and the remaining executable steps. '
-        'For continue with the saved plan, the host supplies next_instruction. Cite only current '
-        'references. If a new finding requires a change, add remaining_steps with '
+        'For continue with the saved plan, the host supplies next_instruction. '
+        'If a new finding requires a change, add remaining_steps with '
         'the replacement suffix (instruction and expected_result on each step), '
         'and use its first instruction as next_instruction. Preserve the objective '
-        'and all acceptance criteria. Cite only current '
-        'product_refs needed for it. Optional authority_refs must use current admitted '
+        'and all acceptance criteria. Select only saved products needed for the next step, '
+        'from the current delivery or prior_saved_product_refs. Prefer an exact artifact ID '
+        'when several products share a file name. Optional authority_refs must use current admitted '
         'references. Use wait only for an already pending operation with an expected result. '
         'Missing user input with no executable work remaining calls for a partial review. '
         'For wait, give the pending operation and expected result. Otherwise use null for '
@@ -186,8 +187,10 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'Return exactly the specified top-level keys plus criteria, remaining_steps or '
         'authority_refs only where applicable. Do not echo the objective, plan, or delivery.'
     )
+    prior_products = reviewed_product_refs(plan)
     request = {"objective": goal["objective"], "plan": plan, "step_index": index,
                "next_saved_instruction": next_instruction,
+               "prior_saved_product_refs": list(prior_products),
                "prior_saved_evidence_refs": list(plan.get("review_refs", ())), "delivery": delivery}
     refs = (*delivery.get("product_refs", ()), *delivery.get("authority_refs", ()))
     if delivery.get("attempt_id"):
@@ -203,9 +206,9 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
             except ValueError as error:
                 raise GoalReviewValidationError("goal_review_schema_invalid", str(error)) from error
             if (proposal["disposition"] == "continue"
-                    and not set(proposal["product_refs"]) <= set(delivery.get("product_refs", ()))):
+                    and not set(proposal["product_refs"]) <= {*delivery.get("product_refs", ()), *prior_products}):
                 raise GoalReviewValidationError("goal_review_reference_unavailable",
-                    "A continuation may select only products admitted in the current delivery.")
+                    "A continuation may select only products admitted in the current delivery or prior_saved_product_refs.")
             qualify_planned_review(plan, proposal, refs, objective=goal["objective"])
             return proposal
         except ValueError as error:

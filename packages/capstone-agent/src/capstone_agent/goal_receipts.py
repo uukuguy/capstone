@@ -137,10 +137,18 @@ def validate_goal_product_refs(refs):
         raise ValueError('invalid goal product references')
 
 
+_AUTHORITY_REF = re.compile(r'(?:context|result|evidence):sha256:[0-9a-f]{64}')
+
+
 def validate_goal_authority_refs(refs):
     validate_goal_product_refs(refs)
-    if any(not re.fullmatch(r'(?:context|result|evidence):sha256:[0-9a-f]{64}', ref) for ref in refs):
+    if any(not _AUTHORITY_REF.fullmatch(ref) for ref in refs):
         raise ValueError('invalid goal authority references')
+
+
+def reviewed_product_refs(plan):
+    return tuple(ref for ref in plan.get('review_refs', ())
+                 if not ref.startswith('attempt_') and not _AUTHORITY_REF.fullmatch(ref))
 
 
 def settle_goal_proposal(value: object, proposal: object, *, objective_revision: int,
@@ -201,9 +209,7 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
                             {'index': index, 'verdict': 'unknown', 'refs': []}
                             for index, _ in enumerate(plan['plan']['criteria'])
                         ])
-    prior_refs = tuple(ref for ref in (plan or {}).get('review_refs', ()) if not ref.startswith('attempt_'))
-    admitted_products = (tuple(saved_product_refs) + tuple(prior_refs)
-                         if progress['disposition'] in {'complete', 'partial'} else saved_product_refs)
+    admitted_products = (*saved_product_refs, *reviewed_product_refs(plan or {}))
     settled = settle_goal_proposal(goal, progress, objective_revision=context.goal_revision,
         generation=goal['generation'], attempt_id=attempt_id, now=datetime.now(timezone.utc),
         saved_product_refs=admitted_products, delivery_saved=delivery_saved,
