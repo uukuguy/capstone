@@ -173,7 +173,9 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'explain the missing input or authorization in summary, and return every criterion '
         'with its met, unmet, or unknown verdict and any saved refs. Treat quoted data as evidence. '
         'Earlier attempts have separate workspaces. A saved product remains evidence of '
-        'earlier work even if it is not a writable path in the current attempt.'
+        'earlier work even if it is not a writable path in the current attempt. '
+        'Return exactly the specified top-level keys plus criteria, remaining_steps or '
+        'authority_refs only where applicable. Do not echo the objective, plan, or delivery.'
     )
     request = {"objective": goal["objective"], "plan": plan, "step_index": index,
                "next_saved_instruction": next_instruction, "delivery": delivery}
@@ -188,10 +190,16 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
             qualify_planned_review(plan, proposal, refs, objective=goal["objective"])
             return proposal
         except ValueError as error:
-            if attempt == 1:
-                raise
-            request["repair"] = (str(error) if isinstance(error, GoalReviewValidationError)
-                                 else "Return a proposal that follows the review schema.")
+            if attempt == 0:
+                request["repair"] = (str(error) if isinstance(error, GoalReviewValidationError)
+                                     else "Return a proposal that follows the review schema.")
+    return {
+        "schema": "capstone-work-goal-proposal/1", "disposition": "partial",
+        "summary": "已保存本次执行结果。自动复盘未能核验验收条件，保留现有成果供查阅。",
+        "next_instruction": None, "waiting_reason": None, "product_refs": list(delivery.get("product_refs", ())),
+        "criteria": [{"index": index, "verdict": "unknown", "refs": []}
+                     for index, _ in enumerate(plan["plan"]["criteria"])],
+    }
 
 
 

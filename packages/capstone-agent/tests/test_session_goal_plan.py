@@ -203,6 +203,27 @@ def test_review_repairs_a_continuation_that_selects_only_a_prior_product(monkeyp
     assert "current delivery" in requests[1]["repair"]
 
 
+def test_review_keeps_saved_products_when_both_model_proposals_are_invalid(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    calls = []
+
+    def invalid_review(*args):
+        calls.append(args)
+        return {"unexpected_field": "not a valid proposal"}
+
+    monkeypatch.setattr(session_goal_plan, "_request_plan_model", invalid_review)
+    plan = proposal()
+    result = session_goal_plan.request_step_review(
+        {"objective": "Build a benchmark."}, {"plan": plan}, {"product_refs": ["report.md"]})
+    assert len(calls) == 2
+    assert result["disposition"] == "partial"
+    assert result["product_refs"] == ["report.md"]
+    assert result["criteria"] == [
+        {"index": index, "verdict": "unknown", "refs": []}
+        for index, _ in enumerate(plan["criteria"])]
+
+
 def test_partial_goal_review_records_unmet_criteria_and_explanation():
     from capstone_agent.goal_receipts import parse_goal_proposal
     from capstone_agent.session_goal_plan import qualify_planned_review
