@@ -4,6 +4,11 @@
   "anchors": [
     "packages/capstone-agent/src/capstone_agent/instruction_queue.py"
   ],
+  "recovery_anchors": [
+    "packages/capstone-agent/src/capstone_agent/thread_service.py",
+    "packages/capstone-agent/src/capstone_agent/thread_work.py",
+    "packages/capstone-agent/tests/test_enterprise_normal_chat.py"
+  ],
   "paths": [
     "configs/runtime/application-capacity.json",
     "configs/runtime/capacity-policy.json",
@@ -27,6 +32,7 @@
     "packages/capstone-agent/tests/general-sdk-steering.test.mjs",
     "packages/capstone-agent/tests/test_general_pi_executor.py",
     "packages/capstone-agent/tests/test_instruction_queue.py",
+    "packages/capstone-agent/tests/test_enterprise_normal_chat.py",
     "packages/capstone-agent/tests/test_instruction_transport.py",
     "packages/capstone-agent/tests/test_native_instruction_transport.py",
     "packages/capstone-agent/tests/test_thread_work_execution.py",
