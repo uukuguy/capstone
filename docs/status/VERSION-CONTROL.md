@@ -1,3 +1,5 @@
+2026-11-22 企业工作台控件由 capstone-app 负责。[PR211](https://github.com/uukuguy/capstone/pull/211) 合入 dev `bf677373`，受检 `2a6e4c49`。构建、228 项定向 App 测试和 macOS App 检查通过。输入区保留任务状态和即时操作。右栏有计划、成果、过程记录。正式本地交付审查中 Instruction 和 Mission 交付两个可下载文件；Goal 首步未收到原证据，部分完成。[实施计划](../superpowers/plans/2026-11-22-enterprise-workspace-controls.md)
+
 2026-11-17 兼容恢复修正已合入dev6714d223：PR133受检567d2638/macOS CI44034580886通过；137App/类型、191治理（1既有跳过），真实完成/取消任务与连续对话自动恢复正文。实际5173规范重建与验收见[记录](../reviews/2026-11-17-compatible-session-restoration.md)。新建已走v2连续对话；重要旧记录后续显式转换、核对后再退役废弃入口。本轮不迁移数据，任务式Work仍为现行能力；云端/demo不变。
 
 2026-11-17 阶段二Control已完成：PR126代码合入87e780df，PR127控制收口合入7531bc1f；两项macOS CI及实际dev验收通过，精确最终回执见忽略目录runs/control-delegation-20261117/closeout-receipt.json。该工作包不再活动；云端/demo不变。[验收记录](../reviews/2026-11-17-control-delegation-local.md)。
@@ -1300,7 +1302,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| continuous-task-context | 持续任务上下文 | 1 | 工作包 1–4、6 已合入 dev。工具配备已在隔离环境实测 | 持久上下文、压缩恢复、Goal 自主归档、Mission 直办与混合委派、主会话呈现 | 6dde7eae | 核对合入版 local-dev 综合回执 | dev 87d7b03f | PR190–193、PR195–197、PR199、PR200、PR203、PR207 合入 | [实施计划](../superpowers/plans/2026-11-21-continuous-task-context.md)。实际 local-dev 双行锁接管及续作已通过。 |
+| continuous-task-context | 持续任务上下文 | 1 | 已合入 dev。工作台控件通过 local-dev 验证 | 持久上下文、压缩恢复、Goal 自主归档、Mission 直办与混合委派、主会话呈现 | bf677373 | 修复复杂 Goal 步骤的原始证据缺失与复盘提前结算 | dev bf677373 | PR190–193、PR195–197、PR199、PR200、PR203、PR207、PR209、PR211 合入 | [工作台实施与验收缺口](../superpowers/plans/2026-11-22-enterprise-workspace-controls.md)。实际 local-dev 双行锁接管及续作已通过。 |
 | shared-task-continuation | Goal、Mission 与跨会话续作 | 1 | 已合入 dev，本机真实任务验证通过 | 共享状态、原会话记录和版本化交接 | f9edde5e | 维护已交付路径 | dev af8f2859 | PR186 同工作区按指定版本续作 | macOS CI 44801937892 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#goal-mission-and-cross-session-continuation) |
 | task-state-presentation | 回答内任务缺口 | 1 | 已合入 dev，真实浏览器续接通过 | 在原回答下显示缺口，日常会话无验收入口 | 8093ef56 | 延续 Goal、Mission 状态接入 | dev 90a65f81 | PR180 成果可用即可继续工作 | macOS CI 44711900479 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
 | task-state-continuation | 普通指令任务状态 | 1 | 已合入 dev，真实两轮与浏览器验收通过 | 保存任务状态，绑定确切版本，独立记录用户决定 | 36380406 | 接入 Goal、Mission 和授权交接 | dev ff920371 | PR178 保留未完成项与执行中断 | macOS CI 44702425603 通过。[交付记录](../superpowers/plans/2026-10-16-enterprise-unified-execution.md#ordinary-work-task-state-accepted) |
@@ -1467,6 +1469,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| enterprise-workspace-controls-20261122 | bf677373 | main | 企业工作台操作布局 | PR211 合入 dev，App 定向检查通过 | 输入区任务状态、回复附件、右栏计划和过程记录 | continuous-task-context |
 | handoff-compaction-local-dev-20261122 | 0da14433 | main | 有界交接答复 | PR209 合入；候选 9eb72e38 通过定向 CI、低上下文续作 | 绑定公开完成事件与有限长摘录 | continuous-task-context |
 | instruction-takeover-local-dev-20261122 | 6dde7eae | main | Instruction 跨会话接管 | PR207 已合入，0c01a89d 通过定向 CI 和真实受控行锁、常规接管 | 保留接管权、接纳指导及唤醒续作 | continuous-task-context |
 | continuous-task-local-dev-20261121 | 7404a5cf | main | 持续任务 local-dev | 规范重建就绪，真实三入口产物摘要一致 | Instruction、Goal、Mission 正式本机入口 | continuous-task-context |
@@ -1707,6 +1710,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| enterprise-workspace-controls-20261122 | 开发集成与本机来源 | dev | 输入区保留当前任务操作；右栏承载计划、成果与过程记录 | PR211 已合入。定向 CI、规范重建与正式浏览器核对通过。 |
 | mission-autonomous-merge-20261121 | dev 集成里程碑 | dev | Mission 可直办或混合委派；局部失败后保留独立成果 | PR195 合入。受检 c91304d1 通过真实混合、部分交付及 macOS CI 44911834579 |
 | continuous-task-context-merge-20261121 | dev 集成里程碑 | dev | 持久上下文支持压缩后恢复和运行中接管；Goal 可自主修订、暂停恢复与归档 | PR190–193 已合入，Goal 最新候选三项真实验收通过 |
 | continuous-task-context-source-20261121 | 本机实际部署来源 | feat/goal-autonomous-progression-20261121 | 主会话可控制 Goal 执行；验收引用绑定到保存的产物和执行回执 | macOS CI 44902108149 与本机真实验收通过 |
@@ -2227,7 +2231,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端构建来源 `0da14433`，App 产品来源 `9eb72e38` | API 与 worker 同镜像 f4b7b1987525；规范重建、就绪与缓存维护通过 | App http://127.0.0.1:5173/。低上下文隔离探针按同一源版本读回双标记。 |
+| local-dev | 后端构建来源 `bf677373`，App 产品来源 `2a6e4c49` | API 与三类 worker 同镜像 d86744aaa58c；规范重建与就绪验证通过 | App http://127.0.0.1:5173/。核对历史记录与输入区布局、任务计划页、成果下载和回复执行详情。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
