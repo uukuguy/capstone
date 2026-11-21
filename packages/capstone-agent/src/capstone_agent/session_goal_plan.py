@@ -156,7 +156,7 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'Use explicit literals and other inputs supplied in the latest objective. '
         'If an instruction failed because the executor misread a supplied input as missing, '
         'continue with a clarified repair instruction and the remaining executable steps. '
-        'For continue, copy next_saved_instruction exactly and cite only current '
+        'For continue with the saved plan, the host supplies next_instruction. Cite only current '
         'references. If a new finding requires a change, add remaining_steps with '
         'the replacement suffix (instruction and expected_result on each step), '
         'and use its first instruction as next_instruction. Preserve the objective '
@@ -188,6 +188,9 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
     for attempt in range(2):
         try:
             response = _request_plan_model(system, json.dumps(request, ensure_ascii=False))
+            if (next_instruction is not None and isinstance(response, dict)
+                    and response.get("disposition") == "continue" and "remaining_steps" not in response):
+                response = {**response, "next_instruction": next_instruction}
             try:
                 proposal = parse_goal_proposal(response)
             except ValueError as error:
