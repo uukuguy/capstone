@@ -601,6 +601,8 @@ def test_compaction_lifecycle_survives_host_without_becoming_model_turn(tmp_path
         emit({'type': 'compaction_start', 'reason': 'threshold', 'private': 'PRIVATE'})
         emit({'type': 'compaction_end', 'reason': 'threshold', 'status': 'completed',
               'willRetry': False, 'result': {'summary': 'PRIVATE'}})
+        emit({'type': 'compaction_start', 'reason': 'threshold'})
+        emit({'type': 'compaction_end', 'reason': 'threshold', 'status': 'failed'})
         return 'Answer', {}
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
     request = PiTaskRequest('compact', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
@@ -609,8 +611,9 @@ def test_compaction_lifecycle_survives_host_without_becoming_model_turn(tmp_path
     while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
         time.sleep(.01)
     events = host.read(request.task_id)['events']
-    assert [event['type'] for event in events] == ['runtime_phase', 'runtime_phase']
-    assert [event['runtime_phase']['state'] for event in events] == ['started', 'completed']
+    assert [event['type'] for event in events] == ['runtime_phase'] * 4
+    assert [event['runtime_phase']['state'] for event in events] == ['started', 'completed', 'started', 'failed']
+    assert [event['runtime_phase']['compaction_index'] for event in events] == [1, 1, 2, 2]
     assert events[-1]['runtime_phase']['elapsed_ms'] >= 0
     assert 'PRIVATE' not in str(events)
 

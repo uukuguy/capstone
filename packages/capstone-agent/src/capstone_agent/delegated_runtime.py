@@ -382,6 +382,7 @@ class DelegatedRuntime:
             model_progress = isinstance(model_request_pool, Mapping)
             runtime_phase = event.get('runtime_phase')
             phase_progress = kind == 'runtime_phase' and isinstance(runtime_phase, Mapping)
+            compaction_index = runtime_phase.get('compaction_index') if isinstance(runtime_phase, Mapping) else None
             resource_failure = event.get('resource_failure')
             if kind == 'resource_read_failed' and isinstance(resource_failure, Mapping):
                 from .native_failure_origin import checked_failure_origin
@@ -415,7 +416,9 @@ class DelegatedRuntime:
                 **({'investigation_checkpoint': investigation_checkpoint} if investigation_checkpoint is not None else {}),
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
                 **({'runtime_phase': {key: cast(Mapping, runtime_phase)[key] for key in
-                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in cast(Mapping, runtime_phase)}}
+                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in cast(Mapping, runtime_phase)}
+                    | ({'compaction_index': compaction_index}
+                       if type(compaction_index) is int and 0 < compaction_index <= 2**31-1 else {})}
                     if phase_progress else {}),
                 **({'resource_failure': dict(resource_failure)}
                     if kind == 'resource_read_failed' and isinstance(resource_failure, Mapping) else {}),

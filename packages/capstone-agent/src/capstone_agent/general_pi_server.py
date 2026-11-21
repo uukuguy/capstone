@@ -678,10 +678,11 @@ class GeneralPiHost:
                 'metadata': {'tool_name': tool_name, 'tool_call_id': call_id,
                     'output_sha256': digest, **provenance, 'action_id': action_id, 'status': status}})
         compaction_started = None
+        compaction_index = 0
         from .native_product_roles import PresentationDeliveries
         presentation_deliveries = PresentationDeliveries()
         def emit(event):
-            nonlocal compaction_started
+            nonlocal compaction_started, compaction_index
             presentation_deliveries.observe(event)
             # Public transport uses bounded receipts, never raw native frames.
             kind = event.get('type')
@@ -702,8 +703,11 @@ class GeneralPiHost:
                 payload = {'type': kind, 'instruction_id': instruction_id}
             if payload is not None and payload.get('type') == 'runtime_phase':
                 if kind == 'compaction_start':
+                    compaction_index += 1
+                    payload['runtime_phase']['compaction_index'] = compaction_index
                     compaction_started = time.monotonic()
                 elif compaction_started is not None:
+                    payload['runtime_phase']['compaction_index'] = compaction_index
                     payload['runtime_phase']['elapsed_ms'] = round((time.monotonic() - compaction_started) * 1000)
                     compaction_started = None
             if kind == 'tool_batch':
