@@ -10,9 +10,11 @@
     "packages/capstone-agent/tests/test_enterprise_normal_chat.py"
   ],
   "paths": [
+    "packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py",
     "configs/runtime/application-capacity.json",
     "configs/runtime/capacity-policy.json",
     "packages/capstone-agent/src/capstone_agent/task_record_reader.py",
+    "packages/capstone-agent/src/capstone_agent/task_handoff.py",
     "packages/capstone-agent/src/capstone_agent/conversation_context.py",
     "packages/capstone-agent/tests/test_task_record_reader.py",
     "packages/capstone-app/src/ExecutionDetails.tsx",
@@ -30,6 +32,9 @@
     "packages/capstone-agent/src/capstone_agent/thread_service.py",
     "packages/capstone-agent/src/capstone_agent/thread_work.py",
     "packages/capstone-agent/tests/general-sdk-steering.test.mjs",
+    "packages/capstone-agent/tests/fixtures/tool-composition.test.mjs",
+    "packages/capstone-agent/tests/test_delegated_runtime.py",
+    "packages/capstone-agent/tests/test_general_pi_server.py",
     "packages/capstone-agent/tests/test_general_pi_executor.py",
     "packages/capstone-agent/tests/test_instruction_queue.py",
     "packages/capstone-agent/tests/test_enterprise_normal_chat.py",

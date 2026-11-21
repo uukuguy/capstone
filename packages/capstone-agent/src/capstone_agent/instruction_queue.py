@@ -195,7 +195,8 @@ def prepare_replacement(before, terminal, attempt_id, submission):
     context = TaskContext.from_document(work['task_context'])
     work['task_context'] = replace(context, snapshot_id='task_' + secrets.token_hex(10)).to_document()
     snapshot, current, task_context, text = create_attempt(replace(terminal, works=works), work, bind_task_state=True)
-    frozen = {**deepcopy(submission or {}), 'input': {'kind': 'text', 'text': text}}
+    frozen = {**deepcopy(submission or {}), 'input': {'kind': 'text', 'text': text},
+              '_instruction_command_id': queued['id']}
     frozen.pop('_task_handoff', None)
     payload = {'command_id': queued['id'], 'kind': 'send_auto',
                'payload': {'text': text, 'source_attempt_id': attempt_id},

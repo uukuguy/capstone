@@ -21,3 +21,19 @@ def test_instruction_recovery_uses_the_focused_gate():
     assert classify(paths) == 'instruction-admission'
     assert classify(paths, target='main') == 'release'
     assert classify(paths + ['packages/grid-simulator/src/new.py']) != 'instruction-admission'
+
+
+def test_compaction_and_recovery_have_a_focused_development_gate():
+    agent = 'packages/capstone-agent/'
+    paths = [agent + 'src/capstone_agent/instruction_queue.py',
+             agent + 'src/capstone_agent/general_pi_server.py',
+             agent + 'src/capstone_agent/delegated_runtime.py',
+             agent + 'src/capstone_agent/resources/general-sdk.mjs',
+             agent + 'src/capstone_agent/task_handoff.py',
+             agent + 'tests/fixtures/tool-composition.test.mjs',
+             agent + 'tests/test_delegated_runtime.py',
+             agent + 'tests/test_general_pi_server.py',
+             'packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py']
+    assert classify(paths) == 'instruction-admission'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths + ['packages/grid-simulator/src/new.py']) != 'instruction-admission'

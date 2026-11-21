@@ -532,9 +532,16 @@ function modelFailureCode(message) {
 export function rpcEvent(event) {
   if(event.type==='compaction_start'||event.type==='compaction_end'){
     const reason=['manual','threshold','overflow'].includes(event.reason)?event.reason:'unknown';
-    return {type:event.type,reason,...(event.type==='compaction_end'?{
-      status:event.aborted?'cancelled':event.errorMessage?'failed':event.result?'completed':'skipped',
-      willRetry:event.willRetry===true}: {})};
+    if(event.type==='compaction_start')return {type:event.type,reason};
+    const status=event.aborted?'cancelled':event.errorMessage?'failed':event.result?'completed':'skipped';
+    const frame={type:event.type,reason,status,willRetry:event.willRetry===true};
+    const {firstKeptEntryId,tokensBefore}=event.result??{};
+    if(status==='completed'&&typeof firstKeptEntryId==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(firstKeptEntryId)
+      &&Number.isSafeInteger(tokensBefore)&&tokensBefore>=0&&tokensBefore<=2147483647){
+      frame.first_kept_entry_id=firstKeptEntryId;
+      frame.tokens_before=tokensBefore;
+    }
+    return frame;
   }
   if(event.type==='auto_retry_start')return {type:event.type,attempt:event.attempt,maxAttempts:event.maxAttempts,delayMs:event.delayMs,errorCode:modelFailureCode(event.errorMessage)};
   if(event.type==='auto_retry_end')return {type:event.type,attempt:event.attempt,success:event.success};
@@ -597,14 +604,34 @@ export function createInstructionSteering(session,config,emit) {
   const instructionLimit=config.instructionLimit??capacities.native_instruction_count;
   if(!Number.isSafeInteger(instructionLimit)||instructionLimit<1)throw new TypeError('Invalid native instruction limit');
   let closed=false;
+  const originalText=config.input?.kind==='text'?config.input.text:null;
+  let originalInstruction;
+  const userText=message=>{
+    if(message?.role!=='user')return '';
+    const content=message.content;
+    return typeof content==='string'?content:Array.isArray(content)?content.filter(p=>p.type==='text').map(p=>p.text).join(''):'';
+  };
+  const agent=session.agent;
+  const previousTransform=agent?.transformContext;
+  if(agent)agent.transformContext=async (messages,signal)=>{
+    const context=previousTransform?await previousTransform.call(agent,messages,signal):messages;
+    const present=new Set(context.map(userText));
+    const missing=Array.from(entries.values())
+      .filter(entry=>entry.admitted&&!present.has(entry.message))
+      .map(entry=>entry.admitted);
+    if(originalInstruction&&!present.has(originalText))missing.unshift(originalInstruction);
+    return missing.length?[...missing,...context]:context;
+  };
   const unsubscribe=session.subscribe(event=>{
     // The pinned SDK appends user context on message_end. message_start only
     // sets streamingMessage, so it cannot certify durable context admission.
     if(event.type!=='message_end'||event.message?.role!=='user')return;
-    const content=event.message.content;
-    const text=typeof content==='string'?content:Array.isArray(content)?content.filter(p=>p.type==='text').map(p=>p.text).join(''):'';
-    for(const [id,entry] of entries)if(!entry.consumed&&text===entry.message){
-      entry.consumed=true;
+    const text=userText(event.message);
+    if(!originalInstruction&&originalText&&text===originalText){
+      originalInstruction={role:'user',content:text,timestamp:event.message.timestamp};
+    }
+    for(const [id,entry] of entries)if(!entry.admitted&&text===entry.message){
+      entry.admitted={role:'user',content:entry.message,timestamp:event.message.timestamp};
       emit({type:'general_pi_instruction_consumed',instruction_id:id});
       break;
     }
@@ -624,10 +651,10 @@ export function createInstructionSteering(session,config,emit) {
       // The prefix binds duplicate text to its durable identity and prevents
       // slash-command expansion from changing an ordinary user supplement.
       const message=`User instruction (${frame.instruction_id}):\n${frame.text}`;
-      entries.set(frame.instruction_id,{text:frame.text,message,consumed:false});
+      entries.set(frame.instruction_id,{text:frame.text,message});
       await session.steer(message);
     },
-    close(){closed=true;unsubscribe();}
+    close(){closed=true;unsubscribe();if(agent)agent.transformContext=previousTransform;}
   };
 }
 

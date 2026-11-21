@@ -355,7 +355,8 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
             on_event({'type': 'runtime_phase', 'runtime_phase': {'name': 'context_compaction',
                 'state': 'started', 'reason': 'threshold', 'summary': 'PRIVATE COMPACTION'}})
             on_event({'type': 'runtime_phase', 'runtime_phase': {'name': 'context_compaction',
-                'state': 'completed', 'reason': 'threshold', 'elapsed_ms': 16081, 'will_retry': False}})
+                'state': 'completed', 'reason': 'threshold', 'elapsed_ms': 16081, 'will_retry': False,
+                'compaction_index': 1, 'first_kept_entry_id': 'entry_abc', 'tokens_before': 5200}})
             on_event({'type': 'runtime_action', 'phase': 'started'})
             on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'text'})
             on_event({'type': 'runtime_action', 'phase': 'completed'})
@@ -370,6 +371,9 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     phases = [e for e in saved if e.payload.get('native_type') == 'runtime_phase']
     assert len(phases) == 2 and all(e.visibility == 'public' for e in phases)
     assert phases[-1].payload['runtime_phase']['elapsed_ms'] == 16081
+    assert phases[-1].payload['runtime_phase']['compaction_index'] == 1
+    assert phases[-1].payload['runtime_phase']['first_kept_entry_id'] == 'entry_abc'
+    assert phases[-1].payload['runtime_phase']['tokens_before'] == 5200
     assert 'PRIVATE COMPACTION' not in str([e.payload for e in phases])
     assert len(purposes) == 2
     thought = next(e for e in saved if e.event_type == 'assistant_thinking_delta')
