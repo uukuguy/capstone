@@ -274,3 +274,25 @@ def test_goal_pause_resume_retains_work_and_consumed_budget(postgres_thread_serv
     finally:
         threads.delete_thread(binding['thread_id'])
         registry.delete('enterprise', d['operation_id'])
+
+
+def test_goal_delivery_keeps_admitted_products_from_earlier_attempts(monkeypatch):
+    from capstone_agent import agent_delegation
+
+    early = {'file_name': 'draft.txt', 'artifact_id': 'file_old'}
+    current = {'file_name': 'check.txt', 'artifact_id': 'file_check'}
+    excluded = {'file_name': 'private.txt', 'artifact_id': 'file_unselected'}
+    work = {'latest_attempt_id': 'attempt_final',
+            'goal_mode': {'objective_revision': 2, 'generation': 1},
+            'goal_plan': {'objective_revision': 2, 'generation': 1,
+                          'review_refs': ['attempt_early', 'file_old']}}
+    binding = {'thread_id': 'thr_child', 'work_id': 'work_child'}
+
+    def read(_threads, source, attempt_id):
+        assert source == binding and attempt_id == 'attempt_early'
+        return 'answer_early', [early, excluded], 2, True, False, False, 'completed'
+
+    monkeypatch.setattr(agent_delegation, 'read_saved_attempt_delivery', read)
+    assert agent_delegation.goal_delivery_products(None, binding, work, [current]) == [early, current]
+    work['goal_mode']['generation'] = 2
+    assert agent_delegation.goal_delivery_products(None, binding, work, [current]) == [current]

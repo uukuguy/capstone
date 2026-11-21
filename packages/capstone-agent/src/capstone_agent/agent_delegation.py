@@ -113,6 +113,34 @@ def read_saved_attempt_delivery(threads, binding, attempt_id, *, start_command=N
     return terminal, list(artifacts.values()), sequence, original_start, authoritative, gateway, phase
 
 
+def goal_delivery_products(threads, binding, work, final_products):
+    """Include admitted products from earlier steps of the current Goal plan."""
+    plan = work.get('goal_plan') or {}
+    mode = work.get('goal_mode') or {}
+    if (plan.get('objective_revision') != mode.get('objective_revision')
+            or plan.get('generation') != mode.get('generation')):
+        return final_products
+    refs = set(plan.get('review_refs', ()))
+    refs.update(ref for criterion in plan.get('criteria', ()) for ref in criterion['refs'])
+    prior = {}
+    for attempt_id in sorted(ref for ref in refs if ref.startswith('attempt_')):
+        if attempt_id == work['latest_attempt_id']:
+            continue
+        try:
+            answer, artifacts, sequence, _, _, _, phase = read_saved_attempt_delivery(threads, binding, attempt_id)
+        except ThreadNotFound:
+            # A legacy product alias can share the prefix of an Attempt ID.
+            continue
+        if phase == 'completed' and answer is not None:
+            for item in artifacts:
+                name = item['file_name']
+                if (item['artifact_id'] in refs or name in refs) and (name not in prior or sequence > prior[name][0]):
+                    prior[name] = (sequence, item)
+    products = {name: item for name, (_, item) in prior.items()}
+    products.update({item['file_name']: item for item in final_products})
+    return list(products.values())
+
+
 class AgentDelegations:
     def __init__(self, threads, registry, *, wake=None):
         self.threads, self.registry, self.wake = threads, registry, wake
@@ -270,6 +298,8 @@ class AgentDelegations:
                 raise ValueError('completed Work has no persisted answer')
             recovered = can_recover
             state = 'completed'
+            if delegation['mode'] == 'goal':
+                artifacts = goal_delivery_products(self.threads, binding, work, artifacts)
             delivery = {'answer_ref': terminal, 'products': artifacts, 'status': 'completed'}
             if not recovered and authoritative and (delegation['schema'] == 'capstone-agent-delegation/2'
                                   or 'authority_source' in delegation.get('required_reference_sources', ())):
