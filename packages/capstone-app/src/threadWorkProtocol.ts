@@ -29,8 +29,11 @@ function parseTaskHandoff(value:unknown):TaskHandoff {
 
 const handoffCommand = '/continue-from'
 const takeoverCommand = '/takeover-from'
+export function isTakeoverInstruction(text:string):boolean {
+  return text===takeoverCommand||text.startsWith(takeoverCommand+' ')
+}
 export function takeoverInstruction(text:string):TaskHandoff|null {
-  if(text!==takeoverCommand&&!text.startsWith(takeoverCommand+' '))return null
+  if(!isTakeoverInstruction(text))return null
   const [thread_id,work_id,work_revision,revision_ref,...extra]=text.slice(takeoverCommand.length).trim().split('/')
   if(extra.length||!/^[1-9][0-9]*$/.test(work_revision))throw new ThreadProtocolError('请粘贴有效的接管引用。')
   return parseTaskHandoff({thread_id,work_id,work_revision:Number(work_revision),revision_ref})

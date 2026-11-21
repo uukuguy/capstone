@@ -507,7 +507,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       const source=pendingTakeover?null:takeoverInstruction(text)
       const received=takeover&&(!snapshot?.works.some(work=>work.conversationMode)||instructionTakeoverActive(takeover.phase))?takeover:null
       if(pendingTakeover||source||received){
-        if(!snapshot||recoveryOnly||attachments.length||attachmentsLoading||processReference||submission?.input.kind==='skill_invocation'){
+        if(!snapshot||recovery||attachments.length||attachmentsLoading||processReference||submission?.input.kind==='skill_invocation'){
           throw new Error('接管仅支持文本指令，请移除附件、引用或技能。')
         }
         const cmd=pendingTakeover??buildInstructionTakeoverCommand(currentId,snapshot.runId,
