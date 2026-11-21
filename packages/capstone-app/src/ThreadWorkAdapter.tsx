@@ -5,7 +5,7 @@ import InstructionStatus from './InstructionStatus'
 import {NetworkView} from './NetworkView'
 import {parseNetworkView} from './networkValidation'
 import ControlGoalPanel from './ControlGoalPanel'
-import {goalCommand,goalObjectiveFromInput} from './goalMode'
+import {goalCommand,goalControlFromInput,goalObjectiveFromInput} from './goalMode'
 import ProductReferenceChips from './ProductReferenceChips'
 import ManagedResourcesPanel from './ManagedResourcesPanel'
 import {instructionProductScopesFromEvents,type InstructionProductScope} from './instructionProducts'
@@ -226,7 +226,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [acceptedDraft,setAcceptedDraft]=useState<{text:string;commandId:string;submission?:InputSubmission}>()
   const pendingCommand = projection.pendingCommands.find(item => !item.receipt)?.command
   const pending = pendingCommand?.schema === 'capstone-command/2' ? pendingCommand : undefined
-  const pendingMessage = pending?.kind === 'work_message' || pending?.kind === 'revise_goal' || pending?.kind === 'send_message' || pending?.kind==='queue_instruction' ? pending : undefined
+  const pendingGoalControl = pending?.kind === 'pause_goal' || pending?.kind === 'resume_goal' || pending?.kind === 'revise_goal_objective' ? pending : undefined
+  const pendingMessage = pendingGoalControl || (pending?.kind === 'work_message' || pending?.kind === 'revise_goal' || pending?.kind === 'send_message' || pending?.kind==='queue_instruction' ? pending : undefined)
   const drafts = useRef<Record<string, string>>({})
   const explicitNew=useRef(false)
   const [sessionError, setSessionError] = useState(false)
@@ -445,6 +446,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message'||command.kind==='queue_instruction') { drafts.current[selected] = ''; persist(selected) }
       setNotice(command.kind==='queue_instruction'?'':command.kind==='withdraw_instruction'?'撤回已确认。':command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
+      if (command.kind === 'pause_goal') setNotice('目标已暂停。')
+      if (command.kind === 'resume_goal') setNotice('恢复请求已接收。')
+      if (command.kind === 'revise_goal_objective') setNotice('目标修订已保存。')
       if (command.kind === 'record_task_decision') setNotice('已记录本轮结果的验收决定。')
       await store.refreshWorkSnapshot().catch(cause => { if (mounted.current) setError(cause.message) })
       if (!mounted.current) return
@@ -502,6 +506,22 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     try{await dispatch(operation.command!);rememberMission(undefined)}catch(cause){if(cause instanceof CommandRejectedError)rememberMission({...operation,command:undefined});throw new MessageNotSentError(cause instanceof Error?cause.message:'规划请求结果待确认。请重试原请求。')}
   }
   async function send(text: string,submission?:InputSubmission) {
+    try{
+      if(pendingGoalControl){
+        await dispatch(pendingGoalControl)
+        return
+      }
+      const control=!pending?goalControlFromInput(text):null
+      if(control){
+        if(!snapshot||!selectedWork?.goalMode)throw new Error('当前会话没有可操作的持续目标。')
+        if(attachments.length||attachmentsLoading||processReference||submission?.input.kind==='skill_invocation'){
+          throw new Error('请移除附件、执行引用或技能，再发送目标控制命令。')
+        }
+        await dispatch(goalCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,
+          selectedWork.workId,selectedWork.revision,control.kind,control.payload))
+        return
+      }
+    }catch(cause){throw new MessageNotSentError(cause instanceof Error?cause.message:'目标控制请求待确认。')}
     const pendingTakeover=pending?.kind==='reserve_instruction_takeover'||pending?.kind==='takeover_instruction'||pending?.kind==='continue_instruction_takeover'?pending:undefined
     try{
       const source=pendingTakeover?null:takeoverInstruction(text)
