@@ -1,3 +1,5 @@
+2026-11-22 上下文分类下钻与指令关联由 capstone-agent 与 capstone-app 负责。[PR215](https://github.com/uukuguy/capstone/pull/215) 合入 dev `2bb39017`，受检 `776ff5d2`。分类色块与列表支持预览并选择，提供按指令筛选与调用高亮，定位保留右栏。两条真实指令的关联与保留视图通过浏览器复测。[实施计划](../superpowers/plans/2026-11-22-instruction-context-inspector.md)
+
 2026-11-22 Instruction 上下文观察由 capstone-agent 与 capstone-app 负责。[PR213](https://github.com/uukuguy/capstone/pull/213) 合入 dev `ea130a51`，受检 `cf98f65d`。按 Instruction、执行尝试和请求标识记录用量。输入区和回复共用右栏。隔离实测记录了同一 Instruction 的三次 Provider 调用，历史压缩可定位，桌面和窄屏浏览器检查通过。[实施计划](../superpowers/plans/2026-11-22-instruction-context-inspector.md)
 
 2026-11-22 企业工作台控件由 capstone-app 负责。[PR211](https://github.com/uukuguy/capstone/pull/211) 合入 dev `bf677373`，受检 `2a6e4c49`。构建、228 项定向 App 测试和 macOS App 检查通过。输入区保留任务状态和即时操作。右栏有计划、成果、过程记录。正式本地交付审查中 Instruction 和 Mission 交付两个可下载文件；Goal 首步未收到原证据，部分完成。[实施计划](../superpowers/plans/2026-11-22-enterprise-workspace-controls.md)
@@ -1471,6 +1473,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| context-drilldown-20261122 | 2bb39017 | main | 上下文分类与指令联动 | PR215 合入 dev，定向检查通过 | 分类预览、点击条目明细与指令定位保留右栏 | continuous-task-context |
 | instruction-context-inspector-20261122 | ea130a51 | main | Instruction 上下文观察 | PR213 合入 dev，定向检查通过 | 输入区与回复入口关联单次模型请求及压缩 | continuous-task-context |
 | enterprise-workspace-controls-20261122 | bf677373 | main | 企业工作台操作布局 | PR211 合入 dev，App 定向检查通过 | 输入区任务状态、回复附件、右栏计划和过程记录 | continuous-task-context |
 | handoff-compaction-local-dev-20261122 | 0da14433 | main | 有界交接答复 | PR209 合入；候选 9eb72e38 通过定向 CI、低上下文续作 | 绑定公开完成事件与有限长摘录 | continuous-task-context |
@@ -1713,6 +1716,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| context-drilldown-20261122 | 开发集成与本机来源 | dev | 分类色块和列表可下钻；所选调用与指令联动 | 定向 CI 与两条真实指令关联复测通过。 |
 | instruction-context-inspector-20261122 | 开发集成与本机来源 | dev | 按指令追踪模型用量与压缩；右栏区分回执和估算 | 定向 CI 与真实调用核对通过。 |
 | enterprise-workspace-controls-20261122 | 开发集成与本机来源 | dev | 输入区保留当前任务操作；右栏承载计划、成果与过程记录 | PR211 已合入。定向 CI、规范重建与正式浏览器核对通过。 |
 | mission-autonomous-merge-20261121 | dev 集成里程碑 | dev | Mission 可直办或混合委派；局部失败后保留独立成果 | PR195 合入。受检 c91304d1 通过真实混合、部分交付及 macOS CI 44911834579 |
@@ -2235,7 +2239,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端构建来源 `ea130a51`，App 产品来源 `cf98f65d` | API 与三类 worker 同镜像 fc4860c43d9e；规范重建与就绪验证通过 | App http://127.0.0.1:5173/。可从输入区或回复打开上下文观察。 |
+| local-dev | 后端构建来源 `2bb39017`，App 产品来源 `776ff5d2` | API 与三类 worker 同镜像 d419b2f7b194；规范重建与就绪验证通过 | App http://127.0.0.1:5173/。可按分类下钻并定位原指令，右栏保留。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
