@@ -80,6 +80,7 @@ def read_saved_attempt_delivery(threads, binding, attempt_id, *, start_command=N
     """Read the exact Attempt's saved answer and completed product descriptors."""
     after, artifacts, terminal, authoritative, gateway, sequence = 0, {}, None, False, False, 0
     original_start = False
+    phase = None
     for _ in range(128):
         page = threads.read_attempt_records(binding['thread_id'], attempt_id, after=after, limit=128)
         for event in page['events']:
@@ -93,6 +94,10 @@ def read_saved_attempt_delivery(threads, binding, attempt_id, *, start_command=N
                 item = event['payload']['artifact']
                 if item['work_id'] == binding['work_id'] and item.get('source_status') == 'completed':
                     artifacts[item['file_name']] = item
+            if event['visibility'] == 'public' and event['event_type'] in {
+                    'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'}:
+                phase = event['event_type'].removeprefix('attempt_')
+                sequence = event['event_seq']
             if (event['event_type'] == expected and event['visibility'] == 'public'
                     and str(event['payload'].get('answer', '')).strip()):
                 terminal = event['event_id']
@@ -105,7 +110,7 @@ def read_saved_attempt_delivery(threads, binding, attempt_id, *, start_command=N
         after = page['next_after']
     else:
         raise ValueError('Agent observation exceeds bounded page budget')
-    return terminal, list(artifacts.values()), sequence, original_start, authoritative, gateway
+    return terminal, list(artifacts.values()), sequence, original_start, authoritative, gateway, phase
 
 
 class AgentDelegations:
@@ -256,7 +261,7 @@ class AgentDelegations:
             # Match the original idempotent start even for older delegations.
             start_command = 'cmd_' + _digest([binding['thread_id'], 'start'])[:32]
             expected = 'attempt_delivery_recovered' if can_recover else 'attempt_completed'
-            terminal, artifacts, terminal_seq, original_start, authoritative, gateway = read_saved_attempt_delivery(
+            terminal, artifacts, terminal_seq, original_start, authoritative, gateway, _ = read_saved_attempt_delivery(
                 self.threads, binding, work['latest_attempt_id'], start_command=start_command, expected=expected)
             sequence = max(sequence, terminal_seq + len(current['control_receipts']))
             if can_recover and (terminal is None or not original_start):

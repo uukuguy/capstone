@@ -140,15 +140,27 @@ class ControlHost:
     def _settle_origin_delivery(self, goal):
         from .agent_delegation import read_saved_attempt_delivery
         for task in goal['tasks']:
-            if task['state'] != 'running' or not task.get('origin_attempt_id'):
+            if task['state'] not in {'running', 'revoke_requested'} or not task.get('origin_attempt_id'):
                 continue
             delegation = task['delegation']
             binding = delegation['binding']
             attempt_id = task['origin_attempt_id']
             self.agent.threads.require_workspace(binding['thread_id'], goal['workspace'])
-            answer, products, _, _, authoritative, gateway = read_saved_attempt_delivery(
+            answer, products, sequence, _, authoritative, gateway, phase = read_saved_attempt_delivery(
                 self.agent.threads, binding, attempt_id)
-            if answer is None:
+            if phase is None:
+                if task['state'] == 'revoke_requested':
+                    snapshot = self.agent.threads.snapshot(binding['thread_id'])
+                    if snapshot.current_attempt and snapshot.current_attempt.attempt_id == attempt_id:
+                        work = next(item for item in snapshot.works if item['work_id'] == binding['work_id'])
+                        if not work.get('cancel_requested'):
+                            self.agent._command(binding['thread_id'], work, 'cancel_work',
+                                f'{attempt_id}_mission_stop_{delegation["control_revision"]}')
+                continue
+            if answer is None or task['state'] == 'revoke_requested':
+                observed = 'cancelled' if phase == 'cancelled' or task['state'] == 'revoke_requested' else 'failed'
+                self.service.observe(goal['workspace'], goal['goal_id'], delegation['delegation_id'],
+                    {'sequence': sequence, 'state': observed, 'summary': phase, 'delivery': None})
                 continue
             delivery = {'answer_ref': answer, 'products': products, 'status': 'completed'}
             receipt = {**binding, 'attempt_id': attempt_id, 'answer_ref': answer}

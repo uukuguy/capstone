@@ -290,14 +290,21 @@ def test_memory_tick_and_api_commands_take_thread_lock_before_control_transactio
     assert len(visited) == 2 and len(set(visited)) == 2
 
 
-def test_direct_mission_settles_the_main_attempt_without_a_child(chat_store):
+@pytest.mark.parametrize('phase', ['completed', 'failed', 'cancelled'])
+def test_direct_mission_settles_the_main_attempt_without_a_child(chat_store, phase, monkeypatch):
     threads, thread_id = chat_store
     threads.set_native_executor(native_executor())
     host = configure_control(threads)
     mission = host.create_mission('enterprise', request(thread_id, 'direct_mission'))
+    # The disposable database is shared by test cases. Run maintenance for
+    # this Mission only, before it can dispatch an unrelated fixture's work.
+    monkeypatch.setattr(host.service.store, 'list', lambda *args, **kwargs: [
+        host.service.store.read('enterprise', mission['mission_id'])])
+
     assert threads.submit_command(command(threads, thread_id, 'send_message', 'direct_prompt',
         payload={'text': 'Complete the Mission in this conversation.'})).status == 'accepted'
     claim = threads.claim_attempt('mission_origin', 30)
+    assert claim.thread_id == thread_id
     plan = host.mission_operation(claim, 'agent_mission_update_plan', {
         'expected_revision': mission['revision'], 'acceptance_criteria': ['Save the answer'],
         'tasks': [{'task_id': 'task_direct', 'objective': 'Save the answer',
@@ -312,12 +319,26 @@ def test_direct_mission_settles_the_main_attempt_without_a_child(chat_store):
                                     operation_id='bind_direct')
     assert receipt == host.mission_operation(claim, 'agent_mission_bind_origin_execution', args,
                                             operation_id='bind_direct')
-    threads.finish_attempt(claim, phase='completed', payload={'answer': 'Saved direct result.'})
+    if phase == 'cancelled':
+        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+            operation_id='cancel_direct', mission_id=mission['mission_id'], expected_revision=receipt['mission']['revision'],
+            kind='cancel', payload={}))
+        host.tick()
+        assert threads.snapshot(thread_id).works[0]['cancel_requested']
+        host.cursor = None
+    threads.finish_attempt(claim, phase=phase, payload={'answer': 'Saved direct result.'})
     host.tick()
     updated = host.read_mission('enterprise', mission['mission_id'])
     task = updated['tasks'][0]
     assert task['origin_attempt_id'] == claim.attempt.attempt_id
     assert task['delegation']['binding']['thread_id'] == thread_id
-    assert task['state'] == 'verified' and task['delivery']['answer_ref']
     assert updated['delegations_admitted'] == 0
-    assert host.service.pending_mission_reviews('enterprise')
+    if phase == 'completed':
+        assert task['state'] == 'verified' and task['delivery']['answer_ref']
+    else:
+        assert task['state'] == phase and task['delivery'] is None
+    if phase == 'cancelled':
+        assert updated['state'] == 'cancelled'
+        assert not host.service.pending_mission_reviews('enterprise')
+    else:
+        assert host.service.pending_mission_reviews('enterprise')
