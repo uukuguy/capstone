@@ -897,9 +897,19 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         rival_continuation = command(reopened, rival_id, 'continue_instruction_takeover', 'rival_continue',
             payload=next_request['payload'])
         assert reopened.submit_command(rival_continuation).rejection == 'instruction_takeover_unavailable'
-        continuation = reopened.submit_command(next_request)
-        assert continuation.status == 'accepted', continuation.rejection
-        assert reopened.submit_command(next_request) == continuation
+        from fastapi.testclient import TestClient
+        from test_thread_http_api import _app, _auth
+
+        wakes = []
+        with TestClient(_app(reopened, wake_worker=lambda: wakes.append('wake') or True),
+                        base_url='http://localhost') as client:
+            headers = {**_auth(), 'Capstone-Thread-Version': '2'}
+            url = f'/api/v1/threads/{target_id}/commands'
+            continuation = client.post(url, json=next_request, headers=headers)
+            assert continuation.status_code == 202 and continuation.json()['status'] == 'accepted'
+            replay = client.post(url, json=next_request, headers=headers)
+            assert replay.json() == continuation.json()
+            assert wakes == ['wake', 'wake']
         def forbidden(*args):
             raise AssertionError('takeover continuation must stay on the native route')
         factory = IntentRuntimeFactory(forbidden, forbidden, forbidden, general_executor=executor)
