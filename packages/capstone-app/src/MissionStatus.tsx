@@ -56,6 +56,7 @@ export default function MissionStatus({transport,threadId,missionId,onCopyHandof
       return <li key={task.id}>
         <p>{task.objective}</p>
         <small>{executionLabels[task.execution]} · {taskLabels[task.state] || '待处理'}</small>
+        {task.revision>1 && <small>任务要求已调整 · 第 {task.revision} 版</small>}
         {dependencies.length>0 && <small>依赖第 {dependencies.join('、')} 项</small>}
         {reason && <small>{reason}</small>}
       </li>

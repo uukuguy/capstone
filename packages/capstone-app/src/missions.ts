@@ -3,7 +3,7 @@ import {parseNativeArtifact,type NativeArtifact} from './nativeArtifacts'
 export type MissionRef={missionId:string;workId?:string}
 export type MissionCreate={schema:'capstone-control-mission-create/1';operation_id:string;objective:string;origin:{thread_id:string;work_id?:string}}
 export type MissionOpenItem={kind:string;objective?:string;state?:string;taskId?:string;reason?:string}
-export type MissionTask={id:string;objective:string;state:string;execution: "direct"|"single"|"goal";dependencies:string[]}
+export type MissionTask={id:string;objective:string;state:string;execution: "direct"|"single"|"goal";dependencies:string[];revision:number}
 type MissionCriterion={label:string;status?:'met'|'not_met'|'unknown';explanation?:string;products?:NativeArtifact[]}
 export type Mission={tasks?:MissionTask[];openItems?:MissionOpenItem[];criteria?:MissionCriterion[];missionId:string;objective:string;state:string;revision:number;planComplete:boolean;planConcluded?:boolean;allTasksVerified?:boolean;organizerState?:string;reason?:string;conclusionStatus?:string;origin:{thread_id:string;work_id?:string}}
 const object=(value:unknown):Record<string,unknown>=>{if(!value||typeof value!=='object'||Array.isArray(value))throw new ThreadProtocolError('Mission 记录无效');return value as Record<string,unknown>}
@@ -85,7 +85,8 @@ export function parseMission(value:unknown,workspace:string,threadId:string):Mis
       ||(task.mode!=='single'&&task.mode!=='goal'))return []
     const execution=typeof task.origin_attempt_id==='string'?'direct':task.mode
     const dependencies=Array.isArray(task.depends_on)?task.depends_on.slice(0,64).map(id):[]
-    return [{id:id(task.task_id),objective:task.objective,state:task.state,execution,dependencies}]
+    const revision=typeof task.revision==='number'&&Number.isSafeInteger(task.revision)&&task.revision>0?task.revision:1
+    return [{id:id(task.task_id),objective:task.objective,state:task.state,execution,dependencies,revision}]
   }) : []
   const satisfied=typedConclusionSatisfied(row)
   const conclusion=row.plan_conclusion?object(row.plan_conclusion):undefined

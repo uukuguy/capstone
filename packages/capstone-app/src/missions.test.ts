@@ -32,10 +32,11 @@ it('projects direct work and both child execution modes on the main Mission',()=
   tasks:[
    {task_id:'task_direct',objective:'直办',state:'verified',mode:'single',origin_attempt_id:'attempt_one'},
    {task_id:'task_instruction',objective:'记录',state:'running',mode:'single'},
-   {task_id:'task_goal',objective:'复核',state:'pending',mode:'goal',depends_on:['task_instruction']},
+   {task_id:'task_goal',objective:'复核新文件',state:'pending',mode:'goal',revision:2,depends_on:['task_instruction']},
   ]}
  expect(parseMission(row,'enterprise','thr_one').tasks?.map(task=>task.execution)).toEqual(['direct','single','goal'])
  expect(parseMission(row,'enterprise','thr_one').tasks?.[2]?.dependencies).toEqual(['task_instruction'])
+ expect(parseMission(row,'enterprise','thr_one').tasks?.[2]).toMatchObject({revision:2,objective:'复核新文件'})
 })
 
 it('projects partial criteria only from the current plan revision',()=>{
