@@ -138,6 +138,22 @@ def test_plan_request_preserves_required_verification_when_partial_delivery_is_a
     assert session_goal_plan.request_initial_plan(objective) == proposal()
 
 
+def test_initial_plan_repairs_invalid_criteria_without_user_input(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    requests = []
+    objective = 'Build a benchmark.'
+
+    def planner(system, content):
+        requests.append((system, content))
+        return {**proposal(), 'criteria': [{'text': 'Verified report'}]} if len(requests) == 1 else proposal()
+
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model', planner)
+    assert session_goal_plan.request_initial_plan(objective) == proposal()
+    assert [content for _, content in requests] == [objective, objective]
+    assert 'Goal plan text is required' in requests[1][0]
+
+
 def test_review_request_marks_the_next_saved_step_separately_from_final_criteria(monkeypatch):
     import json
     from capstone_agent import session_goal_plan

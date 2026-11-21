@@ -114,10 +114,10 @@ def _request_plan_model(system: str, content: str) -> dict:
 
 
 def request_initial_plan(objective: str) -> dict:
-    response = _request_plan_model(
+    system = (
         'Plan the objective for one main Agent in one conversation. '
         'Return a single JSON object with schema "capstone-session-goal-plan/1", '
-        'criteria (a list of verifiable acceptance conditions), and steps (a list '
+        'criteria (a list of nonempty strings, one verifiable acceptance condition each), and steps (a list '
         'of objects with instruction and expected_result). Give at least two distinct '
         'executable instructions in the user’s language. Order dependencies and keep '
         'the first step focused. Do not execute any steps. '
@@ -130,14 +130,19 @@ def request_initial_plan(objective: str) -> dict:
         'Unless the user specifies a location, judge saved product existence across the whole Goal. '
         'Do not require a file to be recreated in the final attempt workspace. '
         'Output exactly these three top-level keys, schema, criteria, steps. '
-        'Do not include an objective field, step IDs, commentary, or Markdown fences.',
-        objective,
+        'Do not include an objective field, step IDs, commentary, or Markdown fences.'
     )
-    if isinstance(response, dict) and 'objective' in response:
-        # The application owns the objective. A provider may echo it as
-        # descriptive metadata. It has no place in the admitted proposal.
-        response = {key: value for key, value in response.items() if key != 'objective'}
-    return parse_goal_plan(response, objective=objective)
+    for attempt in range(2):
+        response = _request_plan_model(system, objective)
+        if isinstance(response, dict) and 'objective' in response:
+            # The application owns the objective. A provider may echo it as metadata.
+            response = {key: value for key, value in response.items() if key != 'objective'}
+        try:
+            return parse_goal_plan(response, objective=objective)
+        except ValueError as error:
+            if attempt:
+                raise
+            system += f' The previous proposal was rejected. Correct this validation error: {error}.'
 
 
 def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
