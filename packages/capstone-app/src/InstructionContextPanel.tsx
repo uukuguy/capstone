@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useRef,useState} from 'react'
 import {Layers,Scissors} from 'lucide-react'
 import {contextCategories,contextPercent,contextTokenLabel as tokens,type ContextObservation} from './instructionContext'
 import './instructionContext.css'
@@ -24,6 +24,7 @@ export default function InstructionContextPanel({rows,attempt,labels,onShowSessi
   onShowSession:()=>void
   onLocate:(attemptId:string)=>void
 }){
+  const detailRef=useRef<HTMLElement>(null)
   const [selection,setSelection]=useState<{id:string;scope?:string}>()
   const [visibleCount,setVisibleCount]=useState(12)
   const instruction=attempt && rows.find(row=>row.attemptId===attempt)?.instructionId
@@ -37,10 +38,15 @@ export default function InstructionContextPanel({rows,attempt,labels,onShowSessi
     if(row.kind==='compaction'||row.inputTokens===undefined)return peak
     return !peak||row.inputTokens>peak.inputTokens! ? row : peak
   },undefined)
+  const description=(value?:string)=>value?.replace(/\s+/g,' ').slice(0,180)
   const closest=attempt ? labels[attempt]??shown.map(row=>labels[row.attemptId]).find(Boolean) : undefined
   const attempts=[...new Set(shown.map(row=>row.attemptId))]
-  const select=(id:string)=>setSelection({id,scope:attempt})
-  const label=(row:ContextObservation)=>`${rowTitle(row)} · ${row.kind==='compaction'?(reasons[row.reason??'unknown']??reasons.unknown):contextIndicator(row)}`
+  function select(id:string) {
+    setSelection({id,scope:attempt})
+    requestAnimationFrame(()=>detailRef.current?.scrollIntoView?.({block:'nearest'}))
+  }
+  const numberedTitle=(row:ContextObservation)=>row.kind==='compaction'?rowTitle(row):`${rowTitle(row)} ${modelCalls.indexOf(row)+1}`
+  const label=(row:ContextObservation)=>`${numberedTitle(row)} · ${row.kind==='compaction'?(reasons[row.reason??'unknown']??reasons.unknown):contextIndicator(row)}`
   const list=shown.slice(-visibleCount)
   const nextMain=current?.kind==='compaction'&&current.state==='completed'
     ? shown.find(row=>row.attemptId===current.attemptId&&row.kind==='main'&&row.sequence>current.sequence)
@@ -57,7 +63,7 @@ export default function InstructionContextPanel({rows,attempt,labels,onShowSessi
       <div className="context-scope"><Layers aria-hidden="true" size={15}/>{attempt?'本条指令':'当前会话'}</div>
       {attempt&&<button type="button" onClick={onShowSession}>查看会话</button>}
     </header>
-    {closest&&<p className="context-instruction" title={closest}>{closest}</p>}
+    {closest&&<p className="context-instruction" title={description(closest)}>{description(closest)}</p>}
     <div className="context-summary">
       <div><span>{attempt?'已记录调用':'最近主链输入'}</span><strong>{attempt?modelCalls.length:latest?.inputTokens===undefined?'未记录':tokens(latest.inputTokens)}</strong></div>
       <div><span title="已记录请求中最大的输入 token 数">峰值输入</span><strong>{maximum?.inputTokens===undefined?'未记录':tokens(maximum.inputTokens)}{maximum?.basis==='estimate'&&<small>估算</small>}</strong></div>
@@ -80,14 +86,14 @@ export default function InstructionContextPanel({rows,attempt,labels,onShowSessi
             <button type="button" className={row.kind==='compaction'?'is-compaction':undefined}
               aria-pressed={current?.id===row.id} title={label(row)} onClick={()=>select(row.id)}>
               {row.kind==='compaction'?<Scissors aria-hidden="true" size={14}/>:<span className="context-timeline-dot" aria-hidden="true"/>}
-              <span>{rowTitle(row)}{row.kind!=='compaction'? ` ${modelCalls.indexOf(row)+1}`:''}{retry>0&&<small>第 {retry} 次执行</small>}</span>
+              <span>{numberedTitle(row)}{retry>0&&<small>第 {retry} 次执行</small>}</span>
               <small>{row.kind==='compaction'?stateLabels[row.state]||row.state:row.inputTokens===undefined?'未记录':tokens(row.inputTokens)+(row.basis==='estimate'?' 估算':'')}</small>
             </button>
           </li>
         })}</ol>
       </section>
-      {current&&<section className="context-detail" aria-label="所选记录">
-        <div className="context-section-title"><h3>{rowTitle(current)}</h3><span>{stateLabels[current.state]||current.state}</span></div>
+      {current&&<section ref={detailRef} className="context-detail" aria-label="所选记录">
+        <div className="context-section-title"><h3>{numberedTitle(current)}</h3><span>{stateLabels[current.state]||current.state}</span></div>
         {current.kind==='compaction'?<>
           <p>{reasons[current.reason??'unknown']??reasons.unknown}</p>
           <dl><div><dt>压缩前占用</dt><dd>{current.inputTokens===undefined?'未记录':`${tokens(current.inputTokens)} token · SDK 估算`}</dd></div>
@@ -110,7 +116,7 @@ export default function InstructionContextPanel({rows,attempt,labels,onShowSessi
           </dl></details>}
         </>}
         <div className="context-detail-source">
-          {!attempt&&labels[current.attemptId]&&<p title={labels[current.attemptId]}>{labels[current.attemptId]}</p>}
+          {!attempt&&labels[current.attemptId]&&<p title={description(labels[current.attemptId])}>{description(labels[current.attemptId])}</p>}
           <button type="button" onClick={()=>onLocate(current.attemptId)}>定位指令</button>
         </div>
       </section>}
