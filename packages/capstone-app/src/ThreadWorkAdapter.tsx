@@ -988,16 +988,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         await store.refreshWorkSnapshot()
         window.dispatchEvent(new Event('capstone-session-renamed'))
       }:undefined} />
-      <div className="thread-chat-heading-meta">
-        {(pending?.kind==='reserve_instruction_takeover'||pending?.kind==='takeover_instruction'||pending?.kind==='continue_instruction_takeover')&&
-          <button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'}
-            onClick={()=>void send('').catch(()=>{})}>重试接管请求</button>}
-        {nativeChat&&(pending?.kind==='send_message'||pending?.kind==='queue_instruction')&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
-        {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}
-        {pendingCommand?.schema === 'capstone-command/1' && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void recoverLegacyCommand()}>重试原对话请求</button>}
-        {selectedWork && ((!recovery&&!nativeChat) || pending?.kind === 'start_work') && <button type="button" className="thread-primary-button" disabled={busy || (!!pending && pending.kind !== 'start_work') || (!selectedWork.startAvailable && pending?.kind !== 'start_work') || projection.connection !== 'live'}
-          aria-describedby={!selectedWork.startAvailable ? 'work-start-reason' : undefined} onClick={() => void start()}>{pending?.kind === 'start_work' ? '重试执行请求' : '开始任务'}</button>}
-      </div>
     </div>}
   >
     <div className="thread-work-status">
@@ -1014,7 +1004,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {nativeOutcome==='completed'&&<p role="status">执行器已保存结果，当前会话仍待核对交付。已发布的制品仍可查看。</p>}
       {(nativeOutcome==='failed'||nativeOutcome==='cancelled')&&<p role="status">执行器已记录{nativeOutcome==='failed'?'失败':'取消'}，当前会话仍待核对。已发布的制品仍可查看。</p>}
       {contactDelayed&&!nativeOutcome&&<p role="status">曾暂时失去执行进程的联系。任务仍保留，已保存的记录和制品仍可查看。</p>}
-      {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||attachmentsLoading||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {!nativeChat&&selectedWork?.contextProductRefs?.length?<section aria-label="已保存的任务输入范围"><p>已保存的任务输入范围 · {selectedWork.contextProductRefs.length} 项引用 · {['queued','running'].includes(selectedWork.status)?'已纳入本次任务':'开始任务时使用'}</p><ProductReferenceChips selections={selectedWork.contextProductRefs} read={(ref,signal)=>client.resolveProduct(ref,signal)} readOnly onRemove={()=>{}} onOpen={ref=>{markManualView();setRequestedProduct({ref,nonce:Date.now()});setResourceView('products');setProductsOpen(true)}}/></section>:null}
@@ -1047,13 +1036,22 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
         {notice&&<p className="thread-composer-notice" role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
-        {(goal||missionRef||activeTakeoverSource||handoffAvailable)&&<div className="thread-task-strip" aria-label="当前任务">
+        <div className="thread-task-strip" aria-label="当前任务">
           {goal&&<GoalControls placement="summary" goal={goal} planning={selectedWork?.goalPlanPending} objective={goal.objective} disabled={goalControlsDisabled} executing={!!currentAttempt} onControl={handleGoalControl}/>}
           {missionRef&&<span role="status">Mission · {missionProgress.label}</span>}
           {(goal||missionRef)&&<button type="button" className="thread-control-button" onClick={()=>selectResourceView('task-plan')}>查看任务计划</button>}
           {activeTakeoverSource&&<button type="button" className="thread-control-button" onClick={()=>void copyTakeover()}>复制接管引用</button>}
           {handoffAvailable&&<button type="button" className="thread-control-button" onClick={()=>void copyHandoff()}>复制续作引用</button>}
-        </div>}
+        {(pending?.kind==='reserve_instruction_takeover'||pending?.kind==='takeover_instruction'||pending?.kind==='continue_instruction_takeover')&&
+          <button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'}
+            onClick={()=>void send('').catch(()=>{})}>重试接管请求</button>}
+        {nativeChat&&(pending?.kind==='send_message'||pending?.kind==='queue_instruction')&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void send(String(pending.payload.text)).catch(()=>{})}>重试发送请求</button>}
+        {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}
+        {pendingCommand?.schema === 'capstone-command/1' && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void recoverLegacyCommand()}>重试原对话请求</button>}
+        {selectedWork && ((!recovery&&!nativeChat) || pending?.kind === 'start_work') && <button type="button" className="thread-primary-button" disabled={busy || (!!pending && pending.kind !== 'start_work') || (!selectedWork.startAvailable && pending?.kind !== 'start_work') || projection.connection !== 'live'}
+          aria-describedby={!selectedWork.startAvailable ? 'work-start-reason' : undefined} onClick={() => void start()}>{pending?.kind === 'start_work' ? '重试执行请求' : '开始任务'}</button>}
+        </div>
+        {missionPending&&<p role="status">Mission 请求尚待确认，原始意图和请求身份已保留。<button type="button" disabled={busy||attachmentsLoading||projection.connection!=='live'} onClick={()=>void submitMission(missionPending.text).catch(()=>{})}>重试 Mission 请求</button></p>}
         {queueAvailable?<InstructionStatus active={active} interruptOnSend={interruptOnSend} onInterruptChange={selectedWork?.goalMode?undefined:setInterruptOnSend} stopping={!!selectedWork?.cancelRequested} waiting={currentAttempt?.phase==='waiting'} queue={selectedWork?.instructionQueue||[]} disabled={busy||!!pending||projection.connection!=='live'} canStop={canStop} onStop={()=>void cancel()} onWithdraw={instructionId=>{if(snapshot&&selectedWork)void dispatch({schema:'capstone-command/2',thread_id:currentId,run_id:snapshot.runId,command_id:`cmd_${commandKey()}`,idempotency_key:`idem_${commandKey()}`,kind:'withdraw_instruction',target:{kind:'work',id:selectedWork.workId,expected_revision:selectedWork.revision},payload:{instruction_id:instructionId}}).catch(()=>{})}}/>:null}
       </>}
       isRunning={active} canCancel={canStop}

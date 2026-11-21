@@ -15,8 +15,7 @@
 .thread-task-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 4px 0 7px; color: #36554a; font-size: 12px; }
 .thread-task-strip > .thread-control-button { min-height: 28px; border-radius: 6px; }
 .thread-composer-notice { margin: 4px 0; color: #36554a; font-size: 12px; }
-.workspace-workhead .thread-chat-heading-meta { flex: 0 0 auto; max-inline-size: 45%; }
-.workspace-workhead .thread-chat-heading-meta button { white-space: nowrap; }
+.thread-task-strip:empty { display: none; }
 @media (pointer: coarse) { .workspace-navigation-gateway { height: 44px; } }
 @media (max-width: 760px) {
   .workspace-route-frame.is-navigation-open > .workspace-route-content { grid-column: 1; }
