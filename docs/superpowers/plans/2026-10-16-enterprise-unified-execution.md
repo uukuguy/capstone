@@ -1,5 +1,9 @@
 # Unified Enterprise Execution Implementation Plan
 
+## 持续任务上下文与三级执行（backlog）
+
+用户选择顶层机制，Mission 自主选择子会话数量及委派机制。交付范围、依赖与真实验收见[系统设计](../specs/2026-11-21-continuous-task-context-design.md)及[工作计划](2026-11-21-continuous-task-context.md)。首包为自由 Instruction 的持久上下文。
+
 ## Durable task context and user decisions
 
 Accepted design. Ordinary instructions, Goals and Missions share a versioned
