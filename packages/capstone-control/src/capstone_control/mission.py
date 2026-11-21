@@ -114,6 +114,18 @@ def checked_tasks(tasks, goal):
     return deepcopy(tasks)
 
 
+def dependency_ready_tasks(goal):
+    verified = {task['task_id'] for task in goal['tasks'] if task['state'] == 'verified'}
+    return (task for task in goal['tasks']
+            if task['state'] == 'pending' and set(task['depends_on']) <= verified)
+
+
+def has_dispatchable_task(service, goal):
+    return (goal['delegations_admitted'] < goal['max_delegations']
+            and service.now() < utc_deadline(goal['deadline_at'])
+            and any(dependency_ready_tasks(goal)))
+
+
 def dispatch_ready(service, goal):
     if not goal['tasks'] or not goal['acceptance_criteria']:
         raise InvalidTransition('Mission needs Tasks and acceptance criteria before readiness')
@@ -258,7 +270,8 @@ def update_tasks(goal, proposed):
     goal['tasks'] = combined
 
 
-def command(service, workspace, document, actor, *, validate_task_equipment=False, excluded_skills=()):
+def command(service, workspace, document, actor, *, validate_task_equipment=False, excluded_skills=(),
+            model_turn=None):
     object_fields(document, {'schema', 'operation_id', 'mission_id', 'expected_revision', 'kind', 'payload'})
     if document['schema'] != 'capstone-control-mission-command/1':
         raise ContractError('unsupported Mission command schema')
@@ -280,8 +293,19 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
             return goal, old['receipt']
         if goal['revision'] != document['expected_revision']:
             raise Conflict('stale Mission revision')
+        if model_turn is not None and kind == 'wait' and payload.get('until') == 'user':
+            raise InvalidTransition('Continue executable work or report missing input in a partial delivery.')
+        if model_turn == 'review':
+            if kind == 'update_plan' and payload.get('acceptance_criteria') != goal['acceptance_criteria']:
+                raise InvalidTransition('Autonomous review must preserve the current acceptance criteria. Report unmet criteria in a partial delivery.')
+            if kind == 'pause' and not any(task['state'] in {'dispatching', 'running', 'waiting',
+                                                            'resume_requested', 'revoke_requested'}
+                                           for task in goal['tasks']):
+                raise InvalidTransition('A settled task does not require pause. Replace failed work with a new task, continue ready work, or conclude with saved results.')
         if kind in {'prepare_task', 'update_plan', 'ready'}:
-            if goal['state'] not in {'planning', 'waiting_review', 'ready', 'running', 'paused', 'waiting'}:
+            reopen_partial = (kind == 'update_plan' and goal['state'] == 'delivered'
+                              and goal['reason'] == 'partial_delivery')
+            if not reopen_partial and goal['state'] not in {'planning', 'waiting_review', 'ready', 'running', 'paused', 'waiting'}:
                 raise InvalidTransition('Mission cannot plan from this state')
             if '_mission' not in goal:
                 raise InvalidTransition('legacy Goal needs explicit Mission origin association before planning')
@@ -305,8 +329,7 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 if goal['state'] not in {'planning','waiting_review'} and not (goal['state'] == 'paused' and not goal['_mission'].get('activated')):
                     raise InvalidTransition('only a planning Mission can become ready')
                 dispatch_ready(service, goal)
-                verified={t['task_id'] for t in goal['tasks'] if t['state']=='verified'}
-                if not any(t['state']=='pending' and set(t['depends_on'])<=verified for t in goal['tasks']):
+                if not any(dependency_ready_tasks(goal)):
                     raise InvalidTransition('no dependency-ready Task; inspect results and conclude the plan or wait for required input')
                 goal['_mission']['activated'] = True
                 goal.update(state='ready', reason=None)
@@ -348,11 +371,37 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 update_tasks(goal, proposed)
                 goal['_mission']['plan_revision'] += 1
                 goal['_mission']['plan_conclusion']=None
+                if reopen_partial:
+                    goal.update(state='planning', reason=None)
                 if goal['state']=='ready' and (not goal['tasks'] or not goal['acceptance_criteria']):
                     goal.update(state='planning',reason='plan_incomplete')
             from .mission_reviews import organizer
             organizer(goal)['suspended']=False
             organizer(goal)['disposition']=None
+        elif kind == 'bind_origin_execution':
+            object_fields(payload, {'task_id', 'thread_id', 'work_id', 'attempt_id'})
+            for value in payload.values():
+                identity(value)
+            origin = goal['_mission']['origin']
+            task = next((item for item in dependency_ready_tasks(goal) if item['task_id'] == payload['task_id']), None)
+            if (actor != 'application:mission-origin' or goal['state'] != 'planning'
+                    or payload['thread_id'] != origin['thread_id']
+                    or ('work_id' in origin and payload['work_id'] != origin['work_id'])
+                    or task is None or task['delegation'] is not None or task['mode'] != 'single'
+                    or task['depends_on'] or len(goal['tasks']) != 1 or not goal['acceptance_criteria']):
+                raise InvalidTransition('Mission origin execution requires one admitted direct task')
+            task['generation'] += 1
+            attempt = payload['attempt_id']
+            delegation_id = 'origin_' + fingerprint([goal['goal_id'], task['task_id'], task['revision'], attempt])[:32]
+            task.update(state='running', origin_attempt_id=attempt, delegation={
+                'schema': 'capstone-agent-delegation/1', 'delegation_id': delegation_id,
+                'operation_id': delegation_id, 'goal_id': goal['goal_id'],
+                'goal_revision': goal['objective_revision'], 'task_id': task['task_id'],
+                'task_revision': task['revision'], 'generation': task['generation'],
+                'agent_id': task['agent_id'],
+                'binding': {key: payload[key] for key in ('thread_id', 'work_id')},
+                'requested_control': None, 'control_revision': 0})
+            goal.update(state='running', reason=None)
         elif kind == 'conclude_plan':
             object_fields(payload,{'plan_revision','summary','criteria_verdicts'})
             positive_integer(payload['plan_revision'])
@@ -366,22 +415,27 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
             all_met = all(verdict['status'] == 'met' for verdict in verdicts)
             if all_met and not all(task['state'] == 'verified' for task in goal['tasks']):
                 raise InvalidTransition('satisfied Mission conclusion requires all Tasks to be verified')
+            if not all_met and has_dispatchable_task(service, goal):
+                raise InvalidTransition('Mission must continue dependency-ready Tasks before partial delivery')
             goal['_mission']['plan_conclusion']=dict(plan_revision=payload['plan_revision'],summary=payload['summary'],actor=actor,criteria_verdicts=verdicts)
             if all_met:
                 goal.update(state='delivered',reason=None)
             else:
                 from .mission_reviews import organizer
-                organizer(goal)['suspended'] = True
-                organizer(goal)['disposition'] = dict(kind='wait',until='user',reason='acceptance_incomplete',revision=goal['revision']+1)
-                goal.update(state='waiting',reason='acceptance_incomplete')
+                organizer_state = organizer(goal)
+                organizer_state.update(suspended=True, disposition=None, next_boundary=None)
+                goal.update(state='delivered', reason='partial_delivery')
         elif kind == 'wait':
             object_fields(payload,{'until','reason'})
             text(payload['reason'],limit=4096)
             if not isinstance(payload['until'],str) or payload['until'] not in {'task_boundary','user'} or goal['state'] in {'paused','pausing','cancelled','cancelling','accepted','delivered'}:
                 raise InvalidTransition('Mission cannot wait from this state')
-            if payload['until']=='task_boundary' and (goal['state'] not in {'ready','running'} or not any(
-                    t['state'] in {'pending','dispatching','running','waiting','resume_requested'} for t in goal['tasks'])):
-                raise InvalidTransition('waiting for a Task boundary requires admitted pending or active work')
+            if payload['until'] == 'task_boundary':
+                active = any(task['state'] in {'dispatching', 'running', 'waiting', 'resume_requested'}
+                             for task in goal['tasks'])
+                if (goal['state'] not in {'ready', 'running'}
+                        or not (active or has_dispatchable_task(service, goal))):
+                    raise InvalidTransition('Waiting for a Task boundary requires executable or active work. Continue a repair or conclude with saved results.')
             from .mission_reviews import organizer
             state=organizer(goal)
             state['disposition']=dict(kind='wait',until=payload['until'],reason=payload['reason'],revision=goal['revision']+1)

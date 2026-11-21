@@ -664,3 +664,69 @@ def test_mission_reconciles_child_delivery_after_observing_worker_exit(postgres_
         assert reconcile(host.service, host.agent, workspace=workspace, goal_id=mission_id)['processed'] == 0
     finally:
         service.delete_thread(binding['thread_id'])
+
+
+def test_settled_organizer_review_cannot_pause_itself(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    current = host.read_mission(workspace, mission['mission_id'], claim=claim)
+    with pytest.raises(ValueError, match='settled task'):
+        host.mission_operation(claim, 'agent_mission_control',
+            {'expected_revision': current['revision'], 'action': 'pause'}, operation_id='self_pause')
+    assert host.read_mission(workspace, mission['mission_id'])['revision'] == current['revision']
+    stopped = host.command_mission(workspace, {
+        'schema': 'capstone-control-mission-command/1', 'operation_id': 'explicit_pause',
+        'mission_id': mission['mission_id'], 'expected_revision': current['revision'],
+        'kind': 'pause', 'payload': {}})
+    assert stopped['mission']['state'] == 'paused'
+
+
+def test_autonomous_mission_review_cannot_replace_acceptance_criteria(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    current = host.read_mission(workspace, mission['mission_id'], claim=claim)
+    assert current['acceptance_criteria']
+    with pytest.raises(ValueError, match='preserve the current acceptance criteria'):
+        host.mission_operation(claim, 'agent_mission_update_plan', {
+            'expected_revision': current['revision'], 'tasks': [],
+            'acceptance_criteria': ['Accept a different result'],
+        }, operation_id='replace_criteria')
+    assert host.read_mission(workspace, mission['mission_id'], claim=claim) == current
+
+
+def test_autonomous_mission_cannot_suspend_for_user_input(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    current = host.read_mission(workspace, mission['mission_id'], claim=claim)
+    with pytest.raises(ValueError, match='partial delivery'):
+        host.mission_operation(claim, 'agent_mission_wait', {
+            'expected_revision': current['revision'], 'until': 'user',
+            'reason': 'The source file is missing',
+        }, operation_id='ask_user')
+    assert host.read_mission(workspace, mission['mission_id'], claim=claim) == current
+
+
+def test_review_plan_receipt_replays_after_user_changes_criteria(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    mission_id = mission['mission_id']
+    current = host.read_mission(workspace, mission_id, claim=claim)
+    arguments = {'expected_revision': current['revision'], 'tasks': [],
+                 'acceptance_criteria': current['acceptance_criteria']}
+    operation = 'agent_mission_update_plan'
+    original = host.mission_operation(claim, operation, arguments, operation_id='review_plan')
+    updated = host.command_mission(workspace, {
+        'schema': 'capstone-control-mission-command/1', 'operation_id': 'user_guidance',
+        'mission_id': mission_id, 'expected_revision': original['mission']['revision'],
+        'kind': 'update_plan', 'payload': {'tasks': [], 'acceptance_criteria': ['Check the updated result']},
+    })
+    assert host.mission_operation(claim, operation, arguments, operation_id='review_plan') == original
+    assert host.read_mission(workspace, mission_id)['revision'] == updated['mission']['revision']

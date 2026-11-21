@@ -23,10 +23,16 @@ class ControlHost:
         # Control and Agent own different ledgers. Creation is idempotent;
         # the origin lock serializes creation, and retry repairs partial writes.
         mission_id = 'goal_' + fingerprint([workspace, request.get('operation_id')])[:32]
+        def origin_mission_state(identity):
+            mission = self.service.read(workspace, identity)
+            if mission['state'] == 'delivered' and mission.get('reason') == 'partial_delivery':
+                return 'partial_delivery'
+            return mission['state']
+
         return access(self.agent.threads, workspace, origin, mission_id=mission_id, claim=claim,
             create=lambda: self.service.create_mission(workspace, request),
             active_missions=lambda: self.service.store.active_missions_for_thread(workspace, origin['thread_id']),
-            read_state=lambda identity: self.service.read(workspace, identity)['state'])
+            read_state=origin_mission_state)
 
     def read_mission(self, workspace, mission_id, *, claim=None):
         mission = self.service.read_mission(workspace, mission_id)
@@ -53,12 +59,25 @@ class ControlHost:
 
     def command_mission(self, workspace, command, *, actor='application:trusted', claim=None,
                         validate_task_equipment=False):
-        from .mission_origin import access
-        mission = self.read_mission(workspace, command['mission_id'], claim=claim)
+        from .mission_origin import ActiveMissionConflict, access
+        mission_id = command['mission_id']
+        mission = self.read_mission(workspace, mission_id, claim=claim)
         excluded_skills = () if claim is None else (claim.submission or {}).get('session_skills', {}).get('excluded', ())
-        apply = lambda: self.service.command_mission(workspace, command, actor=actor,
-                                                     validate_task_equipment=validate_task_equipment,
-                                                     excluded_skills=excluded_skills)
+        model_turn = None if claim is None else ('review' if (claim.submission or {}).get('_mission_review') else 'instruction')
+
+        def apply():
+            if mission.get('origin') is not None and command['kind'] == 'update_plan':
+                current = self.service.read_mission(workspace, mission_id)
+                if (current['revision'] == command['expected_revision']
+                        and current['state'] == 'delivered' and current.get('reason') == 'partial_delivery'):
+                    active = self.service.store.active_missions_for_thread(workspace, current['origin']['thread_id'])
+                    other = next((identity for identity in active if identity != mission_id), None)
+                    if other is not None:
+                        raise ActiveMissionConflict(other)
+            return self.service.command_mission(workspace, command, actor=actor,
+                                                validate_task_equipment=validate_task_equipment,
+                                                excluded_skills=excluded_skills, model_turn=model_turn)
+
         if mission.get('origin') is None:
             return apply()
         return access(self.agent.threads, workspace, mission['origin'], claim=claim, operation=apply,
@@ -97,6 +116,16 @@ class ControlHost:
                 'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
                 'kind': arguments['action'], 'payload': {}},
                 actor='agent:' + claim.attempt.attempt_id, claim=claim)
+        if name == 'agent_mission_bind_origin_execution':
+            if set(arguments) != {'expected_revision', 'task_id'}:
+                raise ValueError('Direct Mission execution requires one planned task')
+            return self.command_mission(workspace, {
+                'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
+                'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
+                'kind': 'bind_origin_execution', 'payload': {
+                    'task_id': arguments['task_id'], 'thread_id': claim.thread_id,
+                    'work_id': claim.task_context.binding.work_id, 'attempt_id': claim.attempt.attempt_id}},
+                actor='application:mission-origin', claim=claim)
         kinds = {'agent_mission_update_plan': 'update_plan', 'agent_mission_prepare_task': 'prepare_task',
                  'agent_mission_ready': 'ready', 'agent_mission_conclude': 'conclude_plan',
                  'agent_mission_wait': 'wait'}
@@ -109,6 +138,39 @@ class ControlHost:
             'kind': kinds[name], 'payload': payload}, actor='agent:' + claim.attempt.attempt_id, claim=claim,
             validate_task_equipment=True)
 
+    def _settle_origin_delivery(self, goal):
+        from .agent_delegation import read_saved_attempt_delivery
+        for task in goal['tasks']:
+            if task['state'] not in {'running', 'revoke_requested'} or not task.get('origin_attempt_id'):
+                continue
+            delegation = task['delegation']
+            binding = delegation['binding']
+            attempt_id = task['origin_attempt_id']
+            self.agent.threads.require_workspace(binding['thread_id'], goal['workspace'])
+            answer, products, sequence, _, authoritative, gateway, phase = read_saved_attempt_delivery(
+                self.agent.threads, binding, attempt_id)
+            if phase is None:
+                if task['state'] == 'revoke_requested':
+                    snapshot = self.agent.threads.snapshot(binding['thread_id'])
+                    if snapshot.current_attempt and snapshot.current_attempt.attempt_id == attempt_id:
+                        work = next(item for item in snapshot.works if item['work_id'] == binding['work_id'])
+                        if not work.get('cancel_requested'):
+                            self.agent._command(binding['thread_id'], work, 'cancel_work',
+                                f'{attempt_id}_mission_stop_{delegation["control_revision"]}')
+                continue
+            if answer is None or task['state'] == 'revoke_requested':
+                observed = 'cancelled' if phase == 'cancelled' or task['state'] == 'revoke_requested' else 'failed'
+                self.service.observe(goal['workspace'], goal['goal_id'], delegation['delegation_id'],
+                    {'sequence': sequence, 'state': observed, 'summary': phase, 'delivery': None})
+                continue
+            delivery = {'answer_ref': answer, 'products': products, 'status': 'completed'}
+            receipt = {**binding, 'attempt_id': attempt_id, 'answer_ref': answer}
+            if authoritative:
+                delivery['authority_source'] = receipt
+            if gateway:
+                delivery['gateway_source'] = receipt
+            self.service.deliver(goal['workspace'], goal['goal_id'], delegation['delegation_id'], binding, delivery)
+
     def tick(self, limit=32):
         """One bounded maintenance pass; no model calls or browser dependency."""
         goals = self.service.store.list(limit=limit, after=self.cursor, active_only=True)
@@ -119,6 +181,7 @@ class ControlHost:
         for original in goals:
             workspace, goal_id = original['workspace'], original['goal_id']
             try:
+                self._settle_origin_delivery(original)
                 reconcile(self.service, self.agent, workspace=workspace, goal_id=goal_id)
                 goal = self.service.read(workspace, goal_id)
                 if goal['state'] not in {'ready', 'running','waiting_review'}:
@@ -139,7 +202,10 @@ class ControlHost:
                         self.verify_product(workspace, product)
                         checks.append({'name': product['file_name'] + ' · saved SHA-256 ' + product['sha256'], 'passed': True})
                     if not checks and self.verify_answer is not None:
-                        self.verify_answer(workspace, task['delegation']['binding'],task['delivery']['answer_ref'])
+                        binding = task['delegation']['binding']
+                        if task.get('origin_attempt_id'):
+                            binding = {**binding, 'attempt_id': task['origin_attempt_id']}
+                        self.verify_answer(workspace, binding, task['delivery']['answer_ref'])
                         checks.append({'name':'Saved answer reference '+task['delivery']['answer_ref'],'passed':True})
                     if not checks:
                         if goal.get('reason')!='delivery_verification_unavailable':
@@ -188,7 +254,7 @@ def configure_control(threads, *, wake=None):
         work=next(work for work in snapshot.works if work['work_id']==binding['work_id'])
         cursor=0
         for _ in range(128):
-            page=threads.read_attempt_records(binding['thread_id'],work['latest_attempt_id'],after=cursor,limit=128)
+            page=threads.read_attempt_records(binding['thread_id'],binding.get('attempt_id', work['latest_attempt_id']),after=cursor,limit=128)
             for event in page['events']:
                 if (event['event_id']==answer_ref and event['visibility']=='public'
                         and event['event_type'] in {'attempt_completed', 'attempt_delivery_recovered'}

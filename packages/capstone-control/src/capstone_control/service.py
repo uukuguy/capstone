@@ -65,9 +65,10 @@ class ControlService:
         return projection(self, self.store.read(workspace, mission_id))
 
     def command_mission(self, workspace, command, *, actor='application:trusted',
-                        validate_task_equipment=False, excluded_skills=()):
+                        validate_task_equipment=False, excluded_skills=(), model_turn=None):
         from .mission import command as apply
-        return apply(self, workspace, command, actor, validate_task_equipment=validate_task_equipment, excluded_skills=excluded_skills)
+        return apply(self, workspace, command, actor, validate_task_equipment=validate_task_equipment,
+                     excluded_skills=excluded_skills, model_turn=model_turn)
 
     def pending_mission_reviews(self, workspace=None, limit=32):
         from .mission_reviews import pending
@@ -150,8 +151,9 @@ class ControlService:
                  else self.store.list(workspace, limit, active_only=True))
         return [{'goal_id': g['goal_id'], 'workspace': g['workspace'], 'task': deepcopy(t)}
                 for g in goals
-                for t in g['tasks'] if t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}
-                or self._awaits_recovered_delivery(g, t)][:limit]
+                for t in g['tasks'] if not t.get('origin_attempt_id') and (
+                    t['state'] in {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}
+                    or self._awaits_recovered_delivery(g, t))][:limit]
 
     def delegation_request(self, workspace, goal_id, delegation_id):
         goal = self.read(workspace, goal_id)
@@ -303,10 +305,19 @@ class ControlService:
         content = {**deepcopy(delivery), 'revision': 1}
         if task['delivery'] is not None and task['delivery'] != content:
             raise Conflict('delivery changed after persistence')
-        missing = set(task.get('required_reference_sources', ())) - content.keys()
-        task.update(state='failed' if missing else 'delivered', delivery=content)
-        if missing:
-            task['failure_reason'] = 'required_reference_receipt_missing'
+        failure = None
+        if set(task.get('required_reference_sources', ())) - content.keys():
+            failure = 'required_reference_receipt_missing'
+        elif '_mission' in goal and content.get('outcome') == 'partial':
+            failure = 'child_goal_partial_delivery'
+        elif '_mission' in goal:
+            names = {product.get('file_name') for product in content['products']
+                     if isinstance(product, dict) and product.get('delivery_status') != 'limited'}
+            if set(task.get('required_products', ())) - names:
+                failure = 'required_product_missing'
+        task.update(state='failed' if failure else 'delivered', delivery=content)
+        if failure:
+            task['failure_reason'] = failure
             goal.update(state='waiting', reason='delegation_failed')
 
     def command(self, workspace, command, *, actor='application:trusted'):

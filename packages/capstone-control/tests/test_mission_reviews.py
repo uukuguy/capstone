@@ -296,3 +296,96 @@ def test_missing_required_reference_reaches_review_as_failed_delivery():
     assert failed['failure_reason'] == 'required_reference_receipt_missing'
     assert failed['delivery']['answer_ref'] == 'saved_answer'
     assert pending['state'] == 'pending'
+
+
+def test_partial_conclusion_preserves_dependency_ready_work_after_failure():
+    control = service()
+    mission = create(control, acceptance_criteria=['Read the source operation'])
+    producer = {**task(), 'required_reference_sources': ['gateway_source']}
+    consumer = {**task('task_2'), 'depends_on': ['task_1']}
+    independent = task('task_3')
+    mission = command(control, mission, 'update_plan',
+        {'acceptance_criteria': ['Read the source operation'],
+         'tasks': [producer, consumer, independent]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    control.deliver('team', mission['mission_id'], delegation,
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'})
+    mission = control.read_mission('team', mission['mission_id'])
+    conclusion = {'plan_revision': mission['plan_revision'], 'summary': 'Source unavailable.',
+                  'criteria_verdicts': [{'criterion_index': 0, 'status': 'not_met',
+                                         'explanation': 'No source receipt.', 'evidence': []}]}
+    with pytest.raises(InvalidTransition, match='dependency-ready'):
+        command(control, mission, 'conclude_plan', conclusion, 'early_partial')
+    mission = command(control, mission, 'ready', {}, 'ready_independent')
+    mission = complete_task(control, mission, number=3)
+    assert [t['state'] for t in mission['tasks']] == ['failed', 'pending', 'verified']
+    mission = command(control, mission, 'conclude_plan', conclusion, 'final_partial')
+    assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
+
+
+def test_wait_rejects_dependent_work_without_an_executable_predecessor():
+    control = service()
+    criteria = ['Read the source']
+    mission = create(control, acceptance_criteria=criteria)
+    producer = {**task(), 'required_reference_sources': ['gateway_source']}
+    consumer = {**task('task_2'), 'depends_on': ['task_1']}
+    mission = command(control, mission, 'update_plan',
+                      {'acceptance_criteria': criteria, 'tasks': [producer, consumer, task('task_3')]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    control.deliver('team', mission['mission_id'], mission['tasks'][0]['delegation']['delegation_id'],
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'})
+    mission = control.read_mission('team', mission['mission_id'])
+    mission = command(control, mission, 'ready', {}, 'ready_independent')
+    mission = command(control, mission, 'update_plan',
+                      {'acceptance_criteria': criteria, 'tasks': [], 'removed_task_ids': ['task_3']}, 'drop_independent')
+    assert [item['state'] for item in mission['tasks']] == ['failed', 'pending']
+    with pytest.raises(InvalidTransition, match='executable or active'):
+        command(control, mission, 'wait', {'until': 'task_boundary', 'reason': 'Wait for the dependent'}, 'wait')
+    conclusion = {'plan_revision': mission['plan_revision'], 'summary': 'The required source was unavailable.',
+                  'criteria_verdicts': [{'criterion_index': 0, 'status': 'not_met',
+                                         'explanation': 'Missing source receipt.', 'evidence': []}]}
+    mission = command(control, mission, 'conclude_plan', conclusion, 'partial')
+    assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
+
+
+@pytest.mark.parametrize('products', [[], [{'file_name': 'required.txt', 'delivery_status': 'limited'}]])
+def test_missing_required_file_is_a_saved_failure_and_queues_review(products):
+    control = service()
+    mission = create(control, acceptance_criteria=['Save the requested file'])
+    mission = command(control, mission, 'prepare_task',
+        {'task': task(required_products=['required.txt'])}, 'prepare')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    control.deliver('team', mission['mission_id'], delegation,
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': products, 'status': 'completed'})
+    intent = control.pending_mission_reviews('team')[0]
+    saved = intent['boundary']['tasks'][0]
+    assert saved['state'] == 'failed'
+    assert saved['failure_reason'] == 'required_product_missing'
+    assert saved['delivery']['answer_ref'] == 'saved_answer'
+    assert saved['delivery']['products'] == products
+
+
+
+def test_partial_child_goal_keeps_saved_results_without_certifying_the_task():
+    control = service()
+    mission = create(control, acceptance_criteria=['Verify the child result'])
+    child = {**task(), 'mode': 'goal', 'max_attempts': 4}
+    mission = command(control, mission, 'prepare_task', {'task': child}, 'prepare')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    control.deliver('team', mission['mission_id'], delegation,
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed', 'outcome': 'partial'})
+    task_result = control.pending_mission_reviews('team')[0]['boundary']['tasks'][0]
+    assert task_result['state'] == 'failed'
+    assert task_result['failure_reason'] == 'child_goal_partial_delivery'
+    assert task_result['delivery']['answer_ref'] == 'saved_answer'

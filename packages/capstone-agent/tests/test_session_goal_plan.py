@@ -150,13 +150,14 @@ def test_review_request_marks_the_next_saved_step_separately_from_final_criteria
         assert 'continue with a clarified repair instruction' in system
         assert 'Missing user input with no executable work remaining calls for a partial review' in system
         return {'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
-                'summary': 'Source checked', 'next_instruction': request['next_saved_instruction'],
+                'summary': 'Source checked', 'next_instruction': 'Run the benchmark again.',
                 'waiting_reason': None, 'product_refs': ['source.md']}
 
     monkeypatch.setattr(session_goal_plan, '_request_plan_model', reviewer)
     result = session_goal_plan.request_step_review(
         {'objective': 'Build a benchmark.'}, {'plan': proposal()}, {'product_refs': ['source.md']})
     assert result['disposition'] == 'continue'
+    assert result['next_instruction'] == 'Run the benchmark.'
 
 
 def test_review_repairs_invalid_criteria_before_settlement(monkeypatch):
@@ -180,7 +181,7 @@ def test_review_repairs_invalid_criteria_before_settlement(monkeypatch):
         {"objective": "Build a benchmark."}, plan, {"product_refs": []}) == valid
     assert len(requests) == 2
     assert "repair" not in requests[0]
-    assert requests[1]["repair"]
+    assert requests[1]["repair"] == "invalid Goal criterion review"
 
 
 def test_review_repairs_a_continuation_that_selects_only_a_prior_product(monkeypatch):

@@ -42,7 +42,8 @@ class MemoryStore:
         with self._lock:
             return sorted(goal_id for (owner, goal_id), goal in self._values.items()
                 if owner == workspace and goal.get('_mission', {}).get('origin', {}).get('thread_id') == thread_id
-                and goal['state'] not in {'accepted', 'cancelled'})[:2]
+                and goal['state'] not in {'accepted', 'cancelled'}
+                and not (goal['state'] == 'delivered' and goal.get('reason') == 'partial_delivery'))[:2]
 
     def list(self, workspace=None, limit=128, *, after=None, active_only=False, include_missions=True):
         with self._lock:
@@ -139,6 +140,7 @@ class PostgresStore:
             rows = connection.execute("""SELECT goal_id FROM capstone_control_goals
                 WHERE workspace=%s AND document#>>'{_mission,origin,thread_id}'=%s
                 AND document->>'state' NOT IN ('accepted','cancelled')
+                AND NOT (document->>'state' = 'delivered' AND coalesce(document->>'reason', '') = 'partial_delivery')
                 ORDER BY goal_id LIMIT 2""", (workspace, thread_id)).fetchall()
             return [row['goal_id'] for row in rows]
 

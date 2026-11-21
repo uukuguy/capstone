@@ -75,6 +75,88 @@ def _request(value):
     return deepcopy({key: item for key, item in value.items() if key not in {'binding', 'requested_control', 'control_revision'}})
 
 
+def read_saved_attempt_delivery(threads, binding, attempt_id, *, start_command=None,
+                                expected='attempt_completed'):
+    """Read the exact Attempt's saved answer and completed product descriptors."""
+    after, artifacts, terminal, authoritative, gateway, sequence = 0, {}, None, False, False, 0
+    original_start = False
+    phase = None
+    for _ in range(128):
+        page = threads.read_attempt_records(binding['thread_id'], attempt_id, after=after, limit=128)
+        for event in page['events']:
+            if (event['event_type'] == 'command_accepted' and event['visibility'] == 'public'
+                    and event['payload'].get('command_id') == start_command
+                    and event['payload'].get('work_id') == binding['work_id']):
+                original_start = True
+            if event['event_type'] == 'runtime_event' and event['payload'].get('gateway_operations'):
+                gateway = True
+            if event['event_type'] == 'native_artifact_published' and event['visibility'] == 'public':
+                item = event['payload']['artifact']
+                if item['work_id'] == binding['work_id'] and item.get('source_status') == 'completed':
+                    artifacts[item['file_name']] = item
+            if event['visibility'] == 'public' and event['event_type'] in {
+                    'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'}:
+                phase = event['event_type'].removeprefix('attempt_')
+                sequence = event['event_seq']
+            if (event['event_type'] == expected and event['visibility'] == 'public'
+                    and str(event['payload'].get('answer', '')).strip()):
+                terminal = event['event_id']
+                sequence = event['event_seq']
+                authoritative = bool(event['payload'].get('authority_references'))
+        if not page['has_more']:
+            break
+        if page['next_after'] <= after:
+            raise ValueError('Agent observation cursor did not advance')
+        after = page['next_after']
+    else:
+        raise ValueError('Agent observation exceeds bounded page budget')
+    return terminal, list(artifacts.values()), sequence, original_start, authoritative, gateway, phase
+
+
+def goal_delivery_products(threads, binding, work, final_products):
+    """Include admitted products from earlier steps of the current Goal plan."""
+    plan = work.get('goal_plan') or {}
+    mode = work.get('goal_mode') or {}
+    if (plan.get('objective_revision') != mode.get('objective_revision')
+            or plan.get('generation') != mode.get('generation')):
+        return final_products
+    refs = set(plan.get('review_refs', ()))
+    refs.update(ref for criterion in plan.get('criteria', ()) for ref in criterion['refs'])
+    prior = {}
+    for attempt_id in sorted(ref for ref in refs if ref.startswith('attempt_')):
+        if attempt_id == work['latest_attempt_id']:
+            continue
+        try:
+            answer, artifacts, sequence, _, _, _, phase = read_saved_attempt_delivery(threads, binding, attempt_id)
+        except ThreadNotFound:
+            # A legacy product alias can share the prefix of an Attempt ID.
+            continue
+        if phase == 'completed' and answer is not None:
+            for item in artifacts:
+                name = item['file_name']
+                if (item['artifact_id'] in refs or name in refs) and (name not in prior or sequence > prior[name][0]):
+                    prior[name] = (sequence, item)
+    products = {name: item for name, (_, item) in prior.items()}
+    products.update({item['file_name']: item for item in final_products})
+    return list(products.values())
+
+
+def delegation_state(work):
+    goal = work.get('goal_mode')
+    if goal:
+        # Planning, a queued next step, and saved-step review all have an
+        # automatic owner. They do not require user input.
+        if goal['state'] == 'ready' or (goal['state'] == 'waiting' and goal.get('reason') == 'goal_review_pending'):
+            return 'running'
+        if goal['state'] == 'paused' and goal.get('reason') in {
+                'attempt_failed', 'attempt_interrupted', 'attempt_budget_exhausted',
+                'deadline_elapsed', 'goal_planning_failed'}:
+            return 'failed'
+        return goal['state']
+    return {'ready': 'waiting', 'queued': 'running', 'blocked': 'waiting',
+            'interrupted': 'unknown'}.get(work['status'], work['status'])
+
+
 class AgentDelegations:
     def __init__(self, threads, registry, *, wake=None):
         self.threads, self.registry, self.wake = threads, registry, wake
@@ -141,6 +223,9 @@ class AgentDelegations:
                 text = request['objective'] + '\n\n交付要求：\n' + '\n'.join(request['delivery_requirements'])
                 if request.get('required_products'):
                     text += '\n必须保存的成果文件：' + json.dumps(request['required_products'], ensure_ascii=False)
+                    text += ('\n只有达到原指令要求的文件才能使用这些必需成果名称。'
+                             '发现源材料不可用或无法生成成果时，在答复中说明实际缺口。'
+                             '可另存有用的诊断或部分成果，但不要用必需成果名称保存说明、占位文件或替代内容。')
                 if request.get('required_reference_sources'):
                     text += '\n必须交付已注册工具签发的引用回执：' + json.dumps(request['required_reference_sources'])
                 self._command(thread, None, 'work_message', 'create-work', {'text': text})
@@ -213,50 +298,29 @@ class AgentDelegations:
             return {'sequence': sequence, 'state': 'unknown',
                     'summary': '委托目标已在执行侧修改，请在长期目标中核对。', 'delivery': None}
         status = work.get('goal_mode', {}).get('state', work['status'])
-        state = {'ready': 'waiting', 'queued': 'running', 'blocked': 'waiting',
-                 'interrupted': 'unknown'}.get(status, status)
+        state = delegation_state(work)
         delivery = None
         recovered = False
         can_recover = (status == 'interrupted' and delegation['schema'] == 'capstone-agent-delegation/2'
                        and delegation['mode'] == 'single' and not work.get('cancel_requested'))
         if state == 'completed' or can_recover:
-            after, artifacts, terminal, authoritative, gateway = 0, {}, None, False, False
             # Match the original idempotent start even for older delegations.
             start_command = 'cmd_' + _digest([binding['thread_id'], 'start'])[:32]
-            original_start = False
             expected = 'attempt_delivery_recovered' if can_recover else 'attempt_completed'
-            for _ in range(128):
-                page = self.threads.read_attempt_records(binding['thread_id'], work['latest_attempt_id'], after=after, limit=128)
-                for event in page['events']:
-                    if (event['event_type'] == 'command_accepted' and event['visibility'] == 'public'
-                            and event['payload'].get('command_id') == start_command
-                            and event['payload'].get('work_id') == binding['work_id']):
-                        original_start = True
-                    if event['event_type'] == 'runtime_event' and event['payload'].get('gateway_operations'):
-                        gateway = True
-                    if event['event_type'] == 'native_artifact_published' and event['visibility'] == 'public':
-                        item = event['payload']['artifact']
-                        if item['work_id'] == binding['work_id'] and item.get('source_status') == 'completed':
-                            artifacts[item['file_name']] = item
-                    if (event['event_type'] == expected and event['visibility'] == 'public'
-                            and str(event['payload'].get('answer', '')).strip()):
-                        terminal = event['event_id']
-                        sequence = max(sequence, event['event_seq'] + len(current['control_receipts']))
-                        authoritative = bool(event['payload'].get('authority_references'))
-                if not page['has_more']:
-                    break
-                if page['next_after'] <= after:
-                    raise ValueError('Agent observation cursor did not advance')
-                after = page['next_after']
-            else:
-                raise ValueError('Agent observation exceeds bounded page budget')
+            terminal, artifacts, terminal_seq, original_start, authoritative, gateway, _ = read_saved_attempt_delivery(
+                self.threads, binding, work['latest_attempt_id'], start_command=start_command, expected=expected)
+            sequence = max(sequence, terminal_seq + len(current['control_receipts']))
             if can_recover and (terminal is None or not original_start):
                 return {'sequence': sequence, 'state': state, 'summary': state, 'delivery': None}
             if terminal is None:
                 raise ValueError('completed Work has no persisted answer')
             recovered = can_recover
             state = 'completed'
-            delivery = {'answer_ref': terminal, 'products': list(artifacts.values()), 'status': 'completed'}
+            if delegation['mode'] == 'goal':
+                artifacts = goal_delivery_products(self.threads, binding, work, artifacts)
+            delivery = {'answer_ref': terminal, 'products': artifacts, 'status': 'completed'}
+            if work.get('goal_mode', {}).get('reason') == 'partial_delivery':
+                delivery['outcome'] = 'partial'
             if not recovered and authoritative and (delegation['schema'] == 'capstone-agent-delegation/2'
                                   or 'authority_source' in delegation.get('required_reference_sources', ())):
                 delivery['authority_source'] = {**binding, 'attempt_id': work['latest_attempt_id'], 'answer_ref': terminal}

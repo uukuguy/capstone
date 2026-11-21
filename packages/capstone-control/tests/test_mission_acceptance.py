@@ -41,15 +41,16 @@ def accept(control, mission, operation='accept'):
         goal_id=mission['mission_id'], expected_revision=mission['revision'], kind='accept', payload={'products': [product for task in mission['tasks'] for product in task['delivery']['products']]}))
 
 
-def test_partial_conclusion_is_preserved_without_delivery_or_automatic_review_and_can_be_repaired():
+def test_partial_conclusion_delivers_saved_work_and_can_be_replanned():
     control = service(); mission = verified(control, ['Original saved', 'Report actually verified'])
     partial = [verdict(), verdict(1, 'not_met')]
     mission = command(control, mission, 'conclude_plan', conclusion(mission, partial), 'partial')
-    assert mission['state'] == 'waiting' and mission['reason'] == 'acceptance_incomplete'
+    assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
     assert mission['plan_concluded'] is False
     assert mission['plan_conclusion']['criteria_verdicts'] == partial
     assert mission['organizer']['suspended'] is True
     assert control.pending_mission_reviews('team') == []
+    assert control.store.active_missions_for_thread('team', mission['origin']['thread_id']) == []
     with pytest.raises(InvalidTransition):
         accept(control, mission)
     mission = command(control, mission, 'update_plan', {'acceptance_criteria': ['Original saved'], 'tasks': []}, 'user_adjustment')
@@ -73,7 +74,8 @@ def test_uncovered_duplicate_and_forged_conclusions_are_rejected_without_state_c
 def test_unknown_is_not_satisfied_and_exact_saved_answer_can_support_a_later_assessment():
     control = service(); mission = verified(control, products=[])
     mission = command(control, mission, 'conclude_plan', conclusion(mission, [verdict(status='unknown')]), 'unknown')
-    assert mission['state'] == 'waiting' and not mission['plan_concluded']
+    assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery' and not mission['plan_concluded']
+    mission = command(control, mission, 'update_plan', {'acceptance_criteria': ['Original saved'], 'tasks': []}, 'reopen')
     proof = dict(kind='answer', task_id='task_1', answer_ref='answer_saved')
     mission = command(control, mission, 'conclude_plan', conclusion(mission, [verdict(evidence=[proof])]), 'answer_assessed')
     assert mission['plan_concluded'] and mission['state'] == 'delivered'
