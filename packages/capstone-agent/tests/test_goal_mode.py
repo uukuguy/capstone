@@ -293,9 +293,10 @@ def test_service_terminal_commits_continuation_with_attempt(goal, with_product):
     assert restored.works[0]['goal_continuation']['product_refs'] == progress['product_refs']
 
 
-@pytest.mark.parametrize('invalid_plan', [False, True])
+@pytest.mark.parametrize('invalid_plan,partial', [(False, False), (True, False), (False, True)])
 @pytest.mark.parametrize('storage', ['memory', 'postgres'])
-def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage, request):
+def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, partial, storage, request):
+    from capstone_agent.thread_service import PostgresThreadService
     from test_thread_work_execution import professional_snapshot, save_work, command
     if storage == 'postgres':
         store, thread_id = request.getfixturevalue('postgres_thread_service')
@@ -340,6 +341,19 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, storage,
     saved = store.finish_attempt(claim, phase='completed', payload={'answer': 'Source checked'})
     assert saved.works[0]['goal_mode']['reason'] == 'goal_review_pending'
     assert drain_goal_continuations(store) == 0
+    if partial:
+        progress.update(disposition='partial', summary='Source is incomplete and the missing record is unavailable.',
+            next_instruction=None, criteria=[{'index': 0, 'verdict': 'unmet', 'refs': []}])
+        assert drain_goal_step_reviews(store, reviewer=lambda *_: progress) == 1
+        reader = PostgresThreadService(store.dsn) if storage == 'postgres' else store
+        final = reader.snapshot(thread_id).works[0]
+        assert final['goal_mode']['state'] == 'completed'
+        assert final['goal_mode']['reason'] == 'partial_delivery'
+        assert final['goal_plan']['closure_summary'] == progress['summary']
+        assert final['goal_plan']['criteria'] == progress['criteria']
+        assert drain_goal_continuations(reader) == 0
+        assert reader.claim_attempt('worker', 30) is None
+        return
 
     def review(goal, plan, delivery):
         assert delivery['answer'] == 'Source checked'
