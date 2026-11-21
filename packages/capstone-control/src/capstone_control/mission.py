@@ -281,7 +281,9 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
         if goal['revision'] != document['expected_revision']:
             raise Conflict('stale Mission revision')
         if kind in {'prepare_task', 'update_plan', 'ready'}:
-            if goal['state'] not in {'planning', 'waiting_review', 'ready', 'running', 'paused', 'waiting'}:
+            reopen_partial = (kind == 'update_plan' and goal['state'] == 'delivered'
+                              and goal['reason'] == 'partial_delivery')
+            if not reopen_partial and goal['state'] not in {'planning', 'waiting_review', 'ready', 'running', 'paused', 'waiting'}:
                 raise InvalidTransition('Mission cannot plan from this state')
             if '_mission' not in goal:
                 raise InvalidTransition('legacy Goal needs explicit Mission origin association before planning')
@@ -348,6 +350,8 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 update_tasks(goal, proposed)
                 goal['_mission']['plan_revision'] += 1
                 goal['_mission']['plan_conclusion']=None
+                if reopen_partial:
+                    goal.update(state='planning', reason=None)
                 if goal['state']=='ready' and (not goal['tasks'] or not goal['acceptance_criteria']):
                     goal.update(state='planning',reason='plan_incomplete')
             from .mission_reviews import organizer
@@ -371,9 +375,9 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 goal.update(state='delivered',reason=None)
             else:
                 from .mission_reviews import organizer
-                organizer(goal)['suspended'] = True
-                organizer(goal)['disposition'] = dict(kind='wait',until='user',reason='acceptance_incomplete',revision=goal['revision']+1)
-                goal.update(state='waiting',reason='acceptance_incomplete')
+                organizer_state = organizer(goal)
+                organizer_state.update(suspended=True, disposition=None, next_boundary=None)
+                goal.update(state='delivered', reason='partial_delivery')
         elif kind == 'wait':
             object_fields(payload,{'until','reason'})
             text(payload['reason'],limit=4096)

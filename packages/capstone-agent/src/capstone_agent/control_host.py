@@ -23,10 +23,16 @@ class ControlHost:
         # Control and Agent own different ledgers. Creation is idempotent;
         # the origin lock serializes creation, and retry repairs partial writes.
         mission_id = 'goal_' + fingerprint([workspace, request.get('operation_id')])[:32]
+        def origin_mission_state(identity):
+            mission = self.service.read(workspace, identity)
+            if mission['state'] == 'delivered' and mission.get('reason') == 'partial_delivery':
+                return 'partial_delivery'
+            return mission['state']
+
         return access(self.agent.threads, workspace, origin, mission_id=mission_id, claim=claim,
             create=lambda: self.service.create_mission(workspace, request),
             active_missions=lambda: self.service.store.active_missions_for_thread(workspace, origin['thread_id']),
-            read_state=lambda identity: self.service.read(workspace, identity)['state'])
+            read_state=origin_mission_state)
 
     def read_mission(self, workspace, mission_id, *, claim=None):
         mission = self.service.read_mission(workspace, mission_id)

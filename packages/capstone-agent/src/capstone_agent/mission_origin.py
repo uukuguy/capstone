@@ -55,7 +55,7 @@ def _creation(snapshot, mission_id, create, read_state, active_missions):
             if identity != mission_id:
                 raise ActiveMissionConflict(identity)
         for ref in snapshot.mission_refs:
-            if read_state(ref['mission_id']) not in {'accepted', 'cancelled'}:
+            if read_state(ref['mission_id']) not in {'accepted', 'cancelled', 'partial_delivery'}:
                 raise ActiveMissionConflict(ref['mission_id'])
     return create()
 

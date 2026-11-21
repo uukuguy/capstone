@@ -20,6 +20,7 @@ it('distinguishes a review boundary from a concluded and verified delivery',()=>
  expect(missionStateLabel(parseMission({...row,plan_concluded:true,plan_conclusion:typed},'enterprise','thr_one'))).toBe('成果可用')
  expect(missionStateLabel(parseMission({...row,plan_concluded:true},'enterprise','thr_one'))).toBe('原计划结论待核验')
  expect(missionStateLabel(parseMission({...row,plan_concluded:true,plan_conclusion:typed,tasks:[{state:'delivered'}]},'enterprise','thr_one'))).toBe('仍有未完成事项')
+ expect(missionStateLabel(parseMission({...row,reason:'partial_delivery'},'enterprise','thr_one'))).toBe('部分交付')
  expect(missionStateLabel(parseMission({...row,state:'waiting',reason:'acceptance_incomplete'},'enterprise','thr_one'))).toBe('仍有未完成事项')
  expect(missionStateLabel(parseMission({...row,state:'waiting_review'},'enterprise','thr_one'))).toBe('等待任务结果复盘')
  expect(missionStateLabel(parseMission({...row,state:'waiting_review',organizer:{state:'running'}},'enterprise','thr_one'))).toBe('正在复盘')

@@ -60,6 +60,7 @@ export function parseMission(value:unknown,workspace:string,threadId:string):Mis
 }
 const missionLabels:Record<string,string>={planning:'规划中',waiting_review:'等待任务结果复盘',ready:'待执行',running:'执行中',waiting:'待你回复',paused:'已暂停',pausing:'正在暂停',accepted:'已接受',cancelled:'已撤销',cancelling:'正在撤销',failed:'需处理',blocked:'需处理',revising:'正在调整'}
 export function missionStateLabel(mission:Mission):string{
+  if(mission.reason==='partial_delivery')return '部分交付'
   if(mission.reason==='acceptance_incomplete'||mission.conclusionStatus==='incomplete')return '仍有未完成事项'
   if(mission.conclusionStatus==='legacy_unverified')return '原计划结论待核验'
   if(mission.state==='waiting_review')return ({running:'正在复盘',reserved:'正在安排复盘',waiting:'待你回复',no_progress:'复盘待调整',blocked:'复盘需处理',failed:'复盘需处理',cancelled:'复盘已停止',interrupted:'复盘已停止'} as Record<string,string>)[mission.organizerState||'']||'等待任务结果复盘'
