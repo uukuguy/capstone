@@ -696,3 +696,17 @@ def test_autonomous_mission_review_cannot_replace_acceptance_criteria(review_sto
             'acceptance_criteria': ['Accept a different result'],
         }, operation_id='replace_criteria')
     assert host.read_mission(workspace, mission['mission_id'], claim=claim) == current
+
+
+def test_autonomous_mission_cannot_suspend_for_user_input(review_store):
+    service, _, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    assert service.submit_mission_review(intent) is not None
+    claim = service.claim_attempt('reviewer', 30)
+    current = host.read_mission(workspace, mission['mission_id'], claim=claim)
+    with pytest.raises(ValueError, match='partial delivery'):
+        host.mission_operation(claim, 'agent_mission_wait', {
+            'expected_revision': current['revision'], 'until': 'user',
+            'reason': 'The source file is missing',
+        }, operation_id='ask_user')
+    assert host.read_mission(workspace, mission['mission_id'], claim=claim) == current

@@ -76,8 +76,8 @@ CATALOG = {
     'agent_mission_conclude': dict(description='Assess every current acceptance criterion once against actual saved results. Include exact verified product artifact/hash or saved answer references for every met verdict; report not_met or unknown honestly. Requires current plan revision and no active execution; all-met delivery additionally requires all Tasks verified. Continue any independent executable tasks before concluding. When none remain, any not_met/unknown closes with a saved partial delivery. Full delivery remains subject to user acceptance.',
         inputSchema=obj(dict(expected_revision=REVISION,plan_revision=PLAN_REVISION,summary=dict(type='string',minLength=1,maxLength=4096),
             criteria_verdicts=dict(type='array',items=CRITERION_VERDICT,minItems=1,maxItems=64)))),
-    'agent_mission_wait': dict(description='Record a deliberate wait for an admitted Task boundary or for user input, then finish this organizer turn. Actual Task boundary events resume organization; do not poll state in a read loop. Waiting never concludes the plan; user waits suspend automatic organizer continuation.',
-        inputSchema=obj(dict(expected_revision=REVISION,until={'enum':['task_boundary','user']},reason=dict(type='string',minLength=1,maxLength=4096)))),
+    'agent_mission_wait': dict(description='Wait for an admitted Task boundary, then finish this organizer turn. The actual boundary resumes organization. Continue independent work when available. If missing user input leaves no executable work, conclude with saved partial delivery.',
+        inputSchema=obj(dict(expected_revision=REVISION,until={'enum':['task_boundary']},reason=dict(type='string',minLength=1,maxLength=4096)))),
 }
 
 

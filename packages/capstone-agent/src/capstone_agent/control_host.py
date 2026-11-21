@@ -136,6 +136,8 @@ class ControlHost:
         if name not in kinds or 'expected_revision' not in arguments:
             raise ValueError('unsupported Mission operation')
         payload = {key: value for key, value in arguments.items() if key != 'expected_revision'}
+        if name == 'agent_mission_wait' and payload.get('until') == 'user':
+            raise InvalidTransition('Continue executable work or report missing input in a partial delivery.')
         if (name == 'agent_mission_update_plan' and (claim.submission or {}).get('_mission_review')
                 and payload.get('acceptance_criteria') != mission['acceptance_criteria']):
             raise InvalidTransition('Autonomous review must preserve the current acceptance criteria. Report unmet criteria in a partial delivery.')
