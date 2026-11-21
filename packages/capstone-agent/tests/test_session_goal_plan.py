@@ -159,6 +159,30 @@ def test_review_request_marks_the_next_saved_step_separately_from_final_criteria
     assert result['disposition'] == 'continue'
 
 
+def test_review_repairs_invalid_criteria_before_settlement(monkeypatch):
+    import json
+    from capstone_agent import session_goal_plan
+
+    requests = []
+    plan = {"plan": proposal(), "step_index": 1, "review_refs": ["report.md"]}
+    valid = {"schema": "capstone-work-goal-proposal/1", "disposition": "complete",
+             "summary": "Report verified.", "next_instruction": None, "waiting_reason": None,
+             "product_refs": [], "criteria": [
+                 {"index": index, "verdict": "met", "refs": ["report.md"]}
+                 for index, _ in enumerate(plan["plan"]["criteria"])]}
+
+    def reviewer(system, content):
+        requests.append(json.loads(content))
+        return {**valid, "criteria": []} if len(requests) == 1 else valid
+
+    monkeypatch.setattr(session_goal_plan, "_request_plan_model", reviewer)
+    assert session_goal_plan.request_step_review(
+        {"objective": "Build a benchmark."}, plan, {"product_refs": []}) == valid
+    assert len(requests) == 2
+    assert "repair" not in requests[0]
+    assert requests[1]["repair"]
+
+
 def test_partial_goal_review_records_unmet_criteria_and_explanation():
     from capstone_agent.goal_receipts import parse_goal_proposal
     from capstone_agent.session_goal_plan import qualify_planned_review

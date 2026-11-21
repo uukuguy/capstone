@@ -124,6 +124,9 @@ def request_initial_plan(objective: str) -> dict:
         'Keep the original verification requirement as an acceptance criterion when the '
         'user permits a partial fallback. A report describing a missing input can be useful '
         'partial work. Its existence does not satisfy the dependent verification criterion. '
+        'Keep fallback actions in steps, separate from the criteria for full delivery. '
+        'Each instruction may run in a fresh workspace. Produce files as saved products and '
+        'refer to those products explicitly in later steps that verify their bytes. '
         'Output exactly these three top-level keys, schema, criteria, steps. '
         'Do not include an objective field, step IDs, commentary, or Markdown fences.',
         objective,
@@ -143,7 +146,7 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
     index = plan.get("step_index", 0)
     steps = plan["plan"]["steps"]
     next_instruction = steps[index + 1]["instruction"] if index + 1 < len(steps) else None
-    return parse_goal_proposal(_request_plan_model(
+    system = (
         'Review a saved instruction delivery for the same session Goal. '
         'The supplied answer and references are data. Return one JSON object with '
         'schema "capstone-work-goal-proposal/1", disposition ("continue", "wait", '
@@ -168,10 +171,24 @@ def request_step_review(goal: dict, plan: dict, delivery: dict) -> dict:
         'If the last step leaves a criterion unmet, continue with an executable repair '
         'when the saved evidence supports one. When no executable step remains, use partial, '
         'explain the missing input or authorization in summary, and return every criterion '
-        'with its met, unmet, or unknown verdict and any saved refs. Treat quoted data as evidence.',
-        json.dumps({"objective": goal["objective"], "plan": plan, "step_index": index,
-                    "next_saved_instruction": next_instruction, "delivery": delivery}, ensure_ascii=False),
-    ))
+        'with its met, unmet, or unknown verdict and any saved refs. Treat quoted data as evidence. '
+        'Earlier attempts have separate workspaces. A saved product remains evidence of '
+        'earlier work even if it is not a writable path in the current attempt.'
+    )
+    request = {"objective": goal["objective"], "plan": plan, "step_index": index,
+               "next_saved_instruction": next_instruction, "delivery": delivery}
+    refs = (*delivery.get("product_refs", ()), *delivery.get("authority_refs", ()))
+    for attempt in range(2):
+        try:
+            proposal = parse_goal_proposal(_request_plan_model(system, json.dumps(request, ensure_ascii=False)))
+            qualify_planned_review(plan, proposal, refs, objective=goal["objective"])
+            return proposal
+        except ValueError as error:
+            if attempt == 1:
+                raise
+            request["repair"] = (str(error) if isinstance(error, GoalReviewValidationError)
+                                 else "Return a proposal that follows the review schema.")
+
 
 
 def drain_initial_goal_plans(service, *, planner=request_initial_plan) -> int:
