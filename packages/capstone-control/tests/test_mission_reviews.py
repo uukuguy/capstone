@@ -296,3 +296,31 @@ def test_missing_required_reference_reaches_review_as_failed_delivery():
     assert failed['failure_reason'] == 'required_reference_receipt_missing'
     assert failed['delivery']['answer_ref'] == 'saved_answer'
     assert pending['state'] == 'pending'
+
+
+def test_partial_conclusion_preserves_dependency_ready_work_after_failure():
+    control = service()
+    mission = create(control, acceptance_criteria=['Read the source operation'])
+    producer = {**task(), 'required_reference_sources': ['gateway_source']}
+    consumer = {**task('task_2'), 'depends_on': ['task_1']}
+    independent = task('task_3')
+    mission = command(control, mission, 'update_plan',
+        {'acceptance_criteria': ['Read the source operation'],
+         'tasks': [producer, consumer, independent]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    control.deliver('team', mission['mission_id'], delegation,
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'})
+    mission = control.read_mission('team', mission['mission_id'])
+    conclusion = {'plan_revision': mission['plan_revision'], 'summary': 'Source unavailable.',
+                  'criteria_verdicts': [{'criterion_index': 0, 'status': 'not_met',
+                                         'explanation': 'No source receipt.', 'evidence': []}]}
+    with pytest.raises(InvalidTransition, match='dependency-ready'):
+        command(control, mission, 'conclude_plan', conclusion, 'early_partial')
+    mission = command(control, mission, 'ready', {}, 'ready_independent')
+    mission = complete_task(control, mission, number=3)
+    assert [t['state'] for t in mission['tasks']] == ['failed', 'pending', 'verified']
+    mission = command(control, mission, 'conclude_plan', conclusion, 'final_partial')
+    assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
