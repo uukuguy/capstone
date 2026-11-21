@@ -123,6 +123,20 @@ def test_provider_objective_echo_does_not_change_the_saved_plan(monkeypatch):
     assert session_goal_plan.request_initial_plan('Build a benchmark.') == proposal()
 
 
+def test_plan_request_preserves_required_verification_when_partial_delivery_is_allowed(monkeypatch):
+    from capstone_agent import session_goal_plan
+
+    objective = 'Verify the signed approval. Save a partial report if the signature is unavailable.'
+
+    def planner(system, content):
+        assert content == objective
+        assert 'Keep the original verification requirement as an acceptance criterion' in system
+        return proposal()
+
+    monkeypatch.setattr(session_goal_plan, '_request_plan_model', planner)
+    assert session_goal_plan.request_initial_plan(objective) == proposal()
+
+
 def test_review_request_marks_the_next_saved_step_separately_from_final_criteria(monkeypatch):
     import json
     from capstone_agent import session_goal_plan

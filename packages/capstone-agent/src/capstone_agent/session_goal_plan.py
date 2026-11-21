@@ -121,6 +121,9 @@ def request_initial_plan(objective: str) -> dict:
         'of objects with instruction and expected_result). Give at least two distinct '
         'executable instructions in the user’s language. Order dependencies and keep '
         'the first step focused. Do not execute any steps. '
+        'Keep the original verification requirement as an acceptance criterion when the '
+        'user permits a partial fallback. A report describing a missing input can be useful '
+        'partial work. Its existence does not satisfy the dependent verification criterion. '
         'Output exactly these three top-level keys, schema, criteria, steps. '
         'Do not include an objective field, step IDs, commentary, or Markdown fences.',
         objective,
