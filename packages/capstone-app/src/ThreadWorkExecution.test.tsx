@@ -196,7 +196,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
     if (parsed.pathname.endsWith('/catalog')) return response({ schema: 'capstone-thread-catalog/1', models: modelControls?[{model_id:'ieee39',implementation_family:'pandapower',authority_model_ref:'gridctl:ieee39',display_name:'IEEE-39',diagram_provider_id:'gridctl'}]:[], profiles: [] })
     throw new Error(`Unexpected test request: ${parsed.pathname}`)
   })
-  return { fetcher, commands, missionRequests, setMessageRejected(value:boolean){rejectMessage=value}, started, finish, snapshot, work, publishFile,
+  return { fetcher, commands, missionRequests, append, setMessageRejected(value:boolean){rejectMessage=value}, started, finish, snapshot, work, publishFile,
     projectPrimary(name:string){const index=files.findIndex(file=>file.file_name===name);files[index]={...files[index],presentation_role:'primary',delivery_status:'limited',delivery_limitations:['图表尚未完成独立核验']}},get upgraded() { return upgraded },
     get attemptsCreated() { return attemptsCreated }, get snapshots() { return snapshots }, get streamReady() { return stream !== undefined },
     disconnect() { stream?.error(new TypeError('stream disconnected')) } }
@@ -213,6 +213,30 @@ async function saveGoal(server: ReturnType<typeof authority>) {
   await screen.findByRole('textbox', { name: '补充任务资料' })
   await waitFor(() => expect((screen.getByRole('button', { name: '开始任务' }) as HTMLButtonElement).disabled).toBe(false))
 }
+
+it('opens one inspector from the composer and scopes it to the reply on demand',async()=>{
+  const server=authority({native:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="context-inspector" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'核对已保存的报告'}})
+  await waitFor(()=>expect(screen.getByRole<HTMLButtonElement>('button',{name:'发送'}).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  const record={request_id:'ctx-1',kind:'main',window_tokens:10000,estimated_input:{system:300,messages:100}}
+  await act(async()=>{
+    server.append('runtime_event',{native_type:'model_context_usage',model_context_usage:{...record,state:'started'}},true)
+    server.append('runtime_event',{native_type:'model_context_usage',model_context_usage:{...record,state:'completed',usage:{input:200,cacheRead:300,cacheWrite:0}}},true)
+    server.finish()
+  })
+  fireEvent.click(await screen.findByRole('button',{name:'查看会话上下文'}))
+  const tab=await screen.findByRole('tab',{name:'上下文'})
+  expect(tab.getAttribute('aria-selected')).toBe('true')
+  expect(screen.getByText('最近主链输入')).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button',{name:'查看本条指令上下文'}))
+  expect(await screen.findByText('本条指令')).toBeTruthy()
+  expect(screen.getByRole('meter').getAttribute('aria-valuenow')).toBe('5')
+})
 
 it('resumes the selected Goal from the main composer without starting a new task', async () => {
   const server = authority({native: true, existingWork: true, pausedGoal: true})

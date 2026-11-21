@@ -419,3 +419,28 @@ def test_existing_unpublished_final_snapshot_is_recovered(tmp_path):
     restarted = NativeResourceStore(root, snapshots)
     assert restarted.accepted('direct_pi', profile_.revision)['profile']['revision'] == profile_.revision
     assert not (destination / 'partial-copy').exists()
+
+
+def test_general_sdk_context_receipt_is_bound_and_contains_only_numeric_measurements():
+    entry = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-sdk.mjs'
+    script = '''const {observeModelContext}=await import(process.env.ENTRY);
+const events=[];
+const context={systemPrompt:'private policy',tools:[{name:'read',parameters:{type:'object'}}],
+ messages:[{role:'user',content:'private question'},{role:'toolResult',content:[{type:'text',text:'private result'}]}]};
+const message={stopReason:'stop',usage:{input:10,cacheRead:2,cacheWrite:3,output:4}};
+const stream={result:async()=>message};
+const raw={streamSimple(model,prompt){if(prompt!==context)throw Error('context changed');return stream;}};
+const observed=observeModelContext(raw,'main',()=> 'ctx-1',event=>events.push(event));
+if(observed.streamSimple({contextWindow:2048},context)!==stream)throw Error('stream changed');
+await new Promise(resolve=>setImmediate(resolve));
+console.log(JSON.stringify(events));
+'''
+    result = subprocess.run([__import__('shutil').which('node'), '--input-type=module', '-e', script],
+                            env={'ENTRY': entry.as_uri()}, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    start, end = json.loads(result.stdout)
+    assert start['request_id'] == end['request_id'] == 'ctx-1'
+    assert start['window_tokens'] == 2048
+    assert start['estimated_input']['tool_results'] > 0
+    assert end['usage'] == {'input': 10, 'output': 4, 'cacheRead': 2, 'cacheWrite': 3}
+    assert 'private' not in result.stdout
