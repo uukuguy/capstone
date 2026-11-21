@@ -304,10 +304,16 @@ class ControlService:
         content = {**deepcopy(delivery), 'revision': 1}
         if task['delivery'] is not None and task['delivery'] != content:
             raise Conflict('delivery changed after persistence')
-        missing = set(task.get('required_reference_sources', ())) - content.keys()
-        task.update(state='failed' if missing else 'delivered', delivery=content)
-        if missing:
-            task['failure_reason'] = 'required_reference_receipt_missing'
+        failure = None
+        if set(task.get('required_reference_sources', ())) - content.keys():
+            failure = 'required_reference_receipt_missing'
+        elif '_mission' in goal:
+            names = {product.get('file_name') for product in content['products'] if isinstance(product, dict)}
+            if set(task.get('required_products', ())) - names:
+                failure = 'required_product_missing'
+        task.update(state='failed' if failure else 'delivered', delivery=content)
+        if failure:
+            task['failure_reason'] = failure
             goal.update(state='waiting', reason='delegation_failed')
 
     def command(self, workspace, command, *, actor='application:trusted'):

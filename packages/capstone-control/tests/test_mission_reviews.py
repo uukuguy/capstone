@@ -324,3 +324,21 @@ def test_partial_conclusion_preserves_dependency_ready_work_after_failure():
     assert [t['state'] for t in mission['tasks']] == ['failed', 'pending', 'verified']
     mission = command(control, mission, 'conclude_plan', conclusion, 'final_partial')
     assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
+
+
+def test_missing_required_file_is_a_saved_failure_and_queues_review():
+    control = service()
+    mission = create(control, acceptance_criteria=['Save the requested file'])
+    mission = command(control, mission, 'prepare_task',
+        {'task': task(required_products=['required.txt'])}, 'prepare')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    control.deliver('team', mission['mission_id'], delegation,
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'})
+    intent = control.pending_mission_reviews('team')[0]
+    saved = intent['boundary']['tasks'][0]
+    assert saved['state'] == 'failed'
+    assert saved['failure_reason'] == 'required_product_missing'
+    assert saved['delivery']['answer_ref'] == 'saved_answer'
