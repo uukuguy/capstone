@@ -459,6 +459,10 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     supplement_receipt = restored.submit_command(supplement)
     assert supplement_receipt.status == 'accepted', supplement_receipt.rejection
     assert restored.reserve_instruction(claim, supplement['command_id']) is not None
+    for kind, call in [('tool_execution_start', 'settled'), ('tool_execution_end', 'settled'),
+                       ('tool_execution_start', 'unknown')]:
+        restored.append_runtime_event(claim, event_type='runtime_event', visibility='public',
+            payload={'native_type': kind, 'task_id': 'native_task', 'tool_call_id': call, 'tool_name': 'write'})
     restored.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
         payload={'stage': 'worker_execution'}, visibility='diagnostic')
     assert restored.interrupt_expired_attempts() == 1
@@ -481,6 +485,8 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
             'thread_id': 'thr_destination', 'workspace_name': DEFAULT_WORKSPACE,
         }, selection)
     assert frozen_handoff['state']['unconfirmed_instruction_refs'] == [supplement['command_id']]
+    assert frozen_handoff['unconfirmed_native_calls'] == [
+        {'task_id': 'native_task', 'tool_call_id': 'unknown', 'tool_name': 'write'}]
     executor.identity = frozen['identity']
     restored.set_native_executor(executor)
     next_request = command(restored, thread_id, 'send_message', 'after_expiry', work_id=work['work_id'],

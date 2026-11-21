@@ -48,6 +48,24 @@ def freeze_task_handoff(connection, target, value, *, control=None):
     ).fetchone()
     if attempt is None:
         return None
+    unconfirmed = []
+    if state['execution']['phase'] != 'completed':
+        unconfirmed = connection.execute("""
+            SELECT task_id, tool_call_id, tool_name FROM (
+                SELECT DISTINCT ON (payload->>'task_id', payload->>'tool_call_id')
+                    payload->>'task_id' AS task_id, payload->>'tool_call_id' AS tool_call_id,
+                    payload->>'tool_name' AS tool_name, payload->>'native_type' AS native_type
+                FROM capstone_thread_events
+                WHERE thread_id=%s AND attempt_id=%s AND event_seq <= %s
+                  AND visibility='public' AND event_type='runtime_event'
+                  AND payload->>'native_type' IN ('tool_execution_start', 'tool_execution_end')
+                  AND payload->>'task_id' <> '' AND payload->>'tool_call_id' <> ''
+                  AND payload->>'tool_name' <> ''
+                ORDER BY payload->>'task_id', payload->>'tool_call_id', event_seq DESC
+            ) AS latest
+            WHERE native_type='tool_execution_start'
+            ORDER BY task_id, tool_call_id LIMIT 65
+        """, (selection['thread_id'], selection['revision_ref'], source['last_event_seq'])).fetchall()
     from .thread_work import goal_task_workflow
     task_state = deepcopy(state)
     workflow = goal_task_workflow(work)
@@ -73,4 +91,6 @@ def freeze_task_handoff(connection, target, value, *, control=None):
             return None
         mission_state = mission['task_state']
     return {**selection, **({'mission_state': mission_state} if mission_state is not None else {}),
+            **({'unconfirmed_native_calls': unconfirmed[:64],
+                'unconfirmed_native_calls_truncated': len(unconfirmed) > 64} if unconfirmed else {}),
             'through_event_seq': source['last_event_seq'], 'state': task_state, 'decision': deepcopy(work.get('task_decision'))}
