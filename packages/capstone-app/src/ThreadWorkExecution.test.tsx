@@ -15,7 +15,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, lostMission=false, activeMissionConflict=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, lostMission=false, activeMissionConflict=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false, pausedGoal=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -42,7 +42,11 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
   let openedModel = false
   function projection() {
     const reason = modelFree ? 'execution_unavailable' : attempt ? 'attempt_in_progress' : null
-    return { ...work, start_available: reason === null, start_unavailable_reason: reason }
+    const goalMode = pausedGoal ? { schema: 'capstone-work-goal/1', objective: work.goal,
+      objective_revision: 1, generation: 1, state: 'paused', reason: 'user_paused',
+      max_attempts: 5, attempts_admitted: 1, deadline_at: '2030-01-01T00:00:00Z',
+      last_settled_attempt_id: null } : undefined
+    return { ...work, ...(goalMode ? { goal_mode: goalMode } : {}), start_available: reason === null, start_unavailable_reason: reason }
   }
   function snapshot() {
     const base = { ...(mission?{mission_refs:[{mission_id:'goal_mission'}]}:{}),schema: 'capstone-thread-snapshot/1', thread_id: 'thr_work', run: { run_id: 'run_work', state: 'open' },
@@ -209,6 +213,21 @@ async function saveGoal(server: ReturnType<typeof authority>) {
   await screen.findByRole('textbox', { name: '补充任务资料' })
   await waitFor(() => expect((screen.getByRole('button', { name: '开始任务' }) as HTMLButtonElement).disabled).toBe(false))
 }
+
+it('resumes the selected Goal from the main composer without starting a new task', async () => {
+  const server = authority({native: true, existingWork: true, pausedGoal: true})
+  vi.stubGlobal('fetch', server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('', '', server.fetcher, '/api/v1/threads', '2')} threadId="thr_work" namespace="resume-goal" />)
+  const input = await screen.findByRole('textbox', {name: 'Thread 指令'})
+  fireEvent.change(input, {target: {value: '/goal resume'}})
+  const send = screen.getByRole<HTMLButtonElement>('button', {name: '发送'})
+  await waitFor(() => expect(send.disabled).toBe(false))
+  fireEvent.click(send)
+  await screen.findByText('恢复请求已接收。')
+  expect(server.commands).toHaveLength(1)
+  expect(server.commands[0]).toMatchObject({kind: 'resume_goal',
+    target: {kind: 'work', id: 'work_one', expected_revision: 1}, payload: {}})
+})
 
 it('retains the draft and rejection notice when a selected product cannot be admitted',async()=>{
   const server=authority({native:true,rejectMessage:true})
