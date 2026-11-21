@@ -57,6 +57,7 @@ def test_send_message_runs_and_followup_uses_same_work_history(chat_store, tmp_p
         'attempt_id': queued['current_attempt']['attempt_id'],
         'turn_id': queued['current_attempt']['turn_id'],
         'phase': 'accepted',
+        'work_revision': queued['works'][0]['revision'],
         'task_state_ref': None,
     }
     result = run_pending_attempt(store, factory, worker_id='native-test', implementation_family='native')
