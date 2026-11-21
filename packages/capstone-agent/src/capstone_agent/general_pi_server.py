@@ -1449,6 +1449,11 @@ class NativeTaskRunner:
                     sdk_config['interpreter'] = str(Path(sdk_config['mcp']['install']) / 'venv/bin/python')
             elif task_input['kind'] != 'text':
                 raise ValueError('native skills require an accepted resource profile')
+            if 'missionTools' in sdk_config:
+                from .native_mission import mission_entry_guidance
+                guidance = mission_entry_guidance(request.instruction)
+                if guidance:
+                    sdk_config['appendSystemPrompt'] = [*sdk_config.get('appendSystemPrompt', []), guidance]
             if self.environment_context:
                 # Trusted build capabilities also belong to isolated executors.
                 # Keep them separate from parent history and source grants.

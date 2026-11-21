@@ -35,6 +35,23 @@ def test_mission_binding_excludes_endpoints_and_credentials():
         checked_binding({**binding, 'url':'https://caller.invalid'})
 
 
+@pytest.mark.parametrize(('instruction', 'expected'), [
+    ('/mission Save the report', True),
+    ('/mission\nSave the report', True),
+    ('/missions Save the report', False),
+    ('Discuss /mission Save the report', False),
+    ('Save the report', False),
+])
+def test_explicit_mission_uses_its_admitted_delivery_contract(instruction, expected):
+    from capstone_agent.native_mission import mission_entry_guidance
+
+    guidance = mission_entry_guidance(instruction)
+    assert bool(guidance) is expected
+    if expected:
+        assert 'agent_mission_bind_origin_execution' in guidance
+        assert 'saved' in guidance
+
+
 def test_equipment_narrows_current_grants_without_adding_tools():
     from capstone_agent.native_mission import equipment_tools
     selection = dict(schema='capstone-mission-tool-selection/1',allowed_tools=['read','not_registered'],denied_tools=[])

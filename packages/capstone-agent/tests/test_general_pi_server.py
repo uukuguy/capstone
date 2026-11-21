@@ -189,6 +189,12 @@ def test_frozen_mission_resource_helpers_reach_actual_sdk_registration(tmp_path,
         tmp_path,monkeypatch,'1.20.0',False,False,equipment_name='write',resource_protocol=resource_protocol)
 
 
+@pytest.mark.parametrize('mission_case', ['bound start', 'bound ordinary', 'unbound start'])
+def test_explicit_mission_delivery_guidance_reaches_actual_sdk_config(tmp_path, monkeypatch, mission_case):
+    test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
+        tmp_path, monkeypatch, '1.20.0', False, False, mission_case=mission_case)
+
+
 def test_available_domain_publication_enters_actual_sdk_config_on_demand(tmp_path, monkeypatch):
     test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(
         tmp_path, monkeypatch, '1.20.0', False, False, domain_available=True)
@@ -202,7 +208,7 @@ def test_mission_domain_pack_grants_tools_without_granting_shell(tmp_path, monke
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 @pytest.mark.parametrize('choice', [None, False, True])
 @pytest.mark.parametrize('experimental_llm_pool', [False, True])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False, equipment_name=None, resource_protocol=False):
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool, domain_available=False, equipment_name=None, resource_protocol=False, mission_case=None):
     if choice is not None and version != '1.20.0':
         pytest.skip('Explicit UI control is verified against the current publication')
     import json
@@ -235,6 +241,14 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert native['tool_composition'] == COMPOSITION_POLICY
     assert 'agent_tools_execute' in native['policy']['allowed_tools']
     native['policy']['allowed_tools'].remove('data_gateway_other')
+    instruction = 'Prepare the useful requested output'
+    if mission_case in {'bound start', 'unbound start'}:
+        instruction = '/mission ' + instruction
+    if mission_case in {'bound start', 'bound ordinary'}:
+        from capstone_agent.native_mission import CATALOG, SCHEMA
+        native['mission_binding'] = {'schema': SCHEMA, 'mission_id': 'goal_fixture',
+                                     'origin': {'thread_id': 'thread_fixture'}}
+        native['policy']['allowed_tools'].extend(CATALOG)
     from capstone_agent.workbench_llm_profiles import ProfileRegistry
     registry = ProfileRegistry(environment={})
     native['llm_selection'] = registry.freeze('intranet-dsv4-18804')
@@ -315,14 +329,19 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     ready.set()
     runner.bind_research_reader(lambda _: SimpleNamespace(root=tmp_path / 'channel', ready=ready))
     runner.bind_graph_context_provider(lambda *_: SimpleNamespace(root=tmp_path / 'contexts'))
-    request = PiTaskRequest(task, binding['attempt_id'], 'direct', 'Prepare the useful requested output', (), (), {'engine': 'pi'}, 1800,
+    request = PiTaskRequest(task, binding['attempt_id'], 'direct', instruction, (), (), {'engine': 'pi'}, 1800,
         business_context=BusinessContext.empty('workspace', 0), resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
-        input={'kind': 'text', 'text': 'Prepare the useful requested output'}, native_context=native, research_binding=binding,
+        input={'kind': 'text', 'text': instruction}, native_context=native, research_binding=binding,
         domain_tools={'schema': 'capstone-domain-tool-grant/1', 'profiles': [
             {'profile_id': 'fixture-pack', 'profile_version': '1', 'implementation_family': 'fixture'}]})
     with pytest.raises(Captured):
         runner(request, lambda: False, lambda _: None)
     assert task not in runner.task_llm_profiles
+    if mission_case is not None:
+        assert ('missionTools' in captured[0]) == (mission_case != 'unbound start')
+        has_delivery_guidance = any('agent_mission_bind_origin_execution' in prompt
+                                    for prompt in captured[0].get('appendSystemPrompt', []))
+        assert has_delivery_guidance == (mission_case == 'bound start')
     assert runner.relay.timings == {}
     if equipment_name is not None:
         from collections.abc import Mapping
