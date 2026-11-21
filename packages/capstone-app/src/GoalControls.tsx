@@ -25,6 +25,7 @@ export default function GoalControls({goal,plan,planning,objective,disabled,exec
     {goal?<>
       <p role="status">持续目标：{planning&&goal.state==='ready'?'正在规划':goal.reason==='goal_review_pending'?'正在复盘':goal.reason==='partial_delivery'?'部分完成':states[goal.state]} · 已执行 {goal.attempts_admitted}/{goal.max_attempts} 次</p>
       <p>{goal.objective}</p>
+      {goal.objective_revision>1 && <p>显示调整后的目标 · 第 {goal.objective_revision} 版</p>}
       {plan&&<details className="goal-plan">
         <summary>目标计划 · 第 {plan.stepIndex+1}/{plan.steps.length} 步</summary>
         <div className="goal-plan-body" tabIndex={0}>
