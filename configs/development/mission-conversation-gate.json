@@ -106,5 +106,9 @@
   "continuation_anchors": [
     "packages/capstone-agent/src/capstone_agent/task_handoff.py",
     "packages/capstone-control/src/capstone_control/mission.py"
+  ],
+  "entry_anchors": [
+    "packages/capstone-agent/src/capstone_agent/general_pi_server.py",
+    "packages/capstone-agent/src/capstone_agent/native_mission.py"
   ]
 }
