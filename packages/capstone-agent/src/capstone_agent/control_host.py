@@ -115,6 +115,16 @@ class ControlHost:
                 'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
                 'kind': arguments['action'], 'payload': {}},
                 actor='agent:' + claim.attempt.attempt_id, claim=claim)
+        if name == 'agent_mission_bind_origin_execution':
+            if set(arguments) != {'expected_revision', 'task_id'}:
+                raise ValueError('Direct Mission execution requires one planned task')
+            return self.command_mission(workspace, {
+                'schema': 'capstone-control-mission-command/1', 'operation_id': operation_id,
+                'mission_id': mission_id, 'expected_revision': arguments['expected_revision'],
+                'kind': 'bind_origin_execution', 'payload': {
+                    'task_id': arguments['task_id'], 'thread_id': claim.thread_id,
+                    'work_id': claim.task_context.binding.work_id, 'attempt_id': claim.attempt.attempt_id}},
+                actor='application:mission-origin', claim=claim)
         kinds = {'agent_mission_update_plan': 'update_plan', 'agent_mission_prepare_task': 'prepare_task',
                  'agent_mission_ready': 'ready', 'agent_mission_conclude': 'conclude_plan',
                  'agent_mission_wait': 'wait'}
@@ -127,6 +137,27 @@ class ControlHost:
             'kind': kinds[name], 'payload': payload}, actor='agent:' + claim.attempt.attempt_id, claim=claim,
             validate_task_equipment=True)
 
+    def _settle_origin_delivery(self, goal):
+        from .agent_delegation import read_saved_attempt_delivery
+        for task in goal['tasks']:
+            if task['state'] != 'running' or not task.get('origin_attempt_id'):
+                continue
+            delegation = task['delegation']
+            binding = delegation['binding']
+            attempt_id = task['origin_attempt_id']
+            self.agent.threads.require_workspace(binding['thread_id'], goal['workspace'])
+            answer, products, _, _, authoritative, gateway = read_saved_attempt_delivery(
+                self.agent.threads, binding, attempt_id)
+            if answer is None:
+                continue
+            delivery = {'answer_ref': answer, 'products': products, 'status': 'completed'}
+            receipt = {**binding, 'attempt_id': attempt_id, 'answer_ref': answer}
+            if authoritative:
+                delivery['authority_source'] = receipt
+            if gateway:
+                delivery['gateway_source'] = receipt
+            self.service.deliver(goal['workspace'], goal['goal_id'], delegation['delegation_id'], binding, delivery)
+
     def tick(self, limit=32):
         """One bounded maintenance pass; no model calls or browser dependency."""
         goals = self.service.store.list(limit=limit, after=self.cursor, active_only=True)
@@ -137,6 +168,7 @@ class ControlHost:
         for original in goals:
             workspace, goal_id = original['workspace'], original['goal_id']
             try:
+                self._settle_origin_delivery(original)
                 reconcile(self.service, self.agent, workspace=workspace, goal_id=goal_id)
                 goal = self.service.read(workspace, goal_id)
                 if goal['state'] not in {'ready', 'running','waiting_review'}:
@@ -157,7 +189,10 @@ class ControlHost:
                         self.verify_product(workspace, product)
                         checks.append({'name': product['file_name'] + ' · saved SHA-256 ' + product['sha256'], 'passed': True})
                     if not checks and self.verify_answer is not None:
-                        self.verify_answer(workspace, task['delegation']['binding'],task['delivery']['answer_ref'])
+                        binding = task['delegation']['binding']
+                        if task.get('origin_attempt_id'):
+                            binding = {**binding, 'attempt_id': task['origin_attempt_id']}
+                        self.verify_answer(workspace, binding, task['delivery']['answer_ref'])
                         checks.append({'name':'Saved answer reference '+task['delivery']['answer_ref'],'passed':True})
                     if not checks:
                         if goal.get('reason')!='delivery_verification_unavailable':
@@ -206,7 +241,7 @@ def configure_control(threads, *, wake=None):
         work=next(work for work in snapshot.works if work['work_id']==binding['work_id'])
         cursor=0
         for _ in range(128):
-            page=threads.read_attempt_records(binding['thread_id'],work['latest_attempt_id'],after=cursor,limit=128)
+            page=threads.read_attempt_records(binding['thread_id'],binding.get('attempt_id', work['latest_attempt_id']),after=cursor,limit=128)
             for event in page['events']:
                 if (event['event_id']==answer_ref and event['visibility']=='public'
                         and event['event_type'] in {'attempt_completed', 'attempt_delivery_recovered'}

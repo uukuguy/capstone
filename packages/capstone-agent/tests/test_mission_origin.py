@@ -288,3 +288,36 @@ def test_memory_tick_and_api_commands_take_thread_lock_before_control_transactio
         one.result()
         two.result()
     assert len(visited) == 2 and len(set(visited)) == 2
+
+
+def test_direct_mission_settles_the_main_attempt_without_a_child(chat_store):
+    threads, thread_id = chat_store
+    threads.set_native_executor(native_executor())
+    host = configure_control(threads)
+    mission = host.create_mission('enterprise', request(thread_id, 'direct_mission'))
+    assert threads.submit_command(command(threads, thread_id, 'send_message', 'direct_prompt',
+        payload={'text': 'Complete the Mission in this conversation.'})).status == 'accepted'
+    claim = threads.claim_attempt('mission_origin', 30)
+    plan = host.mission_operation(claim, 'agent_mission_update_plan', {
+        'expected_revision': mission['revision'], 'acceptance_criteria': ['Save the answer'],
+        'tasks': [{'task_id': 'task_direct', 'objective': 'Save the answer',
+                   'delivery_requirements': ['Saved answer'], 'depends_on': [],
+                   'agent_id': 'capstone', 'mode': 'single', 'max_attempts': 1}]},
+        operation_id='prepare_direct')['mission']
+    args = {'expected_revision': plan['revision'], 'task_id': 'task_direct'}
+    with pytest.raises(ValueError):
+        host.mission_operation(claim, 'agent_mission_bind_origin_execution',
+            {**args, 'attempt_id': 'forged_attempt'}, operation_id='forged_origin')
+    receipt = host.mission_operation(claim, 'agent_mission_bind_origin_execution', args,
+                                    operation_id='bind_direct')
+    assert receipt == host.mission_operation(claim, 'agent_mission_bind_origin_execution', args,
+                                            operation_id='bind_direct')
+    threads.finish_attempt(claim, phase='completed', payload={'answer': 'Saved direct result.'})
+    host.tick()
+    updated = host.read_mission('enterprise', mission['mission_id'])
+    task = updated['tasks'][0]
+    assert task['origin_attempt_id'] == claim.attempt.attempt_id
+    assert task['delegation']['binding']['thread_id'] == thread_id
+    assert task['state'] == 'verified' and task['delivery']['answer_ref']
+    assert updated['delegations_admitted'] == 0
+    assert host.service.pending_mission_reviews('enterprise')
