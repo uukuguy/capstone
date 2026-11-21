@@ -81,6 +81,22 @@ CATALOG = {
 }
 
 
+def mission_entry_guidance(instruction):
+    """Supply the delivery contract for an explicit Mission start."""
+    if not re.match(r'^/mission(?:\s|$)', instruction):
+        return None
+    return (
+        'The user explicitly started the Mission associated with this turn. '
+        'Use the registered Mission tools to record the current acceptance criteria and executable work. '
+        'Choose direct or delegated execution based on the work and its grants. '
+        'For direct execution, use agent_mission_bind_origin_execution before doing the work '
+        'so the host can verify the saved delivery. For delegated execution, release the admitted work '
+        'and let the host resume the organizer at the next task boundary. '
+        'Use verified saved results to conclude. Continue independent work when possible, '
+        'and record any unmet criteria in a partial conclusion.'
+    )
+
+
 def checked_binding(value):
     if (not isinstance(value, dict) or set(value) != {'schema', 'mission_id', 'origin'} or value.get('schema') != SCHEMA
             or not isinstance(value['mission_id'], str) or re.fullmatch(IDENTITY['pattern'], value['mission_id']) is None):
