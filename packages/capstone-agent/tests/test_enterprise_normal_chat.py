@@ -439,6 +439,8 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     store.create_thread(replace(_snapshot(thread_id), active_model_context=None, active_grid_page_id=None,
                                 minimum_protocol_version=2))
     executor = native_executor()
+    executor.capability.update(instruction_schemas=['capstone-native-instruction/1'],
+        execution_authority_schemas=['capstone-execution-authority/1'], instruction_limit=16)
     store.set_native_executor(executor)
     request = command(store, thread_id, 'send_message', 'restart', payload={'text': 'Keep this input'})
     receipt = store.submit_command(request)
@@ -451,6 +453,12 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     frozen = claim.submission['_native_execution']
     executor.identity = {**executor.identity, 'config_revision': 'different-config'}
     assert claim.submission['_native_execution'] == frozen
+    work = restored.snapshot(thread_id).works[0]
+    supplement = command(restored, thread_id, 'queue_instruction', 'uncertain_supplement',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Apply this constraint'})
+    supplement_receipt = restored.submit_command(supplement)
+    assert supplement_receipt.status == 'accepted', supplement_receipt.rejection
+    assert restored.reserve_instruction(claim, supplement['command_id']) is not None
     restored.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
         payload={'stage': 'worker_execution'}, visibility='diagnostic')
     assert restored.interrupt_expired_attempts() == 1
@@ -461,6 +469,9 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     work = restored.snapshot(thread_id).works[0]
     assert work['task_state']['execution']['phase'] == 'interrupted'
     assert work['task_state']['open_items'] == [{'kind': 'execution_incomplete', 'reason': 'interrupted'}]
+    assert work['task_state']['unconfirmed_instruction_refs'] == [supplement['command_id']]
+    reopened = PostgresThreadService(store.dsn)
+    assert reopened.snapshot(thread_id).works[0]['task_state'] == work['task_state']
     executor.identity = frozen['identity']
     restored.set_native_executor(executor)
     next_request = command(restored, thread_id, 'send_message', 'after_expiry', work_id=work['work_id'],
@@ -468,6 +479,7 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     assert restored.submit_command(next_request).status == 'accepted'
     current = restored.claim_attempt('replacement', 30, 'native')
     assert current.instruction == 'Continue'
+    assert not restored.peek_instructions(current)
     assert current.task_context.task_state_ref == work['task_state']['revision_ref']
     assert any(message['content'] == 'Keep this input' and message['status'] == 'interrupted'
                for message in current.conversation_context.to_document()['messages'])

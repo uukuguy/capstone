@@ -125,6 +125,10 @@ def settle_task_state(snapshot, work_payload, task_context, attempt, phase, subm
     instruction_command = (submission or {}).get('_instruction_command_id')
     if instruction_command is not None:
         state['instruction_command_id'] = instruction_command
+    unconfirmed = [item['id'] for item in work.get('instruction_queue', ())
+                   if item['state'] == 'delivery_unknown']
+    if unconfirmed:
+        state['unconfirmed_instruction_refs'] = unconfirmed
     handoff = (submission or {}).get('_task_handoff')
     if handoff is not None:
         from .task_handoff import MISSION_FIELDS, SELECTION_FIELDS, parse_task_handoff
@@ -726,7 +730,7 @@ def parse_snapshot(document):
             state = work['task_state']
             if (not isinstance(state, dict)
                     or set(state) - {'business_report', 'business_report_source', 'handoff', 'workflow',
-                                     'instruction_command_id'} != {
+                                     'instruction_command_id', 'unconfirmed_instruction_refs'} != {
                         'schema', 'task', 'revision_ref', 'previous_revision_ref',
                         'execution', 'acceptance', 'open_items'}
                     or state['schema'] != 'capstone-task-state/1'
@@ -735,6 +739,14 @@ def parse_snapshot(document):
                 raise ThreadProtocolError('invalid task state')
             if 'instruction_command_id' in state:
                 _identifier(state['instruction_command_id'], name='task_state.instruction_command_id')
+            if 'unconfirmed_instruction_refs' in state:
+                refs = state['unconfirmed_instruction_refs']
+                if (not isinstance(refs, list) or not 0 < len(refs) <= limits.work_message_count
+                        or any(not isinstance(ref, str) for ref in refs)
+                        or len(set(refs)) != len(refs)):
+                    raise ThreadProtocolError('invalid unconfirmed instruction references')
+                for ref in refs:
+                    _identifier(ref, name='task_state.unconfirmed_instruction_refs')
             if 'handoff' in state:
                 from .task_handoff import parse_task_handoff
                 parse_task_handoff(state['handoff'])
