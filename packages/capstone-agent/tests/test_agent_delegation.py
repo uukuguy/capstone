@@ -303,6 +303,8 @@ def test_goal_delivery_keeps_admitted_products_from_earlier_attempts(monkeypatch
     ('waiting', 'goal_review_pending', 'running'),
     ('waiting', 'missing_source', 'waiting'),
     ('paused', 'user_paused', 'paused'),
+    ('paused', 'attempt_failed', 'failed'),
+    ('paused', 'attempt_budget_exhausted', 'failed'),
     ('completed', None, 'completed'),
 ])
 def test_delegation_state_distinguishes_autonomous_goal_progress(state, reason, expected):

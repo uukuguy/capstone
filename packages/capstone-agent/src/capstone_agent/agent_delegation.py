@@ -148,6 +148,10 @@ def delegation_state(work):
         # automatic owner. They do not require user input.
         if goal['state'] == 'ready' or (goal['state'] == 'waiting' and goal.get('reason') == 'goal_review_pending'):
             return 'running'
+        if goal['state'] == 'paused' and goal.get('reason') in {
+                'attempt_failed', 'attempt_interrupted', 'attempt_budget_exhausted',
+                'deadline_elapsed', 'goal_planning_failed'}:
+            return 'failed'
         return goal['state']
     return {'ready': 'waiting', 'queued': 'running', 'blocked': 'waiting',
             'interrupted': 'unknown'}.get(work['status'], work['status'])
