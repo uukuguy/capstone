@@ -510,6 +510,14 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
                     goal = {**work['goal_mode'], 'state': 'waiting', 'reason': 'goal_review_pending'}
                 else:
                     goal = control_goal(work['goal_mode'], command['kind'], command['payload'], now=now)
+                if (command['kind'] == 'revise_goal_objective' and work['goal_mode']['state'] != 'paused'
+                        and ('goal_plan' in work or work.get('goal_plan_pending'))):
+                    if goal['attempts_admitted'] >= goal['max_attempts']:
+                        goal.update(state='failed', reason='goal_attempt_budget_exhausted')
+                    elif datetime.fromisoformat(goal['deadline_at']) <= now:
+                        goal.update(state='failed', reason='goal_deadline_elapsed')
+                    else:
+                        goal.update(state='ready', reason=None)
         except ValueError as error:
             raise ThreadProtocolError(str(error)) from error
         if snapshot.current_attempt is not None:

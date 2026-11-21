@@ -488,3 +488,32 @@ def test_send_new_instruction_while_goal_review_is_paused(storage, request):
     assert final['goal_plan'] == paused['goal_plan']
     assert final['goal_step_review'] == paused['goal_step_review']
     assert store.claim_attempt('followup_worker', 30) is None
+
+
+def test_revising_live_planned_goal_schedules_new_plan_without_manual_resume():
+    from capstone_agent.session_goal_plan import drain_initial_goal_plans
+    from test_thread_work_execution import command, professional_snapshot, save_work
+
+    store = InMemoryThreadService(professional_snapshot())
+    thread_id = store._snapshot.thread_id
+    work = save_work(store, thread_id)
+    plan = {'schema': 'capstone-session-goal-plan/1', 'criteria': ['Source checked'],
+            'steps': [{'instruction': 'Check the source.', 'expected_result': 'Source receipt.'}, {'instruction': 'Write the report.', 'expected_result': 'Saved report.'}]}
+    assert store.submit_command(command(store, thread_id, 'start_goal', 'autonomous_start',
+        work_id=work['work_id'], revision=work['revision'],
+        payload={'objective': 'Prepare the first report', 'max_attempts': 4,
+                 'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
+    assert drain_initial_goal_plans(store, planner=lambda _: plan) == 1
+    first = store.claim_attempt('worker', 30)
+    assert first is not None
+    active = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'revise_goal_objective', 'autonomous_revision',
+        work_id=active['work_id'], revision=active['revision'],
+        payload={'objective': 'Prepare the corrected report'})).status == 'accepted'
+    assert drain_initial_goal_plans(store, planner=lambda _: pytest.fail('old attempt is still active')) == 0
+    store.finish_attempt(first, phase='cancelled', payload={'reason': 'user_requested'})
+    revised = []
+    assert drain_initial_goal_plans(store, planner=lambda objective: revised.append(objective) or plan) == 1
+    assert revised == ['Prepare the corrected report']
+    successor = store.claim_attempt('worker', 30)
+    assert successor is not None and successor.attempt.attempt_id != first.attempt.attempt_id
