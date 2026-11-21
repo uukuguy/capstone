@@ -46,7 +46,7 @@ def lock_takeover_source(connection, workspace, value, *, skip_locked=True):
           selection['work_id'], selection['work_id'], str(selection['work_revision']))).fetchone()
 
 
-def lock_takeover_guidance_source(connection, workspace, value):
+def lock_takeover_command_source(connection, workspace, value):
     """Wait briefly for routine writes before treating a transfer as unavailable."""
     from psycopg.errors import LockNotAvailable
 
@@ -79,7 +79,7 @@ def reserve_instruction_takeover(connection, workspace, target_thread_id, value)
     """, (target_thread_id, workspace, selection['revision_ref'])).fetchone()
     if target is None:
         return False
-    source = lock_takeover_source(connection, workspace, selection)
+    source = lock_takeover_command_source(connection, workspace, selection)
     if source is None:
         return False
     return connection.execute("""

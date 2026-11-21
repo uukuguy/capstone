@@ -811,7 +811,7 @@ def create_host_app(
                             await run_in_threadpool(refresh_binding)
                 if scoped_gateway is not None:
                     receipt = await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
-                elif kind == 'takeover_instruction':
+                elif kind in ('reserve_instruction_takeover', 'takeover_instruction'):
                     receipt = await run_in_threadpool(service.submit_command, command)
                 else:
                     receipt = service.submit_command(command)

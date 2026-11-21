@@ -838,7 +838,29 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
                     'work_revision': work['revision'], 'revision_ref': work['execution_checkpoint']['attempt_id']}
         request = command(store, target_id, 'reserve_instruction_takeover', 'takeover',
             payload={'source': selector})
-        reservation = store.submit_command(request)
+        def submit(service, command_document):
+            if not contended:
+                return service.submit_command(command_document)
+            from concurrent.futures import ThreadPoolExecutor
+            from time import monotonic, sleep
+
+            with ThreadPoolExecutor(max_workers=1) as pool, store._connect() as writer:
+                writer.execute('SELECT 1 FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread_id,))
+                writer_pid = writer.info.backend_pid
+                future = pool.submit(service.submit_command, command_document)
+                deadline = monotonic() + 1
+                with store._connect() as observer:
+                    while not future.done() and monotonic() < deadline:
+                        blocked = observer.execute(
+                            'SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE %s = ANY(pg_blocking_pids(pid))) AS blocked',
+                            (writer_pid,)).fetchone()['blocked']
+                        if blocked:
+                            break
+                        sleep(0.01)
+                writer.rollback()
+                return future.result(timeout=5)
+
+        reservation = submit(store, request)
         assert reservation.status == 'accepted'
         reopened = PostgresThreadService(store.dsn)
         assert reopened.submit_command(request) == reservation
@@ -855,27 +877,7 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         assert reopened.submit_command(original_guidance).rejection == 'instruction_takeover_unavailable'
         followup = command(reopened, target_id, 'takeover_instruction', 'guide',
             payload={'source': selector, 'text': 'Use the updated constraint'})
-        if contended:
-            from concurrent.futures import ThreadPoolExecutor
-            from time import monotonic, sleep
-
-            with ThreadPoolExecutor(max_workers=1) as pool, store._connect() as writer:
-                writer.execute('SELECT 1 FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread_id,))
-                writer_pid = writer.info.backend_pid
-                future = pool.submit(reopened.submit_command, followup)
-                deadline = monotonic() + 1
-                with store._connect() as observer:
-                    while not future.done() and monotonic() < deadline:
-                        blocked = observer.execute(
-                            'SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE %s = ANY(pg_blocking_pids(pid))) AS blocked',
-                            (writer_pid,)).fetchone()['blocked']
-                        if blocked:
-                            break
-                        sleep(0.01)
-                writer.rollback()
-                assert future.result(timeout=5).status == 'accepted'
-        else:
-            assert reopened.submit_command(followup).status == 'accepted'
+        assert submit(reopened, followup).status == 'accepted'
         assert reopened.submit_command(followup).status == 'accepted'
         claim = store.claim_attempt('native', 30, 'native')
         pending = store.peek_instructions(claim)

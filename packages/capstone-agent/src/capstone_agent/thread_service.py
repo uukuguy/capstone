@@ -3587,7 +3587,7 @@ class PostgresThreadService(NativeExecutionOwner):
         return receipt
 
     def _submit_takeover_command(self, connection, thread, snapshot, parsed, request_hash):
-        from .task_handoff import lock_takeover_guidance_source, parse_task_handoff, reserve_instruction_takeover
+        from .task_handoff import lock_takeover_command_source, parse_task_handoff, reserve_instruction_takeover
 
         steering = parsed['kind'] == 'takeover_instruction'
         fields = {'source', 'text'} if steering else {'source'}
@@ -3598,7 +3598,7 @@ class PostgresThreadService(NativeExecutionOwner):
         rejection = 'instruction_takeover_unavailable'
         if parsed.get('run_id') in {None, snapshot.run.run_id}:
             if steering:
-                locked = lock_takeover_guidance_source(connection, thread['workspace_name'], source)
+                locked = lock_takeover_command_source(connection, thread['workspace_name'], source)
                 if (locked is not None and locked['takeover_target_thread_id'] == snapshot.thread_id
                         and not thread['archived'] and snapshot.run.state == 'open'):
                     source_row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s',
