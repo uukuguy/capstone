@@ -120,6 +120,12 @@ def dependency_ready_tasks(goal):
             if task['state'] == 'pending' and set(task['depends_on']) <= verified)
 
 
+def has_dispatchable_task(service, goal):
+    return (goal['delegations_admitted'] < goal['max_delegations']
+            and service.now() < utc_deadline(goal['deadline_at'])
+            and any(dependency_ready_tasks(goal)))
+
+
 def dispatch_ready(service, goal):
     if not goal['tasks'] or not goal['acceptance_criteria']:
         raise InvalidTransition('Mission needs Tasks and acceptance criteria before readiness')
@@ -409,9 +415,7 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
             all_met = all(verdict['status'] == 'met' for verdict in verdicts)
             if all_met and not all(task['state'] == 'verified' for task in goal['tasks']):
                 raise InvalidTransition('satisfied Mission conclusion requires all Tasks to be verified')
-            if (not all_met and goal['delegations_admitted'] < goal['max_delegations']
-                    and service.now() < utc_deadline(goal['deadline_at'])
-                    and any(dependency_ready_tasks(goal))):
+            if not all_met and has_dispatchable_task(service, goal):
                 raise InvalidTransition('Mission must continue dependency-ready Tasks before partial delivery')
             goal['_mission']['plan_conclusion']=dict(plan_revision=payload['plan_revision'],summary=payload['summary'],actor=actor,criteria_verdicts=verdicts)
             if all_met:
@@ -426,9 +430,12 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
             text(payload['reason'],limit=4096)
             if not isinstance(payload['until'],str) or payload['until'] not in {'task_boundary','user'} or goal['state'] in {'paused','pausing','cancelled','cancelling','accepted','delivered'}:
                 raise InvalidTransition('Mission cannot wait from this state')
-            if payload['until']=='task_boundary' and (goal['state'] not in {'ready','running'} or not any(
-                    t['state'] in {'pending','dispatching','running','waiting','resume_requested'} for t in goal['tasks'])):
-                raise InvalidTransition('waiting for a Task boundary requires admitted pending or active work')
+            if payload['until'] == 'task_boundary':
+                active = any(task['state'] in {'dispatching', 'running', 'waiting', 'resume_requested'}
+                             for task in goal['tasks'])
+                if (goal['state'] not in {'ready', 'running'}
+                        or not (active or has_dispatchable_task(service, goal))):
+                    raise InvalidTransition('Waiting for a Task boundary requires executable or active work. Continue a repair or conclude with saved results.')
             from .mission_reviews import organizer
             state=organizer(goal)
             state['disposition']=dict(kind='wait',until=payload['until'],reason=payload['reason'],revision=goal['revision']+1)

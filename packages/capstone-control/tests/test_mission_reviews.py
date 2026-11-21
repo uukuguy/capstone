@@ -326,6 +326,33 @@ def test_partial_conclusion_preserves_dependency_ready_work_after_failure():
     assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
 
 
+def test_wait_rejects_dependent_work_without_an_executable_predecessor():
+    control = service()
+    criteria = ['Read the source']
+    mission = create(control, acceptance_criteria=criteria)
+    producer = {**task(), 'required_reference_sources': ['gateway_source']}
+    consumer = {**task('task_2'), 'depends_on': ['task_1']}
+    mission = command(control, mission, 'update_plan',
+                      {'acceptance_criteria': criteria, 'tasks': [producer, consumer, task('task_3')]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    control.deliver('team', mission['mission_id'], mission['tasks'][0]['delegation']['delegation_id'],
+        {'thread_id': 'task_thread', 'work_id': 'task_work'},
+        {'answer_ref': 'saved_answer', 'products': [], 'status': 'completed'})
+    mission = control.read_mission('team', mission['mission_id'])
+    mission = command(control, mission, 'ready', {}, 'ready_independent')
+    mission = command(control, mission, 'update_plan',
+                      {'acceptance_criteria': criteria, 'tasks': [], 'removed_task_ids': ['task_3']}, 'drop_independent')
+    assert [item['state'] for item in mission['tasks']] == ['failed', 'pending']
+    with pytest.raises(InvalidTransition, match='executable or active'):
+        command(control, mission, 'wait', {'until': 'task_boundary', 'reason': 'Wait for the dependent'}, 'wait')
+    conclusion = {'plan_revision': mission['plan_revision'], 'summary': 'The required source was unavailable.',
+                  'criteria_verdicts': [{'criterion_index': 0, 'status': 'not_met',
+                                         'explanation': 'Missing source receipt.', 'evidence': []}]}
+    mission = command(control, mission, 'conclude_plan', conclusion, 'partial')
+    assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
+
+
 def test_missing_required_file_is_a_saved_failure_and_queues_review():
     control = service()
     mission = create(control, acceptance_criteria=['Save the requested file'])
