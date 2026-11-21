@@ -472,6 +472,15 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
     assert work['task_state']['unconfirmed_instruction_refs'] == [supplement['command_id']]
     reopened = PostgresThreadService(store.dsn)
     assert reopened.snapshot(thread_id).works[0]['task_state'] == work['task_state']
+    from capstone_agent.task_handoff import freeze_task_handoff
+    from capstone_agent.thread_service import DEFAULT_WORKSPACE
+    selection = {'thread_id': thread_id, 'work_id': work['work_id'],
+                 'work_revision': work['revision'], 'revision_ref': work['task_state']['revision_ref']}
+    with reopened._connect() as connection:
+        frozen_handoff = freeze_task_handoff(connection, {
+            'thread_id': 'thr_destination', 'workspace_name': DEFAULT_WORKSPACE,
+        }, selection)
+    assert frozen_handoff['state']['unconfirmed_instruction_refs'] == [supplement['command_id']]
     executor.identity = frozen['identity']
     restored.set_native_executor(executor)
     next_request = command(restored, thread_id, 'send_message', 'after_expiry', work_id=work['work_id'],
