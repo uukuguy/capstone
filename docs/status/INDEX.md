@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-21 持续任务上下文与 Goal 自主推进已登记在[版本台账](VERSION-CONTROL.md#功能包前沿)和[项目全景](PROJECT-OVERVIEW.html)。
+2026-11-21 持续任务上下文、Goal 自主推进与 Mission 自主交付已登记在[版本台账](VERSION-CONTROL.md#功能包前沿)和[项目全景](PROJECT-OVERVIEW.html)。
 
 2026-11-20 PR180 将任务缺口放到原回答下，移除日常验收操作。真实浏览器确认有发布阻塞时仍可修改草稿。见[版本台账](VERSION-CONTROL.md#功能包前沿)。
 

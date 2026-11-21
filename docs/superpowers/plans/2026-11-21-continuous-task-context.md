@@ -1,6 +1,8 @@
 # 持续任务上下文实施计划
 
-目标是从自由 Instruction 到主会话自主交付，全程保持任务事实、用户指导和恢复位置。设计见[系统设计](../specs/2026-11-21-continuous-task-context-design.md)。当前为 backlog；下列项目均待实施验收。技术基础为 Python、PostgreSQL、原生 Pi 执行器和现有 TypeScript App。
+目标是从自由 Instruction 到主会话自主交付，全程保持任务事实、用户指导和恢复位置。设计见[系统设计](../specs/2026-11-21-continuous-task-context-design.md)。技术基础为 Python、PostgreSQL、原生 Pi 执行器和现有 TypeScript App。
+
+工作包 1–4 分别经 PR190–193 和 PR195 合入 dev。Mission 受检源码 `c91304d1` 通过真实混合和受控部分交付。工具配备已在隔离工作区验证预装使用、自主安装与无权限时继续独立工作。Goal 跨轮产物复盘修复和主会话呈现分别通过 PR196、PR197 合入。集成版本的三机制与云端综合验收仍在推进，详见[版本台账](../../status/VERSION-CONTROL.md#功能包前沿)。
 
 每包先复用现有回归测试并记录基线，在对应模块补一个能复现缺口的失败用例，再实现、跑直接消费者的定向检查和真实入口，分别登记已实现、已验证及已合入。每包通过临时分支 PR 进入 dev。历史数据保持可读。部署单独记录。
 
