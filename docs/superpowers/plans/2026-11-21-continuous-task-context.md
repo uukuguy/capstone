@@ -2,7 +2,7 @@
 
 目标是从自由 Instruction 到主会话自主交付，全程保持任务事实、用户指导和恢复位置。设计见[系统设计](../specs/2026-11-21-continuous-task-context-design.md)。技术基础为 Python、PostgreSQL、原生 Pi 执行器和现有 TypeScript App。
 
-工作包 1–4 分别经 PR190–193 和 PR195 合入 dev。Mission 受检源码 `c91304d1` 通过真实混合和受控部分交付。工具配备已在隔离工作区验证预装使用、自主安装与无权限时继续独立工作。Goal 跨轮产物复盘修复和主会话呈现分别通过 PR196、PR197 合入。集成版本的三机制与云端综合验收仍在推进，详见[版本台账](../../status/VERSION-CONTROL.md#功能包前沿)。
+工作包 1–4 分别经 PR190–193 和 PR195 合入 dev。Mission 受检源码 `c91304d1` 通过真实混合和受控部分交付。工具配备已在隔离工作区验证预装使用、自主安装与无权限时继续独立工作。Goal 跨轮产物复盘修复和主会话呈现分别通过 PR196、PR197 合入。各项实施及 local-dev 验证进度见[版本台账](../../status/VERSION-CONTROL.md#功能包前沿)。
 
 PR199 合入 Goal 历史产物续接。受检源码 `eea759ba` 的真实三步 Goal 自主完成，最终下载摘要匹配。PR200 合入显式 Mission 入口修复。PR203 修复 Goal 规划器自行增加派生数值条件的问题。受检源码 `65a8d56d` 规范重建后，真实同题 Instruction、三步 Goal、Mission 均交付，三份下载摘要一致。合入 `e959a65c` 的运行代码与受检候选一致。
 
@@ -25,5 +25,9 @@ PR199 合入 Goal 历史产物续接。受检源码 `eea759ba` 的真实三步 G
 当前实施范围为 local-dev。Railway 已废弃。云端部署和用户试用属于独立发布工作。
 
 实际 local-dev 已从 `7404a5cf` 规范重建，API 和 worker 同镜像并就绪。真实 Provider 的同题三入口均完成，三份下载文件逐字节一致。验收回执保存在 `runs/continuous-task-context/local-dev-7404a5cf/`。
+
+PR207 修复接管保留和指导受短暂行锁影响的问题，并在接管续作入队时唤醒 worker。受检候选 `0c01a89d` 的常规和受控双行锁链路均真实通过，两个目标会话都读回了原任务的保存结果。
+
+实际 local-dev 的合入版 `6dde7eae` 也通过受控双行锁接管。保留与指导在解锁后分别获准，指导只接纳一次。续作读回原任务的确切标记。回执保存在 `runs/continuous-task-context/local-dev-6dde7eae/`。
 
 首个可执行切片为工作包 1 的“空目标自由 Instruction → 用户补充边界 → 关键点保存 → 刷新读回”。从该切片确定可复用的数据字段与最小迁移范围。
