@@ -604,14 +604,28 @@ export function createInstructionSteering(session,config,emit) {
   const instructionLimit=config.instructionLimit??capacities.native_instruction_count;
   if(!Number.isSafeInteger(instructionLimit)||instructionLimit<1)throw new TypeError('Invalid native instruction limit');
   let closed=false;
+  const userText=message=>{
+    if(message?.role!=='user')return '';
+    const content=message.content;
+    return typeof content==='string'?content:Array.isArray(content)?content.filter(p=>p.type==='text').map(p=>p.text).join(''):'';
+  };
+  const agent=session.agent;
+  const previousTransform=agent?.transformContext;
+  if(agent)agent.transformContext=async (messages,signal)=>{
+    const context=previousTransform?await previousTransform.call(agent,messages,signal):messages;
+    const present=new Set(context.map(userText));
+    const missing=Array.from(entries.values())
+      .filter(entry=>entry.admitted&&!present.has(entry.message))
+      .map(entry=>entry.admitted);
+    return missing.length?[...missing,...context]:context;
+  };
   const unsubscribe=session.subscribe(event=>{
     // The pinned SDK appends user context on message_end. message_start only
     // sets streamingMessage, so it cannot certify durable context admission.
     if(event.type!=='message_end'||event.message?.role!=='user')return;
-    const content=event.message.content;
-    const text=typeof content==='string'?content:Array.isArray(content)?content.filter(p=>p.type==='text').map(p=>p.text).join(''):'';
-    for(const [id,entry] of entries)if(!entry.consumed&&text===entry.message){
-      entry.consumed=true;
+    const text=userText(event.message);
+    for(const [id,entry] of entries)if(!entry.admitted&&text===entry.message){
+      entry.admitted={role:'user',content:entry.message,timestamp:event.message.timestamp};
       emit({type:'general_pi_instruction_consumed',instruction_id:id});
       break;
     }
@@ -631,10 +645,10 @@ export function createInstructionSteering(session,config,emit) {
       // The prefix binds duplicate text to its durable identity and prevents
       // slash-command expansion from changing an ordinary user supplement.
       const message=`User instruction (${frame.instruction_id}):\n${frame.text}`;
-      entries.set(frame.instruction_id,{text:frame.text,message,consumed:false});
+      entries.set(frame.instruction_id,{text:frame.text,message});
       await session.steer(message);
     },
-    close(){closed=true;unsubscribe();}
+    close(){closed=true;unsubscribe();if(agent)agent.transformContext=previousTransform;}
   };
 }
 

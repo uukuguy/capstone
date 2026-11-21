@@ -82,3 +82,23 @@ test('pinned SDK stores steering before receipt and settles the resulting model 
   await rm(cwd,{recursive:true,force:true});
  }
 });
+
+test('model context restores compacted admitted instructions without replaying pending input', async()=>{
+ let observe;
+ const queued=[];
+ const agent={transformContext:async messages=>messages.slice()};
+ const session={agent,subscribe(fn){observe=fn;return ()=>{};},async steer(text){queued.push(text);}};
+ const steering=createInstructionSteering(session,{},()=>{});
+ for(const [id,text] of [['first','Use only the approved inputs'],['next','Pending instruction']]){
+  await steering.accept(JSON.stringify({type:'steer',instruction_id:id,text}));
+ }
+ const admitted={role:'user',content:queued[0],timestamp:1};
+ observe({type:'message_end',message:admitted});
+ assert.deepEqual(await agent.transformContext([admitted]),[admitted]);
+ const recent={role:'user',content:'Use the revised format',timestamp:2};
+ for(let pass=0;pass<2;pass++){
+  assert.deepEqual(await agent.transformContext([recent]),[admitted,recent]);
+ }
+ steering.close();
+ assert.deepEqual(await agent.transformContext([recent]),[recent]);
+});
