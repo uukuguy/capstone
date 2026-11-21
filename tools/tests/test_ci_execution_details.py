@@ -20,3 +20,11 @@ def test_execution_details_gate_covers_the_enterprise_answer_transport():
     paths = [*manifest['paths'], *manifest['answer_paths']]
     assert classify(paths) == 'execution-details'
     assert classify(paths + ['packages/grid-simulator/src/grid_simulator/registry.py']) != 'execution-details'
+
+
+def test_execution_details_gate_covers_instruction_context_observations():
+    fixture = Path(__file__).resolve().parents[2] / 'configs/development/execution-details-gate.json'
+    manifest = json.loads(fixture.read_text())
+    paths = [*manifest['context_paths'], 'packages/capstone-app/src/ThreadWorkAdapter.tsx']
+    assert classify(paths) == 'context-observation'
+    assert classify(paths + ['packages/grid-simulator/src/grid_simulator/registry.py']) != 'context-observation'

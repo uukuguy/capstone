@@ -73,7 +73,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|app|mission-conversation|harness-references|research-mode-retirement|instruction-admission|execution-details|control-events|control-task-board|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|managed-skills|presentation-library|presentation-renderer|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|app|mission-conversation|harness-references|research-mode-retirement|instruction-admission|execution-details|context-observation|control-events|control-task-board|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|managed-skills|presentation-library|presentation-renderer|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -85,7 +85,7 @@ jobs:
         with:
           node-version: "22.19.0"
       - name: Set up standard dependencies
-        if: steps.scope.outputs.gate != 'gateway-bindings' && steps.scope.outputs.gate != 'managed-skills' && steps.scope.outputs.gate != 'research-mode-retirement' && steps.scope.outputs.gate != 'gateway-capabilities' && steps.scope.outputs.gate != 'execution-lifecycle' && steps.scope.outputs.gate != 'architecture-retirement' && steps.scope.outputs.gate != 'presentation-library' && steps.scope.outputs.gate != 'product-references' && steps.scope.outputs.gate != 'product-adoption' && steps.scope.outputs.gate != 'result-rows' && steps.scope.outputs.gate != 'resource-ranges' && steps.scope.outputs.gate != 'historical-inputs' && steps.scope.outputs.gate != 'worker-interruption' && steps.scope.outputs.gate != 'recoverable-tasks' && steps.scope.outputs.gate != 'session-pins' && steps.scope.outputs.gate != 'agent-goal' && steps.scope.outputs.gate != 'control-delegation' && steps.scope.outputs.gate != 'mission-conversation' && steps.scope.outputs.gate != 'harness-references' && steps.scope.outputs.gate != 'instruction-admission' && steps.scope.outputs.gate != 'execution-details' && steps.scope.outputs.gate != 'control-task-board' && steps.scope.outputs.gate != 'control-events'
+        if: steps.scope.outputs.gate != 'gateway-bindings' && steps.scope.outputs.gate != 'managed-skills' && steps.scope.outputs.gate != 'research-mode-retirement' && steps.scope.outputs.gate != 'gateway-capabilities' && steps.scope.outputs.gate != 'execution-lifecycle' && steps.scope.outputs.gate != 'architecture-retirement' && steps.scope.outputs.gate != 'presentation-library' && steps.scope.outputs.gate != 'product-references' && steps.scope.outputs.gate != 'product-adoption' && steps.scope.outputs.gate != 'result-rows' && steps.scope.outputs.gate != 'resource-ranges' && steps.scope.outputs.gate != 'historical-inputs' && steps.scope.outputs.gate != 'worker-interruption' && steps.scope.outputs.gate != 'recoverable-tasks' && steps.scope.outputs.gate != 'session-pins' && steps.scope.outputs.gate != 'agent-goal' && steps.scope.outputs.gate != 'control-delegation' && steps.scope.outputs.gate != 'mission-conversation' && steps.scope.outputs.gate != 'harness-references' && steps.scope.outputs.gate != 'instruction-admission' && steps.scope.outputs.gate != 'execution-details' && steps.scope.outputs.gate != 'context-observation' && steps.scope.outputs.gate != 'control-task-board' && steps.scope.outputs.gate != 'control-events'
         run: make setup
       - name: Set up managed skill consumers
         if: steps.scope.outputs.gate == 'managed-skills'
@@ -115,7 +115,7 @@ jobs:
           uv sync --project packages/grid-simulator
           npm ci --prefix packages/capstone-app
       - name: Set up session pin consumers
-        if: steps.scope.outputs.gate == 'mission-conversation' || steps.scope.outputs.gate == 'instruction-admission' || steps.scope.outputs.gate == 'execution-details' || steps.scope.outputs.gate == 'control-task-board' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation' || steps.scope.outputs.gate == 'control-events'
+        if: steps.scope.outputs.gate == 'mission-conversation' || steps.scope.outputs.gate == 'instruction-admission' || steps.scope.outputs.gate == 'execution-details' || steps.scope.outputs.gate == 'context-observation' || steps.scope.outputs.gate == 'control-task-board' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation' || steps.scope.outputs.gate == 'control-events'
         run: |
           uv sync --project packages/capstone-agent
           uv sync --project packages/pandapower-application
@@ -242,6 +242,14 @@ jobs:
         if: steps.scope.outputs.gate == 'app'
         timeout-minutes: 5
         run: make test-capstone-app build-capstone-app
+      - name: Verify Instruction context observations
+        if: steps.scope.outputs.gate == 'context-observation'
+        timeout-minutes: 5
+        run: |
+          PYTHONPATH=. uv run --project packages/pandapower-application python -m pytest tools/tests/test_ci_execution_details.py tools/tests/test_ci_scope.py -q
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_native_resources.py packages/capstone-agent/tests/test_general_pi_executor.py packages/capstone-agent/tests/test_delegated_runtime.py
+          npm run check --prefix packages/capstone-app
+          npm test --prefix packages/capstone-app -- src/instructionContext.test.ts src/processCompactions.test.ts src/CapstoneAssistantThread.test.tsx src/ThreadWorkExecution.test.tsx src/ThreadSharedWorkspace.test.tsx
       - name: Verify execution details
         if: steps.scope.outputs.gate == 'execution-details'
         timeout-minutes: 5

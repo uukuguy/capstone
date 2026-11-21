@@ -380,6 +380,8 @@ class DelegatedRuntime:
             pool_progress = isinstance(llm_pool_call, Mapping)
             model_request_pool = event.get('model_request_pool')
             model_progress = isinstance(model_request_pool, Mapping)
+            context_usage = event.get('model_context_usage')
+            context_progress = kind == 'model_context_usage' and isinstance(context_usage, Mapping)
             runtime_phase = event.get('runtime_phase')
             phase_progress = kind == 'runtime_phase' and isinstance(runtime_phase, Mapping)
             compaction_index = runtime_phase.get('compaction_index') if isinstance(runtime_phase, Mapping) else None
@@ -415,6 +417,7 @@ class DelegatedRuntime:
                 'native_type': 'investigation_checkpoint' if investigation_checkpoint is not None else 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
                 **({'investigation_checkpoint': investigation_checkpoint} if investigation_checkpoint is not None else {}),
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
+                **({'model_context_usage':dict(context_usage)} if context_progress else {}),
                 **({'runtime_phase': {key: cast(Mapping, runtime_phase)[key] for key in
                     ('name', 'state', 'reason', 'elapsed_ms', 'will_retry', 'first_kept_entry_id', 'tokens_before')
                     if key in cast(Mapping, runtime_phase)}
@@ -458,7 +461,7 @@ class DelegatedRuntime:
                     **({'execution_receipt': execution_receipt} if execution_receipt is not None else {})}}
                     if isinstance(event.get('activity'), Mapping) or execution_receipt is not None else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},
-                visibility='public' if tool_batch is not None or dispatch_receipt is not None or public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
+                visibility='public' if tool_batch is not None or dispatch_receipt is not None or public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or context_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
         result: PiTaskResult | None = None

@@ -1,7 +1,9 @@
 {
   "schema": "capstone-development-gate/1",
   "gate": "execution-details",
-  "anchors": ["packages/capstone-app/src/ExecutionDetails.tsx"],
+  "anchors": [
+    "packages/capstone-app/src/ExecutionDetails.tsx"
+  ],
   "paths": [
     "packages/capstone-app/src/ExecutionDetails.tsx",
     "packages/capstone-app/src/ExecutionDetails.test.tsx",
@@ -29,5 +31,23 @@
     "packages/capstone-agent/src/capstone_agent/harness.py",
     "packages/capstone-agent/src/capstone_agent/thread_service.py",
     "packages/capstone-agent/tests/test_main_chain_context.py"
+  ],
+  "context_anchors": [
+    "packages/capstone-app/src/instructionContext.ts",
+    "packages/capstone-app/src/InstructionContextPanel.tsx"
+  ],
+  "context_paths": [
+    "packages/capstone-app/src/instructionContext.ts",
+    "packages/capstone-app/src/InstructionContextPanel.tsx",
+    "packages/capstone-app/src/instructionContext.css",
+    "packages/capstone-app/src/instructionContext.test.ts",
+    "packages/capstone-app/src/processCompactions.ts",
+    "packages/capstone-agent/src/capstone_agent/delegated_runtime.py",
+    "packages/capstone-agent/src/capstone_agent/general_pi_server.py",
+    "packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs",
+    "packages/capstone-agent/tests/test_native_resources.py",
+    "docs/superpowers/plans/2026-11-22-instruction-context-inspector.md",
+    "packages/capstone-agent/src/capstone_agent/general_pi_executor.py",
+    "packages/capstone-agent/tests/test_general_pi_executor.py"
   ]
 }

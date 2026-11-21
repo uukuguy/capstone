@@ -728,6 +728,25 @@ class GeneralPiHost:
                 payload = {'investigation_checkpoint': _checked_investigation_checkpoint(event, record)}
             elif kind == 'llm_pool_call':
                 payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
+            elif kind == 'model_context_usage':
+                import re
+                request_id = event.get('request_id')
+                if (isinstance(request_id, str) and re.fullmatch(r'ctx-[1-9][0-9]{0,8}', request_id)
+                        and event.get('kind') in ('main', 'analysis', 'summary')
+                        and event.get('state') in ('started', 'completed', 'failed')):
+                    counts = {key: event[key] for key in ('request_id', 'kind', 'state')}
+                    window = event.get('window_tokens')
+                    if type(window) is int and 0 < window <= 100_000_000:
+                        counts['window_tokens'] = window
+                    for field, keys in (
+                        ('estimated_input', ('system', 'tools', 'messages', 'tool_results')),
+                        ('usage', ('input', 'output', 'cacheRead', 'cacheWrite')),
+                    ):
+                        raw = event.get(field)
+                        if isinstance(raw, dict):
+                            counts[field] = {key: raw[key] for key in keys
+                                if type(raw.get(key)) is int and 0 <= raw[key] <= 100_000_000}
+                    payload = {'type': kind, 'model_context_usage': counts}
             elif kind == 'model_request_pool':
                 from .native_model_request_pool import checked_model_request_pool
                 payload = {'model_request_pool': checked_model_request_pool(

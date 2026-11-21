@@ -1325,6 +1325,64 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
   };
 }
 
+/**
+ * Publish only request identity and counts. Read the same context passed to
+ * the provider. The byte heuristic excludes binary media and provider framing.
+ */
+export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
+  const estimate = bytes => Math.min(100_000_000, Math.ceil(bytes / 4));
+  const size = text => typeof text === 'string' ? Buffer.byteLength(text) : 0;
+  function measure(context) {
+    const counts = {system:size(context.systemPrompt),tools:0,messages:0,tool_results:0};
+    for (const tool of context.tools ?? []) {
+      counts.tools += size(tool.name) + size(tool.description) + size(JSON.stringify(tool.parameters ?? {}));
+    }
+    for (const message of context.messages ?? []) {
+      const key = message.role === 'toolResult' ? 'tool_results' : 'messages';
+      if (typeof message.content === 'string') counts[key] += size(message.content);
+      else for (const part of message.content ?? []) {
+        counts[key] += size(part.text) + size(part.thinking);
+        if (part.type === 'toolCall') counts[key] += size(part.name) + size(JSON.stringify(part.arguments ?? {}));
+      }
+    }
+    return Object.fromEntries(Object.entries(counts).map(([key,bytes])=>[key,estimate(bytes)]));
+  }
+  return new Proxy(runtime,{get(target,key){
+    if(key!=='streamSimple'){
+      const value=Reflect.get(target,key,target);
+      return typeof value==='function'?value.bind(target):value;
+    }
+    return (model,context,options)=>{
+      const id=nextId();
+      const requestKind=typeof kind==='function'?kind():kind;
+      const window=model?.contextWindow;
+      const publish=(state,details={})=>{
+        try{
+          emit({type:'model_context_usage',request_id:id,kind:requestKind,state,...details});
+        }catch{/* Optional telemetry must not change the model request. */}
+      };
+      let details={};
+      try{
+        details={estimated_input:measure(context),
+          ...(Number.isSafeInteger(window)&&window>0&&window<=100_000_000?{window_tokens:window}:{})};
+      }catch{/* Leave unmeasured fields absent. */}
+      publish('started',details);
+      const capture=stream=>Promise.resolve().then(()=>stream.result()).then(message=>{
+        const usage=Object.fromEntries(['input','output','cacheRead','cacheWrite']
+          .filter(key=>Number.isSafeInteger(message?.usage?.[key])&&message.usage[key]>=0&&message.usage[key]<=100_000_000)
+          .map(key=>[key,message.usage[key]]));
+        publish(['error','aborted'].includes(message?.stopReason)?'failed':'completed',{...details,usage});
+      }).catch(()=>publish('failed',details));
+      try{
+        const stream=target.streamSimple(model,context,options);
+        if(typeof stream?.then==='function')stream.then(capture,()=>publish('failed',details));
+        else capture(stream);
+        return stream;
+      }catch(error){publish('failed',details);throw error;}
+    };
+  }});
+}
+
 export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   config={...config,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
   const discovery=createApplicationToolDiscovery(config);
@@ -1438,7 +1496,10 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       maxRequests:policy.max_requests,requestTimeoutMs:policy.request_timeout_ms,
       emit:event=>hostEmit({type:'model_request_pool',schema:policy.schema,...event})});
   }
-  const modelRuntime=modelRequestPool?.forChain('main',{kind:'main',getModelTurnNumber:()=>Math.max(1,mainModelTurn)})??baseModelRuntime;
+  let contextRequest=0,compactingContext=false;
+  const nextContextRequest=()=>`ctx-${++contextRequest}`;
+  const modelRuntime=observeModelContext(modelRequestPool?.forChain('main',{kind:'main',getModelTurnNumber:()=>Math.max(1,mainModelTurn)})??baseModelRuntime,
+    ()=>compactingContext?'summary':'main',nextContextRequest);
   const model = modelRuntime.getModel("capstone-general", config.model);
   if (!model) throw new Error("Managed native model is unavailable");
   const nativeTools = createIsolatedNativeTools(sdk,process.cwd());
@@ -1464,9 +1525,9 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       }
       const cwd=join(process.cwd(),'.llm-calls',randomUUID());await mkdir(cwd,{recursive:true});
       const chainId='analysis:'+createHash('sha256').update(job.id).digest('hex');
-      const childRuntime=modelRequestPool?.forChain(chainId,
+      const childRuntime=observeModelContext(modelRequestPool?.forChain(chainId,
         {kind:'analysis',child_id:job.id,parent_tool_call_id:job.input.parentToolCallId,
-          title:job.input.instruction.replace(/[\x00-\x20\x7f]+/g,' ').trim().slice(0,120)||'Parallel analysis',getModelTurnNumber:()=>1})??modelRuntime;
+          title:job.input.instruction.replace(/[\x00-\x20\x7f]+/g,' ').trim().slice(0,120)||'Parallel analysis',getModelTurnNumber:()=>1})??baseModelRuntime,'analysis',nextContextRequest);
       const runner=createManagedSubagents({maxTurns:1,graceTurns:1,
         createChildSession:({signal})=>createPooledAnalysisSession(config,sdk,childRuntime,{cwd,signal})});
       let result;
@@ -1563,7 +1624,11 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     sessionManager: sdk.SessionManager.inMemory() });
   session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,config);
-  const stopModelTurn=session.subscribe(event=>{if(event.type==='turn_start')mainModelTurn++});
+  const stopModelTurn=session.subscribe(event=>{
+    if(event.type==='turn_start')mainModelTurn++;
+    if(event.type==='compaction_start')compactingContext=true;
+    if(event.type==='compaction_end')compactingContext=false;
+  });
   llmPool?.setCompletionSink(result=>session.sendCustomMessage({customType:'capstone-llm-pool-results',
     content:[{type:'text',text:JSON.stringify(result)}],display:false},{triggerTurn:false}));
   const stopPoolConsumption=llmPool?session.subscribe(event=>{

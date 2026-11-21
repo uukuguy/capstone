@@ -825,6 +825,10 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         allowed = set(details['paths'])
         if set(details.get('answer_anchors', ())).issubset(paths):
             allowed.update(details.get('answer_paths', ()))
+        context_anchors = details.get('context_anchors', ())
+        if context_anchors and set(context_anchors).issubset(paths) and all(
+                path in allowed or path in details.get('context_paths', ()) or _control_path(path) for path in paths):
+            return 'context-observation'
         if set(details['anchors']).issubset(paths) and all(
                 path in allowed or _control_path(path) for path in paths):
             return 'execution-details'
