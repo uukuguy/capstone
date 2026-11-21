@@ -820,7 +820,10 @@ def test_takeover_source_requires_current_revision_workspace_and_exclusive_lock(
 def test_takeover_reservation_survives_commit_and_denies_second_destination(postgres_thread_service):
     store, thread_id = postgres_thread_service
     target_id, rival_id = thread_id + '_target', thread_id + '_rival'
-    store.set_native_executor(native_executor())
+    executor = native_executor()
+    executor.capability.update(instruction_schemas=['capstone-native-instruction/1'],
+        execution_authority_schemas=['capstone-execution-authority/1'], instruction_limit=16)
+    store.set_native_executor(executor)
     for identity in (thread_id, target_id, rival_id):
         original = _snapshot(identity)
         store.create_thread(replace(original, run=replace(original.run, run_id='run_' + identity),
@@ -846,6 +849,17 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
             'reserve_instruction_takeover', 'rival_takeover', payload={'source': selector}))
         assert rejected.rejection == 'instruction_takeover_unavailable'
         assert store.snapshot(thread_id).current_attempt.attempt_id == selector['revision_ref']
+        original_guidance = command(reopened, thread_id, 'queue_instruction', 'former_owner',
+            work_id=selector['work_id'], revision=selector['work_revision'], payload={'text': 'Do not admit'})
+        assert reopened.submit_command(original_guidance).rejection == 'instruction_takeover_unavailable'
+        followup = command(reopened, target_id, 'takeover_instruction', 'guide',
+            payload={'source': selector, 'text': 'Use the updated constraint'})
+        assert reopened.submit_command(followup).status == 'accepted'
+        assert reopened.submit_command(followup).status == 'accepted'
+        claim = store.claim_attempt('native', 30, 'native')
+        pending = store.peek_instructions(claim)
+        assert len(pending) == 1 and pending[0]['text'] == 'Use the updated constraint'
+        assert claim.attempt.attempt_id == selector['revision_ref']
         assert store.snapshot(target_id).current_attempt is None
     finally:
         with store._connect() as connection:

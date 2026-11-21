@@ -28,7 +28,7 @@ def lock_takeover_source(connection, workspace, value):
     if 'mission_id' in selection:
         raise ThreadProtocolError('Instruction takeover cannot select a Mission')
     return connection.execute("""
-        SELECT a.attempt_id, a.turn_id, a.phase, t.last_event_seq
+        SELECT a.attempt_id, a.turn_id, a.phase, a.takeover_target_thread_id, t.last_event_seq
         FROM capstone_threads t JOIN capstone_thread_attempts a
           ON a.thread_id=t.thread_id AND a.run_id=t.run_id
         CROSS JOIN LATERAL jsonb_array_elements(t.works) AS item(work)
