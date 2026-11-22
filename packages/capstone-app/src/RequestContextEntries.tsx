@@ -1,8 +1,8 @@
-import {useEffect,useRef,useState} from 'react'
+import {useEffect,useEffectEvent,useRef,useState} from 'react'
 import {contextCategories,type Category} from './instructionContext'
 import {ThreadTransportError} from './threadHttpTransport'
 
-export type ReadRequestContext=(attempt:string,ref:string,index?:number,signal?:AbortSignal,credential?:string)=>Promise<unknown>
+export type ReadRequestContext=(attempt:string,ref:string,index?:number,signal?:AbortSignal)=>Promise<unknown>
 const originLabels={file:'文件',skill:'技能',compaction:'压缩摘要',history:'会话历史',handoff:'任务交接',observation:'依赖观察',runtime:'运行环境'} as const
 type Origin={kind:keyof typeof originLabels;id:string;revision:string;delivery:string;offset?:number;length?:number}
 type Entry={origin?:Origin;digest?:string;index:number;carrier:Category;role:string;name?:string;source_id?:string;truncated?:boolean;redacted?:boolean}
@@ -60,21 +60,24 @@ function compareEntries(before:Entry[],after:Entry[]) {
   return {added,removed:remaining,changed}
 }
 
-export default function RequestContextEntries({attempt,snapshot,previous,category,read,credential,onCredential,onResetCategory,onIndexReady}:{
-  attempt:string;snapshot:string;previous?:string;category?:Category;read:ReadRequestContext;credential?:string;onCredential:(value:string)=>void;onResetCategory?:()=>void;onIndexReady?:()=>void
+export default function RequestContextEntries({attempt,snapshot,previous,category,read,onResetCategory,onIndexReady}:{
+  attempt:string;snapshot:string;previous?:string;category?:Category;read:ReadRequestContext;onResetCategory?:()=>void;onIndexReady?:()=>void
 }){
   const [visibleLimit,setVisibleLimit]=useState(16)
   const [document,setDocument]=useState<Snapshot>()
   const [selected,setSelected]=useState<number>()
   const [text,setText]=useState<string>()
-  const [requiresCredential,setRequiresCredential]=useState(false)
   const [status,setStatus]=useState('')
   const [sourceKind,setSourceKind]=useState<Origin['kind']>()
   const [earlier,setEarlier]=useState<Snapshot>()
   const pending=useRef<AbortController>(undefined)
-  useEffect(()=>()=>pending.current?.abort(),[])
+  const loadIndex=useEffectEvent(()=>void load())
+  useEffect(()=>{
+    loadIndex()
+    return ()=>pending.current?.abort()
+  },[attempt,snapshot])
 
-  async function load(index?:number,access=credential) {
+  async function load(index?:number) {
     pending.current?.abort()
     const controller=new AbortController()
     pending.current=controller
@@ -82,7 +85,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
     setText(undefined)
     setStatus('正在读取…')
     try {
-      const result=await read(attempt,snapshot,index,controller.signal,access)
+      const result=await read(attempt,snapshot,index,controller.signal)
       if(controller.signal.aborted)return
       if(index===undefined){setDocument(snapshotIndex(result));onIndexReady?.()}
       else {
@@ -90,14 +93,12 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
         if(entry.index!==index||typeof entry.text!=='string')throw new Error('请求正文无效')
         setText(entry.text)
       }
-      setRequiresCredential(false)
       setStatus('')
     } catch(error) {
       if(controller.signal.aborted)return
       const denied=error instanceof ThreadTransportError&&(error.status===403||error.status===401)
-      setRequiresCredential(denied)
       setStatus(denied
-        ? '需要当前工作区的操作员凭据才能读取请求正文。'
+        ? '当前入口无法查看受保护正文。下方仍可查看用量摘要。'
         : '请求正文暂时无法读取。')
     }
   }
@@ -108,7 +109,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
     pending.current=controller
     setStatus('正在读取上一请求…')
     try {
-      const result=await read(attempt,previous,undefined,controller.signal,credential)
+      const result=await read(attempt,previous,undefined,controller.signal)
       if(controller.signal.aborted)return
       setEarlier(snapshotIndex(result))
       setStatus('')
@@ -122,22 +123,10 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
     <div className="context-section-title">
       <h4>实际请求正文</h4>
       {document&&category&&<button type="button" onClick={onResetCategory}>显示全部分类</button>}
-      {!document&&<button type="button" onClick={()=>void load()}>读取诊断记录</button>}
     </div>
     {status&&<p role="status">{status}</p>}
-    {requiresCredential&&<form className="context-credential-form" onSubmit={event=>{
-      event.preventDefault()
-      const value=String(new FormData(event.currentTarget).get('credential')??'').trim()
-      if(!value)return
-      onCredential(value)
-      event.currentTarget.reset()
-      void load(selected,value)
-    }}>
-      <label>操作员凭据<input name="credential" type="password" autoComplete="off" required/></label>
-      <button type="submit">读取</button>
-    </form>}
     {document&&<>
-      <small>{document.modelId&&`${document.modelId} · `}已采集 {document.entries.length} / {document.total_entries} 项，按发送顺序</small>
+      <small>{document.modelId&&`${document.modelId} · `}已采集 {document.entries.length} / {document.total_entries} 项，按 SDK 输入顺序</small>
       {previous&&<button className="context-show-items" type="button" onClick={()=>void compare()}>对比上一次请求</button>}
       {comparison&&<details className="context-request-diff" open>
         <summary>已采集内容变化 · 新增 {comparison.added.length} · 移除 {comparison.removed.length} · 改写 {comparison.changed.length}</summary>
