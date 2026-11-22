@@ -1,5 +1,5 @@
-import {useEffect,useState} from 'react'
-import type {HttpThreadTransport} from './threadHttpTransport'
+import {useEffect,useRef,useState} from 'react'
+import {ThreadTransportError,type HttpThreadTransport} from './threadHttpTransport'
 import {missionStateLabel,type Mission} from './missions'
 import type {NativeArtifact} from './nativeArtifacts'
 import './missionStatus.css'
@@ -12,6 +12,10 @@ const criterionLabels={met:'已满足',not_met:'未满足',unknown:'待核实'}
 const reasonLabels:Record<string,string>={
   child_goal_partial_delivery:'子目标仅交付了部分成果',
   required_product_missing:'缺少所需产物',
+  task_admission_unavailable:'任务执行能力暂不可用，系统会重新检查',
+  equipment_admission_unavailable:'任务所需的注册资源暂不可用，系统会重新检查',
+  equipment_excluded_during_planning:'任务选择的技能超出本轮规划范围，需要调整任务',
+  delivery_verification_unavailable:'已保存交付，核验暂不可用',
 }
 
 export function useMissionProgress(transport:HttpThreadTransport,threadId:string,missionId?:string) {
@@ -21,7 +25,7 @@ export function useMissionProgress(transport:HttpThreadTransport,threadId:string
     if(!missionId||!key)return
     let active=true
     const read=()=>void transport.mission(missionId,threadId)
-      .then(mission=>{if(active)setState({key,mission})})
+      .then(mission=>{if(active)setState(previous=>previous?.key===key&&(previous.mission?.revision||0)>mission.revision?previous:{key,mission})})
       .catch(()=>{if(active)setState(previous=>({key,mission:previous?.key===key?previous.mission:undefined,error:'状态暂不可用'}))})
     read()
     const timer=window.setInterval(read,4000)
@@ -29,7 +33,8 @@ export function useMissionProgress(transport:HttpThreadTransport,threadId:string
   },[transport,threadId,missionId,key])
   const mission=state?.key===key?state?.mission:undefined
   const error=state?.key===key?state?.error:undefined
-  return {mission,label:error||(mission?missionStateLabel(mission):'正在读取')}
+  return {mission,label:error||(mission?missionStateLabel(mission):'正在读取'),
+    apply:(mission:Mission)=>{if(key)setState(previous=>previous?.key===key&&(previous.mission?.revision||0)>mission.revision?previous:{key,mission})}}
 }
 
 export default function MissionStatus({transport,missionId,progress,onCopyHandoff}:{
@@ -38,6 +43,42 @@ export default function MissionStatus({transport,missionId,progress,onCopyHandof
 }){
   const {mission,label}=progress
   const [download,setDownload]=useState<string>(),[downloadError,setDownloadError]=useState('')
+  const [resuming,setResuming]=useState(false),[resumeError,setResumeError]=useState('')
+  const resumeRequest=useRef<{revision:number;operationId:string}|undefined>(undefined)
+  async function resume() {
+    if(!mission||resuming)return
+    if(resumeRequest.current?.revision!==mission.revision)
+      resumeRequest.current={revision:mission.revision,operationId:'op_'+crypto.randomUUID().replaceAll('-','')}
+    setResuming(true)
+    setResumeError('')
+    try{
+      const send=(request:{revision:number;operationId:string})=>transport.resumeMission(
+        missionId,mission.origin.thread_id,request.revision,request.operationId)
+      try{
+        progress.apply(await send(resumeRequest.current))
+      }catch(error){
+        if(!(error instanceof ThreadTransportError)||error.status!==409
+          ||!error.body||typeof error.body!=='object'||!('detail' in error.body)
+          ||error.body.detail!=='stale Mission revision')throw error
+        const latest=await transport.mission(missionId,mission.origin.thread_id)
+        progress.apply(latest)
+        if(latest.state!=='delivered'||latest.reason!=='partial_delivery')return
+        if(mission.planRevision===undefined||latest.planRevision!==mission.planRevision||latest.revision<=mission.revision
+          ||latest.conclusionSummary!==mission.conclusionSummary
+          ||JSON.stringify(latest.criteria)!==JSON.stringify(mission.criteria)){
+          setResumeError('Mission 的计划或交付已更新，请核对当前内容。')
+          return
+        }
+        resumeRequest.current={revision:latest.revision,operationId:'op_'+crypto.randomUUID().replaceAll('-','')}
+        progress.apply(await send(resumeRequest.current))
+      }
+      resumeRequest.current=undefined
+    }catch(error){
+      setResumeError(error instanceof Error?error.message:'Mission 恢复请求未确认，可重试。')
+    }finally{
+      setResuming(false)
+    }
+  }
   async function saveProduct(file:NativeArtifact){
     setDownload(file.artifact_id)
     setDownloadError('')
@@ -65,6 +106,15 @@ export default function MissionStatus({transport,missionId,progress,onCopyHandof
     <summary>Mission · {label}</summary>
     <div className="mission-status-body" tabIndex={0}>
     <p>{mission?.objective||missionId}</p>
+    {mission?.state==='delivered'&&mission.reason==='partial_delivery'&&
+      <button type="button" className="thread-control-button" disabled={resuming} onClick={()=>void resume()}>
+        {resuming?'正在恢复 Mission':'继续 Mission'}
+      </button>}
+    {resumeError&&<p role="alert">{resumeError}</p>}
+    {mission?.conclusionSummary&&<section aria-label="Mission 整体交付">
+      <h3>Mission 整体交付</h3>
+      <p>{mission.conclusionSummary}</p>
+    </section>}
     {tasks.length>0 && <ol aria-label="Mission 执行计划">{tasks.map(task=>{
       const dependencies=task.dependencies.map(id=>taskPositions.get(id)).filter(position=>position!==undefined)
       const reason=reasonLabels[taskGaps.get(task.id)||'']

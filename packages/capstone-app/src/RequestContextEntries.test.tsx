@@ -1,4 +1,4 @@
-import {cleanup,fireEvent,render,screen,within} from '@testing-library/react'
+import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import {afterEach,expect,it,vi} from 'vitest'
 import RequestContextEntries from './RequestContextEntries'
 import {ThreadTransportError} from './threadHttpTransport'
@@ -31,6 +31,33 @@ it('keeps access errors in the inspector without requesting a credential',async(
   await screen.findByText(/当前入口无法查看受保护正文/)
   expect(read).toHaveBeenCalledTimes(1)
   expect(screen.queryByRole('textbox')).toBeNull()
+})
+
+it('keeps an open shared message mounted and appends new messages without rereading its body',async()=>{
+  const first={index:1,carrier:'messages',role:'user',message_index:1,digest:'a'.repeat(64)}
+  const added={index:2,carrier:'messages',role:'assistant',message_index:2,digest:'b'.repeat(64)}
+  const read=vi.fn(async (_attempt:string,ref:string,index?:number)=>{
+    const entries=ref==='first'?[first]:ref==='second'?[first,added]:[{...first,digest:'c'.repeat(64)},added]
+    return index===undefined?{schema:'capstone-model-context-snapshot/1',total_entries:entries.length,entries}
+      :{entry:{index,text:ref==='third'?'changed body':'shared body'}}
+  })
+  const {rerender}=render(<RequestContextEntries attempt="a" snapshot="first" read={read}/>)
+  const common=await screen.findByRole('button',{name:'1 用户消息'})
+  fireEvent.click(common)
+  await screen.findByText('shared body')
+  rerender(<RequestContextEntries attempt="a" snapshot="second" read={read}/>)
+  await screen.findByRole('button',{name:'2 模型消息'})
+  expect(screen.getByRole('button',{name:'1 用户消息'})).toBe(common)
+  expect(common.getAttribute('aria-expanded')).toBe('true')
+  expect(screen.getByText('shared body')).toBeTruthy()
+  expect(read.mock.calls.map(call=>call.slice(1,3))).toEqual([['first',undefined],['first',1],['second',undefined]])
+  rerender(<RequestContextEntries attempt="a" snapshot="third" read={read}/>)
+  await waitFor(()=>expect(screen.getByRole('button',{name:'1 用户消息'})).not.toBe(common))
+  const changed=screen.getByRole('button',{name:'1 用户消息'})
+  expect(changed).not.toBe(common)
+  expect(changed.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(changed)
+  await screen.findByText('changed body')
 })
 
 it('presents runtime and handoff sources as expandable request rows',async()=>{

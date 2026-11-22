@@ -276,7 +276,8 @@ def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, c
               else "本次任务未能开始执行。运行准备未完成，因此没有生成新的计算结论。此前已完成的回答和记录仍保留。")
     service.finish_attempt(claim, phase="failed", payload={
         "answer": answer, "error_code": code, "result_refs": [], "evidence_refs": [],
-        "outcome": {"status": "blocked", "stage": "preparation", "recovery": "unavailable"},
+        "outcome": {"status": "blocked", "stage": "preparation", "recovery": "unavailable",
+                    **({'execution_state': 'confirmed_not_started'} if code == 'intent_deadline_exceeded' else {})},
         "task_steps": stages.finish(failed=True),
         **({'failure_origin': native_failure_origin(error)} if error is not None else {}),
         **({'recovery_failure': {'operation': 'rollback_selection',
@@ -326,38 +327,44 @@ def serve_thread_attempts(
     recovery_interval = max(1.0, min(10.0, lease_seconds / 3))
     next_recovery = time.monotonic() + recovery_interval
 
+    def maintain(name, action, *args, wake_on_progress=False):
+        try:
+            if action(*args) and wake_on_progress and wake_event is not None:
+                wake_event.set()
+        except Exception as error:
+            from .native_failure_origin import native_failure_origin
+            _LOG.warning('Thread maintenance failed; step=%s exception_type=%s origin=%s',
+                         name, type(error).__name__, native_failure_origin(error))
+
     def reap_recovery() -> None:
         nonlocal next_recovery
         now = time.monotonic()
         if now >= next_recovery:
             next_recovery = now + recovery_interval
-            service.interrupt_expired_attempts()
+            maintain('lease reconciliation', service.interrupt_expired_attempts)
             control = getattr(service, 'control_host', None)
             if control is not None:
-                control.tick()
+                maintain('Control reconciliation', control.tick)
             if implementation_family == 'native' and callable(getattr(service, 'native_recovery_candidates', None)):
                 from .native_owner_recovery import observe_lost_contact, recover_exited_native_deliveries
                 executor = getattr(service, '_native_executor', None)
-                observe_lost_contact(service, executor)
-                recover_exited_native_deliveries(service, executor)
+                maintain('native contact check', observe_lost_contact, service, executor)
+                maintain('native delivery recovery', recover_exited_native_deliveries, service, executor)
             if control is not None:
                 from .mission_continuation import drain_mission_reviews
-                if drain_mission_reviews(service) and wake_event is not None:
-                    wake_event.set()
+                maintain('Mission review', drain_mission_reviews, service, wake_on_progress=True)
             if implementation_family == 'native' and callable(getattr(service, 'submit_initial_goal_plan', None)):
                 from .session_goal_plan import drain_goal_step_reviews, drain_initial_goal_plans
-                advanced = drain_goal_step_reviews(service) or drain_initial_goal_plans(service)
-                if advanced and wake_event is not None:
-                    wake_event.set()
+                maintain('Goal step review', drain_goal_step_reviews, service, wake_on_progress=True)
+                maintain('Goal initial planning', drain_initial_goal_plans, service, wake_on_progress=True)
             if callable(getattr(service, 'goal_continuation_candidates', None)):
                 from .goal_continuation import drain_goal_continuations
-                if drain_goal_continuations(service) and wake_event is not None:
-                    wake_event.set()
+                maintain('Goal continuation', drain_goal_continuations, service, wake_on_progress=True)
 
     def reconcile_recovery() -> None:
         reap_recovery()
         if case_service is not None:
-            case_service.reconcile_active()
+            maintain('case reconciliation', case_service.reconcile_active)
     def has_pending() -> bool:
         reader = getattr(service, 'has_pending_attempts', None)
         return bool(reader(implementation_family)) if callable(reader) else False

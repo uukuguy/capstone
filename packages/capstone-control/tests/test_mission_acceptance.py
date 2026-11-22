@@ -59,6 +59,45 @@ def test_partial_conclusion_delivers_saved_work_and_can_be_replanned():
     assert accept(control, mission, 'user_accept')['goal']['state'] == 'accepted'
 
 
+def test_partial_conclusion_preserves_saved_delivery_awaiting_verification():
+    control = service()
+    mission = create(control, acceptance_criteria=['Original saved'])
+    mission = command(control, mission, 'prepare_task', {'task': task()}, 'prepare_unverified')
+    mission = command(control, mission, 'ready', {}, 'ready_unverified')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch_unverified')
+    delegation = mission['tasks'][0]['delegation']['delegation_id']
+    control.deliver('team', mission['mission_id'], delegation,
+        {'thread_id': 'child_thread', 'work_id': 'child_work'},
+        dict(answer_ref='answer_saved', products=[deepcopy(PRODUCT)], status='completed'))
+    mission = control.read_mission('team', mission['mission_id'])
+    with pytest.raises(InvalidTransition, match='awaiting verification'):
+        command(control, mission, 'conclude_plan', conclusion(mission, [verdict(status='unknown')]), 'premature')
+    after = control.read_mission('team', mission['mission_id'])
+    assert after['tasks'][0]['state'] == 'delivered'
+    assert after['tasks'][0]['delivery']['answer_ref'] == 'answer_saved'
+
+
+def test_resuming_partial_mission_preserves_delivered_work_and_reserves_a_review():
+    control = service()
+    mission = verified(control, ['Original saved', 'Additional report checked'])
+    partial = command(control, mission, 'conclude_plan',
+                      conclusion(mission, [verdict(), verdict(1, 'not_met')]), 'partial')
+    resumed = command(control, partial, 'resume', {}, 'resume_partial')
+    assert resumed['state'] == 'waiting_review'
+    assert resumed['tasks'] == partial['tasks']
+    assert resumed['acceptance_criteria'] == partial['acceptance_criteria']
+    assert resumed['plan_conclusion'] == partial['plan_conclusion']
+    assert command(control, partial, 'resume', {}, 'resume_partial') == resumed
+    [review] = control.pending_mission_reviews('team')
+    assert review['boundary']['tasks'][0]['delivery'] == partial['tasks'][0]['delivery']
+
+    amended = command(control, resumed, 'prepare_task', {'task': task('repair')}, 'add_repair')
+    activated = command(control, amended, 'ready', {}, 'resume_ready')
+    running = command(control, activated, 'delegate_next', {}, 'resume_dispatch')
+    assert running['tasks'][0] == partial['tasks'][0]
+    assert running['tasks'][1]['state'] == 'dispatching'
+
+
 @pytest.mark.parametrize('bad', [[], [verdict(), verdict()], [verdict(1)], [verdict(True)],
     [{**verdict(), 'explanation': ' '}], [{**verdict(), 'status': []}], [verdict(evidence=[])],
     [verdict(evidence=[dict(kind='product', task_id='task_1', artifact_id='forged', sha256='a'*64)])],

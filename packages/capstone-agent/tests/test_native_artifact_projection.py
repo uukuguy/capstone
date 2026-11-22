@@ -16,6 +16,25 @@ from test_enterprise_normal_chat import chat_store, native_executor
 from test_thread_postgres import postgres_thread_service
 
 
+@pytest.mark.parametrize('code,expected_warning', [
+    ('NoSuchKey', False), ('AccessDenied', True), ('NoSuchBucket', True),
+])
+def test_object_lookup_distinguishes_absence_from_storage_failure(code, expected_warning, caplog):
+    from capstone_agent.native_artifact_projection import _saved_artifact
+
+    class StorageError(OSError):
+        response = {'Error': {'Code': code}}
+
+    class Store:
+        def get(self, *_):
+            raise StorageError()
+
+    descriptor = {'thread_id': 'thr_files', 'attempt_id': 'attempt_file', 'artifact_id': 'file_one',
+                  'sha256': 'a' * 64}
+    assert _saved_artifact(Store(), descriptor) is None
+    assert ('Durable artifact lookup failed' in caplog.text) is expected_warning
+
+
 def claim():
     return SimpleNamespace(thread_id='thr_files', run_id='run_files',
         attempt=SimpleNamespace(attempt_id='attempt_files', turn_id='turn_files'),

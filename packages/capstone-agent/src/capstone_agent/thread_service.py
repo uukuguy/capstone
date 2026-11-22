@@ -151,6 +151,23 @@ def _goal_catalog_source(snapshot, command):
     return work.get('goal_continuation', {}).get('predecessor_attempt_id')
 
 
+def _mission_owns_queued_input(service, workspace, submission):
+    binding = (submission or {}).get('_mission')
+    if not binding:
+        return False
+    control = getattr(service, 'control_host', None)
+    if control is None:
+        return True
+    try:
+        mission = control.service.read(workspace, binding['mission_id'])
+    except Exception as error:
+        import logging
+        logging.getLogger(__name__).warning('Mission queue ownership lookup unavailable; exception_type=%s',
+                                            type(error).__name__)
+        return True
+    return mission['state'] not in {'accepted', 'cancelled', 'delivered'}
+
+
 _MAX_COMMAND_BYTES = limits.command_bytes
 _MAX_EVENT_BYTES = limits.event_bytes
 _COMMAND_FIELDS = frozenset({
@@ -335,6 +352,9 @@ _CONTACT_DELAYED = {'reason': 'heartbeat_delayed',
 
 
 def _interruption_details(diagnostic_events: set[str]) -> dict[str, str]:
+    if 'native_terminal_confirmed' in diagnostic_events:
+        return {'reason': 'native_terminal_confirmed', 'stage': 'native_recovery',
+                'answer': '已确认原生执行结束。系统会检查并保留可恢复的交付，可继续发送新指令。'}
     if 'attempt_settlement_diagnostic' in diagnostic_events:
         return {'reason': 'worker_exit_recorded', 'error_code': 'terminal_write_failed',
                 'stage': 'terminal_write', 'answer': '执行结果结算失败。已保存的制品仍可查看。'}
@@ -351,8 +371,8 @@ def _stage_goal_step_review(work, attempt_id, answer, product_refs, authority_re
     work.pop('goal_continuation', None)
 
 
-def _recover_workflow_delivery(snapshot, original, payload, artifacts):
-    """Restore only the Work revision left by this recorded interruption."""
+def _recover_workflow_delivery(snapshot, original, payload, artifacts, *, terminal_failure=False):
+    """Restore only the Work revision left by this recorded terminal event."""
     from .enterprise_context import TaskContext
     from .thread_work import project_work, settle_task_state, transition_work
 
@@ -365,7 +385,8 @@ def _recover_workflow_delivery(snapshot, original, payload, artifacts):
     context = TaskContext.from_document(frozen)
     work = next((item for item in snapshot.works if item['work_id'] == context.binding.work_id), None)
     attempt_id = original['attempt_id']
-    if (work is None or work['status'] != 'interrupted' or work.get('latest_attempt_id') != attempt_id
+    phase = original.get('phase', 'interrupted')
+    if (work is None or work['status'] != phase or work.get('latest_attempt_id') != attempt_id
             or work['revision'] != interrupted.get('revision') or work['task_context'] != frozen):
         return snapshot, {}
     goal = work.get('goal_mode')
@@ -374,7 +395,7 @@ def _recover_workflow_delivery(snapshot, original, payload, artifacts):
     goal_step = goal is not None and not handoff
     if goal_step:
         eligible = ('goal_plan' in work and 'goal_step_review' not in work
-                    and goal['state'] == 'paused' and goal['reason'] == 'attempt_interrupted'
+                    and goal['state'] == 'paused' and goal['reason'] == 'attempt_' + phase
                     and goal['last_settled_attempt_id'] == attempt_id)
     else:
         mission = submission.get('_mission')
@@ -386,10 +407,24 @@ def _recover_workflow_delivery(snapshot, original, payload, artifacts):
         bound_mission = (isinstance(mission, dict) and reference is not None
                          and mission['mission_id'] == reference['mission_id'] and mission['origin'] == origin)
         eligible = ('_mission_review' not in submission and
-                    ((work.get('conversation_mode') and bound_mission)
+                    ((work.get('conversation_mode') and (mission is None or bound_mission))
                      or (handoff and (work.get('conversation_mode') or goal is not None))))
     if not eligible:
         return snapshot, {}
+    if terminal_failure:
+        if not goal_step:
+            return snapshot, {'work_id': work['work_id'], 'work': project_work(snapshot, work)}
+        from copy import deepcopy
+
+        from .session_goal_plan import continue_after_failed_step
+
+        restored = deepcopy(work)
+        if not continue_after_failed_step(restored, attempt_id):
+            _stage_goal_step_review(restored, attempt_id, '执行器已确认该步骤未完成。', [], [])
+            restored['goal_step_review']['failed'] = True
+        restored['revision'] += 1
+        updated = replace(snapshot, works=tuple(restored if item is work else item for item in snapshot.works))
+        return updated, {'work_id': restored['work_id'], 'work': project_work(updated, restored)}
     if goal is not None and handoff:
         # Handoffs on Goal Work enter as standalone user follow-ups.
         snapshot = replace(snapshot, works=tuple(
@@ -426,6 +461,27 @@ def _prepare_terminal_transition(
     updated, work_payload = work_event_payload(
         replace(snapshot, current_attempt=None), claim.task_context,
         claim.attempt.attempt_id, phase)
+    if phase == 'failed' and claim.task_context is not None:
+        from .session_goal_plan import continue_after_failed_step, retry_unstarted_step
+        from .thread_work import project_work
+        work_id = claim.task_context.binding.work_id
+        original = next((work for work in snapshot.works if work['work_id'] == work_id), None)
+        if (original and 'goal_plan' in original and not original.get('goal_followup')
+                and not original.get('cancel_requested') and 'pending_goal_control' not in original):
+            work = next(item for item in updated.works if item['work_id'] == work_id)
+            if retry_unstarted_step(work, claim.attempt.attempt_id, payload):
+                work_payload['work'] = project_work(updated, work)
+            elif (payload.get('error_code') != 'native_execution_outcome_unknown'
+                  and (payload.get('outcome') or {}).get('execution_state') not in {'unknown', 'delivery_recovery_pending'}):
+                if continue_after_failed_step(work, claim.attempt.attempt_id):
+                    work_payload['work'] = project_work(updated, work)
+                else:
+                    answer = payload.get('answer') or payload.get('message')
+                    _stage_goal_step_review(work, claim.attempt.attempt_id,
+                        answer if isinstance(answer, str) and answer.strip() else '该步骤未交付结果。',
+                        saved_product_refs, [])
+                    work['goal_step_review']['failed'] = True
+                    work_payload['work'] = project_work(updated, work)
     if phase == 'completed' and claim.task_context is not None and 'goal_proposal' in payload:
         from .goal_receipts import apply_terminal_goal_proposal
         original = next((work for work in snapshot.works
@@ -1297,6 +1353,8 @@ def _saved_diagram_tool_calls(records):
 
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
+    if event_type == 'attempt_native_recovery_checked':
+        raise ThreadProtocolError('native recovery observations require the recovery transaction')
     if event_type == 'research_state_updated' and claim.task_context is not None:
         if (payload.get('task_context') != claim.task_context.to_document()
                 or payload.get('research_id') != claim.task_context.binding.research_id):
@@ -1560,7 +1618,7 @@ class NativeExecutionOwner(ThreadGatewayOwner):
 
     def submit_initial_goal_plan(self, command):
         from .session_goal_plan import initial_plan_admission
-        if command['kind'] not in {'admit_goal_plan', 'fail_goal_plan', 'settle_goal_review'}:
+        if command['kind'] not in {'admit_goal_plan', 'fail_goal_plan', 'settle_goal_review', 'fail_goal_continuation'}:
             raise ValueError('invalid initial Goal plan command')
         token = initial_plan_admission.set(True)
         try:
@@ -1668,6 +1726,7 @@ class InMemoryThreadService(NativeExecutionOwner):
         self._commands: dict[str, _StoredCommand] = {}
         self._command_ids: set[str] = set()
         self._attempts: dict[str, dict[str, Any]] = {}
+        self._queued_attachments: dict[tuple[str, str], list] = {}
         self._gateway_binding = None
         self._cancel_requests: set[str] = set()
         self._lock = RLock()
@@ -1941,12 +2000,25 @@ class InMemoryThreadService(NativeExecutionOwner):
                 from .thread_products import freeze_product_selection
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission)
-        updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
         catalog_source = _goal_catalog_source(prepared, parsed)
+        queue_after_attempt = False
+        queued_attachments = []
         if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
-            from .instruction_queue import enqueue_rejection
+            from .instruction_queue import can_defer, enqueue_rejection, freeze_queue_attachments
             frozen = self._attempts.get(prepared.current_attempt.attempt_id, {}).get('submission') or {}
-            input_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id']) or input_rejection
+            queue_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id'])
+            queue_after_attempt = can_defer(prepared, parsed, queue_rejection)
+            if not queue_after_attempt:
+                input_rejection = queue_rejection or input_rejection
+            if 'attachment_refs' in parsed['payload']:
+                try:
+                    if not queue_after_attempt:
+                        raise ValueError('queued attachments require a separate Instruction')
+                    queued_attachments = freeze_queue_attachments(self, prepared.thread_id, parsed['payload']['attachment_refs'])
+                except (ValueError, KeyError):
+                    input_rejection = 'attachment_unavailable'
+        updated, rejection, work = apply_work(prepared, parsed, archived=self._archived,
+                                              queue_after_attempt=queue_after_attempt)
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
@@ -1989,6 +2061,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                 self._model_workspace = staged._model_workspace
         if rejection is None:
             assert work is not None
+            if queued_attachments:
+                self._queued_attachments[work['work_id'], parsed['command_id']] = queued_attachments
             if gateway_state is not None:
                 self._gateway_binding = gateway_state
             self._snapshot = updated
@@ -2031,6 +2105,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                             stored_submission['_application_catalog'] = catalog
                 from .mission_origin import bind_submission
                 stored_submission = bind_submission(updated, work['work_id'], stored_submission, instruction=instruction)
+                from .session_goal_plan import bind_goal_step
+                stored_submission = bind_goal_step(stored_submission, work)
                 if parsed['kind'] == 'send_message':
                     stored_submission = {**(stored_submission or {}), '_instruction_command_id': parsed['command_id']}
                 self._attempts[attempt.attempt_id] = {
@@ -2929,16 +3005,20 @@ class InMemoryThreadService(NativeExecutionOwner):
                 work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
                 result_projections=work_snapshot.result_projections,
             )
-            self._append_replacement(before, terminal, record)
+            self._append_replacement(before, terminal, record, terminal_payload=payload)
             record['terminal_write_id'] = write_id
             snapshot = self._snapshot
         from .session_title_summary import schedule_completed_title
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
 
-    def _append_replacement(self, before, terminal, record):
+    def _append_replacement(self, before, terminal, record, *, terminal_payload=None):
         from .instruction_queue import prepare_replacement
-        replacement = prepare_replacement(before, self._snapshot, terminal.attempt_id, record.get('submission'))
+        replacement = prepare_replacement(before, self._snapshot, terminal.attempt_id, record.get('submission'),
+                                          phase=terminal.phase, terminal_payload=terminal_payload,
+                                          organizer_active=(terminal.phase in {'completed', 'failed'} and
+                                              _mission_owns_queued_input(self,self._workspace_name,record.get('submission'))),
+                                          queued_attachments=lambda work, command: self._queued_attachments.get((work, command), []))
         if replacement is None:
             return
         snapshot, attempt, task_context, submission, accepted = replacement
@@ -3479,6 +3559,13 @@ CREATE TABLE IF NOT EXISTS capstone_thread_commands (
     PRIMARY KEY (thread_id, idempotency_key),
     UNIQUE (thread_id, command_id)
 );
+CREATE TABLE IF NOT EXISTS capstone_queued_attachments (
+    thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
+    work_id text NOT NULL,
+    command_id text NOT NULL,
+    manifests jsonb NOT NULL,
+    PRIMARY KEY (thread_id, work_id, command_id)
+);
 CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
     attempt_id text PRIMARY KEY,
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -3684,17 +3771,31 @@ class PostgresThreadService(NativeExecutionOwner):
                 from .thread_products import freeze_product_selection
                 submission, input_rejection = freeze_product_selection(self, prepared,
                     {'context_product_refs': saved_work['context_product_refs']}, submission, connection=connection)
-        updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
         catalog_source = _goal_catalog_source(prepared, parsed)
+        queue_after_attempt = False
+        queued_attachments = []
         if parsed['kind'] == 'queue_instruction' and prepared.current_attempt is not None:
-            from .instruction_queue import enqueue_rejection
+            from .instruction_queue import can_defer, enqueue_rejection, freeze_queue_attachments
             saved = connection.execute('''SELECT submission_snapshot, takeover_target_thread_id
                 FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s''',
                 (snapshot.thread_id, prepared.current_attempt.attempt_id)).fetchone()
             frozen = {} if saved is None else saved['submission_snapshot'] or {}
-            input_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id']) or input_rejection
+            queue_rejection = enqueue_rejection(frozen.get('_native_execution'), prepared, parsed['target']['id'])
+            queue_after_attempt = can_defer(prepared, parsed, queue_rejection)
+            if not queue_after_attempt:
+                input_rejection = queue_rejection or input_rejection
             if saved is not None and saved['takeover_target_thread_id'] != takeover_target:
                 input_rejection = 'instruction_takeover_unavailable'
+            if 'attachment_refs' in parsed['payload'] and input_rejection is None:
+                try:
+                    if not queue_after_attempt:
+                        raise ValueError('queued attachments require a separate Instruction')
+                    queued_attachments = freeze_queue_attachments(self, snapshot.thread_id,
+                        parsed['payload']['attachment_refs'], connection=connection)
+                except (ValueError, KeyError):
+                    input_rejection = 'attachment_unavailable'
+        updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'],
+                                              queue_after_attempt=queue_after_attempt)
         rejection = input_rejection or rejection
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
@@ -3736,6 +3837,10 @@ class PostgresThreadService(NativeExecutionOwner):
             if gateway_state is not None:
                 connection.execute('UPDATE capstone_threads SET gateway_binding=%s WHERE thread_id=%s',
                                    (Jsonb(gateway_state), snapshot.thread_id))
+            if queued_attachments:
+                connection.execute("""INSERT INTO capstone_queued_attachments
+                    (thread_id, work_id, command_id, manifests) VALUES (%s,%s,%s,%s)""",
+                    (snapshot.thread_id, work['work_id'], parsed['command_id'], Jsonb(queued_attachments)))
             event_seq = updated.last_event_seq + 1
             event = EventEnvelope('evt_' + secrets.token_hex(8), event_seq, 'command.applied', 2,
                 snapshot.thread_id, snapshot.run.run_id, None, None,
@@ -3787,6 +3892,8 @@ class PostgresThreadService(NativeExecutionOwner):
                             submission['_application_catalog'] = source['catalog']
                 from .mission_origin import bind_submission
                 submission = bind_submission(updated, work['work_id'], submission, instruction=instruction)
+                from .session_goal_plan import bind_goal_step
+                submission = bind_goal_step(submission, work)
                 if parsed['kind'] == 'send_message':
                     submission = {**(submission or {}), '_instruction_command_id': parsed['command_id']}
                 connection.execute("""INSERT INTO capstone_thread_attempts
@@ -5308,6 +5415,17 @@ class PostgresThreadService(NativeExecutionOwner):
         return access(self, claim, 'acknowledge', instruction_id)
 
     def cancel_requested(self, claim: AttemptClaim) -> bool:
+        try:
+            return self._read_cancel_requested(claim)
+        except (psycopg.errors.DeadlockDetected, psycopg.errors.SerializationFailure):
+            import logging
+
+            logging.getLogger(__name__).warning(
+                'Retrying cancellation status after a transient database conflict; attempt_id=%s',
+                claim.attempt.attempt_id)
+            return self._read_cancel_requested(claim)
+
+    def _read_cancel_requested(self, claim: AttemptClaim) -> bool:
         with self._connect() as connection:
             active = connection.execute(
                 """SELECT 1 FROM capstone_thread_attempts
@@ -5469,8 +5587,11 @@ class PostgresThreadService(NativeExecutionOwner):
             """SELECT a.*, b.payload AS binding, i.payload->'work' AS interrupted_work
                FROM capstone_thread_attempts a
                JOIN capstone_thread_events i ON i.attempt_id=a.attempt_id AND i.thread_id=a.thread_id
-                 AND i.event_type='attempt_interrupted' AND i.visibility='public'
-                 AND i.payload->>'reason'='worker_exit_recorded'
+                 AND i.visibility='public' AND (
+                     (a.phase='interrupted' AND i.event_type='attempt_interrupted'
+                         AND i.payload->>'reason' IN ('worker_exit_recorded','native_terminal_confirmed'))
+                     OR (a.phase='failed' AND i.event_type='attempt_failed'
+                         AND i.payload->'outcome'->>'execution_state' IN ('unknown','delivery_recovery_pending')))
                JOIN LATERAL (
                    SELECT e.payload FROM capstone_thread_events e
                    WHERE e.thread_id=a.thread_id AND e.attempt_id=a.attempt_id
@@ -5480,7 +5601,7 @@ class PostgresThreadService(NativeExecutionOwner):
                      AND e.payload->>'goal_id'='conversation'
                    ORDER BY e.event_seq DESC LIMIT 1
                ) b ON true
-               WHERE a.phase='interrupted' AND (%s::text IS NULL OR a.attempt_id=%s)
+               WHERE a.phase IN ('interrupted','failed') AND (%s::text IS NULL OR a.attempt_id=%s)
                  AND b.payload->>'delivery_recovery_format' IN ('plain', 'formal-and-core/1')
                  AND EXISTS (
                    SELECT 1 FROM capstone_thread_events d
@@ -5491,11 +5612,17 @@ class PostgresThreadService(NativeExecutionOwner):
                  AND NOT EXISTS (
                    SELECT 1 FROM capstone_thread_events d
                    WHERE d.thread_id=a.thread_id AND d.attempt_id=a.attempt_id
-                     AND (d.event_type IN ('attempt_cancel_requested', 'attempt_delivery_recovered')
+                     AND (d.event_type IN ('attempt_cancel_requested', 'attempt_delivery_recovered',
+                                           'attempt_native_terminal_observed')
                           OR (d.event_type='attempt_native_delivery_checked'
                               AND (d.payload->>'status'='ineligible'
                                    OR d.occurred_at >= clock_timestamp() - interval '60 seconds'))))
-               ORDER BY i.occurred_at, a.attempt_id LIMIT %s""",
+               ORDER BY (
+                   SELECT d.occurred_at FROM capstone_thread_events d
+                   WHERE d.thread_id=a.thread_id AND d.attempt_id=a.attempt_id
+                     AND d.event_type='attempt_native_delivery_checked'
+                   ORDER BY d.event_seq DESC LIMIT 1
+               ) NULLS FIRST, i.occurred_at, a.attempt_id LIMIT %s""",
             (attempt_id, attempt_id, limit)).fetchall()
 
     def native_delivery_recovery_candidates(self) -> list[dict]:
@@ -5517,9 +5644,10 @@ class PostgresThreadService(NativeExecutionOwner):
             thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE',
                                         (thread_id,)).fetchone()
             snapshot = self._snapshot_from_row(thread)
+            before = snapshot
             thread.update(model_context_id=original['model_context_id'],
                           selection_revision=original['selection_revision'])
-            attempt = AttemptSnapshot(original['turn_id'], attempt_id, 'interrupted',
+            attempt = AttemptSnapshot(original['turn_id'], attempt_id, original['phase'],
                                       original['model_context_id'], original['runtime_mode'])
             event_seq = thread['last_event_seq']
 
@@ -5530,7 +5658,7 @@ class PostgresThreadService(NativeExecutionOwner):
                     thread, attempt, event_seq=event_seq, event_type=event_type,
                     payload=document, visibility=visibility))
 
-            if status == 'recovered':
+            if artifacts:
                 from .native_artifact_projection import _matches_frozen_descriptor
                 saved = connection.execute(
                     """SELECT payload->'artifact' AS artifact FROM capstone_thread_events
@@ -5541,15 +5669,31 @@ class PostgresThreadService(NativeExecutionOwner):
                     existing = latest.get(artifact['artifact_id'])
                     if existing is None or not _matches_frozen_descriptor(existing, artifact):
                         append('native_artifact_published', {'artifact': artifact})
+            work_payload = {}
+            if status == 'recovered':
                 if not thread['archived']:
                     snapshot, work_payload = _recover_workflow_delivery(snapshot, original, payload, artifacts)
                     payload = {**payload, **work_payload}
                 append('attempt_delivery_recovered', payload)
+            elif status == 'terminal_observed':
+                if not thread['archived']:
+                    snapshot, work_payload = _recover_workflow_delivery(
+                        snapshot, original, payload, artifacts, terminal_failure=True)
+                append('attempt_native_terminal_observed', {'status': payload['status'], **work_payload})
+                append('attempt_native_delivery_checked', payload, 'diagnostic')
             else:
-                append('attempt_native_delivery_checked', {'status': status}, 'diagnostic')
-            connection.execute('UPDATE capstone_threads SET last_event_seq=%s, works=%s WHERE thread_id=%s',
-                               (event_seq, Jsonb(list(snapshot.works)), thread_id))
-            return status == 'recovered'
+                append('attempt_native_delivery_checked',
+                       {'status': status, 'retained_artifact_count': len(artifacts)}, 'diagnostic')
+            settled = connection.execute(
+                'UPDATE capstone_threads SET last_event_seq=%s, works=%s WHERE thread_id=%s RETURNING *',
+                (event_seq, Jsonb(list(snapshot.works)), thread_id)).fetchone()
+            submission = original['submission_snapshot'] or {}
+            if work_payload and '_mission' not in submission:
+                phase = 'completed' if status == 'recovered' else 'failed'
+                self._append_replacement_postgres(
+                    connection, settled, before, replace(attempt, phase=phase), original,
+                    terminal_payload=payload, recovered_work_id=work_payload['work_id'])
+            return status in {'recovered', 'terminal_observed'}
 
     def native_recovery_candidates(self, limit: int = 2) -> list[dict]:
         if type(limit) is not int or not 1 <= limit <= 8:
@@ -5567,18 +5711,20 @@ class PostgresThreadService(NativeExecutionOwner):
                          AND e.payload->>'route_source'='native_conversation' AND e.payload->>'goal_id'='conversation'
                        ORDER BY e.event_seq DESC LIMIT 1
                    ) e ON true
-                   WHERE a.phase='running' AND a.lease_deadline <= clock_timestamp()
-                     AND NOT EXISTS (
-                       SELECT 1 FROM capstone_thread_events d
+                   LEFT JOIN LATERAL (
+                       SELECT d.occurred_at,d.payload->>'status' AS status FROM capstone_thread_events d
                        WHERE d.thread_id=a.thread_id AND d.attempt_id=a.attempt_id
                          AND d.event_type='attempt_native_recovery_checked'
                          AND d.payload->>'owner_fingerprint'=e.payload->>'owner_fingerprint'
-                         AND (d.payload->>'status' <> 'unknown'
-                              OR d.occurred_at >= clock_timestamp() - interval '60 seconds'))
-                   ORDER BY a.lease_deadline, a.attempt_id LIMIT %s""", (limit,)).fetchall()
+                       ORDER BY d.event_seq DESC LIMIT 1
+                   ) probe ON true
+                   WHERE a.phase='running' AND a.lease_deadline <= clock_timestamp()
+                     AND (probe.occurred_at IS NULL OR (probe.status IN ('admitted','queued','running','unknown')
+                          AND probe.occurred_at < clock_timestamp() - interval '60 seconds'))
+                   ORDER BY probe.occurred_at NULLS FIRST, a.lease_deadline, a.attempt_id LIMIT %s""", (limit,)).fetchall()
 
     def record_native_recovery_observation(self, candidate: dict, status: str) -> bool:
-        if status not in {'completed', 'failed', 'cancelled', 'unknown'}:
+        if status not in {'admitted', 'queued', 'running', 'completed', 'failed', 'cancelled', 'unknown'}:
             raise ValueError('invalid native recovery observation')
         thread_id, attempt_id = candidate['thread_id'], candidate['attempt_id']
         fingerprint = _owner_fingerprint(candidate['lease_token'])
@@ -5594,7 +5740,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 """SELECT 1 FROM capstone_thread_events
                    WHERE thread_id=%s AND attempt_id=%s AND event_type='attempt_native_recovery_checked'
                      AND payload->>'owner_fingerprint'=%s
-                     AND (payload->>'status' <> 'unknown'
+                     AND (payload->>'status' IN ('completed','failed','cancelled')
                           OR occurred_at >= clock_timestamp() - interval '60 seconds')""",
                 (thread_id, attempt_id, fingerprint)).fetchone()
             if exists is not None:
@@ -5612,7 +5758,12 @@ class PostgresThreadService(NativeExecutionOwner):
                          'owner_fingerprint': fingerprint}, visibility='diagnostic',
             )
             self._insert_event(connection, event)
-            if status != 'unknown':
+            latest_visible = connection.execute(
+                """SELECT payload->>'status' AS status FROM capstone_thread_events
+                   WHERE thread_id=%s AND attempt_id=%s AND event_type='attempt_native_result_observed'
+                     AND visibility='public' ORDER BY event_seq DESC LIMIT 1""",
+                (thread_id, attempt_id)).fetchone()
+            if latest_visible is None or latest_visible['status'] != status:
                 event = self._make_attempt_event(
                     thread, running, event_seq=event.event_seq + 1,
                     event_type='attempt_native_result_observed', payload={'status': status},
@@ -5638,7 +5789,13 @@ class PostgresThreadService(NativeExecutionOwner):
                             AND e.payload->>'owner_fingerprint' = encode(sha256(convert_to(a.lease_token,'UTF8')),'hex'))
                       OR (a.lease_deadline <= clock_timestamp() AND NOT EXISTS (
                           SELECT 1 FROM capstone_thread_events e WHERE e.thread_id=a.thread_id
-                            AND e.attempt_id=a.attempt_id AND e.event_type='attempt_contact_delayed')))
+                            AND e.attempt_id=a.attempt_id AND e.event_type='attempt_contact_delayed'))
+                      OR (a.lease_deadline <= clock_timestamp() AND EXISTS (
+                          SELECT 1 FROM capstone_thread_events e WHERE e.thread_id=a.thread_id
+                            AND e.attempt_id=a.attempt_id AND e.visibility='diagnostic'
+                            AND e.event_type='attempt_native_recovery_checked'
+                            AND e.payload->>'status' IN ('completed','failed','cancelled')
+                            AND e.payload->>'owner_fingerprint'=encode(sha256(convert_to(a.lease_token,'UTF8')),'hex'))))
                 """ + (" AND a.thread_id = %s" if thread_id is not None else "") +
                 " ORDER BY a.lease_deadline, a.attempt_id FOR UPDATE OF a SKIP LOCKED",
                 (thread_id,) if thread_id is not None else (),
@@ -5661,7 +5818,14 @@ class PostgresThreadService(NativeExecutionOwner):
                     (attempt['thread_id'], attempt['attempt_id'], sorted(_WORKER_EXIT_EVENTS),
                      _owner_fingerprint(attempt['lease_token']))).fetchall()}
                 diagnostics = markers & _WORKER_EXIT_EVENTS
-                if 'attempt_worker_diagnostic' not in diagnostics:
+                if attempt['contact_delayed'] and connection.execute(
+                    """SELECT 1 FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s
+                       AND visibility='diagnostic' AND event_type='attempt_native_recovery_checked'
+                       AND payload->>'status' IN ('completed','failed','cancelled')
+                       AND payload->>'owner_fingerprint'=%s LIMIT 1""",
+                    (attempt['thread_id'], attempt['attempt_id'], _owner_fingerprint(attempt['lease_token']))).fetchone():
+                    diagnostics.add('native_terminal_confirmed')
+                if not diagnostics & {'attempt_worker_diagnostic', 'native_terminal_confirmed'}:
                     if attempt['contact_delayed'] and 'attempt_contact_delayed' not in markers:
                         notice = self._make_attempt_event(thread, AttemptSnapshot.from_document(current),
                             event_seq=thread['last_event_seq'] + 1,
@@ -5804,6 +5968,14 @@ class PostgresThreadService(NativeExecutionOwner):
             event_seq = thread["last_event_seq"]
             event_seq = self._seal_open_captures_postgres(
                 connection, thread, terminal, event_seq, context=claim.model_context)
+            if phase == 'failed' and (payload.get('outcome') or {}).get('execution_state') in {
+                    'unknown', 'delivery_recovery_pending'}:
+                event_seq += 1
+                owner = self._make_attempt_event(thread, terminal, event_seq=event_seq,
+                    event_type='attempt_delivery_recovery_owner',
+                    payload={'owner_fingerprint': _owner_fingerprint(claim.lease_token)},
+                    visibility='diagnostic')
+                self._insert_event(connection, owner)
             for part in projection_parts:
                 event_seq += 1
                 part_event = self._make_attempt_event(
@@ -5832,15 +6004,27 @@ class PostgresThreadService(NativeExecutionOwner):
                  None if work_snapshot.application_state is None else Jsonb(dict(work_snapshot.application_state)), claim.thread_id),
             ).fetchone()
             assert updated is not None
-            snapshot = self._append_replacement_postgres(connection, updated, before, terminal, attempt)
+            snapshot = self._append_replacement_postgres(
+                connection, updated, before, terminal, attempt, terminal_payload=payload)
         from .session_title_summary import schedule_completed_title
         schedule_completed_title(self, claim, phase, snapshot)
         return snapshot
 
-    def _append_replacement_postgres(self, connection, thread, before, terminal, source):
+    def _append_replacement_postgres(self, connection, thread, before, terminal, source, *, terminal_payload=None,
+                                     recovered_work_id=None):
         from .instruction_queue import prepare_replacement
         settled = self._snapshot_from_row(thread)
-        prepared = prepare_replacement(before, settled, terminal.attempt_id, source['submission_snapshot'])
+        def queued_attachments(work_id, command_id):
+            item = connection.execute("""SELECT manifests FROM capstone_queued_attachments
+                WHERE thread_id=%s AND work_id=%s AND command_id=%s""",
+                (settled.thread_id, work_id, command_id)).fetchone()
+            return [] if item is None else item['manifests']
+
+        prepared = prepare_replacement(before, settled, terminal.attempt_id, source['submission_snapshot'],
+                                       phase=terminal.phase, terminal_payload=terminal_payload,
+                                       queued_attachments=queued_attachments, recovered_work_id=recovered_work_id,
+                                       organizer_active=(terminal.phase in {'completed', 'failed'} and
+                                           _mission_owns_queued_input(self,thread['workspace_name'],source['submission_snapshot'])))
         if prepared is None:
             return settled
         snapshot, attempt, task_context, submission, accepted = prepared

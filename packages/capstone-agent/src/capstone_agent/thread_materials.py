@@ -193,24 +193,31 @@ def _goal_product_files(service, snapshot, work, continuation, connection):
     current = files(predecessor)
     historical = None
     selected = {}
+    notices = []
+    plan = work.get('goal_plan', {})
+    from .goal_receipts import reviewed_product_refs
+    admitted = set(reviewed_product_refs(plan))
     for ref in continuation['product_refs']:
         matches = {item['artifact_id']: item for item in current
                    if ref in (item['artifact_id'], item['file_name'])}
-        if not matches:
-            from .goal_receipts import reviewed_product_refs
-            plan = work.get('goal_plan', {})
-            if ref not in reviewed_product_refs(plan):
-                return None
+        if not matches and ref in admitted:
             if historical is None:
                 historical = [item for attempt_id in plan.get('review_refs', ())
                               if attempt_id.startswith('attempt_') and attempt_id != predecessor
                               for item in files(attempt_id)]
             matches = {item['artifact_id']: item for item in historical
                        if ref in (item['artifact_id'], item['file_name'])}
-        if len(matches) != 1:
-            return None
-        selected.update(matches)
-    return list(selected.values())
+        candidates = list(matches.values())
+        fingerprints = {(item.get('sha256'), item.get('size_bytes')) for item in candidates}
+        if len(candidates) == 1 or (candidates and len(fingerprints) == 1
+                and all(value is not None for value in next(iter(fingerprints)))):
+            source = candidates[-1]
+            selected[source['artifact_id']] = source
+        else:
+            issue = ('同名成果有不同版本，请使用具体成果引用。' if candidates
+                     else '无法读取该成果引用。请继续处理可用材料并说明缺项。')
+            notices.append(f'{ref[:300]} · {issue}')
+    return list(selected.values()), notices
 
 
 def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
@@ -293,27 +300,29 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
             return submission, None
         refs = []
     frozen = []
-    try:
-        for ref in refs:
-            item = active[ref]
+    notices = []
+    for ref in refs:
+        item = active[ref]
+        try:
             data = service._material_objects.get(_key(snapshot.thread_id, item), limits.inline_material_bytes)
             if len(data) != item['size_bytes'] or sha256(data).hexdigest() != item['sha256']:
                 raise ValueError('material integrity check failed')
             frozen.append({**item, 'content_base64': base64.b64encode(data).decode('ascii')})
-    except CapacityExceeded:
-        raise
-    except Exception as error:
-        import logging
-        from .native_failure_origin import native_failure_origin
-        logging.getLogger(__name__).warning('Material submission preparation failed; origin=%s',
-            native_failure_origin(error))
+        except CapacityExceeded:
+            raise
+        except Exception as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Material submission preparation failed; origin=%s',
+                native_failure_origin(error))
+            notices.append(f"{item['file_name'][:300]} · 无法读取材料。请使用可用材料继续，并说明缺项。")
+    if 'material_refs' in payload and refs and not frozen:
         return submission, 'material_unavailable'
-    notices, deferred = [], []
+    deferred = []
     if goal_refs is not None:
         if goal_refs:
-            deferred = _goal_product_files(service, snapshot, work, continuation, connection)
-            if deferred is None:
-                return submission, 'product_context_unavailable'
+            deferred, goal_notices = _goal_product_files(service, snapshot, work, continuation, connection)
+            notices.extend(goal_notices)
     elif not payload.get('context_product_refs'):
         for source in _process_files(service, snapshot, work_id, payload.get('source_attempt_id'), connection):
             # History supplies exact immutable references, never implicit file bodies.
@@ -337,7 +346,8 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
     resources.extend(grant['resource'] for grant in grants)
     uploads = frozen_grants(service, snapshot.thread_id, work_id, connection, mission_uploads=True)
     resources.extend(grant['resource'] for grant in uploads)
-    return {**(submission or {}), 'material_refs': refs, '_materials': frozen, '_material_notices': notices,
+    return {**(submission or {}), 'material_refs': [item['material_id'] for item in frozen],
+        '_materials': frozen, '_material_notices': notices,
         'attachment_refs': attachments,
         **({'_continuation_artifacts': deferred} if deferred else {}),
         **({'_delegation_resources': grants} if grants else {}),

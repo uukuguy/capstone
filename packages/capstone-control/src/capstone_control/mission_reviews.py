@@ -35,6 +35,15 @@ def eligible(goal):
             and not organizer(goal)['suspended'])
 
 
+def _continue_admitted_tasks(service, goal, reason):
+    from .mission import has_dispatchable_task
+
+    if (goal['state'] == 'waiting_review' and goal['_mission'].get('activated')
+            and has_dispatchable_task(service, goal)):
+        organizer(goal)['suspended'] = False
+        goal.update(state='ready', reason=reason)
+
+
 def recovery_allowed(service, goal, review_id):
     return (organizer(goal)['current_review_id'] == review_id
             and goal['state'] not in {'paused','pausing','cancelled','cancelling','accepted','delivered'}
@@ -50,7 +59,8 @@ def record_for(goal, review_id):
 
 def queue_boundary(goal, *, force=False, explicit_operation=None):
     """Called in the same transaction as a real delivered/verified/failed Task fact."""
-    if '_mission' not in goal or not any(t['state'] in TERMINAL_TASKS for t in goal['tasks']):
+    if '_mission' not in goal or (explicit_operation is None
+            and not any(t['state'] in TERMINAL_TASKS for t in goal['tasks'])):
         return
     state=organizer(goal)
     facts={task['task_id']:fingerprint(dict(revision=task['revision'],state=task['state'],delivery=task['delivery'],
@@ -218,6 +228,8 @@ def finish(service,workspace,mission_id,review_id,attempt_id,phase,*,recovered=F
         if phase in {'cancelled','interrupted','failed'}:
             state['suspended']=True
             goal['reason']='organizer_'+phase
+        if phase == 'failed' or outcome == 'no_progress':
+            _continue_admitted_tasks(service, goal, 'organizer_' + outcome)
         if phase == 'interrupted':
             return deepcopy(record['finish'])
         next_boundary=state.pop('next_boundary',None)
@@ -235,6 +247,7 @@ def block(service,workspace,mission_id,review_id,reason):
             return None
         record.update(state='blocked',reason=reason)
         organizer(goal)['suspended']=True
+        _continue_admitted_tasks(service, goal, 'organizer_review_blocked')
         return deepcopy(record['intent'])
     return transact(service,workspace,mission_id,review_id,'blocked',apply)
 

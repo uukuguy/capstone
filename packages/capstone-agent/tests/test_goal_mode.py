@@ -283,7 +283,7 @@ def test_service_terminal_commits_continuation_with_attempt(goal, with_product):
         'waiting_reason': None, 'product_refs': []}
     if with_product:
         store.append_runtime_event(claim, event_type='native_artifact_published', payload={
-            'artifact': {'artifact_id': 'artifact_draft', 'file_name': 'draft.md'}}, visibility='public')
+            'artifact': {'artifact_id': 'artifact_draft', 'file_name': 'draft.md', 'source_status': 'completed'}}, visibility='public')
         progress['product_refs'] = ['draft.md']
     restored = store.finish_attempt(claim, phase='completed',
         payload={'answer': 'Draft ready', 'goal_proposal': progress})
@@ -291,6 +291,99 @@ def test_service_terminal_commits_continuation_with_attempt(goal, with_product):
     assert restored.works[0]['goal_mode']['state'] == 'ready'
     assert restored.works[0]['goal_continuation']['predecessor_attempt_id'] == claim.attempt.attempt_id
     assert restored.works[0]['goal_continuation']['product_refs'] == progress['product_refs']
+
+
+@pytest.mark.parametrize('confirmed', [True, False])
+@pytest.mark.parametrize('error_code, stage', [('intent_deadline_exceeded', 'preparation'),
+                                               ('native_launch_not_started', 'execution')])
+def test_goal_retries_preparation_once_if_execution_did_not_start(confirmed, error_code, stage):
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from capstone_agent.session_goal_plan import drain_initial_goal_plans
+    from test_thread_work_execution import professional_snapshot, save_work, command
+
+    thread_id = 'thr_work_exec'
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, thread_id)
+    receipt = store.submit_command(command(store, thread_id, 'start_goal', 'retry_goal',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': work['goal'], 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'}))
+    assert receipt.status == 'accepted'
+    plan = {'schema': 'capstone-session-goal-plan/1', 'criteria': ['Saved record'],
+            'steps': [{'instruction': 'Inspect the original file.', 'expected_result': 'Saved record.'},
+                      {'instruction': 'Verify the saved record.', 'expected_result': 'Verification.'}]}
+    assert drain_initial_goal_plans(store, planner=lambda _: plan) == 1
+    first = store.claim_attempt('first_worker', 30)
+    failure = {'error_code': error_code, 'answer': 'Preparation did not start the task',
+               'outcome': {'stage': stage, 'execution_state': 'confirmed_not_started' if confirmed else 'unknown'}}
+    store.finish_attempt(first, phase='failed', payload=failure)
+    assert drain_goal_continuations(store) == int(confirmed)
+    second = store.claim_attempt('retry_worker', 30)
+    if confirmed:
+        assert second.attempt.attempt_id != first.attempt.attempt_id
+        assert second.instruction == first.instruction
+        store.finish_attempt(second, phase='failed', payload=failure)
+        assert drain_goal_continuations(store) == 0
+    else:
+        assert second is None
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews
+    if not confirmed:
+        assert drain_goal_step_reviews(store, reviewer=lambda *_: pytest.fail('terminal receipt pending')) == 0
+        assert store.snapshot(thread_id).works[0]['goal_mode']['reason'] == 'attempt_failed'
+        return
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: {'disposition': 'continue'}) == 1
+    work = store.snapshot(thread_id).works[0]
+    assert work['goal_mode']['reason'] == 'partial_delivery'
+    assert 'Preparation did not start the task' in work['goal_plan']['closure_summary']
+    assert work['goal_plan']['criteria'] == [{'index': 0, 'verdict': 'unknown', 'refs': []}]
+    assert drain_goal_continuations(store) == 0
+
+
+@pytest.mark.parametrize('storage', ['memory', 'postgres'])
+def test_failed_goal_step_skips_dependents_and_runs_independent_steps(storage, request):
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews, drain_initial_goal_plans
+    from test_thread_work_execution import professional_snapshot, save_work, command
+
+    if storage == 'postgres':
+        store, thread_id = request.getfixturevalue('postgres_thread_service')
+        store.create_thread(professional_snapshot(thread_id))
+    else:
+        thread_id = 'thr_work_exec'
+        store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, thread_id)
+    assert store.submit_command(command(store, thread_id, 'start_goal', 'dependent_goal',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': work['goal'], 'max_attempts': 5, 'deadline_at': '2099-01-01T00:00:00Z'})).status == 'accepted'
+    plan = {'schema': 'capstone-session-goal-plan/1', 'criteria': ['Needed file checked'],
+            'steps': [{'instruction': name, 'expected_result': 'Saved result', 'depends_on': deps}
+                      for name, deps in [('Read source file', []), ('Check its content', [0]),
+                                         ('Sign the checked file', [1]), ('Write independent appendix', []),
+                                         ('Summarize appendix', [3])]]}
+    assert drain_initial_goal_plans(store, planner=lambda _: plan) == 1
+    first = store.claim_attempt('failed_step', 30)
+    store.finish_attempt(first, phase='failed', payload={'answer': 'The source file was unavailable'})
+    assert drain_goal_continuations(store) == 1
+    independent = store.claim_attempt('independent_step', 30)
+    assert independent.instruction == 'Write independent appendix'
+    assert store.snapshot(thread_id).works[0]['goal_plan']['unavailable_steps'] == [0, 1, 2]
+    store.finish_attempt(independent, phase='completed', payload={'answer': 'Appendix saved'})
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: {
+        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Proceed with saved appendix', 'next_instruction': 'Summarize appendix',
+        'waiting_reason': None, 'product_refs': []}) == 1
+    assert drain_goal_continuations(store) == 1
+    summary = store.claim_attempt('summary_step', 30)
+    assert summary.instruction == 'Summarize appendix'
+    store.finish_attempt(summary, phase='completed', payload={'answer': 'Appendix summarized'})
+    assert drain_goal_step_reviews(store, reviewer=lambda *_: {
+        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'partial',
+        'summary': 'The appendix is ready. The source file could not be checked.',
+        'next_instruction': None, 'waiting_reason': None, 'product_refs': [],
+        'criteria': [{'index': 0, 'verdict': 'unmet', 'refs': []}]}) == 1
+    settled = store.snapshot(thread_id).works[0]
+    assert settled['goal_mode']['reason'] == 'partial_delivery'
+    assert 'appendix is ready' in settled['goal_plan']['closure_summary']
+    assert store.claim_attempt('no_more_work', 30) is None
 
 
 @pytest.mark.parametrize('invalid_plan,closure', [(False, None), (True, None), (False, 'partial'), (False, 'wait')])
@@ -373,7 +466,7 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, closure,
     assert second.instruction == 'Write report.'
     assert second.task_context.binding.work_id == claim.task_context.binding.work_id
     store.append_runtime_event(second, event_type='native_artifact_published', payload={
-        'artifact': {'artifact_id': 'artifact_final', 'file_name': 'report.md'}})
+        'artifact': {'artifact_id': 'artifact_final', 'file_name': 'report.md', 'source_status': 'completed'}})
     progress.update(disposition='complete', summary='Report saved', next_instruction=None,
         criteria=[{'index': 0, 'verdict': 'met', 'refs': ['report.md']}])
     store.finish_attempt(second, phase='completed', payload={'answer': 'Report saved'})
@@ -492,7 +585,7 @@ def test_send_new_instruction_while_goal_review_is_paused(storage, request):
     store.finish_attempt(first, phase='completed', payload={'answer': 'Initial findings'})
     assert drain_goal_step_reviews(store, reviewer=lambda *_: None) == 1
     paused, = store.snapshot(thread_id).works
-    assert paused['goal_mode']['reason'] == 'goal_review_invalid'
+    assert paused['goal_mode']['reason'] == 'goal_review_unavailable'
     instructions = 'Resolve the limits and produce a full report and slides.'
     submit = command(store, thread_id, 'send_message', 'new_goal_followup',
         work_id=paused['work_id'], revision=paused['revision'], payload={'text': instructions})

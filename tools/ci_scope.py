@@ -787,6 +787,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if local_dev_entry.issubset(paths) and all(
             path in local_dev_files or _control_path(path) for path in paths):
         return 'local-dev'
+    continuity_manifest = Path(__file__).resolve().parents[1] / 'configs/development/execution-continuity-gate.json'
+    if continuity_manifest.is_file():
+        continuity = json.loads(continuity_manifest.read_text())
+        if set(continuity['anchors']).issubset(paths) and all(
+                path in continuity['paths'] or _control_path(path) for path in paths):
+            return 'execution-continuity'
     agent = 'packages/capstone-agent/'
     source = agent + 'src/capstone_agent/'
     managed_skill_anchors = {source + 'managed_resource_runtime.py', source + 'managed_resource_service.py',

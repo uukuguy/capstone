@@ -30,19 +30,30 @@ export function projectWorkConversation(events: readonly EventEnvelope[], work?:
   for (const event of selected) if (event.attemptId && !attempts.has(event.attemptId)) attempts.set(event.attemptId, event.eventSeq)
   const presentation = selected.map(event => event.eventType === 'command_accepted' && event.payload.kind === 'send_message'
     ? {...event, payload: {...event.payload, kind: 'send_auto'}} : event)
+  const goalStepEvents = new Map(presentation.flatMap(event => {
+    if (event.eventType !== 'command_accepted' || !event.attemptId) return []
+    const row = event.payload.work as {goal_plan?: {step_index?: number; plan?: {steps?: {instruction: string}[]}}} | undefined
+    const index = row?.goal_plan?.step_index ?? 0
+    const steps = row?.goal_plan?.plan?.steps
+    const input = event.payload.payload as {text?: string} | undefined
+    if (typeof index !== 'number' || !steps?.[index] || steps[index].instruction !== input?.text) return []
+    return [[event.eventId, `${index + 1}/${steps.length}`] as const]
+  }))
   const rows = projectAssistantMessages(presentation,[],previews).filter(message => work?.conversationMode || message.role !== 'user'
+    || goalStepEvents.has(String(message.metadata?.custom?.eventId))
     || !selected.some(event => event.eventId === message.metadata?.custom?.eventId && work !== undefined && event.payload.work_id === work.workId))
     .map((message, index) => {
       const custom = message.metadata?.custom
       const seq = typeof custom?.eventId === 'string' ? sequences.get(custom.eventId) : typeof custom?.attemptId === 'string' ? attempts.get(custom.attemptId) : undefined
-      return { message, seq: seq ?? 0, order: index }
+      const goalStep = message.role === 'user' ? goalStepEvents.get(String(custom?.eventId)) : undefined
+      return { message: goalStep ? {...message, metadata: {custom: {...custom, goalStep}}} : message, seq: seq ?? 0, order: index }
     })
   for (const [index, text] of (work?.conversationMode ? [] : work?.messages || []).entries()) {
     const source = selected.find(event => {
       const row = event.payload.work as Record<string, unknown> | undefined
       return event.payload.work_id === work?.workId && Array.isArray(row?.messages) && row.messages.length > index
     })
-    rows.push({ message: { id: `${work!.workId}-message-${index}`, role: 'user', content: text,
+    rows.push({ message: { id: `${work!.workId}-message-${index}`, role: 'user', content: work?.goalMode && index === 0 ? `Goal 目标 · ${text}` : text,
       metadata: { custom: { workId: work!.workId, ...(source ? { sentAt: source.occurredAt } : {}) } } },
       seq: source?.eventSeq ?? 0, order: rows.length })
   }

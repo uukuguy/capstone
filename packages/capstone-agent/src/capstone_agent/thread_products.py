@@ -365,78 +365,100 @@ def freeze_product_selection(service, snapshot, payload, submission, *, connecti
         professional = snapshot.active_model_context is not None
         contexts = []
         selected_bytes = 0
-        for selection in selected:
-            local = selection.get('local_selection')
-            rows = selection.get('row_selection')
-            if local is not None:
-                result = service._product_index_service.resolve_selection(snapshot.thread_id, local)
-                entry = result['entry']
-                data = result['content']
-                if result['dependencies']:
-                    data += b'\n' + b'\n'.join(result['dependencies'])
-            else:
-                result = resolve_product(service, service._material_objects, snapshot.thread_id, selection['ref'],
-                    executor=getattr(service, '_native_executor', None), snapshot=snapshot, connection=connection)
-                entry = result['entry']
-                if rows is None and not entry['capabilities']['select'] and not (selection.get('excerpt') and entry['capabilities']['select_excerpt']):
-                    return submission, 'product_context_unavailable'
-                data = (_json(result['projection']) if result['projection'] is not None else
-                        _json(result['record']) if result['record'] is not None else base64.b64decode(result['content_base64'], validate=True))
+        admitted, unavailable = [], []
+        for index, selection in enumerate(selected, start=1):
+            try:
+                local = selection.get('local_selection')
+                rows = selection.get('row_selection')
+                if local is not None:
+                    result = service._product_index_service.resolve_selection(snapshot.thread_id, local)
+                    entry = result['entry']
+                    data = result['content']
+                    if result['dependencies']:
+                        data += b'\n' + b'\n'.join(result['dependencies'])
+                else:
+                    result = resolve_product(service, service._material_objects, snapshot.thread_id, selection['ref'],
+                        executor=getattr(service, '_native_executor', None), snapshot=snapshot, connection=connection)
+                    entry = result['entry']
+                    if rows is None and not entry['capabilities']['select'] and not (selection.get('excerpt') and entry['capabilities']['select_excerpt']):
+                        raise ValueError('product context is unavailable')
+                    data = (_json(result['projection']) if result['projection'] is not None else
+                            _json(result['record']) if result['record'] is not None else base64.b64decode(result['content_base64'], validate=True))
+                    if rows is not None:
+                        from .result_row_selection import selected_document, identity
+                        from .result_projection import ResultProjection
+                        from .result_table_store import ResultTableStore
+                        data = _json(selected_document(ResultProjection.from_document(result['projection']), rows,
+                            ResultTableStore(service._material_objects)))
+                        result['selection_id'] = identity(rows)
+                data.decode('utf-8')
+                original_size = len(data)
+                excerpt = selection.get('excerpt')
+                if excerpt is not None:
+                    data = data[:excerpt['max_bytes']].decode('utf-8', errors='ignore').encode('utf-8')
+                if b'\0' in data:
+                    raise ValueError('product context is unavailable')
+                source = entry['source']
+                name = source.get('file_name') if selection['ref']['origin'] == 'native_file' else None
+                if selection['ref']['origin'] == 'task_delivery':
+                    event = _events(service, snapshot.thread_id, seq=selection['ref']['event_seq'], connection=connection)[0]
+                    name = event.payload['delivery']['file_name']
+                name = name or selection['ref']['product_id'] + '.txt'
+                provenance = {'ref': selection['ref'], 'source_status': entry['source_status'], 'historical_only': True}
+                if local is not None:
+                    provenance['local_selection'] = local
+                    provenance['dependency_digests'] = [sha256(part).hexdigest() for part in result['dependencies']]
                 if rows is not None:
-                    from .result_row_selection import selected_document, identity
-                    from .result_projection import ResultProjection
-                    from .result_table_store import ResultTableStore
-                    data = _json(selected_document(ResultProjection.from_document(result['projection']), rows,
-                        ResultTableStore(service._material_objects)))
-                    result['selection_id'] = identity(rows)
-            data.decode('utf-8')
-            original_size = len(data)
-            excerpt = selection.get('excerpt')
-            if excerpt is not None:
-                data = data[:excerpt['max_bytes']].decode('utf-8', errors='ignore').encode('utf-8')
-            if b'\0' in data:
-                return submission, 'product_context_unavailable'
-            source = entry['source']
-            name = source.get('file_name') if selection['ref']['origin'] == 'native_file' else None
-            if selection['ref']['origin'] == 'task_delivery':
-                event = _events(service, snapshot.thread_id, seq=selection['ref']['event_seq'], connection=connection)[0]
-                name = event.payload['delivery']['file_name']
-            name = name or selection['ref']['product_id'] + '.txt'
-            provenance = {'ref': selection['ref'], 'source_status': entry['source_status'], 'historical_only': True}
-            if local is not None:
-                provenance['local_selection'] = local
-                provenance['dependency_digests'] = [sha256(part).hexdigest() for part in result['dependencies']]
-            if rows is not None:
-                provenance['row_selection'] = rows
-            if excerpt is not None:
-                provenance['excerpt'] = {'original_size_bytes': original_size, 'selected_size_bytes': len(data),
-                    'requested_max_bytes': excerpt['max_bytes'], 'truncated': len(data) < original_size}
-            if professional:
-                contexts.append({**provenance, 'file_name': name, 'media_type': entry['media_type'],
-                    'content': data.decode('utf-8')})
-                observe_capacity('product_excerpt_bytes', sum(len(item['content'].encode()) for item in contexts), phase='product.context.professional')
-                if sum(len(item['content'].encode()) for item in contexts) > limits.product_excerpt_bytes:
-                    return submission, 'product_context_unavailable'
-                continue
-            selected_bytes += len(data)
-            observe_capacity('inline_material_count', len(materials)+1, phase='product.context.materials')
-            observe_capacity('product_bytes', selected_bytes, phase='product.context.materials')
-            observe_capacity('inline_material_bytes', sum(item['size_bytes'] for item in materials)+len(data), phase='product.context.materials')
-            if (len(materials) >= limits.inline_material_count or selected_bytes > limits.product_bytes
-                    or sum(item['size_bytes'] for item in materials) + len(data) > limits.inline_material_bytes):
-                return submission, 'product_context_unavailable'
-            material = {'schema': 'capstone-thread-material/1', 'thread_id': snapshot.thread_id,
-                'material_id': 'material_' + (result['selection_id'] if local is not None or rows is not None else sha256(_json(selection['ref'])).hexdigest())[:32],
-                'file_name': name, 'display_name': entry['title'], 'media_type': entry['media_type'],
-                'size_bytes': len(data), 'sha256': sha256(data).hexdigest(), 'content_base64': base64.b64encode(data).decode(),
-                'source_product': provenance}
-            if local is None and selection['ref']['origin'] == 'native_file' and len(data) == original_size:
-                material['source_artifact'] = source
-            materials.append(material)
+                    provenance['row_selection'] = rows
+                if excerpt is not None:
+                    provenance['excerpt'] = {'original_size_bytes': original_size, 'selected_size_bytes': len(data),
+                        'requested_max_bytes': excerpt['max_bytes'], 'truncated': len(data) < original_size}
+                if professional:
+                    context = {**provenance, 'file_name': name, 'media_type': entry['media_type'],
+                        'content': data.decode('utf-8')}
+                    proposed = contexts + [context]
+                    observe_capacity('product_excerpt_bytes', sum(len(item['content'].encode()) for item in proposed), phase='product.context.professional')
+                    if sum(len(item['content'].encode()) for item in proposed) > limits.product_excerpt_bytes:
+                        raise ValueError('product context is unavailable')
+                    if len(render_product_context(proposed).encode()) > limits.native_context_bytes:
+                        raise ValueError('product context is unavailable')
+                    contexts.append(context)
+                    admitted.append(selection)
+                    continue
+                observe_capacity('inline_material_count', len(materials)+1, phase='product.context.materials')
+                observe_capacity('product_bytes', selected_bytes + len(data), phase='product.context.materials')
+                observe_capacity('inline_material_bytes', sum(item['size_bytes'] for item in materials)+len(data), phase='product.context.materials')
+                if (len(materials) >= limits.inline_material_count or selected_bytes + len(data) > limits.product_bytes
+                        or sum(item['size_bytes'] for item in materials) + len(data) > limits.inline_material_bytes):
+                    raise ValueError('product context is unavailable')
+                material = {'schema': 'capstone-thread-material/1', 'thread_id': snapshot.thread_id,
+                    'material_id': 'material_' + (result['selection_id'] if local is not None or rows is not None else sha256(_json(selection['ref'])).hexdigest())[:32],
+                    'file_name': name, 'display_name': entry['title'], 'media_type': entry['media_type'],
+                    'size_bytes': len(data), 'sha256': sha256(data).hexdigest(), 'content_base64': base64.b64encode(data).decode(),
+                    'source_product': provenance}
+                if local is None and selection['ref']['origin'] == 'native_file' and len(data) == original_size:
+                    material['source_artifact'] = source
+                materials.append(material)
+                admitted.append(selection)
+                selected_bytes += len(data)
+            except CapacityExceeded:
+                raise
+            except (KeyError, ValueError, TypeError, OSError, StopIteration, AttributeError):
+                unavailable.append(index)
+        if selected and not admitted:
+            return submission, 'product_context_unavailable'
+        notices = [f'Product selection {index} was unavailable.' for index in unavailable]
+        if professional and notices:
+            context_notice = {'unavailable_products': notices}
+            if len(render_product_context([*contexts, context_notice]).encode()) <= limits.native_context_bytes:
+                contexts.append(context_notice)
         observe_capacity('native_context_bytes', len(render_product_context(contexts).encode()), phase='product.context')
         if len(render_product_context(contexts).encode()) > limits.native_context_bytes:
             return submission, 'product_context_unavailable'
-        return {**(submission or {}), 'context_product_refs': selected, '_materials': materials,
+        return {**(submission or {}), 'context_product_refs': admitted, '_materials': materials,
+                **({'_unavailable_product_selections': unavailable} if unavailable else {}),
+                **({'_material_notices': [*(submission or {}).get('_material_notices', []), *notices][:64]}
+                   if notices and not professional else {}),
                 **({'_product_context': contexts} if professional else {})}, None
     except CapacityExceeded:
         raise
@@ -454,6 +476,10 @@ def render_product_context(contexts):
         'A new professional claim still requires published current-run Authority admission. '
         'If excerpt.truncated is true, only that leading excerpt was read; do not claim full-file review.']
     for context in contexts:
+        if 'unavailable_products' in context:
+            lines.extend(context['unavailable_products'])
+            lines.append('Use the available source versions and state the missing selections in the reply.')
+            continue
         lines.append(json.dumps({key: value for key, value in context.items() if key != 'content'}, ensure_ascii=False))
         lines.append('BEGIN HISTORICAL PRODUCT DATA\n' + context['content'] + '\nEND HISTORICAL PRODUCT DATA')
     return '\n\n'.join(lines)

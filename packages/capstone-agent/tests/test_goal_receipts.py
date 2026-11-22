@@ -127,7 +127,9 @@ def test_product_references_are_bounded(refs):
 def test_saved_product_names_come_only_from_current_attempt_publications():
     from capstone_agent.goal_receipts import published_goal_refs
     events=[{'attempt_id':'attempt_one','event_type':'native_artifact_published',
-        'payload':{'artifact':{'artifact_id':'artifact_one','file_name':'draft.md'}}},
+        'payload':{'artifact':{'artifact_id':'artifact_one','file_name':'draft.md','source_status':'completed'}}},
+        {'attempt_id':'attempt_one','event_type':'native_artifact_published',
+        'payload':{'artifact':{'artifact_id':'superseded','file_name':'draft.md','source_status':'running'}}},
         {'attempt_id':'other','event_type':'native_artifact_published',
-        'payload':{'artifact':{'artifact_id':'other','file_name':'foreign.md'}}}]
+        'payload':{'artifact':{'artifact_id':'other','file_name':'foreign.md','source_status':'completed'}}}]
     assert set(published_goal_refs(events,'attempt_one'))=={'artifact_one','draft.md'}

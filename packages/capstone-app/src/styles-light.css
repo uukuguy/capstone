@@ -1268,6 +1268,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-conversation-workspace .capstone-chat-markdown :is(th, td) { padding: 6px 8px; }
 .thread-conversation-workspace .capstone-composer-root textarea { font-size: 12px; line-height: 1.55; }
 .thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { border-color: #dde1d9; background: #eaf0e8; }
+.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body:has(> .capstone-goal-instruction-label) { border-color: #c8c9e2; border-inline-start: 3px solid #66649c; background: #f2f1fa; }
+.capstone-goal-instruction-label { display: block; margin-bottom: 4px; color: #514f83; font-size: 11px; font-weight: 600; }
 .thread-conversation-workspace .capstone-chat-composer { width: min(780px, 100%); margin: 0 auto; padding: 16px 0 0; flex-shrink: 0; background: transparent; border-color: #dde1d9; }
 .thread-conversation-workspace .capstone-composer-root { background: #fff; border-color: #dde1d9; border-radius: 10px; }
 .thread-conversation-workspace .capstone-composer-root textarea { color: #22352e; }

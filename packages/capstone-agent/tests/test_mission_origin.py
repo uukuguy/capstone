@@ -205,7 +205,8 @@ def test_concurrent_creates_admit_one_active_mission_per_thread(chat_store):
     assert len(threads.snapshot(thread_id).mission_refs) == 2
 
 
-def test_partial_delivery_allows_new_mission_without_reopening_old_mission(chat_store):
+@pytest.mark.parametrize('kind', ['update_plan', 'resume'])
+def test_partial_delivery_allows_new_mission_without_reopening_old_mission(chat_store, kind):
     from capstone_agent.mission_origin import ActiveMissionConflict
 
     threads, thread_id = chat_store
@@ -223,8 +224,8 @@ def test_partial_delivery_allows_new_mission_without_reopening_old_mission(chat_
     with pytest.raises(ActiveMissionConflict) as conflict:
         host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
             operation_id='reopen_original', mission_id=original['mission_id'],
-            expected_revision=original['revision'], kind='update_plan',
-            payload={'acceptance_criteria': ['Updated check'], 'tasks': []}))
+            expected_revision=original['revision'], kind=kind,
+            payload={'acceptance_criteria': ['Updated check'], 'tasks': []} if kind == 'update_plan' else {}))
     assert conflict.value.mission_id == following['mission_id']
     assert host.read_mission('enterprise', original['mission_id'])['reason'] == 'partial_delivery'
 

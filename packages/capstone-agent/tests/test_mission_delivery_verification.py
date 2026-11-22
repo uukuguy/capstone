@@ -34,7 +34,32 @@ def test_actual_saved_deliveries_are_verified_without_inventing_required_names(m
     assert current['state']=='waiting_review'
     if mode=='unavailable':
         assert current['tasks'][0]['state']=='delivered'
-        assert current['reason']=='delivery_verification_unavailable'
+        assert current['tasks'][0]['failure_reason']=='delivery_verification_unavailable'
+        assert current['reason']!='delivery_verification_unavailable'
     else:
         assert current['tasks'][0]['state']=='verified'
         assert checked==([product] if mode=='products' else ['saved_answer'])
+
+
+def test_failed_product_verification_does_not_skip_independent_delivery(monkeypatch):
+    from capstone_agent import control_host as module
+
+    monkeypatch.setattr(module, 'reconcile', lambda *args, **kwargs: None)
+    def task(name):
+        product = {'file_name': name, 'sha256': 'a' * 64}
+        return {'task_id': name, 'state': 'delivered', 'required_products': [name],
+                'delivery': {'revision': 1, 'products': [product]}}
+    goal = {'workspace': 'enterprise', 'goal_id': 'goal', 'state': 'running', 'application_kind': 'mission',
+            'revision': 1, 'tasks': [task('broken'), task('good')]}
+    service = SimpleNamespace(store=SimpleNamespace(list=lambda **kwargs: [goal]),
+                              read=lambda *args: goal)
+    def verify(_workspace, product):
+        if product['file_name'] == 'broken':
+            raise OSError('unavailable')
+    host = ControlHost(service, SimpleNamespace(), verify_product=verify)
+    monkeypatch.setattr(host, '_settle_origin_delivery', lambda *_: None)
+    verified = []
+    monkeypatch.setattr(host, '_command', lambda current, kind, payload:
+                        verified.append((kind,payload['task_id'])) or current)
+    host.tick()
+    assert verified == [('defer_verification','broken'), ('verify_task','good')]

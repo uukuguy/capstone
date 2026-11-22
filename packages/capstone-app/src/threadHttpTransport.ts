@@ -133,6 +133,19 @@ async function writeVerifiedStream(response:Response,size:number,digest:string,w
 export class HttpThreadTransport implements ThreadTransport {
   async createMission(body:MissionCreate){return parseMission(await this.request('/api/v1/control/missions',{method:'POST',headers:{'Idempotency-Key':body.operation_id},body:JSON.stringify(body),signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))}),this.workspaceName,body.origin.thread_id)}
   async mission(missionId:string,threadId:string){const mission=parseMission(await this.request('/api/v1/control/missions/'+encodeURIComponent(missionId),{signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))}),this.workspaceName,threadId);if(mission.missionId!==missionId)throw new Error('Mission 身份不匹配。');return mission}
+  async resumeMission(missionId:string,threadId:string,revision:number,operationId:string) {
+    const receipt=await this.request('/api/v1/control/missions/'+encodeURIComponent(missionId)+'/commands',{
+      method:'POST',headers:{'Idempotency-Key':operationId},
+      body:JSON.stringify({schema:'capstone-control-mission-command/1',operation_id:operationId,
+        mission_id:missionId,expected_revision:revision,kind:'resume',payload:{}}),
+      signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms')),
+    }) as {schema?:unknown;operation_id?:unknown;mission?:unknown}
+    if(receipt?.schema!=='capstone-control-mission-receipt/1'||receipt.operation_id!==operationId)
+      throw new Error('Mission 恢复回执无效。')
+    const mission=parseMission(receipt.mission,this.workspaceName,threadId)
+    if(mission.missionId!==missionId)throw new Error('Mission 身份不匹配。')
+    return mission
+  }
   private controlDocument(value:unknown){const goal=parseControlGoal(value);if(goal.workspace!==this.workspaceName)throw new Error('长期目标不属于当前工作空间。');return goal}
   private controlRequest(path:string,init:RequestInit={}){return this.request('/api/v1/control/goals'+path,{...init,signal:AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))})}
   async controlGoals(after?:string){

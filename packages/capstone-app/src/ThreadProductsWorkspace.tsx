@@ -4,7 +4,7 @@ import type {RowClient} from './resultRowSelection'
 import type {ResultRowSelection} from './threadProducts'
 import {applicationCapacity,observeCapacity,rethrowDebugCapacity,CapacityError} from './applicationCapacity'
 import {useContext,useEffect,useLayoutEffect,useRef,useState,type ReactNode} from 'react'
-import {ArrowDownToLine,ArrowUpRight,LocateFixed,ListTree} from 'lucide-react'
+import {ArrowDownToLine,ArrowUpRight,LocateFixed} from 'lucide-react'
 import {ResultProjectionCard} from './CapstoneAssistantThread'
 import {NativeFileContent,nativePreviewMedia} from './NativeArtifactsWorkspace'
 import type {NativeArtifact} from './nativeArtifacts'
@@ -216,7 +216,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   if(fatalError)return <p role="alert">{fatalError.message}</p>
   return <section className="thread-products-workspace" aria-label="成果目录">
     <header className="thread-products-scope"><div title={instructionScope?.text}><strong>{instructionScope?instructionProductLabel(instructionScope):'全部制品'}</strong>{instructionScope&&<span>{instructionScope.text}</span>}</div>{instructionScope&&<button type="button" onClick={onClearInstructionScope}>全部制品</button>}</header>
-    <details ref={directoryElement} className="thread-products-directory" open={directoryOpen??!view} onKeyDown={event=>{if(event.key==='Escape'&&event.currentTarget.open){event.stopPropagation();setDirectoryOpen(false);event.currentTarget.querySelector('summary')?.focus()}}}><summary title="浏览产物" aria-label="浏览产物" onClick={event=>{event.preventDefault();setDirectoryOpen(!(directoryOpen??!view))}}><ListTree aria-hidden="true"/><span>浏览产物{scopedItems.length?` · ${scopedItems.length}`:''}</span></summary>
+    <details ref={directoryElement} className="thread-products-directory" open={directoryOpen??!view} onKeyDown={event=>{if(event.key==='Escape'&&event.currentTarget.open){event.stopPropagation();setDirectoryOpen(false);event.currentTarget.querySelector('summary')?.focus()}}}><summary title="浏览产物" aria-label="浏览产物" onClick={event=>{event.preventDefault();setDirectoryOpen(!(directoryOpen??!view))}}><span>浏览产物{scopedItems.length?` · ${scopedItems.length}`:''}</span></summary>
       <div className="thread-products-directory-body">
       {!loading&&!scopedItems.length&&!error&&<p>{instructionScope?(current?.more?'已加载目录中暂无此指令的制品，可继续读取更早的成果。':instructionScope.attemptId===runningAttemptId?'正在执行，制品生成后将在这里显示。':`${instructionProductLabel(instructionScope)}暂无生成制品。`):'当前会话暂无产物。'}</p>}
       {groups.filter(group=>group.items.length).map(group=>{

@@ -36,6 +36,29 @@ def test_drain_submits_only_ready_idle_work():
     assert commands[0]['kind'] == 'continue_goal'
 
 
+def test_rejected_continuation_records_one_revision_fenced_failure():
+    from types import SimpleNamespace
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    work = {'work_id': 'work_one', 'revision': 4,
+        'goal_mode': {'state': 'ready', 'generation': 2},
+        'goal_continuation': {'generation': 2, 'predecessor_attempt_id': 'attempt_one',
+                              'next_instruction': 'Review draft'}}
+    records = []
+    class Service:
+        def goal_continuation_candidates(self, limit):
+            return ['thr_one']
+        def snapshot(self, identity):
+            return SimpleNamespace(current_attempt=None, works=[work])
+        def submit_command(self, command):
+            return SimpleNamespace(status='rejected', rejection='product_context_unavailable')
+        def submit_initial_goal_plan(self, command):
+            records.append(command)
+    assert drain_goal_continuations(Service()) == 0
+    assert records[0]['kind'] == 'fail_goal_continuation'
+    assert records[0]['target']['expected_revision'] == 4
+    assert records[0]['payload']['reason'] == 'product_context_unavailable'
+
+
 def _review_saved_step(store, claim, *, complete=False):
     from capstone_agent.session_goal_plan import drain_goal_step_reviews
 
@@ -44,7 +67,8 @@ def _review_saved_step(store, claim, *, complete=False):
         'waiting_reason': None, 'product_refs': []}
     if complete:
         store.append_runtime_event(claim, event_type='native_artifact_published',
-            payload={'artifact': {'artifact_id': 'report_product', 'file_name': 'report.md'}})
+            payload={'artifact': {'artifact_id': 'report_product', 'file_name': 'report.md',
+                                  'source_status': 'completed'}})
         progress.update(disposition='complete', next_instruction=None,
                         criteria=[{'index': 0, 'verdict': 'met', 'refs': ['report.md']}])
     store.finish_attempt(claim, phase='completed', payload={'answer': 'Reviewed' if complete else 'Draft'})
@@ -72,6 +96,11 @@ def test_service_runs_two_attempts_without_another_user_instruction():
     assert store.submit_command(start).status == 'accepted'
     _admit_initial_plan(store)
     first = store.claim_attempt('worker', 30)
+    goal_step = first.submission['_goal_step']
+    assert goal_step['goal']['objective'] == 'Inspect the model'
+    assert goal_step['criteria'] == ['Reviewed report']
+    assert goal_step['step_index'] == 0
+    assert goal_step['last_decision'] is None
     _review_saved_step(store, first)
     state = store.snapshot('thr_work_exec').works[0]['task_state']
     assert state['revision_ref'] == first.attempt.attempt_id
@@ -84,11 +113,138 @@ def test_service_runs_two_attempts_without_another_user_instruction():
     assert second is not None and second.attempt.attempt_id != first.attempt.attempt_id
     assert second.task_context.task_state_ref == state['revision_ref']
     assert 'Review draft' in second.instruction
+    assert second.submission['_goal_step']['last_decision'] == 'Draft saved'
+    assert second.submission['_goal_step']['step_index'] == 1
     _review_saved_step(store, second, complete=True)
     assert drain_goal_continuations(store) == 0
     goal = store.snapshot('thr_work_exec').works[0]['goal_mode']
     assert goal['state'] == 'completed'
     assert goal['attempts_admitted'] == 2
+
+
+def test_review_exception_continues_saved_next_step():
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    start = command(store, 'thr_work_exec', 'start_goal', 'start',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': 'Inspect the model', 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'})
+    assert store.submit_command(start).status == 'accepted'
+    _admit_initial_plan(store)
+    claim = store.claim_attempt('worker', 30)
+    store.finish_attempt(claim, phase='completed', payload={'answer': 'Draft saved'})
+    def failed_review(*_args):
+        raise TimeoutError('review unavailable')
+    assert drain_goal_step_reviews(store, reviewer=failed_review) == 1
+    work = store.snapshot('thr_work_exec').works[0]
+    assert work['goal_mode']['state'] == 'ready'
+    assert work['goal_continuation']['next_instruction'] == 'Review draft'
+    assert '复盘发生错误' in work['goal_plan']['last_decision']
+
+
+def test_final_review_retries_transient_failure_and_preserves_delivery():
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    start = command(store, 'thr_work_exec', 'start_goal', 'start',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': 'Inspect the model', 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'})
+    assert store.submit_command(start).status == 'accepted'
+    _admit_initial_plan(store)
+    _review_saved_step(store, store.claim_attempt('worker', 30))
+    assert drain_goal_continuations(store) == 1
+    claim = store.claim_attempt('worker', 30)
+    store.finish_attempt(claim, phase='completed', payload={'answer': 'Saved final answer'})
+    calls = []
+    def unavailable(*_args):
+        calls.append(1)
+        raise TimeoutError('temporary outage')
+    assert drain_goal_step_reviews(store, reviewer=unavailable) == 1
+    work = store.snapshot('thr_work_exec').works[0]
+    assert len(calls) == 3
+    assert work['goal_mode']['reason'] == 'goal_review_unavailable'
+    assert work['goal_step_review']['attempt_id'] == claim.attempt.attempt_id
+    assert work['goal_step_review']['answer'] == 'Saved final answer'
+
+
+def test_rejected_continuation_preserves_step_and_records_visible_reason(monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    start = command(store, 'thr_work_exec', 'start_goal', 'start',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': 'Inspect the model', 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'})
+    assert store.submit_command(start).status == 'accepted'
+    _admit_initial_plan(store)
+    _review_saved_step(store, store.claim_attempt('worker', 30))
+    original = store.submit_goal_continuation
+    def reject_continuation(value):
+        if value['kind'] == 'continue_goal':
+            return SimpleNamespace(status='rejected', rejection='product_context_unavailable')
+        return original(value)
+    monkeypatch.setattr(store, 'submit_goal_continuation', reject_continuation)
+    assert drain_goal_continuations(store) == 0
+    work = store.snapshot('thr_work_exec').works[0]
+    assert work['goal_mode']['state'] == 'paused'
+    assert work['goal_mode']['reason'] == 'goal_continuation_product_context_unavailable'
+    assert work['goal_continuation']['next_instruction'] == 'Review draft'
+    assert drain_goal_continuations(store) == 0
+
+
+def test_transient_planner_failure_retries_before_pausing_goal():
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_agent.session_goal_plan import drain_initial_goal_plans
+    from test_thread_work_execution import professional_snapshot, save_work, command
+    store = InMemoryThreadService(professional_snapshot())
+    work = save_work(store, 'thr_work_exec')
+    start = command(store, 'thr_work_exec', 'start_goal', 'start',
+        work_id=work['work_id'], revision=work['revision'], payload={
+            'objective': 'Inspect the model', 'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'})
+    assert store.submit_command(start).status == 'accepted'
+    calls = []
+    def planner(_objective):
+        calls.append(1)
+        if len(calls) < 3:
+            raise TimeoutError('temporary outage')
+        return {'schema': 'capstone-session-goal-plan/1', 'criteria': ['Reviewed report'],
+            'steps': [{'instruction': 'Write draft', 'expected_result': 'Draft'},
+                      {'instruction': 'Review draft', 'expected_result': 'Report'}]}
+    assert drain_initial_goal_plans(store, planner=planner) == 1
+    assert len(calls) == 3
+    assert store.claim_attempt('worker', 30) is not None
+
+
+def test_expired_ready_goal_records_deadline_without_losing_pending_step():
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from capstone_agent.thread_service import InMemoryThreadService
+    from test_thread_work_execution import professional_snapshot, save_work, command
+
+    store = InMemoryThreadService(professional_snapshot())
+    thread_id = 'thr_work_exec'
+    work = save_work(store, thread_id)
+    start = command(store, thread_id, 'start_goal', 'start', work_id=work['work_id'],
+        revision=work['revision'], payload={'objective': 'Inspect the model',
+            'max_attempts': 3, 'deadline_at': '2099-01-01T00:00:00Z'})
+    assert store.submit_command(start).status == 'accepted'
+    _admit_initial_plan(store)
+    _review_saved_step(store, store.claim_attempt('worker', 30))
+    ready = store._snapshot.works[0]
+    ready['goal_mode']['deadline_at'] = '2000-01-01T00:00:00Z'
+
+    assert drain_goal_continuations(store) == 1
+    expired = store.snapshot(thread_id)
+    assert expired.current_attempt is None
+    assert expired.works[0]['goal_mode']['reason'] == 'deadline_elapsed'
+    assert expired.works[0]['goal_continuation'] == ready['goal_continuation']
+    assert drain_goal_continuations(store) == 0
 
 
 def test_postgres_restart_and_concurrent_continuation(postgres_thread_service):

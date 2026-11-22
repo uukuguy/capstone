@@ -397,9 +397,13 @@ class ControlService:
             self._verify(goal, payload, actor=actor)
         elif kind == 'defer_verification':
             object_fields(payload,{'task_id','reason'})
-            if payload['reason']!='delivery_verification_unavailable' or not any(t['task_id']==payload['task_id'] and t['state']=='delivered' for t in goal['tasks']):
+            task = next((t for t in goal['tasks'] if t['task_id']==payload['task_id'] and t['state']=='delivered'), None)
+            if payload['reason']!='delivery_verification_unavailable' or task is None:
                 raise InvalidTransition('no saved Task delivery awaits verification')
-            goal.update(state='waiting_review' if '_mission' in goal else 'waiting',reason=payload['reason'])
+            if '_mission' in goal:
+                task['failure_reason'] = payload['reason']
+            else:
+                goal.update(state='waiting', reason=payload['reason'])
         elif kind == 'accept':
             object_fields(payload, {'products'})
             if '_mission' in goal:
@@ -422,8 +426,8 @@ class ControlService:
             if not goal['_mission'].get('activated'):
                 raise InvalidTransition('Mission requires explicit readiness before execution')
             from .mission import dispatch_ready
-            dispatch_ready(self, goal)
-            if (any(task.get('equipment') or task.get('restrictions') for task in goal['tasks'])
+            available = dispatch_ready(self, goal)
+            if (any(task.get('equipment') or task.get('restrictions') for task in available)
                     and not self.mission_execution_adapter):
                 raise InvalidTransition('Mission equipment needs a registered Agent execution adapter before dispatch')
         if goal['state'] not in {'ready', 'running'}:
@@ -437,9 +441,14 @@ class ControlService:
             goal.update(state='paused', reason='delegation_budget_exhausted')
             return
         completed = {t['task_id'] for t in goal['tasks'] if t['state'] == 'verified'}
-        task = next((t for t in goal['tasks'] if t['state'] == 'pending'
+        candidates = available if '_mission' in goal else goal['tasks']
+        task = next((t for t in candidates if t['state'] == 'pending'
                      and set(t['depends_on']) <= completed), None)
         if task is None:
+            if '_mission' in goal and any(t['state'] == 'pending'
+                    and set(t['depends_on']) <= completed for t in goal['tasks']):
+                goal.update(state='ready', reason='task_admission_unavailable')
+                return
             raise InvalidTransition('no dependency-ready Task')
         task['generation'] += 1
         task.pop('observation', None)
@@ -514,6 +523,8 @@ class ControlService:
             if check['passed'] is not True:
                 raise InvalidTransition('all verification checks must pass')
         task.update(state='verified', verification={**deepcopy(payload),'actor':actor})
+        if task.get('failure_reason') == 'delivery_verification_unavailable':
+            task.pop('failure_reason')
         if all(t['state'] == 'verified' for t in goal['tasks']):
             goal['state'] = 'waiting_review' if '_mission' in goal else 'delivered'
         if '_mission' in goal:

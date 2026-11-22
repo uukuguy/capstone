@@ -189,6 +189,39 @@ def test_native_failure_reason_reaches_saved_user_reply(code, reason):
     assert 'PRIVATE' not in result.answer
 
 
+@pytest.mark.parametrize('has_receipt', [True, False])
+def test_native_launch_proof_reaches_terminal_outcome_only_with_bound_failure(has_receipt):
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            code = 'native_launch_not_started'
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                'visibility': 'diagnostic', 'payload': {'child_status': 'failed',
+                'failure_code': code, **({'failure': {'code': code, 'phase': 'execution'}} if has_receipt else {})}})
+            raise RuntimeError('Fixture launch failure')
+
+    service = _thread_service()
+    HarnessAttemptRunner(service, FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert (terminal.payload['outcome'].get('execution_state') == 'confirmed_not_started') is has_receipt
+
+
+@pytest.mark.parametrize('confirmed,retained,expected', [
+    (False, None, 'unknown'), (True, None, None), (True, 'completed', 'delivery_recovery_pending'),
+])
+def test_transport_failure_records_recovery_state(confirmed, retained, expected):
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone', 'visibility': 'diagnostic',
+                'payload': {'child_status': 'failed', 'failure_code': 'native_transport_timeout',
+                            'cancellation_confirmed': confirmed, 'retained_terminal_status': retained}})
+            raise RuntimeError('Fixture transport failure')
+
+    service = _thread_service()
+    HarnessAttemptRunner(service, FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert terminal.payload['outcome'].get('execution_state') == expected
+
+
 def test_executor_http_failure_saves_precise_allowlisted_cause_in_user_answer():
     class FailedRuntime(HarnessPiClient):
         def prompt(self, question, *, on_event, **kwargs):
@@ -206,6 +239,9 @@ def test_executor_http_failure_saves_precise_allowlisted_cause_in_user_answer():
     assert 'research_pending' in result.answer and 'HTTP 400' in result.answer
     assert 'research_transport_file_changed' in result.answer and 'PRIVATE' not in result.answer
     from capstone_agent.failure_delivery import native_transport_summary
+    assert 'executor_validation_unavailable' in native_transport_summary({
+        'operation': 'task_admission', 'http_status': 503,
+        'protocol_code': 'executor_validation_unavailable'})
     assert native_transport_summary({'operation': 'PRIVATE', 'http_status': 400, 'protocol_code': 'invalid_task'}) == ''
     assert native_transport_summary({'operation': [], 'http_status': 400, 'protocol_code': 'invalid_task'}) == ''
 

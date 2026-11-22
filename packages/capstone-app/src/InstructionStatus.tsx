@@ -10,6 +10,7 @@ export default function InstructionStatus({active,stopping,waiting,queue,disable
     {pending.length>0&&<ul className="instruction-queue" aria-label="待处理补充指令">
       {pending.map(item=><li key={item.id}><span className="instruction-queue-text">{item.text}</span>
         {item.mode==='interrupt'&&<small>中止并执行</small>}
+        {item.mode==='after_attempt'&&item.state==='pending'&&<small>{active?'本轮结算后执行':'待接纳'}</small>}
         {item.state==='pending'?<button type="button" disabled={disabled||stopping} onClick={()=>onWithdraw(item.id)}>撤回</button>:
           <small>送达中</small>}
       </li>)}

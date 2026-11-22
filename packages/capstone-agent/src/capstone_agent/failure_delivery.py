@@ -7,6 +7,7 @@ from .result_projection import ResultProjection
 
 NATIVE_FAILURE_REASONS = {
     'native_execution_outcome_unknown': '上次执行结果未知，未自动重复任务。已有产物保留；继续前请核对原操作状态。',
+    'native_launch_not_started': '执行器已接纳任务，但执行进程未启动。已保存本轮诊断。',
     'native_result_retention_expired': '上次执行结果的保留期已结束，未自动重复任务。请核对现有来源和产物后继续。',
     'native_process_cleanup_unconfirmed': '尚未确认本地执行进程已全部停止。已保留现有产物；请先核对执行状态，避免重复执行。',
     'native_product_delivery_incomplete': '报告生成未完成，或请求的文件尚未确认保存。已有数据、图表和草稿保留，可据此修复，无需重新取数。',
@@ -60,6 +61,7 @@ def native_transport_summary(value: object) -> str:
     if set(value) != {'operation', 'http_status', 'protocol_code'}:
         return ''
     codes = {'invalid_task', 'task_not_found', 'research_owner_conflict', 'unauthorized',
+             'executor_validation_unavailable',
              'executor_capacity', 'resource_not_found', 'research_transport_file_changed', 'unrecognized_response'}
     if (not isinstance(value['operation'], str) or not isinstance(value['protocol_code'], str)
             or value['operation'] not in operations or value['protocol_code'] not in codes

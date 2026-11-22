@@ -123,20 +123,34 @@ def dependency_ready_tasks(goal):
 def has_dispatchable_task(service, goal):
     return (goal['delegations_admitted'] < goal['max_delegations']
             and service.now() < utc_deadline(goal['deadline_at'])
-            and any(dependency_ready_tasks(goal)))
+            and any(task.get('failure_reason') != 'equipment_excluded_during_planning'
+                    for task in dependency_ready_tasks(goal)))
 
 
 def dispatch_ready(service, goal):
     if not goal['tasks'] or not goal['acceptance_criteria']:
         raise InvalidTransition('Mission needs Tasks and acceptance criteria before readiness')
-    for task in goal['tasks']:
-        if (service.admit_mission_task is not None
-                and service.admit_mission_task(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(task)) is not True):
-            raise InvalidTransition('Mission Task is not admitted by the registered application')
-        for ref in task.get('equipment', []) + task.get('restrictions', []):
-            admit = service.admit_mission_reference
-            if admit is None or admit(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(ref)) is not True:
-                raise InvalidTransition('Mission equipment reference is not admitted by the application')
+    available = []
+    for task in dependency_ready_tasks(goal):
+        if task.get('failure_reason') == 'equipment_excluded_during_planning':
+            continue
+        reason = None
+        try:
+            if (service.admit_mission_task is not None
+                    and service.admit_mission_task(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(task)) is not True):
+                reason = 'task_admission_unavailable'
+            for ref in task.get('equipment', []) + task.get('restrictions', []):
+                admit = service.admit_mission_reference
+                if admit is None or admit(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(ref)) is not True:
+                    reason = 'equipment_admission_unavailable'
+        except Exception:
+            reason = 'task_admission_unavailable'
+        if reason:
+            task['failure_reason'] = reason
+        else:
+            task.pop('failure_reason', None)
+            available.append(task)
+    return available
 
 
 def task_state(mission):
@@ -256,13 +270,14 @@ def update_tasks(goal, proposed):
         history = deepcopy(previous.get('delegation_history', []))
         if confirmed_pause:
             history.append(deepcopy(previous['delegation']))
-        combined.append({**deepcopy(spec), 'revision': previous['revision'] + 1, 'state': 'pending',
+        combined.append({'depends_on': deepcopy(previous['depends_on']), **deepcopy(spec),
+                         'revision': previous['revision'] + 1, 'state': 'pending',
                          'generation': previous['generation'], 'delegation': None, 'delivery': None, 'verification': None,
                          **({'delegation_history': history} if history else {})})
     for spec in changes.values():
         if any(old.get('kind')=='tasks_removed' and any(task['task_id']==spec['task_id'] for task in old['tasks']) for old in goal['history']):
             raise InvalidTransition('removed Task identities remain historical; prepare a new Task identity')
-        combined.append({**deepcopy(spec), 'revision': 1, 'state': 'pending',
+        combined.append({'depends_on': [], **deepcopy(spec), 'revision': 1, 'state': 'pending',
                          'generation': 0, 'delegation': None, 'delivery': None, 'verification': None})
     # Revalidate the complete dependency order, including retained Tasks.
     plain = [{key: value for key, value in item.items() if key in TASK_FIELDS | {'equipment', 'restrictions'}} for item in combined]
@@ -309,42 +324,28 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 raise InvalidTransition('Mission cannot plan from this state')
             if '_mission' not in goal:
                 raise InvalidTransition('legacy Goal needs explicit Mission origin association before planning')
-            if validate_task_equipment and kind in {'prepare_task', 'update_plan'}:
-                tasks = [payload.get('task')] if kind == 'prepare_task' else payload.get('tasks')
-                if not isinstance(tasks, list) or any(not isinstance(task, dict) for task in tasks):
-                    raise ContractError('Mission planning requires typed Task proposals')
-                admit = service.admit_mission_reference
-                for task in tasks:
-                    for field in ('equipment', 'restrictions'):
-                        for ref in references(task.get(field, [])):
-                            if admit is None or admit(workspace, goal['_mission']['origin'], ref) is not True:
-                                raise ContractError('Mission Task equipment must use exact currently registered references')
-                    skills = [ref for ref in task.get('equipment', []) if ref['kind'] == 'skill']
-                    if skills and (any(ref['id'] in excluded_skills for ref in skills)
-                                   or service.admit_mission_task is None
-                                   or not service.admit_mission_task(workspace, goal['_mission']['origin'], task)):
-                        raise ContractError('Mission Task skill is outside the admitted equipment selection')
             if kind == 'ready':
                 object_fields(payload, set())
                 if goal['state'] not in {'planning','waiting_review'} and not (goal['state'] == 'paused' and not goal['_mission'].get('activated')):
                     raise InvalidTransition('only a planning Mission can become ready')
-                dispatch_ready(service, goal)
-                if not any(dependency_ready_tasks(goal)):
+                available = dispatch_ready(service, goal)
+                if not available and not any(dependency_ready_tasks(goal)):
                     raise InvalidTransition('no dependency-ready Task; inspect results and conclude the plan or wait for required input')
                 goal['_mission']['activated'] = True
-                goal.update(state='ready', reason=None)
+                goal.update(state='ready', reason=None if available else 'task_admission_unavailable')
             else:
                 if kind == 'prepare_task':
                     object_fields(payload, {'task'})
                     proposed = [payload['task']]
                 else:
-                    if not {'acceptance_criteria','tasks'}<=payload.keys() or set(payload)-{'acceptance_criteria','tasks','removed_task_ids'}:
+                    if 'tasks' not in payload or set(payload)-{'acceptance_criteria','tasks','removed_task_ids'}:
                         raise ContractError('invalid Mission plan update fields')
-                    if payload['acceptance_criteria']:
-                        text_list(payload['acceptance_criteria'])
-                    elif not isinstance(payload['acceptance_criteria'], list):
-                        raise ContractError('acceptance criteria must be a list')
-                    goal['acceptance_criteria'] = deepcopy(payload['acceptance_criteria'])
+                    if 'acceptance_criteria' in payload:
+                        if payload['acceptance_criteria']:
+                            text_list(payload['acceptance_criteria'])
+                        elif not isinstance(payload['acceptance_criteria'], list):
+                            raise ContractError('acceptance criteria must be a list')
+                        goal['acceptance_criteria'] = deepcopy(payload['acceptance_criteria'])
                     proposed = payload['tasks']
                     removed=payload.get('removed_task_ids',[])
                     if not isinstance(removed,list) or len(removed)>64 or any(not isinstance(item,str) for item in removed) or len(set(removed))!=len(removed):
@@ -369,6 +370,16 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                     if not isinstance(spec, dict) or not isinstance(spec.get('task_id'), str):
                         raise ContractError('Mission Task identity required')
                 update_tasks(goal, proposed)
+                if validate_task_equipment:
+                    proposed_ids = {spec['task_id'] for spec in proposed}
+                    for task in goal['tasks']:
+                        if task['task_id'] not in proposed_ids:
+                            continue
+                        if any(ref['kind'] == 'skill' and ref['id'] in excluded_skills
+                               for ref in task.get('equipment', [])):
+                            task['failure_reason'] = 'equipment_excluded_during_planning'
+                    if goal['acceptance_criteria'] and goal['tasks']:
+                        dispatch_ready(service, goal)
                 goal['_mission']['plan_revision'] += 1
                 goal['_mission']['plan_conclusion']=None
                 if reopen_partial:
@@ -388,7 +399,8 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                     or payload['thread_id'] != origin['thread_id']
                     or ('work_id' in origin and payload['work_id'] != origin['work_id'])
                     or task is None or task['delegation'] is not None or task['mode'] != 'single'
-                    or task['depends_on'] or len(goal['tasks']) != 1 or not goal['acceptance_criteria']):
+                    or task['depends_on'] or len(goal['tasks']) != 1 or not goal['acceptance_criteria']
+                    or task not in dispatch_ready(service, goal)):
                 raise InvalidTransition('Mission origin execution requires one admitted direct task')
             task['generation'] += 1
             attempt = payload['attempt_id']
@@ -417,6 +429,9 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 raise InvalidTransition('satisfied Mission conclusion requires all Tasks to be verified')
             if not all_met and has_dispatchable_task(service, goal):
                 raise InvalidTransition('Mission must continue dependency-ready Tasks before partial delivery')
+            if not all_met and any(task['state'] == 'delivered' and task.get('delivery')
+                                   for task in goal['tasks']):
+                raise InvalidTransition('Saved Task delivery is awaiting verification')
             goal['_mission']['plan_conclusion']=dict(plan_revision=payload['plan_revision'],summary=payload['summary'],actor=actor,criteria_verdicts=verdicts)
             if all_met:
                 goal.update(state='delivered',reason=None)
@@ -443,7 +458,8 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 state['suspended']=True
                 goal.update(state='waiting',reason='organizer_waiting_user')
         elif kind in {'pause', 'cancel', 'resume', 'delegate_next'}:
-            if kind=='resume' and '_mission' in goal and goal['state']=='waiting_review':
+            if kind=='resume' and '_mission' in goal and (goal['state']=='waiting_review'
+                    or (goal['state']=='delivered' and goal['reason']=='partial_delivery')):
                 object_fields(payload,set())
                 from .mission_reviews import explicit_resume
                 explicit_resume(service,goal,document['operation_id'])

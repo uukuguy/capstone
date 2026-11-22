@@ -15,6 +15,8 @@ def published_goal_refs(events, attempt_id):
         if event.get('attempt_id') != attempt_id or event.get('event_type') != 'native_artifact_published':
             continue
         artifact = event.get('payload', {}).get('artifact', {})
+        if artifact.get('source_status') != 'completed':
+            continue
         for key in ('artifact_id', 'file_name'):
             value = artifact.get(key)
             if isinstance(value, str) and value.strip():
@@ -218,7 +220,8 @@ def apply_terminal_goal_proposal(snapshot, context, attempt_id, proposal, *,
         from .session_goal_plan import qualify_planned_review
         work['goal_plan'] = qualify_planned_review(
             work['goal_plan'], progress, (*saved_product_refs, *saved_authority_refs),
-            objective=goal['objective'], attempt_id=attempt_id)
+            objective=goal['objective'], attempt_id=attempt_id,
+            remaining_attempts=goal['max_attempts'] - goal['attempts_admitted'])
     work['goal_mode'] = settled
     work.pop('goal_continuation', None)
     if settled['state'] == 'ready':

@@ -55,6 +55,11 @@ function readBody(result:unknown,index:number) {
   return entry.text
 }
 
+function entryKey(entry:Entry,snapshot:string) {
+  return JSON.stringify([entry.index,entry.digest??snapshot,entry.carrier,entry.role,
+    entry.messageIndex,entry.name,entry.source_id,entry.origin,entry.truncated,entry.redacted])
+}
+
 function compareEntries(before:Entry[],after:Entry[]) {
   const remaining=[...before]
   const added:Entry[]=[],changed:Difference[]=[]
@@ -119,39 +124,64 @@ function DifferenceRow({difference,attempt,previous,snapshot,read}:{difference:D
   </details></li>
 }
 
-export default function RequestContextEntries({attempt,snapshot,previous,category,read,onResetCategory,onIndexReady}:{
-  attempt:string;snapshot:string;previous?:string;category?:Category;read:ReadRequestContext;onResetCategory?:()=>void;onIndexReady?:()=>void
+export default function RequestContextEntries({attempt,snapshot,previous,category,read,onResetCategory,onIndexReady,onIndexUnavailable}:{
+  attempt:string;snapshot:string;previous?:string;category?:Category;read:ReadRequestContext;onResetCategory?:()=>void;onIndexReady?:()=>void;onIndexUnavailable?:()=>void
 }){
-  const [document,setDocument]=useState<Snapshot>()
-  const [selected,setSelected]=useState<number>()
+  const [loaded,setLoaded]=useState<{snapshot:string;document:Snapshot}>()
+  const [selected,setSelected]=useState<string>()
   const [text,setText]=useState<string>()
   const [status,setStatus]=useState('')
+  const [indexStatus,setIndexStatus]=useState('')
   const [comparisonOpen,setComparisonOpen]=useState(false)
   const [comparisonStatus,setComparisonStatus]=useState('')
   const comparisonRequest=useRef<AbortController>(undefined)
   const [earlier,setEarlier]=useState<Snapshot>()
   const pending=useRef<AbortController>(undefined)
-  const loadIndex=useEffectEvent(()=>void load())
+  const loadIndex=useEffectEvent((signal:AbortSignal)=>{
+    setIndexStatus('正在更新请求索引…')
+    void read(attempt,snapshot,undefined,signal).then(value=>{
+      if(signal.aborted)return
+      const document=snapshotIndex(value)
+      setLoaded({snapshot,document})
+      setIndexStatus('')
+      onIndexReady?.()
+    }).catch(error=>{
+      if(signal.aborted)return
+      pending.current?.abort()
+      setLoaded(undefined)
+      setSelected(undefined)
+      setText(undefined)
+      setStatus('')
+      onIndexUnavailable?.()
+      setIndexStatus(error instanceof ThreadTransportError&&(error.status===403||error.status===401)
+        ?'当前入口无法查看受保护正文。下方仍可查看用量摘要。'
+        :'请求正文暂时无法读取。')
+    })
+  })
   useEffect(()=>{
-    loadIndex()
-    return ()=>{pending.current?.abort();comparisonRequest.current?.abort()}
+    const controller=new AbortController()
+    loadIndex(controller.signal)
+    setEarlier(undefined)
+    setComparisonOpen(false)
+    setComparisonStatus('')
+    return ()=>{controller.abort();comparisonRequest.current?.abort()}
   },[attempt,snapshot])
+  useEffect(()=>()=>pending.current?.abort(),[])
 
-  async function load(index?:number) {
+  async function load(entry:Entry) {
+    if(!loaded)return
+    const key=entryKey(entry,loaded.snapshot)
     pending.current?.abort()
     const controller=new AbortController()
     pending.current=controller
-    setSelected(index===selected?undefined:index)
+    setSelected(key===selected?undefined:key)
     setText(undefined)
-    if(index!==undefined&&index===selected){setStatus('');return}
+    if(key===selected){setStatus('');return}
     setStatus('正在读取…')
     try {
-      const result=await read(attempt,snapshot,index,controller.signal)
+      const result=await read(attempt,loaded.snapshot,entry.index,controller.signal)
       if(controller.signal.aborted)return
-      if(index===undefined){setDocument(snapshotIndex(result));onIndexReady?.()}
-      else {
-        setText(readBody(result,index))
-      }
+      setText(readBody(result,entry.index))
       setStatus('')
     } catch(error) {
       if(controller.signal.aborted)return
@@ -182,13 +212,18 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
       if(!controller.signal.aborted)setComparisonStatus('上一请求暂时无法读取。')
     }
   }
-  const comparison=document&&earlier?compareEntries(earlier.entries,document.entries):undefined
+  const document=loaded?.document
+  const currentIndex=loaded?.snapshot===snapshot
+  const comparison=currentIndex&&document&&earlier?compareEntries(earlier.entries,document.entries):undefined
   const entries=document?.entries.filter(entry=>!category||entry.carrier===category)??[]
   const toolCalls=new Map(document?.entries.flatMap(entry=>
     entry.role==='toolCall'&&entry.source_id?[[entry.source_id,entry.index] as const]:[]))
-  const renderEntry=(entry:Entry)=><li key={entry.index}><details className="capstone-call-tool context-entry" open={selected===entry.index}>
-          <summary className="context-entry-open" role="button" aria-label={`${entry.index} ${rowTitle(entry)}`} aria-expanded={selected===entry.index}
-            onClick={event=>{event.preventDefault();void load(entry.index)}}>
+  const renderEntry=(entry:Entry)=>{
+    const key=entryKey(entry,loaded?.snapshot??snapshot)
+    const open=selected===key
+    return <li key={key}><details className="capstone-call-tool context-entry" open={open}>
+          <summary className="context-entry-open" role="button" aria-label={`${entry.index} ${rowTitle(entry)}`} aria-expanded={open}
+            onClick={event=>{event.preventDefault();void load(entry)}}>
             <ChevronRight aria-hidden="true"/>
             <small className="context-entry-index">{entry.index}</small>
             <i className="context-category-dot" data-category={entry.carrier} aria-hidden="true"/>
@@ -199,9 +234,9 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
             {entry.role==='toolResult'&&entry.source_id&&toolCalls.has(entry.source_id)&&
               <small className="context-entry-role">调用 #{toolCalls.get(entry.source_id)}</small>}
             {(entry.redacted||entry.truncated)&&<small className="context-entry-state">{[entry.redacted?'已遮蔽':'',entry.truncated?'已截断':''].filter(Boolean).join(' · ')}</small>}
-            {entry.preview&&selected!==entry.index&&<span className="context-message-preview">{entry.preview}</span>}
+            {entry.preview&&!open&&<span className="context-message-preview">{entry.preview}</span>}
           </summary>
-          {selected===entry.index&&<div className="capstone-call-tool-detail context-entry-body">
+          {open&&<div className="capstone-call-tool-detail context-entry-body">
             {entry.origin&&<p className="context-entry-origin">
               {entry.origin.id} · {entry.origin.revision}
               {entry.origin.offset!==undefined&&entry.origin.length!==undefined&&
@@ -211,20 +246,22 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
             {text!==undefined&&<RequestContextBody text={text}/>}
           </div>}
         </details></li>
+  }
   return <section className="context-request-entries" aria-label="实际请求正文">
     <div className="context-section-title">
       <h4>实际请求正文</h4>
       <div className="context-request-actions">
         {document&&category&&<button type="button" onClick={onResetCategory}>显示全部分类</button>}
-        {document&&previous&&<button className="context-compare-action" type="button" aria-pressed={comparisonOpen}
+        {currentIndex&&previous&&<button className="context-compare-action" type="button" aria-pressed={comparisonOpen}
           title="与上一请求对比" onClick={()=>void toggleComparison()}>
           <GitCompareArrows size={14} aria-hidden="true"/>对比上一请求
         </button>}
       </div>
     </div>
-    {status&&<p role="status">{status}</p>}
+    {!document&&indexStatus&&<p role="status">{indexStatus}</p>}
+    {status&&document?.entries.some(entry=>entryKey(entry,loaded!.snapshot)===selected)&&<p role="status">{status}</p>}
     {document&&<>
-      <small>{document.modelId&&`${document.modelId} · `}已采集 {document.entries.length} / {document.total_entries} 项，按 SDK 输入顺序</small>
+      <small>{!currentIndex&&'正在更新 · '}{document.modelId&&`${document.modelId} · `}已采集 {document.entries.length} / {document.total_entries} 项，按 SDK 输入顺序</small>
       {comparisonOpen&&<section className="context-request-diff capstone-call-tool-detail" aria-label="与上一请求的差异">
         {comparisonStatus&&<p role="status">{comparisonStatus}</p>}
         {comparison&&previous&&<>
@@ -254,7 +291,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
             return groups
           },[]).map(group=>group[0].messageIndex===undefined
             ?renderEntry(group[0])
-            :<li className="context-input-message" key={group[0].index}>
+            :<li className="context-input-message" key={`message:${group[0].messageIndex}:${group[0].index}`}>
               <small>消息 {group[0].messageIndex}</small>
               <ol>{group.map(renderEntry)}</ol>
             </li>)}</ol>

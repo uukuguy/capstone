@@ -1,5 +1,6 @@
 """Application assembly for Control and the public Agent delegation port."""
 import logging
+import time
 
 from fastapi import HTTPException, Query, Request
 
@@ -16,6 +17,7 @@ class ControlHost:
         self.service, self.agent, self.verify_product = service, agent, verify_product
         self.verify_answer = verify_answer
         self.cursor = None
+        self._admission_retry_at = {}
 
     def create_mission(self, workspace, request, *, claim=None):
         from .mission_origin import checked_origin, access
@@ -66,7 +68,7 @@ class ControlHost:
         model_turn = None if claim is None else ('review' if (claim.submission or {}).get('_mission_review') else 'instruction')
 
         def apply():
-            if mission.get('origin') is not None and command['kind'] == 'update_plan':
+            if mission.get('origin') is not None and command['kind'] in {'update_plan', 'resume'}:
                 current = self.service.read_mission(workspace, mission_id)
                 if (current['revision'] == command['expected_revision']
                         and current['state'] == 'delivered' and current.get('reason') == 'partial_delivery'):
@@ -187,38 +189,60 @@ class ControlHost:
                 if goal['state'] not in {'ready', 'running','waiting_review'}:
                     continue
                 for task in goal['tasks']:
-                    names = task.get('required_products', [])
-                    if task['state'] != 'delivered':
+                    try:
+                        names = task.get('required_products', [])
+                        if task['state'] != 'delivered':
+                            continue
+                        missing = set(task.get('required_reference_sources', ())) - task['delivery'].keys()
+                        if missing:
+                            goal = self._defer_verification(goal, task)
+                            continue
+                        products = {p['file_name']: p for p in task['delivery']['products']}
+                        if any(name not in products for name in names):
+                            goal = self._defer_verification(goal, task)
+                            continue
+                        checks = []
+                        selected = [products[name] for name in names] if names else task['delivery']['products']
+                        for product in selected:
+                            self.verify_product(workspace, product)
+                            checks.append({'name': product['file_name'] + ' · saved SHA-256 ' + product['sha256'], 'passed': True})
+                        if not checks and self.verify_answer is not None:
+                            binding = task['delegation']['binding']
+                            if task.get('origin_attempt_id'):
+                                binding = {**binding, 'attempt_id': task['origin_attempt_id']}
+                            self.verify_answer(workspace, binding, task['delivery']['answer_ref'])
+                            checks.append({'name':'Saved answer reference '+task['delivery']['answer_ref'],'passed':True})
+                        if not checks:
+                            goal = self._defer_verification(goal, task)
+                            continue
+                        goal = self._command(goal, 'verify_task', {
+                            'task_id': task['task_id'], 'delivery_revision': task['delivery']['revision'], 'checks': checks})
+                    except Exception as error:
+                        from .native_failure_origin import native_failure_origin
+                        logging.getLogger(__name__).warning(
+                            'Mission Task verification failed; task_id=%s origin=%s',
+                            task['task_id'], native_failure_origin(error))
+                        try:
+                            goal = self._defer_verification(goal, task)
+                        except Exception as deferred:
+                            logging.getLogger(__name__).warning(
+                                'Mission Task verification status unavailable; task_id=%s exception_type=%s',
+                                task['task_id'], type(deferred).__name__)
                         continue
-                    missing = set(task.get('required_reference_sources', ())) - task['delivery'].keys()
-                    if missing:
-                        continue
-                    products = {p['file_name']: p for p in task['delivery']['products']}
-                    if any(name not in products for name in names):
-                        continue
-                    checks = []
-                    selected = [products[name] for name in names] if names else task['delivery']['products']
-                    for product in selected:
-                        self.verify_product(workspace, product)
-                        checks.append({'name': product['file_name'] + ' · saved SHA-256 ' + product['sha256'], 'passed': True})
-                    if not checks and self.verify_answer is not None:
-                        binding = task['delegation']['binding']
-                        if task.get('origin_attempt_id'):
-                            binding = {**binding, 'attempt_id': task['origin_attempt_id']}
-                        self.verify_answer(workspace, binding, task['delivery']['answer_ref'])
-                        checks.append({'name':'Saved answer reference '+task['delivery']['answer_ref'],'passed':True})
-                    if not checks:
-                        if goal.get('reason')!='delivery_verification_unavailable':
-                            goal=self._command(goal,'defer_verification',{'task_id':task['task_id'],'reason':'delivery_verification_unavailable'})
-                        continue
-                    goal = self._command(goal, 'verify_task', {
-                        'task_id': task['task_id'], 'delivery_revision': task['delivery']['revision'], 'checks': checks})
                 if goal['state'] not in {'ready', 'running'}:
                     continue
                 active = {'dispatching', 'running', 'waiting', 'resume_requested', 'revoke_requested'}
                 verified = {t['task_id'] for t in goal['tasks'] if t['state'] == 'verified'}
                 if (not any(t['state'] in active for t in goal['tasks']) and
                         any(t['state'] == 'pending' and set(t['depends_on']) <= verified for t in goal['tasks'])):
+                    identity = (workspace, goal_id)
+                    now = time.monotonic()
+                    if goal.get('reason') == 'task_admission_unavailable':
+                        if now < self._admission_retry_at.get(identity, 0):
+                            continue
+                        self._admission_retry_at[identity] = now + 30
+                    else:
+                        self._admission_retry_at.pop(identity, None)
                     self._command(goal, 'delegate_next', {})
             except Exception:
                 # A failed check never releases a dependency. Retain the exact
@@ -231,6 +255,17 @@ class ControlHost:
             'schema': 'capstone-control-command/1', 'operation_id': operation,
             'goal_id': goal['goal_id'], 'expected_revision': goal['revision'],
             'kind': kind, 'payload': payload}, actor='application:saved-products')['goal']
+
+    def _defer_verification(self, goal, task):
+        reason = 'delivery_verification_unavailable'
+        if goal.get('application_kind') == 'mission':
+            current = next((item for item in goal['tasks'] if item['task_id'] == task['task_id']), task)
+            recorded = current.get('failure_reason') == reason
+        else:
+            recorded = goal.get('reason') == reason
+        if recorded:
+            return goal
+        return self._command(goal, 'defer_verification', {'task_id': task['task_id'], 'reason': reason})
 
 
 def configure_control(threads, *, wake=None):

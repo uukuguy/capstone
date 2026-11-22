@@ -41,7 +41,7 @@ def test_planning_receipt_is_bound_by_the_host():
 
     work = {"work_id": "work_a", "goal_mode": {
         "objective": "Build a benchmark.", "objective_revision": 2,
-        "generation": 3, "state": "ready", "attempts_admitted": 0,
+        "generation": 3, "state": "ready", "attempts_admitted": 0, "max_attempts": 2,
     }}
     receipt = bind_initial_goal_plan(
         proposal(), thread_id="thr_a", work=work, objective_revision=2, generation=3,
@@ -52,6 +52,12 @@ def test_planning_receipt_is_bound_by_the_host():
     assert receipt["generation"] == 3
     assert receipt["plan_revision"] == 1
     assert receipt["plan"]["steps"][0]["instruction"] == "Verify the source data."
+    oversized = proposal()
+    oversized["steps"].append({"instruction": "Publish.", "expected_result": "Published report."})
+    with pytest.raises(ValueError, match="remaining execution budget"):
+        bind_initial_goal_plan(
+            oversized, thread_id="thr_a", work=work, objective_revision=2, generation=3,
+        )
 
 
 @pytest.mark.parametrize("changed", [
@@ -88,14 +94,16 @@ def test_goal_review_requires_evidence_for_every_criterion():
     from capstone_agent.session_goal_plan import qualify_planned_review
 
     plan = {"plan": proposal(), "step_index": 1, "review_refs": ["source.md"]}
-    progress = {"disposition": "complete", "product_refs": []}
+    progress = {"disposition": "complete", "product_refs": [], "summary": "The source was verified."}
     with pytest.raises(ValueError, match="every criterion"):
         qualify_planned_review(plan, progress, ())
     progress["criteria"] = [{"index": 0, "verdict": "met", "refs": ["unknown.md"]}]
     with pytest.raises(ValueError, match="saved references"):
         qualify_planned_review(plan, progress, ())
     progress["criteria"][0]["refs"] = ["source.md"]
-    assert qualify_planned_review(plan, progress, ())["criteria"] == progress["criteria"]
+    reviewed = qualify_planned_review(plan, progress, ())
+    assert reviewed["criteria"] == progress["criteria"]
+    assert reviewed["closure_summary"] == progress["summary"]
 
 
 def test_review_can_replace_only_unexecuted_steps():
@@ -113,6 +121,24 @@ def test_review_can_replace_only_unexecuted_steps():
     assert updated["plan"]["steps"][0] == current["plan"]["steps"][0]
     assert updated["plan"]["criteria"] == current["plan"]["criteria"]
     assert updated["plan"]["steps"][1]["instruction"] == "Repair source data."
+    with pytest.raises(ValueError, match="remaining execution budget"):
+        qualify_planned_review(current, progress, ("source.md",), remaining_attempts=1)
+
+
+def test_final_step_can_add_evidence_backed_repair_without_changing_completed_steps():
+    from capstone_agent.session_goal_plan import qualify_planned_review
+
+    current = {"plan": proposal(), "step_index": 1, "plan_revision": 1,
+               "review_refs": ["source.md"]}
+    progress = {"disposition": "continue", "summary": "Report needs a missing comparison.",
+                "next_instruction": "Add the missing comparison.", "product_refs": ["source.md"],
+                "remaining_steps": [{"instruction": "Add the missing comparison.",
+                                     "expected_result": "Saved comparison."}]}
+    revised = qualify_planned_review(current, progress, (), objective="Build a benchmark.", remaining_attempts=1)
+    assert revised['plan']['steps'][:2] == current['plan']['steps']
+    assert revised['plan']['criteria'] == current['plan']['criteria']
+    assert revised['step_index'] == 2
+    assert revised['last_decision'] == progress['summary']
 
 
 def test_provider_objective_echo_does_not_change_the_saved_plan(monkeypatch):
@@ -170,15 +196,21 @@ def test_initial_plan_repairs_invalid_criteria_without_user_input(monkeypatch):
     assert 'Goal plan text is required' in requests[1][0]
 
 
-def test_premature_completion_runs_the_next_saved_step(monkeypatch):
+@pytest.mark.parametrize("disposition", ["complete", "partial", "wait"])
+def test_premature_closure_runs_the_next_saved_step(monkeypatch, disposition):
     from capstone_agent import session_goal_plan
 
     proposed = {
-        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'complete',
+        'schema': 'capstone-work-goal-proposal/1', 'disposition': disposition,
         'summary': 'The source is verified.', 'next_instruction': None,
         'waiting_reason': None, 'product_refs': ['source.md'],
         'criteria': [{'index': 0, 'verdict': 'met', 'refs': ['source.md']}],
     }
+    if disposition == "partial":
+        proposed["criteria"] = [{"index": 0, "verdict": "unknown", "refs": []}]
+    elif disposition == "wait":
+        proposed.pop("criteria")
+        proposed["waiting_reason"] = "Source signature needs verification."
     monkeypatch.setattr(session_goal_plan, '_request_plan_model', lambda *_: proposed)
     result = session_goal_plan.request_step_review(
         {'objective': 'Build a benchmark.'}, {'plan': proposal()}, {'product_refs': ['source.md']})
@@ -186,6 +218,9 @@ def test_premature_completion_runs_the_next_saved_step(monkeypatch):
     assert result['next_instruction'] == 'Run the benchmark.'
     assert result['product_refs'] == ['source.md']
     assert 'criteria' not in result
+    assert result["waiting_reason"] is None
+    if disposition == "wait":
+        assert proposed["waiting_reason"] in result["summary"]
 
 
 def test_review_request_marks_the_next_saved_step_separately_from_final_criteria(monkeypatch):
@@ -258,25 +293,35 @@ def test_review_accepts_a_continuation_with_admitted_prior_product(monkeypatch):
     assert len(requests) == 1
 
 
-def test_review_keeps_saved_products_when_both_model_proposals_are_invalid(monkeypatch):
+@pytest.mark.parametrize("step_index, disposition", [(0, "continue"), (1, None)])
+def test_review_keeps_saved_products_when_both_model_proposals_are_invalid(monkeypatch, step_index, disposition):
     from capstone_agent import session_goal_plan
 
     calls = []
 
     def invalid_review(*args):
         calls.append(args)
+        if step_index == 0:
+            return {
+                "schema": "capstone-work-goal-proposal/1", "disposition": "continue",
+                "summary": "Continue with the reported source.", "next_instruction": "Run the benchmark.",
+                "waiting_reason": None, "product_refs": ["unavailable.md"],
+            }
         return {"unexpected_field": "not a valid proposal"}
 
     monkeypatch.setattr(session_goal_plan, "_request_plan_model", invalid_review)
     plan = proposal()
     result = session_goal_plan.request_step_review(
-        {"objective": "Build a benchmark."}, {"plan": plan}, {"product_refs": ["report.md"]})
+        {"objective": "Build a benchmark."}, {"plan": plan, "step_index": step_index},
+        {"product_refs": ["report.md"]})
     assert len(calls) == 2
-    assert result["disposition"] == "partial"
-    assert result["product_refs"] == ["report.md"]
-    assert result["criteria"] == [
-        {"index": index, "verdict": "unknown", "refs": []}
-        for index, _ in enumerate(plan["criteria"])]
+    if disposition == "continue":
+        assert result["disposition"] == disposition
+        assert result["product_refs"] == ["report.md"]
+        assert result["next_instruction"] == plan["steps"][1]["instruction"]
+        assert "criteria" not in result
+    else:
+        assert result is None
 
 
 def test_partial_goal_review_records_unmet_criteria_and_explanation():

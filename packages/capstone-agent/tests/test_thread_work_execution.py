@@ -145,6 +145,81 @@ def test_queue_enforces_frozen_host_capacity_including_withdrawn(queue_store):
     assert [item['id'] for item in store.peek_instructions(claim)] == ['cmd_capacity_two']
 
 
+@pytest.mark.parametrize('phase', ['completed', 'failed'])
+def test_conversation_preserves_queue_overflow_for_next_attempt(queue_store, phase):
+    store, thread_id = queue_store
+    store._native_binding['capability']['instruction_limit'] = 1
+    assert store.submit_command(command(store, thread_id, 'send_message', 'overflow_start',
+        payload={'text': 'Start'})).status == 'accepted'
+    claim = store.claim_attempt('overflow_worker', 30)
+    for name in ('inline_input', 'deferred_input'):
+        work = store.snapshot(thread_id).works[0]
+        assert store.submit_command(command(store, thread_id, 'queue_instruction', name,
+            work_id=work['work_id'], revision=work['revision'], payload={'text': name})).status == 'accepted'
+    assert [item['id'] for item in store.peek_instructions(claim)] == ['cmd_inline_input']
+    store.reserve_instruction(claim, 'cmd_inline_input')
+    if phase == 'completed':
+        store.acknowledge_instruction(claim, 'cmd_inline_input')
+    store.finish_attempt(claim, phase=phase, payload={'answer': 'Saved' if phase == 'completed' else 'Failed'})
+    next_attempt = store.claim_attempt('overflow_successor', 30)
+    assert next_attempt.instruction == 'deferred_input'
+    assert next_attempt.attempt.attempt_id != claim.attempt.attempt_id
+    assert store.peek_instructions(next_attempt) == ()
+    queue = store.snapshot(thread_id).works[0]['instruction_queue']
+    assert queue[0]['state'] == ('admitted' if phase == 'completed' else 'delivery_unknown')
+    assert queue[0]['attempt_id'] == claim.attempt.attempt_id
+
+
+@pytest.mark.parametrize('draft', [False, True])
+@pytest.mark.parametrize('outcome', ['completed', 'failed', 'unknown'])
+def test_queued_attachment_keeps_admitted_resource_version(queue_store, draft, outcome):
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.resource_manifest import checked_resource
+    from capstone_agent.thread_resources import ResourceUploads
+
+    store, thread_id = queue_store
+    objects = MemoryObjectStore()
+    store.set_material_store(objects)
+    uploads = ResourceUploads(store, objects, chunk_bytes=4)
+    assert store.submit_command(command(store, thread_id, 'send_message', 'attachment_source',
+        payload={'text': 'Start'})).status == 'accepted'
+    first = store.claim_attempt('attachment_source_worker', 30)
+    upload = uploads.begin(thread_id, 'data.txt', 4, 'original', draft=draft)['upload_id']
+    original_upload = upload
+    uploads.part(thread_id, upload, 0, b'old!')
+    original = uploads.complete(thread_id, upload)
+    work = store.snapshot(thread_id).works[0]
+    queued = command(store, thread_id, 'queue_instruction', 'attach_after', work_id=work['work_id'],
+        revision=work['revision'], payload={'text': 'Read the attachment', 'attachment_refs': [original['resource_id']]})
+    receipt = store.submit_command(queued)
+    assert receipt.status == 'accepted'
+    assert store.submit_command(queued) == receipt
+    assert store.peek_instructions(first) == ()
+    if draft:
+        with pytest.raises(ValueError, match='queued attachments'):
+            uploads.cancel(thread_id, original_upload)
+    else:
+        upload = uploads.begin(thread_id, 'data.txt', 4, 'replacement',
+                               resource_id=original['resource_id'], expected_version=1)['upload_id']
+        uploads.part(thread_id, upload, 0, b'new!')
+        assert uploads.complete(thread_id, upload)['version'] == 2
+    payload = {'answer': 'Saved'}
+    if outcome != 'completed':
+        payload = {'answer': 'Previous instruction failed', 'error_code': 'native_runtime_failed',
+                   'outcome': {'execution_state': 'unknown'} if outcome == 'unknown' else {}}
+    store.finish_attempt(first, phase='completed' if outcome == 'completed' else 'failed', payload=payload)
+    successor = store.claim_attempt('attachment_successor', 30)
+    if outcome == 'unknown':
+        assert successor is None
+        assert store.snapshot(thread_id).works[0]['instruction_queue'][0]['state'] == 'pending'
+        return
+    assert successor.submission['attachment_refs'] == [original['resource_id']]
+    assert successor.submission['_resource_manifests'] == [checked_resource(original)]
+    assert b''.join(uploads.read(thread_id, original['resource_id'], version=1)) == b'old!'
+    with pytest.raises(ValueError, match='published resources'):
+        uploads.cancel(thread_id, original_upload)
+
+
 def test_instruction_delivery_survives_store_restart(queue_store):
     from capstone_agent.thread_service import PostgresThreadService
     store, thread_id = queue_store

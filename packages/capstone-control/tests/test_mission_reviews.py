@@ -24,6 +24,30 @@ def complete_task(control,mission,number=1,**delivery_fields):
     return control.read_mission('team',mission['mission_id'])
 
 
+@pytest.mark.parametrize('review_outcome', ['failed', 'blocked'])
+def test_review_fault_does_not_hold_an_admitted_independent_task(review_outcome):
+    control = service()
+    mission = create(control, acceptance_criteria=['Saved outputs'])
+    mission = command(control, mission, 'update_plan', {'tasks': [task(), task('task_2')]})
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = complete_task(control, mission)
+    intent, = control.pending_mission_reviews('team')
+    if review_outcome == 'blocked':
+        control.block_mission_review('team', mission['mission_id'], intent['review_id'], 'origin_unavailable')
+    else:
+        control.reserve_mission_review('team', mission['mission_id'], intent['review_id'])
+        control.acknowledge_mission_review('team', mission['mission_id'], intent['review_id'],
+            dict(thread_id='thread_1', work_id='origin_work', attempt_id='review_1'))
+        control.finish_mission_review('team', mission['mission_id'], intent['review_id'],
+            attempt_id='review_1', phase='failed')
+    mission = control.read_mission('team', mission['mission_id'])
+    assert mission['state'] == 'ready'
+    assert mission['organizer']['state'] == review_outcome
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch_next')
+    assert mission['tasks'][0]['state'] == 'verified'
+    assert mission['tasks'][1]['state'] == 'dispatching'
+
+
 def test_verified_authority_source_reaches_review_and_declared_dependent():
     control = service()
     source = dict(thread_id='task_thread_1', work_id='task_work_1',

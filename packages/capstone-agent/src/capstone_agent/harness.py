@@ -705,6 +705,9 @@ class HarnessAttemptRunner:
         self._tool_events: list[Mapping[str, object]] = []
         self._retained_file_ids: set[str] = set()
         self._runtime_failure_code: str | None = None
+        self._runtime_launch_not_started = False
+        self._runtime_execution_unknown = False
+        self._runtime_retained_completed = False
         self._runtime_transport_detail = ''
         self._runtime_failure_origin: list[dict] = []
         self._runtime_timeout_seconds: float | None = None
@@ -730,6 +733,9 @@ class HarnessAttemptRunner:
         self._tool_events.clear()
         self._retained_file_ids.clear()
         self._runtime_failure_code = None
+        self._runtime_launch_not_started = False
+        self._runtime_execution_unknown = False
+        self._runtime_retained_completed = False
         self._runtime_transport_detail = ''
         self._runtime_failure_origin = []
         self._runtime_timeout_seconds = None
@@ -1090,6 +1096,14 @@ class HarnessAttemptRunner:
                 and isinstance(payload.get('failure_code'), str)
                 and payload['failure_code'] in NATIVE_FAILURE_REASONS):
             self._runtime_failure_code = payload['failure_code']
+            self._runtime_launch_not_started = (
+                payload.get('failure') == {'code': 'native_launch_not_started', 'phase': 'execution'})
+            self._runtime_execution_unknown = (payload['failure_code'] in {
+                'native_execution_outcome_unknown', 'native_process_cleanup_unconfirmed'}
+                or (payload['failure_code'] in {'native_transport_timeout', 'native_transport_failed',
+                                                'native_executor_http_rejected', 'native_task_deadline'}
+                    and payload.get('cancellation_confirmed') is False))
+            self._runtime_retained_completed = payload.get('retained_terminal_status') == 'completed'
             self._runtime_transport_detail = native_transport_summary(payload.get('transport_failure'))
             from .native_failure_origin import checked_failure_origin
             self._runtime_failure_origin = checked_failure_origin(payload.get('failure_origin'))
@@ -1129,6 +1143,10 @@ class HarnessAttemptRunner:
             answer = "本次未能启动任务处理，尚未执行计算。请求处理服务暂时不可用，请稍后重试。"
         if code in {'native_executor_http_rejected', 'native_transport_timeout'}:
             answer += self._runtime_transport_detail
+        if code == self._runtime_failure_code and self._runtime_retained_completed:
+            answer += '已取得原执行的完成回执，系统会继续核对交付。'
+        elif code == self._runtime_failure_code and self._runtime_execution_unknown:
+            answer += '原执行终态尚未确认，系统会继续核对。'
         if code == "answer_reference_capacity_exceeded":
             answer = "本次任务产生的结果与证据数量超过单次回答的处理容量，未能汇总全部结论。计算记录仍保留，数量限制不表示这些计算失败。"
         failure = self._runtime_capacity_failure
@@ -1164,6 +1182,12 @@ class HarnessAttemptRunner:
         }
         if failure is not None:
             payload['failure'] = failure
+        if code == 'native_launch_not_started' and self._runtime_launch_not_started:
+            cast(dict, payload['outcome'])['execution_state'] = 'confirmed_not_started'
+        elif code == self._runtime_failure_code and self._runtime_retained_completed:
+            cast(dict, payload['outcome'])['execution_state'] = 'delivery_recovery_pending'
+        elif code == self._runtime_failure_code and self._runtime_execution_unknown:
+            cast(dict, payload['outcome'])['execution_state'] = 'unknown'
         if self._runtime_failure_origin:
             payload['failure_origin'] = self._runtime_failure_origin
             origin = self._runtime_failure_origin[-1]

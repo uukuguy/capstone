@@ -13,6 +13,33 @@ from test_thread_postgres import postgres_thread_service
 from test_thread_work_execution import command
 
 
+@pytest.mark.parametrize('professional', [False, True])
+def test_unavailable_product_does_not_discard_other_selected_versions(professional):
+    from dataclasses import replace
+    from capstone_agent.thread_products import freeze_product_selection, render_product_context
+    store = _service()
+    _, executor = native_file(store, 'thr_demo_39', b'Exact report', name='report.md')
+    executor.capability = native_executor().capability
+    store.set_native_executor(executor)
+    snapshot = store.snapshot('thr_demo_39')
+    if not professional:
+        snapshot = replace(snapshot, active_model_context=None, active_grid_page_id=None,
+                           minimum_protocol_version=2, current_attempt=None)
+    entry = next(item for item in product_index(store, snapshot.thread_id)['products']
+                 if item['ref']['origin'] == 'native_file')
+    good = {'ref': entry['ref'], 'purpose': 'historical-context'}
+    missing = {**good, 'ref': {**entry['ref'], 'digest': '0' * 64}}
+    frozen, reason = freeze_product_selection(store, snapshot, {'context_product_refs': [missing, good]}, {})
+    assert reason is None
+    assert frozen['context_product_refs'] == [good]
+    assert frozen['_unavailable_product_selections'] == [1]
+    if professional:
+        assert 'Product selection 1 was unavailable' in render_product_context(frozen['_product_context'])
+    else:
+        assert frozen['_materials'][0]['file_name'] == 'report.md'
+        assert frozen['_material_notices'] == ['Product selection 1 was unavailable.']
+
+
 def test_product_selection_preserves_four_uploaded_inputs():
     from dataclasses import replace
     from capstone_agent.thread_products import freeze_product_selection

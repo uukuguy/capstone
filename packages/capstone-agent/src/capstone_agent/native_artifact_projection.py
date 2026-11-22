@@ -181,7 +181,14 @@ def _saved_artifact(objects, item):
         return None
     try:
         data = objects.get(artifact_object_key(item), limits.artifact_file_bytes)
+    except (KeyError, FileNotFoundError):
+        return None
     except Exception as error:
+        response = getattr(error, 'response', None)
+        detail = response.get('Error') if isinstance(response, dict) else None
+        if isinstance(detail, dict) and detail.get('Code') in {
+                'NoSuchKey', 'NotFound', '404'}:
+            return None
         import logging
         from .native_failure_origin import native_failure_origin
         logging.getLogger(__name__).warning('Durable artifact lookup failed; artifact_id=%s; origin=%s',
