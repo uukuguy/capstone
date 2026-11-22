@@ -84,3 +84,13 @@ it('reads the correct bodies only when a comparison item opens',async()=>{
     ['now',undefined],['before',undefined],['before',8],['now',3],['before',9],['now',4],
   ])
 })
+
+it('shows every captured entry in order while loading bodies on demand',async()=>{
+  const entries=Array.from({length:22},(_,i)=>({index:i+1,carrier:'system',role:'system'}))
+  const read=vi.fn(async()=>({schema:'capstone-model-context-snapshot/1',total_entries:entries.length,entries}))
+  render(<RequestContextEntries attempt="a" snapshot="now" read={read}/>)
+  expect(await screen.findByRole('button',{name:'22 系统提示'})).toBeTruthy()
+  expect(screen.getAllByRole('button').map(button=>button.getAttribute('aria-label'))).toEqual(
+    entries.map(entry=>`${entry.index} 系统提示`))
+  expect(read).toHaveBeenCalledTimes(1)
+})
