@@ -787,6 +787,14 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if local_dev_entry.issubset(paths) and all(
             path in local_dev_files or _control_path(path) for path in paths):
         return 'local-dev'
+    profile_catalog = 'configs/runtime/workbench-llm-profiles.json'
+    profile_files = {
+        profile_catalog, 'compose.yaml', 'deploy/local.env.example',
+        'tools/ci_scope.py', '.github/workflows/verify.yml',
+        'packages/capstone-agent/tests/test_workbench_llm_profiles.py',
+    }
+    if profile_catalog in paths and all(path in profile_files or _control_path(path) for path in paths):
+        return 'local-dev'
     continuity_manifest = Path(__file__).resolve().parents[1] / 'configs/development/execution-continuity-gate.json'
     if continuity_manifest.is_file():
         continuity = json.loads(continuity_manifest.read_text())

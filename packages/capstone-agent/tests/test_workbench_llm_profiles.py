@@ -2,6 +2,20 @@ import pytest
 from capstone_agent.workbench_llm_profiles import ProfileRegistry
 
 
+def test_local_qwen_preset_is_opt_in_and_keeps_its_endpoint_private():
+    profile_id = 'local-qwen-35b'
+    with pytest.raises(ValueError, match='unavailable'):
+        ProfileRegistry(environment={}).freeze(profile_id)
+    endpoint = 'http://host.docker.internal:19090/v1'
+    registry = ProfileRegistry(environment={'CAPSTONE_LOCAL_QWEN_BASE_URL': endpoint})
+    profile = registry.resolve(registry.freeze(profile_id))
+    assert profile['base_url'] == endpoint
+    assert profile['context_policy']['context_window_tokens'] == 131072
+    assert profile['context_policy']['max_output_tokens'] == 4096
+    assert registry.catalog()['default_profile_id'] == 'commercial-deepseek-flash'
+    assert endpoint not in str(registry.catalog())
+
+
 def test_model_context_is_selected_per_profile_and_frozen_by_revision():
     registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'private'})
     selected = registry.freeze('commercial-deepseek-flash')

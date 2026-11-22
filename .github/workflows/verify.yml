@@ -159,6 +159,7 @@ jobs:
         run: |
           bash tools/test_local_rebuild.sh
           bash tools/test_demo_local_rebuild.sh
+          uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_workbench_llm_profiles.py -q
           npm ci --prefix packages/capstone-app
           npm run check --prefix packages/capstone-app
           npm test --prefix packages/capstone-app -- --run src/buildEnvironment.test.ts src/dev/localContextAccess.test.ts
