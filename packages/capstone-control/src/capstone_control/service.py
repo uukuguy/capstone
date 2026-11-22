@@ -170,6 +170,8 @@ class ControlService:
             metadata = self.store.read(workspace, goal_id)['_mission']
             result.update(schema='capstone-agent-delegation/2', equipment=deepcopy(task.get('equipment', [])),
                 restrictions=deepcopy(task.get('restrictions', [])), mission_origin=deepcopy(metadata['origin']))
+            if task.get('placement') == 'origin':
+                result['placement'] = 'origin'
             for kind in ('authority', 'gateway'):
                 field = kind + '_source'
                 sources = [deepcopy(previous['delivery'][field]) for previous in goal['tasks']

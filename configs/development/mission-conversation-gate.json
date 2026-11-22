@@ -6,6 +6,7 @@
     "packages/capstone-agent/src/capstone_agent/native_mission.py"
   ],
   "paths": [
+    "docs/superpowers/plans/2026-11-23-execution-continuity-remediation.md",
     "docs/superpowers/plans/2026-11-18-mission-versioned-resources.md",
     "docs/superpowers/specs/2026-11-18-mission-versioned-resources-design.md",
     "packages/capstone-agent/tests/test_agent_delegation.py",
@@ -26,6 +27,7 @@
     "packages/capstone-control/tests/test_mission_acceptance.py",
     "packages/capstone-agent/tests/fixtures/mission-resource-registration.mjs",
     "packages/capstone-agent/tests/test_delegation_resource_alias.py",
+    "packages/capstone-agent/tests/test_delegation_resources.py",
     "packages/capstone-agent/tests/test_mission_resource_protocol.py",
     "packages/capstone-agent/tests/test_general_pi_server.py",
     "packages/capstone-app/src/CapstoneAssistantThread.tsx",

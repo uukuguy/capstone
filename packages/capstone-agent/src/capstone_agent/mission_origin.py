@@ -144,6 +144,8 @@ def bind_submission(snapshot, work_id, submission, *, instruction=None):
         submission = {**(submission or {}), 'input': {**skill['input'], 'text': instruction},
                       'resource_profile': deepcopy(skill['resource_profile']),
                       'context_selection': {'include_refs': [], 'exclude_refs': []}}
+    if work.get('mission_origin_goal'):
+        return submission
     reference = next((ref for ref in reversed(snapshot.mission_refs)
                       if ref.get('work_id', work_id) == work_id), None)
     if reference is None:

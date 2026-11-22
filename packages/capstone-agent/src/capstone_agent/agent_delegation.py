@@ -33,7 +33,7 @@ def _request(value):
         fields |= {'equipment', 'restrictions', 'mission_origin'}
     if (not isinstance(value, dict) or not fields <= set(value)
             or set(value) - fields - {'control_revision', 'required_products', 'required_reference_sources'} - (
-                {'context_authority_sources', 'context_gateway_sources'} if v2 else set())
+                {'context_authority_sources', 'context_gateway_sources', 'placement'} if v2 else set())
             or value['schema'] not in {'capstone-agent-delegation/1', 'capstone-agent-delegation/2'}):
         raise ValueError('invalid Agent delegation contract')
     if v2:
@@ -42,6 +42,9 @@ def _request(value):
         references(value['equipment'])
         references(value['restrictions'])
         checked_origin(value['mission_origin'])
+        if value.get('placement', 'child') not in ('child', 'origin') or (
+                value.get('placement') == 'origin' and value['mode'] != 'goal'):
+            raise ValueError('Mission origin placement requires Goal mode')
         from capstone_control.contracts import authority_source
         for field in ('context_authority_sources', 'context_gateway_sources'):
             sources = value.get(field, [])
@@ -168,7 +171,8 @@ class AgentDelegations:
         def reserve(current):
             if current is None:
                 token = _digest([workspace, request['operation_id']])[:32]
-                current = {'request': request, 'digest': digest, 'thread_id': 'thr_' + token,
+                thread = request['mission_origin']['thread_id'] if request.get('placement') == 'origin' else 'thr_' + token
+                current = {'request': request, 'digest': digest, 'thread_id': thread,
                            'binding': None, 'control': None, 'control_receipts': {}}
             elif current['digest'] != digest:
                 raise DelegationConflict('delegation operation content conflict')
@@ -197,6 +201,8 @@ class AgentDelegations:
             if current['binding'] is not None:
                 return current, current['binding']
             request, thread = current['request'], current['thread_id']
+            in_origin = request.get('placement') == 'origin'
+            command_prefix = request['operation_id'] + ':' if in_origin else ''
             selection = None
             equipment_binding_revision = None
             source_binding = None
@@ -210,6 +216,8 @@ class AgentDelegations:
             try:
                 self.threads.require_workspace(thread, workspace)
             except ThreadNotFound:
+                if in_origin:
+                    raise
                 try:
                     self.threads.create_thread(ThreadSnapshot(thread, RunSnapshot('run_' + thread[4:], 'open'),
                         None, None, None, 0, 0, minimum_protocol_version=2,
@@ -217,9 +225,12 @@ class AgentDelegations:
                 except ValueError:
                     self.threads.require_workspace(thread, workspace)
             snapshot = self.threads.snapshot(thread)
-            if source_binding is not None and not snapshot.works:
+            if in_origin and (snapshot.current_attempt is not None or snapshot.active_model_context is not None
+                              or self.threads.is_archived(thread)):
+                raise DelegationConflict('Mission origin is unavailable for Goal admission')
+            if source_binding is not None and not in_origin and not snapshot.works:
                 self.threads.select_thread_gateway(thread, source_binding)
-            if not snapshot.works:
+            if in_origin or not snapshot.works:
                 text = request['objective'] + '\n\n交付要求：\n' + '\n'.join(request['delivery_requirements'])
                 if request.get('required_products'):
                     text += '\n必须保存的成果文件：' + json.dumps(request['required_products'], ensure_ascii=False)
@@ -228,13 +239,21 @@ class AgentDelegations:
                              '可另存有用的诊断或部分成果，但不要用必需成果名称保存说明、占位文件或替代内容。')
                 if request.get('required_reference_sources'):
                     text += '\n必须交付已注册工具签发的引用回执：' + json.dumps(request['required_reference_sources'])
-                self._command(thread, None, 'work_message', 'create-work', {'text': text})
-            work = self.threads.snapshot(thread).to_document()['works'][0]
+                receipt = self._command(thread, None, 'work_message', command_prefix + 'create-work', {'text': text})
+                work_id = (receipt.target or {}).get('id')
+            else:
+                work_id = snapshot.works[0]['work_id']
+
+            def read_work():
+                return next(item for item in self.threads.snapshot(thread).to_document()['works']
+                            if item['work_id'] == work_id)
+
+            work = read_work()
             if selection is not None:
                 from .mission_equipment import bind_work
                 bind_work(self.threads, workspace, thread, work['work_id'], selection,
-                    binding_revision=equipment_binding_revision, invocation=invocation)
-                work = self.threads.snapshot(thread).to_document()['works'][0]
+                    binding_revision=equipment_binding_revision, invocation=invocation, origin_goal=in_origin)
+                work = read_work()
             if request['context_products']:
                 from .delegation_resources import grant_resources
                 grant_resources(self.threads, workspace, thread, work['work_id'],
@@ -249,16 +268,18 @@ class AgentDelegations:
                 from .delegation_resources import grant_mission_uploads
                 grant_mission_uploads(self.threads, workspace, thread, work['work_id'],
                     request['delegation_id'], request['mission_origin'], upload_refs)
-            if work['latest_attempt_id'] is None and work['start_available']:
+            if work['latest_attempt_id'] is None and 'goal_mode' not in work and work['start_available']:
                 if request['mode'] == 'goal':
-                    self._command(thread, work, 'start_goal', 'start',
+                    self._command(thread, work, 'start_goal', command_prefix + 'start',
                         {'objective': work['goal'], 'max_attempts': request['max_attempts'],
                          'deadline_at': request['deadline_at']})
                 else:
                     self._command(thread, work, 'start_work', 'start')
+            admitted = read_work()
+            if in_origin and 'goal_mode' not in admitted:
+                raise DelegationConflict('Mission origin Goal has not started')
             binding = {'thread_id': thread, 'work_id': work['work_id']}
             current['binding'] = binding
-            admitted = self.threads.snapshot(thread).works[0]
             current['work_goal_revision'] = admitted['goal_revision']
             current['work_goal_digest'] = _digest(admitted['goal'])
             return current, binding

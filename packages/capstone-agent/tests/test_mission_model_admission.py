@@ -1,8 +1,7 @@
-"""Model planning rejects unregistered equipment before mutating durable plans."""
+"""Model planning records unavailable equipment without granting execution access."""
 from copy import deepcopy
 import pytest
 
-from capstone_control.contracts import ContractError
 from capstone_control.service import InvalidTransition
 from capstone_agent.control_host import configure_control
 from test_enterprise_normal_chat import chat_store, native_executor
@@ -20,7 +19,7 @@ def task(identity='next_task', **changes):
 
 @pytest.mark.parametrize('name', ['agent_mission_prepare_task', 'agent_mission_update_plan'])
 @pytest.mark.parametrize('invalid', ['resource_kind', 'stale_revision', 'unknown_id', 'unknown_restriction'])
-def test_model_invalid_equipment_never_enters_plan_or_changes_revision(chat_store, name, invalid):
+def test_model_unavailable_equipment_is_recorded_without_admission(chat_store, name, invalid):
     threads, thread_id = chat_store
     threads.set_native_executor(native_executor())
     host = configure_control(threads)
@@ -48,12 +47,15 @@ def test_model_invalid_equipment_never_enters_plan_or_changes_revision(chat_stor
         seen.append((workspace, deepcopy(origin), deepcopy(reference)))
         return callback(workspace, origin, reference)
     host.service.admit_mission_reference = admitted
-    with pytest.raises(ContractError):
-        host.mission_operation(claim, name, {'expected_revision': before['revision'], **payload},
-                               operation_id='invalid_model_proposal')
+    after = host.mission_operation(claim, name, {'expected_revision': before['revision'], **payload},
+                                   operation_id='invalid_model_proposal')['mission']
     assert seen == [('enterprise', claim.submission['_mission']['origin'], ref)]
-    assert host.service.read_mission('enterprise', mission['mission_id']) == before
-    assert host.service.read_events('enterprise', mission['mission_id']) == events
+    assert after['revision'] > before['revision'] and after['state'] == 'planning'
+    unavailable, = after['tasks']
+    assert unavailable['state'] == 'pending' and unavailable['delegation'] is None
+    assert unavailable['failure_reason'] == 'equipment_admission_unavailable'
+    assert host.service.read_mission('enterprise', mission['mission_id'])['tasks'] == after['tasks']
+    assert host.service.read_events('enterprise', mission['mission_id']) != events
 
 
 def test_valid_dependency_task_is_ready_and_unrelated_restrictions_are_preserved(review_store):
@@ -126,7 +128,9 @@ def test_successful_model_operation_replays_before_changed_registry_validation(c
     assert checks == []
     # A new operation at the current revision must revalidate the registry.
     fresh = {**arguments, 'expected_revision': before['revision']}
-    with pytest.raises(ContractError):
-        host.mission_operation(claim, name, fresh, operation_id='new_invalid_operation')
+    after = host.mission_operation(claim, name, fresh, operation_id='new_invalid_operation')['mission']
     assert len(checks) == 1
-    assert host.service.read_mission('enterprise', mission['mission_id']) == before
+    assert after['revision'] > before['revision']
+    unavailable, = after['tasks']
+    assert unavailable['failure_reason'] == 'equipment_admission_unavailable'
+    assert unavailable['delegation'] is None

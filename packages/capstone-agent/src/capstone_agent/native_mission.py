@@ -38,7 +38,9 @@ TEXT = dict(type='string', minLength=1, maxLength=16384)
 TASK_MODE_GUIDANCE = (
     'Choose the execution mode separately for each child Task. Use single for one bounded '
     'Instruction with a directly checkable result. Use goal when the child needs several '
-    'rounds of execution, verification or revision against one objective. A Mission can mix both modes.'
+    'rounds of execution, verification or revision against one objective. A Mission can mix both modes. '
+    'Prefer independent child conversations for tasks with separate work and deliverables. If the '
+    'task needs several rounds in the main conversation, select goal with placement origin.'
 )
 REF = obj(dict(schema={'const': 'capstone-mission-equipment-reference/1'},
     kind={'enum': ['capability', 'resource_profile', 'resource', 'skill']}, id=IDENTITY,
@@ -48,6 +50,7 @@ TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     depends_on=dict(type='array', items=IDENTITY, uniqueItems=True, maxItems=64,
         description='List required predecessor Tasks. Omit for a new independent Task or to keep saved dependencies.'),
     agent_id=IDENTITY, mode={'enum':['single', 'goal'], 'description':TASK_MODE_GUIDANCE},
+    placement={'enum':['child', 'origin'], 'description':'Defaults to a child conversation. Origin is available only for Goal mode.'},
     max_attempts=dict(type='integer', minimum=1,
         description='Use exactly 1 for single. For goal, set the budget for its execution and review plan.'),
     required_products=dict(type='array', items=dict(type='string', minLength=1, maxLength=255), uniqueItems=True, maxItems=64),
@@ -77,7 +80,7 @@ CATALOG = {
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
     'agent_mission_bind_origin_execution': dict(description='Bind direct execution only for a simple, self-contained Instruction that needs one execution and one delivery check in the main conversation. A broad Task label does not make distinct stages into one Instruction. For work with separate deliverables or execution and independent verification, record their Task boundaries and use the admitted plan. Bind the current turn before doing direct work. The application verifies its saved delivery and resumes Mission review after the turn ends.',
         inputSchema=obj(dict(expected_revision=REVISION, task_id=IDENTITY))),
-    'agent_mission_ready': dict(description='Release the admitted plan for dispatch to child conversations. Prefer this for complex Mission work with independent results, specialist roles or dependency handoffs. Call only when Tasks, acceptance criteria and equipment are admitted, then finish this organizer turn. A real Task boundary resumes organization automatically. Do not poll state while waiting. If no dependency-ready Task remains, inspect saved results and decide what work or verification remains.',
+    'agent_mission_ready': dict(description='Release the admitted plan for dispatch. Independent Tasks normally use child conversations. A Goal Task with placement origin runs in the main conversation after this organizer turn finishes. Call only when Tasks, acceptance criteria and equipment are admitted. A real Task boundary resumes organization automatically. Do not poll state while waiting. If no dependency-ready Task remains, inspect saved results and decide what work or verification remains.',
         inputSchema=obj(dict(expected_revision=REVISION))),
     'agent_mission_control': dict(description='Request pause, resume or cancellation of the associated Mission. A request does not confirm a running Task has stopped. Read actual state before replanning; organizer text never broadcasts to Tasks.',
         inputSchema=obj(dict(expected_revision=REVISION, action={'enum':['pause','resume','cancel']}))),

@@ -194,7 +194,7 @@ def resolve_admission(threads, workspace, origin, equipment, restrictions):
             registry_revision(binding), source, invocation)
 
 
-def bind_work(threads, workspace, thread_id, work_id, selection, *, binding_revision=None, invocation=None):
+def bind_work(threads, workspace, thread_id, work_id, selection, *, binding_revision=None, invocation=None, origin_goal=False):
     """Persist the resolved selection before creating the execution Attempt."""
     from .native_mission import checked_equipment
     selection = checked_equipment(selection)
@@ -205,12 +205,14 @@ def bind_work(threads, workspace, thread_id, work_id, selection, *, binding_revi
         work = next(item for item in works if item['work_id'] == work_id)
         previous = work.get('mission_equipment')
         if (previous == selection and work.get('mission_equipment_binding_revision') == binding_revision
-                and work.get('mission_skill') == skill):
+                and work.get('mission_skill') == skill and work.get('mission_origin_goal', False) == origin_goal):
             return snapshot
         if work.get('latest_attempt_id') is not None:
             raise ValueError('Mission equipment cannot change after execution admission')
         work['mission_equipment'] = deepcopy(selection)
         work['mission_equipment_binding_revision'] = binding_revision
+        if origin_goal:
+            work['mission_origin_goal'] = True
         if skill is not None:
             work['mission_skill'] = deepcopy(skill)
         else:

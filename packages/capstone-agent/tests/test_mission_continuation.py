@@ -45,6 +45,7 @@ def reserved_review(review_store, *, complete_origin=True, products=None, reserv
     assert service.submit_command(command(service, thread_id, 'send_message', 'original',
         payload={'text': 'Inspect results and keep the report in Chinese.'})).status == 'accepted'
     original = service.claim_attempt('original_planner', 30)
+    assert original.thread_id == thread_id
     delivery_authority = {}
     if complete_origin:
         payload = {'answer': 'The first task is planned.'}

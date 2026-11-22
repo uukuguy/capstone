@@ -823,7 +823,6 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     sessionManager: sdk.SessionManager.inMemory()});
   // The host owns admission capacity. Submit independent same-turn calls
   // together; dependent arguments are resolved in a later turn or program.
-  managedMessages=()=>session.messages;
   session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,childConfig);
   const stopUnenteredTools=graphBinding?session.subscribe(event=>{

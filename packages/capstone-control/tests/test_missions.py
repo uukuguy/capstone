@@ -47,6 +47,21 @@ def test_intent_only_mission_uses_same_identity_and_needs_explicit_readiness():
     assert mission['state'] == 'ready'
 
 
+def test_mission_origin_placement_is_forwarded_only_for_goal_tasks():
+    control = service()
+    mission = create(control, acceptance_criteria=['Saved'])
+    with pytest.raises(ContractError, match='requires Goal mode'):
+        command(control, mission, 'update_plan', {'tasks': [task(placement='origin')]})
+    goal_task = {**task(), 'mode': 'goal', 'max_attempts': 3, 'placement': 'origin'}
+    mission = command(control, mission, 'update_plan', {'tasks': [goal_task]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready')
+    goal = command(control, mission, 'delegate_next', {}, 'dispatch')
+    delegation = goal['tasks'][0]['delegation']
+    request = control.delegation_request('team', mission['mission_id'], delegation['delegation_id'])
+    assert request['placement'] == 'origin'
+    assert request['mode'] == 'goal'
+
+
 def test_incremental_plan_keeps_saved_criteria_and_dependencies_omitted_from_update():
     control = service()
     mission = create(control, acceptance_criteria=['Saved'])
