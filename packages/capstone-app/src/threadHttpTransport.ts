@@ -334,10 +334,9 @@ export class HttpThreadTransport implements ThreadTransport {
       {signal}, applicationCapacity('control_document_bytes'), 'control_document_bytes')
   }
 
-  readModelContextSnapshot(threadId:string,attemptId:string,ref:string,index?:number,signal?:AbortSignal,credential?:string):Promise<unknown> {
+  readModelContextSnapshot(threadId:string,attemptId:string,ref:string,index?:number,signal?:AbortSignal):Promise<unknown> {
     const query=index===undefined?'':`?index=${index}`
-    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/context-snapshots/${encodeURIComponent(ref)}${query}`,{signal,
-      ...(credential?{headers:{Authorization:`Bearer ${credential}`}}:{})})
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/context-snapshots/${encodeURIComponent(ref)}${query}`,{signal})
   }
 
   async readAttemptRecords(threadId: string, attemptId: string, after = 0, signal?: AbortSignal) {

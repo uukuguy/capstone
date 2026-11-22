@@ -988,7 +988,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     if(window.matchMedia?.('(max-width: 760px)')?.matches)setProductsOpen(false)
     setRequestLocation({attemptId,dispatchId,nonce:++locationGeneration.current})
   }
-  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onLocateRequest={locateContextRequest} readSnapshot={(attempt,ref,index,signal,credential)=>transport.readModelContextSnapshot(currentId,attempt,ref,index,signal,credential)} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
+  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onLocateRequest={locateContextRequest} readSnapshot={productsOpen&&resourceView==='instruction-context'?((attempt,ref,index,signal)=>transport.readModelContextSnapshot(currentId,attempt,ref,index,signal)):undefined} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
   const contextViews=contextPanel?[{id:'instruction-context',label:'上下文',content:contextPanel,description:'按指令追踪模型请求、输入构成和压缩。'}]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>

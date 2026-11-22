@@ -1,7 +1,10 @@
 import { defineConfig } from 'vitest/config'
-import { loadEnv } from 'vite'
+import { loadEnv, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync, existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { parseEnv } from 'node:util'
+import { isLocalContextRead } from './src/dev/localContextAccess'
 import { localBuildIdentity } from './src/dev/localBuildIdentity'
 import type { AppEnvironment } from './src/appBuild'
 
@@ -83,10 +86,22 @@ export default defineConfig(({ mode }) => {
   // loopback address. Keep the proxy same-origin for desktop and LAN clients;
   // hosted deployments override both values explicitly at startup.
   const apiProxyOrigin = env.CAPSTONE_API_PROXY_ORIGIN || 'http://127.0.0.1:5173'
-  const localApiProxy = {
+  const localEnvironmentFile=resolve(env.CAPSTONE_LOCAL_ENV_FILE||'../../deploy/local.env')
+  const localApiProxy:ProxyOptions = {
     target: apiProxyTarget,
     changeOrigin: true,
     headers: { Origin: apiProxyOrigin },
+    configure(proxy) {
+      if(mode!=='development'||env.CAPSTONE_APP_ENVIRONMENT!=='local-dev')return
+      proxy.on('proxyReq',(destination,request)=>{
+        if(!isLocalContextRead(request,apiProxyTarget))return
+        try{
+          const token=process.env.CAPSTONE_OPERATOR_TOKEN||
+            parseEnv(readFileSync(localEnvironmentFile,'utf8')).CAPSTONE_OPERATOR_TOKEN
+          if(token&&!/[\x00-\x1f\x7f]/.test(token))destination.setHeader('Authorization',`Bearer ${token}`)
+        }catch{/* The API returns its normal permission response when local setup is unavailable. */}
+      })
+    },
   }
   return {
     define: { __CAPSTONE_BUILD__: JSON.stringify(buildIdentity(env, mode === 'development')) },
@@ -119,6 +134,7 @@ export default defineConfig(({ mode }) => {
     }],
     test: { environment: 'jsdom', setupFiles: ['./src/testSetup.ts'] },
     server: {
+      fs: { deny:['.env','.env.*','*.{crt,pem}','**/.git/**','**/*.env',localEnvironmentFile] },
       proxy: { '/api': localApiProxy, '/health': localApiProxy },
     },
   }

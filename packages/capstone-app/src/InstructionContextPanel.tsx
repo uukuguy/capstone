@@ -36,7 +36,6 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
   const [category,setCategory]=useState<{request:string;id:Category}>()
   const [visibleCount,setVisibleCount]=useState(12)
   const [loadedSnapshot,setLoadedSnapshot]=useState<string>()
-  const [diagnosticCredential,setDiagnosticCredential]=useState<string>()
   const [allItemsKey,setAllItemsKey]=useState<string>()
   const instruction=attempt && rows.find(row=>row.attemptId===attempt)?.instructionId
   const shown=attempt ? rows.filter(row=>instruction ? row.instructionId===instruction : row.attemptId===attempt) : rows
@@ -47,7 +46,8 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
     requestAnimationFrame(()=>detailRef.current?.scrollIntoView?.({block:'nearest'}))
   },[requested,attempt])
   const current=(selection?.scope===attempt&&shown.find(row=>row.id===selection?.id))||latest
-  useEffect(()=>setLoadedSnapshot(undefined),[current?.snapshotRef])
+  const canReadSnapshot=Boolean(readSnapshot)
+  useEffect(()=>setLoadedSnapshot(undefined),[current?.snapshotRef,canReadSnapshot])
   const modelCalls=shown.filter(row=>row.kind!=='compaction')
   const series=modelCalls.slice(-12)
   const maxInput=Math.max(1,...series.map(row=>row.inputTokens??0))
@@ -97,9 +97,8 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
   const chooseCategory=(id:Category)=>{if(current)setCategory({request:current.id,id})}
   const itemLabels:Record<string,string>={system:'系统提示',tool:'工具定义',user:'用户消息',assistant:'模型消息',message:'会话消息',toolResult:'工具返回'}
   const displayedItems=(Object.keys(contextCategories) as Category[]).flatMap(id=>
-    (current?.items?.[id]?.items??[]).map(item=>({id,item})))
+    [...(current?.items?.[id]?.items??[])].sort((left,right)=>left.index-right.index).map(item=>({id,item})))
     .filter(row=>!selectedCategory||row.id===selectedCategory.id)
-    .sort((left,right)=>right.item.tokens-left.item.tokens)
   const itemsKey=`${current?.id??''}:${selectedCategory?.id??''}`
   const visibleItems=allItemsKey===itemsKey?displayedItems:displayedItems.slice(0,8)
   const itemCount=selectedCategory?(current?.items?.[selectedCategory.id]?.total??0):
@@ -164,9 +163,9 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
           </>}
           {current.snapshotRef&&readSnapshot&&<RequestContextEntries key={current.snapshotRef}
             attempt={current.attemptId} snapshot={current.snapshotRef} previous={previousCapture?.snapshotRef} category={selectedCategory?.id} read={readSnapshot}
-            credential={diagnosticCredential} onCredential={setDiagnosticCredential} onResetCategory={()=>setCategory(undefined)} onIndexReady={()=>setLoadedSnapshot(current.snapshotRef)}/>}
+            onResetCategory={()=>setCategory(undefined)} onIndexReady={()=>setLoadedSnapshot(current.snapshotRef)}/>}
             {categories.length>0&&(!current.snapshotRef||loadedSnapshot!==current.snapshotRef)&&<section className="context-category-detail" aria-label={selectedCategory?selectedCategory.name+'详情':'输入内容'}>
-              <div className="context-section-title"><h4>内容</h4>{selectedCategory&&<button type="button" onClick={()=>setCategory(undefined)}>显示全部分类</button>}</div>
+              <div className="context-section-title"><h4>用量摘要</h4>{selectedCategory&&<button type="button" onClick={()=>setCategory(undefined)}>显示全部分类</button>}</div>
               {displayedItems.length?<ul className="context-content-items">{visibleItems.map(({id,item})=>{
                 const excerpt=item.sourceId&&current?readToolExcerpt?.(item.sourceId,current.attemptId):undefined
                 const title=<><i className="context-category-dot" data-category={id}/><span>{item.name??itemLabels[item.kind]}{id==='messages'&&` ${item.index}`}</span><small>{tokens(item.tokens)}</small></>
