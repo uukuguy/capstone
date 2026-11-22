@@ -45,6 +45,7 @@
     "packages/capstone-app/src/threadWorkMessages.test.ts",
     "deploy/general-pi.Dockerfile",
     "packages/capstone-agent/src/capstone_agent/agent_delegation.py",
+    "packages/capstone-agent/src/capstone_agent/answer_presentation.py",
     "packages/capstone-agent/src/capstone_agent/control_host.py",
     "packages/capstone-agent/src/capstone_agent/delegated_runtime.py",
     "packages/capstone-agent/src/capstone_agent/general_pi_executor.py",
@@ -62,6 +63,7 @@
     "packages/capstone-agent/src/capstone_agent/thread_service.py",
     "packages/capstone-agent/src/capstone_agent/thread_work.py",
     "packages/capstone-agent/tests/general-mission-tools.test.mjs",
+    "packages/capstone-agent/tests/test_answer_presentation.py",
     "packages/capstone-agent/tests/test_mission_equipment.py",
     "packages/capstone-agent/tests/test_mission_origin.py",
     "packages/capstone-agent/tests/test_native_mission.py",
@@ -112,5 +114,10 @@
   "entry_anchors": [
     "packages/capstone-agent/src/capstone_agent/general_pi_server.py",
     "packages/capstone-agent/src/capstone_agent/native_mission.py"
+  ],
+  "delivery_anchors": [
+    "packages/capstone-agent/src/capstone_agent/agent_delegation.py",
+    "packages/capstone-agent/src/capstone_agent/answer_presentation.py",
+    "packages/capstone-agent/src/capstone_agent/general_pi_executor.py"
   ]
 }

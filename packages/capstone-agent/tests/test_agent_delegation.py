@@ -97,7 +97,8 @@ def test_cross_workspace_delegation_identity_has_separate_thread(postgres_thread
             registry.delete(workspace, d['operation_id'])
 
 
-def test_mission_goal_starts_a_distinct_work_in_the_origin_thread(postgres_thread_service):
+@pytest.mark.parametrize('phase', ['completed', 'failed'])
+def test_mission_goal_starts_a_distinct_work_in_the_origin_thread(postgres_thread_service, phase):
     from dataclasses import replace
     from test_enterprise_normal_chat import native_executor
     from test_thread_postgres import _snapshot
@@ -146,15 +147,20 @@ def test_mission_goal_starts_a_distinct_work_in_the_origin_thread(postgres_threa
     verify = threads.claim_attempt('goal-reviewer', 30)
     assert verify.task_context.binding.work_id == binding['work_id']
     assert verify.instruction == 'Check the saved draft.'
-    threads.finish_attempt(verify, phase='completed', payload={'answer': 'Verified draft'})
+    threads.finish_attempt(verify, phase=phase, payload={'answer': 'Draft check ended'})
     assert drain_goal_step_reviews(threads, reviewer=lambda *_: {
-        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'complete',
-        'summary': 'Draft saved and verified', 'next_instruction': None, 'waiting_reason': None,
-        'product_refs': [], 'criteria': [{'index': 0, 'verdict': 'met', 'refs': [verify.attempt.attempt_id]}],
+        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'complete' if phase == 'completed' else 'partial',
+        'summary': 'Draft check ended', 'next_instruction': None, 'waiting_reason': None,
+        'product_refs': [], 'criteria': [{'index': 0, 'verdict': 'met' if phase == 'completed' else 'unmet',
+                                         'refs': [verify.attempt.attempt_id] if phase == 'completed' else []}],
     }) == 1
     observation = agent.observe('enterprise', {**request, 'binding': binding})
     assert observation['state'] == 'completed'
     assert observation['delivery']['answer_ref']
+    assert observation['delivery'].get('outcome') == ('partial' if phase == 'failed' else None)
+    if phase == 'failed':
+        assert 'authority_source' not in observation['delivery']
+        assert 'gateway_source' not in observation['delivery']
 
 
 def test_mission_upload_grant_reads_frozen_version_after_replacement(postgres_thread_service):

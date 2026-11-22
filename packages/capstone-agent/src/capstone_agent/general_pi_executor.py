@@ -659,7 +659,7 @@ class GeneralPiProcess:
                     self.usage['native_tools'] = self.tools
                     answer = ''.join(part.get('text', '') for part in assistants[-1].get('content', [])
                                      if part.get('type') == 'text')
-                    answer = public_answer(answer, answer_format=answer_format)
+                    answer = public_answer(answer, answer_format=answer_format, recover_unique=True)
                     if not answer.strip():
                         raise ValueError('General Pi answer is invalid')
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')

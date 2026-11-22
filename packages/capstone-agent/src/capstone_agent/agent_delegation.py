@@ -325,11 +325,18 @@ class AgentDelegations:
         can_recover = (status == 'interrupted' and delegation['schema'] == 'capstone-agent-delegation/2'
                        and delegation['mode'] == 'single' and not work.get('cancel_requested'))
         if state == 'completed' or can_recover:
+            partial = (delegation['mode'] == 'goal'
+                       and work.get('goal_mode', {}).get('reason') == 'partial_delivery'
+                       and bool((work.get('goal_plan') or {}).get('closure_summary')))
             # Match the original idempotent start even for older delegations.
             start_command = 'cmd_' + _digest([binding['thread_id'], 'start'])[:32]
             expected = 'attempt_delivery_recovered' if can_recover else 'attempt_completed'
             terminal, artifacts, terminal_seq, original_start, authoritative, gateway, _ = read_saved_attempt_delivery(
                 self.threads, binding, work['latest_attempt_id'], start_command=start_command, expected=expected)
+            if terminal is None and partial:
+                terminal, artifacts, terminal_seq, _, _, _, _ = read_saved_attempt_delivery(
+                    self.threads, binding, work['latest_attempt_id'], expected='attempt_failed')
+                authoritative = gateway = False
             sequence = max(sequence, terminal_seq + len(current['control_receipts']))
             if can_recover and (terminal is None or not original_start):
                 return {'sequence': sequence, 'state': state, 'summary': state, 'delivery': None}

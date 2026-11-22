@@ -25,3 +25,15 @@ def test_mission_entry_changes_use_the_mission_conversation_gate():
     ]
     assert classify(paths) == 'mission-conversation'
     assert classify(paths + ['packages/grid-simulator/src/new.py']) != 'mission-conversation'
+
+
+def test_mission_delivery_recovery_uses_the_mission_conversation_gate():
+    paths = [
+        'packages/capstone-agent/src/capstone_agent/agent_delegation.py',
+        'packages/capstone-agent/src/capstone_agent/answer_presentation.py',
+        'packages/capstone-agent/src/capstone_agent/general_pi_executor.py',
+        'packages/capstone-agent/tests/test_agent_delegation.py',
+        'packages/capstone-agent/tests/test_answer_presentation.py',
+    ]
+    assert classify(paths) == 'mission-conversation'
+    assert classify(paths + ['packages/grid-simulator/src/new.py']) != 'mission-conversation'
