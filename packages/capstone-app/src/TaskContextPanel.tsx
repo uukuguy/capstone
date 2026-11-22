@@ -25,11 +25,31 @@ export default function TaskContextPanel({events,work,workId,labels,onLocate}:{
   add(work)
   const checkpoint=record(record(work).execution_checkpoint)
   const active=typeof checkpoint.attempt_id==='string'?checkpoint.attempt_id:undefined
-  const ids=[...new Set([...revisions.keys(),...(active?[active]:[])])].reverse()
-  const id=ids.includes(selection)?selection:ids[0]
+  const instructionForAttempt=new Map<string,string>()
+  for(const [attempt,state] of revisions){
+    const turn=record(state.execution).turn_id
+    instructionForAttempt.set(attempt,typeof turn==='string'?turn:attempt)
+  }
+  if(active)instructionForAttempt.set(active,typeof checkpoint.turn_id==='string'?checkpoint.turn_id:active)
+  const attemptsByInstruction=new Map<string,string>()
+  const instructionLabels=new Map<string,string>()
+  for(const [attempt,instruction] of instructionForAttempt){
+    attemptsByInstruction.set(instruction,attempt)
+    if(labels[attempt])instructionLabels.set(instruction,labels[attempt])
+  }
+  const instructions=[...attemptsByInstruction.keys()].reverse()
+  const instruction=instructions.includes(selection)?selection:instructions[0]
+  const id=instruction?attemptsByInstruction.get(instruction):undefined
   const after=id?revisions.get(id):undefined
-  const predecessor=after?after.previous_revision_ref:checkpoint.task_state_ref
-  const before=typeof predecessor==='string'?revisions.get(predecessor):undefined
+  let predecessor=after?after.previous_revision_ref:checkpoint.task_state_ref
+  const visited=new Set<string>()
+  // Several attempts can settle the same instruction. Follow the exact chain
+  // back to the state inherited before the first of those attempts.
+  while(typeof predecessor==='string'&&instructionForAttempt.get(predecessor)===instruction&&!visited.has(predecessor)){
+    visited.add(predecessor)
+    predecessor=revisions.get(predecessor)?.previous_revision_ref
+  }
+  const before=typeof predecessor==='string'&&!visited.has(predecessor)?revisions.get(predecessor):undefined
   const changes=before&&after?Object.entries(fields).filter(([field])=>
     JSON.stringify(before[field])!==JSON.stringify(after[field])):[]
   const report=record(after?.business_report)
@@ -39,8 +59,8 @@ export default function TaskContextPanel({events,work,workId,labels,onLocate}:{
     </header>
     {!id?<p>当前会话暂无已保存的任务修订。</p>:<>
       <label className="context-instruction-filter"><span>指令</span>
-        <select aria-label="按指令查看任务上下文" value={id} onChange={event=>setSelection(event.target.value)}>
-          {ids.map((key,index)=><option key={key} value={key}>{labels[key]||`指令 ${ids.length-index}`}</option>)}
+        <select aria-label="按指令查看任务上下文" value={instruction} onChange={event=>setSelection(event.target.value)}>
+          {instructions.map((key,index)=><option key={key} value={key}>{instructionLabels.get(key)||`指令 ${instructions.length-index}`}</option>)}
         </select>
       </label>
       <h4>执行前</h4>
