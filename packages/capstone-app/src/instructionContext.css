@@ -91,11 +91,23 @@
 .context-show-items { padding:5px 0; margin-inline-end:8px; background:transparent; border:0; color:var(--ctx-accent); }
 .capstone-request-context-action[aria-pressed="true"] { background:#dceee4; color:#1d5943; }
 .context-request-entries { border-block-start:1px solid var(--ctx-line); margin-block:10px; padding-block:4px; }
-.context-entry-open { display:flex; align-items:center; gap:6px; inline-size:100%; min-block-size:30px; padding:5px 2px; border:0; color:inherit; text-align:start; background:transparent; }
-.context-entry-open[aria-expanded="true"] { background:#edf5f0; }
-.context-entry-open span { flex:1; overflow-wrap:anywhere; }
 .context-entry-body pre { white-space:pre-wrap; overflow-wrap:anywhere; overflow:auto; max-block-size:24rem; }
 .context-source-filters:empty { display:none; }
 .context-source-filters button { margin:4px 6px 2px 0; border:1px solid var(--ctx-line); background:transparent; border-radius:5px; padding:3px 6px; color:var(--ctx-accent); }
 .context-source-filters button[aria-pressed="true"] { background:#edf5f0; }
 .context-entry-origin { overflow-wrap:anywhere; }
+
+.context-request-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.context-compare-action { display:inline-flex; align-items:center; gap:5px; }
+.context-compare-action[aria-pressed="true"] { background:#edf5f0; border-radius:5px; }
+.context-request-trace li+li { border-top:0; }
+.context-request-trace .context-entry-open { display:flex; flex-wrap:wrap; gap:3px 6px; min-height:31px; padding:4px 5px; border-radius:4px; }
+.context-request-trace .context-entry-open:is(:hover,[aria-expanded="true"]) { background:#edf5f0; }
+.context-request-trace .context-entry-open .context-entry-title { flex:1 1 auto; max-width:none; font-weight:550; }
+.context-entry-index { min-width:2ch; text-align:end; }
+.context-entry-role { color:#536a61; }
+.context-request-trace .context-entry-state { color:#765321; }
+.context-request-trace .context-category-dot { flex:none; margin:0; }
+.context-entry-body pre { font-size:12px; line-height:1.55; }
+.context-request-diff small { display:block; margin-block-start:3px; }
+.context-request-diff ul { list-style:none; margin:4px 0; padding-inline-start:0; }

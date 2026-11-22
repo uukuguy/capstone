@@ -1,7 +1,9 @@
-import {fireEvent,render,screen,within} from '@testing-library/react'
-import {expect,it,vi} from 'vitest'
+import {cleanup,fireEvent,render,screen,within} from '@testing-library/react'
+import {afterEach,expect,it,vi} from 'vitest'
 import RequestContextEntries from './RequestContextEntries'
 import {ThreadTransportError} from './threadHttpTransport'
+
+afterEach(cleanup)
 
 it('loads the private index first, then its selected entry and the earlier index',async()=>{
   const entry={index:1,carrier:'system',role:'system',digest:'b'.repeat(64),source_id:'application-policy'}
@@ -11,12 +13,15 @@ it('loads the private index first, then its selected entry and the earlier index
   })
   render(<RequestContextEntries attempt="a" snapshot="now" previous="before" read={read}/>)
   const panel=screen.getByRole('region',{name:'实际请求正文'})
-  const row=await within(panel).findByRole('button',{name:'1 · 系统提示'})
+  const row=await within(panel).findByRole('button',{name:'1 系统提示'})
   expect(within(panel).queryByText('actual input')).toBeNull()
   fireEvent.click(row)
   expect(await within(panel).findByText('actual input')).toBeTruthy()
-  fireEvent.click(within(panel).getByRole('button',{name:'对比上一次请求'}))
+  fireEvent.click(within(panel).getByRole('button',{name:'对比上一请求'}))
   expect(await within(panel).findByText('改写 · 系统提示')).toBeTruthy()
+  expect(within(panel).getByText('actual input')).toBeTruthy()
+  fireEvent.click(row)
+  expect(within(panel).queryByText('actual input')).toBeNull()
   expect(read.mock.calls.map(call=>[call[1],call[2]])).toEqual([['now',undefined],['now',1],['before',undefined]])
 })
 
@@ -26,4 +31,18 @@ it('keeps access errors in the inspector without requesting a credential',async(
   await screen.findByText(/当前入口无法查看受保护正文/)
   expect(read).toHaveBeenCalledTimes(1)
   expect(screen.queryByRole('textbox')).toBeNull()
+})
+
+it('presents runtime and handoff sources as expandable request rows',async()=>{
+  const entries=[{index:1,carrier:'messages',role:'user',origin:{kind:'runtime',id:'execution-state',revision:'admitted',delivery:'text'}},
+    {index:2,carrier:'messages',role:'user',origin:{kind:'handoff',id:'selected-task-handoff',revision:'admitted',delivery:'text'}}]
+  const read=vi.fn(async (_attempt:string,_ref:string,index?:number)=>index===undefined
+    ? {schema:'capstone-model-context-snapshot/1',total_entries:entries.length,entries}
+    : {entry:{index,text:'admitted handoff body'}})
+  render(<RequestContextEntries attempt="a" snapshot="now" read={read}/>)
+  await screen.findByRole('button',{name:/1 运行环境/})
+  fireEvent.click(screen.getByRole('button',{name:/2 任务交接/}))
+  expect(await screen.findByText('admitted handoff body')).toBeTruthy()
+  expect(read.mock.calls.map(call=>call[2])).toEqual([undefined,2])
+  expect(screen.queryByLabelText('按来源筛选')).toBeNull()
 })
