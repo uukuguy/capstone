@@ -15,6 +15,15 @@ def test_local_qwen_preset_is_opt_in_and_keeps_its_endpoint_private():
     assert registry.catalog()['default_profile_id'] == 'commercial-deepseek-flash'
     assert endpoint not in str(registry.catalog())
 
+    registry = ProfileRegistry(environment={'CAPSTONE_LOCAL_QWEN_27B_BASE_URL': endpoint})
+    with pytest.raises(ValueError, match='unavailable'):
+        registry.freeze(profile_id)
+    qwen_27b = registry.resolve(registry.freeze('local-qwen-27b'))
+    assert qwen_27b['base_url'] == endpoint
+    assert qwen_27b['model'] == 'Qwen3.8-27B-GGUF/Qwen3.8-27B-UD-Q4_K_M.gguf'
+    assert qwen_27b['context_policy']['context_window_tokens'] == 131072
+    assert qwen_27b['icon'] == 'qwen'
+
 
 def test_model_context_is_selected_per_profile_and_frozen_by_revision():
     registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'private'})

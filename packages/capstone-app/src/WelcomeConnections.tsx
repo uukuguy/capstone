@@ -1,6 +1,6 @@
 import {Database, Server} from 'lucide-react'
 import type {InputCatalog,GatewayConnectionStatus} from './threadInput'
-import {localQwenProfileId,LocalQwenIcon} from './localQwenProfile'
+import {isLocalQwenProfile,LocalQwenIcon} from './localQwenProfile'
 import './WelcomeConnections.css'
 
 function gatewayAddress(value?:string){
@@ -11,7 +11,7 @@ function gatewayAddress(value?:string){
 /** Read the same catalog and selected draft as the composer; never probe here. */
 export default function WelcomeConnections({catalog,gateway,profileId,loading=false}:{catalog?:InputCatalog;gateway?:GatewayConnectionStatus;profileId?:string;loading?:boolean}){
   const profile=catalog?.llm_profiles?.profiles.find(item=>item.id===(profileId??catalog.llm_profiles?.default_profile_id))
-  const localQwen=profile?.id===localQwenProfileId
+  const localQwen=profile&&isLocalQwenProfile(profile)
   const address=gatewayAddress(gateway?.endpoint)
   const gatewayName=gateway?.instance_name||gateway?.environment_label||gateway?.connection_name||gateway?.server_name
   return <section className="welcome-connections" aria-label="当前会话连接">

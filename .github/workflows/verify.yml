@@ -162,7 +162,7 @@ jobs:
           uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_workbench_llm_profiles.py -q
           npm ci --prefix packages/capstone-app
           npm run check --prefix packages/capstone-app
-          npm test --prefix packages/capstone-app -- --run src/buildEnvironment.test.ts src/dev/localContextAccess.test.ts
+          npm test --prefix packages/capstone-app -- --run src/buildEnvironment.test.ts src/dev/localContextAccess.test.ts src/LlmProfileMenu.test.tsx
       - name: Verify product references with disposable PostgreSQL
         if: steps.scope.outputs.gate == 'research-mode-retirement' || steps.scope.outputs.gate == 'mission-conversation' || steps.scope.outputs.gate == 'harness-references' || steps.scope.outputs.gate == 'instruction-admission' || steps.scope.outputs.gate == 'product-references' || steps.scope.outputs.gate == 'product-adoption' || steps.scope.outputs.gate == 'result-rows' || steps.scope.outputs.gate == 'resource-ranges' || steps.scope.outputs.gate == 'historical-inputs' || steps.scope.outputs.gate == 'worker-interruption' || steps.scope.outputs.gate == 'recoverable-tasks' || steps.scope.outputs.gate == 'session-pins' || steps.scope.outputs.gate == 'agent-goal' || steps.scope.outputs.gate == 'control-delegation' || steps.scope.outputs.gate == 'control-events' || steps.scope.outputs.gate == 'execution-continuity'
         timeout-minutes: 10
