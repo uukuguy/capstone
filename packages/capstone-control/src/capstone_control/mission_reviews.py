@@ -227,7 +227,9 @@ def finish(service,workspace,mission_id,review_id,attempt_id,phase,*,recovered=F
         record['finish']=dict(review_id=review_id,attempt_id=attempt_id,phase=phase,state=outcome)
         if phase in {'cancelled','interrupted','failed'}:
             state['suspended']=True
-            goal['reason']='organizer_'+phase
+            record['reason']='organizer_'+phase
+            if goal['state'] not in {'delivered', 'accepted'}:
+                goal['reason']=record['reason']
         if phase == 'failed' or outcome == 'no_progress':
             _continue_admitted_tasks(service, goal, 'organizer_' + outcome)
         if phase == 'interrupted':

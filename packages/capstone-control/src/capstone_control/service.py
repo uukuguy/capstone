@@ -29,12 +29,14 @@ def public(goal):
             origin=deepcopy(metadata['origin']), plan_revision=metadata.get('plan_revision', 1),
             plan_complete=bool(goal['tasks'] and goal['acceptance_criteria']))
         conclusion=metadata.get('plan_conclusion')
-        from .mission import conclusion_satisfied
+        from .mission import conclusion_satisfied, has_partial_delivery
         satisfied = conclusion_satisfied(goal)
         conclusion_status = None if not conclusion else ('legacy_unverified' if 'criteria_verdicts' not in conclusion
             else 'stale' if conclusion.get('plan_revision') != metadata.get('plan_revision',1) else 'satisfied' if satisfied else 'incomplete')
         result.update(plan_concluded=satisfied, plan_conclusion_status=conclusion_status,
                       plan_conclusion=deepcopy(conclusion))
+        if has_partial_delivery(goal):
+            result['reason'] = 'partial_delivery'
         review=metadata.get('organizer',{})
         current=next((r for r in review.get('records',[]) if r['intent']['review_id']==review.get('current_review_id')),None)
         result['organizer']=dict(max_reviews=review.get('max_reviews',8),reviews_admitted=review.get('reviews_admitted',0),

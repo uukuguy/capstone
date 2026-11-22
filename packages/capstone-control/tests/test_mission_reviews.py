@@ -350,6 +350,48 @@ def test_partial_conclusion_preserves_dependency_ready_work_after_failure():
     assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
 
 
+def test_organizer_can_add_repair_work_without_resending_acceptance_criteria():
+    control = service()
+    mission = complete_task(control, plan(control))
+    receipt = control.command_mission('team', {
+        'schema': 'capstone-control-mission-command/1', 'operation_id': 'repair_plan',
+        'mission_id': mission['mission_id'], 'expected_revision': mission['revision'],
+        'kind': 'update_plan', 'payload': {'tasks': [task('repair')]},
+    }, model_turn='review')
+    assert receipt['mission']['acceptance_criteria'] == mission['acceptance_criteria']
+    assert [t['state'] for t in receipt['mission']['tasks']] == ['verified', 'pending']
+
+
+def test_organizer_failure_preserves_saved_partial_conclusion_and_resume():
+    control = service()
+    mission = complete_task(control, plan(control))
+    intent, = control.pending_mission_reviews('team')
+    review_id = intent['review_id']
+    mission_id = mission['mission_id']
+    control.reserve_mission_review('team', mission_id, review_id)
+    control.acknowledge_mission_review('team', mission_id, review_id,
+        dict(thread_id='thread_1', work_id='origin_work', attempt_id='review_1'))
+    mission = control.read_mission('team', mission_id)
+    conclusion = {'plan_revision': mission['plan_revision'], 'summary': 'One check remains open.',
+                  'criteria_verdicts': [{'criterion_index': 0, 'status': 'unknown',
+                                         'explanation': 'The final check has no receipt.', 'evidence': []}]}
+    mission = command(control, mission, 'conclude_plan', conclusion, 'partial')
+    control.finish_mission_review('team', mission_id, review_id, attempt_id='review_1', phase='failed')
+    mission = control.read_mission('team', mission_id)
+    assert mission['state'] == 'delivered' and mission['reason'] == 'partial_delivery'
+    assert mission['organizer']['state'] == 'failed'
+    assert mission['plan_conclusion']['summary'] == conclusion['summary']
+
+    def legacy_finish(goal):
+        goal['reason'] = 'organizer_failed'
+        return goal, None
+
+    control.store.transact('team', mission_id, legacy_finish)
+    mission = control.read_mission('team', mission_id)
+    assert mission['reason'] == 'partial_delivery'
+    assert command(control, mission, 'resume', {}, 'resume_partial')['state'] == 'waiting_review'
+
+
 def test_wait_rejects_dependent_work_without_an_executable_predecessor():
     control = service()
     criteria = ['Read the source']

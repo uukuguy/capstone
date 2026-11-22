@@ -187,6 +187,28 @@ def test_mission_review_rebinds_executor_implementation_only(review_store, grant
     assert original.submission['_native_execution']['identity']['executor_revision'] == 'a' * 64
 
 
+def test_resumed_mission_review_can_follow_a_failed_organizer_attempt(review_store):
+    service, thread_id, workspace, _ = review_store
+    host, mission, intent, _ = reserved_review(review_store)
+    mission_id = mission['mission_id']
+    binding = service.submit_mission_review(intent)
+    host.service.acknowledge_mission_review(workspace, mission_id, intent['review_id'], binding)
+    review = service.claim_attempt('original_review', 30)
+    assert review.thread_id == thread_id
+    service.finish_attempt(review, phase='failed', payload={'answer': 'Answer rendering failed.'})
+    host.service.finish_mission_review(workspace, mission_id, intent['review_id'],
+                                       attempt_id=review.attempt.attempt_id, phase='failed')
+    mission = host.service.read_mission(workspace, mission_id)
+    host.command_mission(workspace, {'schema': 'capstone-control-mission-command/1',
+        'operation_id': 'resume_review', 'mission_id': mission_id,
+        'expected_revision': mission['revision'], 'kind': 'resume', 'payload': {}})
+    assert drain_mission_reviews(service, workspace=workspace) == 1
+    next_review = service.claim_attempt('resumed_review', 30)
+    assert next_review.thread_id == thread_id
+    assert next_review.attempt.attempt_id != review.attempt.attempt_id
+    assert next_review.submission['_mission_review']['mission_id'] == mission_id
+
+
 def test_review_source_spoof_and_paused_or_busy_origin_are_not_admitted(review_store):
     service, thread_id, workspace, _ = review_store
     host, mission, intent, original = reserved_review(review_store, complete_origin=False)
