@@ -134,6 +134,13 @@ export function contextPercent(row:ContextObservation) {
   return row.inputTokens===undefined||row.windowTokens===undefined ? undefined : Math.round(row.inputTokens/row.windowTokens*100)
 }
 
+export function contextCachePercent(row:ContextObservation):number|undefined {
+  const {input,cacheRead,cacheWrite=0}=row.usage??{}
+  if(input===undefined||cacheRead===undefined)return undefined
+  const total=input+cacheRead+cacheWrite
+  return total>0?100*cacheRead/total:undefined
+}
+
 /** Resolve only a public, unambiguous observation already admitted to this conversation. */
 export function contextToolExcerpt(events:readonly EventEnvelope[],sourceId:string,attemptId:string):string|undefined {
   const matches=events.filter(event=>event.visibility==='public'&&event.eventType==='runtime_event'

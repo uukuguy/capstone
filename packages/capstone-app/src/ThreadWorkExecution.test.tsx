@@ -223,9 +223,13 @@ it('opens one inspector from the composer and scopes it to the reply on demand',
   await waitFor(()=>expect(screen.getByRole<HTMLButtonElement>('button',{name:'发送'}).disabled).toBe(false))
   fireEvent.click(screen.getByRole('button',{name:'发送'}))
   await waitFor(()=>expect(server.commands).toHaveLength(1))
-  const record={request_id:'ctx-1',kind:'main',window_tokens:10000,estimated_input:{system:300,messages:100,tools:72},
+  const record={request_id:'ctx-1',dispatch_id:'request-1',kind:'main',window_tokens:10000,estimated_input:{system:300,messages:100,tools:72},
     input_items:{tools:{total_items:1,items:[{kind:'tool',index:1,name:'read_document',tokens:72}]}}}
   await act(async()=>{
+    server.append('runtime_event',{native_type:'model_request_pool', model_request_pool:{
+      schema:'capstone-model-request-pool/1',type:'model_request_pool',kind:'main',chain_id:'main',
+      request_id:'request-1',depends_on:[],queued_at_ms:1,started_at_ms:2,finished_at_ms:3,status:'completed',
+    }},true)
     server.append('runtime_event',{native_type:'model_context_usage',model_context_usage:{...record,state:'started'}},true)
     server.append('runtime_event',{native_type:'model_context_usage',model_context_usage:{...record,state:'completed',usage:{input:200,cacheRead:300,cacheWrite:0}}},true)
     server.finish()
@@ -233,7 +237,8 @@ it('opens one inspector from the composer and scopes it to the reply on demand',
   fireEvent.click(await screen.findByRole('button',{name:'查看会话上下文'}))
   const tab=await screen.findByRole('tab',{name:'上下文'})
   expect(tab.getAttribute('aria-selected')).toBe('true')
-  expect(screen.getByText('最近主链输入')).toBeTruthy()
+  expect(screen.getByText('已用上下文')).toBeTruthy()
+  expect(screen.getByRole('region',{name:'输入内容'}).textContent).toContain('read_document')
   fireEvent.click(await screen.findByRole('button',{name:'查看本条指令上下文'}))
   expect(await screen.findByText('本条指令')).toBeTruthy()
   expect(screen.getByRole('meter').getAttribute('aria-valuenow')).toBe('5')
@@ -243,6 +248,9 @@ it('opens one inspector from the composer and scopes it to the reply on demand',
   expect(screen.getByRole('tab',{name:'上下文'}).getAttribute('aria-selected')).toBe('true')
   expect(screen.getByLabelText('用户指令').getAttribute('data-context-linked')).toBe('true')
   expect(screen.getByRole('region',{name:'工具定义详情'})).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'定位执行记录'}))
+  await waitFor(()=>expect(document.activeElement?.getAttribute('data-context-request')).toBe('request-1'))
+  expect(screen.getByRole('tab',{name:'上下文'}).getAttribute('aria-selected')).toBe('true')
 })
 
 it('resumes the selected Goal from the main composer without starting a new task', async () => {
