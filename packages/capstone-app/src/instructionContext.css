@@ -118,3 +118,10 @@
 .context-diff-version-label { font-size:11px; font-weight:700; color:var(--ctx-accent); }
 .context-request-diff > p small,.context-diff-version > small { display:block; margin-block-start:3px; }
 .context-request-diff ul { list-style:none; margin:4px 0; padding-inline-start:0; }
+.context-input-group { margin-block:6px; border-block-end:1px solid var(--ctx-line); }
+.context-input-group > summary { cursor:pointer; padding:7px 0; font-weight:650; }
+.context-input-group > summary small,.context-input-message > small { color:#526b61; font-weight:400; }
+.context-input-messages { margin-block:12px 5px; }
+.context-input-message { border-inline-start:2px solid var(--ctx-line); padding-inline-start:8px; }
+.context-input-message > ol { list-style:none; padding:0; }
+.context-request-trace .context-message-preview { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#526b61; font-weight:400; min-width:0; }

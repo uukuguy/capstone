@@ -28,3 +28,11 @@ def test_execution_details_gate_covers_instruction_context_observations():
     paths = [*manifest['context_paths'], 'packages/capstone-app/src/ThreadWorkAdapter.tsx']
     assert classify(paths) == 'context-observation'
     assert classify(paths + ['packages/grid-simulator/src/grid_simulator/registry.py']) != 'context-observation'
+
+
+def test_context_gate_covers_request_structure_and_task_revision_views():
+    paths = ['packages/capstone-app/src/RequestContextEntries.tsx',
+             'packages/capstone-app/src/TaskContextPanel.tsx',
+             'packages/capstone-agent/src/capstone_agent/model_context_diagnostics.py']
+    assert classify(paths) == 'context-observation'
+    assert classify(paths + ['packages/capstone-app/src/Unrelated.tsx']) != 'context-observation'

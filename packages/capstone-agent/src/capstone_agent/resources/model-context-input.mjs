@@ -22,6 +22,7 @@ function injectedContextOrigin(message,text) {
 export function diagnosticContextInput(context,systemSources=[],toolSources,messageSources=[]) {
   const entries=[];
   let ordinal=0, remaining=400_000;
+  let message_index, block_index;
   function entry(carrier,role,body,source_id,name,origin) {
     ordinal++;
     if(entries.length>=256||remaining<=0)return;
@@ -31,6 +32,7 @@ export function diagnosticContextInput(context,systemSources=[],toolSources,mess
     const text=bytes.length<=limit?serialized:bytes.subarray(0,limit).toString('utf8');
     remaining-=Buffer.byteLength(text);
     entries.push({index:ordinal,carrier,role,text,truncated:bytes.length>limit,
+      ...(message_index===undefined?{}:{message_index,block_index}),
       ...(typeof name==='string'&&/^[A-Za-z0-9_.:-]{1,128}$/.test(name)?{name}:{}),
       ...(typeof source_id==='string'&&/^[A-Za-z0-9_.:-]{1,128}$/.test(source_id)?{source_id}:{ }),
       ...(origin?{origin}:carrier==='tool_results'&&toolSources?.has(source_id)?{origin:toolSources.get(source_id)}:{})});
@@ -57,7 +59,9 @@ export function diagnosticContextInput(context,systemSources=[],toolSources,mess
   for(const tool of context.tools??[]){
     entry('tools','definition',{name:tool.name,description:tool.description,parameters:tool.parameters},undefined,tool.name);
   }
-  for(const message of context.messages??[]){
+  for(const [position,message] of (context.messages??[]).entries()){
+    message_index=position+1;
+    block_index=1;
     const toolResult=message.role==='toolResult';
     const role=['user','assistant','toolResult'].includes(message.role)?message.role:'other';
     const carrier=toolResult?'tool_results':'messages';
@@ -65,7 +69,8 @@ export function diagnosticContextInput(context,systemSources=[],toolSources,mess
       entry(carrier,role,message.content,message.toolCallId,message.toolName,injectedContextOrigin(message,message.content));
       continue;
     }
-    for(const part of Array.isArray(message.content)?message.content:[]){
+    for(const [position,part] of (Array.isArray(message.content)?message.content:[]).entries()){
+      block_index=position+1;
       if(part.type==='thinking'||part.type==='redactedThinking')continue;
       if(part.type==='text'&&typeof part.text==='string'){
         const matchingSources=message.role==='user'?messageSources.filter(source=>source.timestamp===message.timestamp&&source.text===part.text):[];

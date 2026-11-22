@@ -473,7 +473,34 @@ assert.equal(system.map(entry=>entry.text).join(''),systemPrompt);
 assert.equal(system.find(entry=>entry.source_id==='admitted-range').text,'Admitted range');
 assert.equal(input.entries.find(entry=>entry.role==='toolCall').source_id,'call-1');
 assert.equal(input.entries.find(entry=>entry.role==='toolResult').source_id,'call-1');
+assert.deepEqual(input.entries.filter(entry=>entry.message_index).map(entry=>[entry.message_index,entry.block_index]),[[1,1],[2,2],[3,1]]);
 assert.equal(input.entries.find(entry=>entry.text===admitted.content).origin.id,'prior-context');
 assert.ok(!JSON.stringify(input).includes('hidden'));
 """], capture_output=True, text=True)
     assert run.returncode == 0, run.stderr
+
+
+def test_request_index_preserves_positions_and_only_previews_redacted_messages(monkeypatch):
+    import json
+    from capstone_agent.model_context_diagnostics import checked_snapshot, read_snapshot
+
+    secret = 'private-context-token-123456'
+    monkeypatch.setenv('CAPSTONE_TEST_TOKEN', secret)
+    raw = {'request_id': 'ctx-1', 'kind': 'main', 'model_id': 'model', 'total_entries': 2,
+           'entries': [
+               {'index': 1, 'carrier': 'system', 'role': 'system', 'text': 'policy', 'truncated': False},
+               {'index': 2, 'carrier': 'messages', 'role': 'user', 'text': f'Check {secret}',
+                'truncated': False, 'message_index': 3, 'block_index': 2},
+           ]}
+    snapshot = checked_snapshot(raw)
+    assert snapshot is not None
+
+    class Objects:
+        def get(self, key, limit):
+            return json.dumps(snapshot).encode()
+
+    index = read_snapshot(Objects(), 'thread', 'attempt', 'ctxdoc_' + 'a' * 32, None)
+    first, second = index['entries']
+    assert 'preview' not in first and 'text' not in second
+    assert (second['message_index'], second['block_index']) == (3, 2)
+    assert second['preview'] == 'Check [REDACTED]'
