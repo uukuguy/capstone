@@ -1,3 +1,5 @@
+2026-11-22 capstone-app 与 capstone-agent 交付请求上下文和任务上下文。[PR232](https://github.com/uukuguy/capstone/pull/232) 合入 dev `b867fd18`，受检 `02f9a021`，定向 macOS CI 45017710776 通过。请求按实际消息边界组织，任务按指令查看保存修订及其前序。本机连续两条采购验收指令完成，八次实际模型调用，检查点、前序修订、消息分组和成果发布通过。
+
 2026-11-22 capstone-app 取消实际请求的条目分页。[PR230](https://github.com/uukuguy/capstone/pull/230) 合入 dev `200cdda5`，受检 `864aa478`。52 项定向测试通过。真实请求按原顺序显示全部 60 个已采集条目，最后一项可直接展开正文。
 
 2026-11-22 capstone-app 更新实际请求正文。[PR227](https://github.com/uukuguy/capstone/pull/227) 合入 dev `e3e7609d`，JSON 按两空格缩进并高亮，保留原始数字与转义。[PR228](https://github.com/uukuguy/capstone/pull/228) 合入 dev `cdf0f18a`，对比条目按原请求位置读取新增、移除或改写正文。51 项定向测试与 macOS App 门禁通过，local-dev 真实请求验证工具定义高亮与对比正文下钻。
@@ -1487,6 +1489,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| context-task-inspection-20261122 | b867fd18 | main | 请求与任务上下文 | PR232 合入 dev，定向 macOS CI 通过 | 保留请求消息层级，查看指令级任务修订 | continuous-task-context |
 | context-request-all-20261122 | 200cdda5 | main | 完整请求条目列表 | PR230 合入 dev，定向 App CI 通过 | 按请求顺序列出所有已采集条目 | continuous-task-context |
 | context-request-diff-20261122 | cdf0f18a | main | 请求 JSON 与差异正文 | PR227、PR228 合入 dev，定向 App CI 通过 | JSON 高亮，差异逐项展开正文 | continuous-task-context |
 | context-request-trace-20261122 | 0a3b8b81 | main | 请求正文沿用执行记录样式 | PR225 合入 dev，定向 App CI 通过 | 运行环境与任务交接按请求顺序展开；请求标题可对比上一请求 | continuous-task-context |
@@ -1737,6 +1740,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| context-task-inspection-20261122 | 开发集成与本机来源 | dev | 请求快照保存实际消息边界；任务页展示指令的保存修订 | 定向 CI 与历史会话浏览器验证通过。 |
 | context-request-all-20261122 | 开发集成与本机来源 | dev | 直接显示全部已采集条目；展开时读取正文 | 定向 CI 与真实记录浏览器验证通过。 |
 | context-request-diff-20261122 | 开发集成与本机来源 | dev | 请求 JSON 格式化与语法高亮；对比可读取原始前后正文 | 定向 CI 与真实记录浏览器验证通过。 |
 | context-request-trace-20261122 | 开发集成与本机来源 | dev | 请求条目共用执行记录样式；上一请求对比保留正文展开 | 定向 CI 与真实记录浏览器验证通过。 |
@@ -2267,7 +2271,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 规范重建来源 `200cdda5`，App 产品来源 `864aa478` | API 与三类 worker 同镜像 aabe2d759575 | App http://127.0.0.1:5173/。实际请求直接显示全部已采集条目，展开查看正文。 |
+| local-dev | 规范重建来源 `b867fd18`，App 产品来源 `02f9a021` | API 与三类 worker 同镜像 3e3fb7e482c9 | App http://127.0.0.1:5173/。请求输入按实际结构展示，任务页按指令查看保存的修订。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
