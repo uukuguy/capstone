@@ -2,6 +2,7 @@ import {useEffect,useRef,useState} from 'react'
 import {ThreadTransportError,type HttpThreadTransport} from './threadHttpTransport'
 import {missionStateLabel,type Mission} from './missions'
 import type {NativeArtifact} from './nativeArtifacts'
+import ObjectiveDeliveryDownload from './ObjectiveDeliveryDownload'
 import './missionStatus.css'
 const taskLabels:Record<string,string> = {
   pending:'待执行', delegated:'已安排', running:'执行中', awaiting_verification:'待核对',
@@ -114,6 +115,13 @@ export default function MissionStatus({transport,missionId,progress,onCopyHandof
     {mission?.conclusionSummary&&<section aria-label="Mission 整体交付">
       <h3>Mission 整体交付</h3>
       <p>{mission.conclusionSummary}</p>
+      {(mission.planConcluded||mission.state==='delivered'&&mission.reason==='partial_delivery')&&<ObjectiveDeliveryDownload fileName={`mission-delivery-v${mission.revision}.md`} delivery={{
+        title:'Mission 整体交付', objective:mission.objective, revision:mission.revision,
+        status:label, summary:mission.conclusionSummary,
+        criteria:(mission.criteria||[]).map(criterion=>({label:criterion.label,status:criterionLabels[criterion.status||'unknown'],
+          explanation:criterion.explanation,
+          references:criterion.products?.map(file=>`${file.file_name} · SHA-256 ${file.sha256}`)})),
+      }}/>}
     </section>}
     {tasks.length>0 && <ol aria-label="Mission 执行计划">{tasks.map(task=>{
       const dependencies=task.dependencies.map(id=>taskPositions.get(id)).filter(position=>position!==undefined)

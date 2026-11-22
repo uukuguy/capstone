@@ -16,6 +16,7 @@ export type SessionGoalPlan = {
   stepIndex: number
   unavailableSteps?:number[]
   criterionVerdicts?:Record<number,'met'|'unmet'|'unknown'>
+  criterionReferences?:Record<number,string[]>
   closureSummary?:string
 }
 export type TaskHandoff = {thread_id:string;work_id:string;work_revision:number;revision_ref:string;mission_id?:string;mission_revision?:number}
@@ -386,6 +387,7 @@ function parseSessionGoalPlan(value: unknown): SessionGoalPlan {
       throw new ThreadProtocolError('目标步骤状态无效')
   }
   const criterionVerdicts:SessionGoalPlan['criterionVerdicts']={}
+  const criterionReferences:Record<number,string[]>={}
   if(receipt.criteria!==undefined){
     if(!Array.isArray(receipt.criteria)||receipt.criteria.length>plan.criteria.length)throw new ThreadProtocolError('目标校验记录无效')
     for(const value of receipt.criteria){
@@ -393,11 +395,13 @@ function parseSessionGoalPlan(value: unknown): SessionGoalPlan {
       if(index>=plan.criteria.length||criterionVerdicts[index]||
           (item.verdict!=='met'&&item.verdict!=='unmet'&&item.verdict!=='unknown'))throw new ThreadProtocolError('目标校验记录无效')
       criterionVerdicts[index]=item.verdict
+      if(Array.isArray(item.refs))criterionReferences[index]=item.refs.filter((ref):ref is string=>typeof ref==='string')
     }
   }
   const summary=receipt.closure_summary
   if(summary!==undefined&&(typeof summary!=='string'||!summary.trim()||Array.from(summary).length>8192))throw new ThreadProtocolError('目标结束说明无效')
   return {criteria: plan.criteria, steps, stepIndex,...(receipt.criteria===undefined?{}:{criterionVerdicts}),
+    ...(Object.keys(criterionReferences).length?{criterionReferences}:{}),
     ...(unavailableSteps?{unavailableSteps}:{}),
     ...(typeof summary==='string'?{closureSummary:summary}:{})}
 }

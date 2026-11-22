@@ -1,6 +1,7 @@
 import {useState} from 'react'
 import type {GoalMode,GoalControl} from './goalMode'
 import type {SessionGoalPlan} from './threadWorkProtocol'
+import ObjectiveDeliveryDownload from './ObjectiveDeliveryDownload'
 import './GoalControls.css'
 
 export default function GoalControls({goal,plan,planning,objective,disabled,executing,onControl,placement}:{goal?:GoalMode; plan?:SessionGoalPlan; planning?:boolean; executing?:boolean;placement?:'summary'|'details';
@@ -61,7 +62,15 @@ export default function GoalControls({goal,plan,planning,objective,disabled,exec
           })}</ul>
         </div>
       </details>}
-      {goal.state==='completed'&&plan?.closureSummary&&<section aria-label="目标交付"><h3>目标交付</h3><p>{plan.closureSummary}</p></section>}
+      {goal.state==='completed'&&plan?.closureSummary&&<section aria-label="目标交付">
+        <h3>目标交付</h3><p>{plan.closureSummary}</p>
+        <ObjectiveDeliveryDownload fileName={`goal-delivery-v${goal.objective_revision}.md`} delivery={{
+          title:'Goal 整体交付', objective:goal.objective, revision:goal.objective_revision,
+          status:stateLabel||'已完成', summary:plan.closureSummary,
+          criteria:plan.criteria.map((label,index)=>({label,status:verdicts[plan.criterionVerdicts?.[index]||'unknown'],
+            references:plan.criterionReferences?.[index]})),
+        }}/>
+      </section>}
       {goal.reason&&goal.reason!=='goal_review_pending'&&goal.reason!=='partial_delivery'&&<p>{reviewReasons[goal.reason]||reasons[goal.reason]||
         (goal.reason.startsWith('goal_continuation_')?`下一步已保留。${continuationReasons[goal.reason]||'执行条件尚未满足。'}`:goal.reason)}</p>}
       {canSendFollowup&&<p>要继续其他工作，可直接在消息框发送新指令。</p>}
