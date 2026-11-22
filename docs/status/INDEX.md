@@ -1,5 +1,13 @@
 # docs/status INDEX
 
+2026-11-23 PR234、PR235 已合入 dev。local-dev 5174 已按合并源码重建，真实 Goal 与混合 Mission 验收通过。见[版本台账](VERSION-CONTROL.md#环境台账)。
+
+2026-11-23 local-dev 混合 Mission 真实验收完成，两个子任务已核验，四项条件已满足。见[环境台账](VERSION-CONTROL.md#环境台账)。
+
+2026-11-22 local-dev Mission 子任务模式与 Goal 上下文候选已重建。见[环境台账](VERSION-CONTROL.md#环境台账)和[项目全景](PROJECT-OVERVIEW.html)。
+
+2026-11-22 local-dev 从 dev `6898d487` 重建，App 入口为 http://127.0.0.1:5174/。见[环境台账](VERSION-CONTROL.md#环境台账)和[项目全景](PROJECT-OVERVIEW.html)。
+
 2026-11-21 持续任务上下文、Goal 自主推进与 Mission 自主交付已登记在[版本台账](VERSION-CONTROL.md#功能包前沿)和[项目全景](PROJECT-OVERVIEW.html)。
 
 2026-11-20 PR180 将任务缺口放到原回答下，移除日常验收操作。真实浏览器确认有发布阻塞时仍可修改草稿。见[版本台账](VERSION-CONTROL.md#功能包前沿)。
