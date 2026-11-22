@@ -115,7 +115,7 @@ export default function MissionStatus({transport,missionId,progress,onCopyHandof
     {mission?.conclusionSummary&&<section aria-label="Mission 整体交付">
       <h3>Mission 整体交付</h3>
       <p>{mission.conclusionSummary}</p>
-      {mission.planConcluded&&<ObjectiveDeliveryDownload fileName={`mission-delivery-v${mission.revision}.md`} delivery={{
+      {(mission.planConcluded||mission.state==='delivered'&&mission.reason==='partial_delivery')&&<ObjectiveDeliveryDownload fileName={`mission-delivery-v${mission.revision}.md`} delivery={{
         title:'Mission 整体交付', objective:mission.objective, revision:mission.revision,
         status:label, summary:mission.conclusionSummary,
         criteria:(mission.criteria||[]).map(criterion=>({label:criterion.label,status:criterionLabels[criterion.status||'unknown'],
