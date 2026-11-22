@@ -334,6 +334,12 @@ export class HttpThreadTransport implements ThreadTransport {
       {signal}, applicationCapacity('control_document_bytes'), 'control_document_bytes')
   }
 
+  readModelContextSnapshot(threadId:string,attemptId:string,ref:string,index?:number,signal?:AbortSignal,credential?:string):Promise<unknown> {
+    const query=index===undefined?'':`?index=${index}`
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/context-snapshots/${encodeURIComponent(ref)}${query}`,{signal,
+      ...(credential?{headers:{Authorization:`Bearer ${credential}`}}:{})})
+  }
+
   async readAttemptRecords(threadId: string, attemptId: string, after = 0, signal?: AbortSignal) {
     if (!Number.isSafeInteger(after) || after < 0) throw new Error('任务记录游标无效')
     const query = new URLSearchParams({ after: String(after), limit: String(applicationCapacity('native_record_count')) })

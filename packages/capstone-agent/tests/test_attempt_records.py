@@ -51,3 +51,45 @@ def test_attempt_records_http_requires_access_and_does_not_start_work():
     assert response.status_code == 200
     assert response.json()["attempt_id"] == claim.attempt.attempt_id
     assert service.snapshot("thr_harness").last_event_seq == before
+
+
+def test_request_context_is_scoped_and_reads_one_redacted_entry(monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.host_api import create_host_app
+    from capstone_agent.model_context_diagnostics import checked_snapshot, save_snapshot
+    from test_thread_http_api import _Ledger, WorkerRegistry
+
+    monkeypatch.setenv('CAPSTONE_CONTEXT_DIAGNOSTICS', '1')
+    service, claim = completed_task()
+    objects = MemoryObjectStore()
+    snapshot = checked_snapshot({
+        'request_id': 'ctx-1', 'dispatch_id': 'request-1', 'kind': 'main', 'total_entries': 2,
+        'entries': [
+            {'index': 1, 'carrier': 'system', 'role': 'system', 'text': 'Retained instruction', 'truncated': False},
+            {'index': 2, 'carrier': 'tool_results', 'role': 'toolResult', 'text': 'api_key: example-secret',
+             'truncated': False, 'source_id': 'call-real',
+             'origin': {'kind': 'file', 'id': 'resource_test', 'revision': '2', 'delivery': 'reference',
+                        'digest': '1' * 64, 'offset': 256, 'length': 64}},
+        ],
+    })
+    attempt = claim.attempt.attempt_id
+    ref = save_snapshot(objects, claim.thread_id, attempt, snapshot)
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'}, thread_open_access=True,
+        thread_service=service, artifacts=SimpleNamespace(store=objects))
+    auth = {'Authorization': 'Bearer hosted-secret'}
+    path = f'/api/v1/threads/{claim.thread_id}/attempts/{attempt}/context-snapshots/{ref}'
+    with TestClient(app, base_url='http://localhost') as client:
+        assert client.get(path).status_code == 403
+        listing = client.get(path, headers=auth)
+        assert listing.status_code == 200
+        assert listing.headers['Cache-Control'] == 'no-store'
+        assert all('text' not in item for item in listing.json()['entries'])
+        assert client.get(path, params={'index': 1}, headers=auth).json()['entry']['text'] == 'Retained instruction'
+        tool = client.get(path, params={'index': 2}, headers=auth).json()['entry']
+        assert tool['source_id'] == 'call-real'
+        assert tool['origin']['offset'] == 256 and tool['origin']['length'] == 64
+        assert tool['redacted'] is True and 'example-secret' not in tool['text']
+        assert client.get(path.replace(f'/attempts/{attempt}/', '/attempts/other_attempt/'), headers=auth).status_code == 404
+        assert client.get(path, params={'index': 3}, headers=auth).status_code == 404

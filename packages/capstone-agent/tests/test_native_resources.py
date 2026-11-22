@@ -447,3 +447,33 @@ console.log(JSON.stringify(events));
     assert start['input_items']['messages']['items'][0]['kind'] == 'user'
     assert end['usage'] == {'input': 10, 'output': 4, 'cacheRead': 2, 'cacheWrite': 3}
     assert 'private' not in result.stdout
+
+
+def test_diagnostic_context_preserves_exact_assembly_spans_and_excludes_reasoning():
+    import subprocess
+    from pathlib import Path
+
+    module = Path(__file__).parents[1] / 'src/capstone_agent/resources/model-context-input.mjs'
+    run = subprocess.run(['node', '--input-type=module', '-e', f"""
+import assert from 'node:assert/strict';
+import {{diagnosticContextInput,observeInjectedContext}} from {module.as_uri()!r};
+const admitted = {{role:'user',timestamp:0,content:'prior approved constraint'}};
+observeInjectedContext(admitted,{{kind:'history',id:'prior-context',revision:'admitted',delivery:'text'}});
+const systemPrompt = 'Policy\\n\\nAdmitted range\\nTail';
+const input = diagnosticContextInput({{
+  systemPrompt,
+  tools:[{{name:'read',description:'Read only one admitted range',parameters:{{type:'object'}}}}],
+  messages:[admitted,{{role:'assistant',content:[
+    {{type:'thinking',thinking:'hidden'}},
+    {{type:'toolCall',id:'call-1',name:'read',arguments:{{offset:2}}}},
+  ]}},{{role:'toolResult',toolCallId:'call-1',toolName:'read',content:[{{type:'text',text:'result'}}]}}]
+}},[{{id:'admitted-range',content:'Admitted range'}}]);
+const system = input.entries.filter(entry=>entry.carrier==='system');
+assert.equal(system.map(entry=>entry.text).join(''),systemPrompt);
+assert.equal(system.find(entry=>entry.source_id==='admitted-range').text,'Admitted range');
+assert.equal(input.entries.find(entry=>entry.role==='toolCall').source_id,'call-1');
+assert.equal(input.entries.find(entry=>entry.role==='toolResult').source_id,'call-1');
+assert.equal(input.entries.find(entry=>entry.text===admitted.content).origin.id,'prior-context');
+assert.ok(!JSON.stringify(input).includes('hidden'));
+"""], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr

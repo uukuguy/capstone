@@ -12,6 +12,8 @@ type Usage = Partial<Record<'input'|'output'|'cacheRead'|'cacheWrite', number>>
 export type ContextObservation = {
   id:string
   dispatchId?:string
+  snapshotRef?:string
+  taskId?:string
   instructionId:string
   attemptId:string
   sequence:number
@@ -25,6 +27,7 @@ export type ContextObservation = {
   usage?:Usage
   reason?:string
   firstKeptEntryId?:string
+  compactionEndSequence?:number
 }
 
 const object = (value:unknown):Record<string,unknown> =>
@@ -83,12 +86,23 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
     const instructionId=stream.find(event=>event.turnId)?.turnId||attemptId
     const byEvent=new Map(stream.map(event=>[event.eventId,event]))
     const observed=new Map<string,ContextObservation>()
+    const taskKey=(event:EventEnvelope,request:string)=>JSON.stringify([event.payload.task_id??null,request])
+    const snapshots=new Map(stream.flatMap(event=>{
+      const ref=object(event.payload.model_context_snapshot_ref)
+      return event.eventType==='runtime_event'&&typeof ref.request_id==='string'&&
+        typeof ref.ref==='string'&&/^ctxdoc_[a-f0-9]{32}$/.test(ref.ref)
+        ? [[taskKey(event,ref.request_id),ref] as const] : []
+    }))
     for(const event of stream){
       if(event.eventType!=='runtime_event')continue
       const raw=object(event.payload.model_context_usage)
       if(typeof raw.request_id!=='string'||!/^ctx-[1-9][0-9]{0,8}$/.test(raw.request_id)
         ||(raw.kind!=='main'&&raw.kind!=='analysis'&&raw.kind!=='summary')||typeof raw.state!=='string')continue
-      const prior=observed.get(raw.request_id)
+      const requestKey=taskKey(event,raw.request_id)
+      const prior=observed.get(requestKey)
+      const capture=snapshots.get(requestKey)
+      const snapshotRef=capture&&(capture.dispatch_id??undefined)===(raw.dispatch_id??prior?.dispatchId)
+        ? String(capture.ref) : undefined
       const dispatchId=typeof raw.dispatch_id==='string'&&/^request-[1-9][0-9]{0,8}$/.test(raw.dispatch_id)?raw.dispatch_id:undefined
       if(prior&&dispatchId&&prior.dispatchId&&dispatchId!==prior.dispatchId)continue
       if(prior&&(prior.kind!==raw.kind||prior.state!=='started'||!['completed','failed'].includes(raw.state)))continue
@@ -97,8 +111,8 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
       const categories=numericFields(raw.estimated_input,Object.keys(contextCategories) as Category[])
       const estimate=Object.keys(categories).length ? Object.values(categories).reduce((total,value)=>total+value,0) : undefined
       const measured=raw.state==='completed'?inputUsage(usage):undefined
-      observed.set(raw.request_id,{
-        id:attemptId+':'+raw.request_id,dispatchId:dispatchId??prior?.dispatchId,instructionId,attemptId,sequence:prior?.sequence??event.eventSeq,
+      observed.set(requestKey,{
+        id:typeof event.payload.task_id==='string'?attemptId+':'+event.payload.task_id+':'+raw.request_id:attemptId+':'+raw.request_id,snapshotRef,taskId:typeof event.payload.task_id==='string'?event.payload.task_id:undefined,dispatchId:dispatchId??prior?.dispatchId,instructionId,attemptId,sequence:prior?.sequence??event.eventSeq,
         kind:raw.kind,state:raw.state,windowTokens:count(raw.window_tokens)&&raw.window_tokens>0?raw.window_tokens:prior?.windowTokens,
         categories,items:contextItems(raw.input_items),usage,inputTokens:measured??estimate,basis:measured!==undefined?'provider':estimate!==undefined?'estimate':undefined,
       })
@@ -118,7 +132,8 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
     for(const phase of projectProcessCompactions(stream,attemptId)){
       const event=byEvent.get(phase.id)
       if(event)rows.push({id:phase.id,instructionId,attemptId,sequence:event.eventSeq,kind:'compaction',
-        state:phase.state,reason:phase.reason,firstKeptEntryId:phase.firstKeptEntryId,inputTokens:phase.tokensBefore,basis:phase.tokensBefore===undefined?undefined:'estimate'})
+        state:phase.state,reason:phase.reason,firstKeptEntryId:phase.firstKeptEntryId,compactionEndSequence:phase.finishedSequence,
+        taskId:typeof event.payload.task_id==='string'?event.payload.task_id:undefined,inputTokens:phase.tokensBefore,basis:phase.tokensBefore===undefined?undefined:'estimate'})
     }
   }
   return rows.sort((a,b)=>a.sequence-b.sequence)
