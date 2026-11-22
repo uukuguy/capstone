@@ -6,6 +6,8 @@ OPEN = '<capstone-answer>'
 CLOSE = '</capstone-answer>'
 _TOOL_TRAILER = re.compile(r'</｜｜DSML｜｜ parameter>\s*</｜｜DSML｜｜ invoke>\s*</｜｜DSML｜｜ calls>\s*\Z')
 _SUMMARY_OPEN = '<capstone-answer-summary>'
+_EXPLICIT_BODY = re.compile(re.escape(OPEN) + r'((?:(?!' + re.escape(OPEN) + r').)*?)' + re.escape(CLOSE), re.DOTALL)
+_FORMAT_NOTICE = '> 回答格式异常。已保留可确认的正式回答。'
 
 
 def _json_object(text: str, *, strict: bool = True) -> dict | None:
@@ -24,7 +26,7 @@ def _answer_object(text: str, *, strict: bool = True) -> dict[str, str] | None:
     return None
 
 
-def public_answer(text: str, *, answer_format: str | None = None) -> str:
+def public_answer(text: str, *, answer_format: str | None = None, recover_unique: bool = False) -> str:
     if answer_format == 'formal-and-core/1' and OPEN in text:
         text = _TOOL_TRAILER.sub('', text)
     if OPEN not in text and CLOSE not in text:
@@ -38,6 +40,16 @@ def public_answer(text: str, *, answer_format: str | None = None) -> str:
                     candidate = candidate[:-len(CLOSE)].rstrip()
                 if _answer_object(candidate) is not None:
                     return candidate
+        if recover_unique:
+            bodies = {body.strip() for body in _EXPLICIT_BODY.findall(text) if body.strip()}
+            if len(bodies) == 1:
+                candidate = bodies.pop()
+                if answer_format != 'formal-and-core/1':
+                    return candidate + '\n\n' + _FORMAT_NOTICE
+                bundle = _answer_object(candidate, strict=False)
+                if bundle is not None:
+                    bundle['answer'] += '\n\n' + _FORMAT_NOTICE
+                    return json.dumps(bundle, ensure_ascii=False)
         raise ValueError('answer_presentation_invalid')
     _, remainder = text.split(OPEN, 1)
     body, after = remainder.split(CLOSE, 1)

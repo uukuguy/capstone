@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 : "${CAPSTONE_TEST_DATABASE_URL:?A disposable PostgreSQL database is required}"
 export PYTHONPATH=.
 uv run --project packages/capstone-agent pytest packages/capstone-control/tests -q
+uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_answer_presentation.py -q
 uv run --project packages/capstone-agent python -m pytest -q \
   packages/capstone-agent/tests/test_enterprise_normal_chat.py \
   packages/capstone-agent/tests/test_instruction_queue.py \

@@ -1,6 +1,13 @@
 import pytest
 from capstone_agent.answer_presentation import public_answer
 
+
+def test_native_answer_recovers_only_one_explicit_body_from_duplicate_markers():
+    text = 'Unpublished preamble <capstone-answer><capstone-answer>Saved report.</capstone-answer></capstone-answer>'
+    assert public_answer(text, recover_unique=True).startswith('Saved report.\n\n')
+    with pytest.raises(ValueError, match='answer_presentation_invalid'):
+        public_answer('<capstone-answer>A</capstone-answer><capstone-answer>B</capstone-answer>', recover_unique=True)
+
 def test_explicit_answer_excludes_preamble_without_language_heuristics():
     assert public_answer('Planning text\n// 交付结果\n<capstone-answer>中文正文 with English terms.</capstone-answer>') == '中文正文 with English terms.'
 
