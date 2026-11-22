@@ -109,5 +109,9 @@
 .context-request-trace .context-entry-state { color:#765321; }
 .context-request-trace .context-category-dot { flex:none; margin:0; }
 .context-entry-body pre { font-size:12px; line-height:1.55; }
+.context-json-key { color:#604397; }
+.context-json-string { color:#14634c; }
+.context-json-number { color:#984820; }
+.context-json-literal { color:#195d89; }
 .context-request-diff small { display:block; margin-block-start:3px; }
 .context-request-diff ul { list-style:none; margin:4px 0; padding-inline-start:0; }

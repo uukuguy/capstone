@@ -1,5 +1,6 @@
 import {useEffect,useEffectEvent,useRef,useState} from 'react'
 import {ChevronRight,GitCompareArrows} from 'lucide-react'
+import RequestContextBody from './RequestContextBody'
 import {contextCategories,type Category} from './instructionContext'
 import {ThreadTransportError} from './threadHttpTransport'
 
@@ -177,7 +178,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
                 ` · 字节 ${entry.origin.offset}–${entry.origin.offset+entry.origin.length}（${entry.origin.delivery==='reference'?'范围引用':'预览'}）`}
             </p>}
             {entry.source_id&&<small>{entry.carrier==='system'?'组装来源':'工具调用'} {entry.source_id}</small>}
-            {text!==undefined&&<pre>{text}</pre>}
+            {text!==undefined&&<RequestContextBody text={text}/>}
           </div>}
         </details></li>)}
       </ol>

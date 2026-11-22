@@ -46,3 +46,17 @@ it('presents runtime and handoff sources as expandable request rows',async()=>{
   expect(read.mock.calls.map(call=>call[2])).toEqual([undefined,2])
   expect(screen.queryByLabelText('按来源筛选')).toBeNull()
 })
+
+it('formats and highlights JSON while preserving the captured values',async()=>{
+  const entry={index:1,carrier:'tools',role:'definition',name:'example'}
+  const raw='{"id":9007199254740993,"options":[true,null,"a\\n"],"id":-1.5e2}'
+  const read=vi.fn(async (_attempt:string,_ref:string,index?:number)=>index===undefined
+    ? {schema:'capstone-model-context-snapshot/1',total_entries:1,entries:[entry]}
+    : {entry:{index,text:raw}})
+  const {container}=render(<RequestContextEntries attempt="a" snapshot="now" read={read}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'1 example'}))
+  const json=await screen.findByLabelText('JSON 正文')
+  expect(json.textContent).toBe('{\n  "id": 9007199254740993,\n  "options": [\n    true,\n    null,\n    "a\\n"\n  ],\n  "id": -1.5e2\n}')
+  expect(container.querySelectorAll('.context-json-key')).toHaveLength(3)
+  expect(container.querySelector('.context-json-number')?.textContent).toBe('9007199254740993')
+})
