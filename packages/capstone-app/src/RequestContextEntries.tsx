@@ -45,9 +45,18 @@ function rowTitle(entry:Entry) {
   return entry.origin?originLabels[entry.origin.kind]:entry.name??entryTitle(entry)
 }
 
+type Difference={kind:'added'|'removed'|'changed';before?:Entry;after?:Entry}
+const differenceLabels={added:'新增',removed:'移除',changed:'改写'} as const
+
+function readBody(result:unknown,index:number) {
+  const entry=asObject(asObject(result).entry)
+  if(entry.index!==index||typeof entry.text!=='string')throw new Error('请求正文无效')
+  return entry.text
+}
+
 function compareEntries(before:Entry[],after:Entry[]) {
   const remaining=[...before]
-  const added:Entry[]=[],changed:Entry[]=[]
+  const added:Entry[]=[],changed:Difference[]=[]
   for(const entry of after){
     const match=remaining.findIndex(other=>entry.digest!==undefined&&entry.digest===other.digest
       &&entry.carrier===other.carrier&&entry.role===other.role&&entry.name===other.name)
@@ -61,9 +70,52 @@ function compareEntries(before:Entry[],after:Entry[]) {
       entry.role==='definition'&&entry.name!==undefined&&entry.name===other.name ||
       entry.role==='system'&&before.filter(row=>row.role==='system').length===1&&after.filter(row=>row.role==='system').length===1
     ))
-    if(match>=0){remaining.splice(match,1);added.splice(i,1);changed.unshift(entry)}
+    if(match>=0){
+      const [prior]=remaining.splice(match,1)
+      added.splice(i,1)
+      changed.unshift({kind:'changed',before:prior,after:entry})
+    }
   }
-  return {added,removed:remaining,changed}
+  return {added:added.map((after):Difference=>({kind:'added',after})),
+    removed:remaining.map((before):Difference=>({kind:'removed',before})),changed}
+}
+
+function DifferenceBody({label,attempt,refId,entry,read}:{label:string;attempt:string;refId:string;entry:Entry;read:ReadRequestContext}) {
+  const [body,setBody]=useState<string>()
+  const [error,setError]=useState(false)
+  useEffect(()=>{
+    const controller=new AbortController()
+    void read(attempt,refId,entry.index,controller.signal).then(value=>{
+      if(!controller.signal.aborted)setBody(readBody(value,entry.index))
+    }).catch(()=>{
+      if(!controller.signal.aborted)setError(true)
+    })
+    return ()=>controller.abort()
+  },[attempt,refId,entry.index,read])
+  return <div className="context-diff-version">
+    <div className="context-diff-version-label">{label} · 第 {entry.index} 项</div>
+    {entry.truncated&&<small>正文已截断</small>}
+    {entry.redacted&&<small>正文包含遮蔽内容</small>}
+    {body!==undefined?<RequestContextBody text={body}/>:<p role="status">{error?'正文暂时无法读取。':'正在读取正文…'}</p>}
+  </div>
+}
+
+function DifferenceRow({difference,attempt,previous,snapshot,read}:{difference:Difference;attempt:string;previous:string;snapshot:string;read:ReadRequestContext}) {
+  const [open,setOpen]=useState(false)
+  const entry=difference.after??difference.before
+  if(!entry)return null
+  const title=entry.origin?rowTitle(entry):entryTitle(entry)
+  return <li><details className="capstone-call-tool context-entry" open={open}>
+    <summary className="context-entry-open" role="button" aria-label={`${differenceLabels[difference.kind]} · ${title}`} aria-expanded={open}
+      onClick={event=>{event.preventDefault();setOpen(!open)}}>
+      <ChevronRight aria-hidden="true"/><small>{differenceLabels[difference.kind]} · </small>
+      <strong className="context-entry-title">{title}</strong>
+    </summary>
+    {open&&<div className="capstone-call-tool-detail context-entry-body context-diff-bodies">
+      {difference.before&&<DifferenceBody label="上一请求" attempt={attempt} refId={previous} entry={difference.before} read={read}/>}
+      {difference.after&&<DifferenceBody label="本次请求" attempt={attempt} refId={snapshot} entry={difference.after} read={read}/>}
+    </div>}
+  </details></li>
 }
 
 export default function RequestContextEntries({attempt,snapshot,previous,category,read,onResetCategory,onIndexReady}:{
@@ -98,9 +150,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
       if(controller.signal.aborted)return
       if(index===undefined){setDocument(snapshotIndex(result));onIndexReady?.()}
       else {
-        const entry=asObject(asObject(result).entry)
-        if(entry.index!==index||typeof entry.text!=='string')throw new Error('请求正文无效')
-        setText(entry.text)
+        setText(readBody(result,index))
       }
       setStatus('')
     } catch(error) {
@@ -150,10 +200,11 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
       <small>{document.modelId&&`${document.modelId} · `}已采集 {document.entries.length} / {document.total_entries} 项，按 SDK 输入顺序</small>
       {comparisonOpen&&<section className="context-request-diff capstone-call-tool-detail" aria-label="与上一请求的差异">
         {comparisonStatus&&<p role="status">{comparisonStatus}</p>}
-        {comparison&&<>
+        {comparison&&previous&&<>
           <p><strong>与上一请求的差异</strong><small>新增 {comparison.added.length} · 移除 {comparison.removed.length} · 改写 {comparison.changed.length}</small></p>
           {(['added','removed','changed'] as const).map(kind=>comparison[kind].length>0&&<ul key={kind}>
-            {comparison[kind].map(entry=><li key={entry.index}>{({added:'新增',removed:'移除',changed:'改写'})[kind]} · {entryTitle(entry)}</li>)}
+            {comparison[kind].map(difference=><DifferenceRow key={difference.after?.index??difference.before?.index}
+              difference={difference} attempt={attempt} previous={previous} snapshot={snapshot} read={read}/>)}
           </ul>)}
         </>}
       </section>}
