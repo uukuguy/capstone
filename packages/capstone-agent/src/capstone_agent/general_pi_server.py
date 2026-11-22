@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import asyncio
 from concurrent.futures import CancelledError
 import json
+import logging
 import re
 import math
 import os
@@ -24,7 +25,7 @@ import httpx
 from jsonschema.exceptions import ValidationError
 
 from .general_pi_executor import GeneralPiProcess, native_pi_launch, task_workspace, collect_artifacts
-from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES, MAX_TASK_DOCUMENT_BYTES
+from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES, MAX_TASK_DOCUMENT_BYTES, executor_identity_digest
 from .general_pi_storage import GeneralPiStorage, request_hash
 from .general_pi_relay import ProviderRelay, forward_provider
 from .bounded_http_loop import run_http
@@ -409,7 +410,29 @@ class GeneralPiHost:
             # An accepted receipt prevents replaying an unknown side effect after restart.
             self._save(request, None)
             self._tasks[request.task_id] = record
-            threading.Thread(target=self._execute, args=(request, record), daemon=True).start()
+            launch = threading.Event()
+            started = False
+
+            def run_admitted_task():
+                launch.wait()
+                if started:
+                    self._execute(request, record)
+
+            try:
+                threading.Thread(target=run_admitted_task, daemon=True).start()
+                started = True
+            except RuntimeError as error:
+                logging.getLogger(__name__).warning('Pi launch failed before execution; task_id=%s exception_type=%s',
+                                                    request.task_id, type(error).__name__)
+                result = PiTaskResult(request.task_id, request.parent_attempt_id, request.executor_identity,
+                    'failed', 'The executor could not start the task.', (), (), {},
+                    {'code': 'native_launch_not_started', 'phase': 'execution'}).to_document()
+                self._save(request, result)
+                record.update(status='failed', result=result)
+            finally:
+                launch.set()
+                if not started and record['result'] is None:
+                    self._tasks.pop(request.task_id, None)
 
     def _save(self, request: PiTaskRequest, result: dict | None) -> None:
         self.storage.save(request.to_document(), result)
@@ -1263,6 +1286,32 @@ class GeneralPiHost:
         with self._lock:
             record['status'], record['result'] = result['status'], result
 
+    def task_contact(self, task_id: str, parent_attempt_id: str, *, executor_sha256=None, include_result=False) -> dict:
+        """Return a scoped contact observation without executing or replaying a task."""
+        task_workspace(self.root, task_id)
+        expected = executor_sha256 or executor_identity_digest(self.identity)
+        with self._lock:
+            item = self._tasks.get(task_id)
+            if item is not None:
+                request = item['request']
+                if (request.parent_attempt_id != parent_attempt_id
+                        or executor_identity_digest(request.executor_identity) != expected):
+                    return {'status': 'unknown'}
+                if not include_result or item['status'] in {'queued', 'running'}:
+                    return {'status': item['status']}
+            saved = self.storage.load(task_id)
+            if saved is None or saved.get('expired') or saved.get('request') is None:
+                return {'status': 'unknown'}
+            request = PiTaskRequest.from_document(saved['request'])
+            if ((request.task_id, request.parent_attempt_id) != (task_id, parent_attempt_id)
+                    or executor_identity_digest(request.executor_identity) != expected
+                    or request_hash(saved['request']) != saved['request_hash']):
+                return {'status': 'unknown'}
+            if saved['result'] is None:
+                return {'status': 'admitted'}
+            result = self._receipt_result(request, saved)
+            return {'status': result.status, **({'result': result.to_document()} if include_result else {})}
+
     def read(self, task_id: str, after: int | None = None) -> dict:
         with self._lock:
             item = self._tasks.get(task_id)
@@ -1575,6 +1624,14 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if native.get('goal_step') is not None:
+                    sdk_config.setdefault('contextFiles', []).append({'path': 'admitted-goal-step',
+                        'content': 'This Instruction advances the admitted session Goal. Use the objective, '
+                        'expected result, acceptance criteria and prior decision to guide the current work. '
+                        'In the reply, explain what changed for the Goal, what evidence supports it and '
+                        'what still needs work. Goal state is workflow context. It grants no new tools '
+                        'or Authority evidence. The host records plan and completion decisions.\n'
+                        + json.dumps(native['goal_step'], ensure_ascii=False)})
                 if native.get('mission_review') is not None:
                     sdk_config.setdefault('contextFiles',[]).append({'path':'admitted-mission-review',
                         'content':'Application-admitted Mission Task-boundary observation. This is Control state, not a new user message or Authority evidence. Inspect actual saved results and decide whether to extend the plan, wait, or conclude it. After making work ready or recording a wait, finish this organizer turn. A real Task boundary resumes it; do not poll state in a read loop.\n'+json.dumps(native['mission_review'],ensure_ascii=False)})
@@ -1826,7 +1883,8 @@ class NativeTaskRunner:
                         'References are historical sources, not current Authority evidence. '+json.dumps(references,ensure_ascii=False)})
                 if native.get('material_notices'):
                     sdk_config.setdefault('contextFiles', []).append({'path': 'session-material-status',
-                        'content': 'These user-supplied file names were not staged; do not claim to have read them: '
+                        'content': 'These inputs were not staged. Continue with available inputs and report the gaps. '
+                            'Do not claim to have read unstaged material: '
                             + json.dumps(native['material_notices'], ensure_ascii=False)})
                 if native['selected_task_records'] and 'task_handoff' in native['selected_task_records'][0]:
                     sdk_config['context']['task_handoff_selected'] = True
@@ -2241,6 +2299,21 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     raise KeyError()
                 path = urlsplit(self.path)
                 query = parse_qs(path.query)
+                parts = path.path.split('/')
+                if len(parts) == 4 and parts[1] == 'tasks' and parts[3] == 'contact':
+                    parent = query.get('parent_attempt_id', [])
+                    if len(parent) != 1 or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', parent[0]):
+                        return self.send_json(400, {'error': 'invalid_task'})
+                    digest = query.get('executor_sha256')
+                    result = query.get('include_result')
+                    if ((digest is not None and (len(digest) != 1 or not re.fullmatch(r'[a-f0-9]{64}', digest[0])))
+                            or (result is not None and (result != ['1'] or digest is None))):
+                        return self.send_json(400, {'error': 'invalid_task'})
+                    contact = host.task_contact(parts[2], parent[0],
+                        executor_sha256=None if digest is None else digest[0], include_result=result is not None)
+                    if digest is not None:
+                        contact['executor_sha256'] = digest[0]
+                    return self.send_json(200, contact)
                 after = int(query['after'][0]) if 'after' in query else None
                 self.send_json(200, host.read(path.path.removeprefix('/tasks/'), after))
             except GridSourceError as error:
@@ -2429,7 +2502,14 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     document = document['request']
                     if len(json.dumps(document, ensure_ascii=False).encode('utf-8')) > limits.native_task_bytes:
                         raise ValueError('task document exceeds bounds')
-                request = PiTaskRequest.from_document(document)
+                try:
+                    request = PiTaskRequest.from_document(document)
+                except ImportError as error:
+                    from .native_failure_origin import native_failure_origin
+                    logging.getLogger(__name__).warning(
+                        'Pi task validation dependency unavailable before admission; origin=%s',
+                        native_failure_origin(error))
+                    return self.send_json(503, {'error': 'executor_validation_unavailable'})
                 try:
                     host.submit(request, execution_authority=authority)
                 except PermissionError:

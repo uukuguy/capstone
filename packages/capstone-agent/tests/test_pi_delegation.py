@@ -738,10 +738,29 @@ def test_recovery_observation_reads_only_the_bound_native_task(monkeypatch):
     assert calls == [('GET', '/tasks/task-1')]
     with pytest.raises(ValueError, match='host task identity'):
         executor.observe_terminal_task(request.task_id, 'another-attempt', request.executor_identity)
-    with pytest.raises(ValueError, match='executor identity'):
-        executor.observe_terminal_task(request.task_id, request.parent_attempt_id,
-                                       {'engine': 'pi', 'config_revision': 'different'})
-    assert len(calls) == 2
+    assert executor.observe_terminal_task(request.task_id, request.parent_attempt_id,
+                                          {'engine': 'pi', 'config_revision': 'different'}) is None
+    assert len(calls) == 3
+    assert calls[-1][1].startswith('/tasks/task-1/contact?')
+
+
+@pytest.mark.parametrize('status,code,missing', [
+    (404, 'task_not_found', True), (404, 'unrecognized_response', False), (503, 'executor_capacity', False),
+])
+def test_terminal_receipt_lookup_distinguishes_missing_task_from_transport_failure(monkeypatch, status, code, missing):
+    from capstone_agent.pi_delegation import PiHTTPFailure
+    request = PiTaskRequest.from_document(request_document(entrypoint='direct'))
+    executor = HttpGeneralPiExecutor('http://127.0.0.1:8790', identity=request.executor_identity, capability={})
+
+    def lookup(*_, **__):
+        raise PiHTTPFailure(status, code)
+
+    monkeypatch.setattr(executor, '_call', lookup)
+    if missing:
+        assert executor.observe_terminal_task(request.task_id, request.parent_attempt_id, request.executor_identity) is None
+    else:
+        with pytest.raises(PiHTTPFailure):
+            executor.observe_terminal_task(request.task_id, request.parent_attempt_id, request.executor_identity)
 
 
 def test_recovery_observation_does_not_infer_exit_from_an_active_task(monkeypatch):

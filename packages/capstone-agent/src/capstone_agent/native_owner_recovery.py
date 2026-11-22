@@ -33,31 +33,47 @@ def recover_exited_native_deliveries(service, executor) -> int:
                         or result.to_document()['executor_identity'] != binding['executor_identity']):
                     raise ValueError('native receipt identity differs from the original instruction')
                 outcome = 'ineligible'
+                if result.status in {'failed', 'cancelled'}:
+                    code = (result.failure or {}).get('code')
+                    if code in {'native_execution_outcome_unknown', 'native_process_cleanup_unconfirmed',
+                                'native_result_retention_expired'}:
+                        outcome = 'unavailable'
+                    else:
+                        outcome = 'terminal_observed'
+                        payload = {'status': result.status, 'error_code': code}
                 if (result.status == 'completed' and result.answer.strip() and result.failure is None
                         and not any(source['kind'] in {AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE}
                                     for source in result.sources)):
                     outcome = 'unavailable'
-                    attempt = AttemptSnapshot(candidate['turn_id'], attempt_id, 'interrupted',
+                    attempt = AttemptSnapshot(candidate['turn_id'], attempt_id, candidate.get('phase', 'interrupted'),
                                               candidate['model_context_id'], candidate['runtime_mode'])
                     context = candidate['task_context_snapshot']
                     original = SimpleNamespace(attempt=attempt, thread_id=candidate['thread_id'],
                         run_id=candidate['run_id'], task_context=None if context is None else TaskContext.from_document(context))
-                    artifacts = project_native_artifacts(original, result)
+                    projected = project_native_artifacts(original, result)
                     objects = getattr(service, '_material_objects', None)
-                    if artifacts and objects is None:
+                    if projected and objects is None:
                         raise OSError('durable artifact storage is unavailable')
-                    for artifact in artifacts:
-                        retain_native_artifact(objects, executor, artifact)
-                    answer, summary = result.answer, None
-                    if binding['delivery_recovery_format'] == 'formal-and-core/1':
-                        from capability_agent.application.answer_format import parse_answer_bundle
-                        bundle = parse_answer_bundle(answer, runtime_limits={'answer_summary_chars': 480})
-                        answer, summary = bundle.answer, bundle.summary
-                    payload = terminal_payload_for_admission(
-                        AdmittedAttemptAnswer(answer, 'offline_information', 'general_knowledge'))
-                    if summary:
-                        payload['answer_core_summary'] = summary
-                    outcome = 'recovered'
+                    for artifact in projected:
+                        try:
+                            retain_native_artifact(objects, executor, artifact)
+                        except Exception as error:
+                            logging.getLogger(__name__).warning(
+                                'Native artifact recovery failed; attempt_id=%s artifact_id=%s exception_type=%s',
+                                attempt_id, artifact['artifact_id'], type(error).__name__)
+                        else:
+                            artifacts.append(artifact)
+                    if len(artifacts) == len(projected):
+                        answer, summary = result.answer, None
+                        if binding['delivery_recovery_format'] == 'formal-and-core/1':
+                            from capability_agent.application.answer_format import parse_answer_bundle
+                            bundle = parse_answer_bundle(answer, runtime_limits={'answer_summary_chars': 480})
+                            answer, summary = bundle.answer, bundle.summary
+                        payload = terminal_payload_for_admission(
+                            AdmittedAttemptAnswer(answer, 'offline_information', 'general_knowledge'))
+                        if summary:
+                            payload['answer_core_summary'] = summary
+                        outcome = 'recovered'
         except Exception as error:
             logging.getLogger(__name__).warning(
                 'Native delivery recovery unavailable attempt_id=%s exception_type=%s origin=%s',
@@ -73,6 +89,7 @@ def recover_exited_native_deliveries(service, executor) -> int:
 
 def observe_lost_contact(service, executor) -> int:
     read_terminal = getattr(executor, 'observe_terminal_task', None)
+    read_contact = getattr(executor, 'observe_task_contact', None)
     if not callable(read_terminal):
         return 0
     recorded = 0
@@ -83,14 +100,17 @@ def observe_lost_contact(service, executor) -> int:
         if binding.get('task_id') != expected_task or binding.get('parent_attempt_id') != attempt_id:
             continue
         try:
-            terminal = read_terminal(expected_task, attempt_id, binding['executor_identity'])
-            status = 'unknown' if terminal is None else terminal.status
+            identity = (expected_task, attempt_id, binding['executor_identity'])
+            status = read_contact(*identity) if callable(read_contact) else 'unknown'
+            if status not in {'admitted', 'queued', 'running'}:
+                terminal = read_terminal(*identity)
+                status = 'unknown' if terminal is None else terminal.status
         except Exception as error:
             logging.getLogger(__name__).warning(
                 'Native recovery lookup unavailable; attempt_id=%s exception_type=%s origin=%s',
                 attempt_id, type(error).__name__, native_failure_origin(error))
             status = 'unknown'
-        if status not in {'completed', 'failed', 'cancelled'}:
+        if status not in {'admitted', 'queued', 'running', 'completed', 'failed', 'cancelled'}:
             status = 'unknown'
         recorded += service.record_native_recovery_observation(candidate, status)
     return recorded

@@ -47,6 +47,23 @@ def test_intent_only_mission_uses_same_identity_and_needs_explicit_readiness():
     assert mission['state'] == 'ready'
 
 
+def test_incremental_plan_keeps_saved_criteria_and_dependencies_omitted_from_update():
+    control = service()
+    mission = create(control, acceptance_criteria=['Saved'])
+    first = task()
+    first.pop('depends_on')
+    second = {**task('task_2'), 'depends_on': ['task_1']}
+    mission = command(control, mission, 'update_plan', {'tasks': [first, second]})
+    assert mission['acceptance_criteria'] == ['Saved']
+    assert [task['depends_on'] for task in mission['tasks']] == [[], ['task_1']]
+    second.pop('depends_on')
+    mission = command(control, mission, 'prepare_task', {'task': second}, 'amend_second')
+    assert mission['tasks'][1]['depends_on'] == ['task_1']
+    with pytest.raises(ContractError):
+        command(control, mission, 'prepare_task',
+                {'task': {**second, 'depends_on': ['missing']}}, 'unknown_dependency')
+
+
 def test_prepare_task_does_not_revoke_unrelated_execution_and_revisions_are_fenced():
     control = service()
     mission = create(control, acceptance_criteria=['Saved'])
@@ -71,8 +88,9 @@ def test_equipment_is_a_registered_reference_not_a_permission_claim():
     mission = command(control, mission, 'prepare_task', {'task': task(equipment=[ref])})
     assert mission['state'] == 'planning'
     mission = command(control, mission, 'update_plan', {'acceptance_criteria': ['Saved'], 'tasks': []}, 'criteria')
-    with pytest.raises(InvalidTransition):
-        command(control, mission, 'ready', {}, 'unavailable')
+    blocked = command(control, mission, 'ready', {}, 'unavailable')
+    assert blocked['tasks'][0]['failure_reason'] == 'equipment_admission_unavailable'
+    assert blocked['tasks'][0]['delegation'] is None
     control = service(admit_mission_reference=lambda workspace, origin, reference: reference == ref)
     mission = create(control)
     mission = command(control, mission, 'prepare_task', {'task': task(equipment=[ref])})
@@ -81,6 +99,22 @@ def test_equipment_is_a_registered_reference_not_a_permission_claim():
         command(control, mission, 'prepare_task', {'task': task('other', equipment=[{**ref, 'permissions': ['shell']}])}, 'bad')
     with pytest.raises(ContractError):
         command(control, mission, 'prepare_task', {'task': task('other', equipment=[ref], restrictions=[ref])}, 'denied')
+
+
+def test_planning_equipment_failure_preserves_independent_task():
+    ref = dict(schema='capstone-mission-equipment-reference/1', kind='skill', id='excluded', revision='v1')
+    control = service(admit_mission_reference=lambda *_: True, admit_mission_task=lambda *_: True)
+    mission = create(control, acceptance_criteria=['Saved'])
+    document = dict(schema='capstone-control-mission-command/1', operation_id='plan',
+                    mission_id=mission['mission_id'], expected_revision=mission['revision'],
+                    kind='update_plan', payload={'tasks': [task(equipment=[ref]), task('independent')]})
+    mission = control.command_mission('team', document, validate_task_equipment=True,
+                                      excluded_skills=['excluded'])['mission']
+    assert mission['tasks'][0]['failure_reason'] == 'equipment_excluded_during_planning'
+    mission = command(control, mission, 'ready', {}, 'ready')
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch')
+    assert mission['tasks'][0]['delegation'] is None
+    assert mission['tasks'][1]['delegation'] is not None
 
 
 def test_existing_goal_projection_remains_unchanged_and_is_not_copied():
@@ -117,9 +151,9 @@ def test_reference_availability_is_rechecked_at_dispatch_and_restrictions_cannot
         command(control, mission, 'prepare_task', {'task': task()}, 'relax')
     mission = command(control, mission, 'ready', {}, 'ready')
     admitted[0] = False
-    with pytest.raises(InvalidTransition):
-        command(control, mission, 'delegate_next', {}, 'dispatch')
-    assert control.read_mission('team', mission['mission_id']) == mission
+    blocked = command(control, mission, 'delegate_next', {}, 'dispatch')
+    assert blocked['tasks'][0]['failure_reason'] == 'equipment_admission_unavailable'
+    assert blocked['tasks'][0]['delegation'] is None
 
 
 def test_mission_plan_dependencies_and_command_identities_are_exact():
@@ -234,3 +268,33 @@ def test_trusted_origin_binding_records_exact_attempt_without_child_dispatch():
     delivered = control.deliver('team', direct['mission_id'], direct['tasks'][0]['delegation']['delegation_id'],
         binding, {'answer_ref': 'saved_origin_answer', 'products': [], 'status': 'completed'})
     assert delivered['tasks'][0]['delivery']['answer_ref'] == 'saved_origin_answer'
+
+
+def test_unavailable_independent_task_does_not_prevent_valid_task_dispatch():
+    availability = {'bad': False, 'good': True}
+    control = service(admit_mission_task=lambda _workspace, _origin, task: availability[task['task_id']])
+    mission = create(control, acceptance_criteria=['Saved'])
+    mission = command(control, mission, 'update_plan', {'tasks': [task('bad'), task('good')]}, 'plan')
+    mission = command(control, mission, 'ready', {}, 'ready_isolated')
+    assert mission['tasks'][0]['failure_reason'] == 'task_admission_unavailable'
+    mission = command(control, mission, 'delegate_next', {}, 'dispatch_isolated')
+    assert mission['tasks'][0]['state'] == 'pending'
+    assert mission['tasks'][1]['state'] == 'dispatching'
+    assert mission['tasks'][0]['delegation'] is None
+
+
+def test_all_unavailable_tasks_keep_diagnostics_and_recover_on_recheck():
+    available = {'value': False}
+    control = service(admit_mission_task=lambda *_: available['value'])
+    mission = create(control, acceptance_criteria=['Saved'])
+    mission = command(control, mission, 'update_plan', {'tasks': [task()]}, 'all_plan')
+    mission = command(control, mission, 'ready', {}, 'all_ready')
+    assert mission['reason'] == 'task_admission_unavailable'
+    assert mission['tasks'][0]['failure_reason'] == 'task_admission_unavailable'
+    mission = command(control, mission, 'delegate_next', {}, 'all_retry')
+    assert mission['tasks'][0]['state'] == 'pending'
+    assert mission['tasks'][0]['delegation'] is None
+    available['value'] = True
+    mission = command(control, mission, 'delegate_next', {}, 'recovered')
+    assert mission['tasks'][0]['state'] == 'dispatching'
+    assert 'failure_reason' not in mission['tasks'][0]

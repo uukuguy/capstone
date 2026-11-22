@@ -5,7 +5,7 @@ export type MissionCreate={schema:'capstone-control-mission-create/1';operation_
 export type MissionOpenItem={kind:string;objective?:string;state?:string;taskId?:string;reason?:string}
 export type MissionTask={id:string;objective:string;state:string;execution: "direct"|"single"|"goal";dependencies:string[];revision:number}
 type MissionCriterion={label:string;status?:'met'|'not_met'|'unknown';explanation?:string;products?:NativeArtifact[]}
-export type Mission={tasks?:MissionTask[];openItems?:MissionOpenItem[];criteria?:MissionCriterion[];missionId:string;objective:string;state:string;revision:number;planComplete:boolean;planConcluded?:boolean;allTasksVerified?:boolean;organizerState?:string;reason?:string;conclusionStatus?:string;origin:{thread_id:string;work_id?:string}}
+export type Mission={tasks?:MissionTask[];openItems?:MissionOpenItem[];criteria?:MissionCriterion[];missionId:string;objective:string;state:string;revision:number;planRevision?:number;planComplete:boolean;planConcluded?:boolean;allTasksVerified?:boolean;organizerState?:string;reason?:string;conclusionStatus?:string;conclusionSummary?:string;origin:{thread_id:string;work_id?:string}}
 const object=(value:unknown):Record<string,unknown>=>{if(!value||typeof value!=='object'||Array.isArray(value))throw new ThreadProtocolError('Mission 记录无效');return value as Record<string,unknown>}
 const id=(value:unknown):string=>{if(typeof value!=='string'||!/^[a-z][a-z0-9_-]{0,127}$/.test(value))throw new ThreadProtocolError('Mission 身份无效');return value}
 
@@ -102,12 +102,15 @@ export function parseMission(value:unknown,workspace:string,threadId:string):Mis
         ...(Array.isArray(verdict?.evidence)?{products:verifiedProducts(verdict.evidence,row.tasks)}:{})} : {})}]
   }):[]
   const conclusionStatus=conclusion?(!Array.isArray(conclusion.criteria_verdicts)?'legacy_unverified':conclusion.plan_revision!==row.plan_revision?'stale':satisfied?'satisfied':'incomplete'):row.plan_concluded===true?'legacy_unverified':undefined
-  return {openItems,tasks,criteria,missionId:id(row.mission_id),objective:row.objective,state:row.state,revision:row.revision as number,planComplete:row.plan_complete,planConcluded:row.plan_concluded===true&&satisfied,...(typeof row.reason==='string'?{reason:row.reason}:{}),conclusionStatus,...(organizer?{organizerState:organizer.state as string}:{}),allTasksVerified:Array.isArray(row.tasks)&&row.tasks.length>0&&row.tasks.every(task=>object(task).state==='verified'),origin:{thread_id:id(origin.thread_id),...(origin.work_id===undefined?{}:{work_id:id(origin.work_id)})}}
+  const conclusionSummary=verdicts&&typeof conclusion?.summary==='string'?conclusion.summary:undefined
+  return {openItems,tasks,criteria,missionId:id(row.mission_id),objective:row.objective,state:row.state,revision:row.revision as number,
+    ...(typeof row.plan_revision==='number'&&Number.isSafeInteger(row.plan_revision)&&row.plan_revision>0?{planRevision:row.plan_revision}:{}),
+    planComplete:row.plan_complete,planConcluded:row.plan_concluded===true&&satisfied,...(typeof row.reason==='string'?{reason:row.reason}:{}),conclusionStatus,conclusionSummary,...(organizer?{organizerState:organizer.state as string}:{}),allTasksVerified:Array.isArray(row.tasks)&&row.tasks.length>0&&row.tasks.every(task=>object(task).state==='verified'),origin:{thread_id:id(origin.thread_id),...(origin.work_id===undefined?{}:{work_id:id(origin.work_id)})}}
 }
 const missionLabels:Record<string,string>={planning:'规划中',waiting_review:'等待任务结果复盘',ready:'待执行',running:'执行中',waiting:'待你回复',paused:'已暂停',pausing:'正在暂停',accepted:'已接受',cancelled:'已撤销',cancelling:'正在撤销',failed:'需处理',blocked:'需处理',revising:'正在调整'}
 export function missionStateLabel(mission:Mission):string{
   if(mission.reason==='partial_delivery')return '部分交付'
-  if(mission.reason==='acceptance_incomplete'||mission.conclusionStatus==='incomplete')return '仍有未完成事项'
+  if(mission.reason==='acceptance_incomplete'||(mission.state==='delivered'&&mission.conclusionStatus==='incomplete'))return '仍有未完成事项'
   if(mission.conclusionStatus==='legacy_unverified')return '原计划结论待核验'
   if(mission.state==='waiting_review')return ({running:'正在复盘',reserved:'正在安排复盘',waiting:'待你回复',no_progress:'复盘待调整',blocked:'复盘需处理',failed:'复盘需处理',cancelled:'复盘已停止',interrupted:'复盘已停止'} as Record<string,string>)[mission.organizerState||'']||'等待任务结果复盘'
   if(mission.state==='delivered')return mission.planConcluded===false?'等待任务结果复盘':mission.planConcluded===true&&mission.allTasksVerified?'成果可用':'待核对交付状态'

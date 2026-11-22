@@ -33,8 +33,11 @@ def test_goal_continuation_freezes_only_named_files_from_its_predecessor(monkeyp
     assert submission['_resource_manifests'][0]['sha256'] == source['sha256']
 
     monkeypatch.setattr('capstone_agent.thread_materials._process_files', lambda *args: [])
-    assert freeze_material_submission(service, snapshot, {}, {}, work_id='work_one',
-        resume_goal_inputs=True)[1] == 'product_context_unavailable'
+    submission, rejection = freeze_material_submission(service, snapshot, {}, {}, work_id='work_one',
+        resume_goal_inputs=True)
+    assert rejection is None
+    assert '_continuation_artifacts' not in submission
+    assert 'draft.md' in submission['_material_notices'][0]
 
 
 @pytest.mark.parametrize('change,accepted', [({'saved_at': '2026-11-02T10:00:00Z'}, True),

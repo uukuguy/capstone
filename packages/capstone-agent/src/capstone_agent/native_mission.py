@@ -35,18 +35,26 @@ def obj(properties, required=None):
 
 IDENTITY = dict(type='string', pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
 TEXT = dict(type='string', minLength=1, maxLength=16384)
+TASK_MODE_GUIDANCE = (
+    'Choose the execution mode separately for each child Task. Use single for one bounded '
+    'Instruction with a directly checkable result. Use goal when the child needs several '
+    'rounds of execution, verification or revision against one objective. A Mission can mix both modes.'
+)
 REF = obj(dict(schema={'const': 'capstone-mission-equipment-reference/1'},
     kind={'enum': ['capability', 'resource_profile', 'resource', 'skill']}, id=IDENTITY,
     revision=dict(type='string', minLength=1, maxLength=256)))
 TASK = obj(dict(task_id=IDENTITY, objective=TEXT,
     delivery_requirements=dict(type='array', items=TEXT, minItems=1, maxItems=64),
-    depends_on=dict(type='array', items=IDENTITY, uniqueItems=True, maxItems=64),
-    agent_id=IDENTITY, mode={'enum':['single', 'goal']}, max_attempts=dict(type='integer', minimum=1),
+    depends_on=dict(type='array', items=IDENTITY, uniqueItems=True, maxItems=64,
+        description='List required predecessor Tasks. Omit for a new independent Task or to keep saved dependencies.'),
+    agent_id=IDENTITY, mode={'enum':['single', 'goal'], 'description':TASK_MODE_GUIDANCE},
+    max_attempts=dict(type='integer', minimum=1,
+        description='Use exactly 1 for single. For goal, set the budget for its execution and review plan.'),
     required_products=dict(type='array', items=dict(type='string', minLength=1, maxLength=255), uniqueItems=True, maxItems=64),
     required_reference_sources=dict(type='array', items=dict(enum=['authority_source', 'gateway_source']),
         uniqueItems=True, maxItems=2, description='Required when the Task must produce a reusable authority or gateway reference. A saved answer or file cannot satisfy this requirement.'),
     equipment=dict(type='array', items=REF, maxItems=64), restrictions=dict(type='array', items=REF, maxItems=64)),
-    ['task_id', 'objective', 'delivery_requirements', 'depends_on', 'agent_id', 'mode', 'max_attempts'])
+    ['task_id', 'objective', 'delivery_requirements', 'agent_id', 'mode', 'max_attempts'])
 REVISION = dict(type='integer', minimum=1,
     description='Exact Mission.revision from the latest returned Mission object (read or command receipt). Never use Mission.plan_revision as expected_revision.')
 PLAN_REVISION = dict(type='integer', minimum=1,
@@ -60,16 +68,16 @@ CRITERION_VERDICT = {**obj(dict(criterion_index=dict(type='integer',minimum=0),
     'allOf':[{'if':{'properties':{'status':{'const':'met'}}},'then':{'properties':{'evidence':{'minItems':1}}}}]}
 CATALOG = {
     'agent_mission_read': dict(description='Read the Mission associated with this conversation and its currently registered equipment references and agents. Use their exact identities and revisions; availability does not require initialization or selection. Planning is not execution or acceptance.', inputSchema=obj({})),
-    'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve Tasks, execution modes and dependencies the user explicitly requires, including required records of failures. Keep unrelated Tasks. Planning does not dispatch work.',
+    'agent_mission_update_plan': dict(description='Incrementally prepare the associated Mission plan from the user intent. Preserve Tasks, execution modes and dependencies the user explicitly requires, including required records of failures. Omit acceptance_criteria to keep the saved criteria. Keep unrelated Tasks.',
         inputSchema=obj(dict(expected_revision=REVISION, acceptance_criteria=dict(type='array', items=TEXT, maxItems=64),
                              tasks=dict(type='array', items=TASK, maxItems=64),
                              removed_task_ids=dict(type='array',items=IDENTITY,maxItems=64,uniqueItems=True)),
-                        ['expected_revision','acceptance_criteria','tasks'])),
+                        ['expected_revision','tasks'])),
     'agent_mission_prepare_task': dict(description='Add or update one pending executable Task with task-relevant registered capability, Domain Pack, resource_profile, exact registered skill or exact published resource versions from the Mission equipment catalog. Select the exact published Domain Pack for its domain work. Use depends_on to carry authorized saved products and authority receipts from verified predecessor Tasks. Select a relevant subset when useful and briefly explain the choice in conversation; empty references retain application defaults. For frozen authorized inputs, the application preserves required bounded read-only resource interfaces within source grants and explicit denies; do not guess these helpers as business equipment. Exact denied tool names do not imply filesystem isolation: bash can still write when admitted. Active Tasks cannot be rewritten; request pause and confirm the actual stop before replanning.',
         inputSchema=obj(dict(expected_revision=REVISION, task=TASK))),
-    'agent_mission_bind_origin_execution': dict(description='Choose direct execution for a Mission with one independent single-mode task that can be completed with the tools admitted to this main conversation. Bind the current turn before doing the work. Save the required files and answer in this turn. The application verifies the saved delivery and resumes Mission review after the turn ends.',
+    'agent_mission_bind_origin_execution': dict(description='Bind direct execution only for a simple, self-contained Instruction that needs one execution and one delivery check in the main conversation. A broad Task label does not make distinct stages into one Instruction. For work with separate deliverables or execution and independent verification, record their Task boundaries and use the admitted plan. Bind the current turn before doing direct work. The application verifies its saved delivery and resumes Mission review after the turn ends.',
         inputSchema=obj(dict(expected_revision=REVISION, task_id=IDENTITY))),
-    'agent_mission_ready': dict(description='Release the admitted plan for dispatch to child conversations. This tool will create child sessions. For a task that should run in this main conversation, call agent_mission_bind_origin_execution instead and execute the task in this turn. For a delegated plan, call this tool only when Tasks, acceptance criteria and equipment are admitted, then finish this organizer turn: a real Task boundary resumes organization automatically. Do not loop over state reads while waiting. If no dependency-ready Task remains, inspect actual results and conclude or wait. This is not product acceptance.',
+    'agent_mission_ready': dict(description='Release the admitted plan for dispatch to child conversations. Prefer this for complex Mission work with independent results, specialist roles or dependency handoffs. Call only when Tasks, acceptance criteria and equipment are admitted, then finish this organizer turn. A real Task boundary resumes organization automatically. Do not poll state while waiting. If no dependency-ready Task remains, inspect saved results and decide what work or verification remains.',
         inputSchema=obj(dict(expected_revision=REVISION))),
     'agent_mission_control': dict(description='Request pause, resume or cancellation of the associated Mission. A request does not confirm a running Task has stopped. Read actual state before replanning; organizer text never broadcasts to Tasks.',
         inputSchema=obj(dict(expected_revision=REVISION, action={'enum':['pause','resume','cancel']}))),
@@ -87,8 +95,20 @@ def mission_entry_guidance(instruction):
         return None
     return (
         'The user explicitly started the Mission associated with this turn. '
-        'Use the registered Mission tools to record the current acceptance criteria and executable work. '
-        'Choose direct or delegated execution based on the work and its grants. '
+        'Keep the Mission objective and acceptance criteria throughout execution and final delivery. '
+        'Assess the work before choosing execution: an Instruction is one bounded action with an '
+        'immediately checkable result. A Goal needs several execution and review rounds against one '
+        'objective. A Mission coordinates Tasks with distinct results, roles, or dependencies. '
+        'Use separate Tasks for independently verifiable results and explicit depends_on for required '
+        'handoffs. Prefer delegation to child conversations for complex work when the granted '
+        'capabilities and resources support it. Explain the selected execution structure in the '
+        'organizer update. Keep each Task linked to its contribution to the Mission. '
+        + TASK_MODE_GUIDANCE + ' '
+        'Use the registered Mission tools to record the acceptance criteria and executable work. '
+        'Use this one-turn direct execution path only for a simple Instruction. When work needs '
+        'Goal-level iteration, preserve separate execution and review boundaries in an admitted plan. '
+        'Use the available Mission dispatch path for those Tasks. Do not collapse them into one '
+        'broad direct Task because they share a workspace or subject. '
         'For direct execution, use agent_mission_bind_origin_execution before doing the work '
         'so the host can verify the saved delivery. For delegated execution, release the admitted work '
         'and let the host resume the organizer at the next task boundary. '

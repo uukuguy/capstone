@@ -1360,8 +1360,9 @@ def test_independent_files_are_delivered_before_retry_or_failure(monkeypatch, tr
         runtime._publish_artifact_descriptors([first, second], 'task', events.append, control)
         assert transferred == [first, second, first]
     else:
-        with pytest.raises(OSError, match='invalid bytes'):
+        with pytest.raises(delegated_runtime.PartialArtifactDelivery) as error:
             runtime._publish_artifact_descriptors([first, second], 'task', events.append, control)
+        assert error.value.failed_count == 1
         assert transferred == [first, second]
     published = [event['payload']['artifact'] for event in events if event['event_type'] == 'native_artifact_published']
     assert published == ([second, first] if transient else [second])

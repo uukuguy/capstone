@@ -177,6 +177,10 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
+    if isinstance(value, dict) and 'goal_step' in value:
+        from .session_goal_plan import checked_goal_step
+        checked_goal_step(value['goal_step'])
+        fields.add('goal_step')
     if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'llm_call_pool', 'deep_research', 'llm_selection', 'gateway_binding', 'mission_binding', 'mission_equipment', 'mission_review'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
@@ -351,6 +355,10 @@ def native_context_for(claim, binding):
     if composition:
         tools.update(COMPOSITION_TOOLS)
     submission = claim.submission or {}
+    goal_step = submission.get('_goal_step')
+    if goal_step is not None and (claim.task_context is None or
+            goal_step['goal']['objective_revision'] != claim.task_context.goal_revision):
+        raise ValueError('Goal step does not match the admitted objective revision')
     from .native_mission import CATALOG, SCHEMA, checked_binding
     mission = submission.get('_mission')
     review = None
@@ -430,6 +438,7 @@ def native_context_for(claim, binding):
         'system_policy': profile.application_policy.load(), 'allowed_tools': sorted(tools),
         'external_lookup_enabled': False}, 'selected_task_records': pages,
         'selected_task_source': source, 'records_truncated': truncated, **work,
+        **({'goal_step': goal_step} if goal_step is not None else {}),
         **({'mission_binding': mission} if mission is not None else {}),
         **({'mission_review': review} if review is not None else {}),
         **({'mission_equipment': selection} if selection is not None else {}),

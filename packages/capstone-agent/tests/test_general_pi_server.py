@@ -948,6 +948,30 @@ def test_mcp_observation_is_host_bound_external_data(tmp_path, raw, tamper, comp
     assert 'result_refs' not in json.dumps(result) and 'evidence_refs' not in json.dumps(result)
 
 
+def test_missing_validator_dependency_returns_a_confirmed_pre_admission_error(tmp_path, monkeypatch):
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+
+    def missing_module(_document):
+        raise ModuleNotFoundError('fixture private module')
+
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'test'},
+                         run_task=lambda *_: pytest.fail('Task was admitted'))
+    monkeypatch.setattr(PiTaskRequest, 'from_document', staticmethod(missing_module))
+    server = make_server(host, control_token='fixture-token', address=('127.0.0.1', 0))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        response = httpx.post(f'http://127.0.0.1:{server.server_port}/tasks', json={},
+                              headers={'Authorization': 'Bearer fixture-token'})
+        assert response.status_code == 503
+        assert response.json() == {'error': 'executor_validation_unavailable'}
+        assert not host._tasks
+    finally:
+        server.shutdown()
+        thread.join()
+        server.server_close()
+
+
 def test_executor_service_binds_identity_and_control_authorization(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'test'},
@@ -967,6 +991,8 @@ def test_executor_service_binds_identity_and_control_authorization(tmp_path):
         result = client.execute(request, NodeControl(lambda: None, time.monotonic()+2), lambda _: None)
         assert result.answer == 'General answer'
         assert result.status == 'completed'
+        assert client.observe_task_contact('t1', 'a1', host.identity) == 'completed'
+        assert client.observe_task_contact('t1', 'other_attempt', host.identity) == 'unknown'
         assert list(tmp_path.glob('receipts/records/*.json'))
     finally:
         server.shutdown()
@@ -1118,6 +1144,75 @@ def test_service_restart_replays_receipt_without_repeating_work(tmp_path):
         run_task=lambda *_: (_ for _ in ()).throw(AssertionError('repeated work')))
     restarted.submit(request)
     assert restarted.read('t1')['result']['answer'] == 'Saved answer'
+    assert restarted.task_contact('t1', 'a1') == {'status': 'completed'}
+
+
+def test_task_contact_distinguishes_saved_admission_from_missing_record(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'},
+                         run_task=lambda *_: pytest.fail('contact query started work'))
+    request = PiTaskRequest('t1', 'a1', 'direct', 'Explain', (), (), host.identity, 2)
+    assert host.task_contact('t1', 'a1') == {'status': 'unknown'}
+    host.storage.save(request.to_document(), None)
+    assert host.task_contact('t1', 'a1') == {'status': 'admitted'}
+    assert host.task_contact('t1', 'a2') == {'status': 'unknown'}
+    assert not host._tasks
+
+
+def test_launch_failure_saves_terminal_proof_and_does_not_repeat(tmp_path, monkeypatch):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'},
+                         run_task=lambda *_: pytest.fail('task must not run'))
+    request = PiTaskRequest('t1', 'a1', 'direct', 'Explain', (), (), host.identity, 2)
+
+    def fail_start(_thread):
+        raise RuntimeError('test launch failure')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(threading.Thread, 'start', fail_start)
+        host.submit(request)
+    receipt = host.read('t1')['result']
+    assert receipt['failure'] == {'code': 'native_launch_not_started', 'phase': 'execution'}
+    assert host.storage.load('t1')['result'] == receipt
+    restarted = GeneralPiHost(root=tmp_path, identity=host.identity,
+                               run_task=lambda *_: pytest.fail('saved failure must not replay'))
+    restarted.submit(request)
+    assert restarted.read('t1')['result'] == receipt
+
+
+def test_contact_recovers_exact_historical_executor_receipts(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    old = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'before'},
+                        run_task=lambda *_: ('Old saved answer', {}))
+    completed = PiTaskRequest('t_done', 'a_done', 'direct', 'Explain', (), (), old.identity, 2)
+    admitted = PiTaskRequest('t_admitted', 'a_admitted', 'direct', 'Explain', (), (), old.identity, 2)
+    old.submit(completed)
+    deadline = time.monotonic() + 3
+    while old.read('t_done')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert old.read('t_done')['status'] == 'completed'
+    old.storage.save(admitted.to_document(), None)
+    new = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'after'},
+                        run_task=lambda *_: pytest.fail('contact query started work'))
+    server = make_server(new, control_token='fixture-token', address=('127.0.0.1', 0))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        client = HttpGeneralPiExecutor(f'http://127.0.0.1:{server.server_port}',
+            identity=new.identity, capability=new.capability, control_token='fixture-token')
+        assert client.observe_task_contact('t_admitted', 'a_admitted', old.identity) == 'admitted'
+        assert client.observe_task_contact('t_admitted', 'wrong_parent', old.identity) == 'unknown'
+        assert client.observe_task_contact('t_admitted', 'a_admitted', new.identity) == 'unknown'
+        assert client.observe_terminal_task('t_admitted', 'a_admitted', old.identity) is None
+        result = client.observe_terminal_task('t_done', 'a_done', old.identity)
+        assert result is not None and result.answer == 'Old saved answer'
+        assert client.observe_terminal_task('t_done', 'wrong_parent', old.identity) is None
+        assert not new._tasks
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_task_runner_failure_retains_private_category_without_error_message(tmp_path):

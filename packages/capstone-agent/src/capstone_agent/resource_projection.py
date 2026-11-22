@@ -81,8 +81,11 @@ def _apply(connection, thread, event):
                            (Jsonb({'state': 'complete', 'resource': p['resource']}), event['event_seq'], thread, uid))
     elif kind == 'command_accepted':
         for ref in p.get('attachment_refs', []):
-            connection.execute('UPDATE capstone_resource_uploads SET metadata=metadata || %s WHERE thread_id=%s AND upload_id=%s',
-                               (Jsonb({'draft': False}), thread, 'upload_' + ref.removeprefix('resource_')))
+            version = p.get('attachment_versions', {}).get(ref, 1)
+            connection.execute("""UPDATE capstone_resource_uploads SET metadata=metadata || %s
+                WHERE thread_id=%s AND metadata->'resource'->>'resource_id'=%s
+                  AND metadata->'resource'->>'version'=%s""",
+                (Jsonb({'draft': False}), thread, ref, str(version)))
 
 
 def state(connection, thread, uid, *, part_index=None, include_parts=True):

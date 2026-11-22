@@ -8,6 +8,7 @@ them to the accepted task before it saves or presents the result.
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 import asyncio
+from hashlib import sha256
 import json
 import math
 import re
@@ -28,6 +29,11 @@ from .native_document_types import MAX_NATIVE_TASK_BYTES
 MAX_TASK_DOCUMENT_BYTES = MAX_NATIVE_TASK_BYTES
 CANCELLATION_TIMEOUT_SECONDS = 0.5
 TASK_EXCHANGE_TIMEOUT_SECONDS = 5.0
+
+
+def executor_identity_digest(identity: Mapping) -> str:
+    document = _json_document(identity)
+    return sha256(json.dumps(document, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 class PiTransportTimeout(TimeoutError):
@@ -642,6 +648,7 @@ class HttpGeneralPiExecutor:
                                     and re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}',detail['phase'])):
                                 raise CapacityExceeded(detail['dimension'],detail['actual'],detail['limit'],detail['phase'],mode='debug')
                         known = {'invalid_task', 'task_not_found', 'research_owner_conflict',
+                                 'executor_validation_unavailable',
                                  'unauthorized', 'executor_capacity', 'resource_not_found',
                                  'research_transport_file_changed', 'grid_source_unavailable',
                                  'grid_source_request_invalid', 'grid_source_view_changed',
@@ -704,6 +711,36 @@ class HttpGeneralPiExecutor:
             checkpoint()
             raise RuntimeError("Pi executor transport failed; task state may be unknown") from None
 
+    def _contact_receipt(self, task_id, parent_attempt_id, executor_identity, *, include_result=False):
+        from urllib.parse import urlencode
+
+        _id(task_id)
+        _id(parent_attempt_id)
+        query = {'parent_attempt_id': parent_attempt_id,
+                 'executor_sha256': executor_identity_digest(executor_identity)}
+        if include_result:
+            query['include_result'] = '1'
+        try:
+            response = self._call('GET', '/tasks/' + task_id + '/contact?' + urlencode(query), timeout=2, total_timeout=3)
+        except PiHTTPFailure as error:
+            if error.diagnostic['http_status'] == 404:
+                return {'status': 'unknown'}
+            raise
+        observed = response.pop('executor_sha256', None)
+        if observed is None and query['executor_sha256'] == executor_identity_digest(self.identity) and not include_result:
+            return response
+        if observed != query['executor_sha256']:
+            return {'status': 'unknown'}
+        return response
+
+    def observe_task_contact(self, task_id: str, parent_attempt_id: str, executor_identity: Mapping) -> str:
+        """Read a positive contact observation against the original executor binding."""
+        response = self._contact_receipt(task_id, parent_attempt_id, executor_identity)
+        if set(response) != {'status'} or response['status'] not in {
+                'admitted', 'queued', 'running', 'unknown', 'completed', 'failed', 'cancelled'}:
+            raise ValueError('Pi task contact observation is invalid')
+        return response['status']
+
     def observe_terminal_task(self, task_id: str, parent_attempt_id: str,
                               executor_identity: Mapping) -> PiTaskResult | None:
         """Read an existing result from the frozen executor without starting work."""
@@ -711,8 +748,19 @@ class HttpGeneralPiExecutor:
         _id(parent_attempt_id)
         identity = _json_document(executor_identity)
         if identity != _json_document(self.identity):
-            raise ValueError('Pi recovery executor identity changed')
-        response = self._call('GET', '/tasks/' + task_id, timeout=2, total_timeout=3)
+            receipt = self._contact_receipt(task_id, parent_attempt_id, identity, include_result=True)
+            if receipt.get('status') in {'unknown', 'admitted', 'queued', 'running'} and 'result' not in receipt:
+                return None
+            if set(receipt) != {'status', 'result'}:
+                raise ValueError('Pi historical receipt is invalid')
+            response = {**receipt, 'events': []}
+        else:
+            try:
+                response = self._call('GET', '/tasks/' + task_id, timeout=2, total_timeout=3)
+            except PiHTTPFailure as error:
+                if (error.diagnostic['http_status'], error.diagnostic['protocol_code']) == (404, 'task_not_found'):
+                    return None
+                raise
         fields = {'status', 'events', 'result'}
         if (not fields <= set(response) or set(response) - fields - {'resource_requests', 'range_requests'}
                 or not isinstance(response['events'], list)):

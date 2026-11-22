@@ -1227,6 +1227,7 @@ function ChatMessage({ requestLocation, onOpenInstructionContext, resolveRequest
   return <MessagePrimitive.Root data-context-linked={linkedContext||undefined} data-message-id={id} data-execution-id={role==='assistant'?attemptId:undefined} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     {!(inlineExecution && completedAnswer) && toolbar}
     <div className="capstone-chat-body">
+      {role==='user'&&typeof custom?.goalStep==='string'&&<span className="capstone-goal-instruction-label">Goal 指令 · {custom.goalStep}</span>}
       {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]} readFile={readInstructionFile} saveFile={saveInstructionFile}/>}
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
       {role === 'assistant' && typeof custom?.retainedResearchGoal === 'string' && <details className="capstone-task-research">

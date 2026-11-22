@@ -50,6 +50,11 @@ def test_explicit_mission_uses_its_admitted_delivery_contract(instruction, expec
     if expected:
         assert 'agent_mission_bind_origin_execution' in guidance
         assert 'saved' in guidance
+        assert 'Prefer delegation to child conversations for complex work' in guidance
+        assert 'one-turn direct execution path only for a simple Instruction' in guidance
+        assert 'Goal-level iteration' in guidance
+        assert 'Choose the execution mode separately for each child Task' in guidance
+        assert 'A Mission can mix both modes' in guidance
 
 
 def test_equipment_narrows_current_grants_without_adding_tools():

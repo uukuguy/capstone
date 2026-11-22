@@ -635,3 +635,17 @@ def test_local_dev_scope_covers_startup_and_respects_release_boundary():
     assert classify_changes(paths) == 'local-dev'
     assert classify_changes(paths, target='main') == 'release'
     assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
+
+
+def test_execution_continuity_scope_covers_changed_owners():
+    import json
+    from tools.ci_scope import classify as classify_changes
+
+    manifest = json.loads((ROOT / 'configs/development/execution-continuity-gate.json').read_text())
+    paths = manifest['paths'] + ['.github/workflows/verify.yml', 'tools/ci_scope.py',
+                                 'tools/tests/test_ci_scope.py']
+    assert classify_changes(paths) == 'execution-continuity'
+    assert classify_changes(paths, target='main') == 'release'
+    assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
+    assert set(manifest['backend_tests']).issubset(paths)
+    assert all((ROOT / name).is_file() for name in manifest['backend_tests'])

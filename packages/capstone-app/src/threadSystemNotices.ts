@@ -48,7 +48,29 @@ export function projectSystemNotices(messages: readonly ThreadMessageLike[], eve
     return { message, seq: seq ?? 0, order: index }
   })
   const workspaceCommands = new Set(events.filter((event) => event.eventType === 'model_workspace_changed').map((event) => event.payload.command_id))
+  const shownGoalDecisions = new Set<string>()
   const durable = events.flatMap((event): ThreadSystemNotice[] => {
+    if(event.eventType==='attempt_native_terminal_observed'&&event.visibility==='public'){
+      const outcome=event.payload.status==='cancelled'?'已取消':'执行失败'
+      return [{id:event.eventId,eventId:event.eventId,attemptId:event.attemptId,afterEventSeq:event.eventSeq,
+        text:`已收到上次失联执行的回执：${outcome}。`,tone:'info'}]
+    }
+    if(event.eventType==='command.applied'){
+      const work=event.payload.work as {work_id?:string;goal_mode?:{
+        state?:string;last_settled_attempt_id?:string;generation?:number
+      };goal_plan?:{last_decision?:string;closure_summary?:string}}|undefined
+      const goal=work?.goal_mode
+      const completed=goal?.state==='completed'
+      const text=completed?work?.goal_plan?.closure_summary:goal?.state==='ready'?work?.goal_plan?.last_decision:undefined
+      if(typeof text==='string'&&text.trim()&&goal?.last_settled_attempt_id){
+        const id=`goal-decision:${work?.work_id}:${goal.generation}:${goal.last_settled_attempt_id}`
+        if(!shownGoalDecisions.has(id)){
+          shownGoalDecisions.add(id)
+          return [{id,afterEventSeq:event.eventSeq,eventId:event.eventId,
+            text:`${completed?'Goal 整体交付':'Goal 推进决策'} · ${text}`,tone:'info'}]
+        }
+      }
+    }
     if(event.eventType==='mission_review_requested'&&event.visibility==='public'&&event.attemptId&&typeof event.payload.mission_id==='string'&&typeof event.payload.review_id==='string'){
       const terminal=events.reduce<EventEnvelope|undefined>((latest,row)=>row.attemptId===event.attemptId&&['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(row.eventType)?row:latest,undefined)
       const text=terminal?.eventType==='attempt_completed'?'任务结果复盘已结束':terminal?.eventType==='attempt_failed'?'任务结果复盘未完成':terminal?'任务结果复盘已停止':'正在根据任务结果调整计划'

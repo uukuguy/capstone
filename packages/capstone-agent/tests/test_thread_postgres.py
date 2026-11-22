@@ -696,7 +696,8 @@ def test_postgres_serializes_terminal_writes_and_rejects_former_owner(postgres_t
                 if event.event_type == 'attempt_completed']) == 1
 
 
-def test_native_recovery_observes_bound_result_without_settling_attempt(postgres_thread_service):
+@pytest.mark.parametrize('worker_returns', [True, False])
+def test_native_recovery_observes_bound_result_without_settling_attempt(postgres_thread_service, worker_returns):
     from hashlib import sha256
     from types import SimpleNamespace
 
@@ -731,24 +732,51 @@ def test_native_recovery_observes_bound_result_without_settling_attempt(postgres
     expire()
     assert observe_lost_contact(service, SimpleNamespace(observe_terminal_task=contacted)) == 0
     expire()
+    unknown = SimpleNamespace(observe_terminal_task=lambda *_: None)
+    assert observe_lost_contact(service, unknown) == 1
+    assert service.interrupt_expired_attempts() == 0
+    assert service.snapshot(thread_id).current_attempt.attempt_id == attempt_id
+    with service._connect() as connection:
+        connection.execute("""UPDATE capstone_thread_events SET occurred_at=clock_timestamp() - interval '61 seconds'
+                              WHERE thread_id=%s AND event_type='attempt_native_recovery_checked'""", (thread_id,))
+    assert observe_lost_contact(service, unknown) == 1
+    with service._connect() as connection:
+        connection.execute("""UPDATE capstone_thread_events SET occurred_at=clock_timestamp() - interval '61 seconds'
+                              WHERE thread_id=%s AND event_type='attempt_native_recovery_checked'""", (thread_id,))
+    confirmed = SimpleNamespace(observe_task_contact=lambda *_: 'admitted', observe_terminal_task=read)
+    assert observe_lost_contact(service, confirmed) == 1
+    assert service.interrupt_expired_attempts() == 0
+    with service._connect() as connection:
+        connection.execute("""UPDATE capstone_thread_events SET occurred_at=clock_timestamp() - interval '61 seconds'
+                              WHERE thread_id=%s AND event_type='attempt_native_recovery_checked'""", (thread_id,))
     assert observe_lost_contact(service, SimpleNamespace(observe_terminal_task=read)) == 1
     assert observe_lost_contact(service, SimpleNamespace(observe_terminal_task=read)) == 0
-    assert service.snapshot(thread_id).current_attempt.attempt_id == attempt_id
-    public, = [event for event in service.read_events(thread_id, 0).events
-               if event.event_type == 'attempt_native_result_observed']
-    assert public.payload == {'status': 'completed'}
-    service.finish_attempt(claim, phase='completed', payload={'answer': 'Original context verified'})
+    public = [event.payload for event in service.read_events(thread_id, 0).events
+              if event.event_type == 'attempt_native_result_observed']
+    assert public == [{'status': 'unknown'}, {'status': 'admitted'}, {'status': 'completed'}]
+    if worker_returns:
+        assert service.renew_attempt(claim, 30)
+        assert service.interrupt_expired_attempts() == 0
+        service.finish_attempt(claim, phase='completed', payload={'answer': 'Original context verified'})
+    else:
+        assert service.interrupt_expired_attempts() == 1
+        assert service.snapshot(thread_id).current_attempt is None
+        assert service.interrupt_expired_attempts() == 0
+        settled = [event for event in service.read_events(thread_id, 0).events
+                   if event.event_type == 'attempt_interrupted']
+        assert settled[-1].payload['reason'] == 'native_terminal_confirmed'
     assert service.native_recovery_candidates() == []
 
 
-def test_recover_native_delivery_after_confirmed_worker_exit(postgres_thread_service):
+@pytest.mark.parametrize('confirmation', ['worker_exit', 'native_receipt'])
+def test_recover_native_delivery_after_confirmed_worker_exit(postgres_thread_service, confirmation):
     from hashlib import sha256
     from types import SimpleNamespace
     from concurrent.futures import ThreadPoolExecutor
 
     from capstone_agent.artifacts import MemoryObjectStore
     from capstone_agent.native_artifact_projection import artifact_object_key, native_artifact_page
-    from capstone_agent.native_owner_recovery import recover_exited_native_deliveries
+    from capstone_agent.native_owner_recovery import observe_lost_contact, recover_exited_native_deliveries
     from capstone_agent.pi_delegation import PiTaskResult
 
     service, thread_id = postgres_thread_service
@@ -766,23 +794,33 @@ def test_recover_native_delivery_after_confirmed_worker_exit(postgres_thread_ser
     }, visibility='diagnostic')
     digest = sha256(b'report').hexdigest()
     file_id = 'file-' + sha256(b'report.md').hexdigest()[:16] + '-' + digest
+    sibling_id = 'file-' + sha256(b'appendix.md').hexdigest()[:16] + '-' + digest
     artifact = {'artifact_id': file_id, 'task_id': task_id, 'parent_attempt_id': attempt_id,
                 'kind': 'workspace_file', 'metadata': {'path': 'report.md', 'sha256': digest, 'size_bytes': 6}}
-    result = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Recovered delivery', (), (artifact,), {})
+    sibling = {**artifact, 'artifact_id': sibling_id, 'metadata': {**artifact['metadata'], 'path': 'appendix.md'}}
+    result = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Recovered delivery', (), (artifact, sibling), {})
     def read_file(task, artifact_id, *, expected_sha256, expected_size):
-        assert (task, artifact_id, expected_sha256, expected_size) == (task_id, file_id, digest, 6)
+        assert artifact_id in {file_id, sibling_id}
+        assert (task, expected_sha256, expected_size) == (task_id, digest, 6)
         return b'report'
 
     executor = SimpleNamespace(observe_terminal_task=lambda *_: result, read_artifact=read_file)
 
     assert recover_exited_native_deliveries(service, executor) == 0
-    service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
-                                 payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+    if confirmation == 'worker_exit':
+        service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+                                     payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+    else:
+        with service._connect() as connection:
+            connection.execute("""UPDATE capstone_thread_attempts SET lease_deadline=clock_timestamp() - interval '1 second'
+                                  WHERE attempt_id=%s""", (attempt_id,))
+        assert observe_lost_contact(service, executor) == 1
     assert service.interrupt_expired_attempts() == 1
     invalid_transfer = SimpleNamespace(observe_terminal_task=lambda *_: result,
-                                       read_artifact=lambda *args, **kwargs: b'broken')
+        read_artifact=lambda task, artifact_id, **kwargs: b'broken' if artifact_id == file_id else b'report')
     assert recover_exited_native_deliveries(service, invalid_transfer) == 0
-    assert not native_artifact_page(service, thread_id, attempt_id)['artifacts']
+    retained, = native_artifact_page(service, thread_id, attempt_id)['artifacts']
+    assert retained['file_name'] == 'appendix.md'
     assert all(event.event_type != 'attempt_delivery_recovered' for event in service.read_events(thread_id, 0).events)
     with service._connect() as connection:
         connection.execute("""UPDATE capstone_thread_events SET occurred_at=clock_timestamp() - interval '61 seconds'
@@ -795,12 +833,57 @@ def test_recover_native_delivery_after_confirmed_worker_exit(postgres_thread_ser
         'attempt_interrupted', 'attempt_completed', 'attempt_delivery_recovered',
     }] == ['attempt_interrupted', 'attempt_delivery_recovered']
     assert events[-1].payload['answer'] == 'Recovered delivery'
-    published, = native_artifact_page(service, thread_id, attempt_id, include_presentation=False)['artifacts']
-    assert service._material_objects.get(artifact_object_key(published), 6) == b'report'
+    published = native_artifact_page(service, thread_id, attempt_id, include_presentation=False)['artifacts']
+    assert {item['file_name'] for item in published} == {'report.md', 'appendix.md'}
+    assert all(service._material_objects.get(artifact_object_key(item), 6) == b'report' for item in published)
 
 
-@pytest.mark.parametrize('workflow', ['goal', 'paused_goal', 'mission'])
-def test_recovered_native_delivery_restores_only_the_exact_workflow(postgres_thread_service, workflow):
+def test_native_delivery_scan_prioritizes_unchecked_attempts(postgres_thread_service):
+    from hashlib import sha256
+
+    service, thread_id = postgres_thread_service
+
+    def lose_contact(suffix):
+        thread = thread_id + '_' + suffix
+        run_id = 'run_recovery_' + suffix
+        document = _snapshot(thread).to_document()
+        document['run']['run_id'] = run_id
+        service.create_thread(ThreadSnapshot.from_document(document))
+        assert service.submit_command({**_command(thread), 'run_id': run_id,
+                                       'command_id': 'cmd_' + suffix}).status == 'accepted'
+        claim = service.claim_attempt('native-owner', 30)
+        attempt = claim.attempt.attempt_id
+        service.append_runtime_event(claim, event_type='runtime_event', visibility='diagnostic', payload={
+            'task_id': 'pi-' + sha256((attempt + '\0conversation').encode()).hexdigest(),
+            'parent_attempt_id': attempt, 'goal_id': 'conversation', 'child_status': 'started',
+            'executor_identity': {'engine': 'pi'}, 'route_source': 'native_conversation',
+            'delivery_recovery_format': 'plain',
+        })
+        service.finish_attempt(claim, phase='failed', payload={
+            'error_code': 'native_transport_timeout', 'outcome': {'execution_state': 'unknown'}})
+        return attempt
+
+    first = lose_contact('first')
+    second = lose_contact('second')
+    candidates = service.native_delivery_recovery_candidates()
+    assert [item['attempt_id'] for item in candidates] == [first, second]
+    for item in candidates:
+        service.record_native_delivery_recovery(item, 'unavailable', None, [])
+    third = lose_contact('third')
+    assert [item['attempt_id'] for item in service.native_delivery_recovery_candidates()] == [third]
+    with service._connect() as connection:
+        connection.execute("""UPDATE capstone_thread_events
+            SET occurred_at=clock_timestamp() - interval '61 seconds'
+            WHERE attempt_id IN (%s, %s) AND event_type='attempt_native_delivery_checked'""", (first, second))
+    selected = service.native_delivery_recovery_candidates()
+    assert selected[0]['attempt_id'] == third
+    assert len(selected) == 2
+
+
+@pytest.mark.parametrize('workflow', ['goal', 'paused_goal', 'mission', 'conversation', 'changed_conversation'])
+@pytest.mark.parametrize('phase', ['interrupted', 'failed'])
+@pytest.mark.parametrize('terminal', ['completed', 'failed', 'cancelled'])
+def test_recovered_native_delivery_restores_only_the_exact_workflow(postgres_thread_service, workflow, phase, terminal):
     from dataclasses import replace
     from hashlib import sha256
     from types import SimpleNamespace
@@ -816,9 +899,13 @@ def test_recovered_native_delivery_restores_only_the_exact_workflow(postgres_thr
     service, thread_id = postgres_thread_service
     service.create_thread(replace(_snapshot(thread_id), active_model_context=None,
                                   active_grid_page_id=None, minimum_protocol_version=2))
-    service.set_native_executor(native_executor())
-    if workflow == 'mission':
-        service.attach_mission(DEFAULT_WORKSPACE, 'mission_test', {'thread_id': thread_id})
+    native = native_executor()
+    native.capability.update(instruction_schemas=['capstone-native-instruction/1'],
+                             execution_authority_schemas=['capstone-execution-authority/1'], instruction_limit=128)
+    service.set_native_executor(native)
+    if workflow in {'mission', 'conversation', 'changed_conversation'}:
+        if workflow == 'mission':
+            service.attach_mission(DEFAULT_WORKSPACE, 'mission_test', {'thread_id': thread_id})
         receipt = service.submit_command(command(service, thread_id, 'send_message', 'mission_origin',
                                                   payload={'text': 'Organize the mission'}))
     else:
@@ -830,10 +917,14 @@ def test_recovered_native_delivery_restores_only_the_exact_workflow(postgres_thr
             'schema': 'capstone-session-goal-plan/1',
             'criteria': ['Verified report'],
             'steps': [{'instruction': 'Check source', 'expected_result': 'Source receipt'},
-                      {'instruction': 'Write report', 'expected_result': 'Saved report'}],
+                      {'instruction': 'Write report', 'expected_result': 'Saved report', 'depends_on': []}],
         }) == 1
     assert receipt.status == 'accepted'
     claim = service.claim_attempt('native-owner', 30)
+    if workflow in {'conversation', 'changed_conversation'}:
+        work, = service.snapshot(thread_id).works
+        assert service.submit_command(command(service, thread_id, 'queue_instruction', 'after_exit',
+            work_id=work['work_id'], revision=work['revision'], payload={'text': 'Independent follow-up'})).status == 'accepted'
     attempt_id = claim.attempt.attempt_id
     task_id = 'pi-' + sha256((attempt_id + '\0conversation').encode()).hexdigest()
     identity = {'engine': 'pi'}
@@ -842,18 +933,53 @@ def test_recovered_native_delivery_restores_only_the_exact_workflow(postgres_thr
         'goal_id': 'conversation', 'child_status': 'started', 'executor_identity': identity,
         'route_source': 'native_conversation', 'delivery_recovery_format': 'plain',
     }, visibility='diagnostic')
-    service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
-                                 payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
-    assert service.interrupt_expired_attempts() == 1
+    if phase == 'interrupted':
+        service.append_runtime_event(claim, event_type='attempt_worker_diagnostic',
+                                     payload={'error_code': 'worker_execution_failed'}, visibility='diagnostic')
+        assert service.interrupt_expired_attempts() == 1
+    else:
+        service.finish_attempt(claim, phase='failed', payload={
+            'error_code': 'native_transport_timeout', 'answer': 'The executor connection was lost',
+            'outcome': {'execution_state': 'unknown'}})
     if workflow == 'paused_goal':
         work, = service.snapshot(thread_id).works
         assert service.submit_command(command(service, thread_id, 'pause_goal', 'pause_after_exit',
             work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
-    result = PiTaskResult(task_id, attempt_id, identity, 'completed', 'Source checked', (), (), {})
+    if workflow == 'changed_conversation':
+        work, = service.snapshot(thread_id).works
+        receipt = service.submit_command(command(service, thread_id, 'send_message', 'explicit_followup',
+            work_id=work['work_id'], revision=work['revision'], payload={'text': 'New user instruction'}))
+        assert receipt.status == 'accepted'
+    failure = {'code': 'runtime_failed', 'phase': 'execution'} if terminal == 'failed' else None
+    result = PiTaskResult(task_id, attempt_id, identity, terminal,
+                          'Source checked' if terminal == 'completed' else '', (), (), {}, failure=failure)
     executor = SimpleNamespace(observe_terminal_task=lambda *_: result)
     assert recover_exited_native_deliveries(service, executor) == 1
     assert recover_exited_native_deliveries(service, executor) == 0
+    if workflow == 'conversation':
+        successor = service.claim_attempt('native-owner', 30)
+        assert successor is not None
+        assert successor.instruction == 'Independent follow-up'
+        return
+    if workflow == 'changed_conversation':
+        successor = service.claim_attempt('native-owner', 30)
+        assert successor.instruction == 'New user instruction'
+        assert successor.attempt.attempt_id == receipt.target['attempt_id']
+        return
     work, = service.snapshot(thread_id).works
+    if terminal != 'completed':
+        events = service.read_events(thread_id, 0).events
+        observed, = [event for event in events if event.event_type == 'attempt_native_terminal_observed']
+        assert observed.payload['status'] == terminal
+        if workflow == 'goal':
+            assert work['goal_mode']['state'] == 'ready'
+            assert drain_goal_continuations(service) == 1
+            assert service.claim_attempt('native-owner', 30).instruction == 'Write report'
+        elif workflow == 'paused_goal':
+            assert work['goal_mode']['reason'] == 'user_pause'
+        else:
+            assert work['status'] == phase
+        return
     if workflow == 'mission':
         assert work['status'] == 'completed'
         assert work['latest_attempt_id'] == attempt_id

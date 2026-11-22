@@ -225,28 +225,28 @@ def test_continuation_reuses_latest_file_versions_across_terminal_attempts(chat_
         'chart.png': b'old-chart', 'metrics.csv': b'new-metrics', 'analysis.py': b'print(42)'}
 
 
-def test_goal_reuses_admitted_prior_product_and_rejects_ambiguous_names(monkeypatch):
+def test_goal_retains_independent_products_when_some_references_do_not_bind(monkeypatch):
     from capstone_agent import thread_materials
 
-    first = {'file_name': 'result.txt', 'artifact_id': 'first', 'source_status': 'completed'}
+    first = {'file_name': 'result.txt', 'artifact_id': 'first', 'source_status': 'completed',
+             'sha256': 'a' * 64, 'size_bytes': 17}
     second = {**first, 'artifact_id': 'second'}
     sources = {'attempt_first': [first], 'attempt_second': [second], 'attempt_current': []}
-
-    def process_files(_service, _snapshot, work_id, attempt_id, _connection):
-        assert work_id == 'work_goal'
-        return sources[attempt_id]
-
-    monkeypatch.setattr(thread_materials, '_process_files', process_files)
-    select = thread_materials._goal_product_files
-    work = {'work_id': 'work_goal', 'goal_plan': {'review_refs': ['attempt_first', 'result.txt', 'first']}}
+    monkeypatch.setattr(thread_materials, '_process_files',
+                        lambda _service, _snapshot, _work, attempt, _connection: sources[attempt])
+    work = {'work_id': 'work_goal', 'goal_plan': {'review_refs': [
+        'attempt_first', 'attempt_second', 'result.txt', 'first']}}
     continuation = {'predecessor_attempt_id': 'attempt_current', 'product_refs': ['result.txt']}
-    assert select(None, None, work, continuation, None) == [first]
-    work['goal_plan']['review_refs'].append('attempt_second')
-    assert select(None, None, work, continuation, None) is None
-    continuation['product_refs'] = ['first']
-    assert select(None, None, work, continuation, None) == [first]
-    continuation['product_refs'] = ['second']
-    assert select(None, None, work, continuation, None) is None
+    select = thread_materials._goal_product_files
+    assert select(None, None, work, continuation, None) == ([second], [])
+
+    second['sha256'] = 'b' * 64
+    continuation['product_refs'] = ['result.txt', 'first', 'unadmitted']
+    selected, notices = select(None, None, work, continuation, None)
+    assert selected == [first]
+    assert len(notices) == 2
+    assert '不同版本' in notices[0]
+    assert 'unadmitted' in notices[1]
 
 
 @pytest.mark.parametrize('name,media', [('report.html', 'text/html'), ('chart.svg', 'image/svg+xml'), ('metrics.json', 'application/json')])
@@ -334,6 +334,36 @@ def test_foreign_material_ref_rejects_before_work_or_pending_selection_changes(c
     assert receipt.rejection == 'material_unavailable'
     assert store.snapshot(thread_id).works == before.works
     assert store.snapshot(thread_id).current_attempt is None
+
+
+def test_implicit_material_failure_keeps_other_materials_and_diagnostic(chat_store):
+    from capstone_agent.thread_materials import freeze_material_submission
+
+    store, thread_id = chat_store
+    objects = MemoryObjectStore()
+    store.set_material_store(objects)
+    good = upload_material(store, objects, thread_id, 'good.txt', b'good')
+    bad = upload_material(store, objects, thread_id, 'bad.txt', b'bad')
+    original_get = objects.get
+
+    def read(key, limit):
+        if bad['material_id'] in key:
+            raise OSError('unavailable')
+        return original_get(key, limit)
+
+    objects.get = read
+    submission, rejection = freeze_material_submission(store, store.snapshot(thread_id), {}, {})
+    assert rejection is None
+    assert [item['material_id'] for item in submission['_materials']] == [good['material_id']]
+    assert 'bad.txt' in submission['_material_notices'][0]
+    submission, rejection = freeze_material_submission(store, store.snapshot(thread_id),
+        {'material_refs': [bad['material_id'], good['material_id']]}, {})
+    assert rejection is None
+    assert submission['material_refs'] == [good['material_id']]
+    assert 'bad.txt' in submission['_material_notices'][0]
+    _, rejection = freeze_material_submission(store, store.snapshot(thread_id),
+                                               {'material_refs': [bad['material_id']]}, {})
+    assert rejection == 'material_unavailable'
 
 
 @pytest.mark.parametrize('corrupt', [False, True])

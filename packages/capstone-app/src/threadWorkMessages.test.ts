@@ -41,6 +41,40 @@ it('reconstructs native conversation turns from the ledger after pending message
   ])
 })
 
+it('shows the actual Goal step as an Instruction with its own Attempt', () => {
+  const selected = work('work_a', 'attempt_a')
+  const admission: EventEnvelope = {...delta('attempt_a'), eventId: 'evt_goal_step', eventSeq: 1,
+    eventType: 'command_accepted', payload: {kind: 'send_auto', work_id: 'work_a',
+      payload: {text: '检查输入'}, work: {goal_plan: {plan: {steps: [
+        {instruction: '检查输入'}, {instruction: '编写报告'},
+      ]}}}}}
+  const rows = projectWorkConversation([admission], selected, [selected]).messages
+  expect(rows.filter(row => row.role === 'user').map(row => row.content)).toEqual(['work_a', '检查输入'])
+  expect(rows.find(row => row.content === '检查输入')?.metadata?.custom).toMatchObject({
+    eventId: 'evt_goal_step', attemptId: 'attempt_a', goalStep: '1/2',
+  })
+})
+
+it('shows persisted Goal decisions once and gives the completed Goal its own reply', () => {
+  const selected = work('work_a', 'attempt_a')
+  const decision: EventEnvelope = {...delta('attempt_a'), eventId: 'evt_goal_decision', eventSeq: 2,
+    eventType: 'command.applied', payload: {work_id: 'work_a', work: {
+      work_id: 'work_a', goal_mode: {state: 'ready', generation: 1, last_settled_attempt_id: 'attempt_a'},
+      goal_plan: {last_decision: '已核对输入。下一步生成报告。'},
+    }}}
+  const close: EventEnvelope = {...decision, eventId: 'evt_goal_close', eventSeq: 4, payload: {
+    work_id: 'work_a', work: {work_id: 'work_a',
+      goal_mode: {state: 'completed', generation: 1, last_settled_attempt_id: 'attempt_b'},
+      goal_plan: {closure_summary: '已完成报告及复核。'},
+    },
+  }}
+  const rows = projectWorkConversation([decision, {...decision,eventId:'evt_repeat',eventSeq:3}, close], selected, [selected]).messages
+  expect(rows.filter(row=>row.metadata?.custom?.systemNotice).map(row=>row.content)).toEqual([
+    'Goal 推进决策 · 已核对输入。下一步生成报告。',
+    'Goal 整体交付 · 已完成报告及复核。',
+  ])
+})
+
 it('projects an autonomous Mission review as system progress and an exact assistant Attempt without a user instruction',()=>{
  const selected={...work('work_a','attempt_review'),conversationMode:true,messages:[]}
  const requested:EventEnvelope={...delta('attempt_review'),eventId:'evt_review',eventSeq:1,eventType:'mission_review_requested',payload:{mission_id:'goal_one',review_id:'review_one',work_id:'work_a',boundary:{digest:'a'.repeat(64),plan_revision:2,tasks:[]},source_origin:{thread_id:'thr_work'}}}

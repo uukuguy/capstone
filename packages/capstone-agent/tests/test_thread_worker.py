@@ -39,6 +39,31 @@ def test_native_worker_recovers_saved_delivery_before_settling_mission_review(mo
     assert calls == ['interrupt', 'recover', 'settle']
 
 
+def test_native_worker_runs_independent_maintenance_after_error_and_progress(monkeypatch):
+    from capstone_agent import goal_continuation, mission_continuation, session_goal_plan, thread_worker
+
+    stop = Event()
+    calls = []
+    times = iter([0, 11, 12, 13, 14, 15, 16])
+    monkeypatch.setattr(thread_worker, 'time', SimpleNamespace(monotonic=lambda: next(times)))
+
+    def broken(_service):
+        calls.append('mission review')
+        raise OSError('fixture failure')
+
+    monkeypatch.setattr(mission_continuation, 'drain_mission_reviews', broken)
+    monkeypatch.setattr(session_goal_plan, 'drain_goal_step_reviews', lambda _: calls.append('goal review') or 1)
+    monkeypatch.setattr(session_goal_plan, 'drain_initial_goal_plans', lambda _: calls.append('goal plan') or 1)
+    monkeypatch.setattr(goal_continuation, 'drain_goal_continuations', lambda _: calls.append('goal next') or 1)
+    monkeypatch.setattr(thread_worker, 'run_pending_attempt', lambda *_, **__: calls.append('claim') or stop.set())
+    service = SimpleNamespace(interrupt_expired_attempts=lambda: None,
+        control_host=SimpleNamespace(tick=lambda: None), submit_initial_goal_plan=lambda _: None,
+        goal_continuation_candidates=lambda: [])
+    serve_thread_attempts(service, lambda _: None, stop_event=stop,
+                          implementation_family='native', poll_seconds=0.001)
+    assert calls == ['mission review', 'goal review', 'goal plan', 'goal next', 'claim']
+
+
 def _service() -> InMemoryThreadService:
     return InMemoryThreadService.from_document({
         "schema": "capstone-thread-snapshot/1", "thread_id": "thr_worker",
@@ -135,6 +160,7 @@ def test_understanding_timeout_names_the_deadline_and_does_not_start_execution()
     failed = service.read_events('thr_worker', 0).events[-1]
     assert failed.event_type == 'attempt_failed'
     assert failed.payload['error_code'] == 'intent_deadline_exceeded'
+    assert failed.payload['outcome']['execution_state'] == 'confirmed_not_started'
     assert failed.payload['answer'] == result.answer
 
 

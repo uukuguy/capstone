@@ -237,7 +237,6 @@ def test_http_client_renews_during_quiet_work_and_stops_when_guard_is_lost(tmp_p
     from capstone_agent.pi_delegation import HttpGeneralPiExecutor
     from capstone_agent.request_intent import NodeControl
     from capstone_agent import native_execution_authority as authority
-    monkeypatch.setattr(authority, 'AUTHORITY_SECONDS', .4)
     monkeypatch.setattr(authority, 'RENEW_SECONDS', .04)
     entered, finish, lost = Event(), Event(), Event()
     renewals = []
@@ -317,7 +316,7 @@ def test_observe_terminal_receipt_and_file_after_restart(tmp_path):
     import httpx
 
     from capstone_agent.general_pi_server import make_server
-    from capstone_agent.pi_delegation import HttpGeneralPiExecutor, PiHTTPFailure
+    from capstone_agent.pi_delegation import HttpGeneralPiExecutor
 
     data = b'retained product\n'
 
@@ -357,8 +356,7 @@ def test_observe_terminal_receipt_and_file_after_restart(tmp_path):
                                     expected_size=len(data)) == data
         with pytest.raises(ValueError):
             client.observe_terminal_task('durable', 'other-parent', identity)
-        with pytest.raises(PiHTTPFailure):
-            client.observe_terminal_task('pending', 'parent', identity)
+        assert client.observe_terminal_task('pending', 'parent', identity) is None
         assert restarted.storage.load('pending')['result'] is None
         assert restarted.storage.load('durable')['result'] == result
         assert not restarted._tasks

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import ThreadLiveEntry from './ThreadLiveEntry'
 import {sampleDiagramView} from './networkFixture'
 import ThreadWorkAdapter from './ThreadWorkAdapter'
+import MissionStatus,{useMissionProgress} from './MissionStatus'
 import { HttpThreadTransport } from './threadHttpTransport'
 import { writePendingCommands } from './threadSessionState'
 import { buildStartWorkCommand } from './threadWorkProtocol'
@@ -14,8 +15,49 @@ import type { WorkCommand } from './threadWorkProtocol'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
+it.each(['lost_response','stale_revision'])('recovers a partially delivered Mission after %s',async(failure)=>{
+  vi.stubGlobal('crypto',webcrypto)
+  const partial={schema:'capstone-control-mission/1',mission_id:'goal_partial',goal_id:'goal_partial',
+    workspace:'enterprise',objective:'核验并交付',origin:{thread_id:'thr_mission'},
+    state:'delivered',reason:'partial_delivery',revision:4,plan_revision:2,plan_complete:true}
+  const calls:Record<string,unknown>[]=[]
+  const response=(body:unknown)=>new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2'}})
+  const fetcher:typeof fetch=async(_url,init)=>{
+    if(init?.method!=='POST')return response({
+      ...partial,revision:failure==='stale_revision'&&calls.length>0?5:4,
+    })
+    const body=JSON.parse(String(init.body))
+    calls.push(body)
+    if(calls.length===1){
+      if(failure==='lost_response')throw new TypeError('Lost response')
+      return new Response(JSON.stringify({detail:'stale Mission revision'}),{status:409,
+        headers:{'Capstone-Thread-Version':'2'}})
+    }
+    return response({schema:'capstone-control-mission-receipt/1',
+      operation_id:body.operation_id,mission:{...partial,state:'waiting_review',reason:'task_boundary',revision:6}})
+  }
+  const transport=new HttpThreadTransport('','',fetcher,'/api/v1/threads','2')
+  function Case(){return <MissionStatus transport={transport} missionId="goal_partial"
+    progress={useMissionProgress(transport,'thr_mission','goal_partial')}/>}
+  render(<Case/>)
+  fireEvent.click(await screen.findByRole('button',{name:'继续 Mission'}))
+  if(failure==='lost_response'){
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button',{name:'继续 Mission'}))
+  }
+  await screen.findByText('Mission · 等待任务结果复盘')
+  expect(calls).toHaveLength(2)
+  expect(calls[0]).toMatchObject({kind:'resume',mission_id:'goal_partial',expected_revision:4})
+  if(failure==='lost_response')expect(calls[1]).toEqual(calls[0])
+  else{
+    expect(calls[1]).toMatchObject({kind:'resume',mission_id:'goal_partial',expected_revision:5})
+    expect(calls[1].operation_id).not.toBe(calls[0].operation_id)
+  }
+  expect(screen.queryByRole('button',{name:'继续 Mission'})).toBeNull()
+})
+
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, lostMission=false, activeMissionConflict=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false, pausedGoal=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, lostQueue=false, lostMission=false, activeMissionConflict=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,mixedConversation=false,modelControls=false,professionalTyped=false, pausedGoal=false, completedGoal=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -42,11 +84,11 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, l
   let openedModel = false
   function projection() {
     const reason = modelFree ? 'execution_unavailable' : attempt ? 'attempt_in_progress' : null
-    const goalMode = pausedGoal ? { schema: 'capstone-work-goal/1', objective: work.goal,
-      objective_revision: 1, generation: 1, state: 'paused', reason: 'user_paused',
+    const goalMode = pausedGoal || completedGoal ? { schema: 'capstone-work-goal/1', objective: work.goal,
+      objective_revision: 1, generation: 1, state: completedGoal?'completed':'paused', reason: completedGoal?null:'user_paused',
       max_attempts: 5, attempts_admitted: 1, deadline_at: '2030-01-01T00:00:00Z',
       last_settled_attempt_id: null } : undefined
-    return { ...work, ...(goalMode ? { goal_mode: goalMode } : {}), start_available: reason === null, start_unavailable_reason: reason }
+    return { ...work, ...(goalMode ? { goal_mode: goalMode } : {}), ...(completedGoal?{status:'completed'}:{}), start_available: reason === null, start_unavailable_reason: reason }
   }
   function snapshot() {
     const base = { ...(mission?{mission_refs:[{mission_id:'goal_mission'}]}:{}),schema: 'capstone-thread-snapshot/1', thread_id: 'thr_work', run: { run_id: 'run_work', state: 'open' },
@@ -251,6 +293,37 @@ it('opens one inspector from the composer and scopes it to the reply on demand',
   fireEvent.click(screen.getByRole('button',{name:'定位执行记录'}))
   await waitFor(()=>expect(document.activeElement?.getAttribute('data-context-request')).toBe('request-1'))
   expect(screen.getByRole('tab',{name:'请求上下文'}).getAttribute('aria-selected')).toBe('true')
+})
+
+it('starts Goal planning from one composer submission', async () => {
+  const server = authority({native: true, existingWork: true})
+  vi.stubGlobal('fetch', server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('', '', server.fetcher, '/api/v1/threads', '2')} threadId="thr_work" namespace="start-goal" />)
+  const input = await screen.findByRole('textbox', {name: 'Thread 指令'})
+  fireEvent.change(input, {target: {value: '/goal 核验报告'}})
+  const send = screen.getByRole<HTMLButtonElement>('button', {name: '发送'})
+  await waitFor(() => expect(send.disabled).toBe(false))
+  fireEvent.click(send)
+  await waitFor(() => expect(server.commands).toHaveLength(1))
+  expect(server.commands[0]).toMatchObject({kind: 'start_goal',
+    target: {kind: 'work', id: 'work_one', expected_revision: 1},
+    payload: {objective: '核验报告', max_attempts: 8}})
+  expect(screen.queryByRole('button', {name: '开始规划目标'})).toBeNull()
+})
+
+it('keeps a completed task-style Goal in the current conversation and sends a new Instruction', async () => {
+  const server = authority({native:true, existingWork:true, legacySaved:true, completedGoal:true})
+  vi.stubGlobal('fetch', server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('', '', server.fetcher, '/api/v1/threads', '2')} threadId="thr_work" namespace="goal-followup" />)
+  const input = await screen.findByRole('textbox', {name:'Thread 指令'})
+  expect(await screen.findByText('Goal · 已完成')).toBeTruthy()
+  expect(screen.queryByRole('button', {name:'返回当前对话'})).toBeNull()
+  fireEvent.change(input, {target:{value:'继续核验报告'}})
+  const send = screen.getByRole<HTMLButtonElement>('button', {name:'发送'})
+  await waitFor(()=>expect(send.disabled).toBe(false))
+  fireEvent.click(send)
+  await waitFor(()=>expect(server.commands[0]).toMatchObject({kind:'send_message',
+    target:{id:'work_one'}, payload:{text:'继续核验报告'}}))
 })
 
 it('resumes the selected Goal from the main composer without starting a new task', async () => {
@@ -516,6 +589,48 @@ it('opens a registered model without replacing the conversation, saved products 
   await screen.findByRole('textbox',{name:'Thread 指令'})
   expect(screen.queryByRole('button',{name:'保存任务'})).toBeNull()
   expect(await screen.findByText('来自真实事件的测试结果')).toBeTruthy()
+})
+
+it('shows an unknown executor admission for the active attempt',async()=>{
+  const server=authority({native:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="native-unknown" recoveryOnly />)
+  fireEvent.change(await screen.findByRole('textbox',{name:'Thread 指令'}),{target:{value:'执行任务'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  await act(async()=>{server.started();server.append('attempt_native_result_observed',{status:'unknown'},true)})
+  expect(await screen.findByText('无法确认执行器是否接纳，原请求保留。')).toBeTruthy()
+})
+
+it.each(['unknown','admitted'])('opens independent work while the original executor status is %s',async(status)=>{
+  const server=authority({native:true})
+  const create=vi.fn()
+  const fetcher:typeof fetch=async(url,init)=>{
+    if(new URL(String(url),'http://localhost').pathname==='/api/v1/threads'&&init?.method==='POST'){
+      create(JSON.parse(String(init.body)))
+      return new Response(JSON.stringify({schema:'capstone-thread-snapshot/2',minimum_protocol_version:2,
+        thread_id:'thr_independent',run:{run_id:'run_independent',state:'open'},active_model_context:null,
+        active_grid_page_id:null,current_attempt:null,last_event_seq:0,base_event_seq:0,result_projections:[],
+        selected_model_context_id:null,works:[],task_context:null,session_type:'general-chat'}),
+      {headers:{'Content-Type':'application/json','Capstone-Thread-Version':'2'}})
+    }
+    return server.fetcher(url,init)
+  }
+  vi.stubGlobal('fetch',fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="native-independent" recoveryOnly />)
+  fireEvent.change(await screen.findByRole('textbox',{name:'Thread 指令'}),{target:{value:'原指令'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(1))
+  await act(async()=>{server.started();server.append('attempt_native_result_observed',{status},true)})
+  fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'新的独立指令'}})
+  fireEvent.click(await screen.findByRole('button',{name:'在新会话继续'}))
+  await waitFor(()=>expect(new URL(location.href).searchParams.get('thread')).toBe('thr_independent'))
+  expect(create).toHaveBeenCalledExactlyOnceWith({session_type:'general-chat'})
+  expect(server.commands).toHaveLength(1)
+  expect(JSON.parse(sessionStorage.getItem('native-independent.thr_independent.work-draft')!))
+    .toEqual({selected:'new',drafts:{new:'新的独立指令'}})
 })
 
 it('recovers an uncertain native send after a terminal event and refresh with its exact original request',async()=>{

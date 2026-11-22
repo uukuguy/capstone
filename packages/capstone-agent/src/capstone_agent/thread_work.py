@@ -309,7 +309,7 @@ def parse_command(command):
     _identifier(target['id'], name='target.id')
     if not isinstance(command['kind'], str) or not isinstance(command['payload'], dict):
         raise ThreadProtocolError('invalid Work command')
-    if command['kind'] in {'admit_goal_plan', 'fail_goal_plan', 'settle_goal_review'}:
+    if command['kind'] in {'admit_goal_plan', 'fail_goal_plan', 'settle_goal_review', 'fail_goal_continuation'}:
         from .session_goal_plan import initial_plan_admission
         if not initial_plan_admission.get():
             raise ThreadProtocolError('Goal plan commands are internal')
@@ -328,7 +328,7 @@ def parse_command(command):
     return {**deepcopy(command), 'run_id': command.get('run_id')}
 
 
-def apply_work(snapshot, command, *, archived=False, goal_followup=False):
+def apply_work(snapshot, command, *, archived=False, goal_followup=False, queue_after_attempt=False):
     """Return a new snapshot and rejection; never queue an unsupported executor."""
     if archived:
         return snapshot, 'thread_archived', None
@@ -375,7 +375,7 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
         work = deepcopy(target_work)
         payload = command['payload']
         if command['kind'] == 'queue_instruction':
-            if set(payload) - {'mode'} != {'text'} or ('mode' in payload and payload['mode'] != 'interrupt') or not isinstance(payload['text'], str) or not payload['text'].strip():
+            if set(payload) - {'mode', 'attachment_refs'} != {'text'} or ('mode' in payload and payload['mode'] != 'interrupt') or not isinstance(payload['text'], str) or not payload['text'].strip():
                 raise ThreadProtocolError('Instruction text is required')
             current = snapshot.current_attempt
             if current is None or current.attempt_id != work.get('latest_attempt_id'):
@@ -386,6 +386,8 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
             if len(queue) >= limits.work_message_count or len(payload['text']) > limits.input_text_chars:
                 return snapshot, 'work_limit_reached', None
             mode = payload.get('mode')
+            if queue_after_attempt:
+                mode = 'after_attempt'
             if mode == 'interrupt':
                 if snapshot.active_model_context is not None or not work.get('conversation_mode') or 'goal_mode' in work:
                     return snapshot, 'instruction_queue_unavailable', None
@@ -405,9 +407,22 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
         if len(json.dumps(works, ensure_ascii=False).encode()) > limits.work_state_bytes:
             return snapshot, 'work_limit_reached', None
         return replace(snapshot, works=works), None, work
+    if command['kind'] == 'fail_goal_continuation':
+        if (target_work is None or target_work['revision'] != command['target']['expected_revision']
+                or target_work.get('goal_mode', {}).get('state') != 'ready'
+                or 'goal_continuation' not in target_work):
+            return snapshot, 'goal_continuation_unavailable', None
+        reason = command['payload'].get('reason')
+        if set(command['payload']) != {'reason'} or not isinstance(reason, str) or not reason or len(reason) > 256:
+            raise ThreadProtocolError('invalid Goal continuation failure')
+        work = deepcopy(target_work)
+        work['goal_mode'].update(state='paused', reason='goal_continuation_' + reason)
+        work['revision'] += 1
+        return replace(snapshot, works=tuple(work if item['work_id'] == work['work_id'] else item
+                                               for item in snapshot.works)), None, work
     if command['kind'] == 'settle_goal_review':
-        from .goal_receipts import apply_terminal_goal_proposal
-        from .session_goal_plan import GoalReviewValidationError, initial_plan_admission
+        from .goal_receipts import apply_terminal_goal_proposal, parse_goal_proposal
+        from .session_goal_plan import GoalReviewValidationError, failed_step_delivery, initial_plan_admission
         if not initial_plan_admission.get():
             return snapshot, 'goal_plan_admission_required', None
         if (target_work is None or target_work['revision'] != command['target']['expected_revision']
@@ -421,17 +436,33 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
         work['revision'] += 1
         works = tuple(work if item['work_id'] == work['work_id'] else item for item in snapshot.works)
         staged = replace(snapshot, works=works)
+        proposal = command['payload'].get('proposal')
+        failed = delivery.get('failed') is True
+        if failed and (not isinstance(proposal, dict) or proposal.get('disposition') != 'partial'):
+            proposal = failed_step_delivery(work['goal_plan'], delivery)
         try:
+            if failed:
+                proposal = parse_goal_proposal(proposal)
+                if any(item['verdict'] == 'met' and delivery['attempt_id'] in item['refs']
+                       for item in proposal.get('criteria', ())):
+                    raise ValueError('failed attempt cannot establish a satisfied criterion')
             updated = apply_terminal_goal_proposal(staged, TaskContext.from_document(work['task_context']),
-                delivery['attempt_id'], command['payload'].get('proposal'), delivery_saved=True,
+                delivery['attempt_id'], proposal, delivery_saved=True,
                 saved_product_refs=tuple(delivery['product_refs']), saved_authority_refs=tuple(delivery['authority_refs']))
         except ValueError as error:
             from .native_failure_origin import native_failure_origin
             import logging
-            reason = error.code if isinstance(error, GoalReviewValidationError) else 'goal_review_invalid'
+            reason = (error.code if isinstance(error, GoalReviewValidationError) else
+                      'goal_review_unavailable' if command['payload'].get('proposal') is None else 'goal_review_invalid')
             logging.getLogger(__name__).warning(
                 'Goal review admission failed; attempt_id=%s reason=%s origin=%s',
                 delivery['attempt_id'], reason, native_failure_origin(error))
+            if failed:
+                updated = apply_terminal_goal_proposal(staged, TaskContext.from_document(work['task_context']),
+                    delivery['attempt_id'], failed_step_delivery(work['goal_plan'], delivery), delivery_saved=True,
+                    saved_product_refs=tuple(delivery['product_refs']))
+                reviewed = next(item for item in updated.works if item['work_id'] == work['work_id'])
+                return updated, None, reviewed
             work['goal_step_review'] = delivery
             work['goal_mode'].update(state='paused', reason=reason,
                                      last_settled_attempt_id=delivery['attempt_id'])
@@ -503,6 +534,10 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
                 if expected is None or command['payload'] != expected['payload']:
                     return snapshot, 'goal_continuation_unavailable', None
                 goal = parse_goal_mode(work['goal_mode'])
+                if goal['attempts_admitted'] >= goal['max_attempts']:
+                    goal.update(state='paused', reason='attempt_budget_exhausted')
+                elif datetime.fromisoformat(goal['deadline_at']) <= now:
+                    goal.update(state='paused', reason='deadline_elapsed')
             else:
                 if 'goal_mode' not in work:
                     return snapshot, 'goal_unavailable', None
@@ -540,7 +575,7 @@ def apply_work(snapshot, command, *, archived=False, goal_followup=False):
         work['task_context'] = replace(context, goal_revision=work['goal_revision']).to_document()
         if command['kind'] == 'start_goal':
             work.update(goal_plan_pending=True, status='ready', blocked_reason=None, cancel_requested=False)
-        if (command['kind'] in {'resume_goal', 'continue_goal'} and not work.get('goal_plan_pending')
+        if (command['kind'] in {'resume_goal', 'continue_goal'} and goal['state'] == 'ready' and not work.get('goal_plan_pending')
                 and 'goal_step_review' not in work and start_unavailable_reason(snapshot) is None):
             work.update(status='queued', blocked_reason=None, cancel_requested=False)
         works = tuple(work if item['work_id'] == work['work_id'] else deepcopy(item) for item in snapshot.works)
@@ -811,7 +846,7 @@ def parse_snapshot(document):
             for item in queue:
                 if (not isinstance(item, dict)
                         or set(item) - {'mode'} != {'id', 'text', 'attempt_id', 'sequence', 'state'}
-                        or ('mode' in item and item['mode'] != 'interrupt')
+                        or ('mode' in item and item['mode'] not in ('interrupt', 'after_attempt'))
                         or not isinstance(item['text'], str) or not item['text'].strip()
                         or len(item['text']) > limits.input_text_chars
                         or type(item['sequence']) is not int or item['sequence'] <= previous_sequence

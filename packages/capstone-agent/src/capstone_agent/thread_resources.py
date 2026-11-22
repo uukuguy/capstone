@@ -46,8 +46,11 @@ class ResourceUploads:
         state = None
         for event in self._events(thread, connection) if events is None else events:
             p = event.payload
-            if state is not None and event.event_type == 'command_accepted' and 'resource_' + uid.removeprefix('upload_') in p.get('attachment_refs', []):
-                state['draft'] = False
+            if state is not None and event.event_type == 'command_accepted':
+                resource = state.get('resource', {})
+                ref = resource.get('resource_id')
+                if ref in p.get('attachment_refs', []) and resource['version'] == p.get('attachment_versions', {}).get(ref, 1):
+                    state['draft'] = False
             if p.get('upload_id') != uid:
                 continue
             if event.event_type == 'resource_upload_started':
@@ -302,6 +305,10 @@ class ResourceUploads:
             state = self._state(thread, uid, connection)
             if state['state'] == 'complete' and not state.get('draft', False):
                 raise ValueError('published resources cannot be cancelled')
+            if state['state'] == 'complete':
+                from .instruction_queue import queued_attachment_pinned
+                if queued_attachment_pinned(self.service, snapshot, state['resource'], connection):
+                    raise ValueError('queued attachments cannot be cancelled before withdrawing the instruction')
             if state['state'] in ('uploading', 'complete'):
                 _write_event(self.service, snapshot, 'resource_upload_cancelled',
                     {'upload_id': uid, 'state': 'expired' if expired else 'cancelled'}, connection)

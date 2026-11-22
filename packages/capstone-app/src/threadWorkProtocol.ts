@@ -9,11 +9,12 @@ import {parseContextProductRefs} from './threadProducts'
 import {parseGoalMode,goalCommand,type GoalMode,type GoalControl} from './goalMode'
 import type { AttemptPhase, RuntimeMode } from './threadProtocol'
 
-export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;mode?:'interrupt';state:'pending'|'delivering'|'delivery_unknown'|'admitted'|'withdrawn'}
+export type QueuedInstruction = {id:string;text:string;attemptId:string;sequence:number;mode?:'interrupt'|'after_attempt';state:'pending'|'delivering'|'delivery_unknown'|'admitted'|'withdrawn'}
 export type SessionGoalPlan = {
   criteria: string[]
   steps: { instruction: string; expectedResult: string }[]
   stepIndex: number
+  unavailableSteps?:number[]
   criterionVerdicts?:Record<number,'met'|'unmet'|'unknown'>
   closureSummary?:string
 }
@@ -94,6 +95,7 @@ export type WorkSnapshot = {
   toDocument: () => Record<string, unknown>
 }
 type WorkInputPayload = {text:string;source_attempt_id?:string;task_handoff?:TaskHandoff} & Partial<InputSubmission>
+type QueuedInputPayload = WorkInputPayload & {mode?:'interrupt'}
 
 export type WorkCommand = {
   schema: 'capstone-command/2'; thread_id: string; run_id: string
@@ -203,8 +205,8 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
       if(!Array.isArray(work.instruction_queue))throw new ThreadProtocolError('指令队列无效')
       instructionQueue=work.instruction_queue.map(raw=>{
         const entry=object(raw)
-        if((entry.mode!==undefined&&entry.mode!=='interrupt')||typeof entry.text!=='string'||!entry.text.trim()||!['pending','delivering','delivery_unknown','admitted','withdrawn'].includes(String(entry.state)))throw new ThreadProtocolError('队列指令无效')
-        return {id:id(entry.id),text:entry.text,attemptId:id(entry.attempt_id),sequence:revision(entry.sequence,1),state:entry.state as QueuedInstruction['state'],...(entry.mode==='interrupt'?{mode:'interrupt' as const}:{})}
+        if((entry.mode!==undefined&&entry.mode!=='interrupt'&&entry.mode!=='after_attempt')||typeof entry.text!=='string'||!entry.text.trim()||!['pending','delivering','delivery_unknown','admitted','withdrawn'].includes(String(entry.state)))throw new ThreadProtocolError('队列指令无效')
+        return {id:id(entry.id),text:entry.text,attemptId:id(entry.attempt_id),sequence:revision(entry.sequence,1),state:entry.state as QueuedInstruction['state'],...(entry.mode?{mode:entry.mode}:{})}
       })
       if(new Set(instructionQueue.map(entry=>entry.id)).size!==instructionQueue.length)throw new ThreadProtocolError('队列指令身份重复')
       instructionQueue.sort((a,b)=>a.sequence-b.sequence)
@@ -319,8 +321,13 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
   if(command.kind==='queue_instruction'||command.kind==='withdraw_instruction'){
     const field=command.kind==='queue_instruction'?'text':'instruction_id'
     const interrupt=command.kind==='queue_instruction'&&payload.mode==='interrupt'
-    if(Object.keys(payload).length!==(interrupt?2:1)||typeof payload[field]!=='string'||!(payload[field] as string).trim()||(field==='text'&&exceedsCapacity((payload[field] as string).length,'input_text_chars')))throw new ThreadProtocolError('队列命令无效')
-    return {schema:'capstone-command/2',thread_id:threadId,run_id:id(command.run_id),command_id:id(command.command_id),idempotency_key:id(command.idempotency_key),kind:command.kind,target:{kind:'work',id:id(target.id),expected_revision:revision(target.expected_revision,1)},payload:{[field]:field==='instruction_id'?id(payload[field]):payload[field] as string,...(interrupt?{mode:'interrupt'}:{})}}
+    const attachments=command.kind==='queue_instruction'&&!interrupt&&Array.isArray(payload.attachment_refs)
+      ?payload.attachment_refs.map(id):undefined
+    if(Object.keys(payload).length!==1+Number(interrupt)+Number(attachments!==undefined)||typeof payload[field]!=='string'||!(payload[field] as string).trim()||(field==='text'&&exceedsCapacity((payload[field] as string).length,'input_text_chars')))throw new ThreadProtocolError('队列命令无效')
+    const input:QueuedInputPayload|{instruction_id:string}=field==='instruction_id'
+      ?{instruction_id:id(payload[field])}
+      :{text:payload[field] as string,...(interrupt?{mode:'interrupt' as const}:{}),...(attachments?{attachment_refs:attachments}:{})}
+    return {schema:'capstone-command/2',thread_id:threadId,run_id:id(command.run_id),command_id:id(command.command_id),idempotency_key:id(command.idempotency_key),kind:command.kind,target:{kind:'work',id:id(target.id),expected_revision:revision(target.expected_revision,1)},payload:input}
   }
   if (['start_goal','pause_goal','resume_goal','cancel_goal','revise_goal_objective'].includes(String(command.kind))) {
     if(!Object.values(payload).every(value=>typeof value==='string'||typeof value==='number'))throw new ThreadProtocolError('目标命令无效')
@@ -370,6 +377,14 @@ function parseSessionGoalPlan(value: unknown): SessionGoalPlan {
   })
   const stepIndex = receipt.step_index === undefined ? 0 : revision(receipt.step_index, 0)
   if (stepIndex >= steps.length) throw new ThreadProtocolError('目标步骤位置无效')
+  let unavailableSteps:number[]|undefined
+  if(receipt.unavailable_steps!==undefined){
+    if(!Array.isArray(receipt.unavailable_steps)||receipt.unavailable_steps.length>steps.length)
+      throw new ThreadProtocolError('目标步骤状态无效')
+    unavailableSteps=receipt.unavailable_steps.map(value=>revision(value,0))
+    if(unavailableSteps.some(index=>index>=steps.length)||new Set(unavailableSteps).size!==unavailableSteps.length)
+      throw new ThreadProtocolError('目标步骤状态无效')
+  }
   const criterionVerdicts:SessionGoalPlan['criterionVerdicts']={}
   if(receipt.criteria!==undefined){
     if(!Array.isArray(receipt.criteria)||receipt.criteria.length>plan.criteria.length)throw new ThreadProtocolError('目标校验记录无效')
@@ -383,5 +398,6 @@ function parseSessionGoalPlan(value: unknown): SessionGoalPlan {
   const summary=receipt.closure_summary
   if(summary!==undefined&&(typeof summary!=='string'||!summary.trim()||Array.from(summary).length>8192))throw new ThreadProtocolError('目标结束说明无效')
   return {criteria: plan.criteria, steps, stepIndex,...(receipt.criteria===undefined?{}:{criterionVerdicts}),
+    ...(unavailableSteps?{unavailableSteps}:{}),
     ...(typeof summary==='string'?{closureSummary:summary}:{})}
 }

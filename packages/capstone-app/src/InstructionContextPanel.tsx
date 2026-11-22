@@ -35,7 +35,7 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
   const [selection,setSelection]=useState<{id:string;scope?:string}>()
   const [category,setCategory]=useState<{request:string;id:Category}>()
   const [visibleCount,setVisibleCount]=useState(12)
-  const [loadedSnapshot,setLoadedSnapshot]=useState<string>()
+  const [loadedScope,setLoadedScope]=useState<string>()
   const [allItemsKey,setAllItemsKey]=useState<string>()
   const instruction=attempt && rows.find(row=>row.attemptId===attempt)?.instructionId
   const shown=attempt ? rows.filter(row=>instruction ? row.instructionId===instruction : row.attemptId===attempt) : rows
@@ -46,8 +46,7 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
     requestAnimationFrame(()=>detailRef.current?.scrollIntoView?.({block:'nearest'}))
   },[requested,attempt])
   const current=(selection?.scope===attempt&&shown.find(row=>row.id===selection?.id))||latest
-  const canReadSnapshot=Boolean(readSnapshot)
-  useEffect(()=>setLoadedSnapshot(undefined),[current?.snapshotRef,canReadSnapshot])
+  const snapshotScope=current&&`${current.attemptId}:${current.instructionId}`
   const modelCalls=shown.filter(row=>row.kind!=='compaction')
   const series=modelCalls.slice(-12)
   const maxInput=Math.max(1,...series.map(row=>row.inputTokens??0))
@@ -58,7 +57,6 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
   const ordinal=new Map(modelCalls.map((row,index)=>[row.id,index+1]))
   function select(id:string) {
     setSelection({id,scope:attempt})
-    requestAnimationFrame(()=>detailRef.current?.scrollIntoView?.({block:'nearest'}))
   }
   const numberedTitle=(row:ContextObservation)=>row.kind==='compaction'?rowTitle(row):`${rowTitle(row)} ${ordinal.get(row.id)}`
   const linkedAttempt=current?.attemptId
@@ -90,11 +88,11 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
     const value=current?.categories?.[id as keyof typeof contextCategories]
     return value===undefined?[]:[{id,name,value}]
   })
-  const selectedCategory=category?.request===current?.id?categories.find(row=>row.id===category?.id):undefined
+  const selectedCategory=category?.request===snapshotScope?categories.find(row=>row.id===category?.id):undefined
   const breakdownTotal=categories.reduce((sum,row)=>sum+row.value,0)
 
   const categoryTitle=(row:typeof categories[number])=>`${row.name} · ${row.value.toLocaleString('zh-CN')} token · 估算`
-  const chooseCategory=(id:Category)=>{if(current)setCategory({request:current.id,id})}
+  const chooseCategory=(id:Category)=>{if(snapshotScope)setCategory({request:snapshotScope,id})}
   const itemLabels:Record<string,string>={system:'系统提示',tool:'工具定义',user:'用户消息',assistant:'模型消息',message:'会话消息',toolResult:'工具返回'}
   const displayedItems=(Object.keys(contextCategories) as Category[]).flatMap(id=>
     [...(current?.items?.[id]?.items??[])].sort((left,right)=>left.index-right.index).map(item=>({id,item})))
@@ -161,10 +159,10 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
               </button>)}
             </div>
           </>}
-          {current.snapshotRef&&readSnapshot&&<RequestContextEntries key={current.snapshotRef}
+          {current.snapshotRef&&readSnapshot&&<RequestContextEntries key={snapshotScope}
             attempt={current.attemptId} snapshot={current.snapshotRef} previous={previousCapture?.snapshotRef} category={selectedCategory?.id} read={readSnapshot}
-            onResetCategory={()=>setCategory(undefined)} onIndexReady={()=>setLoadedSnapshot(current.snapshotRef)}/>}
-            {categories.length>0&&(!current.snapshotRef||loadedSnapshot!==current.snapshotRef)&&<section className="context-category-detail" aria-label={selectedCategory?selectedCategory.name+'详情':'输入内容'}>
+            onResetCategory={()=>setCategory(undefined)} onIndexReady={()=>setLoadedScope(snapshotScope)} onIndexUnavailable={()=>setLoadedScope(undefined)}/>}
+            {categories.length>0&&(!current.snapshotRef||!readSnapshot||loadedScope!==snapshotScope)&&<section className="context-category-detail" aria-label={selectedCategory?selectedCategory.name+'详情':'输入内容'}>
               <div className="context-section-title"><h4>用量摘要</h4>{selectedCategory&&<button type="button" onClick={()=>setCategory(undefined)}>显示全部分类</button>}</div>
               {displayedItems.length?<ul className="context-content-items">{visibleItems.map(({id,item})=>{
                 const excerpt=item.sourceId&&current?readToolExcerpt?.(item.sourceId,current.attemptId):undefined

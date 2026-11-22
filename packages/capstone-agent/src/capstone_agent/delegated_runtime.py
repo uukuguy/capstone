@@ -96,6 +96,7 @@ class DelegatedRuntime:
         self._active_task: str | None = None
         self._artifact_store = None
         self._general_results: dict[str, PiTaskResult] = {}
+        self._artifact_delivery_incomplete = False
         self._business_admissions: list[AdmittedAttemptAnswer] = []
         self._business_answers: dict[str, str] = {}
         self._business_dependencies: dict[str, AdmittedBusinessGoalDependency] = {}
@@ -512,10 +513,12 @@ class DelegatedRuntime:
             from .native_failure_origin import native_failure_origin
             transfers.close()
             cancelled = True
+            retained_status = None
             try:
                 retained = self._executor.cancel(task_id)
                 if retained is not None:
                     retained = PiTaskResult.from_document(retained.to_document(), request)
+                    retained_status = retained.status
                     self._publish_artifacts(retained, request, on_event)
             except Exception as cleanup_error:
                 import logging
@@ -526,6 +529,7 @@ class DelegatedRuntime:
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'parent_attempt_id': parent, 'child_status': 'cancelled' if isinstance(error, InterruptedError) else 'failed',
                 'cancellation_confirmed': cancelled, 'failure_code': child_failure_code(error),
+                **({'retained_terminal_status': retained_status} if retained_status is not None else {}),
                 'failure_origin': native_failure_origin(error),
                 'unsettled_tools': [{'tool_call_id': call, 'tool_name': name,
                     'outcome': 'unknown'} for call, name in pending_tools.items()],
@@ -546,6 +550,19 @@ class DelegatedRuntime:
         document = result.to_document()
         try:
             self._publish_artifacts(result, request, on_event, control)
+        except PartialArtifactDelivery as error:
+            if (result.status != 'completed' or result.failure is not None
+                    or getattr(self, '_goal_response_enabled', False)
+                    or self._business_started or self._business_admissions):
+                raise
+            self._artifact_delivery_incomplete = True
+            self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
+                'parent_attempt_id': parent, 'child_status': 'artifact_transfer_failed',
+                'failure_code': 'native_artifact_persistence_failed',
+                'failed_artifact_count': error.failed_count})
+            return 'completed', (
+                f'本轮执行已结束，{error.failed_count} 个生成文件未能保存。'
+                '已保存的文件可在成果目录查看。请检查缺失文件后继续。')
         except Exception as error:
             from .native_failure_origin import native_failure_origin
             self._emit(on_event, {'failure_origin': native_failure_origin(error),
@@ -658,6 +675,7 @@ class DelegatedRuntime:
         pending = list(artifacts)
         interrupted = False
         first_failure = None
+        failed_count = 0
         delay = 0.1
         while pending:
             retry = []
@@ -676,6 +694,7 @@ class DelegatedRuntime:
                             retry.append(artifact)
                             continue
                         first_failure = first_failure or error
+                        failed_count += 1
                         self._emit(on_event, {'task_id': task_id, 'artifact_id': artifact['artifact_id'],
                             'transport': {'operation': 'artifact_transfer'},
                             'child_status': 'artifact_transfer_failed',
@@ -700,7 +719,7 @@ class DelegatedRuntime:
                 'transport': {'operation': 'artifact_transfer'},
                 'child_status': 'transport_restored'})
         if first_failure is not None:
-            raise first_failure
+            raise PartialArtifactDelivery(failed_count) from first_failure
 
     def _business_goal(self, goal, dependencies, control, on_event, heartbeat):
         plan = self._plan
@@ -1023,6 +1042,9 @@ class DelegatedRuntime:
 
     def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
         del claim, tool_events
+        if getattr(self, '_artifact_delivery_incomplete', False):
+            return AdmittedAttemptAnswer(answer, 'limited', 'limited',
+                diagnostic_codes=('native_artifact_persistence_failed',))
         if self._resources.get('assemble_domain_report'):
             return AdmittedAttemptAnswer(answer, 'limited', 'limited', diagnostic_codes=('domain_node_reported',))
         from .structural_context import AUTHORITY_REFERENCE_SOURCE, checked_authority_references
@@ -1074,6 +1096,14 @@ class DelegatedRuntime:
         if any(status != 'completed' for status in self._statuses.values()):
             return AdmittedAttemptAnswer(answer, 'limited', 'limited')
         return AdmittedAttemptAnswer(answer, 'offline_information', 'general_knowledge')
+
+
+class PartialArtifactDelivery(Exception):
+    """Some generated files failed to persist; published siblings remain available."""
+
+    def __init__(self, failed_count):
+        super().__init__('generated files could not be saved')
+        self.failed_count = failed_count
 
 
 class BusinessAdmissionError(ValueError):

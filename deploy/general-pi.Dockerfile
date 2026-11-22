@@ -93,6 +93,8 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/conversation_context.py \
      packages/capstone-agent/src/capstone_agent/request_intent.py \
      packages/capstone-agent/src/capstone_agent/native_task_context.py \
+     packages/capstone-agent/src/capstone_agent/goal_mode.py \
+     packages/capstone-agent/src/capstone_agent/session_goal_plan.py \
      packages/capstone-agent/src/capstone_agent/native_mission.py \
      packages/capstone-agent/src/capstone_agent/native_diagnosis.py \
      packages/capstone-agent/src/capstone_agent/native_tool_composition.py \
