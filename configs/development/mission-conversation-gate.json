@@ -119,5 +119,9 @@
     "packages/capstone-agent/src/capstone_agent/agent_delegation.py",
     "packages/capstone-agent/src/capstone_agent/answer_presentation.py",
     "packages/capstone-agent/src/capstone_agent/general_pi_executor.py"
+  ],
+  "review_anchors": [
+    "packages/capstone-agent/src/capstone_agent/mission_continuation.py",
+    "packages/capstone-agent/tests/test_mission_continuation.py"
   ]
 }

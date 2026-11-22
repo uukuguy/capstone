@@ -161,6 +161,32 @@ def test_review_admission_preserves_user_work_and_exact_retry(review_store):
                for item in claim.conversation_context.messages if item['role'] == 'user') == 1
 
 
+@pytest.mark.parametrize('grants_changed', [False, True])
+def test_mission_review_rebinds_executor_implementation_only(review_store, grants_changed):
+    service, thread_id, _workspace, executor = review_store
+    executor.identity = {**executor.identity, 'executor_revision': 'a' * 64}
+    executor.capability['executor_identity'] = deepcopy(executor.identity)
+    service.set_native_executor(executor)
+    _host, _mission, intent, original = reserved_review(review_store)
+
+    executor.identity = {**executor.identity, 'executor_revision': 'b' * 64}
+    executor.capability['executor_identity'] = deepcopy(executor.identity)
+    if grants_changed:
+        executor.capability['native_builtin_tools'] = ['read', 'bash', 'write']
+    service.set_native_executor(executor)
+
+    if grants_changed:
+        with pytest.raises(ThreadProtocolError, match='registered grants changed'):
+            service.submit_mission_review(intent)
+        assert find_review(service, intent) is None
+        return
+    assert service.submit_mission_review(intent)['thread_id'] == thread_id
+    review = service.claim_attempt('review_after_rebuild', 30)
+    assert review.submission['_native_execution']['identity'] == executor.identity
+    assert review.submission['_native_execution']['capability']['executor_identity'] == executor.identity
+    assert original.submission['_native_execution']['identity']['executor_revision'] == 'a' * 64
+
+
 def test_review_source_spoof_and_paused_or_busy_origin_are_not_admitted(review_store):
     service, thread_id, workspace, _ = review_store
     host, mission, intent, original = reserved_review(review_store, complete_origin=False)

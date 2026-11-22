@@ -825,7 +825,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if mission_manifest.is_file():
         mission = json.loads(mission_manifest.read_text())
         if any(set(mission[key]).issubset(paths)
-               for key in ('anchors', 'continuation_anchors', 'entry_anchors', 'delivery_anchors')) and all(
+               for key in ('anchors', 'continuation_anchors', 'entry_anchors', 'delivery_anchors', 'review_anchors')) and all(
                 path in mission['paths'] or _control_path(path) for path in paths):
             return 'mission-conversation'
     instruction_manifest = Path(__file__).resolve().parents[1] / 'configs/development/instruction-admission-gate.json'

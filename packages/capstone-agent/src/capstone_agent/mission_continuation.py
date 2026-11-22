@@ -91,7 +91,19 @@ def _submission(service, prior, intent, grants, authority_inputs=(), gateway_inp
         raise ThreadProtocolError('Mission review needs an admitted origin conversation grant')
     current, _ = origin_binding(service, intent['workspace'], intent['origin'])
     accepted = source['_native_execution']
-    if registry_revision(current) != registry_revision(accepted):
+    previous_identity = accepted['identity']
+    previous_revision = previous_identity.get('executor_revision')
+    current_revision = current.get('identity', {}).get('executor_revision')
+    profile_unchanged = True
+    if previous_revision and current_revision and previous_revision != current_revision:
+        # This is a new Attempt. It may run against a rebuilt implementation
+        # when the application and every registered grant still match.
+        accepted['identity'] = {**previous_identity, 'executor_revision': current_revision}
+        if accepted['capability'].get('executor_identity') == previous_identity:
+            accepted['capability']['executor_identity'] = deepcopy(accepted['identity'])
+        profile_fields = ('schema', 'binding_id', 'application_profile', 'pack_bindings')
+        profile_unchanged = all(current.get(key) == accepted.get(key) for key in profile_fields)
+    if not profile_unchanged or registry_revision(current) != registry_revision(accepted):
         raise ThreadProtocolError('Mission review source or registered grants changed; a new user instruction is required')
     previous_review = source.get('_mission_review', {})
     removed = {grant['resource']['resource_id'] for grant in source.get('_delegation_resources', [])
