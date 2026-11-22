@@ -138,7 +138,7 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
             except (OSError, ValueError):
                 pass
         if name in {"local-dev", "local-demo"}:
-            stage["origin"] = stage["origin"] or "http://127.0.0.1:" + ("5173/" if name == "local-dev" else "15173/")
+            stage["origin"] = stage["origin"] or "http://127.0.0.1:" + ("5174/" if name == "local-dev" else "15173/")
             if probe_local:
                 try:
                     with urlopen(stage["origin"] + "__capstone-build", timeout=3) as response:

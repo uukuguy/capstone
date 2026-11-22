@@ -778,6 +778,15 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    local_dev_entry = {'compose.yaml', 'deploy/rebuild_local.sh', 'packages/capstone-app/vite.config.ts'}
+    local_dev_files = local_dev_entry | {
+        'Makefile', 'deploy/rebuild_demo_local.sh', 'tools/test_local_rebuild.sh',
+        'tools/test_demo_local_rebuild.sh', 'packages/capstone-app/src/buildEnvironment.test.ts',
+        '.github/workflows/verify.yml', 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py',
+    }
+    if local_dev_entry.issubset(paths) and all(
+            path in local_dev_files or _control_path(path) for path in paths):
+        return 'local-dev'
     agent = 'packages/capstone-agent/'
     source = agent + 'src/capstone_agent/'
     managed_skill_anchors = {source + 'managed_resource_runtime.py', source + 'managed_resource_service.py',

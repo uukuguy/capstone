@@ -33,6 +33,17 @@ it('uses unknown without explicit configuration rather than inferring from origi
   expect(identity().environment).toBeNull()
 })
 
+it('uses the local-dev port and forwards requests with the matching origin', () => {
+  vi.stubEnv('CAPSTONE_API_PROXY_ORIGIN', '')
+  const factory = config as (env: ConfigEnv) => UserConfig
+  const document = factory({ mode: 'development', command: 'serve' })
+  expect(document.server).toMatchObject({
+    port: 5174,
+    strictPort: true,
+    proxy: { '/api': { headers: { Origin: 'http://127.0.0.1:5174' } } },
+  })
+})
+
 it.each(['local-dev', 'local-demo'])('selects explicit local runtime environment %s', environment => {
   vi.stubEnv('CAPSTONE_APP_ENVIRONMENT', environment)
   expect(identity('development').environment).toBe(environment)

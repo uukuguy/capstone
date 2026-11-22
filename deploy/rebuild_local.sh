@@ -113,7 +113,7 @@ worker_native_image="$(docker inspect -f '{{.Image}}' "$worker_native_container"
   || fail "API and workers are running different image revisions"
 
 app_host="${CAPSTONE_APP_HOST:-0.0.0.0}"
-app_port="${CAPSTONE_APP_PORT:-5173}"
+app_port="${CAPSTONE_APP_PORT:-5174}"
 app_probe_origin="http://127.0.0.1:${app_port}"
 app_public_host="${CAPSTONE_APP_PUBLIC_HOST:-}"
 if [ -z "$app_public_host" ]; then

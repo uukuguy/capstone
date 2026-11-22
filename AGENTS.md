@@ -422,7 +422,7 @@ redownload model files. The script never prints secret values.
 
 The App remains a separate Vite development process because Compose does not
 host the static App. It listens on `0.0.0.0` by default so a phone on the same
-LAN can open `http://<computer-lan-ip>:5173/`; set `CAPSTONE_APP_HOST=127.0.0.1`
+LAN can open `http://<computer-lan-ip>:5174/`; set `CAPSTONE_APP_HOST=127.0.0.1`
 to restrict it to the computer. `make capstone-app-dev` remains the foreground
 alternative when interactive logs are needed. A stale browser session should
 be refreshed or reset before starting a new case.

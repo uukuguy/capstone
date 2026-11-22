@@ -12,7 +12,7 @@ demo 只接收经过发布验收的功能范围。详见[分支生命周期](doc
 
 使用 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`
 运行独立数据的本地 demo。App 端口为 `15173`，API 为 `18767`；原有 local-dev
-端口仍为 `5173` 和 `8767`。
+端口仍为 `5174` 和 `8767`。
 local-dev 对应 cloud-dev 的开发测试和发布验证；local-demo 跟随 cloud-demo，
 用于线上复现、紧急修复和发布验证，仅在已登记的修复或发布候选验证时临时偏离。
 
@@ -182,13 +182,13 @@ cp deploy/local.env.example deploy/local.env
 make capstone-local-rebuild
 ```
 
-打开 `http://127.0.0.1:5173/`。本地 Compose 直接开放对话访问，无需浏览器令牌。重建入口检查依赖与服务就绪状态，确认 API 和两个 worker 使用同一镜像，并在需要时启动 Vite App。它复用本地已校验的 PyPSA 模型资产。修改 API、worker 或 App 源码后，再运行这一入口。
+打开 `http://127.0.0.1:5174/`。本地 Compose 直接开放对话访问，无需浏览器令牌。重建入口检查依赖与服务就绪状态，确认 API 和两个 worker 使用同一镜像，并在需要时启动 Vite App。它复用本地已校验的 PyPSA 模型资产。修改 API、worker 或 App 源码后，再运行这一入口。
 
-打开 `http://127.0.0.1:5173/enterprise` 进入企业工作台。该入口恢复所选会话，并使用共享的对话和成果阅读组件。
+打开 `http://127.0.0.1:5174/enterprise` 进入企业工作台。该入口恢复所选会话，并使用共享的对话和成果阅读组件。
 
 页头显示所选环境（`local-dev`、`local-demo`、`cloud-dev` 或 `cloud-demo`）、包版本与源码提交。`*` 表示本地源码含未提交修改。未配置的 App 显示 `环境未配置`，不会根据网址推断环境。
 
-App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5173/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
+App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5174/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
 
 ## CLI 与兼容入口
 

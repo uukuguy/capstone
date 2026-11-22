@@ -172,7 +172,7 @@ sh ~/capstone/capstone.sh logs
 sh ~/capstone/capstone.sh stop
 ```
 
-版本化`install.sh`一次完成下载、校验、安装和启动，默认目录`~/capstone`，用`CAPSTONE_TRIAL_DIRECTORY`覆盖。成功时显示安装目录、访问地址、运维命令与端口配置。正式包默认App入口`http://127.0.0.1:19173/`，与开发5173/demo15173隔离；端口已使用时，在安装目录`.env`修改`CAPSTONE_APP_PORT`。DeepSeek/deepseek-flash为默认；OpenAI示例在注释中，模型在生成包时从Provider注册表读取。切换Provider时同时修改Provider和模型，配置对应启动Key。启动LLM变量优先；发布镜像及内部数据库/存储/操作者凭据保持包或实例固定，不能由普通`.env`覆盖。Key只进入worker及配置检查容器，API/App不接收Key。
+版本化`install.sh`一次完成下载、校验、安装和启动，默认目录`~/capstone`，用`CAPSTONE_TRIAL_DIRECTORY`覆盖。成功时显示安装目录、访问地址、运维命令与端口配置。正式包默认App入口`http://127.0.0.1:19173/`，与开发5174/demo15173隔离；端口已使用时，在安装目录`.env`修改`CAPSTONE_APP_PORT`。DeepSeek/deepseek-flash为默认；OpenAI示例在注释中，模型在生成包时从Provider注册表读取。切换Provider时同时修改Provider和模型，配置对应启动Key。启动LLM变量优先；发布镜像及内部数据库/存储/操作者凭据保持包或实例固定，不能由普通`.env`覆盖。Key只进入worker及配置检查容器，API/App不接收Key。
 
 新安装使用与安装目录身份绑定的稳定项目名`capstone-user-<identity>`；接管原版安装时保留其`capstone-user-local-dev`或原项目名。不同安装目录使用独立项目并选择不同App端口；版本切换复用同一目录的项目和数据卷。每实例私有配置位于`.capstone-trial/<instance>/`，权限0600；保留整个目录以重新连接原数据。停止不会删卷；再次启动相同来源保留数据。使用`capstone.sh install <Git>`安装已发布版本，`use <Git>`切换已安装版本；缺省启动按本地精确镜像和版本记录选择最新可用版本。原7832134安装可原地接管，保留其项目、数据卷、私有配置及原安装记录。保留整个目录，包括`versions/`和`.capstone-management/`；不要手动改写冻结包或镜像绑定。运行失败的诊断保留在该私有目录，脚本不展开配置输出。
 
@@ -545,7 +545,7 @@ change builders concurrently with maintenance. There is no background service.
 脚本使用同一模型，本地部署应将 `CAPSTONE_PUBLIC_MODEL` 与根目录 `.env` 中的
 `GRID_AGENT_LLM_MODEL` 保持一致。
 
-在电脑上打开 `http://127.0.0.1:5173/` 直接进入智能体对话，打开 `http://127.0.0.1:5173/old` 进入原案例页。本地 App 默认监听 `0.0.0.0`，同一局域网的手机可打开 `http://<电脑局域网 IP>:5173/`。原案例页会自动获取服务端提供的访问凭证，该凭证只允许已登记案例，案例会话仍固定使用 Provider 模式。智能体对话默认使用开放访问模式，浏览器不需要 operator token。Vite 通过同源代理把浏览器请求转发到电脑的 `127.0.0.1:8767`，API 端口仍只绑定本机 loopback；数据库和 bucket 不发布主机端口。可用 `CAPSTONE_APP_HOST=127.0.0.1` 恢复仅本机访问，或用 `CAPSTONE_APP_PUBLIC_HOST=<电脑局域网 IP>` 指定脚本输出给手机使用的地址。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 `CAPSTONE_API_PROXY_TARGET` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
+在电脑上打开 `http://127.0.0.1:5174/` 直接进入智能体对话，打开 `http://127.0.0.1:5174/old` 进入原案例页。本地 App 默认监听 `0.0.0.0`，同一局域网的手机可打开 `http://<电脑局域网 IP>:5174/`。原案例页会自动获取服务端提供的访问凭证，该凭证只允许已登记案例，案例会话仍固定使用 Provider 模式。智能体对话默认使用开放访问模式，浏览器不需要 operator token。Vite 通过同源代理把浏览器请求转发到电脑的 `127.0.0.1:8767`，API 端口仍只绑定本机 loopback；数据库和 bucket 不发布主机端口。可用 `CAPSTONE_APP_HOST=127.0.0.1` 恢复仅本机访问，或用 `CAPSTONE_APP_PUBLIC_HOST=<电脑局域网 IP>` 指定脚本输出给手机使用的地址。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 `CAPSTONE_API_PROXY_TARGET` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
 
 本地 Compose 与 cloud-dev 的普通工作台共用 [`host-runtime-v1.json`](../configs/runtime/host-runtime-v1.json) 和同一个启动器。配置契约固定 Provider、模型、应用角色与启动依赖；环境仅提供数据库、存储、域名、凭据与容量。API 等待两个 worker 就绪，运行中的模型目录与指令准入实时更新 worker 健康状态。配置冲突会在启动前失败，日志只显示配置项。部署时比较三角色的 `/app/.capstone-agent/host-runtime.json` 与本地验收记录，契约和制品哈希必须一致，再验收真实 App、Provider 与证据。专项 M11 脚本验证需显式设置 `CAPSTONE_RUNTIME_PROFILE=`，不得作为普通工作台的验收记录。
 

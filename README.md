@@ -16,7 +16,7 @@ user command; scheduled and unattended processing are not enabled.
 
 For separate local demo data, run
 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`.
-The App uses `15173` and API uses `18767`; the existing local-dev ports remain `5173` and `8767`.
+The App uses `15173` and API uses `18767`; the existing local-dev ports remain `5174` and `8767`.
 Local-dev serves cloud-dev development tests and release verification. Local-demo
 tracks cloud-demo for reproduction, emergency repairs and release verification;
 only a recorded repair or release candidate may temporarily differ.
@@ -203,13 +203,13 @@ Start the API, pandapower worker, PyPSA worker, and App with the checked-in entr
 make capstone-local-rebuild
 ```
 
-Open `http://127.0.0.1:5173/`. Local Compose enables direct conversation access without a browser token. The rebuild checks dependencies and readiness, verifies that API and both workers use the same image, and starts the Vite App when needed. It reuses verified local PyPSA model assets. Run it again after API, worker, or App source changes.
+Open `http://127.0.0.1:5174/`. Local Compose enables direct conversation access without a browser token. The rebuild checks dependencies and readiness, verifies that API and both workers use the same image, and starts the Vite App when needed. It reuses verified local PyPSA model assets. Run it again after API, worker, or App source changes.
 
-Open `http://127.0.0.1:5173/enterprise` for the enterprise workspace. It restores your selected session and uses the shared conversation and product readers.
+Open `http://127.0.0.1:5174/enterprise` for the enterprise workspace. It restores your selected session and uses the shared conversation and product readers.
 
 The page header shows the selected environment (`local-dev`, `local-demo`, `cloud-dev`, or `cloud-demo`), package version, and source commit. A `*` marks uncommitted local source changes. An unconfigured App shows `环境未配置`; it does not infer its environment from the URL.
 
-The App also listens on the LAN by default: a phone on the same network can open `http://<computer-lan-ip>:5173/`. Set `CAPSTONE_APP_HOST=127.0.0.1` for computer-only access. Use `make capstone-app-dev` when you want the Vite process in the foreground.
+The App also listens on the LAN by default: a phone on the same network can open `http://<computer-lan-ip>:5174/`. Set `CAPSTONE_APP_HOST=127.0.0.1` for computer-only access. Use `make capstone-app-dev` when you want the Vite process in the foreground.
 
 ## CLI and compatibility entry points
 

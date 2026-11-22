@@ -46,6 +46,7 @@ export CAPSTONE_APP_PORT=15173
 export CAPSTONE_APP_ENVIRONMENT=local-demo
 export CAPSTONE_API_PROXY_TARGET=http://127.0.0.1:18767
 export CAPSTONE_API_PROXY_ORIGIN=http://127.0.0.1:5173
+export CAPSTONE_ALLOWED_ORIGINS="$CAPSTONE_API_PROXY_ORIGIN"
 echo "local demo source: $source_revision"
 (cd "$source_dir" && make capstone-local-rebuild)
 curl -fsS http://127.0.0.1:15173/__capstone-build | python3 -c '

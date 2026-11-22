@@ -85,7 +85,7 @@ export default defineConfig(({ mode }) => {
   // The local API allowlist contains the App origin, not the API's own
   // loopback address. Keep the proxy same-origin for desktop and LAN clients;
   // hosted deployments override both values explicitly at startup.
-  const apiProxyOrigin = env.CAPSTONE_API_PROXY_ORIGIN || 'http://127.0.0.1:5173'
+  const apiProxyOrigin = env.CAPSTONE_API_PROXY_ORIGIN || 'http://127.0.0.1:5174'
   const localEnvironmentFile=resolve(env.CAPSTONE_LOCAL_ENV_FILE||'../../deploy/local.env')
   const localApiProxy:ProxyOptions = {
     target: apiProxyTarget,
@@ -134,6 +134,8 @@ export default defineConfig(({ mode }) => {
     }],
     test: { environment: 'jsdom', setupFiles: ['./src/testSetup.ts'] },
     server: {
+      port: 5174,
+      strictPort: true,
       fs: { deny:['.env','.env.*','*.{crt,pem}','**/.git/**','**/*.env',localEnvironmentFile] },
       proxy: { '/api': localApiProxy, '/health': localApiProxy },
     },
