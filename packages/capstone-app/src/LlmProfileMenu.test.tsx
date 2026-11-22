@@ -28,8 +28,10 @@ it('uses the DeepSeek brand in the trigger and option, including a cached catalo
   expect(screen.getByRole('menuitemradio',{name:/18804/}).querySelector('img')).toBeNull()
 })
 
-it('shows the short local Qwen label and brand in the menu and welcome card',()=>{
-  const qwen={id:'local-qwen-35b',label:'Qwen3.6-35B-A3B（本机）',model:'weights/Qwen3.6-35B-A3B.gguf',available:true,icon:'server'}
+it.each([
+  {id:'local-qwen-35b',label:'Qwen3.6-35B-A3B（本机）',model:'weights/Qwen3.6-35B-A3B.gguf',available:true,icon:'server'},
+  {id:'local-qwen-27b',label:'Qwen3.8-27B（本机）',model:'weights/Qwen3.8-27B.gguf',available:true,icon:'qwen'},
+])('shows the short $label label and brand in the menu and welcome card',qwen=>{
   const models={...catalog,profiles:[...catalog.profiles,qwen]}
   render(<><LlmProfileMenu catalog={models} value={qwen.id} onChange={vi.fn()}/>
     <WelcomeConnections catalog={{llm_profiles:models} as Parameters<typeof WelcomeConnections>[0]['catalog']} profileId={qwen.id}/></>)

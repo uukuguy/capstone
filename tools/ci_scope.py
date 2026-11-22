@@ -792,6 +792,8 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         profile_catalog, 'compose.yaml', 'deploy/local.env.example',
         'tools/ci_scope.py', '.github/workflows/verify.yml',
         'packages/capstone-agent/tests/test_workbench_llm_profiles.py',
+        'packages/capstone-app/src/localQwenProfile.tsx', 'packages/capstone-app/src/LlmProfileMenu.tsx',
+        'packages/capstone-app/src/LlmProfileMenu.test.tsx', 'packages/capstone-app/src/WelcomeConnections.tsx',
     }
     if profile_catalog in paths and all(path in profile_files or _control_path(path) for path in paths):
         return 'local-dev'
