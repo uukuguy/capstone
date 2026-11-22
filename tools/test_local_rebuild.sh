@@ -13,7 +13,6 @@ printf '%s\n' "$*" >> "$CAPSTONE_TEST_CALLS"
 case "$*" in
   *' config --format json') printf '{"services":{"general-pi":{"volumes":[{"type":"bind","source":"%s","target":"/run/capstone-private/resource-policy","read_only":true}]}}}\n' "$CAPSTONE_TEST_POLICY_DIR" ;;
   *' port api 8766') printf '127.0.0.1:8767\n' ;;
-  *' port app 5173') printf '127.0.0.1:5173\n' ;;
   *' ps -q api') printf 'api-container\n' ;;
   *' ps -q worker-pypsa') printf 'worker-pypsa-container\n' ;;
   *' ps -q worker-native') printf 'worker-native-container\n' ;;
@@ -52,7 +51,7 @@ grep -Eq -- '--env-file .* config --quiet' "$CAPSTONE_TEST_CALLS"
 grep -Eq -- '--env-file .* build api' "$CAPSTONE_TEST_CALLS"
 grep -Eq -- '--env-file .* up --no-build --force-recreate --wait -d' "$CAPSTONE_TEST_CALLS"
 grep -Eq -- 'http://127.0.0.1:8767/health/ready' "$CAPSTONE_TEST_CALLS"
-grep -Eq 'App:.*http://.*:5173/' "$scratch/output"
+grep -Eq 'App:.*http://.*:5174/' "$scratch/output"
 grep -Eq 'uv run --project .*packages/pypsa-agent python - ' "$CAPSTONE_TEST_CALLS"
 grep -Eq 'verified_asset_path\(entry.catalog_id, root=source\)' "$CAPSTONE_TEST_STAGE_SCRIPT"
 grep -Eq '/__capstone-build' "$CAPSTONE_TEST_CALLS"

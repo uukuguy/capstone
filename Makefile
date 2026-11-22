@@ -18,7 +18,7 @@ help:
 	@echo "  make capstone-agent-pypsa-ac-dc       Run AC/DC 跨区互联结构核查"
 	@echo "  make capstone-agent-chat APPLICATION=id [MODE=provider] [CASE=id]  Open one interactive run"
 	@echo "  make capstone-agent-serve [CAPSTONE_PORT=8766]  Start local HTTP/SSE sessions"
-	@echo "  make capstone-app-dev [CAPSTONE_APP_HOST=0.0.0.0] [CAPSTONE_APP_PORT=5173]  Start the App dev server"
+	@echo "  make capstone-app-dev [CAPSTONE_APP_HOST=0.0.0.0] [CAPSTONE_APP_PORT=5174]  Start the App dev server"
 	@echo "  make capstone-local-rebuild  Rebuild and redeploy local API/worker from current source"
 	@echo "  make capstone-demo-local-rebuild  Rebuild a separate local demo from its clean checkout"
 	@echo "  make build-capstone-app    Build the Vercel-ready static App"
@@ -65,7 +65,7 @@ test-capstone-app:
 	npm test --prefix packages/capstone-app
 
 capstone-app-dev:
-	CAPSTONE_APP_ENVIRONMENT="$(if $(CAPSTONE_APP_ENVIRONMENT),$(CAPSTONE_APP_ENVIRONMENT),local-dev)" npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
+	CAPSTONE_APP_ENVIRONMENT="$(if $(CAPSTONE_APP_ENVIRONMENT),$(CAPSTONE_APP_ENVIRONMENT),local-dev)" npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5174)"
 
 capstone-local-rebuild:
 	@./deploy/rebuild_local.sh

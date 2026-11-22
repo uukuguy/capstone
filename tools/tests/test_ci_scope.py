@@ -625,3 +625,13 @@ def test_harness_reference_gate_is_scoped_to_the_registered_consumers():
     assert select_gate(changes) == 'harness-references'
     assert select_gate(changes, target='main') == 'release'
     assert select_gate(changes + ['packages/grid-simulator/src/grid_simulator/operations.py']) == 'product'
+
+
+def test_local_dev_scope_covers_startup_and_respects_release_boundary():
+    from tools.ci_scope import classify as classify_changes
+
+    paths = ['compose.yaml', 'deploy/rebuild_local.sh', 'packages/capstone-app/vite.config.ts',
+             '.github/workflows/verify.yml', 'tools/ci_scope.py', 'README.md']
+    assert classify_changes(paths) == 'local-dev'
+    assert classify_changes(paths, target='main') == 'release'
+    assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'

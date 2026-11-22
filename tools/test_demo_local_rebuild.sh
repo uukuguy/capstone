@@ -21,6 +21,7 @@ set -Eeuo pipefail
 [ "$CAPSTONE_APP_PORT" = 15173 ]
 [ "$CAPSTONE_APP_ENVIRONMENT" = local-demo ]
 [ "$CAPSTONE_API_PROXY_TARGET" = http://127.0.0.1:18767 ]
+[ "$CAPSTONE_ALLOWED_ORIGINS" = "$CAPSTONE_API_PROXY_ORIGIN" ]
 [ "$CAPSTONE_LOCAL_ENV_FILE" = "${CAPSTONE_TEST_EXPECT_ENV:-$CAPSTONE_TEST_ROOT/deploy/demo-local.env}" ]
 [ "$CAPSTONE_BACKEND_IMAGE" = "capstone-demo-backend:$(git rev-parse HEAD)" ]
 SH

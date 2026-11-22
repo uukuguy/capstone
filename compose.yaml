@@ -47,7 +47,7 @@ x-host-environment: &host-environment
   CAPSTONE_FAMILY_HEALTH_URLS: native=http://worker-native:8766,pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
   CAPSTONE_FEDERATED_CATALOG_CONTEXT: ${CAPSTONE_FEDERATED_CATALOG_CONTEXT:-true}
   CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
-  CAPSTONE_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+  CAPSTONE_ALLOWED_ORIGINS: ${CAPSTONE_ALLOWED_ORIGINS:-http://localhost:5174,http://127.0.0.1:5174}
   CAPSTONE_ARTIFACT_BACKEND: s3
   CAPSTONE_ARTIFACT_BUCKET: ${CAPSTONE_ARTIFACT_BUCKET:-capstone-private}
   CAPSTONE_S3_ENDPOINT: http://objects:9000
