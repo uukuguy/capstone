@@ -3,7 +3,7 @@ import type {EventEnvelope} from './threadProtocol'
 export type ProcessCompaction = {
   id:string; reason:'manual'|'threshold'|'overflow'|'unknown';
   state:'started'|'completed'|'cancelled'|'failed'|'skipped';
-  startedAt?:string; finishedAt?:string; elapsedMs?:number; willRetry?:boolean; tokensBefore?:number; firstKeptEntryId?:string;
+  finishedSequence?:number; startedAt?:string; finishedAt?:string; elapsedMs?:number; willRetry?:boolean; tokensBefore?:number; firstKeptEntryId?:string;
 }
 
 export function projectProcessCompactions(events:readonly EventEnvelope[],attemptId:string):ProcessCompaction[]{
@@ -23,7 +23,7 @@ export function projectProcessCompactions(events:readonly EventEnvelope[],attemp
     if(p.state==='started'){
       current.startedAt=event.occurredAt;pending.set(key,current)
     }else{
-      current.state=p.state as ProcessCompaction['state'];current.finishedAt=event.occurredAt
+      current.state=p.state as ProcessCompaction['state'];current.finishedAt=event.occurredAt;current.finishedSequence=event.eventSeq
       if(typeof p.first_kept_entry_id==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(p.first_kept_entry_id))current.firstKeptEntryId=p.first_kept_entry_id
       if(typeof p.tokens_before==='number'&&Number.isSafeInteger(p.tokens_before)&&p.tokens_before>=0&&p.tokens_before<=2147483647)current.tokensBefore=p.tokens_before
       if(typeof p.elapsed_ms==='number'&&Number.isFinite(p.elapsed_ms)&&p.elapsed_ms>=0)current.elapsedMs=p.elapsed_ms

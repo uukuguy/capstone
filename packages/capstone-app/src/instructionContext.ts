@@ -27,6 +27,7 @@ export type ContextObservation = {
   usage?:Usage
   reason?:string
   firstKeptEntryId?:string
+  compactionEndSequence?:number
 }
 
 const object = (value:unknown):Record<string,unknown> =>
@@ -131,7 +132,8 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
     for(const phase of projectProcessCompactions(stream,attemptId)){
       const event=byEvent.get(phase.id)
       if(event)rows.push({id:phase.id,instructionId,attemptId,sequence:event.eventSeq,kind:'compaction',
-        state:phase.state,reason:phase.reason,firstKeptEntryId:phase.firstKeptEntryId,inputTokens:phase.tokensBefore,basis:phase.tokensBefore===undefined?undefined:'estimate'})
+        state:phase.state,reason:phase.reason,firstKeptEntryId:phase.firstKeptEntryId,compactionEndSequence:phase.finishedSequence,
+        taskId:typeof event.payload.task_id==='string'?event.payload.task_id:undefined,inputTokens:phase.tokensBefore,basis:phase.tokensBefore===undefined?undefined:'estimate'})
     }
   }
   return rows.sort((a,b)=>a.sequence-b.sequence)

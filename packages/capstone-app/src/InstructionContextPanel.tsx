@@ -67,8 +67,17 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
   },[linkedAttempt,linkedTitle,linkedDispatch,onSelection])
   const label=(row:ContextObservation)=>`${numberedTitle(row)} · ${row.kind==='compaction'?(reasons[row.reason??'unknown']??reasons.unknown):contextIndicator(row)}`
   const list=shown.slice(-visibleCount)
-  const nextMain=current?.kind==='compaction'&&current.state==='completed'
-    ? shown.find(row=>row.attemptId===current.attemptId&&row.kind==='main'&&row.sequence>current.sequence)
+  const compactionCalls=current?.kind==='compaction'
+    ? shown.filter(row=>row.attemptId===current.attemptId&&row.taskId===current.taskId&&row.kind!=='compaction')
+    : []
+  const beforeCompaction=current?.kind==='compaction'
+    ? compactionCalls.filter(row=>row.kind==='main'&&row.sequence<current.sequence).at(-1)
+    : undefined
+  const summaryCalls=current?.kind==='compaction'&&current.compactionEndSequence!==undefined
+    ? compactionCalls.filter(row=>row.kind==='summary'&&row.sequence>current.sequence&&row.sequence<=current.compactionEndSequence!)
+    : []
+  const nextMain=current?.kind==='compaction'&&current.state==='completed'&&current.compactionEndSequence!==undefined
+    ? compactionCalls.find(row=>row.kind==='main'&&row.sequence>current.compactionEndSequence!)
     : undefined
   const previousCapture=current&&rows.filter(row=>row.sequence<current.sequence&&row.instructionId===current.instructionId
     &&row.attemptId===current.attemptId&&row.taskId===current.taskId&&row.kind===current.kind&&row.snapshotRef).at(-1)
@@ -115,7 +124,13 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
         {current.kind==='compaction'?<>
           <p>{reasons[current.reason??'unknown']??reasons.unknown}</p>
           <dl><div><dt>压缩前占用</dt><dd>{current.inputTokens===undefined?'未记录':`${tokens(current.inputTokens)} token · SDK 估算`}</dd></div>
-            {nextMain&&<div><dt>之后首个主链请求</dt><dd>{contextIndicator(nextMain)}</dd></div>}</dl>
+          </dl>
+          <div className="context-source-filters" aria-label="压缩关联请求">
+            {beforeCompaction&&<button type="button" onClick={()=>select(beforeCompaction.id)}>压缩前请求</button>}
+            {summaryCalls.map((summary,index)=><button type="button" key={summary.id}
+              onClick={()=>select(summary.id)}>摘要请求{summaryCalls.length>1?` ${index+1}`:''}</button>)}
+            {nextMain&&<button type="button" onClick={()=>select(nextMain.id)}>压缩后首个请求</button>}
+          </div>
           {current.firstKeptEntryId&&<details><summary>保留边界</summary><code>{current.firstKeptEntryId}</code></details>}
         </>:<>
           <div className="context-metrics">
