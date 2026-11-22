@@ -111,7 +111,10 @@ def test_readiness_records_unavailable_agent_and_equipment_without_dispatch(chat
     host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
         operation_id='unavailable_ready', mission_id=mission['mission_id'], expected_revision=2,
         kind='ready', payload={}))
-    host.tick()
+    saved = host.service.read_mission('enterprise', mission['mission_id'])
+    host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+        operation_id='unavailable_dispatch', mission_id=mission['mission_id'], expected_revision=saved['revision'],
+        kind='delegate_next', payload={}))
     saved = host.service.read_mission('enterprise', mission['mission_id'])
     assert saved['state'] == 'ready' and saved['reason'] == 'task_admission_unavailable'
     unavailable, = saved['tasks']
@@ -170,13 +173,15 @@ def test_custom_origin_gateway_without_adapter_defers_task_admission(chat_store)
     host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
         operation_id='custom_ready', mission_id=mission['mission_id'], expected_revision=2,
         kind='ready', payload={}))
-    host.tick()
+    saved = host.service.read_mission('enterprise', mission['mission_id'])
+    host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+        operation_id='custom_dispatch', mission_id=mission['mission_id'], expected_revision=saved['revision'],
+        kind='delegate_next', payload={}))
     saved = host.service.read_mission('enterprise', mission['mission_id'])
     assert saved['reason'] == 'task_admission_unavailable'
     unavailable, = saved['tasks']
     assert unavailable['state'] == 'pending' and unavailable['delegation'] is None
     assert unavailable['failure_reason'] == 'task_admission_unavailable'
-
 
     threads._native_executor.thread_gateway_publication = lambda binding=None, refresh=False: {
         'available': True, 'connection_id': 'wrong_connection', 'identity': {'instance_id': 'wrong_instance'}}

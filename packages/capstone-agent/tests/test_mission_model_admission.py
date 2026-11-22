@@ -2,7 +2,6 @@
 from copy import deepcopy
 import pytest
 
-from capstone_control.contracts import ContractError
 from capstone_control.service import InvalidTransition
 from capstone_agent.control_host import configure_control
 from test_enterprise_normal_chat import chat_store, native_executor
