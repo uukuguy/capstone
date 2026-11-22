@@ -15,6 +15,8 @@ from .service import Conflict, InvalidTransition, fingerprint, public
 TASK_FIELDS = {'task_id', 'objective', 'delivery_requirements', 'depends_on',
                'agent_id', 'mode', 'max_attempts', 'required_products', 'required_reference_sources'}
 
+MISSION_TASK_FIELDS = TASK_FIELDS | {'equipment', 'restrictions', 'placement'}
+
 
 def criteria_verdicts(goal, values):
     """Bind each semantic verdict to the current acceptance contract and saved results."""
@@ -96,7 +98,7 @@ def checked_tasks(tasks, goal):
         raise ContractError('at most64 Tasks required')
     plain = []
     for task in tasks:
-        if not isinstance(task, dict) or set(task) - TASK_FIELDS - {'equipment', 'restrictions'}:
+        if not isinstance(task, dict) or set(task) - MISSION_TASK_FIELDS:
             raise ContractError('unsupported Mission Task fields')
         selected, denied = references(task.get('equipment', [])), references(task.get('restrictions', []))
         resource_ids = [ref['id'] for ref in selected if ref['kind'] == 'resource']
@@ -106,6 +108,9 @@ def checked_tasks(tasks, goal):
             raise ContractError('Mission Tasks may select one version per resource and cannot use resources as restrictions')
         if {fingerprint(ref) for ref in selected} & {fingerprint(ref) for ref in denied}:
             raise ContractError('restricted equipment cannot be selected')
+        placement = task.get('placement', 'child')
+        if placement not in ('child', 'origin') or placement == 'origin' and task.get('mode') != 'goal':
+            raise ContractError('Mission origin placement requires Goal mode')
         plain.append({key: value for key, value in task.items() if key in TASK_FIELDS})
     if plain:
         validate_goal_request(dict(schema='capstone-control-goal-create/1', operation_id='plan',
@@ -249,7 +254,7 @@ def create(service, workspace, request):
 
 def update_tasks(goal, proposed):
     for spec in proposed:
-        if set(spec) - TASK_FIELDS - {'equipment', 'restrictions'}:
+        if set(spec) - MISSION_TASK_FIELDS:
             raise ContractError('unsupported Mission Task fields')
     changes = {task['task_id']: task for task in proposed}
     if len(changes) != len(proposed):
@@ -280,7 +285,7 @@ def update_tasks(goal, proposed):
         combined.append({'depends_on': [], **deepcopy(spec), 'revision': 1, 'state': 'pending',
                          'generation': 0, 'delegation': None, 'delivery': None, 'verification': None})
     # Revalidate the complete dependency order, including retained Tasks.
-    plain = [{key: value for key, value in item.items() if key in TASK_FIELDS | {'equipment', 'restrictions'}} for item in combined]
+    plain = [{key: value for key, value in item.items() if key in MISSION_TASK_FIELDS} for item in combined]
     checked_tasks(plain, goal)
     goal['tasks'] = combined
 

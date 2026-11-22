@@ -8,7 +8,7 @@ const taskLabels:Record<string,string> = {
   pending:'待执行', delegated:'已安排', running:'执行中', awaiting_verification:'待核对',
   dispatching:'正在派发', verified:'已核对', delivered:'已交付，待核对', blocked:'暂时受阻', failed:'执行失败', cancelled:'已停止',
 }
-const executionLabels={direct:'主会话直办',single:'子会话 Instruction',goal:'子会话 Goal'}
+const executionLabels={direct:'主会话直办',single:'子会话 Instruction',goal:'子会话 Goal','origin-goal':'主会话 Goal'}
 const criterionLabels={met:'已满足',not_met:'未满足',unknown:'待核实'}
 const reasonLabels:Record<string,string>={
   child_goal_partial_delivery:'子目标仅交付了部分成果',

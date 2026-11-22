@@ -97,6 +97,66 @@ def test_cross_workspace_delegation_identity_has_separate_thread(postgres_thread
             registry.delete(workspace, d['operation_id'])
 
 
+def test_mission_goal_starts_a_distinct_work_in_the_origin_thread(postgres_thread_service):
+    from dataclasses import replace
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_postgres import _snapshot
+    from test_thread_work_execution import command
+
+    threads, origin = postgres_thread_service
+    threads.create_thread(replace(_snapshot(origin), active_model_context=None,
+                                  active_grid_page_id=None, minimum_protocol_version=2))
+    threads.set_native_executor(native_executor())
+    threads.attach_mission('enterprise', 'mission_test', {'thread_id': origin})
+    receipt = threads.submit_command(command(threads, origin, 'send_message', 'organizer',
+        payload={'text': 'Organize the Mission'}))
+    assert receipt.status == 'accepted'
+    running = threads.claim_attempt('organizer', 30)
+    registry = MemoryDelegations()
+    agent = AgentDelegations(threads, registry)
+    request = {**delegation(), 'schema': 'capstone-agent-delegation/2', 'mode': 'goal',
+               'max_attempts': 3, 'placement': 'origin', 'mission_origin': {'thread_id': origin},
+               'equipment': [], 'restrictions': []}
+    with pytest.raises(DelegationConflict, match='unavailable for Goal admission'):
+        agent.delegate('enterprise', request)
+    assert len(threads.snapshot(origin).works) == 1
+    threads.finish_attempt(running, phase='completed', payload={'answer': 'Plan saved'})
+    binding = agent.delegate('enterprise', request)
+    original, goal = threads.snapshot(origin).works
+    assert binding == {'thread_id': origin, 'work_id': goal['work_id']}
+    assert original['work_id'] != binding['work_id']
+    assert goal['goal_mode']['max_attempts'] == 3
+    assert AgentDelegations(threads, registry).delegate('enterprise', request) == binding
+    admit_delegated_goal_plan(threads, 'Save the draft')
+    claim = threads.claim_attempt('goal-worker', 30)
+    assert claim.task_context.binding.work_id == binding['work_id']
+    assert '_mission' not in claim.submission
+    assert claim.submission['_mission_equipment']['schema'] == 'capstone-mission-tool-selection/1'
+    assert len(threads.snapshot(origin).works) == 2
+    from capstone_agent.goal_continuation import drain_goal_continuations
+    from capstone_agent.session_goal_plan import drain_goal_step_reviews
+
+    threads.finish_attempt(claim, phase='completed', payload={'answer': 'Draft saved'})
+    assert drain_goal_step_reviews(threads, reviewer=lambda *_: {
+        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'continue',
+        'summary': 'Draft is available to check', 'next_instruction': 'Check the saved draft.',
+        'waiting_reason': None, 'product_refs': [],
+    }) == 1
+    assert drain_goal_continuations(threads) == 1
+    verify = threads.claim_attempt('goal-reviewer', 30)
+    assert verify.task_context.binding.work_id == binding['work_id']
+    assert verify.instruction == 'Check the saved draft.'
+    threads.finish_attempt(verify, phase='completed', payload={'answer': 'Verified draft'})
+    assert drain_goal_step_reviews(threads, reviewer=lambda *_: {
+        'schema': 'capstone-work-goal-proposal/1', 'disposition': 'complete',
+        'summary': 'Draft saved and verified', 'next_instruction': None, 'waiting_reason': None,
+        'product_refs': [], 'criteria': [{'index': 0, 'verdict': 'met', 'refs': [verify.attempt.attempt_id]}],
+    }) == 1
+    observation = agent.observe('enterprise', {**request, 'binding': binding})
+    assert observation['state'] == 'completed'
+    assert observation['delivery']['answer_ref']
+
+
 def test_mission_upload_grant_reads_frozen_version_after_replacement(postgres_thread_service):
     from capstone_agent.artifacts import MemoryObjectStore
     from capstone_agent.continuation_resources import resource_reader_for

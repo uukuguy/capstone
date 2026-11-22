@@ -92,7 +92,7 @@ def test_frozen_equipment_limits_real_native_context(chat_store):
 
 
 @pytest.mark.parametrize('invalid', ['agent', 'skill', 'resource', 'profile_restriction'])
-def test_readiness_rejects_unregistered_agent_and_unimplemented_selection(chat_store, invalid):
+def test_readiness_records_unavailable_agent_and_equipment_without_dispatch(chat_store, invalid):
     threads, thread_id = chat_store
     threads.set_native_executor(native_executor())
     host = configure_control(threads)
@@ -108,11 +108,15 @@ def test_readiness_rejects_unregistered_agent_and_unimplemented_selection(chat_s
     host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
         operation_id='unavailable_plan', mission_id=mission['mission_id'], expected_revision=1,
         kind='update_plan', payload={'acceptance_criteria': ['Review findings'], 'tasks': [task]}))
-    with pytest.raises(ValueError):
-        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
-            operation_id='unavailable_ready', mission_id=mission['mission_id'], expected_revision=2,
-            kind='ready', payload={}))
-    assert host.service.read_mission('enterprise', mission['mission_id'])['state'] == 'planning'
+    host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+        operation_id='unavailable_ready', mission_id=mission['mission_id'], expected_revision=2,
+        kind='ready', payload={}))
+    host.tick()
+    saved = host.service.read_mission('enterprise', mission['mission_id'])
+    assert saved['state'] == 'ready' and saved['reason'] == 'task_admission_unavailable'
+    unavailable, = saved['tasks']
+    assert unavailable['state'] == 'pending' and unavailable['delegation'] is None
+    assert unavailable['failure_reason'] in {'task_admission_unavailable', 'equipment_admission_unavailable'}
 
 
 def test_postgres_control_dispatch_freezes_equipment_into_child_attempt(postgres_thread_service):
@@ -151,7 +155,7 @@ def test_postgres_control_dispatch_freezes_equipment_into_child_attempt(postgres
             connection.execute('DELETE FROM capstone_threads WHERE thread_id=%s', (binding['thread_id'],))
 
 
-def test_custom_origin_gateway_without_adapter_blocks_readiness(chat_store):
+def test_custom_origin_gateway_without_adapter_defers_task_admission(chat_store):
     threads, thread_id = chat_store
     threads.set_native_executor(native_executor())
     threads.select_thread_gateway(thread_id, {'connection_id': 'custom_connection',
@@ -163,11 +167,15 @@ def test_custom_origin_gateway_without_adapter_blocks_readiness(chat_store):
     host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
         operation_id='custom_plan', mission_id=mission['mission_id'], expected_revision=1,
         kind='update_plan', payload={'acceptance_criteria': ['Review findings'], 'tasks': [task]}))
-    with pytest.raises(ValueError):
-        host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
-            operation_id='custom_ready', mission_id=mission['mission_id'], expected_revision=2,
-            kind='ready', payload={}))
-    assert host.service.read_mission('enterprise', mission['mission_id'])['state'] == 'planning'
+    host.command_mission('enterprise', dict(schema='capstone-control-mission-command/1',
+        operation_id='custom_ready', mission_id=mission['mission_id'], expected_revision=2,
+        kind='ready', payload={}))
+    host.tick()
+    saved = host.service.read_mission('enterprise', mission['mission_id'])
+    assert saved['reason'] == 'task_admission_unavailable'
+    unavailable, = saved['tasks']
+    assert unavailable['state'] == 'pending' and unavailable['delegation'] is None
+    assert unavailable['failure_reason'] == 'task_admission_unavailable'
 
 
     threads._native_executor.thread_gateway_publication = lambda binding=None, refresh=False: {

@@ -760,7 +760,7 @@ def parse_snapshot(document):
     identities = set()
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
-        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'goal_plan_pending', 'goal_plan', 'goal_step_review', 'goal_followup', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill'}
+        optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'goal_plan_pending', 'goal_plan', 'goal_step_review', 'goal_followup', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill', 'mission_origin_goal'}
         optional.update(('task_state', 'task_decision', 'execution_checkpoint'))
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
@@ -825,6 +825,8 @@ def parse_snapshot(document):
         count = work.get('consumed_message_count', 0)
         if 'goal_followup' in work and (work['goal_followup'] is not True or 'goal_mode' not in work):
             raise ThreadProtocolError('invalid Goal follow-up state')
+        if 'mission_origin_goal' in work and work['mission_origin_goal'] is not True:
+            raise ThreadProtocolError('invalid Mission origin Goal flag')
         if 'mission_equipment' in work:
             import re
             if (not isinstance(work.get('mission_equipment_binding_revision'), str)
