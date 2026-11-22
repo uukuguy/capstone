@@ -1,3 +1,7 @@
+2026-11-23 local-dev 5174 的产品源码为 `6aff8519`，合入 PR241，后端镜像 `3e7d48e811d0`。真实 Mission 主会话三轮、两份文件校验、整体报告下载和完成后续聊通过。原 Mission 在跨重建复盘后保留部分结果和独立诊断，浏览器可下载。
+
+2026-11-23 PR237 已合入 dev `e5383e3e`，受检 `bf5ab258`，定向 macOS CI 45063171471 通过。已从 local-dev 5174 下载 Goal 与 Mission 的整体 Markdown。规范重建完成，后端镜像 `d110216c9dfc`。
+
 2026-11-23 PR235 已合入 dev `e285d240`，受检 `faa11010`，定向 macOS CI 45060740110 通过。PR234 的端口改动先合入 `d2cd6b75`。local-dev 5174 按合并源码重建并通过真实 Goal 和混合 Mission 验收。
 
 2026-11-23 local-dev 默认启动端口与代理来源统一为 5174，后端镜像 `fbfbadb4931c`，Pi 镜像 `518c172839cf`。用默认端口重建后，经 App 代理和 API 直接访问均通过就绪检查。端口冲突时 Vite 报错。
@@ -1671,6 +1675,11 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
 | dev-head | dev | main | dev · 当前研发位置 | PR153 已集成，会话 Goal 本机验收通过 | 动态绑定实际 dev 并连接已核对的祖先，保留运行来源和控制记录。[当前状态](CURRENT-STATE.md) | shared-agent |
 | continuity-merged | e285d240 | main | Instruction、Goal 与 Mission 执行连续性 | PR235 定向 macOS CI 通过 | 保存故障和回执，继续执行可接纳的独立工作；主会话保留整体交付及逐轮记录。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
+| objective-delivery-merged | e5383e3e | main | Goal 与 Mission 整体交付下载 | PR237 定向 macOS CI 与本机浏览器下载通过 | 从保存的结论生成独立的整体 Markdown，包括已核验项、缺口和制品引用。 | shared-agent |
+| mission-origin-goal-merged | 73b4b160 | main | Mission 主会话多轮 Goal | PR238 定向 macOS CI 通过，本机真实两轮及页面标签通过 | 主会话可承载 Goal，独立 Work 保留规划、逐轮状态、核验和交付。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
+| mission-terminal-recovery-merged | 001f1b29 | main | Mission 收尾恢复 | PR239 定向 macOS CI 通过 | 恢复唯一公开正文并保留诊断，将已保存的 Goal 部分结论送入 Mission 复盘。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
+| mission-review-runtime-merged | 6ce41c9c | main | Mission 跨重建复盘 | PR240 本机与 macOS 定向门禁通过 | 注册配置和授权一致时，后续复盘使用当前执行器。已接纳执行及原回执按原身份保留。 | shared-agent |
+| mission-review-settlement-merged | 6aff8519 | main | Mission 复盘与交付状态 | PR241 本机与 macOS 定向门禁、5174 浏览器验收通过 | 复盘保留验收条件和已有结论，允许从失败的组织者执行继续复盘。 | shared-agent |
 | unified-agent-active | ce185a14 | feature | Deep Research · 历史后端产品字节来源 | ready及清理通过，已随PR67合入 | 历史产品来源ce185a14，API/worker镜像180c53ffb617、native1b8533cf1b06；清理195305-28422，与dev32d72c28产品相同，当前运行另见ed0节点。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
 | gateway-failure-merge | f397fbef | main | dev · 网关目录与失败诊断 | PR66 已合入，固定里程碑 | 网关目录、范围约束与失败诊断修复。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-head | de648f58 | feature | 统一轻量循环 · 已合入来源 | PR67 已合入，必需 CI 通过 | de648f58 受检；统一入口及按需 Deep Research；历史间歇失败诊断保留。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
@@ -1941,6 +1950,11 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | continuous-task-local-dev-20261121 | 本机三入口验收来源 | dev | 真实三入口均完成交付；API 和 worker 共同使用已验证镜像 | 本机规范重建，三份下载文件摘要一致 |
 | dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR205 确认 local-dev 实施范围，实际三入口 API 复验通过 |
 | continuity-merged | 执行连续性集成 | dev | 指令回执和队列可续接；Goal 与 Mission 按依赖推进并保存结果 | PR235 的 macOS 定向验证已通过 |
+| objective-delivery-merged | Goal 与 Mission 整体交付 | dev | 保存整体答复和核验结论；提供整体 Markdown 下载 | PR237 的 macOS 定向验证与 5174 浏览器下载通过 |
+| mission-origin-goal-merged | Mission 主会话多轮 Goal | dev | Mission 可将 Goal 放在主会话；在原会话保留逐轮执行、核验和交付 | PR238 的 macOS 定向验证通过 |
+| mission-terminal-recovery-merged | Mission 收尾恢复 | dev | 恢复唯一公开正文并记录格式问题；Mission 可复盘已有的 Goal 部分交付 | PR239 的 macOS 定向验证通过 |
+| mission-review-runtime-merged | Mission 跨重建复盘 | dev | 检查注册配置和授权一致性；复盘使用兼容的新执行器并保留已保存回执 | PR240 的本机和 macOS 定向验证通过 |
+| mission-review-settlement-merged | Mission 复盘与交付状态 | dev | 省略验收条件时保留原条件；保存的交付与复盘错误分别入账 | PR241 的本机和 macOS 定向验证通过 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1982,6 +1996,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 241 | execution-continuity | fix/mission-review-settlement | dev | MERGED | 6aff8519，受检 0fa961c3；本机与 macOS CI 45071573640 通过。 |
+| 240 | execution-continuity | fix/mission-review-runtime | dev | MERGED | 6ce41c9c，受检 dd27bed5；本机 Mission 门禁和 macOS CI 45069787300 重跑通过。 |
+| 239 | execution-continuity | fix/mission-terminal-recovery | dev | MERGED | 001f1b29，受检 ef64eff8；macOS Mission 门禁 45068343300 通过，主工作区已同步。 |
+| 238 | execution-continuity | feat/mission-origin-goal | dev | MERGED | 73b4b160，受检 11a7f606；macOS Mission 门禁 45066364400 通过，主工作区已同步。 |
 | 235 | execution-continuity | fix/execution-continuity-remediation | dev | MERGED | e285d240，受检 faa11010；定向 macOS CI 45060740110 通过，主工作区已同步。 |
 | 234 | local-dev | fix/local-dev-port-5174 | dev | MERGED | d2cd6b75，受检 08d2fec9，默认启动端口、代理和来源统一为 5174。定向 macOS CI 45059907460 和本机浏览器验收通过。 |
 | 197 | continuous-task-context | feat/continuous-task-ui-20261121 | dev | MERGED | 4fe6a488。主会话任务状态、指导修订、校验及下载。App 定向 CI 通过。 |
@@ -2078,6 +2096,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| fix/mission-review-settlement | 执行连续性，已合入 dev 并关闭分支 | PR241 合入 6aff8519；本机与 macOS 专项门禁通过 | 5174 原部分结论、下载及续作入口通过 | execution-continuity |
+| fix/mission-review-runtime | 执行连续性，已合入 dev 并关闭分支 | PR240 合入 6ce41c9c，本机与 macOS 定向门禁通过，原 Mission 跨重建复盘已运行并保存部分结论 | 继续交付界面状态由 PR241 修复 | execution-continuity |
+| fix/mission-terminal-recovery | 执行连续性，已合入 dev 并关闭分支 | PR239 合入 001f1b29，本机和 CI 专项门禁通过 | 新 Mission 完整交付已验，原 Mission 复盘兼容性由 PR240 修复 | execution-continuity |
+| feat/mission-origin-goal | 执行连续性，已合入 dev 并关闭分支 | PR238 合入 73b4b160；5174 主会话两轮执行及页面标签已核对 | 结算异常由 PR239 修复 | execution-continuity |
 | fix/execution-continuity-remediation | 执行连续性，已合入 dev | PR235 合入 e285d240；受检 faa11010，定向 macOS CI 通过 | 本机重建及真实会话复验 | execution-continuity |
 | fix/local-dev-port-5174 | 本地开发，已合入 dev | 08d2fec9 通过定向 macOS CI；PR234 合入 d2cd6b75 | 来源已核对，保留部署镜像来源记录 | local-dev |
 | fix/harness-reference-continuity-20261118 | Harness，目标 dev | 96b131ae 本机真实验收，ab387573 定向门禁；PR152 审核中 | macOS CI 通过后合入 dev | harness-reference-continuity |
@@ -2301,7 +2323,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | `e285d240`，合入 PR234、PR235 | API 与三类 worker 同镜像 7e5f51cc5ebb，Pi 镜像 518c172839cf，均就绪 | App http://127.0.0.1:5174/。真实 Goal 自动完成四轮并保存整体答复；新 Mission 的单轮与 Goal 子任务均核验，三个制品下载检查通过。 |
+| local-dev | `6aff8519`，合入 PR241 | API 与三类 worker 同镜像 3e7d48e811d0，Pi 镜像 a90a99b6fa57，均就绪 | App http://127.0.0.1:5174/。真实主会话三轮执行、核验、整体交付及完成后续聊通过。原 Mission 部分报告保留，已核对浏览器下载和续作入口。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
