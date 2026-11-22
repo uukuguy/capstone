@@ -18,7 +18,7 @@ it('loads the private index first, then its selected entry and the earlier index
   fireEvent.click(row)
   expect(await within(panel).findByText('actual input')).toBeTruthy()
   fireEvent.click(within(panel).getByRole('button',{name:'对比上一请求'}))
-  expect(await within(panel).findByText('改写 · 系统提示')).toBeTruthy()
+  expect(await within(panel).findByRole('button',{name:'改写 · 系统提示'})).toBeTruthy()
   expect(within(panel).getByText('actual input')).toBeTruthy()
   fireEvent.click(row)
   expect(within(panel).queryByText('actual input')).toBeNull()
@@ -59,4 +59,28 @@ it('formats and highlights JSON while preserving the captured values',async()=>{
   expect(json.textContent).toBe('{\n  "id": 9007199254740993,\n  "options": [\n    true,\n    null,\n    "a\\n"\n  ],\n  "id": -1.5e2\n}')
   expect(container.querySelectorAll('.context-json-key')).toHaveLength(3)
   expect(container.querySelector('.context-json-number')?.textContent).toBe('9007199254740993')
+})
+
+it('reads the correct bodies only when a comparison item opens',async()=>{
+  const system={carrier:'system',role:'system',source_id:'system-policy'}
+  const rows={
+    before:[{...system,index:8,digest:'a'.repeat(64)},{index:9,carrier:'tools',role:'definition',name:'retired'}],
+    now:[{...system,index:3,digest:'b'.repeat(64)},{index:4,carrier:'tools',role:'definition',name:'added'}],
+  }
+  const texts:Record<string,string>={'before:8':'old policy','now:3':'new policy','before:9':'old tool','now:4':'new tool'}
+  const read=vi.fn(async (_attempt:string,ref:string,index?:number)=>index===undefined
+    ? {schema:'capstone-model-context-snapshot/1',total_entries:2,entries:rows[ref as keyof typeof rows]}
+    : {entry:{index,text:texts[`${ref}:${index}`]}})
+  render(<RequestContextEntries attempt="a" snapshot="now" previous="before" read={read}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'对比上一请求'}))
+  fireEvent.click(await screen.findByRole('button',{name:'改写 · 系统提示'}))
+  expect(await screen.findByText('old policy')).toBeTruthy()
+  expect(await screen.findByText('new policy')).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button',{name:/移除.*retired/}))
+  expect(await screen.findByText('old tool')).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button',{name:/新增.*added/}))
+  expect(await screen.findByText('new tool')).toBeTruthy()
+  expect(read.mock.calls.map(call=>[call[1],call[2]])).toEqual([
+    ['now',undefined],['before',undefined],['before',8],['now',3],['before',9],['now',4],
+  ])
 })
