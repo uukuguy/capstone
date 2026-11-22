@@ -47,7 +47,7 @@ def test_fresh_thread_admits_original_bytes_without_copying_file_into_goal(postg
     registry = PostgresDelegations(service.dsn)
     registry.initialize()
     agent = AgentDelegations(service, registry)
-    d = {**delegation(), 'context_products': [source], 'mode': mode}
+    d = {**delegation(), 'context_products': [source], 'mode': mode, 'max_attempts': 2 if mode == 'goal' else 1}
     binding = None
     try:
         binding = agent.delegate('enterprise', d)

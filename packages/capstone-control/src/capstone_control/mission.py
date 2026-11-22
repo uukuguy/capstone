@@ -132,6 +132,22 @@ def has_dispatchable_task(service, goal):
                     for task in dependency_ready_tasks(goal)))
 
 
+def task_admission_reason(service, goal, task):
+    workspace, origin = goal['workspace'], goal['_mission']['origin']
+    reason = None
+    try:
+        if (service.admit_mission_task is not None
+                and service.admit_mission_task(workspace, deepcopy(origin), deepcopy(task)) is not True):
+            reason = 'task_admission_unavailable'
+        for ref in task.get('equipment', []) + task.get('restrictions', []):
+            admit = service.admit_mission_reference
+            if admit is None or admit(workspace, deepcopy(origin), deepcopy(ref)) is not True:
+                reason = 'equipment_admission_unavailable'
+    except Exception:
+        return 'task_admission_unavailable'
+    return reason
+
+
 def dispatch_ready(service, goal):
     if not goal['tasks'] or not goal['acceptance_criteria']:
         raise InvalidTransition('Mission needs Tasks and acceptance criteria before readiness')
@@ -139,17 +155,7 @@ def dispatch_ready(service, goal):
     for task in dependency_ready_tasks(goal):
         if task.get('failure_reason') == 'equipment_excluded_during_planning':
             continue
-        reason = None
-        try:
-            if (service.admit_mission_task is not None
-                    and service.admit_mission_task(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(task)) is not True):
-                reason = 'task_admission_unavailable'
-            for ref in task.get('equipment', []) + task.get('restrictions', []):
-                admit = service.admit_mission_reference
-                if admit is None or admit(goal['workspace'], deepcopy(goal['_mission']['origin']), deepcopy(ref)) is not True:
-                    reason = 'equipment_admission_unavailable'
-        except Exception:
-            reason = 'task_admission_unavailable'
+        reason = task_admission_reason(service, goal, task)
         if reason:
             task['failure_reason'] = reason
         else:
@@ -385,6 +391,12 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                             task['failure_reason'] = 'equipment_excluded_during_planning'
                     if goal['acceptance_criteria'] and goal['tasks']:
                         dispatch_ready(service, goal)
+                    else:
+                        for task in goal['tasks']:
+                            if task['task_id'] in proposed_ids and not task.get('failure_reason'):
+                                reason = task_admission_reason(service, goal, task)
+                                if reason is not None:
+                                    task['failure_reason'] = reason
                 goal['_mission']['plan_revision'] += 1
                 goal['_mission']['plan_conclusion']=None
                 if reopen_partial:
