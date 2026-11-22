@@ -60,8 +60,8 @@ function compareEntries(before:Entry[],after:Entry[]) {
   return {added,removed:remaining,changed}
 }
 
-export default function RequestContextEntries({attempt,snapshot,previous,category,read,credential,onCredential,onResetCategory}:{
-  attempt:string;snapshot:string;previous?:string;category?:Category;read:ReadRequestContext;credential?:string;onCredential:(value:string)=>void;onResetCategory?:()=>void
+export default function RequestContextEntries({attempt,snapshot,previous,category,read,credential,onCredential,onResetCategory,onIndexReady}:{
+  attempt:string;snapshot:string;previous?:string;category?:Category;read:ReadRequestContext;credential?:string;onCredential:(value:string)=>void;onResetCategory?:()=>void;onIndexReady?:()=>void
 }){
   const [visibleLimit,setVisibleLimit]=useState(16)
   const [document,setDocument]=useState<Snapshot>()
@@ -84,7 +84,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
     try {
       const result=await read(attempt,snapshot,index,controller.signal,access)
       if(controller.signal.aborted)return
-      if(index===undefined)setDocument(snapshotIndex(result))
+      if(index===undefined){setDocument(snapshotIndex(result));onIndexReady?.()}
       else {
         const entry=asObject(asObject(result).entry)
         if(entry.index!==index||typeof entry.text!=='string')throw new Error('请求正文无效')

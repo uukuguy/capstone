@@ -35,6 +35,7 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
   const [selection,setSelection]=useState<{id:string;scope?:string}>()
   const [category,setCategory]=useState<{request:string;id:Category}>()
   const [visibleCount,setVisibleCount]=useState(12)
+  const [loadedSnapshot,setLoadedSnapshot]=useState<string>()
   const [diagnosticCredential,setDiagnosticCredential]=useState<string>()
   const [allItemsKey,setAllItemsKey]=useState<string>()
   const instruction=attempt && rows.find(row=>row.attemptId===attempt)?.instructionId
@@ -159,7 +160,10 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
                 <small className="context-category-tip" aria-hidden="true">{categoryTitle(row)}{breakdownTotal>0?` · 构成占比 ${Math.round(row.value/breakdownTotal*100)}%`:''}</small>
               </button>)}
             </div>
-            {(!current.snapshotRef||!readSnapshot)&&<section className="context-category-detail" aria-label={selectedCategory?selectedCategory.name+'详情':'输入内容'}>
+          {current.snapshotRef&&readSnapshot&&<RequestContextEntries key={current.snapshotRef}
+            attempt={current.attemptId} snapshot={current.snapshotRef} previous={previousCapture?.snapshotRef} category={selectedCategory?.id} read={readSnapshot}
+            credential={diagnosticCredential} onCredential={setDiagnosticCredential} onResetCategory={()=>setCategory(undefined)} onIndexReady={()=>setLoadedSnapshot(current.snapshotRef)}/>}
+            {(!current.snapshotRef||loadedSnapshot!==current.snapshotRef)&&<section className="context-category-detail" aria-label={selectedCategory?selectedCategory.name+'详情':'输入内容'}>
               <div className="context-section-title"><h4>内容</h4>{selectedCategory&&<button type="button" onClick={()=>setCategory(undefined)}>显示全部分类</button>}</div>
               {displayedItems.length?<ul className="context-content-items">{visibleItems.map(({id,item})=>{
                 const excerpt=item.sourceId&&current?readToolExcerpt?.(item.sourceId,current.attemptId):undefined
@@ -170,9 +174,6 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
               {displayedItems.length<itemCount&&<small>已记录 {displayedItems.length} / {itemCount} 项</small>}
             </section>}
           </>}
-          {current.snapshotRef&&readSnapshot&&<RequestContextEntries key={current.snapshotRef}
-            attempt={current.attemptId} snapshot={current.snapshotRef} previous={previousCapture?.snapshotRef} category={selectedCategory?.id} read={readSnapshot}
-            credential={diagnosticCredential} onCredential={setDiagnosticCredential} onResetCategory={()=>setCategory(undefined)}/>}
           {!!Object.keys(current.usage??{}).length&&<details><summary>Provider 用量明细</summary><dl>
             {Object.entries(usageLabels).map(([id,name])=>{
               const value=current.usage?.[id as keyof typeof usageLabels]
