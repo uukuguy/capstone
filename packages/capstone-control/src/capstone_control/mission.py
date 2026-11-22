@@ -76,6 +76,24 @@ def conclusion_satisfied(goal):
     return all(verdict['status'] == 'met' for verdict in checked)
 
 
+def has_partial_delivery(goal):
+    if goal['state'] != 'delivered':
+        return False
+    if goal['reason'] == 'partial_delivery':
+        return True
+    if goal['reason'] not in {'organizer_failed', 'organizer_cancelled', 'organizer_interrupted'}:
+        return False
+    metadata = goal.get('_mission', {})
+    conclusion = metadata.get('plan_conclusion') or {}
+    if conclusion.get('plan_revision') != metadata.get('plan_revision', 1):
+        return False
+    try:
+        checked = criteria_verdicts(goal, conclusion.get('criteria_verdicts'))
+    except (ContractError, Conflict):
+        return False
+    return any(verdict['status'] != 'met' for verdict in checked)
+
+
 def references(values):
     if not isinstance(values, list) or len(values) > 64:
         raise ContractError('bounded registered equipment references required')
@@ -322,15 +340,15 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
         if model_turn is not None and kind == 'wait' and payload.get('until') == 'user':
             raise InvalidTransition('Continue executable work or report missing input in a partial delivery.')
         if model_turn == 'review':
-            if kind == 'update_plan' and payload.get('acceptance_criteria') != goal['acceptance_criteria']:
+            if (kind == 'update_plan' and 'acceptance_criteria' in payload
+                    and payload['acceptance_criteria'] != goal['acceptance_criteria']):
                 raise InvalidTransition('Autonomous review must preserve the current acceptance criteria. Report unmet criteria in a partial delivery.')
             if kind == 'pause' and not any(task['state'] in {'dispatching', 'running', 'waiting',
                                                             'resume_requested', 'revoke_requested'}
                                            for task in goal['tasks']):
                 raise InvalidTransition('A settled task does not require pause. Replace failed work with a new task, continue ready work, or conclude with saved results.')
         if kind in {'prepare_task', 'update_plan', 'ready'}:
-            reopen_partial = (kind == 'update_plan' and goal['state'] == 'delivered'
-                              and goal['reason'] == 'partial_delivery')
+            reopen_partial = kind == 'update_plan' and has_partial_delivery(goal)
             if not reopen_partial and goal['state'] not in {'planning', 'waiting_review', 'ready', 'running', 'paused', 'waiting'}:
                 raise InvalidTransition('Mission cannot plan from this state')
             if '_mission' not in goal:
@@ -476,7 +494,7 @@ def command(service, workspace, document, actor, *, validate_task_equipment=Fals
                 goal.update(state='waiting',reason='organizer_waiting_user')
         elif kind in {'pause', 'cancel', 'resume', 'delegate_next'}:
             if kind=='resume' and '_mission' in goal and (goal['state']=='waiting_review'
-                    or (goal['state']=='delivered' and goal['reason']=='partial_delivery')):
+                    or has_partial_delivery(goal)):
                 object_fields(payload,set())
                 from .mission_reviews import explicit_resume
                 explicit_resume(service,goal,document['operation_id'])

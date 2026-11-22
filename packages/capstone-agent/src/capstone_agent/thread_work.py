@@ -11,6 +11,7 @@ from .application_capacity import limits, require_capacity
 
 
 WORK_STATUSES = {'ready', 'queued', 'running', 'completed', 'failed', 'cancelled', 'interrupted', 'blocked'}
+MISSION_REVIEW_SOURCE_STATES = frozenset({'completed', 'failed'})
 TASK_DECISIONS = ('accept', 'request_changes')
 
 
@@ -260,7 +261,7 @@ def prepare_mission_review(snapshot, work_id, *, attempt_id, turn_id):
         return None
     works = deepcopy(list(snapshot.works))
     work = next((item for item in works if item['work_id'] == work_id), None)
-    if (work is None or work.get('status') != 'completed' or work.get('cancel_requested')
+    if (work is None or work.get('status') not in MISSION_REVIEW_SOURCE_STATES or work.get('cancel_requested')
             or not work.get('conversation_mode') or 'goal_mode' in work
             or snapshot.pending_model_switch is not None or snapshot.pending_selection is not None):
         return None

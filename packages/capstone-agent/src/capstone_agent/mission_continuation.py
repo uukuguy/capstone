@@ -180,13 +180,15 @@ def find_review(service, intent):
 
 
 def _origin_ready(service, intent):
+    from .thread_work import MISSION_REVIEW_SOURCE_STATES
+
     service.require_workspace(intent['origin']['thread_id'], intent['workspace'])
     snapshot = service.snapshot(intent['origin']['thread_id'])
     if snapshot.current_attempt is not None:
         return False
     work = _select_work(snapshot, intent)
     return (snapshot.run.state == 'open' and snapshot.active_model_context is None
-            and work['status'] == 'completed' and not work.get('cancel_requested')
+            and work['status'] in MISSION_REVIEW_SOURCE_STATES and not work.get('cancel_requested')
             and snapshot.pending_model_switch is None and snapshot.pending_selection is None)
 
 
@@ -224,7 +226,7 @@ def release_unadmitted_review(service, intent):
 
 def admit_review(service, intent):
     from .thread_service import _conversation_from_events, _conversation_from_postgres
-    from .thread_work import prepare_mission_review
+    from .thread_work import MISSION_REVIEW_SOURCE_STATES, prepare_mission_review
     attempt_id, turn_id = _identity(intent)
     existing = find_review(service, intent)
     if existing is not None:
@@ -239,7 +241,7 @@ def admit_review(service, intent):
     if snapshot.current_attempt is not None:
         existing = find_review(service, intent)
         return None if existing is None else existing[0]
-    if selected is None or selected.get('status') != 'completed' or selected.get('cancel_requested'):
+    if selected.get('status') not in MISSION_REVIEW_SOURCE_STATES or selected.get('cancel_requested'):
         return None
     products = [deepcopy(product) for task in intent['boundary']['tasks']
                 if task.get('state') in {'delivered', 'verified'}
