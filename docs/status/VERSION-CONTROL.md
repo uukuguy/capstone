@@ -1674,6 +1674,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
 | dev-head | dev | main | dev · 当前研发位置 | PR153 已集成，会话 Goal 本机验收通过 | 动态绑定实际 dev 并连接已核对的祖先，保留运行来源和控制记录。[当前状态](CURRENT-STATE.md) | shared-agent |
+| local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
 | continuity-merged | e285d240 | main | Instruction、Goal 与 Mission 执行连续性 | PR235 定向 macOS CI 通过 | 保存故障和回执，继续执行可接纳的独立工作；主会话保留整体交付及逐轮记录。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
 | objective-delivery-merged | e5383e3e | main | Goal 与 Mission 整体交付下载 | PR237 定向 macOS CI 与本机浏览器下载通过 | 从保存的结论生成独立的整体 Markdown，包括已核验项、缺口和制品引用。 | shared-agent |
 | mission-origin-goal-merged | 73b4b160 | main | Mission 主会话多轮 Goal | PR238 定向 macOS CI 通过，本机真实两轮及页面标签通过 | 主会话可承载 Goal，独立 Work 保留规划、逐轮状态、核验和交付。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
@@ -1949,6 +1950,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | instruction-takeover-local-dev-20261122 | dev 集成里程碑 | dev | 接管保留和指导等待短暂行锁；续作命令唤醒原生 worker | 候选 0c01a89d 通过定向 CI 44925279516 和两条真实接管链路 |
 | continuous-task-local-dev-20261121 | 本机三入口验收来源 | dev | 真实三入口均完成交付；API 和 worker 共同使用已验证镜像 | 本机规范重建，三份下载文件摘要一致 |
 | dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR205 确认 local-dev 实施范围，实际三入口 API 复验通过 |
+| local-qwen-preset-deployed | 本机开发部署来源 | dev | 27B 和 35B 独立配置；模型菜单展示短名及 Qwen 图标 | 27B 可选，首次工作台请求超时 |
 | continuity-merged | 执行连续性集成 | dev | 指令回执和队列可续接；Goal 与 Mission 按依赖推进并保存结果 | PR235 的 macOS 定向验证已通过 |
 | objective-delivery-merged | Goal 与 Mission 整体交付 | dev | 保存整体答复和核验结论；提供整体 Markdown 下载 | PR237 的 macOS 定向验证与 5174 浏览器下载通过 |
 | mission-origin-goal-merged | Mission 主会话多轮 Goal | dev | Mission 可将 Goal 放在主会话；在原会话保留逐轮执行、核验和交付 | PR238 的 macOS 定向验证通过 |
