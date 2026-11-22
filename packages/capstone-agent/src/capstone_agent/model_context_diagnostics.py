@@ -40,7 +40,7 @@ def _checked_origin(value):
     if not isinstance(value, dict):
         return None
     kind, identifier, revision, delivery = (value.get(field) for field in ('kind', 'id', 'revision', 'delivery'))
-    if (kind not in ('file', 'skill', 'compaction') or not _matches(identifier, _ID) or not _matches(revision, _ID)
+    if (kind not in ('file', 'skill', 'compaction', 'history', 'handoff', 'observation', 'runtime') or not _matches(identifier, _ID) or not _matches(revision, _ID)
             or delivery not in ('text', 'reference', 'preview')):
         return None
     result = {'kind': kind, 'id': identifier, 'revision': revision, 'delivery': delivery}
@@ -88,7 +88,7 @@ def checked_snapshot(event: dict) -> dict | None:
             row['name'] = item['name']
         origin = _checked_origin(item.get('origin'))
         if origin is not None and ((carrier == 'tool_results' and origin['kind'] in ('file', 'skill'))
-                                   or (carrier == 'messages' and role == 'user' and origin['kind'] == 'compaction')):
+                                   or (carrier == 'messages' and role == 'user' and origin['kind'] in ('compaction', 'history', 'handoff', 'observation', 'runtime'))):
             row['origin'] = origin
         admitted.append(row)
     return {'schema': 'capstone-model-context-snapshot/1', 'request_id': request,

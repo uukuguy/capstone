@@ -3,7 +3,8 @@ import {contextCategories,type Category} from './instructionContext'
 import {ThreadTransportError} from './threadHttpTransport'
 
 export type ReadRequestContext=(attempt:string,ref:string,index?:number,signal?:AbortSignal,credential?:string)=>Promise<unknown>
-type Origin={kind:'file'|'skill'|'compaction';id:string;revision:string;delivery:string;offset?:number;length?:number}
+const originLabels={file:'文件',skill:'技能',compaction:'压缩摘要',history:'会话历史',handoff:'任务交接',observation:'依赖观察',runtime:'运行环境'} as const
+type Origin={kind:keyof typeof originLabels;id:string;revision:string;delivery:string;offset?:number;length?:number}
 type Entry={origin?:Origin;digest?:string;index:number;carrier:Category;role:string;name?:string;source_id?:string;truncated?:boolean;redacted?:boolean}
 type Snapshot={entries:Entry[];total_entries:number;modelId?:string}
 const roles:Record<string,string>={system:'系统提示',definition:'工具定义',user:'用户消息',assistant:'模型消息',toolCall:'工具调用参数',toolResult:'工具返回',unsupported:'结构或媒体块',other:'其他消息'}
@@ -21,9 +22,9 @@ function snapshotIndex(value:unknown):Snapshot {
     const origin=asObject(row.origin)
     if(typeof row.carrier!=='string'||!Object.hasOwn(contextCategories,row.carrier)||typeof row.index!=='number'||typeof row.role!=='string')
       throw new Error('请求正文条目无效')
-    const source:Origin|undefined=(origin.kind==='file'||origin.kind==='skill'||origin.kind==='compaction')&&typeof origin.id==='string'
+    const source:Origin|undefined=(typeof origin.kind==='string'&&Object.hasOwn(originLabels,origin.kind))&&typeof origin.id==='string'
       &&typeof origin.revision==='string'&&typeof origin.delivery==='string'
-      ? {kind:origin.kind,id:origin.id,revision:origin.revision,delivery:origin.delivery,
+      ? {kind:origin.kind as Origin['kind'],id:origin.id,revision:origin.revision,delivery:origin.delivery,
         offset:typeof origin.offset==='number'?origin.offset:undefined,length:typeof origin.length==='number'?origin.length:undefined}
       :undefined
     return {origin:source,index:row.index,carrier:row.carrier as Category,role:row.role,name:typeof row.name==='string'?row.name:undefined,
@@ -147,7 +148,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
       <div className="context-source-filters" aria-label="按来源筛选">
         {([...new Set(document.entries.flatMap(entry=>entry.origin?[entry.origin.kind]:[]))]).map(kind=>
           <button type="button" key={kind} aria-pressed={sourceKind===kind}
-            onClick={()=>setSourceKind(sourceKind===kind?undefined:kind)}>{kind==='file'?'文件来源':kind==='skill'?'技能来源':'压缩摘要'}</button>)}
+            onClick={()=>setSourceKind(sourceKind===kind?undefined:kind)}>{originLabels[kind]}</button>)}
       </div>
       {!entries.length&&<p>所选分类没有已采集条目。</p>}
       <ol className="context-content-items">
@@ -159,7 +160,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
           </button>
           {selected===entry.index&&<div className="context-entry-body">
             {entry.origin&&<p className="context-entry-origin">
-              {entry.origin.kind==='file'?'文件':entry.origin.kind==='skill'?'技能':'压缩摘要'} {entry.origin.id} · {entry.origin.revision}
+              {originLabels[entry.origin.kind]} {entry.origin.id} · {entry.origin.revision}
               {entry.origin.offset!==undefined&&entry.origin.length!==undefined&&
                 ` · 字节 ${entry.origin.offset}–${entry.origin.offset+entry.origin.length}（${entry.origin.delivery==='reference'?'范围引用':'预览'}）`}
             </p>}

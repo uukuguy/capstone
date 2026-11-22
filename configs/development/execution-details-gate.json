@@ -59,6 +59,7 @@
     "packages/capstone-agent/src/capstone_agent/host_api.py",
     "packages/capstone-agent/src/capstone_agent/model_context_diagnostics.py",
     "packages/capstone-agent/src/capstone_agent/resources/model-context-input.mjs",
+    "packages/capstone-agent/src/capstone_agent/resources/general-context.mjs",
     "packages/capstone-agent/src/capstone_agent/resources/investigation-skills.mjs",
     "packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs",
     "packages/capstone-agent/tests/fixtures/model-request-pool.test.mjs",

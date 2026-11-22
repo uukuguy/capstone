@@ -1,3 +1,23 @@
+import {createHash} from 'node:crypto';
+
+// Both extension and SDK loader execute in one isolated task process. The
+// index is keyed by exact host-produced message content and metadata.
+const originIndexKey=Symbol.for('capstone.diagnosticContextOrigins');
+function messageKey(role,timestamp,text) {
+  return createHash('sha256').update(JSON.stringify([role,timestamp,text])).digest('hex');
+}
+export function observeInjectedContext(message,origin) {
+  if(typeof message.content!=='string')return;
+  const index=globalThis[originIndexKey]??=new Map();
+  const key=messageKey(message.role,message.timestamp,message.content);
+  const prior=index.get(key);
+  if(index.has(key)&&JSON.stringify(prior)!==JSON.stringify(origin)){index.set(key,null);return;}
+  if(index.size<512)index.set(key,origin);
+}
+function injectedContextOrigin(message,text) {
+  return globalThis[originIndexKey]?.get(messageKey(message.role,message.timestamp,text));
+}
+
 /** Bounded operator view of SDK input. Omit reasoning and inline binary data. */
 export function diagnosticContextInput(context,systemSources=[],toolSources,messageSources=[]) {
   const entries=[];
@@ -42,14 +62,14 @@ export function diagnosticContextInput(context,systemSources=[],toolSources,mess
     const role=['user','assistant','toolResult'].includes(message.role)?message.role:'other';
     const carrier=toolResult?'tool_results':'messages';
     if(typeof message.content==='string'){
-      entry(carrier,role,message.content,message.toolCallId,message.toolName);
+      entry(carrier,role,message.content,message.toolCallId,message.toolName,injectedContextOrigin(message,message.content));
       continue;
     }
     for(const part of Array.isArray(message.content)?message.content:[]){
       if(part.type==='thinking'||part.type==='redactedThinking')continue;
       if(part.type==='text'&&typeof part.text==='string'){
         const matchingSources=message.role==='user'?messageSources.filter(source=>source.timestamp===message.timestamp&&source.text===part.text):[];
-        entry(carrier,role,part.text,message.toolCallId,message.toolName,matchingSources.length===1?matchingSources[0].origin:undefined);
+        entry(carrier,role,part.text,message.toolCallId,message.toolName,matchingSources.length===1?matchingSources[0].origin:injectedContextOrigin(message,part.text));
       }
       else if(part.type==='toolCall')entry(carrier,'toolCall',{name:part.name,arguments:part.arguments},part.id,part.name);
       else entry(carrier,'unsupported',{type:typeof part.type==='string'?part.type:'unknown'},message.toolCallId);
