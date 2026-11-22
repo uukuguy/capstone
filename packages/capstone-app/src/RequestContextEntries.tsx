@@ -7,7 +7,7 @@ import {ThreadTransportError} from './threadHttpTransport'
 export type ReadRequestContext=(attempt:string,ref:string,index?:number,signal?:AbortSignal)=>Promise<unknown>
 const originLabels={file:'文件',skill:'技能',compaction:'压缩摘要',history:'会话历史',handoff:'任务交接',observation:'依赖观察',runtime:'运行环境'} as const
 type Origin={kind:keyof typeof originLabels;id:string;revision:string;delivery:string;offset?:number;length?:number}
-type Entry={origin?:Origin;digest?:string;index:number;carrier:Category;role:string;name?:string;source_id?:string;truncated?:boolean;redacted?:boolean}
+type Entry={messageIndex?:number;preview?:string;origin?:Origin;digest?:string;index:number;carrier:Category;role:string;name?:string;source_id?:string;truncated?:boolean;redacted?:boolean}
 type Snapshot={entries:Entry[];total_entries:number;modelId?:string}
 const roles:Record<string,string>={system:'系统提示',definition:'工具定义',user:'用户消息',assistant:'模型消息',toolCall:'工具调用参数',toolResult:'工具返回',unsupported:'结构或媒体块',other:'其他消息'}
 
@@ -29,7 +29,8 @@ function snapshotIndex(value:unknown):Snapshot {
       ? {kind:origin.kind as Origin['kind'],id:origin.id,revision:origin.revision,delivery:origin.delivery,
         offset:typeof origin.offset==='number'?origin.offset:undefined,length:typeof origin.length==='number'?origin.length:undefined}
       :undefined
-    return {origin:source,index:row.index,carrier:row.carrier as Category,role:row.role,name:typeof row.name==='string'?row.name:undefined,
+    return {origin:source,messageIndex:typeof row.message_index==='number'?row.message_index:undefined,
+      preview:typeof row.preview==='string'?row.preview:undefined,index:row.index,carrier:row.carrier as Category,role:row.role,name:typeof row.name==='string'?row.name:undefined,
       digest:typeof row.digest==='string'&&/^[a-f0-9]{64}$/.test(row.digest)?row.digest:undefined,
       source_id:typeof row.source_id==='string'?row.source_id:undefined,truncated:row.truncated===true,redacted:row.redacted===true}
   })
@@ -183,6 +184,33 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
   }
   const comparison=document&&earlier?compareEntries(earlier.entries,document.entries):undefined
   const entries=document?.entries.filter(entry=>!category||entry.carrier===category)??[]
+  const toolCalls=new Map(document?.entries.flatMap(entry=>
+    entry.role==='toolCall'&&entry.source_id?[[entry.source_id,entry.index] as const]:[]))
+  const renderEntry=(entry:Entry)=><li key={entry.index}><details className="capstone-call-tool context-entry" open={selected===entry.index}>
+          <summary className="context-entry-open" role="button" aria-label={`${entry.index} ${rowTitle(entry)}`} aria-expanded={selected===entry.index}
+            onClick={event=>{event.preventDefault();void load(entry.index)}}>
+            <ChevronRight aria-hidden="true"/>
+            <small className="context-entry-index">{entry.index}</small>
+            <i className="context-category-dot" data-category={entry.carrier} aria-hidden="true"/>
+            <strong className="context-entry-title" title={entry.origin?.id??entryTitle(entry)}>
+              {rowTitle(entry)}
+            </strong>
+            {(entry.origin||entry.name)&&<small className="context-entry-role">{roles[entry.role]??contextCategories[entry.carrier]}</small>}
+            {entry.role==='toolResult'&&entry.source_id&&toolCalls.has(entry.source_id)&&
+              <small className="context-entry-role">调用 #{toolCalls.get(entry.source_id)}</small>}
+            {(entry.redacted||entry.truncated)&&<small className="context-entry-state">{[entry.redacted?'已遮蔽':'',entry.truncated?'已截断':''].filter(Boolean).join(' · ')}</small>}
+            {entry.preview&&selected!==entry.index&&<span className="context-message-preview">{entry.preview}</span>}
+          </summary>
+          {selected===entry.index&&<div className="capstone-call-tool-detail context-entry-body">
+            {entry.origin&&<p className="context-entry-origin">
+              {entry.origin.id} · {entry.origin.revision}
+              {entry.origin.offset!==undefined&&entry.origin.length!==undefined&&
+                ` · 字节 ${entry.origin.offset}–${entry.origin.offset+entry.origin.length}（${entry.origin.delivery==='reference'?'范围引用':'预览'}）`}
+            </p>}
+            {entry.source_id&&<small>{entry.carrier==='system'?'组装来源':'工具调用 ID'} {entry.source_id}</small>}
+            {text!==undefined&&<RequestContextBody text={text}/>}
+          </div>}
+        </details></li>
   return <section className="context-request-entries" aria-label="实际请求正文">
     <div className="context-section-title">
       <h4>实际请求正文</h4>
@@ -208,30 +236,29 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
         </>}
       </section>}
       {!entries.length&&<p>所选分类没有已采集条目。</p>}
-      <ol className="context-content-items context-request-trace">
-        {entries.map(entry=><li key={entry.index}><details className="capstone-call-tool context-entry" open={selected===entry.index}>
-          <summary className="context-entry-open" role="button" aria-label={`${entry.index} ${rowTitle(entry)}`} aria-expanded={selected===entry.index}
-            onClick={event=>{event.preventDefault();void load(entry.index)}}>
-            <ChevronRight aria-hidden="true"/>
-            <small className="context-entry-index">{entry.index}</small>
-            <i className="context-category-dot" data-category={entry.carrier} aria-hidden="true"/>
-            <strong className="context-entry-title" title={entry.origin?.id??entryTitle(entry)}>
-              {rowTitle(entry)}
-            </strong>
-            {(entry.origin||entry.name)&&<small className="context-entry-role">{roles[entry.role]??contextCategories[entry.carrier]}</small>}
-            {(entry.redacted||entry.truncated)&&<small className="context-entry-state">{[entry.redacted?'已遮蔽':'',entry.truncated?'已截断':''].filter(Boolean).join(' · ')}</small>}
-          </summary>
-          {selected===entry.index&&<div className="capstone-call-tool-detail context-entry-body">
-            {entry.origin&&<p className="context-entry-origin">
-              {entry.origin.id} · {entry.origin.revision}
-              {entry.origin.offset!==undefined&&entry.origin.length!==undefined&&
-                ` · 字节 ${entry.origin.offset}–${entry.origin.offset+entry.origin.length}（${entry.origin.delivery==='reference'?'范围引用':'预览'}）`}
-            </p>}
-            {entry.source_id&&<small>{entry.carrier==='system'?'组装来源':'工具调用'} {entry.source_id}</small>}
-            {text!==undefined&&<RequestContextBody text={text}/>}
-          </div>}
-        </details></li>)}
-      </ol>
+      {(['system','tools'] as const).map(carrier=>{
+        const group=entries.filter(entry=>entry.carrier===carrier)
+        return group.length>0&&<details key={carrier} className="context-input-group" open={category===carrier||undefined}>
+          <summary>{contextCategories[carrier]} <small>{group.length} 项</small></summary>
+          <ol className="context-content-items context-request-trace">{group.map(renderEntry)}</ol>
+        </details>
+      })}
+      {entries.some(entry=>entry.carrier==='messages'||entry.carrier==='tool_results')&&<>
+        <h4 className="context-input-messages">消息列表</h4>
+        <ol className="context-content-items context-request-trace">{entries
+          .filter(entry=>entry.carrier==='messages'||entry.carrier==='tool_results')
+          .reduce<Entry[][]>((groups,entry)=>{
+            const group=groups.at(-1)
+            if(group&&entry.messageIndex!==undefined&&group[0].messageIndex===entry.messageIndex)group.push(entry)
+            else groups.push([entry])
+            return groups
+          },[]).map(group=>group[0].messageIndex===undefined
+            ?renderEntry(group[0])
+            :<li className="context-input-message" key={group[0].index}>
+              <small>消息 {group[0].messageIndex}</small>
+              <ol>{group.map(renderEntry)}</ol>
+            </li>)}</ol>
+      </>}
     </>}
   </section>
 }

@@ -36,7 +36,13 @@
     "packages/capstone-app/src/instructionContext.ts",
     "packages/capstone-app/src/InstructionContextPanel.tsx"
   ],
+  "task_context_anchors": [
+    "packages/capstone-app/src/RequestContextEntries.tsx",
+    "packages/capstone-app/src/TaskContextPanel.tsx"
+  ],
   "context_paths": [
+    "packages/capstone-app/src/TaskContextPanel.tsx",
+    "packages/capstone-app/src/TaskContextPanel.test.tsx",
     "packages/capstone-app/src/instructionContext.ts",
     "packages/capstone-app/src/InstructionContextPanel.tsx",
     "packages/capstone-app/src/instructionContext.css",

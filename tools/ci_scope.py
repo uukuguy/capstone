@@ -826,7 +826,9 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         if set(details.get('answer_anchors', ())).issubset(paths):
             allowed.update(details.get('answer_paths', ()))
         context_anchors = details.get('context_anchors', ())
-        if context_anchors and set(context_anchors).issubset(paths) and all(
+        task_context_anchors = details.get('task_context_anchors', ())
+        if ((context_anchors and set(context_anchors).issubset(paths))
+                or (task_context_anchors and set(task_context_anchors).issubset(paths))) and all(
                 path in allowed or path in details.get('context_paths', ()) or _control_path(path) for path in paths):
             return 'context-observation'
         if set(details['anchors']).issubset(paths) and all(

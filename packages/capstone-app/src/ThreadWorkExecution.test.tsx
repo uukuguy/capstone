@@ -235,7 +235,7 @@ it('opens one inspector from the composer and scopes it to the reply on demand',
     server.finish()
   })
   fireEvent.click(await screen.findByRole('button',{name:'查看会话上下文'}))
-  const tab=await screen.findByRole('tab',{name:'上下文'})
+  const tab=await screen.findByRole('tab',{name:'请求上下文'})
   expect(tab.getAttribute('aria-selected')).toBe('true')
   expect(screen.getByText('已用上下文')).toBeTruthy()
   expect(screen.getByRole('region',{name:'输入内容'}).textContent).toContain('read_document')
@@ -245,12 +245,12 @@ it('opens one inspector from the composer and scopes it to the reply on demand',
   fireEvent.click(screen.getByRole('button',{name:'工具定义 · 72 token · 估算'}))
   expect(screen.getByRole('region',{name:'工具定义详情'}).textContent).toContain('read_document')
   fireEvent.click(screen.getByRole('button',{name:'定位指令'}))
-  expect(screen.getByRole('tab',{name:'上下文'}).getAttribute('aria-selected')).toBe('true')
+  expect(screen.getByRole('tab',{name:'请求上下文'}).getAttribute('aria-selected')).toBe('true')
   expect(screen.getByLabelText('用户指令').getAttribute('data-context-linked')).toBe('true')
   expect(screen.getByRole('region',{name:'工具定义详情'})).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'定位执行记录'}))
   await waitFor(()=>expect(document.activeElement?.getAttribute('data-context-request')).toBe('request-1'))
-  expect(screen.getByRole('tab',{name:'上下文'}).getAttribute('aria-selected')).toBe('true')
+  expect(screen.getByRole('tab',{name:'请求上下文'}).getAttribute('aria-selected')).toBe('true')
 })
 
 it('resumes the selected Goal from the main composer without starting a new task', async () => {

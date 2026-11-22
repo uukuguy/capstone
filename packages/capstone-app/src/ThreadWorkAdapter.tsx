@@ -1,3 +1,4 @@
+import TaskContextPanel from './TaskContextPanel'
 import InstructionContextPanel, {contextIndicator} from './InstructionContextPanel'
 import {contextToolExcerpt,projectInstructionContexts} from './instructionContext'
 import GoalControls from './GoalControls'
@@ -989,7 +990,15 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     setRequestLocation({attemptId,dispatchId,nonce:++locationGeneration.current})
   }
   const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onLocateRequest={locateContextRequest} readSnapshot={productsOpen&&resourceView==='instruction-context'?((attempt,ref,index,signal)=>transport.readModelContextSnapshot(currentId,attempt,ref,index,signal)):undefined} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
-  const contextViews=contextPanel?[{id:'instruction-context',label:'上下文',content:contextPanel,description:'按指令追踪模型请求、输入构成和压缩。'}]:[]
+  const taskContextPanel=snapshot&&productsOpen&&resourceView==='task-context'
+    ? <TaskContextPanel key={selectedWork?.workId??currentId} events={sessionEvents}
+      work={((snapshot.toDocument().works??[]) as Record<string,unknown>[]).find(work=>work.work_id===selectedWork?.workId)}
+      workId={selectedWork?.workId} labels={attemptLabels} onLocate={locateContextInstruction}/>
+    : undefined
+  const contextViews=contextPanel?[
+    {id:'instruction-context',label:'请求上下文',content:contextPanel,description:'查看选中模型请求的实际输入。'},
+    {id:'task-context',label:'任务上下文',content:taskContextPanel,description:'按指令查看已保存的任务状态与变化。'},
+  ]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
@@ -1004,7 +1013,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedArtifact(undefined)}} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
       {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:[...taskViews,...contextViews]}
     selectedResourceView={resourceView} onResourceViewChange={selectResourceView}
-    resourceLabel={resourceView==='instruction-context'?'上下文':resourceView==='task-plan'?'任务计划':resourceView==='task-diagram'?'电网图':resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'成果':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
+    resourceLabel={resourceView==='instruction-context'?'请求上下文':resourceView==='task-context'?'任务上下文':resourceView==='task-plan'?'任务计划':resourceView==='task-diagram'?'电网图':resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'成果':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
     sidebar={<nav className="thread-session-navigation" aria-label="任务与会话">
       <ControlGoalPanel transport={transport} onOpenThread={(thread,work)=>{
         const storageKey=`${namespace}.${thread}.work-draft`

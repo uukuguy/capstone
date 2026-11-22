@@ -82,6 +82,10 @@ def checked_snapshot(event: dict) -> dict | None:
         row = {'index': index, 'carrier': carrier, 'role': role, 'text': redacted,
                'truncated': truncated, 'redacted': redacted != text or item.get('redacted') is True,
                'digest': sha256(redacted.encode()).hexdigest()}
+        if carrier in {'messages', 'tool_results'}:
+            message_index, block_index = item.get('message_index'), item.get('block_index')
+            if all(type(value) is int and 1 <= value <= 2**31 - 1 for value in (message_index, block_index)):
+                row.update(message_index=message_index, block_index=block_index)
         if role in {'system', 'toolCall', 'toolResult', 'unsupported'} and _matches(item.get('source_id'), _ID):
             row['source_id'] = item['source_id']
         if _matches(item.get('name'), _ID):
@@ -128,5 +132,10 @@ def read_snapshot(objects, thread_id: str, attempt_id: str, ref: str, index: int
         if not 1 <= index <= len(snapshot['entries']):
             raise KeyError(index)
         return {'entry': snapshot['entries'][index - 1]}
-    return {**snapshot, 'entries': [{key: val for key, val in row.items() if key != 'text'}
-                                    for row in snapshot['entries']]}
+    entries = []
+    for row in snapshot['entries']:
+        entry = {key: val for key, val in row.items() if key != 'text'}
+        if row['role'] in {'user', 'assistant'} and not row.get('origin'):
+            entry['preview'] = row['text'][:180]
+        entries.append(entry)
+    return {**snapshot, 'entries': entries}
