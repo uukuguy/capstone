@@ -1,3 +1,5 @@
+2026-11-22 本机诊断直读由 capstone-app 负责。[PR223](https://github.com/uukuguy/capstone/pull/223) 合入 dev `6f367ae2`，受检 `cd90a534`，Mac App 门禁通过。选中请求时自动显示按 SDK 顺序的条目。展开时读取所选正文。鉴权由本机同源开发代理完成，普通入口仍可看公开摘要。
+
 2026-11-22 受控请求快照由 capstone-agent 与 capstone-app 负责。[PR221](https://github.com/uukuguy/capstone/pull/221) 合入 dev `d6e70c58`，受检 `70f831c4`，定向 macOS CI 45001236074 通过。隔离复测保留五次正文快照，续问七次请求确认会话历史、文件与运行环境。使用实际调度关联右栏，按条读取并比较相邻快照。常用 local-dev 跨会话交接任务的五次请求可读取原任务版本和交接正文。自动清理与来源的逐项版本链仍须验收。[实施计划](../superpowers/plans/2026-11-22-instruction-context-inspector.md)
 
 2026-11-22 上下文首屏与双向定位由 capstone-app 负责。[PR219](https://github.com/uukuguy/capstone/pull/219) 合入 dev `c6cdb445`，受检 `eac5b8b7`，定向 macOS CI 44995278673 通过。右栏先显示所选请求的占用、缓存和分类条目，历史默认折叠。行内图标和右栏返回动作共用实际请求标识，桌面与窄屏浏览器复测通过。
@@ -1479,6 +1481,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| local-context-auto-read-20261122 | 6f367ae2 | main | 本机上下文诊断直读 | PR223 合入 dev，定向 App CI 通过 | 请求条目自动加载，展开读取正文 | continuous-task-context |
 | request-context-diagnostics-20261122 | d6e70c58 | main | 请求正文和来源诊断 | PR221 合入 dev，定向 macOS CI 通过 | 私有请求快照逐项读取，来源与相邻请求对照 | continuous-task-context |
 | request-context-density-20261122 | c6cdb445 | main | 紧凑上下文与双向定位 | PR219 合入 dev，定向 macOS CI 通过 | 请求内容优先与 LLM 行内双向定位 | continuous-task-context |
 | request-context-link-20261122 | 07fc442d | main | 实际模型请求与上下文 | PR217 合入 dev，定向检查通过 | 执行请求定位上下文并读取公开工具返回片段 | continuous-task-context |
@@ -1725,6 +1728,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| local-context-auto-read-20261122 | 开发集成与本机来源 | dev | 自动显示请求条目；本机同源授权单项正文读取 | 定向 CI 与真实记录浏览器验证通过。 |
 | request-context-diagnostics-20261122 | 开发集成与本机来源 | dev | 受控读取请求条目；追踪来源和相邻请求变化 | 定向 CI 与真实任务正文复测通过。 |
 | request-context-density-20261122 | 开发集成与本机来源 | dev | 上下文首屏显示占用、缓存与条目；模型请求与执行记录双向定位 | 定向 CI、桌面和窄屏验证通过。 |
 | request-context-link-20261122 | 开发集成与本机来源 | dev | 从执行记录直达所选请求；展开已有工具返回片段 | 定向 CI、真实执行和隔离浏览器通过。 |
@@ -2251,7 +2255,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端构建来源 `d6e70c58`，App 产品来源 `70f831c4` | API 与三类 worker 同镜像 7ad6e8ec9ad5 | App http://127.0.0.1:5173/。本轮启用研发诊断，操作员可从对应模型请求逐项读取正文和来源。 |
+| local-dev | 规范重建来源 `6f367ae2`，App 产品来源 `cd90a534` | API 与三类 worker 同镜像 7ad6e8ec9ad5 | App http://127.0.0.1:5173/。选中请求自动显示条目，展开读取正文。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
