@@ -728,6 +728,17 @@ class GeneralPiHost:
                 payload = {'investigation_checkpoint': _checked_investigation_checkpoint(event, record)}
             elif kind == 'llm_pool_call':
                 payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
+            elif kind == 'model_context_snapshot':
+                from .model_context_diagnostics import checked_snapshot, diagnostics_enabled
+                if diagnostics_enabled():
+                    try:
+                        snapshot = checked_snapshot(event)
+                        dispatch_id = snapshot and snapshot['dispatch_id']
+                        dispatch = record.get('model_request_pool_bindings', {}).get(dispatch_id)
+                        if snapshot and (dispatch_id is None or dispatch and dispatch.get('status') == 'running'):
+                            payload = {'type': kind, 'model_context_snapshot': snapshot}
+                    except (TypeError, ValueError):
+                        pass
             elif kind == 'model_context_usage':
                 import re
                 request_id = event.get('request_id')
@@ -1481,7 +1492,8 @@ class NativeTaskRunner:
             if request.business_context is not None:
                 context['business_context'] = request.business_context.to_document()
             task_input = document.get('input', {'kind': 'text', 'text': request.instruction})
-            sdk_config = {'sdk': str(Path(self.command[1]).with_name('index.js')),
+            from .model_context_diagnostics import diagnostics_enabled
+            sdk_config = {'contextDiagnostics': diagnostics_enabled(), 'sdk': str(Path(self.command[1]).with_name('index.js')),
                           'input': task_input, 'taskId': request.task_id, 'skillName': None, 'settings': {}, 'allowedSkills': [],
                           'contextFiles': [], 'mcp': None, 'inventoryOnly': inventory_only,
                           'context': context, 'instructionLimit': limits.native_instruction_count,
@@ -2805,7 +2817,7 @@ def main():
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'capacity_contract.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
-                                 'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
+                                 'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs', 'resources/model-context-input.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs', 'resources/resource-reference-tools.mjs',
                                  'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/tool-call-scheduler.mjs', 'resources/observed-action.mjs', 'resources/observation-read-budget.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/observation-data.mjs', 'resources/gateway-tool-use.mjs',
                                  'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',

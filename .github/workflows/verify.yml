@@ -247,9 +247,10 @@ jobs:
         timeout-minutes: 5
         run: |
           PYTHONPATH=. uv run --project packages/pandapower-application python -m pytest tools/tests/test_ci_execution_details.py tools/tests/test_ci_scope.py -q
-          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_native_resources.py packages/capstone-agent/tests/test_general_pi_executor.py packages/capstone-agent/tests/test_delegated_runtime.py
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_native_resources.py packages/capstone-agent/tests/test_general_pi_executor.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_attempt_records.py
+          node --test packages/capstone-agent/tests/fixtures/model-request-pool.test.mjs
           npm run check --prefix packages/capstone-app
-          npm test --prefix packages/capstone-app -- src/instructionContext.test.ts src/processCompactions.test.ts src/ProcessCallTrace.test.tsx src/CapstoneAssistantThread.test.tsx src/ThreadWorkExecution.test.tsx src/ThreadSharedWorkspace.test.tsx
+          npm test --prefix packages/capstone-app -- src/RequestContextEntries.test.tsx src/instructionContext.test.ts src/processCompactions.test.ts src/ProcessCallTrace.test.tsx src/CapstoneAssistantThread.test.tsx src/ThreadWorkExecution.test.tsx src/ThreadSharedWorkspace.test.tsx
       - name: Verify execution details
         if: steps.scope.outputs.gate == 'execution-details'
         timeout-minutes: 5

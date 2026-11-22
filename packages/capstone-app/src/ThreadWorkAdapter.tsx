@@ -976,14 +976,19 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     if(typeof workId==='string'&&workId!==selected&&snapshot?.works.some(work=>work.workId===workId))selectWork(workId)
     void locateInstruction(origin,true)
   }
+  function requestContext(attemptId:string,dispatchId:string) {
+    const matches=contexts.filter(row=>row.attemptId===attemptId&&row.dispatchId===dispatchId)
+    return matches.length===1?matches[0].id:undefined
+  }
   function locateContextRequest(attemptId:string,dispatchId:string) {
+    if(!requestContext(attemptId,dispatchId))return
     const admission=sessionEvents.find(event=>event.attemptId===attemptId&&event.eventType==='attempt_started')
     const workId=admission?.payload.work_id
     if(typeof workId==='string'&&workId!==selected&&snapshot?.works.some(work=>work.workId===workId))selectWork(workId)
     if(window.matchMedia?.('(max-width: 760px)')?.matches)setProductsOpen(false)
     setRequestLocation({attemptId,dispatchId,nonce:++locationGeneration.current})
   }
-  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onLocateRequest={locateContextRequest} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
+  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onLocateRequest={locateContextRequest} readSnapshot={(attempt,ref,index,signal,credential)=>transport.readModelContextSnapshot(currentId,attempt,ref,index,signal,credential)} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
   const contextViews=contextPanel?[{id:'instruction-context',label:'上下文',content:contextPanel,description:'按指令追踪模型请求、输入构成和压缩。'}]:[]
   return <ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
@@ -1051,7 +1056,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {restoredKey === key && (snapshot || professional || currentId === 'new') && <CapstoneAssistantThread inlineExecution={nativeChat} nativeArtifactProjections={indexedArtifacts} resultHistoryNotice={resultProjectionHistoryText(professional)} key={liveConversation?`${key}.conversation`:`${key}.${selected}`} events={conversation.events}
       productReferenceReader={(ref,signal)=>client.resolveProduct(ref,signal)} requestedProductReference={requestedReference?.selection.ref.thread_id===currentId?requestedReference:undefined}
       onOpenInstructionContext={openContext} contextAttempts={contextAttempts}
-      resolveRequestContext={(attempt,dispatch)=>contexts.find(row=>row.attemptId===attempt&&row.dispatchId===dispatch)?.id}
+      resolveRequestContext={requestContext}
       linkedContextAttempt={productsOpen&&resourceView==='instruction-context'?linkedContext?.attemptId:undefined}
       linkedContextOrigin={productsOpen&&resourceView==='instruction-context'&&linkedContext?contextOrigin(linkedContext.attemptId):undefined}
       linkedContextLabel={linkedContext?.label}

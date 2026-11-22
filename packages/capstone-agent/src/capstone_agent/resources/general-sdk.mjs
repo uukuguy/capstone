@@ -1,3 +1,4 @@
+import {diagnosticContextInput} from "./model-context-input.mjs";
 import { readFileSync, constants } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -442,7 +443,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   };
   discovery?.setLoadedWrapper(wrap);
   const skillTools=config.applicationPolicy.allowed_tools.includes('agent_skill')&&config.taskSkills?.length
-    ?[createSkillRecordTool(config.taskSkills)]:[];
+    ?[createSkillRecordTool(config.taskSkills,config.contextDiagnosticSources)]:[];
   const customTools=[...nativeTools,...externalTools,...createMissionTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...createPresentationTools(config),...skillTools].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
@@ -822,6 +823,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     sessionManager: sdk.SessionManager.inMemory()});
   // The host owns admission capacity. Submit independent same-turn calls
   // together; dependent arguments are resolved in a later turn or program.
+  managedMessages=()=>session.messages;
   session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,childConfig);
   const stopUnenteredTools=graphBinding?session.subscribe(event=>{
@@ -1329,7 +1331,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
  * Publish only request identity and counts. Read the same context passed to
  * the provider. The byte heuristic excludes binary media and provider framing.
  */
-export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
+export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captureInput=false, systemSources=()=>[], toolSources, messageSources=()=>[]) {
   const estimate = bytes => Math.min(100_000_000, Math.ceil(bytes / 4));
   const size = text => typeof text === 'string' ? Buffer.byteLength(text) : 0;
   function measure(context) {
@@ -1379,6 +1381,15 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
         details={...measure(context),
           ...(Number.isSafeInteger(window)&&window>0&&window<=100_000_000?{window_tokens:window}:{})};
       }catch{/* Leave unmeasured fields absent. */}
+      let observedMessages=[];
+      if(captureInput)try{observedMessages=messageSources();}catch{/* An unavailable source does not block a request. */}
+      const observeDispatch=captureInput?((dispatchId,input)=>{
+        try {
+          emit({type:'model_context_snapshot',request_id:id,dispatch_id:dispatchId,kind:requestKind,
+            ...(typeof model?.id==='string'?{model_id:model.id.slice(0,128)}:{}),
+            ...diagnosticContextInput(input,systemSources(),toolSources,observedMessages)});
+        } catch {/* Optional diagnostics cannot block dispatch. */}
+      }):undefined;
       const capture=stream=>Promise.resolve().then(()=>stream.result()).then(message=>{
         const usage=Object.fromEntries(['input','output','cacheRead','cacheWrite']
           .filter(key=>Number.isSafeInteger(message?.usage?.[key])&&message.usage[key]>=0&&message.usage[key]<=100_000_000)
@@ -1386,7 +1397,11 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
         publish(['error','aborted'].includes(message?.stopReason)?'failed':'completed',{...details,usage});
       }).catch(()=>publish('failed',details));
       try{
-        const stream=target.streamSimple(model,context,options);
+        const scheduled=target[Symbol.for("capstone.modelRequestScheduled")]===true;
+        if(!scheduled)observeDispatch?.(undefined,context);
+        const stream=scheduled&&observeDispatch
+          ? target.streamSimple(model,context,options,observeDispatch)
+          : target.streamSimple(model,context,options);
         const dispatchId=stream?.[Symbol.for("capstone.modelRequestId")];
         if(typeof dispatchId==='string'&&/^request-[1-9][0-9]{0,8}$/.test(dispatchId))details.dispatch_id=dispatchId;
         publish('started',details);
@@ -1399,7 +1414,7 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit) {
 }
 
 export async function runManagedSession(config, sdk, suppliedModelRuntime) {
-  config={...config,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
+  config={...config,contextDiagnosticSources:config.contextDiagnostics===true?new Map():undefined,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
   const discovery=createApplicationToolDiscovery(config);
   let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard,committedDelivery;
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
@@ -1484,11 +1499,17 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     });
   }
   const settingsManager = sdk.SettingsManager.inMemory(config.settings);
+  let admittedSystemSources=[];
+  const contextSources=()=>{
+    const files=skillContextFiles(config);
+    admittedSystemSources=files.map(file=>({id:file.path,name:file.path,content:file.content}));
+    return {agentsFiles:files};
+  };
   const loader = new sdk.DefaultResourceLoader({ cwd: process.cwd(), agentDir: process.env.PI_CODING_AGENT_DIR,
     settingsManager, extensionFactories, additionalExtensionPaths: [...config.extensions.filter(path =>
       !managedResearch || !path.endsWith('/general-research.mjs')),
       fileURLToPath(new URL("./execution-guidance.mjs", import.meta.url))], noThemes: true,
-    noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: skillContextFiles(config) }),
+    noContextFiles: true, agentsFilesOverride: contextSources,
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
       ...(!organizationOnly?[nativeShellGuidance,nativeBatchGuidance,nativeExecutionGuidance,savedProductGuidance,
@@ -1511,10 +1532,19 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       maxRequests:policy.max_requests,requestTimeoutMs:policy.request_timeout_ms,
       emit:event=>hostEmit({type:'model_request_pool',schema:policy.schema,...event})});
   }
-  let contextRequest=0,compactingContext=false;
+  let contextRequest=0,compactingContext=false,managedMessages=()=>[];
   const nextContextRequest=()=>`ctx-${++contextRequest}`;
   const modelRuntime=observeModelContext(modelRequestPool?.forChain('main',{kind:'main',getModelTurnNumber:()=>Math.max(1,mainModelTurn)})??baseModelRuntime,
-    ()=>compactingContext?'summary':'main',nextContextRequest);
+    ()=>compactingContext?'summary':'main',nextContextRequest,hostEmit,config.contextDiagnostics===true,()=>[
+      ...admittedSystemSources,{id:'application-policy',name:'application-policy',content:config.systemPrompt},
+    ],config.contextDiagnosticSources,()=>managedMessages().flatMap(message=>{
+      if(message.role!=='compactionSummary'||typeof sdk.convertToLlm!=='function'||!Number.isSafeInteger(message.timestamp))return [];
+      const converted=sdk.convertToLlm([message])[0];
+      const text=converted?.content?.[0]?.text;
+      if(typeof text!=='string')return [];
+      return [{timestamp:message.timestamp,text,origin:{kind:'compaction',id:`compaction-${message.timestamp}`,
+        revision:'sdk',delivery:'text'}}];
+    }));
   const model = modelRuntime.getModel("capstone-general", config.model);
   if (!model) throw new Error("Managed native model is unavailable");
   const nativeTools = createIsolatedNativeTools(sdk,process.cwd());
@@ -1542,7 +1572,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       const chainId='analysis:'+createHash('sha256').update(job.id).digest('hex');
       const childRuntime=observeModelContext(modelRequestPool?.forChain(chainId,
         {kind:'analysis',child_id:job.id,parent_tool_call_id:job.input.parentToolCallId,
-          title:job.input.instruction.replace(/[\x00-\x20\x7f]+/g,' ').trim().slice(0,120)||'Parallel analysis',getModelTurnNumber:()=>1})??baseModelRuntime,'analysis',nextContextRequest);
+          title:job.input.instruction.replace(/[\x00-\x20\x7f]+/g,' ').trim().slice(0,120)||'Parallel analysis',getModelTurnNumber:()=>1})??baseModelRuntime,'analysis',nextContextRequest,hostEmit,config.contextDiagnostics===true);
       const runner=createManagedSubagents({maxTurns:1,graceTurns:1,
         createChildSession:({signal})=>createPooledAnalysisSession(config,sdk,childRuntime,{cwd,signal})});
       let result;
@@ -1637,6 +1667,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     modelRuntime, model, resourceLoader: loader, settingsManager,
     ...toolOptions,
     sessionManager: sdk.SessionManager.inMemory() });
+  managedMessages=()=>session.messages;
   session.agent.toolExecution='parallel';
   const stopDiagnosisValidation=watchDiagnosisValidation(session,config);
   const stopModelTurn=session.subscribe(event=>{

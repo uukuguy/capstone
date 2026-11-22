@@ -154,3 +154,21 @@ test('never-started cancellation drains its chain without waiting on an unrelate
  assert.deepEqual(dispatcher.snapshot().jobs.at(-1).depends_on,['request-2']);
  hold.resolve();await Promise.all([main.result(),explicit.result()]);assert.equal(calls,2);await dispatcher.close();
 });
+
+test('observes the frozen input only after a dispatch starts',async()=>{
+ const dispatched=[], hold=gate();
+ const runtime={streamSimple(){return source(hold);}};
+ const {runtime:queued,close}=createModelRequestPool({runtime,concurrency:1,maxRequests:3});
+ const report=(id,request)=>dispatched.push([id,request.messages[0].content]);
+ const first=queued.streamSimple(model,context('main'),{},report);
+ const controller=new AbortController();
+ const second=queued.streamSimple(model,context('cancelled'),{signal:controller.signal},report);
+ const settled=second.result().catch(()=>{});
+ await tick();
+ controller.abort();
+ hold.resolve();
+ await consume(first);
+ await settled;
+ await close();
+ assert.deepEqual(dispatched,[['request-1','main']]);
+});

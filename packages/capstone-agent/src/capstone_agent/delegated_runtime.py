@@ -310,6 +310,20 @@ class DelegatedRuntime:
             if kind == 'native_artifact_captured':
                 self._publish_captured_artifact(event, request, transfers)
                 return
+            if kind == 'model_context_snapshot':
+                from .model_context_diagnostics import checked_snapshot, diagnostics_enabled, save_snapshot
+                if self._artifact_store is not None and diagnostics_enabled():
+                    try:
+                        snapshot = checked_snapshot(event.get('model_context_snapshot') or {})
+                        if snapshot is not None:
+                            ref = save_snapshot(self._artifact_store, self._claim.thread_id, parent, snapshot)
+                            self._emit(on_event, {'native_type': kind, 'task_id': task_id,
+                                'model_context_snapshot_ref': {'ref': ref, 'request_id': snapshot['request_id'],
+                                    'dispatch_id': snapshot['dispatch_id']}}, visibility='public')
+                    except Exception:
+                        # Recording is optional. Continue the instruction if the private store is unavailable.
+                        pass
+                return
             if kind == 'assistant_thinking_delta':
                 if event.get('text') == '':
                     return

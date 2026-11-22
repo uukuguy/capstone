@@ -726,6 +726,20 @@ def create_host_app(
                 raise HTTPException(404, 'task diagram unavailable')
             return diagram
 
+        @app.get("/api/v1/threads/{thread_id}/attempts/{attempt_id}/context-snapshots/{ref}")
+        def get_context_snapshot(thread_id: str, attempt_id: str, ref: str, request: Request,
+                                 index: Annotated[int | None, Query(ge=1, le=256)] = None):
+            from .model_context_diagnostics import diagnostics_enabled, read_snapshot
+            if request.state.product_actor != 'operator:authenticated':
+                raise HTTPException(403, 'operator access required')
+            if not diagnostics_enabled() or material_objects is None:
+                raise HTTPException(404, 'context snapshot unavailable')
+            try:
+                return JSONResponse(read_snapshot(material_objects, thread_id, attempt_id, ref, index),
+                                    headers={'Cache-Control': 'no-store'})
+            except (KeyError, ValueError):
+                raise HTTPException(404, 'context snapshot unavailable') from None
+
         @app.get("/api/v1/threads/{thread_id}/attempts/{attempt_id}/records")
         def get_attempt_records(thread_id: str, attempt_id: str, request: Request,
                                 after: Annotated[int, Query(ge=0)] = 0,

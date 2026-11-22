@@ -32,7 +32,7 @@ export function skillContextFiles(config){
 }
 
 // The caller supplies only task-admitted native resources, never model paths.
-export function createSkillRecordTool(skills){
+export function createSkillRecordTool(skills,diagnosticSources){
   const admitted=new Map(skills.map(skill=>[skill.name,{...skill,
     version:'sha256:'+createHash('sha256').update(readFileSync(skill.filePath)).digest('hex')}]));
   const loaded=new Set();
@@ -57,7 +57,10 @@ export function createSkillRecordTool(skills){
       if('sha256:'+createHash('sha256').update(body).digest('hex')!==skill.version)return fail('skill_version_changed');
       if(body.length>65536)return fail('skill_content_too_large');
       if(args.operation==='report'&&(!loaded.has(skill.name)||typeof args.summary!=='string'||!args.summary.trim()||args.summary.length>600))return fail('skill_report_requires_load_and_summary');
-      if(args.operation==='load')loaded.add(skill.name);
+      if(args.operation==='load'){
+        loaded.add(skill.name);
+        diagnosticSources?.set(id,{kind:'skill',id:skill.name,revision:skill.version,delivery:'text'});
+      }
       const activity={schema:'capstone-skill-activity/1',name:skill.name,version:skill.version,
         state:args.operation==='load'?'loaded':'reported',source:args.operation==='load'?'host':'model',
         ...(args.operation==='report'?{summary:args.summary,phase:args.phase??'application',

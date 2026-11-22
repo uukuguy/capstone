@@ -49,6 +49,9 @@ export function createResourceReferenceTools(config){
      const historical=Boolean(config.resourceOrigins?.some(item=>item.resource_id===resource.resource_id));
      config.deliveryReviewSources??=[];
      if(!config.deliveryReviewSources.some(item=>item.source_ref===source_ref))config.deliveryReviewSources.push({path:receipt.path,file_name:resource.file_name,size_bytes:resource.size_bytes,sha256:resource.sha256,source_ref,origin:historical?'previous_product':'original_input'});
+     config.contextDiagnosticSources?.set(callId,{kind:'file',id:resource.resource_id,
+       revision:String(resource.version),digest:resource.sha256,offset:0,length:receipt.preview.bytes_read,
+       delivery:receipt.preview.text===undefined?'reference':'preview'});
      return {content:[{type:'text',text:JSON.stringify({...receipt,source_ref,historical_only:historical})}],details:{event:'tool_result',capability:'agent_resource_open',ok:true,result:receipt,evidence_refs:[]}};
     }catch(error){if(error.code!=='ENOENT')throw error;}
     await delay(10,undefined,{signal});
@@ -88,6 +91,8 @@ function createRangeTool(config,resources){
      const bytes=await file.readFile();
      if(bytes.length!==args.length||createHash('sha256').update(bytes).digest('hex')!==receipt.sha256)throw Error('Range digest changed');
     }finally{await file.close();}
+    config.contextDiagnosticSources?.set(callId,{kind:'file',id:resource.resource_id,
+      revision:String(resource.version),digest:resource.sha256,offset:args.offset,length:args.length,delivery:'reference'});
     return {content:[{type:'text',text:JSON.stringify(result)}],details:{event:'tool_result',capability:'agent_resource_read',ok:true,result,evidence_refs:[]}};
    }catch(error){if(error.code!=='ENOENT')throw error;}
    await delay(10,undefined,{signal});

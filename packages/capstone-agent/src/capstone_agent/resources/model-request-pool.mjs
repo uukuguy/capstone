@@ -103,6 +103,7 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
       try{
         if(entry.cancelReason)return {status:'completed'};
         if(requestTimeoutMs!==undefined)timer=setTimeout(()=>cancel(entry,'timeout'),requestTimeoutMs);
+        try{entry.observeDispatch?.(entry.id,entry.context);}catch{/* Diagnostics cannot block dispatch. */}
         const actual=await runtime.streamSimple(entry.model,entry.context,{...entry.options,signal:entry.controller.signal});
         if(!actual||typeof actual[Symbol.asyncIterator]!=='function'||typeof actual.result!=='function')throw new TypeError('Invalid provider stream');
         const result=Promise.resolve().then(()=>actual.result());result.catch(()=>{});
@@ -136,7 +137,7 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
     if(existing){if(metadata.getModelTurnNumber)existing.getModelTurnNumber=metadata.getModelTurnNumber;return existing.proxy;}
     if(chains.size>=maxRequests+1)throw new TypeError('Model request chain budget exceeded');
     const chain={metadata:selected,last:undefined,proxy:undefined,requests:0,getModelTurnNumber:metadata.getModelTurnNumber,activeIds:new Set(),waiters:new Set()};
-    const enqueue=(model,context,options={})=>{
+    const enqueue=(model,context,options={},observeDispatch)=>{
         const turn=chain.getModelTurnNumber?.()??chain.requests+1;
         if(!Number.isSafeInteger(turn)||turn<1)throw new TypeError('Invalid host model turn number');
         const capturedModel=snapshotOptions(model),capturedContext=snapshotOptions(context),capturedOptions=snapshotOptions(options);
@@ -144,7 +145,7 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
         Object.defineProperty(output, Symbol.for("capstone.modelRequestId"), {value:id});
         const entry={id,chainId,metadata:{...selected,model_turn_number:turn,...(kind==='main'?{title:`LLM ${turn}`}:{})},depends:chain.last?[chain.last]:[],output,
           model:capturedModel,context:capturedContext,options:capturedOptions,controller:new AbortController(),
-          callerSignal:options.signal,listenerAttached:false,started:false,cancelReason:undefined,outcome:undefined};
+          observeDispatch,callerSignal:options.signal,listenerAttached:false,started:false,cancelReason:undefined,outcome:undefined};
         entry.callerAbort=()=>cancel(entry,'cancelled');entries.set(id,entry);chain.activeIds.add(id);
         // Public provenance always names the previous request. Internally only
         // an uncertain predecessor must hold the next explicit request back.
@@ -161,6 +162,7 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
     let override;
     chain.proxy=new Proxy(runtime,{
       get(target,key){
+        if(key===Symbol.for("capstone.modelRequestScheduled"))return true;
         if(key==='streamSimple')return override??enqueue;
         const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
       },

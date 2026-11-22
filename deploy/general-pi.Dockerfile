@@ -98,6 +98,7 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/native_tool_composition.py \
      packages/capstone-agent/src/capstone_agent/task_planning_policy.py \
      packages/capstone-agent/src/capstone_agent/progress.py \
+     packages/capstone-agent/src/capstone_agent/model_context_diagnostics.py \
      packages/capstone-agent/src/capstone_agent/native_tool_diagnostics.py \
      packages/capstone-agent/src/capstone_agent/stream_progress.py \
      packages/capstone-agent/src/capstone_agent/resource_manifest.py \
@@ -138,6 +139,7 @@ COPY configs/runtime/application-capacity.json \
      packages/capstone-agent/src/capstone_agent/resources/llm-call-tools.mjs \
      packages/capstone-agent/src/capstone_agent/resources/llm-call-pool-policy.json \
      packages/capstone-agent/src/capstone_agent/resources/model-request-pool.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/model-context-input.mjs \
      packages/capstone-agent/src/capstone_agent/resources/model-request-pool-policy.json \
      packages/capstone-agent/src/capstone_agent/resources/committed-delivery.mjs \
      packages/capstone-agent/src/capstone_agent/resources/research-policy-catalog.json \
