@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+2026-11-23 local-dev 5174 通过主会话 Mission 三轮 Goal、整体报告、制品、完成后续聊及原 Mission 部分交付下载验收。见[版本台账](VERSION-CONTROL.md)。
+
+2026-11-23 Goal 与 Mission 的整体报告下载已通过本机浏览器核对。见[版本台账](VERSION-CONTROL.md)。
+
 2026-11-23 PR234、PR235 已合入 dev。local-dev 5174 已按合并源码重建，真实 Goal 与混合 Mission 验收通过。见[版本台账](VERSION-CONTROL.md#环境台账)。
 
 2026-11-23 local-dev 混合 Mission 真实验收完成，两个子任务已核验，四项条件已满足。见[环境台账](VERSION-CONTROL.md#环境台账)。
