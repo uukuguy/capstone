@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+2026-11-23 PR246 加入本机 Qwen3.8-27B 预设。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
+
+2026-11-23 PR245 更新本机 Qwen 模型菜单及欢迎卡。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
+
 2026-11-23 PR243 加入本机 Qwen3.6-35B-A3B 预设。合入及本机运行来源见[版本台账](VERSION-CONTROL.md#环境台账)。
 
 2026-11-23 local-dev 5174 通过主会话 Mission 三轮 Goal、整体报告、制品、完成后续聊及原 Mission 部分交付下载验收。见[版本台账](VERSION-CONTROL.md)。
