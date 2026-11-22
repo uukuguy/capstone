@@ -121,7 +121,6 @@ function DifferenceRow({difference,attempt,previous,snapshot,read}:{difference:D
 export default function RequestContextEntries({attempt,snapshot,previous,category,read,onResetCategory,onIndexReady}:{
   attempt:string;snapshot:string;previous?:string;category?:Category;read:ReadRequestContext;onResetCategory?:()=>void;onIndexReady?:()=>void
 }){
-  const [visibleLimit,setVisibleLimit]=useState(16)
   const [document,setDocument]=useState<Snapshot>()
   const [selected,setSelected]=useState<number>()
   const [text,setText]=useState<string>()
@@ -210,7 +209,7 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
       </section>}
       {!entries.length&&<p>所选分类没有已采集条目。</p>}
       <ol className="context-content-items context-request-trace">
-        {entries.slice(0,visibleLimit).map(entry=><li key={entry.index}><details className="capstone-call-tool context-entry" open={selected===entry.index}>
+        {entries.map(entry=><li key={entry.index}><details className="capstone-call-tool context-entry" open={selected===entry.index}>
           <summary className="context-entry-open" role="button" aria-label={`${entry.index} ${rowTitle(entry)}`} aria-expanded={selected===entry.index}
             onClick={event=>{event.preventDefault();void load(entry.index)}}>
             <ChevronRight aria-hidden="true"/>
@@ -233,7 +232,6 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
           </div>}
         </details></li>)}
       </ol>
-      {entries.length>visibleLimit&&<button type="button" className="context-show-items" onClick={()=>setVisibleLimit(value=>value+16)}>显示更多条目</button>}
     </>}
   </section>
 }
