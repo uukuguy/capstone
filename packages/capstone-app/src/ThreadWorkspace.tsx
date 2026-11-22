@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { AppBrand, PageHeader, WorkspaceBuildStatus } from './AppHeader'
 import { Maximize2, Minimize2, RotateCcw, X, Menu, PanelRight } from 'lucide-react'
 import WorkspaceProducts, { type WorkspaceProductView } from './WorkspaceProducts'
@@ -11,7 +11,7 @@ import {useWorkspaceNavigation} from './workspaceNavigationContext'
 
 /** Shared application frame. Controllers supply public state and capabilities. */
 export default function ThreadWorkspace({ preparation, sidebar, heading, children, loading = false,
-  ready = true, subtitle, headerActions, navigationFooter, navigationExtras, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey }: {
+  ready = true, subtitle, headerActions, navigationFooter, navigationExtras, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey,conversationFocusToken }: {
   preparation?: ReactNode; sidebar?: ReactNode; heading?: ReactNode; children?: ReactNode; navigationFooter?: ReactNode
   loading?: boolean; ready?: boolean; subtitle?: string; headerActions?: ReactNode; conversationOnly?: boolean
   resourcePanel?: ReactNode; resourcePanelOpen?: boolean; onResourcePanelOpenChange?: (open: boolean) => void
@@ -20,6 +20,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   workspaceActions?: ReactNode
   hideResourceToggle?: boolean; resourceToggleRef?: RefObject<HTMLButtonElement | null>
   sessionKey?:string
+  conversationFocusToken?:number
   navigationExtras?:ReactNode
 }) {
   const sharedNavigation=useWorkspaceNavigation()
@@ -42,6 +43,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   const navigationToggle=useRef<HTMLButtonElement>(null)
   const closeNavigation=()=>{setNavigationOpen(false);navigationToggle.current?.focus({preventScroll:true})}
   const [expanded, setExpanded] = useSessionViewState(sessionKey?'layout.expanded':'preparation.expanded',false)
+  useLayoutEffect(()=>{if(conversationFocusToken!==undefined)setExpanded(false)},[conversationFocusToken,setExpanded])
   useEffect(()=>{if(resourcePanel)saveWorkspacePanels(sessionKey,{resource:resourcePanelOpen})},[sessionKey,resourcePanelOpen,Boolean(resourcePanel)])
   useEffect(() => { if (!resourcePanelOpen) setExpanded(false) }, [resourcePanelOpen])
   const enterprise = sharedNavigation?.enterprise === true

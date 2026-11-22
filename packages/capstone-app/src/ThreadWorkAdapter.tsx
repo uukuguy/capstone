@@ -181,7 +181,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const diagramRequest=useRef<AbortController | undefined>(undefined)
   const historicalDiagrams=useRef(new Map<string,NonNullable<ReturnType<typeof parseNetworkView>>>())
   const [taskDiagramLoad,setTaskDiagramLoad]=useState<'loading'|'unavailable'>()
-  const [linkedContext,setLinkedContext]=useState<{attemptId:string;label:string}>()
+  const [linkedContext,setLinkedContext]=useState<{attemptId:string;label:string;dispatchId?:string}>()
   const [requestedContext,setRequestedContext]=useState<{id:string;nonce:number}>()
   const [contextAttempt,setContextAttempt]=useSessionViewState<string|undefined>('context.attempt',undefined)
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
@@ -198,6 +198,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const artifactBaseline=useRef<number|null>(null)
   const artifactOpened=useSessionViewRef('resource.touched',false)
   const [processReference,setProcessReference]=useState<ProcessProduct>()
+  const [requestLocation,setRequestLocation]=useState<{attemptId:string;dispatchId:string;nonce:number}>()
   const [instructionLocation,setInstructionLocation]=useState<{attemptId:string;nonce:number}>()
   const locationGeneration=useRef(0)
   const [reload, setReload] = useState(0)
@@ -975,9 +976,16 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     if(typeof workId==='string'&&workId!==selected&&snapshot?.works.some(work=>work.workId===workId))selectWork(workId)
     void locateInstruction(origin,true)
   }
-  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
+  function locateContextRequest(attemptId:string,dispatchId:string) {
+    const admission=sessionEvents.find(event=>event.attemptId===attemptId&&event.eventType==='attempt_started')
+    const workId=admission?.payload.work_id
+    if(typeof workId==='string'&&workId!==selected&&snapshot?.works.some(work=>work.workId===workId))selectWork(workId)
+    if(window.matchMedia?.('(max-width: 760px)')?.matches)setProductsOpen(false)
+    setRequestLocation({attemptId,dispatchId,nonce:++locationGeneration.current})
+  }
+  const contextPanel=snapshot ? <InstructionContextPanel rows={contexts} attempt={contextAttempt} requested={requestedContext} labels={attemptLabels} onShowSession={()=>openContext()} onLocate={locateContextInstruction} onLocateRequest={locateContextRequest} onScope={openContext} onSelection={setLinkedContext} readToolExcerpt={(source,attempt)=>contextToolExcerpt(sessionEvents,source,attempt)}/> : undefined
   const contextViews=contextPanel?[{id:'instruction-context',label:'上下文',content:contextPanel,description:'按指令追踪模型请求、输入构成和压缩。'}]:[]
-  return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
+  return <ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
       {viewingLegacy&&<button type="button" disabled={busy||!!pending} onClick={()=>selectWork(snapshot?.works.find(work=>work.conversationMode)?.workId||'new')}>返回当前对话</button>}
@@ -1047,6 +1055,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       linkedContextAttempt={productsOpen&&resourceView==='instruction-context'?linkedContext?.attemptId:undefined}
       linkedContextOrigin={productsOpen&&resourceView==='instruction-context'&&linkedContext?contextOrigin(linkedContext.attemptId):undefined}
       linkedContextLabel={linkedContext?.label}
+      linkedContextDispatch={productsOpen&&resourceView==='instruction-context'?linkedContext?.dispatchId:undefined}
       projectedMessages={conversation.messages} composerMode={viewingLegacy?'recovery':nativeChat?undefined:'text'} composerLabel={viewingLegacy?'历史记录草稿':nativeChat?undefined:selected === 'new' ? '任务目标' : '补充任务资料'}
       thinkingPreviews={store.thinkingPreviews} instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
       onOpenInstructionProducts={scope=>{markManualView();setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)}}
@@ -1054,7 +1063,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       readInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined)return Promise.reject(new Error('附件信息暂不可用。'));return transport.readThreadResource(currentId,{resource_id:file.resource_id,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
       saveInstructionFile={(file,signal)=>{if(!file.sha256||file.size_bytes===undefined||!file.file_name)return Promise.reject(new Error('附件信息暂不可用。'));return transport.saveThreadResource(currentId,{resource_id:file.resource_id,file_name:file.file_name,size_bytes:file.size_bytes,sha256:file.sha256},signal)}}
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
-      runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation}
+      runtimeMode={snapshot?.runtimeMode} connectionState={projection.connection} instructionLocation={instructionLocation} requestLocation={requestLocation}
       networkAttemptIds={[...new Set([...instructionViews.keys(),...instructionModelPages.keys(),...taskDiagrams.keys(),...taskDiagramSources.keys()])]} onShowNetwork={showInstructionNetwork}
       acceptedDraft={nativeChat?acceptedDraft:undefined}
       composerControls={nativeChat?(historyActions,inputActions)=><>{modelWorkspace&&<ThreadModelDirectory models={projection.catalog?.models||[]} currentModelId={snapshot?.modelContext?.modelId||''} target={modelTarget} onTargetChange={setModelTarget} disabled={viewingLegacy||busy||active||!!currentAttempt||!!missionPending||projection.connection!=='live'} pending={!!pending} workspace={modelWorkspace} allowEmpty={snapshot?.sessionType==='enterprise-research'||snapshot?.sessionType==='general-chat'} onSwitch={modelId=>void changeModel('open_model',{model_id:modelId})} onActivate={entryId=>void changeModel('activate_model',{entry_id:entryId})} onClose={entryId=>void changeModel('close_model',{entry_id:entryId})}/>}
