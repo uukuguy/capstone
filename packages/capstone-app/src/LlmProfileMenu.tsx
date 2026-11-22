@@ -1,15 +1,19 @@
 import {useEffect,useRef,useState} from 'react'
 import {Check,ChevronDown,Server} from 'lucide-react'
 import type {InputCatalog} from './threadInput'
+import {localQwenProfileId,LocalQwenIcon} from './localQwenProfile'
 
 type Catalog=NonNullable<InputCatalog['llm_profiles']>
 function Icon({kind}:{kind?:string}) {
+  if(kind==='qwen')return <LocalQwenIcon/>
   return kind==='deepseek'?<img src="/icons/deepseek.svg" alt="" aria-hidden="true"/>:<Server aria-hidden="true"/>
 }
 function label(profile:Catalog['profiles'][number]) {
+  if(profile.id===localQwenProfileId)return profile.label
   return profile.label===profile.model||!profile.model?profile.label:`${profile.label} · ${profile.model}`
 }
 function icon(profile?:Catalog['profiles'][number]) {
+  if(profile?.id===localQwenProfileId)return 'qwen'
   // Older catalogs have no icon field. Preserve the commercial brand during rollout.
   return profile?.icon??(profile?.id==='commercial-deepseek-flash'?'deepseek':'server')
 }

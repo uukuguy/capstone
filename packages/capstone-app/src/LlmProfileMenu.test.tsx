@@ -1,6 +1,7 @@
 import {afterEach,expect,it,vi} from 'vitest'
 import {cleanup,fireEvent,render,screen} from '@testing-library/react'
 import LlmProfileMenu from './LlmProfileMenu'
+import WelcomeConnections from './WelcomeConnections'
 
 afterEach(cleanup)
 const catalog={default_profile_id:'commercial-deepseek-flash',profiles:[
@@ -25,4 +26,20 @@ it('uses the DeepSeek brand in the trigger and option, including a cached catalo
   fireEvent.click(screen.getByRole('button',{name:'后端 LLM'}))
   expect(screen.getByRole('menuitemradio',{name:'deepseek-flash'}).querySelector('img')).not.toBeNull()
   expect(screen.getByRole('menuitemradio',{name:/18804/}).querySelector('img')).toBeNull()
+})
+
+it('shows the short local Qwen label and brand in the menu and welcome card',()=>{
+  const qwen={id:'local-qwen-35b',label:'Qwen3.6-35B-A3B（本机）',model:'weights/Qwen3.6-35B-A3B.gguf',available:true,icon:'server'}
+  const models={...catalog,profiles:[...catalog.profiles,qwen]}
+  render(<><LlmProfileMenu catalog={models} value={qwen.id} onChange={vi.fn()}/>
+    <WelcomeConnections catalog={{llm_profiles:models} as Parameters<typeof WelcomeConnections>[0]['catalog']} profileId={qwen.id}/></>)
+  const trigger=screen.getByRole('button',{name:'后端 LLM'})
+  expect(trigger.textContent).toBe(qwen.label)
+  expect(trigger.querySelector('img')?.getAttribute('src')).toBe('/icons/qwen.svg')
+  fireEvent.click(trigger)
+  expect(screen.getByRole('menuitemradio',{name:qwen.label}).querySelector('img')?.getAttribute('src')).toBe('/icons/qwen.svg')
+  const connection=screen.getByRole('region',{name:'当前会话连接'})
+  expect(connection.textContent).toContain(qwen.label)
+  expect(connection.textContent).not.toContain(qwen.model)
+  expect(connection.querySelector('img')?.getAttribute('src')).toBe('/icons/qwen.svg')
 })
