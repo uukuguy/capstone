@@ -1,4 +1,5 @@
 import {useEffect,useEffectEvent,useRef,useState} from 'react'
+import {ChevronRight,GitCompareArrows} from 'lucide-react'
 import {contextCategories,type Category} from './instructionContext'
 import {ThreadTransportError} from './threadHttpTransport'
 
@@ -39,6 +40,10 @@ function entryTitle(entry:Entry) {
   return entry.name?`${label} · ${entry.name}`:label
 }
 
+function rowTitle(entry:Entry) {
+  return entry.origin?originLabels[entry.origin.kind]:entry.name??entryTitle(entry)
+}
+
 function compareEntries(before:Entry[],after:Entry[]) {
   const remaining=[...before]
   const added:Entry[]=[],changed:Entry[]=[]
@@ -68,21 +73,24 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
   const [selected,setSelected]=useState<number>()
   const [text,setText]=useState<string>()
   const [status,setStatus]=useState('')
-  const [sourceKind,setSourceKind]=useState<Origin['kind']>()
+  const [comparisonOpen,setComparisonOpen]=useState(false)
+  const [comparisonStatus,setComparisonStatus]=useState('')
+  const comparisonRequest=useRef<AbortController>(undefined)
   const [earlier,setEarlier]=useState<Snapshot>()
   const pending=useRef<AbortController>(undefined)
   const loadIndex=useEffectEvent(()=>void load())
   useEffect(()=>{
     loadIndex()
-    return ()=>pending.current?.abort()
+    return ()=>{pending.current?.abort();comparisonRequest.current?.abort()}
   },[attempt,snapshot])
 
   async function load(index?:number) {
     pending.current?.abort()
     const controller=new AbortController()
     pending.current=controller
-    setSelected(index)
+    setSelected(index===selected?undefined:index)
     setText(undefined)
+    if(index!==undefined&&index===selected){setStatus('');return}
     setStatus('正在读取…')
     try {
       const result=await read(attempt,snapshot,index,controller.signal)
@@ -102,61 +110,76 @@ export default function RequestContextEntries({attempt,snapshot,previous,categor
         : '请求正文暂时无法读取。')
     }
   }
-  async function compare() {
+  async function toggleComparison() {
     if(!previous)return
-    pending.current?.abort()
+    if(comparisonOpen){
+      comparisonRequest.current?.abort()
+      setComparisonOpen(false)
+      return
+    }
+    setComparisonOpen(true)
+    if(earlier)return
     const controller=new AbortController()
-    pending.current=controller
-    setStatus('正在读取上一请求…')
+    comparisonRequest.current=controller
+    setComparisonStatus('正在读取上一请求…')
     try {
       const result=await read(attempt,previous,undefined,controller.signal)
       if(controller.signal.aborted)return
       setEarlier(snapshotIndex(result))
-      setStatus('')
+      setComparisonStatus('')
     } catch {
-      if(!controller.signal.aborted)setStatus('上一请求暂时无法读取。')
+      if(!controller.signal.aborted)setComparisonStatus('上一请求暂时无法读取。')
     }
   }
   const comparison=document&&earlier?compareEntries(earlier.entries,document.entries):undefined
-  const entries=document?.entries.filter(entry=>(!category||entry.carrier===category)&&(!sourceKind||entry.origin?.kind===sourceKind))??[]
+  const entries=document?.entries.filter(entry=>!category||entry.carrier===category)??[]
   return <section className="context-request-entries" aria-label="实际请求正文">
     <div className="context-section-title">
       <h4>实际请求正文</h4>
-      {document&&category&&<button type="button" onClick={onResetCategory}>显示全部分类</button>}
+      <div className="context-request-actions">
+        {document&&category&&<button type="button" onClick={onResetCategory}>显示全部分类</button>}
+        {document&&previous&&<button className="context-compare-action" type="button" aria-pressed={comparisonOpen}
+          title="与上一请求对比" onClick={()=>void toggleComparison()}>
+          <GitCompareArrows size={14} aria-hidden="true"/>对比上一请求
+        </button>}
+      </div>
     </div>
     {status&&<p role="status">{status}</p>}
     {document&&<>
       <small>{document.modelId&&`${document.modelId} · `}已采集 {document.entries.length} / {document.total_entries} 项，按 SDK 输入顺序</small>
-      {previous&&<button className="context-show-items" type="button" onClick={()=>void compare()}>对比上一次请求</button>}
-      {comparison&&<details className="context-request-diff" open>
-        <summary>已采集内容变化 · 新增 {comparison.added.length} · 移除 {comparison.removed.length} · 改写 {comparison.changed.length}</summary>
-        {(['added','removed','changed'] as const).map(kind=>comparison[kind].length>0&&<ul key={kind}>
-          {comparison[kind].map(entry=><li key={entry.index}>{({added:'新增',removed:'移除',changed:'改写'})[kind]} · {entryTitle(entry)}</li>)}
-        </ul>)}
-      </details>}
-      <div className="context-source-filters" aria-label="按来源筛选">
-        {([...new Set(document.entries.flatMap(entry=>entry.origin?[entry.origin.kind]:[]))]).map(kind=>
-          <button type="button" key={kind} aria-pressed={sourceKind===kind}
-            onClick={()=>setSourceKind(sourceKind===kind?undefined:kind)}>{originLabels[kind]}</button>)}
-      </div>
+      {comparisonOpen&&<section className="context-request-diff capstone-call-tool-detail" aria-label="与上一请求的差异">
+        {comparisonStatus&&<p role="status">{comparisonStatus}</p>}
+        {comparison&&<>
+          <p><strong>与上一请求的差异</strong><small>新增 {comparison.added.length} · 移除 {comparison.removed.length} · 改写 {comparison.changed.length}</small></p>
+          {(['added','removed','changed'] as const).map(kind=>comparison[kind].length>0&&<ul key={kind}>
+            {comparison[kind].map(entry=><li key={entry.index}>{({added:'新增',removed:'移除',changed:'改写'})[kind]} · {entryTitle(entry)}</li>)}
+          </ul>)}
+        </>}
+      </section>}
       {!entries.length&&<p>所选分类没有已采集条目。</p>}
-      <ol className="context-content-items">
-        {entries.slice(0,visibleLimit).map(entry=><li key={entry.index}>
-          <button className="context-entry-open" type="button" aria-expanded={selected===entry.index} onClick={()=>void load(entry.index)}>
-            <i className="context-category-dot" data-category={entry.carrier}/>
-            <span>{entry.index} · {entryTitle(entry)}</span>
-            {(entry.redacted||entry.truncated)&&<small>{[entry.redacted?'已遮蔽':'',entry.truncated?'已截断':''].filter(Boolean).join(' · ')}</small>}
-          </button>
-          {selected===entry.index&&<div className="context-entry-body">
+      <ol className="context-content-items context-request-trace">
+        {entries.slice(0,visibleLimit).map(entry=><li key={entry.index}><details className="capstone-call-tool context-entry" open={selected===entry.index}>
+          <summary className="context-entry-open" role="button" aria-label={`${entry.index} ${rowTitle(entry)}`} aria-expanded={selected===entry.index}
+            onClick={event=>{event.preventDefault();void load(entry.index)}}>
+            <ChevronRight aria-hidden="true"/>
+            <small className="context-entry-index">{entry.index}</small>
+            <i className="context-category-dot" data-category={entry.carrier} aria-hidden="true"/>
+            <strong className="context-entry-title" title={entry.origin?.id??entryTitle(entry)}>
+              {rowTitle(entry)}
+            </strong>
+            {(entry.origin||entry.name)&&<small className="context-entry-role">{roles[entry.role]??contextCategories[entry.carrier]}</small>}
+            {(entry.redacted||entry.truncated)&&<small className="context-entry-state">{[entry.redacted?'已遮蔽':'',entry.truncated?'已截断':''].filter(Boolean).join(' · ')}</small>}
+          </summary>
+          {selected===entry.index&&<div className="capstone-call-tool-detail context-entry-body">
             {entry.origin&&<p className="context-entry-origin">
-              {originLabels[entry.origin.kind]} {entry.origin.id} · {entry.origin.revision}
+              {entry.origin.id} · {entry.origin.revision}
               {entry.origin.offset!==undefined&&entry.origin.length!==undefined&&
                 ` · 字节 ${entry.origin.offset}–${entry.origin.offset+entry.origin.length}（${entry.origin.delivery==='reference'?'范围引用':'预览'}）`}
             </p>}
             {entry.source_id&&<small>{entry.carrier==='system'?'组装来源':'工具调用'} {entry.source_id}</small>}
             {text!==undefined&&<pre>{text}</pre>}
           </div>}
-        </li>)}
+        </details></li>)}
       </ol>
       {entries.length>visibleLimit&&<button type="button" className="context-show-items" onClick={()=>setVisibleLimit(value=>value+16)}>显示更多条目</button>}
     </>}
