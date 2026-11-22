@@ -6014,6 +6014,10 @@ class PostgresThreadService(NativeExecutionOwner):
                                      recovered_work_id=None):
         from .instruction_queue import prepare_replacement
         settled = self._snapshot_from_row(thread)
+        # The destination owns continuation once it reserves the source Attempt.
+        if source.get('takeover_target_thread_id') is not None:
+            return settled
+
         def queued_attachments(work_id, command_id):
             item = connection.execute("""SELECT manifests FROM capstone_queued_attachments
                 WHERE thread_id=%s AND work_id=%s AND command_id=%s""",

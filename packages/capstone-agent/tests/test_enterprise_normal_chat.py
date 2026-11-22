@@ -898,6 +898,7 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
         assert settled['phase'] == 'completed'
         assert settled['answer'] == 'Continuation result'
         assert settled['source']['work_revision'] > selector['work_revision']
+        assert store.snapshot(thread_id).current_attempt is None
         reopened.set_native_executor(executor)
         next_request = command(reopened, target_id, 'continue_instruction_takeover', 'continue_takeover',
             payload={'source': settled['source'], 'text': 'Use the existing Continuation result.'})
@@ -913,7 +914,7 @@ def test_takeover_reservation_survives_commit_and_denies_second_destination(post
             headers = {**_auth(), 'Capstone-Thread-Version': '2'}
             url = f'/api/v1/threads/{target_id}/commands'
             continuation = client.post(url, json=next_request, headers=headers)
-            assert continuation.status_code == 202 and continuation.json()['status'] == 'accepted'
+            assert continuation.status_code == 202 and continuation.json()['status'] == 'accepted', continuation.json().get('rejection')
             replay = client.post(url, json=next_request, headers=headers)
             assert replay.json() == continuation.json()
             assert wakes == ['wake', 'wake']
