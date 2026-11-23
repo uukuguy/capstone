@@ -59,6 +59,13 @@ def test_tool_composition_only_uses_its_direct_runtime_suite():
     assert classify(changes, target='main') == 'release'
 
 
+def test_model_facing_gateway_source_guidance_uses_its_direct_runtime_suite():
+    changes = [SOURCE + 'resources/gateway-tool-use.mjs',
+               'packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs']
+    assert classify(changes) == 'tool-composition'
+    assert classify(changes + [SOURCE + 'data_gateway_mcp.py']) == 'gateway-bindings'
+
+
 def test_progressive_contracts_keep_a_focused_gateway_gate():
     paths = [SOURCE + path for path in (
         'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py',
