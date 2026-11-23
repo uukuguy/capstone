@@ -309,6 +309,9 @@ test('available entries do not impose a service-first workflow on the current in
   assert.match(prompt,/Choose tools and skills for the current instruction/);
   assert.match(prompt,/Availability does not require a call/);
   assert.match(prompt,/Only after selecting this service as relevant/);
+  assert.match(prompt,/match the requested subject, data scope and source requirements/);
+  assert.match(prompt,/shared term, place or metric does not establish coverage/);
+  assert.match(prompt,/state the limitation without probing unrelated services/);
   assert.doesNotMatch(prompt,/Follow their registered initialization first/);
 });
 
