@@ -960,6 +960,14 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'session-capacity'
     if any(_app_path(path) for path in paths) and all(_app_path(path) or _control_path(path) for path in paths):
         return 'app'
+    composition = 'packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs'
+    composition_files = {
+        composition, 'packages/capstone-agent/tests/fixtures/tool-composition.test.mjs',
+        'tools/ci_scope.py', 'tools/tests/test_ci_gateway_bindings.py', '.github/workflows/verify.yml',
+    }
+    if (target == 'dev' and not release and composition in paths
+            and all(path in composition_files or _control_path(path) for path in paths)):
+        return 'tool-composition'
     if gateway_bindings_paths(paths, deployment=gateway_bindings_deployment, startup=gateway_bindings_startup):
         return 'gateway-bindings'
     if gateway_controls_paths(paths, deployment=gateway_deployment):

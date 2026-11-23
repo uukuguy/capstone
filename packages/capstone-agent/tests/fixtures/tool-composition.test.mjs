@@ -25,6 +25,13 @@ import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('composition advertises both call forms within a bounded model-facing schema',()=>{
+ const {description,parameters}=tool('/unused',async()=>{});
+ assert.ok(Buffer.byteLength(JSON.stringify({description,parameters}))<=2600);
+ assert.match(description,/tools\.help\(\)/);
+ assert.deepEqual(parameters.oneOf.map(form=>form.required),[['calls'],['program','tools']]);
+});
+
 for(const local of ['return {index:tools.inspect(r.ref)};',
  'return {text:JSON.stringify(tools.read(r.ref,"/data"))};',
  'const fields=tools.read(r.ref,"/data");return Object.keys(fields);']){
