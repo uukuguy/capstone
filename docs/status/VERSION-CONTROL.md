@@ -1675,6 +1675,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
 | dev-head | dev | main | dev · 当前研发位置 | PR153 已集成，会话 Goal 本机验收通过 | 动态绑定实际 dev 并连接已核对的祖先，保留运行来源和控制记录。[当前状态](CURRENT-STATE.md) | shared-agent |
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
+| compact-composition-context | f4076615 | main | 精简工具组合说明 | PR249 定向 macOS CI 通过 | 保留两种调用形式和原授权校验，重复说明由现有系统指南和按需帮助提供。[实测与后续方案](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | shared-agent |
 | continuity-merged | e285d240 | main | Instruction、Goal 与 Mission 执行连续性 | PR235 定向 macOS CI 通过 | 保存故障和回执，继续执行可接纳的独立工作；主会话保留整体交付及逐轮记录。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
 | objective-delivery-merged | e5383e3e | main | Goal 与 Mission 整体交付下载 | PR237 定向 macOS CI 与本机浏览器下载通过 | 从保存的结论生成独立的整体 Markdown，包括已核验项、缺口和制品引用。 | shared-agent |
 | mission-origin-goal-merged | 73b4b160 | main | Mission 主会话多轮 Goal | PR238 定向 macOS CI 通过，本机真实两轮及页面标签通过 | 主会话可承载 Goal，独立 Work 保留规划、逐轮状态、核验和交付。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
@@ -1951,6 +1952,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | continuous-task-local-dev-20261121 | 本机三入口验收来源 | dev | 真实三入口均完成交付；API 和 worker 共同使用已验证镜像 | 本机规范重建，三份下载文件摘要一致 |
 | dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR205 确认 local-dev 实施范围，实际三入口 API 复验通过 |
 | local-qwen-preset-deployed | 本机开发部署来源 | dev | 27B 和 35B 独立配置；模型菜单展示短名及 Qwen 图标 | 27B 可选，首次工作台请求超时 |
+| compact-composition-context | 本机开发部署来源 | dev | 精简工具组合模型可见说明；保留按需帮助与调用约束 | 103 项直接运行时检查及 macOS CI 通过 |
 | continuity-merged | 执行连续性集成 | dev | 指令回执和队列可续接；Goal 与 Mission 按依赖推进并保存结果 | PR235 的 macOS 定向验证已通过 |
 | objective-delivery-merged | Goal 与 Mission 整体交付 | dev | 保存整体答复和核验结论；提供整体 Markdown 下载 | PR237 的 macOS 定向验证与 5174 浏览器下载通过 |
 | mission-origin-goal-merged | Mission 主会话多轮 Goal | dev | Mission 可将 Goal 放在主会话；在原会话保留逐轮执行、核验和交付 | PR238 的 macOS 定向验证通过 |
@@ -1998,6 +2000,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 249 | shared-agent | perf/compact-tool-composition-prompt | dev | MERGED | f4076615，受检 035d77d0。缩短工具组合说明和新增定向门禁。macOS CI 45088824502 通过。 |
 | 246 | local-dev | feat/local-qwen-38-preset | dev | MERGED | 21518b4d，受检 92844e17。加入独立接线的 Qwen3.8-27B 本机预设，定向 macOS CI 45081038540 通过。 |
 | 245 | local-dev | fix/local-qwen-display | dev | MERGED | 45716b32，受检 e66b9812。模型菜单和欢迎卡使用 Qwen 短名及图标。定向 macOS CI 45080378053 通过，本机 5174 浏览器核对短名、图标加载及可选状态。 |
 | 243 | local-dev | feat/local-qwen-preset | dev | MERGED | ff57bcd0，受检 56d7ac18。加入可选 Qwen3.6-35B-A3B 本机预设，定向 macOS CI 45079280092 通过。 |
@@ -2328,7 +2331,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | `21518b4d`，合入 PR246 | API 与三类 worker 同镜像 40a1cc3dc1c8，Pi 镜像 eafdf7481996，均就绪 | App http://127.0.0.1:5174/。浏览器核对 Qwen3.8-27B 本机预设可选，短名和图标正确。模型端短请求通过；Capstone 首轮预填充超过模型请求的 120 秒预算，会话未完成。19090 当前服务 27B，35B 预设保留且等待独立地址。默认模型为 DeepSeek Flash。35B 在更换服务前的会话验收见 PR244，Mission 连续性验收见 PR242。 |
+| local-dev | `f4076615`，合入 PR249 | API 与三类 worker 同镜像 6ebf2322be36，Pi 镜像 ccbbcdfa8410，均就绪 | App http://127.0.0.1:5174/。DeepSeek Flash 同指令首次请求缓存命中相同，实际未缓存输入减少 1,898 token。两次正式答复均保存，优化后发起更多工具调用，整轮用时增加。两个本机 Qwen 预设共用 19090，模型由用户切换。Qwen 模板节省 1,803 token，工作台优化后复测等待本机服务。上一版 Qwen 浏览器验收见 PR247。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
