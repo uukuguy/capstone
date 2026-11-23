@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-23 PR249 精简工具组合的模型可见说明。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
+
 2026-11-23 将本机 Qwen 部署提交登记为[全景固定来源](VERSION-CONTROL.md#全景关键提交)。
 
 2026-11-23 PR246 加入本机 Qwen3.8-27B 预设。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
