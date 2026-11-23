@@ -1581,12 +1581,12 @@ class NativeTaskRunner:
             task_capacity['execution'] = {
                 'timeout_seconds': request.timeout_seconds, 'deadline_at_ms': sdk_config['deadlineAt'],
                 'source': 'accepted_task_request'}
+            context['execution_state'].update(
+                timeout_seconds=request.timeout_seconds, deadline_at_ms=sdk_config['deadlineAt'])
             sdk_config.setdefault('contextFiles', []).append({
                 'path': 'effective-runtime-capacity',
                 'content': capacity_model_guidance(context_policy=selected_context)
-                    + '\nAccepted task deadline: ' + str(request.timeout_seconds) + ' seconds; deadline_at_ms='
-                    + str(sdk_config['deadlineAt'])
-                    + '. Exact units, protections and recovery notes are in .runtime-capacity.json. '
+                    + '\nExact units, protections and recovery notes are in .runtime-capacity.json. '
                     'Read the relevant fields before selecting large calls or files. This file is '
                     'informational; editing it does not change host-enforced limits. '
                     'Tool JSON schemas and published composition limits also apply before execution.'})
@@ -2794,6 +2794,10 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 selected_key = selected['key'] if selected else provider_key
                 if document.get('model') != selected_model:
                     raise ValueError()
+                if selected and selected.get('request_policy') == 'llama-server':
+                    from .general_pi_relay import llama_chat_request
+                    document = llama_chat_request(document, selected['context_policy']['max_output_tokens'])
+                    body = json.dumps(document, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
                 target = urlsplit(selected_upstream)
                 if target.hostname is None or target.scheme not in {'http', 'https'}:
                     raise ValueError()

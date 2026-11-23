@@ -287,6 +287,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         assert 'model_context_tokens=1048576 tokens' in capacity_guidance
         assert 'mcp_call_count=0 means no total-call ceiling' in capacity_guidance
         assert '.runtime-capacity.json' in capacity_guidance
+        assert 'deadline_at_ms=' not in capacity_guidance
+        assert kwargs['sdk_config']['context']['execution_state']['deadline_at_ms'] == kwargs['sdk_config']['deadlineAt']
         assert runner.task_llm_profiles[task]['base_url'] == 'http://192.168.72.69:18804/v1'
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
         if resource_protocol:

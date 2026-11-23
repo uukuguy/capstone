@@ -37,11 +37,18 @@ class ProfileRegistry:
         if 'context_policy' in p:
             from .model_context_policy import checked_context_policy
             checked_context_policy(p['context_policy'])
+        if 'request_policy' in p and (
+                p['request_policy'] != 'llama-server' or p['provider'] != 'openai-compatible'
+                or 'context_policy' not in p):
+            raise ValueError('Invalid workbench request policy')
         options = p.get('title_request_options', {})
         model = p.get('model') or self.environment.get(p.get('model_env', ''), '')
         url = p.get('base_url') or self.environment.get(p.get('base_url_env', ''), '')
         if p['provider'] == 'deepseek':
             url = 'https://api.deepseek.com/v1'
+        if p.get('request_policy') == 'llama-server' and url not in {
+                'http://127.0.0.1:19090/v1', 'http://host.docker.internal:19090/v1'}:
+            url = ''
         key = self.environment.get(p.get('credential_env', ''), '')
         available = bool(model and url and (not p.get('credential_env') or key))
         execution = {key: value for key, value in p.items() if key not in {'label', 'icon', 'title_request_options'}}
@@ -70,6 +77,11 @@ class ProfileRegistry:
             legacy = {hashlib.sha256(json.dumps({'profile': candidate, 'model': resolved['model'],
                 'base_url': resolved['base_url']}, sort_keys=True).encode()).hexdigest()
                 for candidate in (p, {k: v for k, v in p.items() if k != 'title_request_options'})}
+            if p.get('request_policy') == 'llama-server':
+                previous_execution = {k: v for k, v in p.items()
+                    if k not in {'label', 'icon', 'title_request_options', 'request_policy'}}
+                legacy.add(hashlib.sha256(json.dumps({'profile': previous_execution, 'model': resolved['model'],
+                    'base_url': resolved['base_url']}, sort_keys=True).encode()).hexdigest())
             if ({**selection, 'profile_revision': expected['profile_revision']} != expected
                     or selection.get('profile_revision') not in legacy):
                 raise ValueError('Frozen workbench LLM profile changed; resubmit the instruction')

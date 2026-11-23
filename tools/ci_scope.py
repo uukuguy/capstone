@@ -845,6 +845,16 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
                for key in ('anchors', 'recovery_anchors', 'takeover_anchors', 'handoff_anchors')) and all(
                 path in instruction['paths'] or _control_path(path) for path in paths):
             return 'instruction-admission'
+    native_chat_sources = {'configs/runtime/workbench-llm-profiles.json'} | {
+        f'packages/capstone-agent/src/capstone_agent/{name}.py'
+        for name in ('capacity_contract', 'general_pi_relay', 'general_pi_server', 'workbench_llm_profiles')}
+    native_chat_paths = native_chat_sources | {
+        f'packages/capstone-agent/tests/test_{name}.py'
+        for name in ('general_pi_relay', 'general_pi_server', 'workbench_llm_profiles')}
+    if native_chat_sources.issubset(paths) and all(
+            path in native_chat_paths or path in {'tools/ci_scope.py', '.github/workflows/verify.yml'}
+            or _control_path(path) for path in paths):
+        return 'native-chat-request'
     details_manifest = Path(__file__).resolve().parents[1] / 'configs/development/execution-details-gate.json'
     if details_manifest.is_file():
         details = json.loads(details_manifest.read_text())

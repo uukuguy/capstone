@@ -221,6 +221,25 @@ class ProviderRelay:
             timing.close()
 
 
+def llama_chat_request(document: dict, output_limit: int) -> dict:
+    """Keep the prompt and tool order while adapting the llama-server wire request."""
+    request = dict(document)
+    requested = request.pop('max_completion_tokens', None)
+    requested = request.get('max_tokens', requested)
+    request['max_tokens'] = min(requested, output_limit) if type(requested) is int and requested > 0 else output_limit
+    request.pop('reasoning_effort', None)
+    thinking_fields = {'reasoning_content', 'reasoning', 'reasoning_text', 'reasoning_details'}
+    messages = request.get('messages')
+    if not isinstance(messages, list) or any(not isinstance(message, dict) for message in messages):
+        raise ValueError('Invalid chat messages')
+    request['messages'] = [
+        {key: value for key, value in message.items() if key not in thinking_fields}
+        if message.get('role') == 'assistant' else message
+        for message in messages
+    ]
+    return request
+
+
 def _request_counts(body):
     """Return sizes only; parsed request fields do not outlive this call."""
     counts = {'request_bytes': len(body)}

@@ -82,7 +82,7 @@ def capacity_model_guidance(profile: CapacityProfile | None = None, *,
              'concurrency is not a total-call or total-round ceiling. Follow returned page cursors. '
              'Use durable references and bounded reads; storage quotas are separate from context '
              'and processing budgets. Compact context and spill large outputs to products. '
-             'The accepted task deadline below is the actual deployment ceiling; checkpoint before it. '
+             'The accepted task deadline is in the current execution_state; checkpoint before it. '
              'These are default design bounds, not measured resource limits; valid workloads '
              'may need operator review. mcp_call_count=0 means no total-call ceiling. '
              'research_round_count applies only to the research controller, not native LLM turns. '

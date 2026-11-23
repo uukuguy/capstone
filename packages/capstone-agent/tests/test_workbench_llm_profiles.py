@@ -25,6 +25,19 @@ def test_local_qwen_preset_is_opt_in_and_keeps_its_endpoint_private():
     assert qwen_27b['icon'] == 'qwen'
 
 
+def test_local_llama_profile_preserves_existing_local_selection():
+    profile_id = 'local-qwen-35b'
+    env_name = 'CAPSTONE_LOCAL_QWEN_BASE_URL'
+    registry = ProfileRegistry(environment={env_name: 'http://127.0.0.1:19090/v1'})
+    policy = registry.profiles[profile_id].pop('request_policy')
+    previous = registry.freeze(profile_id)
+    registry.profiles[profile_id]['request_policy'] = policy
+    assert registry.resolve(previous)['request_policy'] == 'llama-server'
+    registry.environment[env_name] = 'http://192.168.1.5:19090/v1'
+    with pytest.raises(ValueError, match='unavailable'):
+        registry.freeze(profile_id)
+
+
 def test_model_context_is_selected_per_profile_and_frozen_by_revision():
     registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'private'})
     selected = registry.freeze('commercial-deepseek-flash')
@@ -101,7 +114,8 @@ def test_default_submission_freezes_before_deployment_preset_changes(monkeypatch
     assert ProfileRegistry().resolve(submitted['llm_selection'])['model'] == 'deepseek-flash'
 
 
-def test_task_relay_routes_frozen_profile_instead_of_runner_default(tmp_path):
+@pytest.mark.parametrize("llama_server", [False, True])
+def test_task_relay_routes_frozen_profile_instead_of_runner_default(tmp_path, llama_server):
     import json
     import threading
     import time
@@ -126,15 +140,26 @@ def test_task_relay_routes_frozen_profile_instead_of_runner_default(tmp_path):
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('unused', {}))
     server = make_server(host, control_token='control', address=('127.0.0.1', 0),
         runner=SimpleNamespace(relay=relay, model='old-model', task_llm_profiles={'task': {
-            'model': 'selected-model', 'base_url': f'http://127.0.0.1:{upstream.server_port}', 'key': 'selected-key'}}),
+            'model': 'selected-model', 'base_url': f'http://127.0.0.1:{upstream.server_port}', 'key': 'selected-key',
+            **({'request_policy': 'llama-server', 'context_policy': {'max_output_tokens': 4096}} if llama_server else {})}}),
         upstream='http://127.0.0.1:1', provider_key='wrong-key')
     for item in (server, upstream):
         threading.Thread(target=item.serve_forever, daemon=True).start()
     try:
+        request = {'model': 'selected-model', 'max_completion_tokens': 128, 'messages': [
+            {'role': 'system', 'content': 'stable'},
+            {'role': 'user', 'content': 'question'},
+            {'role': 'assistant', 'content': 'answer', 'reasoning_content': 'previous thinking'},
+        ]}
         response = httpx.post(f'http://127.0.0.1:{server.server_port}/provider/task/chat/completions',
-            json={'model': 'selected-model'}, headers={'Authorization': 'Bearer grant'}, timeout=5, trust_env=False)
+            json=request, headers={'Authorization': 'Bearer grant'}, timeout=5, trust_env=False)
         assert response.status_code == 200
-        assert seen == [('Bearer selected-key', {'model': 'selected-model'})]
+        expected = request
+        if llama_server:
+            expected = {'model': 'selected-model', 'max_tokens': 128, 'messages': [
+                *request['messages'][:2], {'role': 'assistant', 'content': 'answer'},
+            ]}
+        assert seen == [('Bearer selected-key', expected)]
     finally:
         relay.revoke('task')
         for item in (server, upstream):

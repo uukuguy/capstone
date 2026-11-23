@@ -9,6 +9,31 @@ import pytest
 from concurrent.futures import CancelledError
 
 
+def test_llama_chat_request_preserves_prefix_and_tool_history_without_reasoning():
+    from capstone_agent.general_pi_relay import llama_chat_request
+    messages = [
+        {'role': 'system', 'content': 'stable'},
+        {'role': 'user', 'content': 'question'},
+        {'role': 'assistant', 'content': None, 'reasoning_content': 'old thinking',
+         'tool_calls': [{'id': 'call_1'}]},
+        {'role': 'tool', 'tool_call_id': 'call_1', 'content': 'bounded evidence'},
+    ]
+    tools = [{'function': {'name': name}} for name in ('z', 'a')]
+    prepared = llama_chat_request({'messages': messages, 'tools': tools,
+        'max_completion_tokens': 128, 'reasoning_effort': 'xhigh'}, 4096)
+    assert prepared['messages'][:2] == messages[:2]
+    assert prepared['messages'][2]['tool_calls'] == messages[2]['tool_calls']
+    assert prepared['messages'][3] == messages[3]
+    assert 'reasoning_content' not in prepared['messages'][2]
+    assert messages[2]['reasoning_content'] == 'old thinking'
+    assert prepared['tools'] == tools
+    assert prepared['max_tokens'] == 128
+    assert 'max_completion_tokens' not in prepared
+    assert 'reasoning_effort' not in prepared
+    assert llama_chat_request({'messages': []}, 4096)['max_tokens'] == 4096
+    assert llama_chat_request({'messages': [], 'max_tokens': 9999}, 4096)['max_tokens'] == 4096
+
+
 def test_private_native_timing_is_fixed_bounded_and_released(capsys):
     from capstone_agent.native_timing import NativeTiming
     from capstone_agent.general_pi_relay import ProviderRelay
