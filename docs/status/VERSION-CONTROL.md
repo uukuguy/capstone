@@ -1677,6 +1677,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
 | compact-composition-context | f4076615 | main | 精简工具组合说明 | PR249 定向 macOS CI 通过 | 保留两种调用形式和原授权校验，重复说明由现有系统指南和按需帮助提供。[实测与后续方案](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | shared-agent |
 | gateway-source-scope | c2d268c9 | main | 按发布范围选择资料来源 | PR251 定向 macOS CI 通过 | 发现前核对指令的对象、数据范围和来源要求。公开来源与业务证据可按实际需要选用。[环境台账](#环境台账) | shared-agent |
+| gateway-exclusion-projection | dcbd8a05 | main | 展示来源拒绝项 | PR253 定向 macOS CI 通过 | 保留网关声明的适用边界，搜索仅以正向描述和元数据匹配。无拒绝项的旧目录保持兼容。[环境台账](#环境台账) | shared-agent |
 | continuity-merged | e285d240 | main | Instruction、Goal 与 Mission 执行连续性 | PR235 定向 macOS CI 通过 | 保存故障和回执，继续执行可接纳的独立工作；主会话保留整体交付及逐轮记录。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
 | objective-delivery-merged | e5383e3e | main | Goal 与 Mission 整体交付下载 | PR237 定向 macOS CI 与本机浏览器下载通过 | 从保存的结论生成独立的整体 Markdown，包括已核验项、缺口和制品引用。 | shared-agent |
 | mission-origin-goal-merged | 73b4b160 | main | Mission 主会话多轮 Goal | PR238 定向 macOS CI 通过，本机真实两轮及页面标签通过 | 主会话可承载 Goal，独立 Work 保留规划、逐轮状态、核验和交付。[修复计划](../superpowers/plans/2026-11-23-execution-continuity-remediation.md) | shared-agent |
@@ -1955,6 +1956,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | local-qwen-preset-deployed | 本机开发部署来源 | dev | 27B 和 35B 独立配置；模型菜单展示短名及 Qwen 图标 | 27B 可选，首次工作台请求超时 |
 | compact-composition-context | 本机开发部署来源 | dev | 精简工具组合模型可见说明；保留按需帮助与调用约束 | 103 项直接运行时检查及 macOS CI 通过 |
 | gateway-source-scope | 本机开发部署来源 | dev | 匹配请求与已发布来源范围；保留业务目录按需发现 | 123 项本地定向检查及 macOS CI 通过 |
+| gateway-exclusion-projection | 本机开发部署来源 | dev | 展示业务工具拒绝项；拒绝项不计为正向匹配 | 124 项定向检查、macOS CI 及两仓契约核对通过 |
 | continuity-merged | 执行连续性集成 | dev | 指令回执和队列可续接；Goal 与 Mission 按依赖推进并保存结果 | PR235 的 macOS 定向验证已通过 |
 | objective-delivery-merged | Goal 与 Mission 整体交付 | dev | 保存整体答复和核验结论；提供整体 Markdown 下载 | PR237 的 macOS 定向验证与 5174 浏览器下载通过 |
 | mission-origin-goal-merged | Mission 主会话多轮 Goal | dev | Mission 可将 Goal 放在主会话；在原会话保留逐轮执行、核验和交付 | PR238 的 macOS 定向验证通过 |
@@ -2002,6 +2004,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 253 | shared-agent | fix/gateway-exclusion-projection | dev | MERGED | dcbd8a05，受检 4982ac5b。保留并展示网关发布的拒绝项，同时排除搜索词面匹配。macOS CI 45092170271 通过。 |
 | 251 | shared-agent | fix/gateway-public-source-selection | dev | MERGED | c2d268c9，受检 1fab3866。按已发布的数据和来源范围选择工具。macOS CI 45090514522 通过。 |
 | 249 | shared-agent | perf/compact-tool-composition-prompt | dev | MERGED | f4076615，受检 035d77d0。缩短工具组合说明和新增定向门禁。macOS CI 45088824502 通过。 |
 | 246 | local-dev | feat/local-qwen-38-preset | dev | MERGED | 21518b4d，受检 92844e17。加入独立接线的 Qwen3.8-27B 本机预设，定向 macOS CI 45081038540 通过。 |
@@ -2334,7 +2337,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | `c2d268c9`，合入 PR251 | API 与三类 worker 同镜像 d1f6c67670ed，Pi 镜像 9da9e1ea7ce0，均就绪 | App http://127.0.0.1:5174/。真实公开查询仍调用了 11 次电网气象查询，通用来源提示未通过此项验收。显式业务目录查询使用网关元数据，未调用气象查询。两轮对照的独立意图识别配置一致。PR250 记录此前首轮输入缩减。两个本机 Qwen 预设共用 19090，模型由用户切换。 |
+| local-dev | `dcbd8a05`，合入 PR253 | API 与三类 worker 同镜像 ae04a8044336，Pi 镜像 6f7b77e4665b，均就绪 | App http://127.0.0.1:5174/。已用候选网关发布数据验证运行容器：拒绝项可见，城市预报词仅出现在拒绝项时不匹配气象工具。候选网关 [PR1](https://github.com/uukuguy/data-gateway/pull/1) 通过隔离 MCP 校验，等待网关发布；原天气会话端到端验收仍开放。PR252 保存上一版误选轨迹。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

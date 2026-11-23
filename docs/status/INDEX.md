@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-23 PR253 将网关拒绝项纳入工具发现结果。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
+
 2026-11-23 PR251 明确工具发现前的来源范围核对。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
 
 2026-11-23 PR249 精简工具组合的模型可见说明。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
