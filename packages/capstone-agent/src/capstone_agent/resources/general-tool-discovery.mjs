@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {boundToolResult} from './tool-result-context.mjs';
-import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance,gatewaySelectionSummary} from './gateway-tool-use.mjs';
+import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance,gatewaySelectionSummary,gatewaySearchMetadata} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 
 export const discoveryToolNames=['agent_tool_search','agent_tool_load'];
@@ -20,9 +20,9 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   const entries=new Map(tools.filter(tool=>grants.has(tool.name)).map(tool=>{
     const publication=structuredClone(publications[tool.name]);
     if(!publication||tool.name.length>256)throw new Error('Invalid tool discovery publication');
-    const metadata=JSON.stringify(Object.fromEntries(['usage','metadata','_meta']
-      .filter(key=>Object.hasOwn(publication,key)).map(key=>[key,publication[key]])));
-    return [tool.name,{tool,publication,metadata,hash:contractHashes[tool.name]??
+    const metadata=Object.fromEntries(['usage','metadata','_meta']
+      .filter(key=>Object.hasOwn(publication,key)).map(key=>[key,publication[key]]));
+    return [tool.name,{tool,publication,metadata:JSON.stringify(metadata),searchMetadata:gatewaySearchMetadata(metadata),hash:contractHashes[tool.name]??
       createHash('sha256').update(JSON.stringify(publication)).digest('hex')}];
   }));
   const identities=createToolIdentityResolver(Object.fromEntries(
@@ -84,7 +84,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       const query=args.query.trim().toLowerCase(),terms=[...new Set(query.split(/\s+/).filter(Boolean))],offset=args.offset??0;
       const candidates=names.filter(name=>args.toolset===undefined||gatewayToolGroup(entries.get(name).publication)===args.toolset);
       const matched=new Map(candidates.map(name=>{
-        const entry=entries.get(name),p=entry.publication,text=(name+' '+(p.name??'')+' '+(p.description??'')+' '+entry.metadata).toLowerCase();
+        const entry=entries.get(name),p=entry.publication,text=(name+' '+(p.name??'')+' '+(p.description??'')+' '+entry.searchMetadata).toLowerCase();
         return [name,terms.filter(term=>text.includes(term))];
       }));
       const exact=query?candidates.filter(name=>[name,entries.get(name).publication.name].some(value=>typeof value==='string'&&value.toLowerCase()===query)):[];

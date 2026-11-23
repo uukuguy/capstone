@@ -24,6 +24,17 @@ export function gatewayToolGroup(publication){
 }
 // Compatibility projection: names do not imply an access class.
 export function gatewayToolAccess(){return 'published_operation';}
+
+export function gatewaySearchMetadata(metadata){
+  const capability=metadata._meta?.['data-gateway/capability'];
+  if(capability?.summary_version!=='capability-summary/1'||!Array.isArray(capability.semantics?.out_of_scope))
+    return JSON.stringify(metadata);
+  const semantics={...capability.semantics};
+  delete semantics.out_of_scope;
+  return JSON.stringify({...metadata,_meta:{...metadata._meta,
+    'data-gateway/capability':{...capability,semantics}}});
+}
+
 // This versioned gateway declaration is adapted here, not in the neutral Kernel.
 // Preserve whole values: cutting a condition mid-sentence can reverse its meaning.
 export function gatewaySelectionSummary(publication,maxChars=summaryChars){
@@ -31,7 +42,7 @@ export function gatewaySelectionSummary(publication,maxChars=summaryChars){
   if(capability?.summary_version!=='capability-summary/1'||capability.declaration_basis!=='provider_declared')return;
   const semantics=capability.semantics;
   if(!semantics||typeof semantics!=='object'||Array.isArray(semantics))return;
-  const keys=['execution_choice','prerequisites','applicable_questions','exploration',
+  const keys=['out_of_scope','execution_choice','prerequisites','applicable_questions','exploration',
     'input_reference_kinds','output_reference_kinds','composition_constraints','budgets','pagination']
     .filter(key=>Object.hasOwn(semantics,key)&&semantics[key]!==null);
   if(!keys.length)return;
