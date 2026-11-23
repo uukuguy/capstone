@@ -181,6 +181,20 @@ test('capability search uses bounded published metadata and isolates grants and 
   assert.equal((await search(build({beta:{name:'opaque_beta',description:'unrelated'}},['beta']))).total,0);
 });
 
+test('published scope exclusions are visible without becoming search matches',async()=>{
+  const publication={name:'opaque',description:'Asset observations',_meta:{'data-gateway/capability':{
+    summary_version:'capability-summary/1',declaration_basis:'provider_declared',
+    semantics:{purpose:'Asset observations',out_of_scope:['publicforecast is outside the source scope']},
+  }}};
+  const controller=createToolDiscovery({publications:{opaque:publication},tools:[{name:'opaque'}],
+    admittedNames:['opaque']});
+  const search=async query=>JSON.parse((await controller.tools[0].execute('find',{query})).content[0].text);
+  assert.equal((await search('publicforecast')).total,0);
+  const admitted=await search('observations');
+  assert.deepEqual(admitted.tools[0].published_selection.fields.out_of_scope,
+    ['publicforecast is outside the source scope']);
+});
+
 test('search returns bounded best partial matches and current activation without changing grants',async()=>{
   const publications={entry:{name:'published_entry',description:'Discover service catalog',inputSchema:{type:'object'}},
     check:{name:'published_check',description:'Check service contract time',inputSchema:{type:'object'}},

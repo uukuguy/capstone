@@ -963,6 +963,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     composition_sources = {
         'packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs',
         'packages/capstone-agent/src/capstone_agent/resources/gateway-tool-use.mjs',
+        'packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs',
     }
     composition_files = {
         *composition_sources, 'packages/capstone-agent/tests/fixtures/tool-composition.test.mjs',
