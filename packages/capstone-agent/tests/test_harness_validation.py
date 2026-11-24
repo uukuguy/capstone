@@ -98,7 +98,8 @@ def test_result_table_findings_are_scoped_and_leave_independent_tables_usable():
 def test_candidate_review_binds_digests_and_preserves_archived_input():
     from capstone_agent.answer_correction import presentation_rule_bundle
     from capstone_agent.artifacts import MemoryObjectStore
-    from capstone_agent.harness_validation import archive_rule_input, load_rule_bundle, review_rule_candidate
+    from capstone_agent.harness_validation import archive_rule_input, load_rule_bundle
+    from capstone_agent.harness_rule_review import review_rule_candidate
 
     store = MemoryObjectStore()
     original = presentation_rule_bundle()
@@ -114,3 +115,45 @@ def test_candidate_review_binds_digests_and_preserves_archived_input():
     assert receipt['original']['value'] == 'answer'
     assert receipt['candidate']['value'] == 'answer revised'
     assert store.contents == before
+
+
+def test_cross_version_review_requires_matching_archive_and_trusted_revisions():
+    from capstone_agent.harness_rule_review import compare_runtime_receipts
+
+    common = {'schema': 'capstone-validation-runtime-receipt/1', 'thread_id': 't',
+              'attempt_id': 'a', 'archive_sha256': 'a' * 64, 'target': 'answer.text'}
+    baseline = {**common, 'role': 'baseline', 'revision': 'b' * 40,
+                'bundle_sha256': 'c' * 64, 'processors': [['engine', 'd' * 64]],
+                'decision': {'status': 'accepted', 'value': 'original'}}
+    candidate = {**common, 'role': 'candidate', 'revision': 'e' * 40,
+                 'bundle_sha256': 'f' * 64, 'processors': [['engine', '1' * 64]],
+                 'decision': {'status': 'corrected', 'value': 'corrected'}}
+    review = compare_runtime_receipts(baseline, candidate, trusted_revisions={'b' * 40, 'e' * 40})
+    assert review['baseline_revision'] == 'b' * 40
+    assert review['candidate_bundle_sha256'] == 'f' * 64
+    with pytest.raises(ValueError):
+        compare_runtime_receipts(baseline, {**candidate, 'archive_sha256': '2' * 64},
+                                 trusted_revisions={'b' * 40, 'e' * 40})
+    with pytest.raises(ValueError):
+        compare_runtime_receipts(baseline, candidate, trusted_revisions={'b' * 40})
+
+
+def test_runtime_receipts_compare_installed_distinct_handlers():
+    from capstone_agent.answer_correction import presentation_rule_bundle
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.harness_validation import archive_rule_input, load_rule_bundle
+    from capstone_agent.harness_rule_review import compare_runtime_receipts, runtime_receipt
+
+    store = MemoryObjectStore()
+    baseline = presentation_rule_bundle()
+    proposed = load_rule_bundle(baseline.source.replace(b'"version": 1,', b'"version": 2,', 1), {
+        'markdown_table_row_breaks': lambda value: Decision.corrected(value + ' revised', 'revised'),
+    })
+    ref = archive_rule_input(store, 'thread', 'attempt', baseline, 'answer', answer_limit=50)
+    old = runtime_receipt(store, 'thread', 'attempt', ref, baseline, role='baseline', revision='a' * 40)
+    new = runtime_receipt(store, 'thread', 'attempt', ref, proposed, role='candidate', revision='b' * 40)
+    assert old['processors'] != new['processors']
+    review = compare_runtime_receipts(old, new, trusted_revisions={'a' * 40, 'b' * 40})
+    assert review['candidate']['value'] == 'answer revised'
+    with pytest.raises(ValueError, match='bundle mismatch'):
+        runtime_receipt(store, 'thread', 'attempt', ref, proposed, role='baseline', revision='b' * 40)
