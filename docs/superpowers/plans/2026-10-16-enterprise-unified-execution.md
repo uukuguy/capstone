@@ -1,5 +1,13 @@
 # Unified Enterprise Execution Implementation Plan
 
+## DeepSeek Flash 薄上下文与校验器收口
+
+PR267 合入 `774a49f5`。薄上下文作为可选配置接入 dev。注册 case14 的未缓存输入在单组对照中下降 56%。报告和同 Work 追问样本的总耗时上升，因此默认关闭。真实 DeepSeek Flash 候选交付了正式证据表和独立 HTML，原生正式答复异常外壳的线程落盘回归通过。[定向验收与开关](2026-11-25-deepseek-flash-thin-context.md)。
+
+PR266 合入 `989cab73`。Harness 支持从可信源恢复历史校验、对照候选处理器、核对发布与回退字节，已用实际 DeepSeek Flash 私有归档演练。规则发布继续经 dev PR。[规则审查与回退](../../harness-rule-review.md)。
+
+四批优化前的 dev 回退标签为 `dev-pre-qwen-integration-20261125-b78924c1`。本轮未切换常用 5174 或 5274 隔离试验运行来源。
+
 ## 持续任务上下文与三级执行（backlog）
 
 用户选择顶层机制，Mission 自主选择子会话数量及委派机制。交付范围、依赖与真实验收见[系统设计](../specs/2026-11-21-continuous-task-context-design.md)及[工作计划](2026-11-21-continuous-task-context.md)。首包为自由 Instruction 的持久上下文。

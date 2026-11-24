@@ -2008,6 +2008,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 267 | DeepSeek Flash 薄上下文和正式答复验证 | feat/dev-thin-context | dev | MERGED | 合并 774a49f5，受检 9a0826a0，macOS CI 45447607844 通过。可选薄上下文保留正式表、证据和 HTML。case14 未缓存输入下降 56%，续问和报告样本耗时增加，默认关闭。增加原生执行到线程落盘的异常答复回归。 |
+| 266 | Harness 跨版本校验器审查 | feat/harness-trusted-replay | dev | MERGED | 合并 989cab73，受检 cd75cb20，macOS CI 45445192198 通过。使用真实 DeepSeek Flash 私有归档核验旧处理器和候选，发布及回退输出字节匹配回执。候选策略仍须经 dev PR 发布。 |
 | 264 | 正式答复与静态报告恢复 | fix/formal-answer-report-delivery | dev | MERGED | 合并 acf120c6，受检 fd2fc2d4，macOS CI 45433323429 通过。恢复已知异常答复外壳中的正文，以及无格式指定时的 HTML 分析报告交付。DeepSeek Flash 与本机 Qwen 35B 在隔离试验 1da0c119 完成真实任务，下载哈希通过。 |
 | 263 | 模型执行优化收口台账 | docs/dev-qwen-integration-closeout | dev | MERGED | 合并 0c027021，受检 137b593d，macOS CI 45433154038 通过。 |
 | 262 | Pandapower 正式查询交付 | feat/dev-admitted-query-delivery | dev | MERGED | 合并 f913fdd5，受检 aa25873e，macOS CI 45428367652 通过。保留 dev 工具发现，接纳正式投影、行序、单位和证据。 |
