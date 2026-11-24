@@ -9,6 +9,22 @@ function source(hold,{failure,result={role:'assistant',content:[{type:'text',tex
  return {async *[Symbol.asyncIterator](){yield {type:'text_delta',delta:'actual'};await hold.promise;if(failure)throw failure;yield {type:'done',message:result};},result:async()=>{await hold.promise;if(failure)throw failure;return result;}};
 }
 async function consume(stream){const events=[];for await(const event of stream)events.push(event);return {events,result:await stream.result()};}
+test('records first content and cancellation separately from slot release',async()=>{
+ const hold=gate(),controller=new AbortController(),events=[];
+ const pool=createModelRequestPool({runtime:{streamSimple(){return source(hold);}},
+   concurrency:1,maxRequests:2,emit:event=>events.push(event)});
+ const stream=pool.runtime.streamSimple(model,context('one'),{signal:controller.signal});
+ await stream[Symbol.asyncIterator]().next();
+ controller.abort();
+ await assert.rejects(stream.result(),{name:'AbortError'});
+ hold.resolve();
+ await pool.drainChain('main');
+ const final=events.at(-1);
+ assert.equal(final.status,'cancelled');
+ assert.ok(final.started_at_ms<=final.first_content_at_ms);
+ assert.ok(final.first_content_at_ms<=final.cancel_requested_at_ms);
+ assert.ok(final.cancel_requested_at_ms<=final.finished_at_ms);
+});
 test('returns an immediate stream and bounds actual runtime calls across independent chains',async()=>{
  const held=[gate(),gate(),gate()],calls=[],events=[];
  const runtime={tag:'runtime',getModel(){return this.tag;},streamSimple(...args){calls.push(args);return source(held[calls.length-1]);}};

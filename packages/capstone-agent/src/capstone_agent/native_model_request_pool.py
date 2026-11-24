@@ -31,7 +31,8 @@ def checked_model_request_pool(event, native, capability, record):
             or not registered_model_request_pool(capability.get('model_request_pool'))):
         raise ValueError('model request pool is not admitted')
     required = {'type', 'schema', 'request_id', 'chain_id', 'kind', 'depends_on', 'status', 'queued_at_ms'}
-    optional = {'started_at_ms', 'finished_at_ms', 'cancel_reason', 'parent_tool_call_id', 'child_id', 'model_turn_number', 'title'}
+    timing = ('first_content_at_ms', 'cancel_requested_at_ms')
+    optional = {'started_at_ms', 'finished_at_ms', 'cancel_reason', 'parent_tool_call_id', 'child_id', 'model_turn_number', 'title', *timing}
     def text(value):
         return (isinstance(value, str) and 0 < len(value) <= 128 and bool(value.strip())
             and all(ord(char) >= 32 and ord(char) != 127 for char in value))
@@ -46,7 +47,7 @@ def checked_model_request_pool(event, native, capability, record):
             or len(set(event['depends_on'])) != len(event['depends_on'])
             or 'model_turn_number' in event and (not number(event['model_turn_number']) or event['model_turn_number'] < 1)
             or 'title' in event and (not text(event['title']) or len(event['title']) > 120)
-            or any(not number(event[key]) for key in ('queued_at_ms', 'started_at_ms', 'finished_at_ms') if key in event)):
+            or any(not number(event[key]) for key in ('queued_at_ms', 'started_at_ms', 'finished_at_ms', *timing) if key in event)):
         raise ValueError('model request pool event is invalid')
     if event['kind'] == 'main':
         if event['chain_id'] != 'main' or {'child_id', 'parent_tool_call_id'} & set(event):
@@ -65,11 +66,15 @@ def checked_model_request_pool(event, native, capability, record):
         raise ValueError('model request kind is invalid')
     status = event['status']
     start, finish = event.get('started_at_ms'), event.get('finished_at_ms')
+    first, cancel = (event.get(key) for key in timing)
     if ((start is not None and start < event['queued_at_ms'])
             or finish is not None and finish < (start if start is not None else event['queued_at_ms'])
             or (status in _TERMINAL) != (finish is not None)
             or status in {'running', 'cancelling', 'completed'} and start is None
             or status in {'queued', 'waiting_dependencies', 'blocked'} and start is not None
+            or first is not None and (start is None or first < start or finish is not None and first > finish)
+            or cancel is not None and ('cancel_reason' not in event or cancel < (start if start is not None else event['queued_at_ms'])
+                                      or finish is not None and cancel > finish or first is not None and first > cancel)
             or 'cancel_reason' in event and event['cancel_reason'] not in {'timeout', 'cancelled', 'closed', 'parent_cancelled'}):
         raise ValueError('model request timing is invalid')
     bindings = record.get('model_request_pool_bindings', {})
@@ -96,7 +101,7 @@ def checked_model_request_pool(event, native, capability, record):
             if event != previous:raise ValueError('model request terminal changed')
         elif status not in _TRANSITIONS[previous['status']]:
             raise ValueError('model request transition is invalid')
-        if any(key in previous and event.get(key) != previous[key] for key in ('started_at_ms', 'cancel_reason')):
+        if any(key in previous and event.get(key) != previous[key] for key in ('started_at_ms', 'cancel_reason', *timing)):
             raise ValueError('model request start or cancellation changed')
     if status == 'running' and any(bindings[ref]['status'] not in _TERMINAL for ref in event['depends_on']):
         raise ValueError('model request dependencies have not settled')

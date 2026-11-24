@@ -15,6 +15,17 @@ it('ignores private/foreign/malformed records without inventing association',()=
  const [unknown]=projectModelRequestPool([event('queued',{model_turn_number:undefined})],'a')
  expect(unknown.modelTurnNumber).toBeUndefined()
 })
+it('retains first content and cancellation milestones on the terminal request',()=>{
+ const [row]=projectModelRequestPool([event('cancelled',{started_at_ms:200,first_content_at_ms:250,cancel_requested_at_ms:300,finished_at_ms:400})],'a')
+ expect(row).toMatchObject({firstContentAtMs:250,cancelRequestedAtMs:300,finishedAtMs:400})
+})
+it('does not project live execution when a stopped attempt lacks a request settlement event',()=>{
+ const terminal={...event('queued'),eventType:'attempt_cancelled',payload:{}}
+ const [row]=projectModelRequestPool([event('running',{started_at_ms:200}),terminal],'a')
+ expect(row.settlementUnobserved).toBe(true)
+ expect(requestExecutionMs(row,1000)).toBeUndefined()
+ expect(summarizeModelRequestPool([row],1000).reserved).toBe(0)
+})
 it('counts cancelling as reserved and reports actual main/analysis overlap only',()=>{
  const rows=projectModelRequestPool([event('completed',{started_at_ms:200,finished_at_ms:400}),event('completed',{request_id:'request-2',chain_id:'analysis:x',kind:'analysis',child_id:'x',parent_tool_call_id:'submit',started_at_ms:300,finished_at_ms:500}),event('waiting_dependencies',{request_id:'request-3',depends_on:['request-2']}),event('cancelling',{request_id:'request-4',started_at_ms:450})],'a')
  const summary=summarizeModelRequestPool(rows,600)
