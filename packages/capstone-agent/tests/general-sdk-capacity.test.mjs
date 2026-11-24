@@ -133,6 +133,21 @@ test('thin runtime exposes only resident and explicitly loaded admitted contract
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search,a]);
 });
 
+test('thin tool replacement frees native slots and rejects unadmitted residents',async()=>{
+  const {createThinToolView}=await import('../src/capstone_agent/resources/general-sdk.mjs');
+  const tools=['write','read','denied'].map(name=>({name}));
+  const view=createThinToolView(['write','read'],['denied'],undefined,1);
+  assert.deepEqual(view.project({tools}).tools,[]);
+  const loader=view.loader();
+  await loader.execute('first',{names:['write']});
+  assert.equal((await loader.execute('oversize',{names:['read']})).isError,true);
+  assert.equal((await loader.execute('unknown',{names:['denied'],replace:true})).isError,true);
+  assert.deepEqual(view.project({tools}).tools,[tools[0]]);
+  const replaced=await loader.execute('replace',{names:['read'],replace:true});
+  assert.equal(replaced.isError,undefined);
+  assert.deepEqual(view.project({tools}).tools,[tools[1]]);
+});
+
 test('append-only guides deduplicate only while their exact observation remains in active history',async()=>{
   const {createGuideReader}=await import('../src/capstone_agent/resources/model-context-input.mjs');
   const {createThinToolView}=await import('../src/capstone_agent/resources/general-sdk.mjs');

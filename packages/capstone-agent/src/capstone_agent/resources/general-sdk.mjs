@@ -410,14 +410,14 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
       contracts.clear();
       for(const tool of context.tools??[])if(grants.has(tool.name))contracts.set(tool.name,tool);
       return {...context,tools:[
-        ...(context.tools??[]).filter(tool=>stable.has(tool.name)),
+        ...(context.tools??[]).filter(tool=>stable.has(tool.name)&&contracts.has(tool.name)),
         ...[...loaded].flatMap(name=>contracts.has(name)?[contracts.get(name)]:[]),
       ]};
     },
     loader(external){
       return {
         name:'agent_tool_load',label:'Load admitted tools',
-        description:'Add exact tool names to the active menu for the next request. Use an active tool directly. Set replace:true to replace the published-tool selection if capacity is reached.',
+        description:'Add exact tool names to the active menu for the next request. Use an active tool directly. Set replace:true to replace the on-demand selection while retaining resident tools.',
         parameters:{type:'object',properties:{names:{type:'array',uniqueItems:true,maxItems:maxActiveTools,items:{type:'string'}},
           replace:{type:'boolean'}},
           required:['names'],additionalProperties:false},
@@ -428,7 +428,7 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
               if(!stable.has(name))local.push(name);
             }else additional.push(name);
           }
-          const next=new Set([...loaded,...local]);
+          const next=new Set(args.replace===true?local:[...loaded,...local]);
           if(next.size>maxActiveTools)return {isError:true,content:[text('Select fewer native tools within the task limit.')]};
           if(additional.length&&!external)return {isError:true,content:[text('Use only exact names offered by this task.')]};
           const changesPublished=additional.length>0||args.replace===true;
@@ -436,7 +436,8 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
           if(result?.isError)return result;
           signal?.throwIfAborted();
           const newlyLoaded=local.filter(name=>!loaded.has(name));
-          for(const name of local)loaded.add(name);
+          loaded.clear();
+          for(const name of next)loaded.add(name);
           return {...result,content:[...(result?.content??[]),
             ...(local.length||!result?[text({loaded:local,available:newlyLoaded.length?'next request':'already active'})]:[])]};
         },
