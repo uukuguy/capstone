@@ -93,3 +93,24 @@ def test_result_table_findings_are_scoped_and_leave_independent_tables_usable():
     assert pipeline.run(valid, observe=seen.append).value is valid
     assert [item.code for item in seen] == ['table_row_count_exceeds_declared_coverage', 'table_unit_label_blank']
     assert all(item.status == 'finding' and item.target == 'result.table' for item in seen)
+
+
+def test_candidate_review_binds_digests_and_preserves_archived_input():
+    from capstone_agent.answer_correction import presentation_rule_bundle
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.harness_validation import archive_rule_input, load_rule_bundle, review_rule_candidate
+
+    store = MemoryObjectStore()
+    original = presentation_rule_bundle()
+    candidate = load_rule_bundle(original.source.replace(b'"version": 1,', b'"version": 2,', 1), {
+        'markdown_table_row_breaks': lambda value: Decision.corrected(value + ' revised', 'candidate_revision'),
+    })
+    ref = archive_rule_input(store, 'thread', 'attempt', original, 'answer', answer_limit=50)
+    before = dict(store.contents)
+    receipt = review_rule_candidate(store, 'thread', 'attempt', ref, original, candidate)
+    assert receipt['archive_sha256'] == ref
+    assert receipt['original_bundle_sha256'] == original.digest
+    assert receipt['candidate_bundle_sha256'] == candidate.digest
+    assert receipt['original']['value'] == 'answer'
+    assert receipt['candidate']['value'] == 'answer revised'
+    assert store.contents == before

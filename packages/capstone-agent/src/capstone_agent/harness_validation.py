@@ -237,3 +237,23 @@ def replay_rule_input(objects, thread_id: str, attempt_id: str, digest: str,
         limit = archived['answer_limit']
         accept_correction = lambda value: isinstance(value, str) and bool(value.strip()) and len(value.encode()) <= limit
     return pipeline.run(archived['input'], observe=observe, accept_correction=accept_correction)
+
+
+def review_rule_candidate(objects, thread_id: str, attempt_id: str, digest: str,
+                          bundle: RuleBundle[T], candidate: RuleBundle[T]) -> dict:
+    """Compare trusted rule bundles against one immutable archived input."""
+    original = replay_rule_input(objects, thread_id, attempt_id, digest, bundle)
+    proposed = replay_rule_input(objects, thread_id, attempt_id, digest, bundle, candidate=candidate)
+    return {
+        'schema': 'capstone-validation-review/1',
+        'thread_id': thread_id,
+        'attempt_id': attempt_id,
+        'archive_sha256': digest,
+        'target': bundle.target,
+        'original_bundle_sha256': bundle.digest,
+        'candidate_bundle_sha256': candidate.digest,
+        'original_processors': _processor_identity(bundle),
+        'candidate_processors': _processor_identity(candidate),
+        'original': {'status': original.status, 'value': original.value},
+        'candidate': {'status': proposed.status, 'value': proposed.value},
+    }
