@@ -93,6 +93,7 @@ jobs:
         run: |
           uv run --project packages/capability-agent-kernel pytest -q packages/capability-agent-kernel/tests/application/test_answer_format.py
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_native_environment.py packages/capstone-agent/tests/test_answer_presentation.py
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_executor.py -k 'ambiguous_answer_presentation or failed_continuation_terminal'
           uv run --project packages/capstone-agent pytest -q tools/tests/test_native_report.py -k html
       - name: Verify admitted query delivery
         if: steps.scope.outputs.gate == 'admitted-query-delivery'
