@@ -106,6 +106,7 @@ class RelayLease:
     deadline: float
     downstream: socket.socket
     channel: str = 'provider'
+    local_slot: int | None = None
     cancelled: Event = field(default_factory=Event)
     released: Event = field(default_factory=Event)
     loop: asyncio.AbstractEventLoop | None = None
@@ -156,7 +157,7 @@ class ProviderRelay:
             self.provider_failures.pop(task_id, None)
             self.available.notify_all()
 
-    def acquire(self, task_id, grant, downstream, *, channel='provider', wait=True):
+    def acquire(self, task_id, grant, downstream, *, channel='provider', wait=True, local_slot=None):
         if channel not in {'provider', 'gateway'}:
             raise ValueError('Unknown relay channel')
         with self.available:
@@ -171,6 +172,8 @@ class ProviderRelay:
                 blocked = next(((dimension, actual, bound) for dimension, actual, bound in (
                     (f'{channel}_relay_requests', len(active) + 1, maximum),
                     (f'{channel}_relay_task_requests', sum(item.task_id == task_id for item in active) + 1, per_task),
+                    (f'{channel}_relay_requests',
+                     sum(local_slot is not None and item.local_slot == local_slot for item in active) + 1, 1),
                 ) if actual > bound), None)
                 if blocked is None:
                     break
@@ -179,7 +182,7 @@ class ProviderRelay:
                 # This is resource scheduling, including in debug mode. The
                 # task grant/deadline stays authoritative while it waits.
                 self.available.wait(timeout=min(.1, max(.001, deadline-time.monotonic())))
-            lease = RelayLease(task_id, grant, deadline, downstream, channel=channel)
+            lease = RelayLease(task_id, grant, deadline, downstream, channel=channel, local_slot=local_slot)
             lease.timing = self.timings.get(task_id)
             self.active.add(lease)
         def watch():

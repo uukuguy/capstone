@@ -161,7 +161,7 @@ jobs:
         if: steps.scope.outputs.gate == 'native-chat-request'
         timeout-minutes: 5
         run: |
-          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_relay.py packages/capstone-agent/tests/test_workbench_llm_profiles.py
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_relay.py packages/capstone-agent/tests/test_workbench_llm_profiles.py packages/capstone-agent/tests/test_relay_backpressure.py
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_server.py -k "selected_work_publication and not False-None-1.20.0"
       - name: Set up execution lifecycle owner dependencies
         if: steps.scope.outputs.gate == 'execution-lifecycle'

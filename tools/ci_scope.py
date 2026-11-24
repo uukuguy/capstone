@@ -868,8 +868,13 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         for name in ('capacity_contract', 'general_pi_relay', 'general_pi_server', 'workbench_llm_profiles')}
     native_chat_paths = native_chat_sources | {
         f'packages/capstone-agent/tests/test_{name}.py'
-        for name in ('general_pi_relay', 'general_pi_server', 'workbench_llm_profiles')}
-    if native_chat_sources.issubset(paths) and all(
+        for name in ('general_pi_relay', 'general_pi_server', 'workbench_llm_profiles', 'relay_backpressure')}
+    endpoint_anchors = {
+        'packages/capstone-agent/src/capstone_agent/general_pi_relay.py',
+        'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+        'packages/capstone-agent/tests/test_relay_backpressure.py',
+    }
+    if (native_chat_sources.issubset(paths) or endpoint_anchors.issubset(paths)) and all(
             path in native_chat_paths or path in {'tools/ci_scope.py', '.github/workflows/verify.yml'}
             or _control_path(path) for path in paths):
         return 'native-chat-request'

@@ -38,6 +38,17 @@ def test_local_llama_profile_preserves_existing_local_selection():
         registry.freeze(profile_id)
 
 
+@pytest.mark.parametrize('host', ['127.0.0.1', 'host.docker.internal'])
+def test_local_llama_profiles_can_use_independent_endpoints(host):
+    env = {'CAPSTONE_LOCAL_QWEN_BASE_URL': f'http://{host}:19090/v1',
+           'CAPSTONE_LOCAL_QWEN_27B_BASE_URL': f'http://{host}:19091/v1'}
+    registry = ProfileRegistry(environment=env)
+    original = registry.resolve(registry.freeze('local-qwen-35b'))
+    secondary = registry.resolve(registry.freeze('local-qwen-27b'))
+    assert original['base_url'] == env['CAPSTONE_LOCAL_QWEN_BASE_URL']
+    assert secondary['base_url'] == env['CAPSTONE_LOCAL_QWEN_27B_BASE_URL']
+
+
 def test_model_context_is_selected_per_profile_and_frozen_by_revision():
     registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'private'})
     selected = registry.freeze('commercial-deepseek-flash')

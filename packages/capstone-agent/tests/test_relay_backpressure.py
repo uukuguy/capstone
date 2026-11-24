@@ -11,6 +11,23 @@ from capstone_agent.application_capacity import current_capacity, initialize_cap
 from capstone_agent.general_pi_relay import ProviderRelay
 
 
+def test_local_model_slot_is_shared_across_tasks_and_independent_by_endpoint():
+    from capstone_agent.application_capacity import CapacityExceeded
+    relay = ProviderRelay(max_requests=4, per_task=2)
+    deadline = time.monotonic() + 5
+    for task in ('a', 'b'):
+        relay.register(task, task, deadline)
+    first = relay.acquire('a', 'a', None, local_slot=19090)
+    try:
+        with pytest.raises(CapacityExceeded):
+            relay.acquire('b', 'b', None, local_slot=19090, wait=False)
+        other = relay.acquire('b', 'b', None, local_slot=19091, wait=False)
+        relay.release(other)
+    finally:
+        relay.release(first)
+    relay.release(relay.acquire('b', 'b', None, local_slot=19090, wait=False))
+
+
 def test_gateway_listener_queues_a_declared_connection_burst_before_accepting(tmp_path):
     from contextlib import ExitStack
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
