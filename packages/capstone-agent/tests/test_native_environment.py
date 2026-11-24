@@ -42,6 +42,8 @@ def test_report_usage_requires_installed_and_functionally_checked_renderer(tmp_p
         assert 'do not prove factual accuracy' in text
         assert 'Native scripts remain available' in text
         assert 'CSV values are displayed unchanged' in text
+        assert 'Deliver the standalone HTML file as the reader-facing report' in text
+        assert 'when the user has not selected another format' in text
 
 
 def test_verified_chinese_plot_capability_supplies_offline_font_without_runtime_inventory(tmp_path):

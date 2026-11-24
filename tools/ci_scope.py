@@ -791,6 +791,16 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if 'packages/capstone-agent/src/capstone_agent/query_delivery.py' in paths and all(
             path in query_delivery_paths or _control_path(path) for path in paths):
         return 'admitted-query-delivery'
+    formal_answer = 'packages/capability-agent-kernel/src/capability_agent/application/answer_format.py'
+    report_guidance = 'packages/capstone-agent/src/capstone_agent/native_environment.py'
+    formal_report_paths = {
+        formal_answer, report_guidance, '.github/workflows/verify.yml', 'tools/ci_scope.py',
+        'packages/capability-agent-kernel/tests/application/test_answer_format.py',
+        'packages/capstone-agent/tests/test_native_environment.py',
+    }
+    if ({formal_answer, report_guidance}.intersection(paths)
+            and all(path in formal_report_paths or _control_path(path) for path in paths)):
+        return 'formal-report-delivery'
     advisory_paths = {
         '.github/workflows/verify.yml',
         'packages/capstone-agent/src/capstone_agent/answer_correction.py',

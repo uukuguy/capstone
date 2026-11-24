@@ -43,7 +43,10 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
     report_context = ''
     if 'capstone-report' in value['commands'] and 'standalone_reports' in checks:
         report_context = (
-            '\nFor a standalone HTML report, use capstone-report --spec report.json --output report.html. '
+            '\nDeliver the standalone HTML file as the reader-facing report when the user has not selected another format '
+            'and the task calls for an analysis report artifact. Use capstone-report --spec report.json --output report.html. '
+            'Inspect the rendered HTML and register it as the primary report where product roles are supported. '
+            'Retain Markdown drafts and source material as supporting files. When HTML is requested, a Markdown draft alone leaves delivery incomplete. '
             'Paths are relative to the task working directory. Minimal spec: '
             '{"schema":"capstone-report/1","title":"Report","sections":'
             '[{"id":"results","title":"Results","blocks":'

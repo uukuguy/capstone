@@ -1,6 +1,23 @@
 from capability_agent.application.answer_format import AnswerBundle, parse_answer_bundle
 
 
+def test_formal_envelope_with_literal_answer_quotes_is_unwrapped() -> None:
+    raw = '{"answer":"两列分别为"月份"与"用电量"。\\n## 结论","summary":"已核对","task_state_report":{}}'
+    result = parse_answer_bundle(raw)
+    assert result.answer == '两列分别为"月份"与"用电量"。\n## 结论'
+    assert result.summary == '已核对'
+
+
+def test_bad_metadata_does_not_grant_loose_envelope_recovery() -> None:
+    raw = '{"answer":"正文中有"引号"","summary":broken,"unexpected":42}'
+    assert parse_answer_bundle(raw).answer == raw
+
+
+def test_literal_quotes_in_formal_answer_and_summary_keep_display_text() -> None:
+    raw = '{"answer":"结果为"通过"。","summary":"标注"数据来源"。","task_state_report":{"checks":["结论"通过"]}}'
+    assert parse_answer_bundle(raw) == AnswerBundle('结果为"通过"。', '标注"数据来源"。')
+
+
 def test_parse_answer_bundle_accepts_json_and_preserves_markdown_answer() -> None:
     result = parse_answer_bundle(
         '{"answer":"## 完整回答\\n\\n线路 11 已完成校核。","summary":"已完成线路 11 校核。"}'
