@@ -15,8 +15,9 @@ import logging
 from time import monotonic
 from typing import Protocol, cast
 
-from .answer_correction import TABLE_ROW_BREAK_RULE
-from .harness_validation import Decision, Rule, RuleObservation, RulePipeline, Stage
+from .answer_correction import presentation_rule_bundle
+from .harness_validation import RuleBundle, RuleObservation
+from .result_table_checks import result_table_rule_bundle
 from .attempt_lease import AttemptLeaseRenewal
 from .reference_limits import ReferenceCapacityExceeded
 from .application_capacity import CapacityExceeded, limits, require_capacity, current_capacity
@@ -693,7 +694,7 @@ class HarnessAttemptRunner:
         self, service: ThreadExecutionService, runtime: HarnessRuntime,
         *, lease_seconds: int = 30, turn_router: TurnRouter | None = None,
         lease: AttemptLeaseRenewal | None = None,
-        presentation_rules: tuple[Rule[str], ...] = (),
+        presentation_bundle: RuleBundle[str] | None = None,
     ) -> None:
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -701,9 +702,8 @@ class HarnessAttemptRunner:
         self._runtime = runtime
         self._lease_seconds = lease_seconds
         self._lease = lease
-        self._presentation_rules = RulePipeline(
-            Stage.ANSWER_PRESENTATION, (TABLE_ROW_BREAK_RULE, *presentation_rules)
-        )
+        self._presentation_bundle = presentation_bundle or presentation_rule_bundle()
+        self._result_table_bundle = result_table_rule_bundle()
         self._turn_router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
         self._tools_observed = False
         self._result_refs: list[str] = []
@@ -821,39 +821,25 @@ class HarnessAttemptRunner:
                 raise TypeError("runtime answer is invalid")
             require_capacity('answer_bytes', len(answer.encode('utf-8')), phase='runtime_answer')
 
-            def observe_rule(observation: RuleObservation) -> None:
+            def record_rule_diagnostic(payload: dict[str, object]) -> None:
                 lease.check()
-                self._service.append_runtime_event(
-                    claim, event_type="validation_observation", visibility="diagnostic",
-                    payload=observation.to_payload(),
-                )
-
-            def check_admission(
-                value: tuple[str, AdmittedAttemptAnswer | None],
-            ) -> Decision[tuple[str, AdmittedAttemptAnswer | None]]:
-                raw_answer, _ = value
                 try:
-                    return Decision.accepted((raw_answer, self._admit_answer(claim, plan, raw_answer)))
-                except _AttemptAdmissionError as error:
-                    return Decision.rejected(value, error.code)
+                    self._service.append_runtime_event(
+                        claim, event_type="validation_observation", visibility="diagnostic",
+                        payload=payload,
+                    )
+                except Exception:
+                    lease.check()
+                    logging.getLogger(__name__).warning("Advisory validation diagnostic could not be saved")
 
-            admission_rules = RulePipeline(Stage.ANSWER_ADMISSION, (
-                Rule("answer.application_admission", 1, check_admission),
-            ))
+            def observe_rule(observation: RuleObservation, **subject: object) -> None:
+                record_rule_diagnostic({**observation.to_payload(), **subject})
+
             candidate = None
             for correction in range(2):
                 try:
                     self._begin_finalization(claim)
-                    admission_check = admission_rules.run((answer, None), observe=observe_rule)
-                    if admission_check.status == "rejected":
-                        raise _AttemptAdmissionError(admission_check.code or "answer_admission_invalid")
-                    _, candidate = admission_check.value
-                    admitted_answer = answer if candidate is None else candidate.answer
-                    presentation = self._presentation_rules.run(admitted_answer, observe=observe_rule)
-                    if presentation.status == "rejected":
-                        raise _AttemptAdmissionError(presentation.code or "answer_presentation_invalid")
-                    require_capacity('answer_bytes', len(presentation.value.encode('utf-8')),
-                                     phase='answer_presentation')
+                    candidate = self._admit_answer(claim, plan, answer)
                     break
                 except _AttemptAdmissionError as error:
                     self._record_validation_failure(claim, answer, lease.check, error.code)
@@ -882,9 +868,27 @@ class HarnessAttemptRunner:
                     if not isinstance(answer, str) or not answer.strip():
                         raise _AttemptAdmissionError("answer_admission_invalid")
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), phase='recovery_answer')
+            admitted_answer = answer if candidate is None else candidate.answer
+            bundle = self._presentation_bundle
+            record_rule_diagnostic({"stage": "answer_presentation", "status": "bundle_selected",
+                                    "rule_bundle_version": bundle.version, "rule_bundle_sha256": bundle.digest})
+            presentation = bundle.pipeline().run(
+                admitted_answer, observe=observe_rule,
+                accept_correction=lambda value: isinstance(value, str) and bool(value.strip())
+                and len(value.encode('utf-8')) <= limits.answer_bytes,
+            )
             result_refs = () if candidate is None else candidate.result_refs
             evidence_refs = () if candidate is None else candidate.evidence_refs
             result_projections = () if candidate is None else candidate.result_projections
+            table_rules = self._result_table_bundle.pipeline()
+            for projection in result_projections:
+                tables = projection.get("tables")
+                if isinstance(tables, (list, tuple)):
+                    for table in tables:
+                        if isinstance(table, Mapping):
+                            table_rules.run(table, observe=lambda item: observe_rule(
+                                item, result_id=projection.get("result_id"), table_id=table.get("table_id"),
+                            ))
             admission: dict[str, object] | None = None if candidate is None else {
                 "mode": candidate.mode, "assurance": candidate.assurance,
             }

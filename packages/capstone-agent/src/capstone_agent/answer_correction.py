@@ -2,8 +2,9 @@
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
-from .harness_validation import Decision, Rule
+from .harness_validation import Decision, RuleBundle, load_rule_bundle, published_rule_bundle_bytes
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _PIPE = re.compile(r"(?<!\\)\|")
@@ -66,4 +67,6 @@ def _table_row_break_rule(answer: str) -> Decision[str]:
     )
 
 
-TABLE_ROW_BREAK_RULE = Rule("answer.markdown.table_row_breaks", 1, _table_row_break_rule)
+@lru_cache(maxsize=1)
+def presentation_rule_bundle() -> RuleBundle[str]:
+    return load_rule_bundle(published_rule_bundle_bytes(), {"markdown_table_row_breaks": _table_row_break_rule})

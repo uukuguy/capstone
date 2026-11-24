@@ -1,0 +1,31 @@
+{
+  "schema": "capstone-harness-rules/1",
+  "version": 1,
+  "rules": [
+    {
+      "id": "answer.markdown.table_row_breaks",
+      "version": 1,
+      "stage": "answer_presentation",
+      "target": "answer.text",
+      "handler": "markdown_table_row_breaks",
+      "action": "correct",
+      "enabled": true
+    },
+    {
+      "id": "result.table.row_coverage",
+      "version": 1,
+      "stage": "result_presentation",
+      "target": "result.table",
+      "handler": "table_row_coverage",
+      "action": "report"
+    },
+    {
+      "id": "result.table.unit_labels",
+      "version": 1,
+      "stage": "result_presentation",
+      "target": "result.table",
+      "handler": "table_unit_labels",
+      "action": "report"
+    }
+  ]
+}
