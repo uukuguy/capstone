@@ -36,6 +36,8 @@ def parse_answer_bundle(value: str, *, runtime_limits=None) -> AnswerBundle:
     if fenced is not None:
         candidate = fenced.group(1).strip()
     decoded = _decode_json_object(candidate)
+    if decoded is None or 'answer' not in decoded:
+        decoded = _recover_quoted_answer(candidate) or decoded
     if decoded is None:
         return AnswerBundle(raw, None, ("answer_bundle_unavailable",))
     raw_answer = decoded.get("answer")
@@ -69,6 +71,42 @@ def _decode_json_object(value: str) -> dict[str, object] | None:
                 decoded = candidate
                 break
     return decoded if isinstance(decoded, dict) else None
+
+
+def _recover_quoted_answer(value: str) -> dict[str, object] | None:
+    """Recover literal quotes in an exact formal-answer envelope."""
+    start = re.match(r'^\{\s*"answer"\s*:\s*"', value)
+    if start is None:
+        return None
+    recovered = None
+    for boundary in re.finditer(r'"\s*,\s*(?="summary"\s*:)', value[start.end():]):
+        offset = start.end() + boundary.start()
+        tail = value[start.end() + boundary.end():]
+        try:
+            try:
+                metadata = json.loads('{' + tail)
+            except ValueError:
+                summary = re.fullmatch(r'"summary"\s*:\s*"(.*?)"\s*'
+                                       r'(?:,\s*"task_state_report"\s*:\s*(\{.*\})\s*)?\}',
+                                       tail, flags=re.DOTALL)
+                if summary is None:
+                    continue
+                metadata = {'summary': _decode_literal_quotes(summary[1])}
+            if (not isinstance(metadata, dict) or set(metadata) - {'summary', 'task_state_report'}
+                    or not isinstance(metadata.get('summary'), str)):
+                continue
+            answer = _decode_literal_quotes(value[start.end():offset])
+        except ValueError:
+            continue
+        if recovered is not None:
+            return None
+        recovered = {**metadata, 'answer': answer}
+    return recovered
+
+
+def _decode_literal_quotes(value: str) -> str:
+    quoted = re.sub(r'\\.|"', lambda m: '\\"' if m[0] == '"' else m[0], value, flags=re.DOTALL)
+    return json.loads('"' + quoted + '"', strict=False)
 
 
 _PLANNING_PREFIX = re.compile(
