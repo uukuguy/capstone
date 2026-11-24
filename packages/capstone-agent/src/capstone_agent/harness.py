@@ -15,6 +15,7 @@ import logging
 from time import monotonic
 from typing import Protocol, cast
 
+from .answer_correction import correct_answer_presentation
 from .attempt_lease import AttemptLeaseRenewal
 from .reference_limits import ReferenceCapacityExceeded
 from .application_capacity import CapacityExceeded, limits, require_capacity, current_capacity
@@ -871,6 +872,16 @@ class HarnessAttemptRunner:
             task_report = getattr(self._runtime, 'task_state_report', None)
             if task_report is not None and not recovery_attempted and task_report[0] == answer == admitted_answer:
                 terminal_payload['task_state_report'] = task_report[1]
+            presentation = correct_answer_presentation(admitted_answer)
+            if presentation.table_row_breaks:
+                admitted_answer = presentation.answer
+                terminal_payload["answer"] = admitted_answer
+                lease.check()
+                self._service.append_runtime_event(
+                    claim, event_type="validation_observation", visibility="diagnostic",
+                    payload={"stage": "answer_presentation", "status": "corrected",
+                             "code": "table_row_breaks_restored", "count": presentation.table_row_breaks},
+                )
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
