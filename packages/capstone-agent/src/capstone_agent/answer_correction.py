@@ -3,6 +3,8 @@
 import re
 from dataclasses import dataclass
 
+from .harness_validation import Decision, Rule
+
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _PIPE = re.compile(r"(?<!\\)\|")
 _BROKEN_BREAK = re.compile(r"(?<!\\)\|n\|")
@@ -53,3 +55,15 @@ def correct_answer_presentation(answer: str) -> AnswerCorrection:
             previous = line
         output.append(line)
     return AnswerCorrection("\n".join(output), corrections)
+
+
+def _table_row_break_rule(answer: str) -> Decision[str]:
+    correction = correct_answer_presentation(answer)
+    if not correction.table_row_breaks:
+        return Decision.accepted(answer)
+    return Decision.corrected(
+        correction.answer, "table_row_breaks_restored", count=correction.table_row_breaks
+    )
+
+
+TABLE_ROW_BREAK_RULE = Rule("answer.markdown.table_row_breaks", 1, _table_row_break_rule)

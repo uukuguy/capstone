@@ -15,7 +15,8 @@ import logging
 from time import monotonic
 from typing import Protocol, cast
 
-from .answer_correction import correct_answer_presentation
+from .answer_correction import TABLE_ROW_BREAK_RULE
+from .harness_validation import Decision, Rule, RuleObservation, RulePipeline, Stage
 from .attempt_lease import AttemptLeaseRenewal
 from .reference_limits import ReferenceCapacityExceeded
 from .application_capacity import CapacityExceeded, limits, require_capacity, current_capacity
@@ -692,6 +693,7 @@ class HarnessAttemptRunner:
         self, service: ThreadExecutionService, runtime: HarnessRuntime,
         *, lease_seconds: int = 30, turn_router: TurnRouter | None = None,
         lease: AttemptLeaseRenewal | None = None,
+        presentation_rules: tuple[Rule[str], ...] = (),
     ) -> None:
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -699,6 +701,9 @@ class HarnessAttemptRunner:
         self._runtime = runtime
         self._lease_seconds = lease_seconds
         self._lease = lease
+        self._presentation_rules = RulePipeline(
+            Stage.ANSWER_PRESENTATION, (TABLE_ROW_BREAK_RULE, *presentation_rules)
+        )
         self._turn_router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
         self._tools_observed = False
         self._result_refs: list[str] = []
@@ -815,11 +820,40 @@ class HarnessAttemptRunner:
             if not isinstance(answer, str) or not answer.strip():
                 raise TypeError("runtime answer is invalid")
             require_capacity('answer_bytes', len(answer.encode('utf-8')), phase='runtime_answer')
+
+            def observe_rule(observation: RuleObservation) -> None:
+                lease.check()
+                self._service.append_runtime_event(
+                    claim, event_type="validation_observation", visibility="diagnostic",
+                    payload=observation.to_payload(),
+                )
+
+            def check_admission(
+                value: tuple[str, AdmittedAttemptAnswer | None],
+            ) -> Decision[tuple[str, AdmittedAttemptAnswer | None]]:
+                raw_answer, _ = value
+                try:
+                    return Decision.accepted((raw_answer, self._admit_answer(claim, plan, raw_answer)))
+                except _AttemptAdmissionError as error:
+                    return Decision.rejected(value, error.code)
+
+            admission_rules = RulePipeline(Stage.ANSWER_ADMISSION, (
+                Rule("answer.application_admission", 1, check_admission),
+            ))
             candidate = None
             for correction in range(2):
                 try:
                     self._begin_finalization(claim)
-                    candidate = self._admit_answer(claim, plan, answer)
+                    admission_check = admission_rules.run((answer, None), observe=observe_rule)
+                    if admission_check.status == "rejected":
+                        raise _AttemptAdmissionError(admission_check.code or "answer_admission_invalid")
+                    _, candidate = admission_check.value
+                    admitted_answer = answer if candidate is None else candidate.answer
+                    presentation = self._presentation_rules.run(admitted_answer, observe=observe_rule)
+                    if presentation.status == "rejected":
+                        raise _AttemptAdmissionError(presentation.code or "answer_presentation_invalid")
+                    require_capacity('answer_bytes', len(presentation.value.encode('utf-8')),
+                                     phase='answer_presentation')
                     break
                 except _AttemptAdmissionError as error:
                     self._record_validation_failure(claim, answer, lease.check, error.code)
@@ -851,7 +885,6 @@ class HarnessAttemptRunner:
             result_refs = () if candidate is None else candidate.result_refs
             evidence_refs = () if candidate is None else candidate.evidence_refs
             result_projections = () if candidate is None else candidate.result_projections
-            admitted_answer = answer if candidate is None else candidate.answer
             admission: dict[str, object] | None = None if candidate is None else {
                 "mode": candidate.mode, "assurance": candidate.assurance,
             }
@@ -872,16 +905,8 @@ class HarnessAttemptRunner:
             task_report = getattr(self._runtime, 'task_state_report', None)
             if task_report is not None and not recovery_attempted and task_report[0] == answer == admitted_answer:
                 terminal_payload['task_state_report'] = task_report[1]
-            presentation = correct_answer_presentation(admitted_answer)
-            if presentation.table_row_breaks:
-                admitted_answer = presentation.answer
-                terminal_payload["answer"] = admitted_answer
-                lease.check()
-                self._service.append_runtime_event(
-                    claim, event_type="validation_observation", visibility="diagnostic",
-                    payload={"stage": "answer_presentation", "status": "corrected",
-                             "code": "table_row_breaks_restored", "count": presentation.table_row_breaks},
-                )
+            admitted_answer = presentation.value
+            terminal_payload["answer"] = admitted_answer
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():

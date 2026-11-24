@@ -1014,6 +1014,8 @@ def test_terminal_write_failure_records_stage_and_keeps_published_artifact(monke
 
 
 def test_harness_corrects_unambiguous_table_row_breaks_after_admission():
+    from capstone_agent.harness_validation import Decision, Rule
+
     service = _thread_service()
     service.submit_command({
         'schema': 'capstone-command/1', 'command_id': 'cmd_table_lint',
@@ -1030,8 +1032,17 @@ def test_harness_corrects_unambiguous_table_row_breaks_after_admission():
         def prompt(self, question, **kwargs):
             return malformed + code
 
-    result = HarnessAttemptRunner(service, TableRuntime()).run(claim)
+    observed = []
+
+    def check_rows(answer):
+        observed.append(answer)
+        return Decision.accepted(answer)
+
+    result = HarnessAttemptRunner(service, TableRuntime(), presentation_rules=(
+        Rule('test.table_delivery', 1, check_rows),
+    )).run(claim)
     assert result.status == 'completed'
     assert result.answer == expected + code
+    assert observed == [expected + code]
     records = service.read_events('thr_harness', 0).events
     assert records[-1].payload['answer'] == expected + code
