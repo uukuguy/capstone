@@ -7,6 +7,7 @@ calculate, sort or fill in values.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections.abc import Mapping
@@ -17,7 +18,9 @@ _TABLE_LINE = re.compile(r'^\s*\|.*\|\s*$')
 _NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
 
 
-def answer_with_query_deliveries(answer: object, deliveries: object) -> str:
+def answer_with_query_deliveries(answer: object, deliveries: object, *,
+                                 answer_format: str | None = None,
+                                 authority_receipts: tuple = ()) -> str:
     """Keep the prose and replace model tables with admitted query tables."""
     if not isinstance(answer, str):
         raise ValueError('query delivery answer is invalid')
@@ -26,12 +29,29 @@ def answer_with_query_deliveries(answer: object, deliveries: object) -> str:
         for item in deliveries:
             checked = checked_query_delivery(item)
             if checked is not None:
+                checked['evidence_refs'] = list(dict.fromkeys([
+                    *checked['evidence_refs'],
+                    *(ref for receipt in authority_receipts
+                      if tuple(receipt['result_refs']) == (checked['result_ref'],)
+                      for ref in receipt['evidence_refs']),
+                ]))
                 tables.append(_markdown(checked))
     if not tables:
         return answer
-    prose = '\n'.join(line for line in answer.splitlines() if not _TABLE_LINE.match(line)).strip()
+    bundle = None
+    if answer_format == 'formal-and-core/1':
+        try:
+            bundle = json.loads(answer)
+        except json.JSONDecodeError:
+            return answer
+    bundled = isinstance(bundle, dict) and isinstance(bundle.get('answer'), str)
+    draft = bundle['answer'] if bundled else answer
+    prose = '\n'.join(line for line in draft.splitlines() if not _TABLE_LINE.match(line)).strip()
     body = '\n\n'.join(tables)
-    return f'{prose}\n\n{body}' if prose else body
+    amended = f'{prose}\n\n{body}' if prose else body
+    if bundled:
+        return json.dumps({**bundle, 'answer': amended}, ensure_ascii=False)
+    return amended
 
 
 def checked_query_delivery(value: object) -> dict | None:

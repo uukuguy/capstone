@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from capstone_agent.query_delivery import answer_with_query_deliveries
@@ -30,3 +31,16 @@ def test_answer_uses_admitted_rows_in_order_and_drops_the_model_table():
 def test_general_pi_image_copies_query_delivery():
     image = (Path(__file__).resolve().parents[3] / 'deploy/general-pi.Dockerfile').read_text()
     assert 'packages/capstone-agent/src/capstone_agent/query_delivery.py' in image
+
+
+def test_formal_answer_bundle_keeps_admitted_table_inside_answer():
+    delivery = _delivery()
+    evidence = delivery['evidence_refs'].pop()
+    bundle = {'answer': '结果如下。\n| 模型表 |\n| --- |\n| 草稿 |',
+              'summary': '查询已完成。', 'task_state_report': {'status': 'complete'}}
+    amended = json.loads(answer_with_query_deliveries(
+        json.dumps(bundle), [delivery], answer_format='formal-and-core/1',
+        authority_receipts=[{'result_refs': [delivery['result_ref']], 'evidence_refs': [evidence]}]))
+    assert amended == {**bundle, 'answer': '结果如下。\n\n'
+                       '| index | vm_pu (p.u.) |\n| --- | --- |\n'
+                       '| 2 | 1.01 |\n| 3 | 1.0177 |\n| 4 | 1.0195 |\n\n证据：' + evidence}

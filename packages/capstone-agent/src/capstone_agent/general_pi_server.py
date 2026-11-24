@@ -1234,7 +1234,9 @@ class GeneralPiHost:
                 from .query_delivery import answer_with_query_deliveries
                 with self._lock:
                     deliveries = tuple(record.get('query_deliveries') or ())
-                answer = answer_with_query_deliveries(answer, deliveries)
+                    authority_receipts = tuple(record['authority_references'].values())
+                answer = answer_with_query_deliveries(answer, deliveries,
+                    answer_format=request.answer_format, authority_receipts=authority_receipts)
             if status == 'completed' and (record['authority_references'] or record.get('gateway_operations')):
                 from .structural_context import AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE
                 with self._lock:
