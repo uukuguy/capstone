@@ -253,6 +253,7 @@ def _run_claimed_attempt(
         return _preparation_failure(service, claim, error_code, error=error, rollback_error=rollback_error)
     return HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
+        validation_objects=getattr(service, '_material_objects', None),
     ).run(claim)
 
 

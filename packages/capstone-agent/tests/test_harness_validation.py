@@ -3,6 +3,33 @@ import pytest
 from capstone_agent.harness_validation import Decision, Rule, RulePipeline, Stage
 
 
+def test_archived_validation_replays_exact_input_and_compares_candidate():
+    from capstone_agent.answer_correction import presentation_rule_bundle
+    from capstone_agent.artifacts import MemoryObjectStore
+    from capstone_agent.harness_validation import archive_rule_input, load_rule_bundle, replay_rule_input
+
+    objects = MemoryObjectStore()
+    bundle = presentation_rule_bundle()
+    original = 'Original answer'
+    ref = archive_rule_input(objects, 'thread', 'attempt', bundle, original, answer_limit=30)
+    replay = replay_rule_input(objects, 'thread', 'attempt', ref, bundle)
+    assert replay.value == original
+    candidate = load_rule_bundle(bundle.source.replace(b'"version": 1,', b'"version": 2,', 1), {
+        'markdown_table_row_breaks': lambda value: Decision.corrected(value + ' revised', 'candidate_revision'),
+    })
+    before = dict(objects.contents)
+    assert replay_rule_input(objects, 'thread', 'attempt', ref, bundle, candidate=candidate).value == original + ' revised'
+    assert objects.contents == before
+    with pytest.raises(ValueError, match='bundle mismatch'):
+        replay_rule_input(objects, 'thread', 'attempt', ref, candidate)
+    with pytest.raises(KeyError):
+        replay_rule_input(objects, 'thread', 'other-attempt', ref, bundle)
+    key = next(iter(objects.contents))
+    objects.contents[key] += b' '
+    with pytest.raises(ValueError, match='digest'):
+        replay_rule_input(objects, 'thread', 'attempt', ref, bundle)
+
+
 def test_ordered_rules_continue_after_a_finding():
     seen = []
     pipeline = RulePipeline(Stage.ANSWER_PRESENTATION, (

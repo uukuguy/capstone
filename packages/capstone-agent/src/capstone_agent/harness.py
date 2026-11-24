@@ -16,7 +16,7 @@ from time import monotonic
 from typing import Protocol, cast
 
 from .answer_correction import presentation_rule_bundle
-from .harness_validation import RuleBundle, RuleObservation
+from .harness_validation import RuleBundle, RuleObservation, archive_rule_input
 from .result_table_checks import result_table_rule_bundle
 from .attempt_lease import AttemptLeaseRenewal
 from .reference_limits import ReferenceCapacityExceeded
@@ -695,6 +695,7 @@ class HarnessAttemptRunner:
         *, lease_seconds: int = 30, turn_router: TurnRouter | None = None,
         lease: AttemptLeaseRenewal | None = None,
         presentation_bundle: RuleBundle[str] | None = None,
+        validation_objects=None,
     ) -> None:
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -704,6 +705,7 @@ class HarnessAttemptRunner:
         self._lease = lease
         self._presentation_bundle = presentation_bundle or presentation_rule_bundle()
         self._result_table_bundle = result_table_rule_bundle()
+        self._validation_objects = validation_objects
         self._turn_router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
         self._tools_observed = False
         self._result_refs: list[str] = []
@@ -835,6 +837,22 @@ class HarnessAttemptRunner:
             def observe_rule(observation: RuleObservation, **subject: object) -> None:
                 record_rule_diagnostic({**observation.to_payload(), **subject})
 
+            def retain_rule_input(bundle, value, **subject):
+                if self._validation_objects is None or bundle.source is None:
+                    return
+                lease.check()
+                try:
+                    ref = archive_rule_input(self._validation_objects, claim.thread_id,
+                                             claim.attempt.attempt_id, bundle, value,
+                                             answer_limit=limits.answer_bytes if bundle.target == "answer.text" else None)
+                except Exception:
+                    record_rule_diagnostic({"stage": bundle.pipeline().stage.value,
+                                            "target": bundle.target, "status": "replay_unavailable", **subject})
+                else:
+                    record_rule_diagnostic({"stage": bundle.pipeline().stage.value,
+                                            "target": bundle.target, "status": "replay_saved",
+                                            "replay_ref": ref, "rule_bundle_sha256": bundle.digest, **subject})
+
             candidate = None
             for correction in range(2):
                 try:
@@ -870,6 +888,7 @@ class HarnessAttemptRunner:
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), phase='recovery_answer')
             admitted_answer = answer if candidate is None else candidate.answer
             bundle = self._presentation_bundle
+            retain_rule_input(bundle, admitted_answer)
             record_rule_diagnostic({"stage": "answer_presentation", "status": "bundle_selected",
                                     "rule_bundle_version": bundle.version, "rule_bundle_sha256": bundle.digest})
             presentation = bundle.pipeline().run(
@@ -886,6 +905,8 @@ class HarnessAttemptRunner:
                 if isinstance(tables, (list, tuple)):
                     for table in tables:
                         if isinstance(table, Mapping):
+                            retain_rule_input(self._result_table_bundle, dict(table),
+                                              result_id=projection.get("result_id"), table_id=table.get("table_id"))
                             table_rules.run(table, observe=lambda item: observe_rule(
                                 item, result_id=projection.get("result_id"), table_id=table.get("table_id"),
                             ))
