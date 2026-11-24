@@ -47,7 +47,8 @@ class ProfileRegistry:
         if p['provider'] == 'deepseek':
             url = 'https://api.deepseek.com/v1'
         if p.get('request_policy') == 'llama-server' and url not in {
-                'http://127.0.0.1:19090/v1', 'http://host.docker.internal:19090/v1'}:
+                'http://127.0.0.1:19090/v1', 'http://host.docker.internal:19090/v1',
+                'http://127.0.0.1:19091/v1', 'http://host.docker.internal:19091/v1'}:
             url = ''
         key = self.environment.get(p.get('credential_env', ''), '')
         available = bool(model and url and (not p.get('credential_env') or key))
