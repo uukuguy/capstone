@@ -8395,3 +8395,7 @@ check passed. No CI, integration or remote deployment performed.
 - 01:23 Merged opt-in thin context and the DeepSeek Flash formal-answer regression after macOS CI 45447607844. The isolated candidate completed case14 with formal evidence and produced a hash-checked HTML report. `5174` and `5274` kept their sources and data. [774a49f5]
 
 - 03:05 Rebuilt local-dev API, workers and Pi from clean dev 0f3726ca. Restarted the App on 5174 from that worktree. Product revision 9a0826a0, API and worker image 6c27dc5d5e55. Preserved storage volume identities and all ten pin IDs. [0f3726ca]
+
+- 04:10 Rebuilt 5174 from answer presentation recovery candidate 6535481a after the active task reached its terminal state. The installed Pi passed a formatting failure replay. [PR270]
+- 04:16 Verified both real XLSX sheets and the download in the 5174 right pane. App-only source bd07d4a0.
+- 04:25 Merged PR271 after scoped macOS CI 45478832599. [de229bd4]

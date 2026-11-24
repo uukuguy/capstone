@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-25 local-dev 已验证右栏 XLSX 预览和正式答复格式降级。见[版本台账](VERSION-CONTROL.md#环境台账)。
+
 2026-11-25 本机 5174 已从干净 dev 规范重建。运行来源与数据核对见[环境台账](VERSION-CONTROL.md#环境台账)。
 
 2026-11-25 DeepSeek Flash 薄上下文与 Harness 跨版本规则审查已合入 dev。见[验收计划](../superpowers/plans/2026-11-25-deepseek-flash-thin-context.md)和[版本台账](VERSION-CONTROL.md#pr-交付关联)。
