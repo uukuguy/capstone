@@ -1230,6 +1230,11 @@ class GeneralPiHost:
                 status, answer = 'failed', ''
                 public_failure = {'code':'native_product_delivery_incomplete','phase':'persistence'}
             saved_artifacts = artifacts
+            if status == 'completed':
+                from .query_delivery import answer_with_query_deliveries
+                with self._lock:
+                    deliveries = tuple(record.get('query_deliveries') or ())
+                answer = answer_with_query_deliveries(answer, deliveries)
             if status == 'completed' and (record['authority_references'] or record.get('gateway_operations')):
                 from .structural_context import AUTHORITY_REFERENCE_SOURCE, GATEWAY_OPERATION_SOURCE
                 with self._lock:
@@ -2696,6 +2701,15 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 text = json.dumps(payload, ensure_ascii=False)
                 if len(text.encode()) > 200000:
                     text = text.encode()[:200000].decode('utf-8', errors='ignore')
+                view = result.get('query_delivery')
+                if (isinstance(view, dict) and view.get('schema') == 'capstone-query-delivery/1'
+                        and result.get('ok') is True):
+                    with host._lock:
+                        record = host._tasks.get(task_id)
+                        if record is not None and record.get('status') == 'running':
+                            saved = record.setdefault('query_deliveries', [])
+                            if len(saved) < 8:
+                                saved.append(json.loads(json.dumps(view)))
                 return self.send_json(200, {
                     'result_json': text, 'is_error': result.get('ok') is not True,
                     'execution_receipt': result.get('execution_receipt'),

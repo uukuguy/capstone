@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from contextlib import ExitStack
@@ -20,10 +21,22 @@ from pandapower_domain.provisioning import PandapowerRuntimeProvisioner
 
 
 _TASK_ID = re.compile(r'^[A-Za-z0-9_-]{1,80}$')
+_REF = re.compile(r'^(?:result|evidence|context|revision):sha256:[0-9a-f]{64}$')
+_FIELD = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
+_DATASET = re.compile(r'^result\.res_[a-z0-9_]+$')
+_QUERY_DELIVERY = 'capstone-query-delivery/1'
 
 
 def _canonical(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+
+
+def _delivery_cell(value) -> bool:
+    if value is None or isinstance(value, (str, bool)):
+        return not isinstance(value, str) or ('\n' not in value and '\r' not in value)
+    if isinstance(value, int):
+        return True
+    return isinstance(value, float) and math.isfinite(value)
 
 
 def _argument_references(value):
@@ -92,6 +105,61 @@ class PandapowerToolService:
             'tools': tools,
             'tool_hashes': hashes,
         }
+
+    def query_delivery(self, result: dict, arguments: dict, authority, evidence_refs: list) -> dict | None:
+        """Project one admitted query as rows, stored units and evidence.
+
+        A missing unit catalog does not invent units or reject the rows.
+        """
+        select = arguments.get('select')
+        rows = result.get('rows')
+        result_ref = result.get('result_ref')
+        dataset = result.get('dataset')
+        if (not isinstance(select, list) or not 1 <= len(select) <= 32
+                or any(not isinstance(name, str) or not _FIELD.fullmatch(name) for name in select)
+                or len(set(select)) != len(select)
+                or not isinstance(rows, list) or len(rows) > 100
+                or not isinstance(result_ref, str) or not _REF.fullmatch(result_ref)
+                or not isinstance(dataset, str) or not _DATASET.fullmatch(dataset)
+                or not isinstance(evidence_refs, list) or len(evidence_refs) > 16
+                or any(not isinstance(item, str) or not _REF.fullmatch(item) for item in evidence_refs)):
+            return None
+        if any(not isinstance(row, dict) or any(key not in select for key in row) for row in rows):
+            return None
+        counts = {}
+        for key in ('row_count', 'returned_row_count', 'offset'):
+            value = result.get(key)
+            if type(value) is not int or value < 0:
+                return None
+            counts[key] = value
+        next_offset = result.get('next_offset')
+        if (counts['returned_row_count'] != len(rows) or counts['row_count'] < len(rows)
+                or (next_offset is not None and type(next_offset) is not int)):
+            return None
+        projected = [{name: row.get(name) for name in select} for row in rows]
+        if any(not _delivery_cell(value) for row in projected for value in row.values()):
+            return None
+        units = self._dataset_units(authority, result_ref, dataset, select)
+        return {'schema': _QUERY_DELIVERY, 'result_ref': result_ref, 'dataset': dataset,
+                'columns': [{'name': name, **({'unit': units[name]} if name in units else {})} for name in select],
+                'rows': projected, **counts, 'next_offset': next_offset,
+                'evidence_refs': list(evidence_refs)}
+
+    def _dataset_units(self, authority, result_ref: str, dataset: str, names: list[str]) -> dict[str, str]:
+        try:
+            fields = authority.verify_result(result_ref).document['datasets'][dataset]['fields']
+        except Exception:
+            return {}
+        if not isinstance(fields, list):
+            return {}
+        units = {}
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            name, unit = field.get('name'), field.get('unit')
+            if isinstance(name, str) and name in names and isinstance(unit, str) and unit.strip():
+                units[name] = unit
+        return units
 
     def invoke(self, document: dict, *, workspace_id: str, authority_inputs=()) -> dict:
         if not isinstance(workspace_id, str) or not _TASK_ID.fullmatch(workspace_id):
