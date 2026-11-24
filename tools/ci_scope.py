@@ -801,6 +801,16 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if ({formal_answer, report_guidance}.intersection(paths)
             and all(path in formal_report_paths or _control_path(path) for path in paths)):
         return 'formal-report-delivery'
+    harness_review_paths = {
+        '.github/workflows/verify.yml', 'tools/ci_scope.py',
+        'tools/review_harness_rules.py', 'tools/tests/test_harness_rule_review_cli.py',
+        'packages/capstone-agent/src/capstone_agent/harness_rule_review.py',
+        'packages/capstone-agent/tests/test_harness_validation.py',
+        'docs/harness-rule-review.md',
+    }
+    if ('packages/capstone-agent/src/capstone_agent/harness_rule_review.py' in paths
+            and all(path in harness_review_paths or _control_path(path) for path in paths)):
+        return 'harness-rule-review'
     advisory_paths = {
         '.github/workflows/verify.yml',
         'packages/capstone-agent/src/capstone_agent/answer_correction.py',

@@ -93,3 +93,40 @@ def test_result_table_findings_are_scoped_and_leave_independent_tables_usable():
     assert pipeline.run(valid, observe=seen.append).value is valid
     assert [item.code for item in seen] == ['table_row_count_exceeds_declared_coverage', 'table_unit_label_blank']
     assert all(item.status == 'finding' and item.target == 'result.table' for item in seen)
+
+
+def test_cross_version_review_requires_matching_archive_and_trusted_revisions():
+    from capstone_agent.harness_rule_review import compare_runtime_receipts
+
+    common = {'schema': 'capstone-validation-runtime-receipt/1', 'thread_id': 't',
+              'attempt_id': 'a', 'archive_sha256': 'a' * 64, 'target': 'answer.text'}
+    baseline = {**common, 'role': 'baseline', 'revision': 'b' * 40,
+                'bundle_sha256': 'c' * 64, 'processors': [['engine', 'd' * 64]],
+                'decision': {'status': 'accepted', 'value': 'original'}}
+    candidate = {**common, 'role': 'candidate', 'revision': 'e' * 40,
+                 'bundle_sha256': 'f' * 64, 'processors': [['engine', '1' * 64]],
+                 'decision': {'status': 'corrected', 'value': 'corrected'}}
+    review = compare_runtime_receipts(baseline, candidate, trusted_revisions={'b' * 40, 'e' * 40})
+    assert review['baseline_revision'] == 'b' * 40
+    assert review['candidate_bundle_sha256'] == 'f' * 64
+    with pytest.raises(ValueError):
+        compare_runtime_receipts(baseline, {**candidate, 'archive_sha256': '2' * 64},
+                                 trusted_revisions={'b' * 40, 'e' * 40})
+    with pytest.raises(ValueError):
+        compare_runtime_receipts(baseline, candidate, trusted_revisions={'b' * 40})
+
+
+def test_publication_and_rollback_require_reviewed_exact_bytes():
+    from hashlib import sha256
+    from capstone_agent.harness_rule_review import reviewed_rule_bytes
+
+    old, new = b'old rules', b'new rules'
+    review = {'schema': 'capstone-validation-cross-runtime-review/1',
+              'baseline_bundle_sha256': sha256(old).hexdigest(),
+              'candidate_bundle_sha256': sha256(new).hexdigest()}
+    assert reviewed_rule_bytes(review, current=old, desired=new, rollback=False) == new
+    assert reviewed_rule_bytes(review, current=new, desired=old, rollback=True) == old
+    with pytest.raises(ValueError):
+        reviewed_rule_bytes(review, current=old, desired=b'changed', rollback=False)
+    with pytest.raises(ValueError):
+        reviewed_rule_bytes(review, current=b'unexpected', desired=old, rollback=True)
