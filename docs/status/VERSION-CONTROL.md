@@ -1,3 +1,5 @@
+2026-11-24 [PR257](https://github.com/uukuguy/capstone/pull/257) 已合入 dev `7c4c9189`。受检版本 `1a8d32d8`，定向 macOS CI 45355169488 通过。交付 Harness 可编辑规则库、局部诊断、表格校正和前端显示兼容。薄上下文仍在 `experiment/progressive-ppt-guide`，常用 local-dev 当前部署未切换。
+
 2026-11-23 local-dev 5174 的产品源码为 `6aff8519`，合入 PR241，后端镜像 `3e7d48e811d0`。真实 Mission 主会话三轮、两份文件校验、整体报告下载和完成后续聊通过。原 Mission 在跨重建复盘后保留部分结果和独立诊断，浏览器可下载。
 
 2026-11-23 PR237 已合入 dev `e5383e3e`，受检 `bf5ab258`，定向 macOS CI 45063171471 通过。已从 local-dev 5174 下载 Goal 与 Mission 的整体 Markdown。规范重建完成，后端镜像 `d110216c9dfc`。
