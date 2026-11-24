@@ -2008,6 +2008,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 264 | 正式答复与静态报告恢复 | fix/formal-answer-report-delivery | dev | MERGED | 合并 acf120c6，受检 fd2fc2d4，macOS CI 45433323429 通过。恢复已知异常答复外壳中的正文，以及无格式指定时的 HTML 分析报告交付。DeepSeek Flash 与本机 Qwen 35B 在隔离试验 1da0c119 完成真实任务，下载哈希通过。 |
+| 263 | 模型执行优化收口台账 | docs/dev-qwen-integration-closeout | dev | MERGED | 合并 0c027021，受检 137b593d，macOS CI 45433154038 通过。 |
 | 262 | Pandapower 正式查询交付 | feat/dev-admitted-query-delivery | dev | MERGED | 合并 f913fdd5，受检 aa25873e，macOS CI 45428367652 通过。保留 dev 工具发现，接纳正式投影、行序、单位和证据。 |
 | 261 | 模型请求与 App 计时 | feat/dev-model-request-timing | dev | MERGED | 合并 cec073a6，受检 f40cd6c7，macOS CI 45427688514 通过。覆盖首内容、取消状态和开发页面渲染帧。 |
 | 260 | Harness 私有规则回放 | feat/dev-harness-rule-replay | dev | MERGED | 合并 c45e247e，受检 7be61b9a，macOS CI 45427638906 通过。覆盖匹配处理器的回放与候选对照。 |

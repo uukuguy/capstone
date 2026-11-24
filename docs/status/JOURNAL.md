@@ -8385,3 +8385,9 @@ check passed. No CI, integration or remote deployment performed.
 - 23:53 Merged model and App timing after macOS CI 45427688514. [cec073a6]
 - 23:53 Merged admitted query delivery after macOS CI 45428367652. [f913fdd5]
 - 23:55 Verified the combined dev source with 228 focused checks and closed the four source branches. [f913fdd5]
+
+## 2026-11-25
+
+- 00:12 Merged the four-batch control update after macOS CI 45433154038. [0c027021]
+- 00:14 Verified formal answer text and an independent HTML download with DeepSeek Flash and Qwen 35B in the isolated trial. The DeepSeek Flash attempt `attempt_99bf4f8b49335efe` also passed App preview. The trial uses `1da0c119`; its thin-context guide stays on the experiment branch. Local receipts are in `runs/local-llama-rebaseline/formal-answer-html-20261125/`.
+- 00:19 Merged formal answer and HTML delivery recovery after macOS CI 45433323429. [acf120c6]
