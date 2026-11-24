@@ -795,6 +795,19 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     if 'packages/capstone-agent/src/capstone_agent/harness_validation.py' in paths and all(
             path in advisory_paths or _control_path(path) for path in paths):
         return 'harness-advisory'
+    timing_core = {
+        'packages/capstone-agent/src/capstone_agent/native_model_request_pool.py',
+        'packages/capstone-agent/src/capstone_agent/resources/model-request-pool.mjs',
+        'packages/capstone-agent/tests/fixtures/model-request-pool.test.mjs',
+    }
+    timing_paths = timing_core | {'tools/ci_scope.py', '.github/workflows/verify.yml'} | {
+        'packages/capstone-app/src/' + name for name in (
+            'RequestPoolQueue.tsx', 'processModelRequestPool.ts', 'processModelRequestPool.test.ts',
+            'CapstoneAssistantThread.tsx', 'threadHttpTransport.ts', 'answerRenderTiming.ts', 'answerRenderTiming.test.ts',
+        )
+    }
+    if timing_core.issubset(paths) and all(path in timing_paths or _control_path(path) for path in paths):
+        return 'context-observation'
     local_dev_entry = {'compose.yaml', 'deploy/rebuild_local.sh', 'packages/capstone-app/vite.config.ts'}
     local_dev_files = local_dev_entry | {
         'Makefile', 'deploy/rebuild_demo_local.sh', 'tools/test_local_rebuild.sh',
