@@ -74,3 +74,80 @@ test('native prompt frame applies exact bytes and Unicode input character overri
   assert.equal(validatePromptFrame(line, {input: {kind: 'text', text},
     runtimeLimits: {rpc_frame_bytes: Buffer.byteLength(line), input_text_chars: 11}}).message, text);
 });
+
+test('admitted guides preserve first-load order before interaction',async()=>{
+  const {createGuideProjection}=await import('../src/capstone_agent/resources/model-context-input.mjs');
+  const projection=createGuideProjection({presentation:'PPT guide.',capacity:'Capacity guide.'});
+  const original={systemPrompt:'Stable rules.',messages:[{role:'user',content:'Question'}]};
+  assert.equal(projection.project(original),original);
+  assert.equal(projection.load('unknown'),false);
+  assert.equal(projection.load('capacity'),true);
+  const first=projection.project(original);
+  assert.equal(first.systemPrompt,'Stable rules.\n\nCapacity guide.');
+  projection.load('presentation');
+  projection.load('capacity');
+  const second=projection.project(original);
+  assert.equal(second.systemPrompt,first.systemPrompt+'\n\nPPT guide.');
+  assert.equal(second.messages,original.messages);
+});
+
+test('gateway guide is a zero-argument reader limited to the granted tool',async()=>{
+  const {applicationToolOptions}=await import('../src/capstone_agent/resources/general-sdk.mjs');
+  const name='agent_gateway_guide';
+  let loaded=0;
+  const cfg={loadGatewayGuide:()=>{loaded++;},applicationPolicy:{allowed_tools:[]}};
+  assert.ok(!applicationToolOptions(cfg,[]).customTools.some(tool=>tool.name===name));
+  cfg.applicationPolicy.allowed_tools.push(name);
+  const tool=applicationToolOptions(cfg,[]).customTools.find(tool=>tool.name===name);
+  assert.deepEqual(tool.parameters,{type:'object',properties:{},additionalProperties:false});
+  await tool.execute('read',{},new AbortController().signal);
+  assert.equal(loaded,1);
+});
+
+test('thin runtime exposes only resident and explicitly loaded admitted contracts',async()=>{
+  const {createThinToolView}=await import('../src/capstone_agent/resources/general-sdk.mjs');
+  const a={name:'write',label:'Write a task file',description:'Save a relative path.',parameters:{type:'object'}};
+  const b={name:'run',label:'Run a task command',description:'Execute a fixed operation.',parameters:{type:'object'}};
+  const search={name:'agent_tool_search',parameters:{type:'object'}};
+  const view=createThinToolView(['agent_runtime_tools','agent_tool_search','write'],['agent_tool_search']);
+  assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search]);
+  const catalogue=await view.tool.execute('catalog',{});
+  assert.match(catalogue.content[0].text,/Write a task file/);
+  assert.doesNotMatch(catalogue.content[0].text,/Run a task command/);
+  const seen=[];
+  const loader=view.loader({
+    name:'agent_tool_load',label:'Loader',parameters:{},
+    async execute(_id,args){
+      seen.push(args.names);
+      if(args.names.includes('run'))return {isError:true};
+      return {content:[{type:'text',text:'Remote contract ready.'}]};
+    },
+  });
+  assert.ok(!Object.hasOwn(view.tool.parameters.properties,'names'));
+  const denied=await loader.execute('denied',{names:['write','run']});
+  assert.equal(denied.isError,true);
+  assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search]);
+  await loader.execute('load',{names:['write','data_gateway_existing']});
+  assert.deepEqual(seen,[['run'],['data_gateway_existing']]);
+  assert.match(JSON.stringify(await loader.execute('local',{names:['write']})),/write/);
+  assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search,a]);
+});
+
+test('append-only guides deduplicate only while their exact observation remains in active history',async()=>{
+  const {createGuideReader}=await import('../src/capstone_agent/resources/model-context-input.mjs');
+  const {createThinToolView}=await import('../src/capstone_agent/resources/general-sdk.mjs');
+  let messages=[];
+  const read=createGuideReader({'runtime-guide':'Use the actual task paths.'},()=>messages);
+  const view=createThinToolView([],[],()=>read('runtime-guide'));
+  const request={systemPrompt:'Stable',messages,tools:[]};
+  const first=await view.tool.execute('first',{guide:true});
+  assert.match(first.content[0].text,/Use the actual task paths\./);
+  assert.match(first.content[0].text,/runtime-guide@sha256:[a-f0-9]{64}/);
+  assert.deepEqual(view.project(request),request);
+  messages=[{role:'toolResult',content:first.content}];
+  const repeated=await view.tool.execute('repeat',{guide:true});
+  assert.match(repeated.content[0].text,/already in active history/);
+  assert.doesNotMatch(repeated.content[0].text,/actual task paths/);
+  messages=[];
+  assert.deepEqual(await view.tool.execute('after-compaction',{guide:true}),first);
+});

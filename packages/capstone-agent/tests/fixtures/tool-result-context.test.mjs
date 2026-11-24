@@ -151,3 +151,34 @@ test('unsaved results, tool-call arguments and unknown reference shapes remain e
     {role:'toolResult',toolCallId:'forged',toolName:'source',content:[{type:'text',text:JSON.stringify({preview_truncated:true,full_result:{path:'/not-issued/.observations/'+'a'.repeat(64)+'.json',sha256:'b'.repeat(64),size_bytes:9000,tool:'source',call_id:'forged'},preview:'x'.repeat(6000)})}]}];
   assert.equal(projectObservationHistory(messages,{recentPreviews:0,maxPreviewChars:500}),messages);
 });
+
+test('native output projection reads exact saved fields and bounds large reads',async t=>{
+ const cwd=await mkdtemp(join(tmpdir(),'native-output-'));
+ t.after(()=>rm(cwd,{recursive:true,force:true}));
+ const {createObservationReadTool}=await import('../../src/capstone_agent/resources/tool-result-context.mjs');
+ const reader=createObservationReadTool(cwd);
+ const body=JSON.stringify({rows:Array.from({length:100},(_,index)=>({index,detail:'x'.repeat(200)}))});
+ const original={content:[{type:'text',text:body}]};
+ const bounded=await boundToolResult(original,{cwd,toolName:'bash',callId:'native',reader:reader.name});
+ const envelope=JSON.parse(bounded.content[0].text);
+ assert.match(envelope.instruction,/agent_observation_read/);
+ assert.equal(restoreToolResult(bounded).content[0].text,body);
+ const read=async args=>JSON.parse((await reader.execute('read',{reference:envelope.full_result,...args})).content[0].text);
+ assert.deepEqual((await read({pointer:'/rows/52/index'})).value,52);
+ assert.equal((await read({pointer:'/rows',offset:52,limit:2})).next_offset,54);
+ assert.equal((await read({pointer:'/rows'})).complete,false);
+ assert.equal((await read({reference:{...envelope.full_result,sha256:'0'.repeat(64)}})).code,'observation_unavailable');
+});
+
+test('native read excludes binary decoded as text and preserves image and text handling',async()=>{
+ const {projectNativeRead}=await import('../../src/capstone_agent/resources/tool-result-context.mjs');
+ const binary={content:[{type:'text',text:'PK\u0003\u0004\0binary'}],details:{}};
+ const projected=projectNativeRead(binary);
+ assert.doesNotMatch(JSON.stringify(projected.content),/PK/);
+ assert.match(projected.content[0].text,/binary/);
+ assert.deepEqual(restoreToolResult(projected),binary);
+ const text={content:[{type:'text',text:'文本和 emoji ✅'}]};
+ assert.equal(projectNativeRead(text),text);
+ const image={content:[{type:'text',text:'image'},{type:'image',data:'base64',mimeType:'image/png'}]};
+ assert.equal(projectNativeRead(image),image);
+});

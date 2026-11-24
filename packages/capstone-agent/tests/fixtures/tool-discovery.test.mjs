@@ -583,3 +583,24 @@ test('repeated searches advise reuse without blocking changed exploration or pag
  assert.equal((await run('missing')).discovery_feedback,undefined);
  assert.equal((await run('missing')).discovery_feedback.publication_changed,false);
 });
+
+test('thin additive loads retain the active order and acknowledge already loaded tools',async()=>{
+ const {controller:c}=fixture({appendLoads:true});
+ const hooks=new Map();let active=[];let changes=0;
+ c.configure({on:(n,f)=>hooks.set(n,f),getActiveTools:()=>active,setActiveTools:n=>{active=n;changes++;}});
+ const load=c.tools[1];
+ await load.execute('first',{names:['source_1']});hooks.get('turn_end')();
+ await load.execute('second',{names:['source_0']});hooks.get('turn_end')();
+ assert.deepEqual(active.slice(-2),['source_1','source_0']);
+ const repeated=JSON.parse((await load.execute('repeat',{names:['source_0']})).content[0].text);
+ assert.equal(repeated.activation,'already_active');
+ hooks.get('turn_end')();
+ assert.equal(changes,2);
+ const reordered=JSON.parse((await load.execute('reorder',{names:['source_0','source_1'],replace:true})).content[0].text);
+ assert.equal(reordered.activation,'already_active');
+ hooks.get('turn_end')();
+ assert.deepEqual(active.slice(-2),['source_1','source_0']);
+ assert.equal(changes,2);
+ await load.execute('replace',{names:['source_0'],replace:true});hooks.get('turn_end')();
+ assert.ok(!active.includes('source_1'));
+});

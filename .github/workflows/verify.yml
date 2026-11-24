@@ -73,7 +73,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|app|local-dev|execution-continuity|mission-conversation|formal-report-delivery|admitted-query-delivery|harness-advisory|harness-references|research-mode-retirement|instruction-admission|execution-details|context-observation|control-events|control-task-board|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|managed-skills|presentation-library|presentation-renderer|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|tool-composition|native-chat-request|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|app|local-dev|execution-continuity|mission-conversation|formal-report-delivery|thin-context|admitted-query-delivery|harness-advisory|harness-references|research-mode-retirement|instruction-admission|execution-details|context-observation|control-events|control-task-board|session-navigation|control-delegation|agent-goal|session-pins|recoverable-tasks|worker-interruption|historical-inputs|resource-ranges|result-rows|product-adoption|product-references|managed-skills|presentation-library|presentation-renderer|architecture-retirement|execution-lifecycle|gateway-controls|gateway-bindings|tool-composition|native-chat-request|gateway-capabilities|workbench|shared-agent|adaptive-agent|conversation-runtime|session-capacity|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -186,6 +186,15 @@ jobs:
           uv sync --project packages/pandapower-domain-pack
       - run: make install-pi
         if: steps.scope.outputs.gate != 'local-dev'
+      - name: Verify thin context and domain delivery
+        if: steps.scope.outputs.gate == 'thin-context'
+        timeout-minutes: 7
+        run: |
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_native_environment.py packages/capstone-agent/tests/test_query_delivery.py
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_server.py -k 'query_delivery or executor_identity or private_data'
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_main_chain_context.py -k recovered_deepseek_formal_answer
+          uv run --project packages/pandapower-domain-pack pytest -q packages/pandapower-domain-pack/tests/test_tool_service.py
+          node --test packages/capstone-agent/tests/general-sdk-capacity.test.mjs packages/capstone-agent/tests/fixtures/presentation-templates.test.mjs packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs packages/capstone-agent/tests/fixtures/tool-result-context.test.mjs
       - name: Check managed runtime
         if: steps.scope.outputs.gate != 'local-dev'
         run: make doctor

@@ -35,6 +35,74 @@ def test_pack_service_rejects_unsafe_workspace_before_storage(tmp_path, workspac
     assert list(tmp_path.iterdir()) == []
 
 
+def test_result_readers_use_only_the_names_published_by_the_pack(tmp_path):
+    service = PandapowerToolService(workspace_root=tmp_path)
+    service._capabilities = {
+        'actual_list': 'result.dataset.list',
+        'actual_query': 'result.dataset.query',
+    }
+    tools = service.result_read_guidance()
+    assert 'actual_list' in tools
+    assert 'actual_query' in tools
+    assert 'result_ref' in tools
+    assert 'evidence_refs' in tools
+    service._capabilities = {'actual_list': 'result.dataset.list'}
+    assert service.result_read_guidance() is None
+
+
+def test_model_result_views_keep_evidence_and_index_datasets_without_field_lists(tmp_path):
+    service = PandapowerToolService(workspace_root=tmp_path)
+    datasets = [
+        {'dataset': 'result.res_bus', 'row_count': 14, 'available_fields': ['vm_pu']},
+        {'dataset': 'result.res_empty', 'row_count': 0, 'available_fields': ['unused']},
+    ]
+    result = {'result_ref': 'result', 'evidence_refs': ['evidence'], 'converged': True, 'datasets': datasets}
+    solving = service.model_result('analysis.powerflow.ac.run', result)
+    assert solving['evidence_refs'] == ['evidence']
+    assert solving['converged'] is True
+    assert 'datasets' not in solving
+    listing = service.model_result('result.dataset.list', result)
+    assert listing['datasets'] == [{'dataset': 'result.res_bus', 'row_count': 14}]
+    assert listing['empty_datasets'] == ['result.res_empty']
+    assert service.model_result('result.dataset.query', result) is None
+    assert result['datasets'][0]['available_fields'] == ['vm_pu']
+
+
+def test_open_model_view_keeps_revision_and_offers_read_back_for_overview(tmp_path):
+    service = PandapowerToolService(workspace_root=tmp_path)
+    service._capabilities = {'published_read': 'context.get'}
+    result = {'context_ref': 'context', 'revision_ref': 'revision', 'counts': {'buses': 14},
+              'overview': [{'dataset': 'network.bus', 'row_count': 14, 'aggregates': [{'value': 110}]}]}
+    view = service.model_result('context.open', result)
+    assert view['context_ref'] == 'context'
+    assert view['revision_ref'] == 'revision'
+    assert view['counts'] == {'buses': 14}
+    assert 'overview' not in view
+    assert view['overview_read']['tool'] == 'published_read'
+    assert view['overview_read']['arguments'] == {'context_ref': 'context', 'include_overview': True}
+    assert service.model_result('context.get', result) is None
+
+
+def test_model_guidance_passes_exact_refs_and_only_offers_available_voltage_fields(tmp_path):
+    service = PandapowerToolService(workspace_root=tmp_path)
+    service._capabilities = {
+        'published_ac': 'analysis.powerflow.ac.run',
+        'published_query': 'result.dataset.query',
+    }
+    opened = service.model_guidance('context.open', {'context_ref': 'actual-context'})
+    assert 'published_ac' in opened and 'actual-context' in opened
+    assert 'omit solver overrides' in opened
+    solved = {'result_ref': 'actual-result', 'datasets': [
+        {'dataset': 'result.res_bus', 'row_count': 14, 'available_fields': ['index', 'vm_pu']},
+    ]}
+    guidance = service.model_guidance('analysis.powerflow.ac.run', solved)
+    assert 'published_query' in guidance and 'actual-result' in guidance
+    assert 'vm_pu' in guidance and 'ascending' in guidance
+    assert service.model_guidance('result.dataset.list', solved) is None
+    solved['datasets'][0]['available_fields'] = ['index']
+    assert service.model_guidance('analysis.powerflow.ac.run', solved) is None
+
+
 def test_query_delivery_keeps_returned_order_stored_units_and_evidence(tmp_path):
     service = PandapowerToolService(workspace_root=tmp_path)
     evidence = 'evidence:sha256:' + 'ab' * 32

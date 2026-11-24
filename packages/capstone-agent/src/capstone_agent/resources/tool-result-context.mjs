@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {mkdir,lstat,open,readFile,realpath,writeFile} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import {join,dirname} from 'node:path';
-import {readObservation,observationPointer} from './observed-action.mjs';
+import {readObservation,observationPointer,ObservationPointerError} from './observed-action.mjs';
 
 // Symbols survive native result wrappers, but never enter JSON, model messages
 // or public metadata. Only the host event projection reads this original.
@@ -94,9 +94,10 @@ export function structureIndex(value){
   return summary;
 }
 
-export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,storageCallId=callId,maxChars=6000,retain=false}={}){
+export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,storageCallId=callId,maxChars=6000,retain=false,reader}={}){
   if(!Number.isSafeInteger(maxChars)||maxChars<1500)throw new Error('Invalid tool result context budget');
-  const needsPreview=JSON.stringify(result.content??[]).length>maxChars;
+  const size=content=>reader?Buffer.byteLength(JSON.stringify(content)):JSON.stringify(content).length;
+  const needsPreview=size(result.content??[])>maxChars;
   if(!needsPreview&&!retain)return result;
   const body=(result.content??[]).filter(part=>part.type==='text').map(part=>part.text).join('\n');
   // Non-text observations have their own native image handling.
@@ -123,21 +124,62 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   const saved={reference:fullResult,base_pointer:basePointer};
   if(!needsPreview)return {...result,[savedResult]:saved};
   const envelope={preview_truncated:true,
+    ...(reader?{original_output_complete:!result.isError&&!result.details?.truncation,
+      ...(result.isError?{error_tail:body.slice(-240)}:{})}:{}),
     full_result:fullResult,
     preview_pointer:basePointer,
     structure:{...structureIndex(source),base_pointer:basePointer},
-    instruction:'Use tools.inspect(full_result) and tools.read(full_result,pointer): structured data is at root. Legacy structure.base_pointer paths still work. Arrays accept {offset,limit}. Original file bytes keep the transport envelope; prefer these helpers over shell paths. Reuse this observation; not Authority evidence.'};
+    instruction:reader
+      ?'Call '+reader+' with reference equal to full_result and a JSON pointer from this observation. Page arrays or text with offset and limit. Original output may be incomplete if the shell capture was truncated.'
+      :'Use tools.inspect(full_result) and tools.read(full_result,pointer): structured data is at root. Legacy structure.base_pointer paths still work. Arrays accept {offset,limit}. Original file bytes keep the transport envelope; prefer these helpers over shell paths. Reuse this observation; not Authority evidence.'};
   let content;
   for(const [depth,items,chars] of [[6,12,400],[5,6,240],[4,3,160],[2,2,80],[0,8,80]]){
     content=[{type:'text',text:JSON.stringify({...envelope,preview:preview(source,depth,items,chars)})}];
-    if(JSON.stringify(content).length<=maxChars)break;
+    if(size(content)<=maxChars)break;
   }
-  if(JSON.stringify(content).length>maxChars){
+  if(size(content)>maxChars){
     const small=JSON.parse(content[0].text);small.structure={type:small.structure.type,base_pointer:basePointer,partial:true};
     content=[{type:'text',text:JSON.stringify(small)}];
   }
-  if(JSON.stringify(content).length>maxChars)throw new Error('Tool result reference exceeds context budget');
+  if(size(content)>maxChars)throw new Error('Tool result reference exceeds context budget');
   return {...result,content,[originalResult]:result,[savedResult]:saved};
+}
+
+export function createObservationReadTool(cwd){
+  const reply=(value,isError=false)=>({isError,content:[{type:'text',text:JSON.stringify(value)}]});
+  return {
+    name:'agent_observation_read',label:'Read saved tool output',
+    description:'Read fields or pages from a native script result that returned a full_result file reference. Use a JSON pointer, or an empty string for the root.',
+    parameters:{type:'object',properties:{
+      reference:{type:'object',properties:{
+        path:{type:'string'},sha256:{type:'string'},size_bytes:{type:'integer'},tool:{type:'string'},call_id:{type:'string'},
+        base_pointer:{anyOf:[{type:'string'},{type:'null'}]},
+      },required:['path','sha256','size_bytes','tool','call_id','base_pointer'],additionalProperties:false},
+      pointer:{type:'string',maxLength:512},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:2000},
+    },required:['reference'],additionalProperties:false},
+    async execute(_callId,{reference,pointer='',offset,limit},signal){
+      signal?.throwIfAborted();
+      let value;
+      try{value=await readSavedObservation(reference,pointer,{cwd});}
+      catch(error){
+        signal?.throwIfAborted();
+        return reply({code:'observation_unavailable',message:error instanceof ObservationPointerError
+          ?error.message:'Use an exact saved observation reference issued in this task.'},true);
+      }
+      signal?.throwIfAborted();
+      const paged=offset!==undefined||limit!==undefined;
+      if(paged){
+        if(!Array.isArray(value)&&typeof value!=='string')
+          return reply({code:'observation_not_pageable',message:'Select an array or text field to page.'},true);
+        const start=offset??0,end=Math.min(start+(limit??20),value.length);
+        const page={complete:end>=value.length,value:value.slice(start,end),total:value.length,
+          ...(end<value.length?{next_offset:end}:{})};
+        if(Buffer.byteLength(JSON.stringify(page))<=4000)return reply(page);
+      }else if(Buffer.byteLength(JSON.stringify(value))<=3800)return reply({complete:true,value});
+      return reply({complete:false,structure:structureIndex(value),
+        instruction:'Select a narrower JSON pointer or a smaller page. For an oversized array item, select one of its fields.'});
+    },
+  };
 }
 
 export function restoreToolResult(result){
@@ -146,6 +188,20 @@ export function restoreToolResult(result){
   // Native wrappers append provenance/aliases after the preview. Preserve those
   // additions while restoring exact gateway bytes for the host receipt check.
   return {...original,content:[...original.content,...result.content.slice(1)],details:result.details};
+}
+
+export function projectToolResultText(result,text){
+  return {...result,content:[{type:'text',text},...result.content.slice(1)],
+    [originalResult]:{...result,content:result.content.slice(0,1)}};
+}
+
+export function projectNativeRead(result){
+  const parts=result.content??[];
+  if(!parts.every(part=>part.type==='text')||!parts.some(part=>part.text.includes('\0')||
+    /\uFFFD[^\n]{0,8}\uFFFD[^\n]{0,8}\uFFFD[^\n]{0,8}\uFFFD/.test(part.text)))return result;
+  return {...result,content:[{type:'text',
+    text:'The file is binary. Use its product preview or the producing tool receipt to confirm it. Use a format-specific tool if you need its contents.'}],
+    [originalResult]:result};
 }
 
 /** Project older previews only. Files, audit receipts and tool calls stay exact. */

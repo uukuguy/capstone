@@ -1469,8 +1469,9 @@ class NativeTaskRunner:
         self.task_gateways = {}
         self.task_domain_routes = {}
         self.task_structural_context = {}
-        from .native_environment import environment_context
-        self.environment_context = environment_context()
+        from .native_environment import environment_context_sections
+        self.environment_sections = environment_context_sections()
+        self.environment_context = ''.join(self.environment_sections) if self.environment_sections else None
         self.network_policy = network_policy
         self.gateway = gateway
         from .gateway_connections import GatewayConnectionRegistry
@@ -2012,6 +2013,66 @@ class NativeTaskRunner:
                     self.task_domain_routes[request.task_id] = {
                         name: route for name, route in self.task_domain_routes[request.task_id].items()
                         if name in allowed}
+            research_runtime = sdk_config.get('researchRuntime', {})
+            if (os.environ.get('CAPSTONE_PROGRESSIVE_PPT_GUIDE') == '1' and self.environment_sections
+                    and self.environment_sections[1] and sdk_config.get('presentationLibrary')
+                    and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)
+                    and 'agent_presentations' in sdk_config.get('applicationPolicy', {}).get('allowed_tools', ())):
+                base_environment, presentation_guide = self.environment_sections
+                sdk_config['presentationGuide'] = presentation_guide
+                policy = sdk_config['applicationPolicy']
+                sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': [
+                    *policy['allowed_tools'], 'agent_presentation_guide']}
+                for source in sdk_config['contextFiles']:
+                    if source['path'] == 'verified-programming-environment':
+                        source['content'] = base_environment + (
+                            '\nFor a new PPTX, call agent_presentation_guide with no arguments '
+                            'before preparing slide files. After it succeeds, follow the loaded guide and render '
+                            'from the saved spec using task-relative paths.')
+            if (os.environ.get('CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE') == '1'
+                    and sdk_config.get('applicationPolicy')
+                    and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)):
+                policy = sdk_config['applicationPolicy']
+                sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': [
+                    *policy['allowed_tools'], 'agent_capacity_guide']}
+                for source in sdk_config['contextFiles']:
+                    if source['path'] == 'effective-runtime-capacity':
+                        sdk_config['capacityGuide'] = source['content']
+                        source['content'] = (
+                            'The host enforces tool, context and execution limits. Follow page cursors, use bounded '
+                            'reads and checkpoint before the accepted task deadline in execution_state. '
+                            'Before planning large retrievals, files or long steps, call agent_capacity_guide '
+                            'with no arguments for the current limits and recovery instructions.')
+            if (os.environ.get('CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE') == '1'
+                    and sdk_config.get('dataGateway')
+                    and 'agent_tool_search' in sdk_config.get('applicationPolicy', {}).get('allowed_tools', ())
+                    and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)):
+                policy = sdk_config['applicationPolicy']
+                sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': [
+                    *policy['allowed_tools'], 'agent_gateway_guide']}
+                for source in sdk_config['contextFiles']:
+                    if source['path'] == 'registered-production-data':
+                        sdk_config['gatewayGuide'] = source['content']
+                        source['content'] = (
+                            'Use the registered data gateway only for tasks within its published business-data scope. '
+                            'Check scope and exclusions before selecting a source. Prior use and an unavailable '
+                            'alternative do not establish relevance. Use only admitted tools and exact contracts. '
+                            'Keep source status, identity, coverage and evidence boundaries. For multi-step gateway '
+                            'retrieval, polling or recovery, call agent_gateway_guide after selecting this source.')
+            if (os.environ.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1'
+                    and sdk_config.get('applicationPolicy')
+                    and research_runtime.get('deepResearch') is False
+                    and research_runtime.get('adaptiveAgentLoop') is True
+                    and not sdk_config.get('missionTools')):
+                policy = sdk_config['applicationPolicy']
+                sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': list(dict.fromkeys([
+                    *policy['allowed_tools'], 'agent_runtime_tools', 'agent_tool_load',
+                    *(['agent_observation_read'] if 'bash' in policy['allowed_tools'] else []),
+                    *(['agent_skill_step'] if sdk_config.get('presentationGuide') else []),
+                ]))}
+                sdk_config['thinInitialContext'] = True
+                if self.network_policy is not None:
+                    sdk_config['thinExternalAccess'] = state['external_access'] is True
             timing.mark('resources_configured')
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
@@ -2703,17 +2764,24 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 text = json.dumps(payload, ensure_ascii=False)
                 if len(text.encode()) > 200000:
                     text = text.encode()[:200000].decode('utf-8', errors='ignore')
-                view = result.get('query_delivery')
-                if (isinstance(view, dict) and view.get('schema') == 'capstone-query-delivery/1'
+                guidance = result.get('model_guidance')
+                view = result.get('model_result')
+                delivery = result.get('query_delivery')
+                if (isinstance(delivery, dict) and delivery.get('schema') == 'capstone-query-delivery/1'
                         and result.get('ok') is True):
                     with host._lock:
                         record = host._tasks.get(task_id)
                         if record is not None and record.get('status') == 'running':
                             saved = record.setdefault('query_deliveries', [])
                             if len(saved) < 8:
-                                saved.append(json.loads(json.dumps(view)))
+                                saved.append(json.loads(json.dumps(delivery)))
+                projected = json.dumps(view, ensure_ascii=False, separators=(',', ':')) if isinstance(view, dict) else ''
                 return self.send_json(200, {
                     'result_json': text, 'is_error': result.get('ok') is not True,
+                    **({'model_result_json': projected} if projected and len(projected.encode()) < len(text.encode())
+                       and result.get('ok') is True else {}),
+                    **({'model_guidance': guidance} if isinstance(guidance, str) and len(guidance.encode()) <= 1000
+                       and result.get('ok') is True else {}),
                     'execution_receipt': result.get('execution_receipt'),
                     'tool': document['name'], 'call_id': document['call_id']})
             except (ValueError, OSError, TimeoutError):

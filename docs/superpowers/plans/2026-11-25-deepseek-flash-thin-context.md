@@ -1,0 +1,6 @@
+# DeepSeek Flash thin context closeout
+
+- Scope. Port the verified thin-context prototype to a development candidate with a default-off switch. Keep the same task grants, authority endpoints, full stored results and formal query projection. Scope the compact model context to the eligible shallow parent.
+- Implementation. Move deferred presentation, capacity and gateway guidance behind their existing admissions. Preserve retained tool order and use bounded result views only for the model. Keep query delivery separate from the compact model view at the host boundary. Add a scoped macOS gate for the affected server, client and Pandapower Pack consumers.
+- Acceptance. Run matched DeepSeek Flash tasks with the four context switches enabled and disabled on the same source and images. Compare observed input, cache reads, first content, total time, tool results and admitted evidence. Check independent static HTML delivery. Repeat a follow-up in the same work. Use the receipts to choose the rollout setting.
+- Closeout. Use separate focused checks for formal answer and Harness releases. Update the development register and its overview after verification. Preserve the rollback tag and running 5174.
