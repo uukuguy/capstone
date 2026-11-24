@@ -18,3 +18,7 @@ The comparison used source `1da0c119` and matching backend and Pi images. It use
 Case14 retained an admitted table with stored units and source evidence in both runs. The control prose used one-based bus numbers while the table kept the returned indices. Both follow-ups reused the saved result without another power flow. Both report downloads supplied matching HTML digests. The thin report observation was collected before the control run.
 
 These observations support optional deployment. The report and follow-up showed higher total input and longer completion in the thin configuration. Keep the default off. Evidence is saved in the local `runs/deepseek-flash-closeout/` directory.
+
+The development candidate `206bc44a` passed a separate DeepSeek Flash smoke test from a rebuilt backend and Pi. Case14 completed in 37.905 seconds with the admitted table and evidence. The standalone HTML report completed in 36.038 seconds and matched its artifact digest. The checks used an isolated API at port 8868. The running 5174 and 5274 stacks kept their sources and data.
+
+For a local trial, set `CAPSTONE_THIN_INITIAL_CONTEXT=1`, `CAPSTONE_PROGRESSIVE_PPT_GUIDE=1`, `CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE=1` and `CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE=1` before the canonical local rebuild. Leave those settings off to return to the full-context path. Existing Work history and stored artifacts keep their format.
