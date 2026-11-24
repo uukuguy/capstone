@@ -778,6 +778,19 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    query_delivery_paths = {
+        '.github/workflows/verify.yml', 'tools/ci_scope.py', 'deploy/general-pi.Dockerfile',
+        'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+        'packages/capstone-agent/src/capstone_agent/query_delivery.py',
+        'packages/capstone-agent/tests/test_query_delivery.py',
+        'packages/capstone-agent/tests/test_general_pi_server.py',
+        'packages/capstone-app/src/MarkdownContent.test.tsx',
+        'packages/pandapower-domain-pack/src/pandapower_domain/tool_service.py',
+        'packages/pandapower-domain-pack/tests/test_tool_service.py',
+    }
+    if 'packages/capstone-agent/src/capstone_agent/query_delivery.py' in paths and all(
+            path in query_delivery_paths or _control_path(path) for path in paths):
+        return 'admitted-query-delivery'
     advisory_paths = {
         '.github/workflows/verify.yml',
         'packages/capstone-agent/src/capstone_agent/answer_correction.py',

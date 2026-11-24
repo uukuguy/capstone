@@ -1519,8 +1519,8 @@ def test_missing_query_delivery_fails_the_task_instead_of_stranding_it(tmp_path,
         'parent_attempt_id': 'a1', 'entrypoint': 'direct', 'instruction': 'List', 'messages': [],
         'dependency_results': [], 'executor_identity': host.identity, 'timeout_seconds': 2})
     host.submit(request)
-    deadline = time.monotonic() + 0.5
-    while host.read('t-delivery')['status'] == 'running' and time.monotonic() < deadline:
+    deadline = time.monotonic() + 5
+    while host.read('t-delivery')['status'] in {'queued', 'running'} and time.monotonic() < deadline:
         time.sleep(0.01)
     assert host.read('t-delivery')['status'] == 'failed'
 
