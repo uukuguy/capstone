@@ -6,6 +6,23 @@ import time
 import pytest
 
 
+def test_completed_pi_work_survives_ambiguous_answer_presentation(tmp_path):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+
+    terminal = {'type': 'agent_end', 'messages': [{'role': 'assistant', 'stopReason': 'stop',
+        'content': [{'type': 'text', 'text': 'PRIVATE preamble '
+                    '<capstone-answer>Candidate A</capstone-answer>'
+                    '<capstone-answer>Candidate B</capstone-answer>'}]}]}
+    script = tmp_path / 'ambiguous_answer.py'
+    script.write_text('import sys\nsys.stdin.readline()\n'
+                      + 'print(' + repr(json.dumps(terminal)) + ', flush=True)\n')
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    answer = process.run('task', timeout=5, cancelled=lambda: False, on_event=lambda _: None,
+                         answer_format='formal-and-core/1')
+    assert '答复格式异常' in answer and '已保存的制品' in answer
+    assert all(text not in answer for text in ('PRIVATE', 'Candidate A', 'Candidate B'))
+
+
 def test_process_delivers_supplement_while_tool_is_active(tmp_path, single_child_cleanup):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     script = tmp_path / 'steering.py'

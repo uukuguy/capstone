@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import json
-from .answer_presentation import public_answer
+import logging
+from .answer_presentation import AnswerPresentationError, public_answer
 import base64
 from hashlib import sha256
 import os
@@ -659,7 +660,11 @@ class GeneralPiProcess:
                     self.usage['native_tools'] = self.tools
                     answer = ''.join(part.get('text', '') for part in assistants[-1].get('content', [])
                                      if part.get('type') == 'text')
-                    answer = public_answer(answer, answer_format=answer_format, recover_unique=True)
+                    try:
+                        answer = public_answer(answer, answer_format=answer_format, recover_unique=True)
+                    except AnswerPresentationError:
+                        logging.getLogger(__name__).warning('answer_presentation_invalid: completed native task retained')
+                        answer = '答复格式异常，无法确认正式正文。如有已保存的制品，可继续查看和下载。可以在本会话继续下达指令。'
                     if not answer.strip():
                         raise ValueError('General Pi answer is invalid')
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')
