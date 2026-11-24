@@ -1675,6 +1675,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
+| local-dev-xlsx-preview | bd07d4a0 | main | local-dev 工作簿预览 | PR271 合入 dev，5174 真实工作簿验收通过 | 右栏只读工作表、工作表切换和原件下载。[环境台账](#环境台账) | local-dev |
 | local-dev-flash-closeout | 9a0826a0 | main | local-dev 薄上下文与校验器交付 | 5174 规范重建就绪，置顶和存储卷核对通过 | 从 dev 0f3726ca 构建，包含可选薄上下文、正式答复回归和 Harness 规则审核。[环境台账](#环境台账) | local-dev |
 | dev-head | origin/dev | main | dev · 当前研发位置 | 研发主线以远端已合并提交为准 | 动态绑定实际 dev 并连接已核对的祖先，保留本地工作分支和运行来源。[当前状态](CURRENT-STATE.md) | shared-agent |
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
@@ -1960,6 +1961,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | local-qwen-preset-deployed | 本机开发部署来源 | dev | 27B 和 35B 独立配置；模型菜单展示短名及 Qwen 图标 | 27B 可选，首次工作台请求超时 |
 | compact-composition-context | 本机开发部署来源 | dev | 精简工具组合模型可见说明；保留按需帮助与调用约束 | 103 项直接运行时检查及 macOS CI 通过 |
 | gateway-source-scope | 本机开发部署来源 | dev | 匹配请求与已发布来源范围；保留业务目录按需发现 | 123 项本地定向检查及 macOS CI 通过 |
+| local-dev-xlsx-preview | 本机开发部署来源 | dev | 右栏工作簿预览；可切换工作表与下载原件 | 5174 实测两个工作表，38 行和 11 行 |
 | local-dev-flash-closeout | 本机开发部署来源 | dev | 5174 从 dev 规范重建；包含可选薄上下文及校验器操作流程 | API、worker 和 Pi 就绪，10 个原置顶及存储卷核对通过 |
 | local-llama-request | 本机推理请求适配 | dev | 固定容量提示；为两款本机 Qwen 预设统一请求字段 | 本机 187 项相关检查通过，macOS CI 45099572315 通过 |
 | gateway-exclusion-projection | 本机开发部署来源 | dev | 展示业务工具拒绝项；拒绝项不计为正向匹配 | 124 项定向检查、macOS CI 及两仓契约核对通过 |
@@ -2010,6 +2012,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 271 | XLSX 工作簿预览 | fix/xlsx-artifact-preview | dev | MERGED | 合并 de229bd4，受检 bd07d4a0，macOS CI 45478832599 通过。5174 右栏用实际工作簿验证两个工作表及下载。 |
+| 270 | 正式答复格式降级 | fix/native-answer-presentation-fallback | dev | MERGED | 合并 595094b4，受检 6535481a，macOS CI 45475272758 通过，已在 5174 安全重建和复现核对。答复格式解析异常不再使已完成的执行失败。 |
 | 267 | DeepSeek Flash 薄上下文和正式答复验证 | feat/dev-thin-context | dev | MERGED | 合并 774a49f5，受检 9a0826a0，macOS CI 45447607844 通过。可选薄上下文保留正式表、证据和 HTML。case14 未缓存输入下降 56%，续问和报告样本耗时增加，默认关闭。增加原生执行到线程落盘的异常答复回归。 |
 | 266 | Harness 跨版本校验器审查 | feat/harness-trusted-replay | dev | MERGED | 合并 989cab73，受检 cd75cb20，macOS CI 45445192198 通过。使用真实 DeepSeek Flash 私有归档核验旧处理器和候选，发布及回退输出字节匹配回执。候选策略仍须经 dev PR 发布。 |
 | 264 | 正式答复与静态报告恢复 | fix/formal-answer-report-delivery | dev | MERGED | 合并 acf120c6，受检 fd2fc2d4，macOS CI 45433323429 通过。恢复已知异常答复外壳中的正文，以及无格式指定时的 HTML 分析报告交付。DeepSeek Flash 与本机 Qwen 35B 在隔离试验 1da0c119 完成真实任务，下载哈希通过。 |
@@ -2352,7 +2356,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 产品源码 `9a0826a0`，构建工作树 0f3726ca | API 与三类 worker 同镜像 6c27dc5d5e55，Pi 镜像 d54c1159d53a，均就绪 | App http://127.0.0.1:5174/。从干净 dev 规范重建。原有 10 条置顶 ID 与 PostgreSQL、制品存储卷一致。薄上下文默认关闭。回执 `runs/local-dev-0f3726ca/`。 |
+| local-dev | App `bd07d4a0`，后端与 Pi `6535481a` | API 与三类 worker 同镜像 2a894c9471e4，Pi 镜像 ae91db363228，均就绪 | App http://127.0.0.1:5174/。真实 XLSX 的两页预览及下载通过。答复格式保留路径在已安装的 Pi 容器复测通过。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
