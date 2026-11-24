@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-24 本机 Qwen 与 Harness 四批优化已通过 macOS 定向门禁并合入 dev。受检来源与合并提交见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
+
 2026-11-23 PR255 稳定本机推理请求。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
 
 2026-11-23 PR253 将网关拒绝项纳入工具发现结果。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
