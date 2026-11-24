@@ -8393,3 +8393,5 @@ check passed. No CI, integration or remote deployment performed.
 - 00:19 Merged formal answer and HTML delivery recovery after macOS CI 45433323429. [acf120c6]
 - 01:20 Merged the Harness operator review workflow after macOS CI 45445192198. A private DeepSeek Flash archive passed replay with its exact baseline. Candidate, publish and rollback checks matched reviewed digests. [989cab73]
 - 01:23 Merged opt-in thin context and the DeepSeek Flash formal-answer regression after macOS CI 45447607844. The isolated candidate completed case14 with formal evidence and produced a hash-checked HTML report. `5174` and `5274` kept their sources and data. [774a49f5]
+
+- 03:05 Rebuilt local-dev API, workers and Pi from clean dev 0f3726ca. Restarted the App on 5174 from that worktree. Product revision 9a0826a0, API and worker image 6c27dc5d5e55. Preserved storage volume identities and all ten pin IDs. [0f3726ca]

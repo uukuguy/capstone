@@ -1675,6 +1675,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
+| local-dev-flash-closeout | 9a0826a0 | main | local-dev 薄上下文与校验器交付 | 5174 规范重建就绪，置顶和存储卷核对通过 | 从 dev 0f3726ca 构建，包含可选薄上下文、正式答复回归和 Harness 规则审核。[环境台账](#环境台账) | local-dev |
 | dev-head | origin/dev | main | dev · 当前研发位置 | 研发主线以远端已合并提交为准 | 动态绑定实际 dev 并连接已核对的祖先，保留本地工作分支和运行来源。[当前状态](CURRENT-STATE.md) | shared-agent |
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
 | compact-composition-context | f4076615 | main | 精简工具组合说明 | PR249 定向 macOS CI 通过 | 保留两种调用形式和原授权校验，重复说明由现有系统指南和按需帮助提供。[实测与后续方案](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | shared-agent |
@@ -1959,6 +1960,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | local-qwen-preset-deployed | 本机开发部署来源 | dev | 27B 和 35B 独立配置；模型菜单展示短名及 Qwen 图标 | 27B 可选，首次工作台请求超时 |
 | compact-composition-context | 本机开发部署来源 | dev | 精简工具组合模型可见说明；保留按需帮助与调用约束 | 103 项直接运行时检查及 macOS CI 通过 |
 | gateway-source-scope | 本机开发部署来源 | dev | 匹配请求与已发布来源范围；保留业务目录按需发现 | 123 项本地定向检查及 macOS CI 通过 |
+| local-dev-flash-closeout | 本机开发部署来源 | dev | 5174 从 dev 规范重建；包含可选薄上下文及校验器操作流程 | API、worker 和 Pi 就绪，10 个原置顶及存储卷核对通过 |
 | local-llama-request | 本机推理请求适配 | dev | 固定容量提示；为两款本机 Qwen 预设统一请求字段 | 本机 187 项相关检查通过，macOS CI 45099572315 通过 |
 | gateway-exclusion-projection | 本机开发部署来源 | dev | 展示业务工具拒绝项；拒绝项不计为正向匹配 | 124 项定向检查、macOS CI 及两仓契约核对通过 |
 | continuity-merged | 执行连续性集成 | dev | 指令回执和队列可续接；Goal 与 Mission 按依赖推进并保存结果 | PR235 的 macOS 定向验证已通过 |
@@ -2350,7 +2352,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | `896c2982`，合入 PR255 | API 与三类 worker 同镜像 fb0455a1f40e，Pi 镜像 1efc27293dec，均就绪 | App http://127.0.0.1:5174/。两款本机预设通过宿主回环服务使用独立请求策略。活动 Qwen3.6 同会话两轮正确保存，端到端 58.01 和 45.44 秒，旧版 24.61 和 24.50 秒。中继首字节两轮均约 31 秒，工具清单 16→17 项，热缓存待验。回执 `runs/local-llama-request/`。候选网关发布及天气端到端验收仍开放。 |
+| local-dev | 产品源码 `9a0826a0`，构建工作树 0f3726ca | API 与三类 worker 同镜像 6c27dc5d5e55，Pi 镜像 d54c1159d53a，均就绪 | App http://127.0.0.1:5174/。从干净 dev 规范重建。原有 10 条置顶 ID 与 PostgreSQL、制品存储卷一致。薄上下文默认关闭。回执 `runs/local-dev-0f3726ca/`。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
