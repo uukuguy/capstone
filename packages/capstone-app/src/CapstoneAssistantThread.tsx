@@ -10,6 +10,7 @@ import ResearchProgressSummary from './ResearchProgressSummary'
 import {applicationCapacity,observeCapacity} from './applicationCapacity'
 import {capacityFailureNotice} from './capacityFailure'
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode,type RefObject } from 'react'
+import {consumeAnswerArrival, hasAnswerArrival} from './answerRenderTiming'
 import {useSessionViewState,useHasSavedSessionPosition} from './workspaceSessionCache'
 import { createPortal } from 'react-dom'
 import ProductReferenceChips,{type ProductReferenceReader} from './ProductReferenceChips'
@@ -1041,7 +1042,7 @@ export function ResultProjectionCard({ projection, tableId, onFocusElement, rowS
   </section>
 }
 
-function FoldableAnswer({ id, text, author, finishedAt, summary, toolbar }: { id: string; text: string; author: string; finishedAt?: string; summary?: string; toolbar?: ReactNode }) {
+function FoldableAnswer({ id, attemptId, text, author, finishedAt, summary, toolbar }: { id: string; attemptId: string; text: string; author: string; finishedAt?: string; summary?: string; toolbar?: ReactNode }) {
   const body = useRef<HTMLDivElement>(null)
   const { collapsed, toggle } = useContext(AnswerReadingContext)
   // The zero-layout fallback is used by server/test rendering. Browsers use the
@@ -1067,6 +1068,27 @@ function FoldableAnswer({ id, text, author, finishedAt, summary, toolbar }: { id
   }, [text, summary])
   const canFold = summary !== undefined || foldable
   const folded = canFold && collapsed.has(id)
+  useLayoutEffect(() => {
+    if (!hasAnswerArrival(attemptId) || !body.current || folded || document.visibilityState !== 'visible') return
+    let secondFrame: number | undefined
+    const frame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        const node = body.current
+        if (!node?.isConnected || document.visibilityState !== 'visible') return
+        const bounds = node.getBoundingClientRect()
+        if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) return
+        const start = consumeAnswerArrival(attemptId)
+        if (start === undefined) return
+        const name = 'capstone:terminal-sse-to-answer-frame'
+        performance.clearMeasures(name)
+        performance.measure(name, {start})
+      })
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      if (secondFrame !== undefined) cancelAnimationFrame(secondFrame)
+    }
+  }, [attemptId, folded])
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
     <div className="capstone-answer-header"><span className="capstone-chat-role">{author}</span>
       {finishedAt && <InstructionTime value={finishedAt} completion />}
@@ -1238,7 +1260,7 @@ function ChatMessage({ requestLocation, onOpenInstructionContext, resolveRequest
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
-      </> : completedAnswer ? <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt}
+      </> : completedAnswer ? <FoldableAnswer id={id} attemptId={attemptId} text={text} author={author} finishedAt={finishedAt}
         summary={inlineExecution ? coreReply : undefined} toolbar={inlineExecution ? toolbar : undefined} /> : hasText
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}

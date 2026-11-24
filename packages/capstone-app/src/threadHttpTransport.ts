@@ -13,6 +13,7 @@ import { parseAttemptRecords } from './attemptRecords'
 import { parseProcessProducts } from './processProducts'
 import {parseInstructionTakeover,type WorkCommand} from './threadWorkProtocol'
 import {parseNativeArtifact,parseNativeArtifacts,type NativeArtifact} from './nativeArtifacts'
+import {recordAnswerArrival} from './answerRenderTiming'
 import {compareRowIds,parseProductIndex,parseProductRef,parseProductResolution,parseContextProductRefs,type ProductQuery,type ProductRef} from './threadProducts'
 import {object,parseSeries,parseComparison,type SeriesCommand} from './productSeries'
 import {parseBlockJob,parseBlockPage} from './productBlocks'
@@ -694,6 +695,8 @@ export class HttpThreadTransport implements ThreadTransport {
           if (event.threadId !== threadId) throw new Error('Thread 事件身份无效')
           if (event.eventSeq <= cursor) continue
           cursor = event.eventSeq
+          if (event.eventType === 'attempt_completed' && event.visibility === 'public' && event.attemptId)
+            recordAnswerArrival(event.attemptId)
           yield event
         }
         assertCapacity(new TextEncoder().encode(buffer).byteLength,'event_bytes','transport.sse.buffer')
