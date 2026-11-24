@@ -15,6 +15,7 @@ from collections.abc import Mapping
 _SCHEMA = 'capstone-query-delivery/1'
 _REF = re.compile(r'^(?:result|evidence|context|revision):sha256:[0-9a-f]{64}$')
 _TABLE_LINE = re.compile(r'^\s*\|.*\|\s*$')
+_FORMAL_FENCE = re.compile(r'^```(?:json)?\s*([\s\S]*?)\s*```$', re.IGNORECASE)
 _NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
 
 
@@ -40,10 +41,14 @@ def answer_with_query_deliveries(answer: object, deliveries: object, *,
         return answer
     bundle = None
     if answer_format == 'formal-and-core/1':
+        raw = answer.strip()
+        fenced = _FORMAL_FENCE.fullmatch(raw)
+        candidate = fenced.group(1) if fenced else raw
         try:
-            bundle = json.loads(answer)
+            bundle = json.loads(candidate)
         except json.JSONDecodeError:
-            return answer
+            if candidate.startswith('{'):
+                return answer
     bundled = isinstance(bundle, dict) and isinstance(bundle.get('answer'), str)
     draft = bundle['answer'] if bundled else answer
     prose = '\n'.join(line for line in draft.splitlines() if not _TABLE_LINE.match(line)).strip()

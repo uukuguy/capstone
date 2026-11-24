@@ -44,3 +44,13 @@ def test_formal_answer_bundle_keeps_admitted_table_inside_answer():
     assert amended == {**bundle, 'answer': '结果如下。\n\n'
                        '| index | vm_pu (p.u.) |\n| --- | --- |\n'
                        '| 2 | 1.01 |\n| 3 | 1.0177 |\n| 4 | 1.0195 |\n\n证据：' + evidence}
+
+
+def test_formal_answer_fallback_still_replaces_model_table():
+    for answer in ('结果如下。\n| 模型表 |\n| --- |\n| 草稿 |',
+                   '```json\n{"answer":"结果如下。\\n| 模型表 |\\n| --- |","summary":"查询完毕"}\n```'):
+        amended = answer_with_query_deliveries(answer, [_delivery()], answer_format='formal-and-core/1')
+        assert '模型表' not in amended
+        assert '| index | vm_pu (p.u.) |' in amended
+        if answer.startswith('```'):
+            assert json.loads(amended)['summary'] == '查询完毕'
