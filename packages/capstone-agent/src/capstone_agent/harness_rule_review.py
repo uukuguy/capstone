@@ -82,3 +82,18 @@ def runtime_receipt(objects, thread_id, attempt_id, digest, bundle, *, role, rev
         'processors': _processor_identity(bundle),
         'decision': {'status': result.status, 'value': result.value},
     }
+
+
+def reviewed_rule_bytes(review, *, current: bytes, desired: bytes, rollback: bool) -> bytes:
+    """Check exact rule bytes before a reviewed source change."""
+    from hashlib import sha256
+
+    if review.get('schema') != 'capstone-validation-cross-runtime-review/1':
+        raise ValueError('Invalid validation review')
+    old = review.get('baseline_bundle_sha256')
+    new = review.get('candidate_bundle_sha256')
+    expected_current, expected_desired = (new, old) if rollback else (old, new)
+    if (sha256(current).hexdigest() != expected_current
+            or sha256(desired).hexdigest() != expected_desired):
+        raise ValueError('Reviewed validation bundle digest mismatch')
+    return desired

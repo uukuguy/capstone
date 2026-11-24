@@ -157,3 +157,19 @@ def test_runtime_receipts_compare_installed_distinct_handlers():
     assert review['candidate']['value'] == 'answer revised'
     with pytest.raises(ValueError, match='bundle mismatch'):
         runtime_receipt(store, 'thread', 'attempt', ref, proposed, role='baseline', revision='b' * 40)
+
+
+def test_publication_and_rollback_require_reviewed_exact_bytes():
+    from hashlib import sha256
+    from capstone_agent.harness_rule_review import reviewed_rule_bytes
+
+    old, new = b'old rules', b'new rules'
+    review = {'schema': 'capstone-validation-cross-runtime-review/1',
+              'baseline_bundle_sha256': sha256(old).hexdigest(),
+              'candidate_bundle_sha256': sha256(new).hexdigest()}
+    assert reviewed_rule_bytes(review, current=old, desired=new, rollback=False) == new
+    assert reviewed_rule_bytes(review, current=new, desired=old, rollback=True) == old
+    with pytest.raises(ValueError):
+        reviewed_rule_bytes(review, current=old, desired=b'changed', rollback=False)
+    with pytest.raises(ValueError):
+        reviewed_rule_bytes(review, current=b'unexpected', desired=old, rollback=True)
