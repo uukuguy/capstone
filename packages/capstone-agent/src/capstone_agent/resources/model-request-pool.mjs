@@ -63,6 +63,8 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
       status,queued_at_ms:record.queuedAt??previous?.queued_at_ms??Date.now(),
       ...(record.startedAt!==undefined?{started_at_ms:record.startedAt}:previous?.started_at_ms!==undefined?{started_at_ms:previous.started_at_ms}:{}),
       ...(terminal.has(status)?{finished_at_ms:record.finishedAt??Date.now()}:{}),
+      ...(entry.firstContentAt!==undefined?{first_content_at_ms:entry.firstContentAt}:{}),
+      ...(entry.cancelRequestedAt!==undefined?{cancel_requested_at_ms:entry.cancelRequestedAt}:{}),
       ...(entry.cancelReason?{cancel_reason:entry.cancelReason}:{})};
     events.set(entry.id,event);
     if(JSON.stringify(previous)!==JSON.stringify(event))emit(structuredClone(event));
@@ -75,7 +77,8 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
   }
   function cancel(entry,reason){
     if(entry.outcome||entry.cancelReason||terminal.has(events.get(entry.id)?.status))return;
-    entry.cancelReason=reason;entry.controller.abort();entry.output.fail(aborted());detach(entry);
+    entry.cancelReason=reason;entry.cancelRequestedAt=Date.now();
+    entry.controller.abort();entry.output.fail(aborted());detach(entry);
     publish(entry,entry.started?'cancelling':'cancelled');
     // No transport exists for a queued request. Remove it immediately rather
     // than retaining its chain barrier behind unrelated occupied slots.
@@ -108,7 +111,14 @@ export function createModelRequestPool({runtime,concurrency,maxRequests,emit=()=
         if(!actual||typeof actual[Symbol.asyncIterator]!=='function'||typeof actual.result!=='function')throw new TypeError('Invalid provider stream');
         const result=Promise.resolve().then(()=>actual.result());result.catch(()=>{});
         let streamFailure,resultFailure,returned;
-        try{for await(const event of actual)entry.output.push(event);}catch(error){streamFailure=error;}
+        try{
+          for await(const event of actual){
+            if(!entry.cancelReason&&entry.firstContentAt===undefined&&
+                ['text_delta','thinking_delta','toolcall_delta'].includes(event?.type)&&event.delta)
+              entry.firstContentAt=Date.now();
+            entry.output.push(event);
+          }
+        }catch(error){streamFailure=error;}
         // An iterator failure alone does not prove provider cleanup. Retain the
         // reservation until its result promise has also settled.
         try{returned=await result;}catch(error){resultFailure=error;}

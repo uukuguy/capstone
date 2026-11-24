@@ -1,6 +1,7 @@
 import type {EventEnvelope} from './threadProtocol'
 export type RequestStatus='queued'|'waiting_dependencies'|'running'|'cancelling'|'completed'|'failed'|'cancelled'|'blocked'
 export type ProcessModelRequest={id:string;chainId:string;kind:'main'|'analysis';modelTurnNumber?:number;title?:string;dependsOn:string[];status:RequestStatus;queuedAtMs:number;startedAtMs?:number;finishedAtMs?:number;parentToolCallId?:string;childId?:string;association?:'main'|'analysis'|'unassociated'}
+ & {firstContentAtMs?:number;cancelRequestedAtMs?:number}
 const statuses=new Set(['queued','waiting_dependencies','running','cancelling','completed','failed','cancelled','blocked'])
 const finite=(value:unknown):value is number=>typeof value==='number'&&Number.isSafeInteger(value)&&value>=0
 const text=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128&&!/[\x00-\x1f\x7f]/.test(value)
@@ -18,6 +19,8 @@ export function projectModelRequestPool(events:readonly EventEnvelope[],attemptI
    ...(typeof row.title==='string'&&row.title.trim()&&row.title.length<=120?{title:row.title}:{}),
    ...(finite(row.started_at_ms)&&row.started_at_ms>=row.queued_at_ms?{startedAtMs:row.started_at_ms}:{}),
    ...(finite(row.finished_at_ms)?{finishedAtMs:row.finished_at_ms}:{}),
+   ...(finite(row.first_content_at_ms)?{firstContentAtMs:row.first_content_at_ms}:{}),
+   ...(finite(row.cancel_requested_at_ms)?{cancelRequestedAtMs:row.cancel_requested_at_ms}:{}),
    ...(text(row.parent_tool_call_id)?{parentToolCallId:row.parent_tool_call_id}:{}),...(text(row.child_id)?{childId:row.child_id}:{})}
   const prior=requests.get(next.id)
   if(prior&&(prior.chainId!==next.chainId||prior.kind!==next.kind||prior.modelTurnNumber!==next.modelTurnNumber||prior.parentToolCallId!==next.parentToolCallId||prior.childId!==next.childId||prior.queuedAtMs!==next.queuedAtMs))continue

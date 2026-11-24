@@ -6,9 +6,13 @@ const labels={queued:'排队中',waiting_dependencies:'等待依赖',running:'�
 function RequestRow({request,active,now,action,compactReceipt}:{request:ProcessModelRequest;active:boolean;now?:number;action?:ReactNode;compactReceipt?:boolean}){
  const [manual,setManual]=useState<boolean|undefined>(),automatic=active&&['running','cancelling'].includes(request.status),open=manual??automatic
  const ms=requestExecutionMs(request,now)
+ const first=request.startedAtMs!==undefined&&request.firstContentAtMs!==undefined?request.firstContentAtMs-request.startedAtMs:undefined
+ const release=request.cancelRequestedAtMs!==undefined&&request.finishedAtMs!==undefined?request.finishedAtMs-request.cancelRequestedAtMs:undefined
  return <details className="capstone-call-tool capstone-model-request" open={open} onToggle={event=>{if(event.currentTarget.open!==open)setManual(event.currentTarget.open)}}>
   <summary onClick={event=>{if(event.target instanceof Element&&event.target.closest('button'))return;event.preventDefault();setManual(!open)}}><ChevronRight aria-hidden="true"/>{compactReceipt?<small>调度详情</small>:<><strong>{request.title??(request.kind==='main'?'主链模型请求':'分析模型请求')}</strong><span>{labels[request.status]}</span><small title="实际请求区间，不含排队或依赖等待">{ms===undefined?'耗时未记录':`${(ms/1000).toFixed(1)}s`}</small></>}{action}</summary>
   <div className="capstone-call-tool-detail"><p>{request.id}{compactReceipt&&` · ${labels[request.status]}${ms===undefined?'':` · ${(ms/1000).toFixed(1)}s`}`}{request.startedAtMs!==undefined&&` · 排队 ${((request.startedAtMs-request.queuedAtMs)/1000).toFixed(1)}s`}{request.association==='unassociated'?' · 未关联到父 LLM':''}</p>{request.dependsOn.length>0&&<p>依赖：{request.dependsOn.join('、')}</p>}</div>
+  {first!==undefined&&first>=0&&<p>模型首个内容 {(first/1000).toFixed(1)}s</p>}
+  {release!==undefined&&release>=0&&request.startedAtMs!==undefined&&<p>取消至请求释放 {(release/1000).toFixed(1)}s</p>}
  </details>
 }
 export function RequestPoolExecutions({requests,active=false,now,label='实际模型请求',contextAction,compactReceipt}:{contextAction?:(id:string)=>ReactNode;compactReceipt?:boolean;requests:readonly ProcessModelRequest[];active?:boolean;now?:number;label?:string}){
