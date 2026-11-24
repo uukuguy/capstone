@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-25 DeepSeek Flash 薄上下文与 Harness 跨版本规则审查已合入 dev。见[验收计划](../superpowers/plans/2026-11-25-deepseek-flash-thin-context.md)和[版本台账](VERSION-CONTROL.md#pr-交付关联)。
+
 2026-11-24 本机 Qwen 与 Harness 四批优化已通过 macOS 定向门禁并合入 dev。受检来源与合并提交见[版本台账](VERSION-CONTROL.md#pr-交付关联)。
 
 2026-11-23 PR255 稳定本机推理请求。见[版本台账](VERSION-CONTROL.md#pr-交付关联)。

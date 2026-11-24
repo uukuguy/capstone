@@ -8391,3 +8391,5 @@ check passed. No CI, integration or remote deployment performed.
 - 00:12 Merged the four-batch control update after macOS CI 45433154038. [0c027021]
 - 00:14 Verified formal answer text and an independent HTML download with DeepSeek Flash and Qwen 35B in the isolated trial. The DeepSeek Flash attempt `attempt_99bf4f8b49335efe` also passed App preview. The trial uses `1da0c119`; its thin-context guide stays on the experiment branch. Local receipts are in `runs/local-llama-rebaseline/formal-answer-html-20261125/`.
 - 00:19 Merged formal answer and HTML delivery recovery after macOS CI 45433323429. [acf120c6]
+- 01:20 Merged the Harness operator review workflow after macOS CI 45445192198. A private DeepSeek Flash archive passed replay with its exact baseline. Candidate, publish and rollback checks matched reviewed digests. [989cab73]
+- 01:23 Merged opt-in thin context and the DeepSeek Flash formal-answer regression after macOS CI 45447607844. The isolated candidate completed case14 with formal evidence and produced a hash-checked HTML report. `5174` and `5274` kept their sources and data. [774a49f5]
