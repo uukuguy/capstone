@@ -2013,7 +2013,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
 | 271 | XLSX 工作簿预览 | fix/xlsx-artifact-preview | dev | MERGED | 合并 de229bd4，受检 bd07d4a0，macOS CI 45478832599 通过。5174 右栏用实际工作簿验证两个工作表及下载。 |
-| 270 | 正式答复格式降级 | fix/native-answer-presentation-fallback | dev | VERIFIED LOCAL | 受检候选 6535481a，已在 5174 安全重建和复现核对。等待 macOS 门禁。答复格式解析异常不再使已完成的执行失败。 |
+| 270 | 正式答复格式降级 | fix/native-answer-presentation-fallback | dev | MERGED | 合并 595094b4，受检 6535481a，macOS CI 45475272758 通过，已在 5174 安全重建和复现核对。答复格式解析异常不再使已完成的执行失败。 |
 | 267 | DeepSeek Flash 薄上下文和正式答复验证 | feat/dev-thin-context | dev | MERGED | 合并 774a49f5，受检 9a0826a0，macOS CI 45447607844 通过。可选薄上下文保留正式表、证据和 HTML。case14 未缓存输入下降 56%，续问和报告样本耗时增加，默认关闭。增加原生执行到线程落盘的异常答复回归。 |
 | 266 | Harness 跨版本校验器审查 | feat/harness-trusted-replay | dev | MERGED | 合并 989cab73，受检 cd75cb20，macOS CI 45445192198 通过。使用真实 DeepSeek Flash 私有归档核验旧处理器和候选，发布及回退输出字节匹配回执。候选策略仍须经 dev PR 发布。 |
 | 264 | 正式答复与静态报告恢复 | fix/formal-answer-report-delivery | dev | MERGED | 合并 acf120c6，受检 fd2fc2d4，macOS CI 45433323429 通过。恢复已知异常答复外壳中的正文，以及无格式指定时的 HTML 分析报告交付。DeepSeek Flash 与本机 Qwen 35B 在隔离试验 1da0c119 完成真实任务，下载哈希通过。 |
@@ -2356,7 +2356,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | App `bd07d4a0`，后端与 Pi 候选 `6535481a` | API 与三类 worker 同镜像 2a894c9471e4，Pi 镜像 ae91db363228，均就绪 | App http://127.0.0.1:5174/。真实 XLSX 的两页预览及下载通过。答复格式保留路径在已安装的 Pi 容器复测通过。 |
+| local-dev | App `bd07d4a0`，后端与 Pi `6535481a` | API 与三类 worker 同镜像 2a894c9471e4，Pi 镜像 ae91db363228，均就绪 | App http://127.0.0.1:5174/。真实 XLSX 的两页预览及下载通过。答复格式保留路径在已安装的 Pi 容器复测通过。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
