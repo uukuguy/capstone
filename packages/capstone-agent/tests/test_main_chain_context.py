@@ -193,6 +193,25 @@ def test_enterprise_main_chain_commits_model_summary_with_formal_answer(summary)
     assert completed.payload.get('answer_core_summary') == (summary if len(summary) <= 480 else None)
 
 
+def test_native_main_chain_persists_recovered_deepseek_formal_answer():
+    executor = governed_executor()
+    execute = executor.execute
+
+    def answer(request, control, emit):
+        raw = '{"answer":"分析中使用了"登记数据"。\\n报告已保存。","summary":"已分析登记数据。"}'
+        return replace(execute(request, control, emit), answer=raw)
+
+    executor.execute = answer
+    store = _store(executor, 'enterprise-research')
+    result = run_pending_attempt(store, native_runtime_factory(executor),
+        worker_id='native', implementation_family='native')
+    assert result.status == 'completed'
+    completed = next(event for event in store.read_events('thr_unscoped', 0).events
+                     if event.event_type == 'attempt_completed')
+    assert completed.payload['answer'] == '分析中使用了"登记数据"。\n报告已保存。'
+    assert completed.payload['answer_core_summary'] == '已分析登记数据。'
+
+
 def test_core_reply_cannot_survive_a_changed_or_recovered_answer():
     from types import SimpleNamespace
 
