@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from capstone_agent.query_delivery import answer_with_query_deliveries
 
 
@@ -23,3 +25,8 @@ def test_answer_uses_admitted_rows_in_order_and_drops_the_model_table():
     assert answer.index('| 2 | 1.01 |') < answer.index('| 3 | 1.0177 |') < answer.index('| 4 | 1.0195 |')
     assert answer.endswith('证据：' + delivery['evidence_refs'][0])
     assert answer_with_query_deliveries('保留原文', [{'schema': 'other'}]) == '保留原文'
+
+
+def test_general_pi_image_copies_query_delivery():
+    image = (Path(__file__).resolve().parents[3] / 'deploy/general-pi.Dockerfile').read_text()
+    assert 'packages/capstone-agent/src/capstone_agent/query_delivery.py' in image

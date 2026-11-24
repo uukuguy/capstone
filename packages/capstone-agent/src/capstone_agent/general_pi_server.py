@@ -1261,7 +1261,7 @@ class GeneralPiHost:
                 **({'failure': public_failure} if public_failure else {})}, request).to_document()
             self._save(request, result)
             persisted = True
-        except (OSError, ValueError, TypeError) as error:
+        except (OSError, ValueError, TypeError, ImportError) as error:
             import logging
             from .native_failure_origin import native_failure_origin
             logging.getLogger(__name__).error(
