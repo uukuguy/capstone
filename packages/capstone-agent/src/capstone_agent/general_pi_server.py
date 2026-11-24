@@ -2770,7 +2770,11 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 authorization = self.headers.get('Authorization', '')
                 grant = authorization.removeprefix('Bearer ') if authorization.startswith('Bearer ') else ''
-                lease = runner.relay.acquire(parts[2], grant, self.connection)
+                selected = getattr(runner, 'task_llm_profiles', {}).get(parts[2])
+                local_slot = None
+                if selected and selected.get('request_policy') == 'llama-server':
+                    local_slot = urlsplit(selected['base_url']).port
+                lease = runner.relay.acquire(parts[2], grant, self.connection, local_slot=local_slot)
             except PermissionError:
                 return self.send_json(401, {'error': 'unauthorized'})
             except CapacityExceeded as error:
@@ -2788,7 +2792,6 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     raise ValueError()
                 body = self.rfile.read(length)
                 document = json.loads(body)
-                selected = getattr(runner, 'task_llm_profiles', {}).get(parts[2])
                 selected_model = selected['model'] if selected else runner.model
                 selected_upstream = selected['base_url'] if selected else upstream
                 selected_key = selected['key'] if selected else provider_key
