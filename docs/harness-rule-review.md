@@ -23,10 +23,9 @@ archive digest and candidate bundle digest. The receipt contains answer text.
 A receipt records the selected worktree identities. Its trust depends on the
 operator selecting trusted refs and protecting the local environment and output.
 
-For publication, verify the current published bundle bytes and the candidate
-bytes with `reviewed_rule_bytes(review, current=..., desired=..., rollback=False)`.
-Commit the returned candidate bytes through a normal dev PR. Keep the baseline
-commit and review receipt available. For rollback, verify the published bytes
-against the same receipt with `rollback=True`, then submit the returned
-baseline bytes in a new PR. Review the affected handler source changes as well
+For publication, run `tools/review_harness_rules.py publish` with `--review`,
+`--current`, `--desired`, and a new `--output` path. Commit the checked output
+through a normal dev PR. Keep the baseline commit and review receipt available.
+For rollback, use the same arguments with the `rollback` subcommand, then
+submit the checked baseline output in a new PR. Review the affected handler source changes as well
 as the rule JSON. This check does not itself approve or publish a change.

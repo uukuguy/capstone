@@ -2,7 +2,6 @@
 """Compare private validation archives in two explicitly selected Git worktrees."""
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -27,7 +26,10 @@ from pathlib import Path
 from capstone_agent.answer_correction import _table_row_break_rule
 from capstone_agent.harness_validation import load_rule_bundle, replay_rule_input, _processor_identity
 request=json.load(sys.stdin)
-body=Path(request['archive']).read_bytes()
+with Path(request['archive']).open('rb') as stream:
+    body=stream.read(4_000_001)
+if len(body)>4_000_000:
+    raise ValueError('Archive exceeds limit')
 if hashlib.sha256(body).hexdigest()!=request['digest']:
     raise ValueError('Archive digest mismatch')
 archive=json.loads(body)
@@ -58,12 +60,28 @@ def run_runtime(path, request):
         'capstone-agent', 'capability-agent-kernel', 'capstone-control',
         'capstone-model-capability-spi', 'enterprise-research-domain-pack'))
     result = subprocess.run([sys.executable, '-c', RUNNER], input=json.dumps(request),
-                            cwd=path, env=env, capture_output=True, text=True, check=True)
+                            cwd=path, env=env, capture_output=True, text=True, check=True, timeout=30)
     return json.loads(result.stdout)
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
+    if len(sys.argv) > 1 and sys.argv[1] in ('publish', 'rollback'):
+        operation = sys.argv[1]
+        p.add_argument('operation', choices=('publish', 'rollback'))
+        for name in ('review', 'current', 'desired', 'output'):
+            p.add_argument('--' + name, required=True)
+        args = p.parse_args()
+        from capstone_agent.harness_rule_review import reviewed_rule_bytes
+        review = json.loads(Path(args.review).read_text())
+        current = Path(args.current).read_bytes()
+        desired = Path(args.desired).read_bytes()
+        data = reviewed_rule_bytes(review, current=current, desired=desired,
+                                   rollback=operation == 'rollback')
+        fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+        return
     for name in ('archive', 'archive-sha256', 'thread', 'attempt', 'baseline-worktree',
                  'baseline-ref', 'candidate-worktree', 'candidate-ref', 'candidate-rules', 'output'):
         p.add_argument('--' + name, required=True)
@@ -74,6 +92,8 @@ def main():
     new_rev = source_revision(candidate, args.candidate_ref)
     rules = Path(args.candidate_rules).resolve()
     relative = rules.relative_to(candidate)
+    if relative.as_posix() != 'packages/capstone-agent/src/capstone_agent/resources/harness-rules.json':
+        raise ValueError('Candidate must be the canonical tracked rule bundle')
     subprocess.run(['git', '-C', str(candidate), 'ls-files', '--error-unmatch', str(relative)],
                    check=True, stdout=subprocess.DEVNULL)
     request = {'archive': str(Path(args.archive).resolve()), 'digest': args.archive_sha256,

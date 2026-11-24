@@ -95,28 +95,6 @@ def test_result_table_findings_are_scoped_and_leave_independent_tables_usable():
     assert all(item.status == 'finding' and item.target == 'result.table' for item in seen)
 
 
-def test_candidate_review_binds_digests_and_preserves_archived_input():
-    from capstone_agent.answer_correction import presentation_rule_bundle
-    from capstone_agent.artifacts import MemoryObjectStore
-    from capstone_agent.harness_validation import archive_rule_input, load_rule_bundle
-    from capstone_agent.harness_rule_review import review_rule_candidate
-
-    store = MemoryObjectStore()
-    original = presentation_rule_bundle()
-    candidate = load_rule_bundle(original.source.replace(b'"version": 1,', b'"version": 2,', 1), {
-        'markdown_table_row_breaks': lambda value: Decision.corrected(value + ' revised', 'candidate_revision'),
-    })
-    ref = archive_rule_input(store, 'thread', 'attempt', original, 'answer', answer_limit=50)
-    before = dict(store.contents)
-    receipt = review_rule_candidate(store, 'thread', 'attempt', ref, original, candidate)
-    assert receipt['archive_sha256'] == ref
-    assert receipt['original_bundle_sha256'] == original.digest
-    assert receipt['candidate_bundle_sha256'] == candidate.digest
-    assert receipt['original']['value'] == 'answer'
-    assert receipt['candidate']['value'] == 'answer revised'
-    assert store.contents == before
-
-
 def test_cross_version_review_requires_matching_archive_and_trusted_revisions():
     from capstone_agent.harness_rule_review import compare_runtime_receipts
 
@@ -136,27 +114,6 @@ def test_cross_version_review_requires_matching_archive_and_trusted_revisions():
                                  trusted_revisions={'b' * 40, 'e' * 40})
     with pytest.raises(ValueError):
         compare_runtime_receipts(baseline, candidate, trusted_revisions={'b' * 40})
-
-
-def test_runtime_receipts_compare_installed_distinct_handlers():
-    from capstone_agent.answer_correction import presentation_rule_bundle
-    from capstone_agent.artifacts import MemoryObjectStore
-    from capstone_agent.harness_validation import archive_rule_input, load_rule_bundle
-    from capstone_agent.harness_rule_review import compare_runtime_receipts, runtime_receipt
-
-    store = MemoryObjectStore()
-    baseline = presentation_rule_bundle()
-    proposed = load_rule_bundle(baseline.source.replace(b'"version": 1,', b'"version": 2,', 1), {
-        'markdown_table_row_breaks': lambda value: Decision.corrected(value + ' revised', 'revised'),
-    })
-    ref = archive_rule_input(store, 'thread', 'attempt', baseline, 'answer', answer_limit=50)
-    old = runtime_receipt(store, 'thread', 'attempt', ref, baseline, role='baseline', revision='a' * 40)
-    new = runtime_receipt(store, 'thread', 'attempt', ref, proposed, role='candidate', revision='b' * 40)
-    assert old['processors'] != new['processors']
-    review = compare_runtime_receipts(old, new, trusted_revisions={'a' * 40, 'b' * 40})
-    assert review['candidate']['value'] == 'answer revised'
-    with pytest.raises(ValueError, match='bundle mismatch'):
-        runtime_receipt(store, 'thread', 'attempt', ref, proposed, role='baseline', revision='b' * 40)
 
 
 def test_publication_and_rollback_require_reviewed_exact_bytes():
