@@ -9,13 +9,16 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 
 def test_thin_context_has_a_focused_dev_gate():
+    from tools.ci_scope import classify as classify_changes
+
     paths = [
         'compose.yaml',
         'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
         'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
         'packages/pandapower-domain-pack/src/pandapower_domain/tool_service.py',
     ]
-    assert classify(paths) == 'thin-context'
+    assert classify_changes(paths) == 'thin-context'
+    assert classify_changes(paths, target='main') == 'release'
 
 def test_managed_skill_scope_excludes_unrelated_product_changes():
     from tools.ci_scope import classify as classify_changes
