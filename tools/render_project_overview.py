@@ -220,7 +220,7 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 and ancestor(node["sha"], dev)):
             node["lane"] = "main"
     selected = {plain(row[0]) for row in table(register, "主图里程碑")}
-    required_shas = {main, git("rev-parse", "dev")}
+    required_shas = {main, dev}
     required_shas.update(source["sha"] for stage in environments
                          for source in nodes if source["sha"].startswith(stage["revision"]))
     for node in nodes:

@@ -1675,7 +1675,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
 | gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 历史本地产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
-| dev-head | dev | main | dev · 当前研发位置 | PR153 已集成，会话 Goal 本机验收通过 | 动态绑定实际 dev 并连接已核对的祖先，保留运行来源和控制记录。[当前状态](CURRENT-STATE.md) | shared-agent |
+| dev-head | origin/dev | main | dev · 当前研发位置 | 研发主线以远端已合并提交为准 | 动态绑定实际 dev 并连接已核对的祖先，保留本地工作分支和运行来源。[当前状态](CURRENT-STATE.md) | shared-agent |
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
 | compact-composition-context | f4076615 | main | 精简工具组合说明 | PR249 定向 macOS CI 通过 | 保留两种调用形式和原授权校验，重复说明由现有系统指南和按需帮助提供。[实测与后续方案](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | shared-agent |
 | gateway-source-scope | c2d268c9 | main | 按发布范围选择资料来源 | PR251 定向 macOS CI 通过 | 发现前核对指令的对象、数据范围和来源要求。公开来源与业务证据可按实际需要选用。[环境台账](#环境台账) | shared-agent |
@@ -2008,6 +2008,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 262 | Pandapower 正式查询交付 | feat/dev-admitted-query-delivery | dev | MERGED | 合并 f913fdd5，受检 aa25873e，macOS CI 45428367652 通过。保留 dev 工具发现，接纳正式投影、行序、单位和证据。 |
+| 261 | 模型请求与 App 计时 | feat/dev-model-request-timing | dev | MERGED | 合并 cec073a6，受检 f40cd6c7，macOS CI 45427688514 通过。覆盖首内容、取消状态和开发页面渲染帧。 |
+| 260 | Harness 私有规则回放 | feat/dev-harness-rule-replay | dev | MERGED | 合并 c45e247e，受检 7be61b9a，macOS CI 45427638906 通过。覆盖匹配处理器的回放与候选对照。 |
+| 259 | 本机 Qwen 端点调度 | fix/local-qwen-endpoint-scheduling | dev | MERGED | 合并 6ac1d026，受检 8ec95d68，macOS CI 45427330530 通过。独立端点与每端点一槽。 |
 | 255 | shared-agent | perf/stable-native-deadline-prefix | dev | MERGED | 896c2982，受检 c8ee765f。任务截止时间移入执行状态，本机请求移除历史思考并使用 max_tokens。macOS CI 45099572315 通过。 |
 | 253 | shared-agent | fix/gateway-exclusion-projection | dev | MERGED | dcbd8a05，受检 4982ac5b。保留并展示网关发布的拒绝项，同时排除搜索词面匹配。macOS CI 45092170271 通过。 |
 | 251 | shared-agent | fix/gateway-public-source-selection | dev | MERGED | c2d268c9，受检 1fab3866。按已发布的数据和来源范围选择工具。macOS CI 45090514522 通过。 |
