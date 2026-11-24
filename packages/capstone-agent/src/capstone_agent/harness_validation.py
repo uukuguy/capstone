@@ -6,7 +6,10 @@ from enum import Enum
 from functools import lru_cache
 from hashlib import sha256
 from importlib.resources import files
+from inspect import getsourcefile
 import json
+from pathlib import Path
+import re
 from typing import Generic, Literal, TypeVar
 
 T = TypeVar("T")
@@ -129,6 +132,7 @@ class RuleBundle(Generic[T]):
     digest: str
     rules: tuple[Rule[T], ...]
     target: str = "answer.text"
+    source: bytes | None = None
 
     def pipeline(self) -> RulePipeline[T]:
         return RulePipeline(_TARGET_STAGES[self.target], self.rules,
@@ -168,6 +172,68 @@ def load_rule_bundle(raw: bytes, handlers: dict[str, Callable[[T], Decision[T]]]
             raise ValueError("Unknown validation rule handler")
         if entry.get("enabled", True):
             rules.append(Rule(entry["id"], entry["version"], handlers[entry["handler"]], entry["action"]))
-    bundle = RuleBundle(doc["version"], sha256(raw).hexdigest(), tuple(rules), target)
+    bundle = RuleBundle(doc["version"], sha256(raw).hexdigest(), tuple(rules), target, raw)
     bundle.pipeline()
     return bundle
+
+
+_REPLAY_LIMIT = 4_000_000
+
+
+@lru_cache(maxsize=64)
+def _source_digest(path: str) -> str:
+    return sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _processor_identity(bundle: RuleBundle) -> list[list[str]]:
+    identity = [['engine', _source_digest(__file__)]]
+    for rule in bundle.rules:
+        path = getsourcefile(rule.check)
+        if path is None:
+            raise ValueError('Validation handler source is unavailable')
+        identity.append([rule.rule_id, _source_digest(path)])
+    return identity
+
+
+def _replay_key(thread_id: str, attempt_id: str, digest: str) -> str:
+    if (any(not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', value) for value in (thread_id, attempt_id))
+            or not re.fullmatch(r'[a-f0-9]{64}', digest)):
+        raise ValueError('Invalid validation replay identity')
+    return f'diagnostics/validation/{thread_id}/{attempt_id}/{digest}.json'
+
+
+def archive_rule_input(objects, thread_id: str, attempt_id: str,
+                       bundle: RuleBundle[T], value: T, *, answer_limit: int | None = None) -> str:
+    if bundle.source is None or sha256(bundle.source).hexdigest() != bundle.digest:
+        raise ValueError('Validation bundle source is unavailable')
+    body = json.dumps({'schema': 'capstone-validation-replay/1', 'target': bundle.target,
+                       'bundle': bundle.source.decode(), 'processors': _processor_identity(bundle),
+                       'answer_limit': answer_limit, 'input': value},
+                      ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+    if len(body) > _REPLAY_LIMIT:
+        raise ValueError('Validation replay input exceeds its size limit')
+    digest = sha256(body).hexdigest()
+    objects.put(_replay_key(thread_id, attempt_id, digest), body, 'application/json')
+    return digest
+
+
+def replay_rule_input(objects, thread_id: str, attempt_id: str, digest: str,
+                      bundle: RuleBundle[T], *, candidate: RuleBundle[T] | None = None,
+                      observe: Callable[[RuleObservation], None] = lambda _: None,
+                      accept_correction: Callable[[T], bool] | None = None) -> Decision[T]:
+    """Run trusted installed rules on a private archived input without changing delivery."""
+    body = objects.get(_replay_key(thread_id, attempt_id, digest), _REPLAY_LIMIT)
+    if len(body) > _REPLAY_LIMIT or sha256(body).hexdigest() != digest:
+        raise ValueError('Validation replay digest mismatch')
+    archived = json.loads(body)
+    if (archived['schema'] != 'capstone-validation-replay/1'
+            or archived['target'] != bundle.target
+            or archived['bundle'].encode() != bundle.source
+            or archived['processors'] != _processor_identity(bundle)
+            or candidate is not None and candidate.target != bundle.target):
+        raise ValueError('Validation replay bundle mismatch')
+    pipeline = (candidate or bundle).pipeline()
+    if accept_correction is None and archived['answer_limit'] is not None:
+        limit = archived['answer_limit']
+        accept_correction = lambda value: isinstance(value, str) and bool(value.strip()) and len(value.encode()) <= limit
+    return pipeline.run(archived['input'], observe=observe, accept_correction=accept_correction)
