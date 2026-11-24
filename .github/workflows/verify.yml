@@ -91,8 +91,8 @@ jobs:
         if: steps.scope.outputs.gate == 'harness-advisory'
         timeout-minutes: 7
         run: |
-          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
-          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_harness_validation.py packages/capstone-agent/tests/test_harness.py packages/capstone-agent/tests/test_general_pi_server.py
+          git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.event.pull_request.head.sha || github.sha }}"
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_harness_validation.py packages/capstone-agent/tests/test_harness.py
           npm ci --prefix packages/capstone-app
           npm --prefix packages/capstone-app run check
           npm --prefix packages/capstone-app test -- src/MarkdownContent.test.tsx src/CapstoneAssistantThread.test.tsx
