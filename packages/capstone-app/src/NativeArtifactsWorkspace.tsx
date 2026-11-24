@@ -10,6 +10,7 @@ import './nativeArtifacts.css'
 import PptxPreview from './PptxPreview'
 import {codeLanguage} from './codeLanguage'
 const CodePreview=lazy(()=>import('./CodePreview'))
+const XlsxPreview=lazy(()=>import('./XlsxPreview'))
 import {useSessionViewState,useSessionObjectUrls,sessionObjectUrl} from './workspaceSessionCache'
 
 type FileClient={
@@ -20,6 +21,7 @@ type Selection={threadId:string;attemptId:string;artifactId:string;requestKey:st
 type Preview={key:string;status:'loading'|'ready'|'error';url?:string;text?:string;textUnavailable?:boolean}
 const fileKey=(file:NativeArtifact)=>`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`
 const statusNames:Record<string,string>={running:'可用版本',completed:'已完成',failed:'未完成',incomplete:'结束时未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
+const xlsxMedia='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 /** A filename fallback affects only the isolated preview, never the stored descriptor. */
 export function nativePreviewMedia(name:string,media:string|null|undefined){
@@ -29,6 +31,7 @@ export function nativePreviewMedia(name:string,media:string|null|undefined){
   if(/\.html?$/i.test(name))return 'text/html'
   if(/\.svg$/i.test(name))return 'image/svg+xml'
   if(/\.pptx$/i.test(name))return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  if(/\.xlsx$/i.test(name))return xlsxMedia
   if(/\.pdf$/i.test(name))return 'application/pdf'
   if(/\.csv$/i.test(name))return 'text/csv'
   if(/\.(md|markdown)$/i.test(name))return 'text/markdown'
@@ -75,6 +78,7 @@ export function NativeFileContent({name,media,url,text,textUnavailable,previewSi
     // remain a local Blob built from authenticated, integrity-checked bytes.
     :media==='application/pdf'?(url?.startsWith('blob:')?<iframe src={url} title={`PDF 预览：${name}`} referrerPolicy="no-referrer"/>:<p>PDF 预览暂不可用，可下载后查看。</p>)
     :media==='application/vnd.openxmlformats-officedocument.presentationml.presentation'?<PptxPreview key={url} name={name} url={url}/>
+    :media===xlsxMedia?<Suspense fallback={<p role="status">正在读取工作簿…</p>}><XlsxPreview key={url} name={name} url={url}/></Suspense>
     :<p>此文件格式没有内置预览，可下载后查看。</p>}</div>
 }
 
