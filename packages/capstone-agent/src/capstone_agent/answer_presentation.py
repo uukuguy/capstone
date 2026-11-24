@@ -10,6 +10,10 @@ _EXPLICIT_BODY = re.compile(re.escape(OPEN) + r'((?:(?!' + re.escape(OPEN) + r')
 _FORMAT_NOTICE = '> 回答格式异常。已保留可确认的正式回答。'
 
 
+class AnswerPresentationError(ValueError):
+    """The public answer cannot be isolated from its presentation envelope."""
+
+
 def _json_object(text: str, *, strict: bool = True) -> dict | None:
     try:
         value = json.loads(text, strict=strict)
@@ -50,7 +54,7 @@ def public_answer(text: str, *, answer_format: str | None = None, recover_unique
                 if bundle is not None:
                     bundle['answer'] += '\n\n' + _FORMAT_NOTICE
                     return json.dumps(bundle, ensure_ascii=False)
-        raise ValueError('answer_presentation_invalid')
+        raise AnswerPresentationError('answer_presentation_invalid')
     _, remainder = text.split(OPEN, 1)
     body, after = remainder.split(CLOSE, 1)
     body, after = body.strip(), after.strip()
@@ -69,7 +73,7 @@ def public_answer(text: str, *, answer_format: str | None = None, recover_unique
                 'summary': bundle['summary'] if bundle is not None else None,
             }, ensure_ascii=False)
     if not body or after:
-        raise ValueError('answer_presentation_invalid')
+        raise AnswerPresentationError('answer_presentation_invalid')
     if answer_format == 'formal-and-core/1' and _json_object(body) is None:
         repaired = _answer_object(body, strict=False)
         if repaired is not None:
