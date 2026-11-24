@@ -11,7 +11,7 @@ const defaults=JSON.parse(readFileSync(new URL('./application-capacity.json',imp
 
 // This is a task-local index of an already admitted publication. Search and
 // activation cannot refresh a catalog or extend the host's grant.
-export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,useLedger,initialNames=[],resolveContracts,
+export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,useLedger,initialNames=[],resolveContracts,detailedGuidance=true,appendLoads=false,
   maxActiveTools=defaults.tool_active_count,maxActiveSchemaChars=defaults.tool_schema_chars,
   pageSize=defaults.tool_search_page_items,maxSummaryChars=defaults.tool_summary_chars}={}) {
   for(const limit of [maxActiveTools,maxActiveSchemaChars,pageSize,maxSummaryChars])
@@ -114,20 +114,28 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     }};
   const load={name:'agent_tool_load',label:'Load admitted tools',
     description:`Select a bounded replacement set for direct model tool calls. Skip loading tools already active, or tools used only inside a composition program; composition accepts selected granted names and exposes tools.describe(name). Capacity: ${maxActiveTools} total, ${initial.length} retained entry tools, ${capacity.selectable_tools} additional distinct tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Previously loaded contracts may be restored on later calls within the same capacity limits. Published schemas stay exact. Use an empty list to unload on-demand tools.`,
-    parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
+    parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools},
+      ...(appendLoads?{replace:{type:'boolean',description:'Replace the current published tool selection when a different set is needed.'}}:{})},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
       let resolved;
       try{resolved=identities.resolveMany(args.names);}
       catch(error){throw new Error(error.message+'. No tools were activated.');}
-      const selected=[...new Set([...initial,...resolved])];
-      if(selected.length>maxActiveTools)checkedContracts(selected);
-      await resolveSelected(selected,signal);
+      const append=appendLoads&&args.replace!==true&&resolved.length>0;
+      const base=()=>append?(pending??[...active]):appendLoads?
+        [...active].filter(name=>initial.includes(name)||resolved.includes(name)):initial;
+      const select=()=>[...new Set([...base(),...resolved])];
+      if(select().length>maxActiveTools)checkedContracts(select());
+      await resolveSelected(resolved,signal);
+      const selected=select();
       const contracts=checkedContracts(selected);
+      if(appendLoads&&selected.length===active.size&&selected.every(name=>active.has(name))&&!pending)
+        return reply({activation:'already_active',tools:resolved,active_tools:[...active],
+          guidance:'Call the required tool directly now.'});
       pending=selected;
       // Input schemas enter the next model menu; full output contracts are
       // available here without injecting the rest of the catalog.
-      return boundToolResult({...reply({activation:'next_turn',name_resolutions:args.names.map((requested_name,i)=>({requested_name,name:resolved[i]})),selection_guidance:selectionReminder,tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
+      return boundToolResult({...reply({activation:'next_turn',name_resolutions:args.names.map((requested_name,i)=>({requested_name,name:resolved[i]})),selection_guidance:selectionReminder,tools:contracts.filter(({name})=>!append||resolved.includes(name)).map(({name,contract_sha256,publication})=>({name,contract_sha256,
         ...('usage' in publication?{usage:publication.usage}:{}),
         ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))})},
         {cwd,toolName:'agent_tool_load',callId:_id});
@@ -206,7 +214,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       pi.on('before_agent_start',event=>({systemPrompt:(event.systemPrompt??'')+
         '\nChoose tools and skills for the current instruction from its context, published descriptions and task grants. '+
         (initial.length?'Registered entry tools are already active: '+JSON.stringify(initial)+'. Availability does not require a call. Only after selecting this service as relevant, follow its initialization and discovery contract before its business operations. ':'')+
-        'Search only when the needed tool is not known from the current menu or observed publication. Do not search an already known exact name just to confirm it. Load inactive tools only for direct model calls; newly loaded tools become callable on the next model turn. Composition programs select granted names independently of menu activation and inspect their exact contracts with tools.describe(name). Registered entry tools remain available across loads. '+gatewayToolUseGuidance}));
+        'Search only when the needed tool is not known from the current menu or observed publication. Do not search an already known exact name just to confirm it. Load inactive tools only for direct model calls; newly loaded tools become callable on the next model turn. Composition programs select granted names independently of menu activation and inspect their exact contracts with tools.describe(name). Registered entry tools remain available across loads. '+(detailedGuidance?gatewayToolUseGuidance:'')}));
       pi.on('turn_end',()=>{
         if(closed||!pending)return;
         active=new Set(pending);pending=undefined;

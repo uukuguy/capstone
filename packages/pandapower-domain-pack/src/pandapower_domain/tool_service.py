@@ -106,6 +106,70 @@ class PandapowerToolService:
             'tool_hashes': hashes,
         }
 
+    def result_read_guidance(self) -> str | None:
+        readers = {cap: name for name, cap in self._capabilities.items()}
+        listing, query = readers.get('result.dataset.list'), readers.get('result.dataset.query')
+        if not listing or not query:
+            return None
+        describe = readers.get('result.dataset.describe')
+        return (
+            f'To read saved result rows, load {listing} and {query}'
+            + (f' and {describe}' if describe else '')
+            + '. Use the returned result_ref with the list tool. '
+            + (f'Use {describe} to confirm fields and units. ' if describe else '')
+            + f'Use {query} to select, sort and limit rows from the same result. '
+              'Keep the producing evidence_refs for claims. This result_ref is an Authority reference.'
+        )
+
+    def model_result(self, capability: str, result: dict) -> dict | None:
+        if capability == 'context.open':
+            overview = result.get('overview')
+            reader = next((name for name, cap in self._capabilities.items() if cap == 'context.get'), None)
+            if not reader or not isinstance(overview, list) or not isinstance(result.get('context_ref'), str):
+                return None
+            return {**{key: value for key, value in result.items() if key != 'overview'},
+                    'overview_dataset_count': len(overview),
+                    'overview_read': {'tool': reader, 'arguments': {
+                        'context_ref': result['context_ref'], 'include_overview': True}}}
+        if capability not in {'analysis.powerflow.ac.run', 'result.dataset.list'}:
+            return None
+        datasets = result.get('datasets')
+        if not isinstance(datasets, list) or any(
+            not isinstance(item, dict) or not isinstance(item.get('dataset'), str)
+            or type(item.get('row_count')) is not int or item['row_count'] < 0
+            for item in datasets
+        ):
+            return None
+        populated = [{'dataset': item['dataset'], 'row_count': item['row_count']}
+                     for item in datasets if item['row_count']]
+        view = {key: value for key, value in result.items() if key != 'datasets'}
+        if capability == 'analysis.powerflow.ac.run':
+            return {**view, 'dataset_count': len(datasets), 'nonempty_dataset_count': len(populated)}
+        return {**view, 'datasets': populated, 'field_metadata': 'Use the published dataset describe tool for fields and units.',
+                'empty_datasets': [item['dataset'] for item in datasets if item['row_count'] == 0]}
+
+    def model_guidance(self, capability: str, result: dict) -> str | None:
+        readers = {cap: name for name, cap in self._capabilities.items()}
+        if capability == 'context.open' and (solver := readers.get('analysis.powerflow.ac.run')):
+            args = _canonical({'context_ref': result['context_ref']})
+            return (f'For a baseline AC power flow, call {solver} with {args}; '
+                    'omit solver overrides unless requested or justified. The solver applies the registered defaults.')
+        if capability == 'analysis.powerflow.ac.run' and (query := readers.get('result.dataset.query')):
+            dataset = next((row for row in result.get('datasets', [])
+                            if row['dataset'] == 'result.res_bus' and row['row_count'] > 0
+                            and {'index', 'vm_pu'}.issubset(row['available_fields'])), None)
+            if dataset:
+                args = _canonical({'result_ref': result['result_ref'], 'dataset': dataset['dataset'],
+                                   'select': ['index', 'vm_pu'],
+                                   'sort': {'field': 'vm_pu', 'direction': 'ascending'}})
+                other_read = self.result_read_guidance()
+                return (f'For lowest bus voltage, call {query} with {args}. '
+                        'Set limit to the requested count. '
+                        'The query delivery keeps returned order, column units and evidence_refs. '
+                        'Use that delivery as the answer table. '
+                        + (f'For other datasets: {other_read}' if other_read else ''))
+        return None
+
     def query_delivery(self, result: dict, arguments: dict, authority, evidence_refs: list) -> dict | None:
         """Project one admitted query as rows, stored units and evidence.
 
@@ -263,6 +327,20 @@ class PandapowerToolService:
                             selected = []
                         if selected:
                             response['authority_references']['view_refs'] = selected
+                        guidance = self.model_guidance(capability, result)
+                        if result_refs and not read_only and guidance is None:
+                            guidance = self.result_read_guidance()
+                        if guidance:
+                            response['model_guidance'] = guidance
+                        if (result_refs or context_refs) and (view := self.model_result(capability, result)) is not None:
+                            response['model_result'] = view
+                        if capability == 'result.dataset.query' and (delivery := self.query_delivery(
+                                result, arguments, authority, list(evidence))) is not None:
+                            response['query_delivery'] = delivery
+                            response['model_result'] = delivery
+                            response['model_guidance'] = (
+                                'These rows are the answer table in returned order. '
+                                'Use the column units and evidence_refs. Do not retype the rows.')
             except ExecutionReceiptError:
                 raise
             except SimulatorCapabilityError as error:

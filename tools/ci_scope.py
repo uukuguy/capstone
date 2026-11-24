@@ -869,6 +869,22 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
             return 'execution-continuity'
     agent = 'packages/capstone-agent/'
     source = agent + 'src/capstone_agent/'
+    thin_context = {source + 'general_pi_server.py', source + 'resources/general-sdk.mjs'}
+    thin_context_paths = thin_context | {
+        'compose.yaml', '.github/workflows/verify.yml', 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py',
+        'packages/pandapower-domain-pack/src/pandapower_domain/tool_service.py',
+        'packages/pandapower-domain-pack/tests/test_tool_service.py',
+    } | {source + name for name in (
+        'native_environment.py', 'resources/general-context.mjs', 'resources/general-domain-tools.mjs',
+        'resources/general-tool-discovery.mjs', 'resources/model-context-input.mjs',
+        'resources/presentation-templates.mjs', 'resources/tool-result-context.mjs',
+    )} | {agent + 'tests/' + name for name in (
+        'fixtures/presentation-templates.test.mjs', 'fixtures/tool-discovery.test.mjs',
+        'fixtures/tool-result-context.test.mjs', 'general-sdk-capacity.test.mjs',
+        'test_general_pi_server.py', 'test_native_environment.py', 'test_main_chain_context.py',
+    )}
+    if thin_context.issubset(paths) and all(path in thin_context_paths or _control_path(path) for path in paths):
+        return 'thin-context'
     managed_skill_anchors = {source + 'managed_resource_runtime.py', source + 'managed_resource_service.py',
                              source + 'resources/managed-resource-tools.mjs'}
     native_profile_paths = {source + 'general_pi_executor.py', agent + 'tests/test_general_pi_executor.py'}

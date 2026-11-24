@@ -18,6 +18,37 @@ function injectedContextOrigin(message,text) {
   return globalThis[originIndexKey]?.get(messageKey(message.role,message.timestamp,text));
 }
 
+export function createGuideProjection(guides) {
+  const loaded=new Map();
+  return {
+    load(id){
+      if(!Object.hasOwn(guides,id)||!guides[id])return false;
+      loaded.set(id,guides[id]);
+      return true;
+    },
+    sources:()=>[...loaded].map(([id,content])=>({id,name:id,content})),
+    project(context){
+      if(!loaded.size)return context;
+      return {...context,systemPrompt:[context.systemPrompt,...loaded.values()].filter(Boolean).join('\n\n')};
+    },
+  };
+}
+
+export function createGuideReader(guides,activeMessages) {
+  const textById=new Map(Object.entries(guides).filter(([,text])=>text).map(([id,text])=>{
+    const revision=createHash('sha256').update(text).digest('hex');
+    const reference=id+'@sha256:'+revision;
+    return [id,{reference,text:'Guide '+reference+'\n\n'+text}];
+  }));
+  return id=>{
+    const guide=textById.get(id);
+    if(!guide)return;
+    const present=activeMessages().some(message=>message.role==='toolResult'&&
+      message.content?.some(part=>part.type==='text'&&part.text===guide.text));
+    return {type:'text',text:present?'Guide '+guide.reference+' is already in active history.':guide.text};
+  };
+}
+
 /** Bounded operator view of SDK input. Omit reasoning and inline binary data. */
 export function diagnosticContextInput(context,systemSources=[],toolSources,messageSources=[]) {
   const entries=[];

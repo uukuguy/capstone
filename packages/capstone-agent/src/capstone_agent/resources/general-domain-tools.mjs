@@ -1,5 +1,7 @@
 // Published Domain Pack tools. The host relay owns the worker address.
 // A failed call stays a tool result so the task can continue.
+import {projectToolResultText} from './tool-result-context.mjs';
+
 export function createDomainTools(config, {fetchImpl = globalThis.fetch} = {}) {
   const domain = config.domainTools;
   if (!domain?.catalog?.tools) return [];
@@ -31,12 +33,16 @@ export function createDomainTools(config, {fetchImpl = globalThis.fetch} = {}) {
       if (!response.ok || typeof body.result_json !== 'string' || body.tool !== name || body.call_id !== callId) {
         throw new Error('domain tool call failed; continue the task without inventing a result');
       }
-      return {
-        content: [{type: 'text', text: body.result_json}],
+      const result = {
+        content: [{type: 'text', text: body.result_json},
+          ...(config.thinInitialContext && body.is_error !== true && typeof body.model_guidance === 'string'
+            ? [{type: 'text', text: body.model_guidance}] : [])],
         details: {tool: name, call_id: callId, ok: body.is_error !== true,
           ...(body.execution_receipt ? {execution_receipt: body.execution_receipt} : {})},
         isError: body.is_error === true,
       };
+      return config.thinInitialContext && !result.isError && typeof body.model_result_json === 'string'
+        ? projectToolResultText(result,body.model_result_json) : result;
     },
   }));
 }

@@ -119,3 +119,20 @@ def test_invalid_build_receipt_is_not_silently_published(tmp_path, field, value)
     path.write_text(json.dumps(data))
     with pytest.raises(ValueError, match='receipt|identity'):
         environment_context(path)
+
+
+def test_environment_sections_preserve_full_text_and_isolate_presentation(tmp_path):
+    from capstone_agent.native_environment import environment_context_sections
+    value = receipt()
+    value['packages'].update({'python-pptx': '1.0.2', 'Pillow': '12.3.0'})
+    value['commands']['capstone-report'] = '1.2.0'
+    value['smoke_capabilities'].extend(['standalone_reports', 'standalone_presentations'])
+    path = tmp_path / 'environment.json'
+    path.write_text(json.dumps(value))
+    sections = environment_context_sections(path)
+    assert sections is not None
+    base, presentation = sections
+    assert 'report.html' in base
+    assert 'capstone-presentation/1' not in base
+    assert 'capstone-presentation/1' in presentation
+    assert environment_context(path) == base + presentation

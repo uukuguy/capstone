@@ -7,6 +7,11 @@ ENVIRONMENT_RECEIPT = Path(__file__).parent.parent / 'runtime-environment.json'
 
 
 def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
+    sections = environment_context_sections(path)
+    return ''.join(sections) if sections else None
+
+
+def environment_context_sections(path: Path = ENVIRONMENT_RECEIPT) -> tuple[str, str] | None:
     if not path.is_file():
         return None
     value = json.loads(path.read_text(encoding='utf-8'))
@@ -167,6 +172,6 @@ def environment_context(path: Path = ENVIRONMENT_RECEIPT) -> str | None:
         'separately. Installed HTTP clients do not grant external network access. '
         + json.dumps(value, ensure_ascii=False, sort_keys=True)
         + plot_context
-        + report_context
-        + presentation_context
+        + report_context,
+        presentation_context
     )
