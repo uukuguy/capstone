@@ -1509,6 +1509,22 @@ def test_invalid_native_answer_finishes_failed_instead_of_stranding_task(tmp_pat
     assert host.read('t1')['status'] == 'failed'
 
 
+def test_missing_query_delivery_fails_the_task_instead_of_stranding_it(tmp_path, monkeypatch):
+    import sys
+    from capstone_agent.general_pi_server import GeneralPiHost
+    monkeypatch.setitem(sys.modules, 'capstone_agent.query_delivery', None)
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'},
+                         run_task=lambda *_: ('三行均高于 0.95。', {}))
+    request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 't-delivery',
+        'parent_attempt_id': 'a1', 'entrypoint': 'direct', 'instruction': 'List', 'messages': [],
+        'dependency_results': [], 'executor_identity': host.identity, 'timeout_seconds': 2})
+    host.submit(request)
+    deadline = time.monotonic() + 5
+    while host.read('t-delivery')['status'] in {'queued', 'running'} and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert host.read('t-delivery')['status'] == 'failed'
+
+
 def test_artifact_bytes_persist_and_workspaces_are_released(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, cancelled, emit):

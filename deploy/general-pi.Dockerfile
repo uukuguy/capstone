@@ -72,6 +72,7 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/capacity_contract.py \
      packages/capstone-agent/src/capstone_agent/general_pi_executor.py \
      packages/capstone-agent/src/capstone_agent/general_pi_server.py \
+     packages/capstone-agent/src/capstone_agent/query_delivery.py \
      packages/capstone-agent/src/capstone_agent/skill_activity.py \
      packages/capstone-agent/src/capstone_agent/general_pi_storage.py \
      packages/capstone-agent/src/capstone_agent/general_pi_relay.py \

@@ -33,3 +33,33 @@ def test_pack_service_rejects_unsafe_workspace_before_storage(tmp_path, workspac
         service.invoke({'task_id':'task', 'call_id':'call', 'name':'unpublished',
                         'arguments':{}}, workspace_id=workspace)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_query_delivery_keeps_returned_order_stored_units_and_evidence(tmp_path):
+    service = PandapowerToolService(workspace_root=tmp_path)
+    evidence = 'evidence:sha256:' + 'ab' * 32
+    result_ref = 'result:sha256:' + 'cd' * 32
+
+    class Stored:
+        document = {'datasets': {'result.res_bus': {'fields': [
+            {'name': 'index', 'unit': None},
+            {'name': 'vm_pu', 'unit': 'p.u.'},
+        ]}}}
+
+    class Authority:
+        def verify_result(self, ref):
+            assert ref == result_ref
+            return Stored()
+
+    result = {'result_ref': result_ref, 'dataset': 'result.res_bus', 'row_count': 3,
+              'returned_row_count': 3, 'offset': 0, 'next_offset': None,
+              'rows': [{'index': 2, 'vm_pu': 1.01}, {'index': 4, 'vm_pu': 1.0195}, {'index': 3, 'vm_pu': 1.0177}]}
+    arguments = {'select': ['index', 'vm_pu']}
+    delivery = service.query_delivery(result, arguments, Authority(), [evidence])
+    assert [row['index'] for row in delivery['rows']] == [2, 4, 3]
+    assert [row['vm_pu'] for row in delivery['rows']] == [1.01, 1.0195, 1.0177]
+    assert delivery['columns'] == [{'name': 'index'}, {'name': 'vm_pu', 'unit': 'p.u.'}]
+    assert delivery['evidence_refs'] == [evidence]
+    assert 'p.u.' not in json.dumps(result['rows'])
+    result['rows'] = [{'index': 2, 'vm_pu': 1.01, 'extra': 1}]
+    assert service.query_delivery(result, arguments, Authority(), [evidence]) is None
