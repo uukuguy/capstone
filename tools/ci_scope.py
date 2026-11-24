@@ -778,6 +778,23 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    advisory_paths = {
+        '.github/workflows/verify.yml',
+        'packages/capstone-agent/src/capstone_agent/answer_correction.py',
+        'packages/capstone-agent/src/capstone_agent/harness.py',
+        'packages/capstone-agent/src/capstone_agent/harness_validation.py',
+        'packages/capstone-agent/src/capstone_agent/resources/harness-rules.json',
+        'packages/capstone-agent/src/capstone_agent/result_table_checks.py',
+        'packages/capstone-agent/tests/test_harness.py',
+        'packages/capstone-agent/tests/test_harness_validation.py',
+        'packages/capstone-app/src/MarkdownContent.test.tsx',
+        'packages/capstone-app/src/MarkdownContent.tsx',
+        'tools/ci_scope.py',
+        'tools/tests/test_ci_scope.py',
+    }
+    if 'packages/capstone-agent/src/capstone_agent/harness_validation.py' in paths and all(
+            path in advisory_paths or _control_path(path) for path in paths):
+        return 'harness-advisory'
     local_dev_entry = {'compose.yaml', 'deploy/rebuild_local.sh', 'packages/capstone-app/vite.config.ts'}
     local_dev_files = local_dev_entry | {
         'Makefile', 'deploy/rebuild_demo_local.sh', 'tools/test_local_rebuild.sh',

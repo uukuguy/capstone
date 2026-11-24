@@ -1011,3 +1011,43 @@ def test_terminal_write_failure_records_stage_and_keeps_published_artifact(monke
     public = next(event for event in service._events if event.event_type == 'attempt_interrupted')
     assert public.payload['stage'] == 'terminal_write'
     assert public.payload['error_code'] == 'terminal_write_failed'
+
+
+def test_harness_corrects_unambiguous_table_row_breaks_after_admission():
+    from capstone_agent.answer_correction import presentation_rule_bundle
+    from capstone_agent.harness_validation import Decision, Rule, RuleBundle
+
+    service = _thread_service()
+    service.submit_command({
+        'schema': 'capstone-command/1', 'command_id': 'cmd_table_lint',
+        'idempotency_key': 'idem_table_lint', 'thread_id': 'thr_harness',
+        'run_id': 'run_harness', 'kind': 'send_ordinary', 'expected_event_seq': 0,
+        'payload': {'text': 'show ranking'},
+    })
+    claim = service.claim_attempt('worker', lease_seconds=30)
+    assert claim is not None
+    malformed = '| Bus | Voltage |\n| --- | --- |\n| 2 | 1.01 |n| 3 | 1.0177 |n| 4 | 1.0195 |'
+    expected = malformed.replace('|n|', '|\n|')
+    code = '\n\n```markdown\n' + malformed + '\n```'
+    class TableRuntime(_ProtocolRuntime):
+        def prompt(self, question, **kwargs):
+            return malformed + code
+
+    observed = []
+
+    def check_rows(answer):
+        observed.append(answer)
+        return Decision.accepted(answer)
+
+    builtin = presentation_rule_bundle()
+    bundle = RuleBundle(2, 'test-version', (
+        Rule('test.finding', 1, lambda answer: Decision.rejected(answer, 'test_missing_item')),
+        *builtin.rules,
+        Rule('test.table_delivery', 1, check_rows),
+    ))
+    result = HarnessAttemptRunner(service, TableRuntime(), presentation_bundle=bundle).run(claim)
+    assert result.status == 'completed'
+    assert result.answer == expected + code
+    assert observed == [expected + code]
+    records = service.read_events('thr_harness', 0).events
+    assert records[-1].payload['answer'] == expected + code
