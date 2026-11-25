@@ -825,6 +825,7 @@ DEBUG_DEV_FILES = {
 )} | {'packages/capstone-app/src/' + name for name in (
     'CapstoneAssistantThread.tsx',
     'DebugWorkspace.css',
+    'DebugWorkspace.test.tsx',
     'DebugWorkspace.tsx',
     'ThreadCommandMenu.tsx',
     'ThreadWorkAdapter.tsx',
