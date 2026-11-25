@@ -1,6 +1,7 @@
 import TaskContextPanel from './TaskContextPanel'
 import {DebugCommandAvailable} from './ThreadCommandMenu'
 import DebugWorkspace from './DebugWorkspace'
+import MarkdownContent from './MarkdownContent'
 import InstructionContextPanel, {contextIndicator} from './InstructionContextPanel'
 import {contextToolExcerpt,projectInstructionContexts} from './instructionContext'
 import GoalControls from './GoalControls'
@@ -190,7 +191,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [debugThread,setDebugThread]=useState('')
   const [allowDebugExport,setAllowDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
-  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string}>()
+  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; completed?:boolean}>()
   const [debugSource,setDebugSource]=useState('')
   const [sourceQuery,setSourceQuery]=useState(0)
   const selectedGateway=sharedNavigation?.gateway??welcomeGateway
@@ -588,14 +589,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           debugRequest.current=request
         }
         const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
-        const updateDebugActivity = (message: string) => {
-          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message})
+        const updateDebugActivity = (message: string, completed = false) => {
+          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,completed})
         }
         updateDebugActivity('正在读取执行记录')
         try {
           const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, updateDebugActivity)
           if (debugRequest.current === request) {
-            updateDebugActivity(diagnosis)
+            updateDebugActivity(diagnosis, true)
             setDebugFinding(diagnosis)
             debugRequest.current=null
           }
@@ -1255,7 +1256,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
         {debugActivity?.thread===currentId&&<section className="thread-composer-notice" aria-label="Debug 调查" role="status">
-          <strong>Debug</strong> · {debugActivity.text}
+          <strong>Debug</strong>
+          {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <> · {debugActivity.text}</>}
         </section>}
         {notice&&<p className="thread-composer-notice" role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
         <div className="thread-task-strip" aria-label="当前任务">

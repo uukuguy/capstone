@@ -2,6 +2,7 @@ import './DebugWorkspace.css'
 import {Bug, Download, RefreshCw, ScanSearch} from 'lucide-react'
 import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
+import MarkdownContent from './MarkdownContent'
 import {firstDebugObservation} from './debugObservation'
 
 type SourceRepository = 'capstone' | 'data-gateway'
@@ -152,7 +153,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       <option value="">最新调查</option>
       {history.map(item=><option key={item.investigation_id} value={item.investigation_id}>{item.objective}</option>)}
     </select></label>}
-    {(diagnosis?.text || savedFinding)&&<p>{diagnosis?.text || savedFinding}</p>}
+    {(diagnosis?.text || savedFinding)&&<MarkdownContent>{diagnosis?.text || savedFinding}</MarkdownContent>}
     {diagnosis?.source&&<p>{diagnosis.source}</p>}
     {diagnosis&&runProbe&&<details>
       <summary>只读网关复验</summary>
