@@ -1002,7 +1002,8 @@ def test_executor_service_binds_identity_and_control_authorization(tmp_path):
         thread.join(timeout=2)
 
 
-def test_debug_record_paging_crosses_the_leased_http_channel(tmp_path, monkeypatch):
+@pytest.mark.parametrize('operation', ['capstone_records', 'capstone_excerpt'])
+def test_debug_record_paging_crosses_the_leased_http_channel(tmp_path, monkeypatch, operation):
     from types import SimpleNamespace
     from capstone_agent.debug_investigations import InvestigationRegister
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
@@ -1027,8 +1028,10 @@ def test_debug_record_paging_crosses_the_leased_http_channel(tmp_path, monkeypat
 
         def __call__(self, request, cancelled, emit):
             url = f'{origin}/debug-tools/{request.task_id}'
+            query = ({'after': failure - 1} if operation == 'capstone_records'
+                     else {'event_seq': failure, 'field': 'input_excerpt', 'offset': 1000})
             request_body = {'call_id': 'page-one', 'name': 'agent_debug_observe',
-                            'arguments': {'operation': 'capstone_records', 'query': {'after': failure - 1}}}
+                            'arguments': {'operation': operation, 'query': query}}
             denied = httpx.post(url, json=request_body)
             assert denied.status_code == 403
             headers = {'Authorization': 'Bearer fixture-internal-grant'}
@@ -1055,9 +1058,13 @@ def test_debug_record_paging_crosses_the_leased_http_channel(tmp_path, monkeypat
                                        control_token='host-secret')
         diagnosis = register.diagnose(*scope, row['investigation_id'], client)
         assert diagnosis['status'] == 'completed'
-        assert received[0]['is_error'] is False
-        assert received[0]['result']['attempt_id'] == claim.attempt.attempt_id
-        assert received[0]['result']['events'][0]['event_seq'] == failure
+        if operation == 'capstone_records':
+            assert received[0]['is_error'] is False
+            assert received[0]['result']['attempt_id'] == claim.attempt.attempt_id
+            assert received[0]['result']['events'][0]['event_seq'] == failure
+        else:
+            assert received[0]['is_error'] is True
+            assert received[0]['result'] == {'code': 'stored_excerpt_unavailable'}
     finally:
         server.shutdown()
         server.server_close()
