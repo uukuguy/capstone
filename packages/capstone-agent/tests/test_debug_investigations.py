@@ -35,5 +35,13 @@ def test_postgres_register_survives_reopen_and_concurrent_reservations():
         assert InvestigationRegister(PostgresThreadService(dsn)).reserve_call(*call)[1] is False
         with pytest.raises(ValueError):
             reopened.reserve_call(*call[:-1], 'changed-binding')
+        scope = ('enterprise', thread, first['investigation_id'])
+        pending = {'task_id': 'debug_original', 'status': 'running'}
+        assert reopened._reserve_diagnosis(scope, pending) == pending
+        assert reopened._reserve_diagnosis(scope, {'task_id': 'debug_duplicate', 'status': 'running'}) == pending
+        completed = {**pending, 'status': 'completed', 'answer': '已定位。'}
+        reopened._save_diagnosis(scope, completed)
+        reopened._save_diagnosis(scope, {**pending, 'status': 'unknown'})
+        assert reopened.get(*scope)['diagnosis'] == completed
     finally:
         service.delete_thread(thread)

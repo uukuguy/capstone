@@ -344,7 +344,7 @@ class InvestigationRegister:
                     return row['diagnosis']
                 connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=%s
                     WHERE workspace=%s AND thread_id=%s AND investigation_id=%s
-                      AND diagnosis->>'status' IN ('running', 'unknown')''',
+                      AND diagnosis IS NULL''',
                     (Jsonb(diagnosis), *scope))
                 return diagnosis
         with self._lock:
@@ -359,7 +359,8 @@ class InvestigationRegister:
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
                 connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=%s
-                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s''',
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s
+                      AND diagnosis->>'status' IN ('running', 'unknown')''',
                     (Jsonb(diagnosis), *scope))
         else:
             with self._lock:
