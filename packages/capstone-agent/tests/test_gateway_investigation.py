@@ -136,6 +136,15 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
         investigation = register.start(claim.workspace_name, claim.thread_id, 'fixture-export', '复验失败',
                                        claim.attempt.attempt_id)
 
+        steps = [
+            {'seq': 63, 'stage': 'tool_started', 'tool': 'agent_debug_observe'},
+            {'seq': 64, 'stage': 'tool_finished', 'tool': 'agent_debug_observe'},
+        ]
+        register._reserve_diagnosis((claim.workspace_name, claim.thread_id, investigation['investigation_id']),
+                                    {'task_id': 'debug_fixture', 'status': 'running'})
+        register._save_diagnosis((claim.workspace_name, claim.thread_id, investigation['investigation_id']),
+                                 {'task_id': 'debug_fixture', 'status': 'completed',
+                                  'progress': steps, 'progress_truncated': True})
         def read(binding, workspace, investigation_id, operation, query):
             assert (binding, workspace, investigation_id, operation, query) == (
                 {'instance_id': 'fixture'}, claim.workspace_name, investigation['investigation_id'], 'export', {})
@@ -157,6 +166,12 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
             imported = Path(json.loads(replay.stdout)['import_directory'])
             assert json.loads((imported / 'gateway-events.jsonl').read_text()) == {'state': 'unknown'}
             assert (imported / 'capstone-events.jsonl').stat().st_size > 0
+            diagnosis_events = imported / 'capstone-diagnosis-events.jsonl'
+            assert [json.loads(line) for line in diagnosis_events.read_text().splitlines()] == steps
+            manifest = json.loads((imported / 'manifest.json').read_text())
+            assert manifest['summary']['capstone_diagnosis_events'] == len(steps)
+            assert manifest['summary']['capstone_diagnosis_truncated'] is True
+            assert diagnosis_events.name in manifest['files_sha256']
             metadata = json.loads((imported / 'correlation.json').read_text())
             assert metadata['attempt_id'] == claim.attempt.attempt_id
             assert metadata['request_correlation'] == {'status': 'unverified', 'links': []}
