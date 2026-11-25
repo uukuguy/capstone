@@ -411,7 +411,16 @@ def create_host_app(
                     publication = reader(binding, refresh=True)
                 except (RuntimeError, ValueError, OSError):
                     publication = {}
-            return JSONResponse(resolve_sources(publication or {}), headers={'Cache-Control':'no-store'})
+            result = resolve_sources(publication or {})
+            sync = getattr(native_artifact_executor, 'sync_debug_source', None)
+            if result['status'] == 'source_missing' and callable(sync) and publication.get('connection_id'):
+                try:
+                    sync(publication['connection_id'], result['instance_id'], result['gateway_revision'])
+                except (RuntimeError, ValueError, OSError):
+                    result['sync_status'] = 'unavailable'
+                else:
+                    result = resolve_sources(publication)
+            return JSONResponse(result, headers={'Cache-Control':'no-store'})
 
         @app.post('/api/v1/threads/{thread_id}/debug/investigations')
         def start_debug_investigation(thread_id: str, request: Request, body: dict,

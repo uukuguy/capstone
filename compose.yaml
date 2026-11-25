@@ -205,6 +205,8 @@ services:
     pids_limit: ${CAPSTONE_NATIVE_PIDS_LIMIT:-512}
     networks: [general-pi]
     environment:
+      CAPSTONE_DEPLOYMENT_STAGE: ${CAPSTONE_DEPLOYMENT_STAGE:-local}
+      CAPSTONE_DEBUG_COMMANDS: ${CAPSTONE_DEBUG_COMMANDS:-1}
       CAPSTONE_PROGRESSIVE_PPT_GUIDE: ${CAPSTONE_PROGRESSIVE_PPT_GUIDE:-0}
       CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE: ${CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE:-0}
       CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE: ${CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE:-0}
@@ -240,6 +242,7 @@ services:
         source: ${CAPSTONE_RESOURCE_POLICY_DIR:-./.capstone-agent/resource-policy}
         target: /run/capstone-private/resource-policy
         read_only: true
+      - ${CAPSTONE_DEBUG_SOURCE_LIBRARY_DIR:-./.capstone-agent/debug-source-library}:/opt/capstone-debug-library
       - managed-resources:/var/lib/general-pi/managed-resources
       - general-pi-receipts:/var/lib/general-pi/receipts
       - general-pi-inputs:/var/lib/general-pi/inputs

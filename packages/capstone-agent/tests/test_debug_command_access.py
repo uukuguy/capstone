@@ -80,3 +80,39 @@ def test_open_development_access_and_release_block(monkeypatch):
         command = {'thread_id': 'thr_harness', 'kind': 'send_message',
                    'payload': {'text': '/debug start test'}}
         assert client.post(path + '/commands', json=command).status_code == 403
+
+
+def test_debug_source_query_syncs_bound_revision_only_on_cache_miss(monkeypatch, tmp_path):
+    import json
+    from capstone_agent import debug_sources
+    resolve = debug_sources.resolve_sources
+    library = tmp_path/'library'
+    monkeypatch.setattr(debug_sources, 'resolve_sources', lambda publication: resolve(publication, tmp_path, library))
+    monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
+    monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
+    calls = []
+    revision = 'a' * 64
+
+    class Executor:
+        def thread_gateway_publication(self, binding, *, refresh):
+            assert refresh
+            return {'available': True, 'connection_id': 'selected', 'catalog': {
+                'instance': {'instance_id': 'live', 'source_sha256': revision}}}
+
+        def sync_debug_source(self, connection_id, instance_id, digest):
+            calls.append((connection_id, instance_id, digest))
+            directory = library/digest
+            directory.mkdir(parents=True)
+            filename = f'data-gateway-{digest}.zip'
+            (directory/filename).touch()
+            (directory/'manifest.json').write_text(json.dumps({'sources': [
+                {'repository': 'data-gateway', 'revision': digest, 'archive': filename}]}))
+
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'}, thread_open_access=True,
+        thread_service=_thread_service(), native_artifact_executor=Executor())
+    with TestClient(app, base_url='http://localhost') as client:
+        for _ in range(2):
+            response = client.get('/api/v1/threads/thr_harness/debug/sources')
+            assert response.json()['status'] == 'matched'
+    assert calls == [('selected', 'live', revision)]

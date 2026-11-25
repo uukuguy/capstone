@@ -2246,6 +2246,24 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             result = operation() if document['arguments'] is None else operation(document['arguments'])
             import inspect
             return run_http(result) if inspect.isawaitable(result) else result
+        if action == 'debug-source':
+            from .gateway_debug_source import cache_gateway_source
+            from .debug_commands import debug_commands_enabled
+            if not debug_commands_enabled(os.environ):
+                raise GatewayError('debug_source_unavailable')
+            if not isinstance(document, dict) or set(document) != {'connection_id', 'instance_id', 'revision'}:
+                raise GatewayError('gateway_connection_input_invalid')
+            if not all(isinstance(value, str) and value for value in document.values()):
+                raise GatewayError('gateway_connection_input_invalid')
+            _, access = registry.access_for(document['connection_id'], document['instance_id'])
+            async def sync():
+                async with access.client.connect() as session:
+                    identity = session.instance_identity or {}
+                    if (identity.get('instance_id') != document['instance_id']
+                            or identity.get('source_sha256') != document['revision']):
+                        raise GatewayError('debug_source_version_missing')
+                    return await cache_gateway_source(session, Path('/opt/capstone-debug-library'))
+            return run_http(asyncio.wait_for(sync(), timeout=90))
         if action == 'publication':
             if not isinstance(document, dict) or set(document) - {'binding', 'refresh'}:
                 raise GatewayError('gateway_connection_input_invalid')

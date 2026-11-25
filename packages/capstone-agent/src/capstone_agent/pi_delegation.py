@@ -522,6 +522,11 @@ class HttpGeneralPiExecutor:
     def thread_gateway_publication(self, binding=None, *, refresh=False):
         return self.control_gateway_connections('publication', {'binding': binding, 'refresh': refresh})
 
+    def sync_debug_source(self, connection_id, instance_id, revision):
+        return self._call('POST', '/gateway-connections/debug-source',
+            document={'connection_id': connection_id, 'instance_id': instance_id, 'revision': revision},
+            timeout=95, total_timeout=100)
+
     def session_grid_source(self, binding, operation, document=None):
         from .grid_source_topology import EXCHANGE_SECONDS
         return self._call('POST', '/gateway-connections/source',
