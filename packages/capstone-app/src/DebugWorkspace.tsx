@@ -4,22 +4,43 @@ import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import {firstDebugObservation} from './debugObservation'
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
-  readEvidence?: () => Promise<unknown>
+  readEvidence?: (id?: string) => Promise<unknown>
+  readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
+  readDiagnosis?: (id: string) => Promise<{answer?: string; status: string}>
 }){
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
+  const [history, setHistory] = useState<Awaited<ReturnType<NonNullable<typeof readHistory>>>>([])
+  const [diagnosis, setDiagnosis] = useState<{id: string; text: string}>()
   const attempt=attempts.includes(selection)?selection:attempts[0]
+  async function loadHistory(){
+    if (!readHistory) return
+    setError('')
+    try { setHistory(await readHistory()) }
+    catch { setError('暂时无法读取调查历史。') }
+  }
+  async function selectDiagnosis(id: string){
+    if (!id) { setDiagnosis(undefined); return }
+    if (!readDiagnosis) return
+    setBusy(true)
+    setError('')
+    try {
+      const result = await readDiagnosis(id)
+      setDiagnosis({id, text: result.answer || '此调查尚无诊断结论。'})
+    } catch { setError('暂时无法读取诊断结果。') }
+    finally { setBusy(false) }
+  }
   async function downloadEvidence(){
     if (!readEvidence || busy) return
     setBusy(true)
     setError('')
     try {
-      const document = await readEvidence()
+      const document = await readEvidence(diagnosis?.id)
       const url = URL.createObjectURL(new Blob([JSON.stringify(document, null, 2)], {type:'application/json'}))
       const link = window.document.createElement('a')
       link.href = url
@@ -83,8 +104,13 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     {observation?.attempt===attempt&&<p role="status">{observation.text}</p>}
     <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
     </>:<p>这段会话还没有执行记录。</p>}
-    {savedFinding&&<p>{savedFinding}</p>}
-    {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载当前调查记录</button>}
+    {readHistory&&<button type="button" disabled={busy} onClick={()=>void loadHistory()}>查看调查历史</button>}
+    {history.length>0&&<label>调查<select disabled={busy} value={diagnosis?.id ?? ''} onChange={event=>void selectDiagnosis(event.target.value)}>
+      <option value="">最新调查</option>
+      {history.map(item=><option key={item.investigation_id} value={item.investigation_id}>{item.objective}</option>)}
+    </select></label>}
+    {(diagnosis?.text || savedFinding)&&<p>{diagnosis?.text || savedFinding}</p>}
+    {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
     <button type="button" onClick={refreshSource}><RefreshCw size={14}/>重新核对</button></div>

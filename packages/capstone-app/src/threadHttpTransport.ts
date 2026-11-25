@@ -308,6 +308,15 @@ export class HttpThreadTransport implements ThreadTransport {
     if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
     return result.answer
   }
+  async debugHistory(threadId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
+    const result = await this.request(path) as {investigations: {investigation_id: string; objective: string; status: string | null}[]}
+    return result.investigations
+  }
+  async debugDiagnosis(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
+    return this.request(path) as Promise<{answer?: string; status: string}>
+  }
   async debugEvidence(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence`
     return this.request(path)

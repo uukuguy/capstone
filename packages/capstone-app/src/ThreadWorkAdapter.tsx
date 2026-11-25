@@ -1073,8 +1073,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         return (value.match(/\n本轮指令：([^\n]+)/)?.[1]??value).slice(0,64)
       }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}
-      readEvidence={async()=>{
-        const {investigationId}=await transport.debugStatus(currentId)
+      readHistory={()=>transport.debugHistory(currentId)}
+      readDiagnosis={id=>transport.debugDiagnosis(currentId,id)}
+      readEvidence={async id=>{
+        const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId
         if(!investigationId)throw new Error('当前会话尚无调查。')
         return transport.debugEvidence(currentId,investigationId)
       }}/>})

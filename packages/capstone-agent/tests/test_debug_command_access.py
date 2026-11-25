@@ -54,6 +54,9 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert restored['answer'] == '已找回原诊断结果。'
         assert client.post(url).json() == restored
         assert len(calls) == 2
+        history = client.get(path + '/investigations').json()['investigations']
+        assert [row['investigation_id'] for row in history] == [second.json()['investigation_id'], identity]
+        assert client.get(f'{path}/investigations/{identity}/diagnose').json()['answer'] == '输入检查失败。'
 
 
 def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():

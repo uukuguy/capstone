@@ -105,6 +105,19 @@ class InvestigationRegister:
             return next((dict(self._memory[key]) for key in reversed(self._memory)
                          if key[:2] == (workspace, thread_id)), None)
 
+    def recent(self, workspace, thread_id):
+        self.service.require_workspace(thread_id, workspace)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                return connection.execute('''SELECT investigation_id,objective,observation,
+                        diagnosis->>'status' AS status FROM capstone_debug_investigations
+                    WHERE workspace=%s AND thread_id=%s
+                    ORDER BY created_at DESC,investigation_id DESC LIMIT 32''', (workspace, thread_id)).fetchall()
+        with self._lock:
+            rows = [row for key, row in reversed(self._memory.items()) if key[:2] == (workspace, thread_id)]
+            return [{key: row[key] for key in ('investigation_id', 'objective', 'observation')}
+                    | {'status': (row.get('diagnosis') or {}).get('status')} for row in rows[:32]]
+
     def reserve_call(self, workspace, thread_id, investigation_id, operation_key, tool, arguments, binding_identity):
         """Return a committed call ID. Only its creator may dispatch; retries must read."""
         self.service.require_workspace(thread_id, workspace)

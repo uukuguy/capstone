@@ -405,6 +405,12 @@ def create_host_app(
                     'investigation': investigation,
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations')
+        def list_debug_investigations(thread_id: str, request: Request):
+            require_debug(request)
+            rows = investigations.recent(request.state.workspace_name, thread_id)
+            return JSONResponse({'investigations': rows}, headers={'Cache-Control': 'no-store'})
+
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
         def read_diagnosis(thread_id: str, investigation_id: str, request: Request):
             require_debug(request)
