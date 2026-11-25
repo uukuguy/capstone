@@ -274,6 +274,7 @@ class InvestigationRegister:
                         record[field] = activity[field][:200]
             events.append(record)
         gateway = self._diagnosis_gateway_evidence(workspace, thread_id, investigation_id, executor)
+        sources = self._diagnosis_source_evidence(workspace, thread_id, investigation_id, observation)
         task_id = queued['task_id']
         timeout = 45.0
         instruction = (
@@ -285,14 +286,16 @@ class InvestigationRegister:
             f"目标轮次：{observation['attempt_id']}\n"
             f"首条失败：{json.dumps(failure, ensure_ascii=False)}\n"
             f"公开事件摘要（后续记录未完整载入）：{json.dumps(events, ensure_ascii=False)}\n"
-            f"网关调查摘要：{json.dumps(gateway, ensure_ascii=False)}"
+            f"网关调查摘要：{json.dumps(gateway, ensure_ascii=False)}\n"
+            f"历史源码版本核对：{json.dumps(sources, ensure_ascii=False)}"
         )
         request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout)
         scope = (workspace, thread_id, investigation_id)
         diagnosis = {'status': 'running', 'answer': '', 'task_id': task_id,
                      'executor_identity': request.to_document()['executor_identity'],
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
-                     'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status']}
+                     'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status'],
+                     'source_evidence': sources}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
         try:
@@ -302,6 +305,27 @@ class InvestigationRegister:
             diagnosis = {**diagnosis, 'status': 'unknown'}
         self._save_diagnosis(scope, diagnosis)
         return diagnosis
+
+    def _diagnosis_source_evidence(self, workspace, thread_id, investigation_id, observation):
+        from .debug_sources import read_historical_capstone_source, read_historical_gateway_source
+
+        binding = self.historical_gateway(workspace, thread_id, investigation_id) or {}
+        sources = {}
+        for repository, revision, reader, argument in (
+            ('capstone', observation.get('capstone_revision'), read_historical_capstone_source,
+             observation.get('capstone_revision')),
+            ('data-gateway', binding.get('source_sha256'), read_historical_gateway_source, binding),
+        ):
+            if not revision:
+                sources[repository] = {'status': 'revision_unavailable'}
+                continue
+            try:
+                reader(argument)
+            except (OSError, ValueError):
+                sources[repository] = {'status': 'archive_unavailable', 'revision': revision}
+            else:
+                sources[repository] = {'status': 'archive_verified', 'revision': revision}
+        return sources
 
     def _diagnosis_gateway_evidence(self, workspace, thread_id, investigation_id, executor):
         binding = self.historical_gateway(workspace, thread_id, investigation_id)
