@@ -572,7 +572,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         if(pendingMessage?.kind==='send_message'&&pendingMessage.payload.text===text){
           await dispatch(pendingMessage)
           debugRequest.current=null
-          selectResourceView('debug')
           return
         }
         if(pending)throw new Error('请先结算待确认的会话指令。')
@@ -589,7 +588,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         await dispatch(command)
         debugRequest.current=null
         setNotice('已提交首轮调查：'+objective)
-        selectResourceView('debug')
         return
       }
       if(/^\/debug\s+status\s*$/.test(text)){
@@ -611,7 +609,6 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           selected,selectedWork?.revision||0,text)
         command.payload={text,debug_investigation_id:status.investigationId}
         await dispatch(command)
-        selectResourceView('debug')
         return
       }
       if(pendingGoalControl){
