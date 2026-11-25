@@ -129,7 +129,10 @@ def serve_debug_investigations(service, executor, stop):
         try:
             scope = register.next_queued() if debug_commands_enabled(os.environ) else None
             if scope is not None:
-                register.diagnose(*scope, executor)
+                try:
+                    register.diagnose(*scope, executor)
+                except (KeyError, ValueError):
+                    register.fail_queued_diagnosis(*scope)
                 continue
         except Exception:
             logging.getLogger(__name__).exception('Debug diagnosis worker could not process the queue')

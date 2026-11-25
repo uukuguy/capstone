@@ -248,6 +248,13 @@ class InvestigationRegister:
                 ORDER BY created_at,investigation_id LIMIT 1''').fetchone()
         return (row['workspace'], row['thread_id'], row['investigation_id']) if row else None
 
+    def fail_queued_diagnosis(self, workspace, thread_id, investigation_id):
+        scope = (workspace, thread_id, investigation_id)
+        diagnosis = self.get(*scope).get('diagnosis')
+        if diagnosis and diagnosis['status'] == 'queued':
+            self._claim_diagnosis(scope, {**diagnosis, 'status': 'failed',
+                                        'failure_code': 'diagnosis_preparation_failed'})
+
     def diagnose(self, workspace, thread_id, investigation_id, executor):
         from time import monotonic
         from .pi_delegation import PiTaskRequest

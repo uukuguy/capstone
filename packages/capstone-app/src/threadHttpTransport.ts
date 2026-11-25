@@ -305,6 +305,7 @@ export class HttpThreadTransport implements ThreadTransport {
     }
     if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
     if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
+    if (result.failure_code === 'diagnosis_preparation_failed') throw new Error('诊断材料准备失败，Pi 尚未执行。')
     if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
     return result.answer
   }
