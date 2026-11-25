@@ -1,3 +1,5 @@
+2026-11-26 [PR275](https://github.com/uukuguy/capstone/pull/275) 合入 dev `4ddecb99`。真实 Pi 提交阶段结论，右栏可查执行中和已完成快照。 [macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45722784316) 通过。local-dev 验证了按执行版本导入历史源码、受控下载和本机导入。网关现场策略未授权外带。
+
 2026-11-26 [PR273](https://github.com/uukuguy/capstone/pull/273) 将独立 Debug 调查合入 dev `fb566e2e`。capstone-agent、capstone-app 和本地部署共同交付。受检 `a6438e17`，[macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45719583373) 通过。local-dev `a6438e17` 规范重建就绪并复验真实 Pi 按需分页。两侧取证、历史源码匹配及快照导入已在该交付路径验证。其余部署沿用原来源。[设计](../superpowers/specs/2026-11-26-independent-debug-diagnosis-design.md)。
 
 2026-11-24 [PR257](https://github.com/uukuguy/capstone/pull/257) 已合入 dev `7c4c9189`。受检版本 `1a8d32d8`，定向 macOS CI 45355169488 通过。交付 Harness 可编辑规则库、局部诊断、表格校正和前端显示兼容。薄上下文仍在 `experiment/progressive-ppt-guide`，常用 local-dev 当前部署未切换。
@@ -1454,6 +1456,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 保留原因 |
 | --- | --- |
 | independent-debug-merge-20261126 | PR273 合入独立 Debug 调查 |
+| debug-stage-findings-merge-20261126 | PR275 合入 Debug 阶段结论和现场快照 |
 | handoff-compaction-local-dev-20261122 | PR209 合入有界交接答复并重建 local-dev |
 | instruction-takeover-local-dev-20261122 | PR207 合入跨会话接管修复 |
 | continuous-task-local-dev-20261121 | 实际 local-dev 已验证部署来源 |
@@ -1523,7 +1526,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | independent-debug-local-dev-20261126 | a6438e17 | feature | 独立 Debug 本地验收 | local-dev 就绪，真实 Pi 分页通过 | 双仓源码匹配和按授权证据交付。[环境台账](#环境台账) | local-dev |
+| debug-stage-findings-local-20261126 | 6c895788 | feature | Debug 阶段结论联验 | local-dev 就绪，真实浏览器端到端通过 | 执行中和已完成快照保留阶段结论。[环境台账](#环境台账) | local-dev |
 | independent-debug-merge-20261126 | fb566e2e | main | 独立 Debug 调查 | PR273 合入 dev，macOS 专项 CI 通过 | 独立 Pi、双仓取证、受审阅快照和离线复验。 | shared-agent |
+| debug-stage-findings-merge-20261126 | 4ddecb99 | main | Debug 阶段结论与快照 | PR275 合入 dev，macOS 专项通过 | 证据引用经服务端核验，右栏回看阶段结论并按授权下载。 | shared-agent |
 | context-task-inspection-20261122 | b867fd18 | main | 请求与任务上下文 | PR232 合入 dev，定向 macOS CI 通过 | 保留请求消息层级，查看指令级任务修订 | continuous-task-context |
 | context-request-all-20261122 | 200cdda5 | main | 完整请求条目列表 | PR230 合入 dev，定向 App CI 通过 | 按请求顺序列出所有已采集条目 | continuous-task-context |
 | context-request-diff-20261122 | cdf0f18a | main | 请求 JSON 与差异正文 | PR227、PR228 合入 dev，定向 App CI 通过 | JSON 高亮，差异逐项展开正文 | continuous-task-context |
@@ -1967,7 +1972,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | compact-composition-context | 本机开发部署来源 | dev | 精简工具组合模型可见说明；保留按需帮助与调用约束 | 103 项直接运行时检查及 macOS CI 通过 |
 | gateway-source-scope | 本机开发部署来源 | dev | 匹配请求与已发布来源范围；保留业务目录按需发现 | 123 项本地定向检查及 macOS CI 通过 |
 | independent-debug-merge-20261126 | 开发主线合并 | dev | 独立 Pi 调查与双仓取证；授权快照及离线复验 | PR273 已合并，macOS 专项通过 |
+| debug-stage-findings-merge-20261126 | 开发主线合并 | dev | 核验 Capstone、网关和源码引用；现场快照及受控下载 | PR275 已合并，macOS 专项通过 |
 | independent-debug-local-dev-20261126 | 本机开发部署来源 | feat/browser-debug-investigations | 双仓精确版本读取；按事件分页及快照导出 | 5174 真实 Pi 复验通过 |
+| debug-stage-findings-local-20261126 | 本机开发部署来源 | feat/debug-evidence-references | 阶段结论即时保存；现场查看和受控下载 | 5174 真实 Pi 及快照导入通过 |
 | local-dev-xlsx-preview | 本机开发部署来源 | dev | 右栏工作簿预览；可切换工作表与下载原件 | 5174 实测两个工作表，38 行和 11 行 |
 | local-dev-flash-closeout | 本机开发部署来源 | dev | 5174 从 dev 规范重建；包含可选薄上下文及校验器操作流程 | API、worker 和 Pi 就绪，10 个原置顶及存储卷核对通过 |
 | local-llama-request | 本机推理请求适配 | dev | 固定容量提示；为两款本机 Qwen 预设统一请求字段 | 本机 187 项相关检查通过，macOS CI 45099572315 通过 |
@@ -2020,6 +2027,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
 | 273 | 独立 Debug 调查 | feat/browser-debug-investigations | dev | MERGED | 合并 fb566e2e，受检 a6438e17，macOS CI 45719583373 通过。local-dev 已复验真实 Pi。 |
+| 275 | Debug 阶段结论与现场快照 | feat/debug-evidence-references | dev | MERGED | 合并 4ddecb99，受检 d30ec37e，macOS CI 45722784316 通过。 |
 | 271 | XLSX 工作簿预览 | fix/xlsx-artifact-preview | dev | MERGED | 合并 de229bd4，受检 bd07d4a0，macOS CI 45478832599 通过。5174 右栏用实际工作簿验证两个工作表及下载。 |
 | 270 | 正式答复格式降级 | fix/native-answer-presentation-fallback | dev | MERGED | 合并 595094b4，受检 6535481a，macOS CI 45475272758 通过，已在 5174 安全重建和复现核对。答复格式解析异常不再使已完成的执行失败。 |
 | 267 | DeepSeek Flash 薄上下文和正式答复验证 | feat/dev-thin-context | dev | MERGED | 合并 774a49f5，受检 9a0826a0，macOS CI 45447607844 通过。可选薄上下文保留正式表、证据和 HTML。case14 未缓存输入下降 56%，续问和报告样本耗时增加，默认关闭。增加原生执行到线程落盘的异常答复回归。 |
@@ -2365,7 +2373,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | App、API、worker 与 Pi `a6438e17` | 后端 be62ac56f5a6，Pi ce6dcc9b6a9d，均就绪 | App http://127.0.0.1:5174/。真实 Pi 按需读取历史事件。 |
+| local-dev | API、worker 与 Pi `6c895788`，Vite App `d30ec37e` | 后端 5f4d92477c11，Pi 448fb538228c，均就绪，镜像含双仓源码 | App http://127.0.0.1:5174/。真实 Pi、阶段快照 dc6ed484、完成快照 3c24258d 与下载导入通过。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
