@@ -399,6 +399,31 @@ def create_host_app(
                     'investigation': investigations.latest(request.state.workspace_name, thread_id),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/records')
+        def investigation_records(thread_id: str, investigation_id: str, request: Request,
+                                  after: Annotated[int, Query(ge=0)] = 0):
+            require_debug(request)
+            workspace = request.state.workspace_name
+            try:
+                investigation = investigations.get(workspace, thread_id, investigation_id)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            observation = investigation.get('observation')
+            if not observation:
+                raise HTTPException(409, '本调查尚未纳入执行轮次。')
+            through = observation['through']
+            if after > through:
+                raise HTTPException(422, '游标超出调查范围。')
+            from .task_record_reader import SelectedTaskRecordReader
+            reader = SelectedTaskRecordReader(thread_service, thread_id, observation['attempt_id'],
+                                              workspace_name=workspace)
+            page = reader.read(after=after)
+            page['events'] = [event for event in page['events'] if event['event_seq'] <= through]
+            page['next_after'] = min(page['next_after'], through)
+            page['has_more'] = page['has_more'] and page['next_after'] < through
+            return JSONResponse({**page, 'investigation_id': investigation_id, 'through': through},
+                                headers={'Cache-Control': 'no-store'})
+
         @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/observations/{operation}')
         def investigation_observation(thread_id: str, investigation_id: str, operation: str, request: Request, body: dict):
             require_debug(request)

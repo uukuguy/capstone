@@ -30,6 +30,13 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
                             json={'objective':'定位失败', 'attempt_id':claim.attempt.attempt_id})
         assert start.status_code == 200
         finding = start.json()['observation']
+        records = debug + '/investigations/' + start.json()['investigation_id'] + '/records'
+        scoped = client.get(records)
+        assert scoped.status_code == 200
+        assert scoped.json()['attempt_id'] == claim.attempt.attempt_id
+        assert 'Input check failed' in scoped.text
+        assert 'Unverified product' not in scoped.text
+        assert client.get(records, params={'after': finding['through'] + 1}).status_code == 422
         assert finding['attempt_id'] == claim.attempt.attempt_id
         assert finding['first_failure']['type'] == 'validation_observation'
         assert any(event['seq'] == finding['first_failure']['seq'] for event in page['events'])
