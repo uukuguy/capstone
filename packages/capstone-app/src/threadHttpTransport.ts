@@ -271,7 +271,7 @@ export class HttpThreadTransport implements ThreadTransport {
     const value=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`) as Record<string,unknown>
     if(value?.thread_id!==threadId||value.enabled!==true)throw new Error('调试入口不可用。')
     const investigation=value.investigation as {investigation_id?:unknown;objective?:unknown;observation?:{
-      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null};diagnosis?:{answer?:unknown}}|null
+      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null};diagnosis?:{answer?:unknown;status?:unknown}}|null
     const observation=investigation?.observation
     const finding=observation?(observation.first_failure?
       `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
@@ -279,7 +279,8 @@ export class HttpThreadTransport implements ThreadTransport {
     return {timelineExport:value.timeline_export===true,
       investigationId:typeof investigation?.investigation_id==='string'?investigation.investigation_id:null,
       objective:typeof investigation?.objective==='string'?investigation.objective:null,
-      finding:typeof investigation?.diagnosis?.answer==='string'?investigation.diagnosis.answer:finding}
+      diagnosisStatus:typeof investigation?.diagnosis?.status==='string'?investigation.diagnosis.status:null,
+      finding:typeof investigation?.diagnosis?.answer==='string'&&investigation.diagnosis.answer.trim()?investigation.diagnosis.answer:finding}
   }
   async debugSourceVersion(threadId:string){
     const result=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/sources`) as Record<string,unknown>

@@ -597,7 +597,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       if(/^\/debug\s+status\s*$/.test(text)){
         const status=await transport.debugStatus(currentId)
         setDebugFinding(status.finding)
-        setNotice(status.objective?'最近登记的调查：'+status.objective+' '+status.finding:'当前会话尚未登记调查。')
+        const phases: Record<string,string> = {queued:'排队中', running:'执行中', completed:'已完成',
+          failed:'失败', cancelled:'已停止', unknown:'结果未知'}
+        const phase = phases[status.diagnosisStatus ?? ''] ?? '待执行'
+        setNotice(status.objective?`最近登记的调查（${phase}） ${status.objective} ${status.finding}`:'当前会话尚未登记调查。')
         return
       }
       if (/^\/debug\s+stop\s*$/.test(text)) {
@@ -606,6 +609,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const result = await transport.stopDebugDiagnosis(currentId, investigationId)
         setNotice(result.status === 'cancelled' ? '已停止诊断。' : '诊断状态：' + result.status)
         return
+      }
+      if (/^\/debug(?:\s|$)/.test(text)) {
+        throw new Error('请输入 /debug 和调查问题，或使用 /debug status、/debug stop。')
       }
       if(pendingGoalControl){
         await dispatch(pendingGoalControl)
