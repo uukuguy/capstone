@@ -819,6 +819,7 @@ DEBUG_DEV_FILES = {
     'test_debug_sources.py',
     'test_gateway_investigation.py',
     'test_gateway_progressive.py',
+    'test_general_pi_server.py',
     'test_investigation_skills.py',
     'test_task_record_reader.py',
     'test_thread_work_execution.py',
