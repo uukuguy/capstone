@@ -56,7 +56,10 @@ from .thread_application_transition import (
 from .model_identity import page_id_for_model, validate_model_id
 from .conversation_context import ConversationContext, project_conversation
 from .debug_commands import investigation_admission
-from .task_record_reader import PUBLIC_TASK_OBSERVATION_TYPES, SelectedTaskRecordReader
+from .task_record_reader import (
+    PUBLIC_NATIVE_OBSERVATION_TYPES, PUBLIC_TASK_OBSERVATION_TYPES, SelectedTaskRecordReader,
+    is_public_task_observation,
+)
 from .network_diagram import normalize_network_diagram
 from .result_projection import ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
@@ -1925,8 +1928,8 @@ class InMemoryThreadService(NativeExecutionOwner):
             context = record.get("model_context")
             events = tuple(islice((event for event in self._events
                 if event.attempt_id == attempt_id and event.event_seq > after
-                and (not observations_only or (event.visibility == "public"
-                    and event.event_type in PUBLIC_TASK_OBSERVATION_TYPES))), limit + 1))
+                and (not observations_only or is_public_task_observation(
+                    event.visibility, event.event_type, event.payload))), limit + 1))
             return _attempt_records_page(thread_id, attempt_id, record["instruction"],
                 context.to_document() if context is not None else None, events, after, limit)
 
@@ -4394,9 +4397,10 @@ class PostgresThreadService(NativeExecutionOwner):
             rows = connection.execute(
                 "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND attempt_id = %s "
                 "AND event_seq > %s AND (NOT %s OR (visibility = 'public' "
-                "AND event_type = ANY(%s))) ORDER BY event_seq LIMIT %s",
+                "AND (event_type = ANY(%s) OR (event_type = 'runtime_event' "
+                "AND payload->>'native_type' = ANY(%s))))) ORDER BY event_seq LIMIT %s",
                 (thread_id, attempt_id, after, observations_only,
-                 sorted(PUBLIC_TASK_OBSERVATION_TYPES), limit + 1),
+                 sorted(PUBLIC_TASK_OBSERVATION_TYPES), sorted(PUBLIC_NATIVE_OBSERVATION_TYPES), limit + 1),
             ).fetchall()
         events = tuple(self._event_from_row(row) for row in rows)
         context = attempt["model_context_snapshot"]
