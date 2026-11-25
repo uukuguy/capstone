@@ -399,6 +399,26 @@ def create_host_app(
                     'investigation': investigations.latest(request.state.workspace_name, thread_id),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/observations/{operation}')
+        def investigation_observation(thread_id: str, investigation_id: str, operation: str, request: Request, body: dict):
+            require_debug(request)
+            workspace = request.state.workspace_name
+            try:
+                investigations.get(workspace, thread_id, investigation_id)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            if operation not in {'list', 'read', 'logs'}:
+                raise HTTPException(422, '不支持的调查读取操作。')
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
+            binding = thread_service.read_thread_gateway(thread_id)
+            if not callable(reader) or not binding or not binding.get('instance_id'):
+                raise HTTPException(409, '当前会话缺少可读取调查的网关绑定。')
+            try:
+                page = reader(binding, workspace, investigation_id, operation, body)
+            except (ValueError, RuntimeError, OSError):
+                raise HTTPException(409, '网关调查记录暂不可读。') from None
+            return JSONResponse(page, headers={'Cache-Control': 'no-store'})
+
         @app.get('/api/v1/threads/{thread_id}/debug/sources')
         def thread_debug_sources(thread_id: str, request: Request):
             require_debug(request)

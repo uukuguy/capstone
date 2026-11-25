@@ -522,6 +522,11 @@ class HttpGeneralPiExecutor:
     def thread_gateway_publication(self, binding=None, *, refresh=False):
         return self.control_gateway_connections('publication', {'binding': binding, 'refresh': refresh})
 
+    def debug_observation(self, binding, workspace, investigation_id, operation, query):
+        return self._call('POST', '/gateway-connections/debug-observation',
+            document={'binding': binding, 'workspace': workspace, 'investigation_id': investigation_id,
+                      'operation': operation, 'query': query}, timeout=34, total_timeout=35)
+
     def sync_debug_source(self, connection_id, instance_id, revision):
         return self._call('POST', '/gateway-connections/debug-source',
             document={'connection_id': connection_id, 'instance_id': instance_id, 'revision': revision},

@@ -2246,6 +2246,30 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             result = operation() if document['arguments'] is None else operation(document['arguments'])
             import inspect
             return run_http(result) if inspect.isawaitable(result) else result
+        if action == 'debug-observation':
+            from .data_gateway_mcp import DataGatewayMcp
+            from .debug_commands import debug_commands_enabled
+            from .gateway_investigation import read_bound_observation
+            if not debug_commands_enabled(os.environ):
+                raise GatewayError('investigation_access_denied')
+            fields = {'binding', 'workspace', 'investigation_id', 'operation', 'query'}
+            if not isinstance(document, dict) or set(document) != fields:
+                raise GatewayError('investigation_request_invalid')
+            binding = document['binding'] or {}
+            if not binding.get('connection_id') or not binding.get('instance_id'):
+                raise GatewayError('gateway_bound_instance_unavailable')
+            _, access = registry.access_for(binding['connection_id'], binding['instance_id'])
+            credential = os.environ.get('CAPSTONE_INVESTIGATION_CONNECTION_FILE')
+            if not credential:
+                raise GatewayError('investigation_credentials_unavailable')
+            dedicated = DataGatewayMcp(Path(credential), access.client.policy)
+            async def observe():
+                async with dedicated.connect() as session:
+                    return await read_bound_observation(session, dedicated._connection['url'],
+                        instance_id=binding['instance_id'], workspace=document['workspace'],
+                        investigation_id=document['investigation_id'], operation=document['operation'],
+                        query=document['query'])
+            return run_http(asyncio.wait_for(observe(), timeout=30))
         if action == 'debug-source':
             from .gateway_debug_source import cache_gateway_source
             from .debug_commands import debug_commands_enabled

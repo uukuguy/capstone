@@ -142,3 +142,22 @@ class GatewayInvestigation:
                     raise GatewayError('investigation_response_invalid')
                 return {'receipt': receipt}
         return {'business_response': response}
+
+async def read_bound_observation(connection, endpoint, *, instance_id, workspace, investigation_id, operation, query):
+    """Resolve the private handle on the dedicated session and return only the requested observation."""
+    if (connection.instance_identity or {}).get('instance_id') != instance_id:
+        raise GatewayError('gateway_instance_changed')
+    allowed = {'list': {'limit', 'cursor'}, 'read': {'client_call_id', 'request_id'},
+               'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}}
+    if operation not in allowed or not isinstance(query, dict) or query.keys() - allowed[operation]:
+        raise GatewayError('investigation_request_invalid')
+    access = await GatewayInvestigation.discover(connection.http_client, endpoint,
+        connection.investigation, connection.investigation_logs)
+    if access is None:
+        raise GatewayError('investigation_contract_unavailable')
+    owner = {'workspace_id': workspace, 'investigation_id': investigation_id}
+    binding = await access.invoke('bind', {**owner, 'instance_id': instance_id, 'idempotency_key': investigation_id})
+    scope = {**owner, 'binding_handle': binding['binding_handle']}
+    if operation == 'logs':
+        return await access.read_logs(scope, query)
+    return await access.invoke(operation, {**scope, **query})

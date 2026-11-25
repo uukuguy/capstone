@@ -105,3 +105,30 @@ def test_registered_business_call_recovers_without_second_dispatch(lost):
             gateway.call.assert_awaited_once()
     asyncio.run(run())
     assert calls == (['GET', 'POST'] if lost else ['GET'])
+
+
+def test_bound_observation_rejects_override_before_binding_and_keeps_handle_private():
+    from types import SimpleNamespace
+    from capstone_agent.gateway_investigation import read_bound_observation
+    calls = []
+    def respond(request):
+        calls.append(request.url.path)
+        if request.method == 'GET':
+            return httpx.Response(200, json=CONTRACT)
+        body = json.loads(request.content)
+        if request.url.path.endswith('/bind'):
+            assert body['idempotency_key'] == body['investigation_id']
+            return httpx.Response(200, json=EXCHANGE['binding'])
+        assert body['binding_handle'] == EXCHANGE['binding']['binding_handle']
+        return httpx.Response(200, json={'receipts': [], 'next_cursor': None})
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            session = SimpleNamespace(instance_identity={'instance_id': 'fixture'}, http_client=client,
+                                      investigation=DECLARATION, investigation_logs=None)
+            args = dict(instance_id='fixture', workspace='local', investigation_id='inv_one', operation='list')
+            with pytest.raises(GatewayError, match='investigation_request_invalid'):
+                await read_bound_observation(session, 'https://fixture.test/mcp', **args, query={'workspace_id':'other'})
+            assert calls == []
+            result = await read_bound_observation(session, 'https://fixture.test/mcp', **args, query={'limit': 1})
+            assert result == {'receipts': [], 'next_cursor': None}
+    asyncio.run(run())
