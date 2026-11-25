@@ -96,11 +96,15 @@ def progressive_gateway(tmp_path, *, output=True, extra=False):
 def test_changed_progressive_publication_remains_admitted_after_refresh(tmp_path):
     client, session, declaration = progressive_gateway(tmp_path)
     first = asyncio.run(client.prepare())
+    names = ['data_gateway_new_action']
+    assert asyncio.run(client.exact_contracts(names, first))
+    session.requests.clear()
     declaration['publication_revision'] = 'pub-next'
     second = asyncio.run(client.refresh_catalog(first))
     assert second['revision'] != first['revision']
     assert asyncio.run(client.refresh_catalog(second)) == second
-    assert asyncio.run(client.exact_contracts(['data_gateway_new_action'], second))
+    assert asyncio.run(client.exact_contracts(names, second))
+    assert [request['publication_revision'] for op, request in session.requests if op == 'contracts'] == ['pub-next']
 
 
 def test_progressive_prepare_contains_metadata_without_fake_schema(tmp_path):

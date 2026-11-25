@@ -447,7 +447,7 @@ class DataGatewayMcp:
         for name in dict.fromkeys(names):
             item = catalog['tools'][name]['progressive']
             key = (declaration['identity']['instance_id'], declaration['access_view_id'],
-                   item['tool_key'], item['tool_contract_revision'])
+                   declaration['publication_revision'], item['tool_key'], item['tool_contract_revision'])
             with self._exact_lock:
                 sections = deepcopy(self._exact_sections.get(key, {}))
             resolved_sections[key] = sections
