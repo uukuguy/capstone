@@ -4,6 +4,8 @@ import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import {firstDebugObservation} from './debugObservation'
 
+type SourceRepository = 'capstone' | 'data-gateway'
+
 export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,readSource,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
@@ -18,20 +20,20 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<NonNullable<typeof readHistory>>>>([])
   const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
-  const [sourcePage, setSourcePage] = useState<{id: string; files: string[]; next: number | null}>()
-  const [excerpt, setExcerpt] = useState<{id: string; path: string; lines: string[]; first: number}>()
-  async function browseSource(id: string, offset = 0, path?: string, line = 1) {
+  const [sourcePage, setSourcePage] = useState<{id: string; repository: SourceRepository; revision: string; files: string[]; next: number | null}>()
+  const [excerpt, setExcerpt] = useState<{id: string; repository: SourceRepository; path: string; lines: string[]; first: number}>()
+  async function browseSource(id: string, repository: SourceRepository, offset = 0, path?: string, line = 1) {
     if (!readSource || busy) return
     setBusy(true)
     setError('')
     try {
-      const query = new URLSearchParams(path === undefined ? {offset: String(offset)} : {path, line: String(line)})
+      const query = new URLSearchParams({repository, ...(path === undefined ? {offset: String(offset)} : {path, line: String(line)})})
       const result = await readSource(id, query)
       if (path === undefined) {
-        setSourcePage({id, files: result.files ?? [], next: result.next_offset ?? null})
+        setSourcePage({id, repository, revision: result.revision, files: result.files ?? [], next: result.next_offset ?? null})
         setExcerpt(undefined)
       } else {
-        setExcerpt({id, path, lines: result.lines ?? [], first: result.first_line ?? line})
+        setExcerpt({id, repository, path, lines: result.lines ?? [], first: result.first_line ?? line})
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '历史源码暂不可读。')
@@ -131,20 +133,24 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     </select></label>}
     {(diagnosis?.text || savedFinding)&&<p>{diagnosis?.text || savedFinding}</p>}
     {diagnosis?.source&&<p>{diagnosis.source}</p>}
-    {diagnosis&&readSource&&<button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id)}>查看历史网关源码</button>}
+    {diagnosis&&readSource&&<div className="debug-actions">
+      <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'capstone')}>查看历史 Capstone 源码</button>
+      <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'data-gateway')}>查看历史网关源码</button>
+    </div>}
     {sourcePage&&sourcePage.id===diagnosis?.id&&<>
+      <p>{sourcePage.repository} <code>{sourcePage.revision}</code></p>
       <label>历史源码文件<select disabled={busy} value={excerpt?.id===sourcePage.id?excerpt.path:''}
-        onChange={event=>{if(event.target.value)void browseSource(sourcePage.id,0,event.target.value)}}>
+        onChange={event=>{if(event.target.value)void browseSource(sourcePage.id,sourcePage.repository,0,event.target.value)}}>
         <option value="">选择文件</option>
         {sourcePage.files.map(path=><option key={path}>{path}</option>)}
       </select></label>
       {sourcePage.next!==null&&<button type="button" disabled={busy}
-        onClick={()=>void browseSource(sourcePage.id,sourcePage.next ?? 0)}>下一页文件</button>}
+        onClick={()=>void browseSource(sourcePage.id,sourcePage.repository,sourcePage.next ?? 0)}>下一页文件</button>}
     </>}
     {excerpt&&excerpt.id===diagnosis?.id&&<>
       <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>
       {excerpt.lines.length===40&&<button type="button" disabled={busy}
-        onClick={()=>void browseSource(excerpt.id,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
+        onClick={()=>void browseSource(excerpt.id,excerpt.repository,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
     </>}
     {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}
     {error&&<p role="alert">{error}</p>}</section>
