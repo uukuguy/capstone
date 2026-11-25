@@ -13,6 +13,9 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
     service, claim = completed_task()
     calls = []
     interrupted = False
+    from capstone_agent import debug_investigations
+    register = debug_investigations.InvestigationRegister(service)
+    monkeypatch.setattr(debug_investigations, 'InvestigationRegister', lambda service: register)
 
     class Executor:
         identity = {'service_id': 'pi-local', 'instance_id': 'pi-test', 'revision': 'test'}
@@ -33,9 +36,10 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
             return SimpleNamespace(task_id=task_id, parent_attempt_id=calls[-1].parent_attempt_id,
                                    status='cancelled', answer='')
 
+    executor = Executor()
     app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
                           allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
-                          thread_open_access=True, thread_service=service, native_artifact_executor=Executor())
+                          thread_open_access=True, thread_service=service, native_artifact_executor=executor)
     path = f'/api/v1/threads/{claim.thread_id}/debug'
     before = service.snapshot(claim.thread_id).last_event_seq
     with TestClient(app, base_url='http://localhost') as client:
@@ -44,16 +48,21 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         identity = receipt.json()['investigation_id']
         response = client.post(f'{path}/investigations/{identity}/diagnose')
         assert response.status_code == 200, response.text
-        assert calls[0].entrypoint == 'direct'
+        assert response.json()['status'] == 'queued'
+        assert not calls
         assert response.json()['attempt_id'] == claim.attempt.attempt_id
         assert client.post(f'{path}/investigations/{identity}/diagnose').json() == response.json()
+        register.diagnose(claim.workspace_name, claim.thread_id, identity, executor)
+        assert calls[0].entrypoint == 'direct'
         assert len(calls) == 1
         assert service.snapshot(claim.thread_id).last_event_seq == before
         interrupted = True
         second = client.post(path + '/investigations', headers={'Idempotency-Key': 'recover-debug'},
                              json={'objective': '恢复结果', 'attempt_id': claim.attempt.attempt_id})
         url = f"{path}/investigations/{second.json()['investigation_id']}/diagnose"
-        assert client.post(url).json()['status'] == 'unknown'
+        assert client.post(url).json()['status'] == 'queued'
+        assert register.diagnose(claim.workspace_name, claim.thread_id,
+                                 second.json()['investigation_id'], executor)['status'] == 'unknown'
         restored = client.get(url).json()
         assert restored['status'] == 'completed'
         assert restored['answer'] == '已找回原诊断结果。'
@@ -65,8 +74,9 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         third = client.post(path + '/investigations', headers={'Idempotency-Key': 'stop-debug'},
                             json={'objective': '停止诊断', 'attempt_id': claim.attempt.attempt_id})
         url = f"{path}/investigations/{third.json()['investigation_id']}/diagnose"
-        assert client.post(url).json()['status'] == 'unknown'
+        assert client.post(url).json()['status'] == 'queued'
         assert client.delete(url).json()['status'] == 'cancelled'
+        assert len(calls) == 2
         assert client.get(url).json()['status'] == 'cancelled'
         assert service.snapshot(claim.thread_id).last_event_seq == before
 

@@ -439,8 +439,7 @@ def create_host_app(
             if not callable(getattr(native_artifact_executor, 'execute', None)):
                 raise HTTPException(503, '诊断执行器暂不可用。')
             try:
-                result = investigations.diagnose(request.state.workspace_name, thread_id,
-                                                 investigation_id, native_artifact_executor)
+                result = investigations.enqueue_diagnosis(request.state.workspace_name, thread_id, investigation_id)
             except (KeyError, ThreadNotFound):
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
             except (ValueError, RuntimeError, OSError):

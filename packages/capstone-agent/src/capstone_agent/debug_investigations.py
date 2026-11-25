@@ -216,6 +216,22 @@ class InvestigationRegister:
                 'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'},
                 'data_gateway': {'status': 'export_unavailable', 'events': []}}
 
+    def enqueue_diagnosis(self, workspace, thread_id, investigation_id):
+        observation = self.get(workspace, thread_id, investigation_id).get('observation')
+        if not observation:
+            raise ValueError('当前会话尚无可调查的用户指令。')
+        return self._reserve_diagnosis((workspace, thread_id, investigation_id), {
+            'status': 'queued', 'answer': '', 'task_id': 'debug_' + uuid4().hex,
+            'attempt_id': observation['attempt_id'], 'through': observation['through'],
+        })
+
+    def next_queued(self):
+        with self.service._connect() as connection:
+            row = connection.execute('''SELECT workspace,thread_id,investigation_id
+                FROM capstone_debug_investigations WHERE diagnosis->>'status'='queued'
+                ORDER BY created_at,investigation_id LIMIT 1''').fetchone()
+        return (row['workspace'], row['thread_id'], row['investigation_id']) if row else None
+
     def diagnose(self, workspace, thread_id, investigation_id, executor):
         from time import monotonic
         from .pi_delegation import PiTaskRequest
@@ -223,8 +239,9 @@ class InvestigationRegister:
         from .task_record_reader import SelectedTaskRecordReader
 
         investigation = self.get(workspace, thread_id, investigation_id)
-        if investigation.get('diagnosis') is not None:
-            return investigation['diagnosis']
+        queued = investigation.get('diagnosis') or self.enqueue_diagnosis(workspace, thread_id, investigation_id)
+        if queued['status'] != 'queued':
+            return queued
         observation = investigation.get('observation')
         if not observation:
             raise ValueError('当前会话尚无可调查的用户指令。')
@@ -252,7 +269,7 @@ class InvestigationRegister:
                         record[field] = activity[field][:200]
             events.append(record)
         gateway = self._diagnosis_gateway_evidence(workspace, thread_id, investigation_id, executor)
-        task_id = 'debug_' + uuid4().hex
+        task_id = queued['task_id']
         timeout = 45.0
         instruction = (
             '用中文根据下列只读执行记录定位已观测的异常。引用事件编号，区分已证实事实与证据缺口。'
@@ -271,9 +288,8 @@ class InvestigationRegister:
                      'executor_identity': request.to_document()['executor_identity'],
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
                      'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status']}
-        current = self._reserve_diagnosis(scope, diagnosis)
-        if current['task_id'] != task_id:
-            return current
+        if not self._claim_diagnosis(scope, diagnosis):
+            return self.get(*scope)['diagnosis']
         try:
             result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout), lambda _: None)
             diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
@@ -322,6 +338,10 @@ class InvestigationRegister:
     def stop_diagnosis(self, workspace, thread_id, investigation_id, executor):
         scope = (workspace, thread_id, investigation_id)
         diagnosis = self.get(*scope).get('diagnosis')
+        if diagnosis and diagnosis['status'] == 'queued':
+            if self._claim_diagnosis(scope, {**diagnosis, 'status': 'cancelled'}):
+                return self.read_diagnosis(*scope, executor)
+            diagnosis = self.get(*scope).get('diagnosis')
         if diagnosis and diagnosis['status'] in {'running', 'unknown'}:
             cancel = getattr(executor, 'cancel', None)
             if not callable(cancel) or diagnosis.get('executor_identity') != executor.identity:
@@ -332,6 +352,20 @@ class InvestigationRegister:
                 raise ValueError('诊断停止尚未确认。')
             self._save_diagnosis(scope, {**diagnosis, 'status': result.status, 'answer': result.answer})
         return self.read_diagnosis(*scope, executor)
+
+    def _claim_diagnosis(self, scope, diagnosis):
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                return connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=%s
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s
+                    AND diagnosis->>'status'='queued' AND diagnosis->>'task_id'=%s''',
+                    (Jsonb(diagnosis), *scope, diagnosis['task_id'])).rowcount == 1
+        with self._lock:
+            row = self._diagnosis_row(scope)
+            if row['diagnosis']['status'] != 'queued' or row['diagnosis']['task_id'] != diagnosis['task_id']:
+                return False
+            row['diagnosis'] = diagnosis
+            return True
 
     def _reserve_diagnosis(self, scope, diagnosis):
         if hasattr(self.service, '_connect'):
