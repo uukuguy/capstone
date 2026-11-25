@@ -229,6 +229,8 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
 
     service = _thread_service()
     claim = claim_attempt(service)
+    service.append_runtime_event(claim, event_type='execution_source_revision', visibility='public',
+                                 payload={'capstone_revision': 'a' * 40})
     for index in range(15):
         service.append_runtime_event(claim, event_type='runtime_event', visibility='public',
             payload={'native_type': 'tool_execution_end', 'tool_name': f'read_{index}',
@@ -250,6 +252,10 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
                    for page in native['selected_task_records'] for event in page['events'])
         assert any(event['event_seq'] == failure_seq
                    for page in native['selected_task_records'] for event in page['events'])
+        source_event = next(event for page in native['selected_task_records'] for event in page['events']
+                            if event['event_type'] == 'execution_source_revision')
+        assert source_event['payload_projection'] == 'bounded_summary'
+        assert source_event['payload']['capstone_revision'] == native['debug_scope']['capstone_revision'] == 'a' * 40
         return SimpleNamespace(status='completed', answer='Failure found')
 
     executor = SimpleNamespace(identity={'service_id': 'pi-local', 'instance_id': 'pi-test', 'revision': 'test'},

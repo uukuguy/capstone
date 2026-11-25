@@ -4,6 +4,7 @@ from uuid import uuid4
 from hashlib import sha256
 import asyncio
 import json
+import re
 from psycopg.types.json import Jsonb
 
 
@@ -385,11 +386,15 @@ class InvestigationRegister:
                     activity = payload.get('activity')
                     fields = ('native_type', 'tool_name', 'is_error')
                     summary = {key: payload[key] for key in fields if key in payload}
+                    revision = payload.get('capstone_revision')
+                    if (event['event_type'] == 'execution_source_revision' and isinstance(revision, str)
+                            and re.fullmatch('[0-9a-f]{40}', revision)):
+                        summary['capstone_revision'] = revision
                     if isinstance(activity, dict):
                         summary['activity'] = {key: activity[key][:200] for key in ('input_excerpt', 'output_excerpt')
                                                if isinstance(activity.get(key), str)}
                     visible.append({key: event[key] for key in ('event_seq', 'event_type', 'occurred_at')}
-                                   | {'payload': summary})
+                                   | {'payload': summary, 'payload_projection': 'bounded_summary'})
                 more = page['has_more']
                 pages.append({key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after')}
                              | {'events': visible, 'has_more': more and index < 7,
@@ -405,6 +410,7 @@ class InvestigationRegister:
                             if historical_gateway else None),
             }
             instruction += ('\n用 agent_task_records_read 核对 Capstone 执行记录。'
+                            'payload_projection=bounded_summary 表示只返回获准的摘要字段，字段缺失不能作为原始记录为空的证据。'
                             '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
             task_fields = {
                 'business_context': BusinessContext.empty(thread_id, through),
@@ -434,8 +440,6 @@ class InvestigationRegister:
             return self.get(*scope)['diagnosis']
 
         def observe(event):
-            import re
-
             nonlocal diagnosis
             tool = event.get('tool_name')
             kind = event.get('type')
