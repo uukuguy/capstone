@@ -2211,7 +2211,36 @@ class NativeTaskRunner:
                     'load_receipt': self.resources.accepted(role, profile.revision)['load_receipt']}
             finally:
                 shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
+        from .debug_commands import debug_commands_enabled
+        if debug_commands_enabled(os.environ):
+            self.verify_debug_inventory(identity, result['direct_pi']['revision'])
         return result
+
+    def verify_debug_inventory(self, identity, profile_revision):
+        from .business_context import BusinessContext
+        from .native_task_context import POLICY_TEXT
+
+        investigation_id = 'inv_' + secrets.token_hex(16)
+        task_id = 'debug-readiness-' + secrets.token_hex(8)
+        source = {'thread_id': 'thr_readiness', 'attempt_id': 'attempt_readiness'}
+        instruction = 'Verify read-only Debug tools without running a model.'
+        request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), identity, 30,
+            business_context=BusinessContext.empty(source['thread_id'], 0),
+            resource_profile={'profile_id': 'direct_pi', 'revision': profile_revision},
+            input={'kind': 'text', 'text': instruction},
+            native_context={'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                                       'allowed_tools': ['agent_task_records_read', 'agent_debug_observe'],
+                                       'external_lookup_enabled': False},
+                'debug_scope': {'workspace': 'local', 'gateway_investigation': investigation_id,
+                                'gateway': None, 'capstone_revision': None},
+                'selected_task_source': source, 'records_truncated': False,
+                'selected_task_records': [{**source, 'schema': 'capstone-selected-task-records/1',
+                                           'historical_only': True, 'has_more': False,
+                                           'next_after': 0, 'events': []}]})
+        try:
+            self(request, lambda: False, lambda _: None, inventory_only=True)
+        finally:
+            shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
 
 
 def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, int],
