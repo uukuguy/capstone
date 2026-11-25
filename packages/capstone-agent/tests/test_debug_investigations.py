@@ -51,6 +51,8 @@ def test_postgres_register_survives_reopen_and_concurrent_reservations():
         reopened._save_diagnosis(scope, {**pending, 'status': 'unknown'})
         assert reopened.get(*scope)['diagnosis'] == completed
         assert reopened.read_export_snapshot(*scope, running_snapshot['snapshot_id']) == running_snapshot
+        assert reopened.recent_export_snapshots(*scope) == [
+            {'snapshot_id': running_snapshot['snapshot_id'], 'status': 'running'}]
         with pytest.raises(KeyError):
             reopened.read_export_snapshot('other', thread, first['investigation_id'], running_snapshot['snapshot_id'])
     finally:

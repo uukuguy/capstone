@@ -33,8 +33,10 @@ CREATE TABLE IF NOT EXISTS capstone_debug_snapshots (
     investigation_id text NOT NULL REFERENCES capstone_debug_investigations(investigation_id) ON DELETE CASCADE,
     snapshot_id text NOT NULL,
     document jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY(investigation_id, snapshot_id)
 );
+ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS observation jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS diagnosis jsonb;
 UPDATE capstone_thread_attempts a
@@ -273,6 +275,17 @@ class InvestigationRegister:
         with self._lock:
             return json.loads(self._snapshots[(investigation_id, snapshot_id)])
 
+    def recent_export_snapshots(self, workspace, thread_id, investigation_id):
+        self.get(workspace, thread_id, investigation_id)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                return connection.execute('''SELECT snapshot_id, document->'diagnosis'->>'status' AS status
+                    FROM capstone_debug_snapshots WHERE investigation_id=%s
+                    ORDER BY created_at DESC, snapshot_id DESC LIMIT 32''', (investigation_id,)).fetchall()
+        with self._lock:
+            return [{'snapshot_id': identity, 'status': json.loads(document)['diagnosis'].get('status')}
+                    for (owner, identity), document in reversed(self._snapshots.items()) if owner == investigation_id][:32]
+
     def enqueue_diagnosis(self, workspace, thread_id, investigation_id):
         observation = self.get(workspace, thread_id, investigation_id).get('observation')
         if not observation:
@@ -446,6 +459,7 @@ class InvestigationRegister:
         except (RuntimeError, OSError, ValueError):
             diagnosis = {**diagnosis, 'status': 'unknown'}
         self._save_diagnosis(scope, diagnosis)
+        self.save_export_snapshot(*scope)
         return diagnosis
 
     def _prior_diagnosis(self, workspace, thread_id, observation):

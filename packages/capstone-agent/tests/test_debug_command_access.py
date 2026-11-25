@@ -140,6 +140,9 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert '_gateway_snapshot' in register.get(claim.workspace_name, claim.thread_id, identity)['diagnosis']
         assert '_gateway_snapshot' not in client.get(f'{path}/investigations/{identity}/diagnose').json()
         evidence = register.export_timeline(claim.workspace_name, claim.thread_id, identity)
+        saved = client.get(f'{path}/investigations/{identity}/snapshots').json()['snapshots']
+        assert saved == [{'snapshot_id': evidence['snapshot_id'], 'status': 'completed'},
+                         {'snapshot_id': queued_snapshot, 'status': 'queued'}]
         assert evidence['snapshot_id'] != queued_snapshot
         assert register.export_timeline(claim.workspace_name, claim.thread_id, identity)['snapshot_id'] == evidence['snapshot_id']
         exported = client.get(export_url).json()

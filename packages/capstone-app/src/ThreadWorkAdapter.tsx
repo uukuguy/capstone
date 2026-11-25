@@ -1107,10 +1107,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         ])
         return {...result, source}
       }}
-      readEvidence={async id=>{
+      readSnapshots={id=>transport.debugSnapshots(currentId,id)}
+      readEvidence={async (id,snapshotId)=>{
         const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId
         if(!investigationId)throw new Error('当前会话尚无调查。')
-        return transport.debugEvidence(currentId,investigationId)
+        return transport.debugEvidence(currentId,investigationId,snapshotId)
       }}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId

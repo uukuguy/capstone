@@ -7,10 +7,11 @@ import {firstDebugObservation} from './debugObservation'
 
 type SourceRepository = 'capstone' | 'data-gateway'
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readSnapshots,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
-  readEvidence?: (id?: string) => Promise<string>
+  readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
+  readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
   readSource?: (id: string, query: URLSearchParams) => Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
@@ -22,6 +23,8 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<NonNullable<typeof readHistory>>>>([])
   const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
+  const [snapshots, setSnapshots] = useState<{id: string; rows: Awaited<ReturnType<NonNullable<typeof readSnapshots>>>}>()
+  const [snapshotId, setSnapshotId] = useState('')
   const [sourcePage, setSourcePage] = useState<{id: string; repository: SourceRepository; revision: string; files: string[]; next: number | null}>()
   const [excerpt, setExcerpt] = useState<{id: string; repository: SourceRepository; path: string; lines: string[]; first: number}>()
   const [probeTool, setProbeTool] = useState('')
@@ -84,7 +87,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     setBusy(true)
     setError('')
     try {
-      const document = await readEvidence(diagnosis?.id)
+      const document = await readEvidence(diagnosis?.id, snapshots?.id === diagnosis?.id ? snapshotId || undefined : undefined)
       const url = URL.createObjectURL(new Blob([document], {type:'application/json'}))
       const link = window.document.createElement('a')
       link.href = url
@@ -96,6 +99,17 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     } finally {
       setBusy(false)
     }
+  }
+  async function loadSnapshots(id: string) {
+    if (!readSnapshots || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      setSnapshots({id, rows: await readSnapshots(id)})
+      setSnapshotId('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '暂时无法读取证据快照。')
+    } finally { setBusy(false) }
   }
   async function locate(){
     if(!attempt||busy)return
@@ -181,6 +195,16 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       {excerpt.lines.length===40&&<button type="button" disabled={busy}
         onClick={()=>void browseSource(excerpt.id,excerpt.repository,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
     </>}
+    {allowExport&&diagnosis&&readSnapshots&&<button type="button" disabled={busy}
+      onClick={()=>void loadSnapshots(diagnosis.id)}>查看已保存快照</button>}
+    {allowExport&&snapshots?.id===diagnosis?.id&&snapshots&&<label>证据快照
+      <select disabled={busy} value={snapshotId} onChange={event=>setSnapshotId(event.target.value)}>
+        <option value="">当前调查状态</option>
+        {snapshots.rows.map(item=><option key={item.snapshot_id} value={item.snapshot_id}>
+          {({queued:'排队', running:'执行中', completed:'已完成', failed:'失败', cancelled:'已停止',
+            unknown:'结果未知'} as Record<string,string>)[item.status ?? ''] ?? '已保存'} · {item.snapshot_id.slice(0,8)}
+        </option>)}
+      </select></label>}
     {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>

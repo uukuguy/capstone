@@ -331,8 +331,14 @@ export class HttpThreadTransport implements ThreadTransport {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
     return this.request(path, {method: 'DELETE'}) as Promise<{status: string}>
   }
-  async debugEvidence(threadId: string, investigationId: string) {
-    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence`
+  async debugSnapshots(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/snapshots`
+    const result = await this.request(path) as {snapshots: {snapshot_id: string; status: string | null}[]}
+    return result.snapshots
+  }
+  async debugEvidence(threadId: string, investigationId: string, snapshotId?: string) {
+    const query = snapshotId ? '?snapshot_id=' + encodeURIComponent(snapshotId) : ''
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence${query}`
     const response = await this.streamRequest(path)
     return boundedResponseText(response, 'event_page_bytes', applicationCapacity('event_page_bytes'))
   }
