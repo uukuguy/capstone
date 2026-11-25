@@ -56,6 +56,18 @@ def verify(document):
     diagnosis = document.get('diagnosis', {})
     if not isinstance(diagnosis, dict):
         raise ValueError('Invalid diagnosis record')
+    steps = diagnosis.get('progress', [])
+    if not isinstance(steps, list):
+        raise ValueError('Invalid diagnosis timeline')
+    last_step = 0
+    for step in steps:
+        if (not isinstance(step, dict) or set(step) != {'seq', 'stage', 'tool'}
+                or type(step['seq']) is not int or step['seq'] <= last_step
+                or step['stage'] not in ('tool_started', 'tool_finished', 'tool_failed')
+                or not isinstance(step['tool'], str)
+                or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,127}', step['tool'])):
+            raise ValueError('Invalid diagnosis timeline step')
+        last_step = step['seq']
     cited = diagnosis.get('evidence_event_seqs', [])
     if not isinstance(cited, list) or any(type(seq) is not int or not 0 < seq <= through for seq in cited):
         raise ValueError('Diagnosis cites events outside the investigation scope')
@@ -82,6 +94,8 @@ def verify(document):
     return {'investigation_id': document['investigation_id'], 'capstone_events': len(events),
             'capstone_truncated': capstone.get('truncated') is True,
             'diagnosis_events_missing_from_export': missing,
+            'capstone_diagnosis_events': len(steps),
+            'capstone_diagnosis_truncated': diagnosis.get('progress_truncated') is True,
             'gateway_status': gateway.get('status'), 'gateway_receipts': len(receipts),
             'previous_gateway_receipts': len(prior['events']) if prior is not None else 0}
 
@@ -106,6 +120,7 @@ def import_evidence(document, parent):
     failure = observation.get('first_failure')
     write('evidence.json', encode(document))
     write('capstone-events.jsonl', b''.join(encode(row) for row in capstone['events']))
+    write('capstone-diagnosis-events.jsonl', b''.join(encode(row) for row in diagnosis.get('progress', [])))
     write('gateway-events.jsonl', b''.join(encode(row) for row in gateway['events']))
     prior = document.get('previous_gateway_evidence')
     if prior is not None:
@@ -124,7 +139,8 @@ def import_evidence(document, parent):
 
     lines = ['# Debug 证据摘要', '',
              f"- 调查 ID：`{identifier(document['investigation_id'])}`",
-             f"- Capstone 事件数：{summary['capstone_events']}",
+             f"- Capstone 普通执行事件数：{summary['capstone_events']}",
+             f"- Capstone 诊断步骤数：{summary['capstone_diagnosis_events']}",
              f"- 网关导出状态：`{identifier(summary['gateway_status'])}`",
              f"- 网关获准回执数：{summary['gateway_receipts']}",
              '- 跨侧请求关联：待核验。导出范围为时间线及获准回执字段。']
@@ -132,7 +148,8 @@ def import_evidence(document, parent):
         lines.append(f"- 首条公开异常：事件 #{failure['seq']}（`{identifier(failure['type'])}`）。")
     elif observation:
         lines.append('- 在调查范围内未记录公开异常。')
-    if summary['capstone_truncated'] or gateway.get('truncated') is True:
+    if (summary['capstone_truncated'] or summary['capstone_diagnosis_truncated']
+            or gateway.get('truncated') is True):
         lines.append('- 证据已裁剪。完整覆盖需在现场核对。')
     lines += ['', '复验时比较首条异常与获准网关回执状态。结合证据范围判断差异。']
     review = document.get('reviewed_export', {})

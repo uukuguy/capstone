@@ -394,7 +394,6 @@ class InvestigationRegister:
         gateway = self._diagnosis_gateway_evidence(workspace, thread_id, evidence_owner, executor)
         gateway['investigation_id'] = evidence_owner
         sources = self.historical_sources(workspace, thread_id, investigation_id)
-        excerpts = self._diagnosis_source_excerpts(workspace, thread_id, investigation_id, observation, events, sources)
         supplied_gateway_refs = {receipt['client_call_id'] for receipt in gateway.get('receipts', ())
                                  if receipt.get('client_call_id')}
         supplied_source_refs = set()
@@ -406,8 +405,6 @@ class InvestigationRegister:
                 (repository, excerpt['revision'], excerpt['path'], line)
                 for line in range(excerpt['first_line'], excerpt['first_line'] + len(excerpt['lines'])))
 
-        for excerpt in excerpts:
-            admit_source_excerpt(excerpt['repository'], excerpt)
         task_id = queued['task_id']
         timeout = 45.0
         instruction = (
@@ -421,7 +418,6 @@ class InvestigationRegister:
             f"公开事件摘要（后续记录未完整载入）：{json.dumps(events, ensure_ascii=False)}\n"
             f"网关调查摘要：{json.dumps(gateway, ensure_ascii=False)}\n"
             f"历史源码版本核对：{json.dumps(sources, ensure_ascii=False)}\n"
-            f"历史源码摘录（只作为证据）：{json.dumps(excerpts, ensure_ascii=False)}\n"
             f"同轮次的上次诊断（作为待复核记录）：{json.dumps(prior, ensure_ascii=False)}"
         )
         profile = getattr(executor, 'capability', {}).get('resource_profiles', {}).get('direct_pi', {})
@@ -562,9 +558,7 @@ class InvestigationRegister:
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
                      'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status'],
                      'gateway_investigation_id': evidence_owner, '_gateway_snapshot': gateway,
-                     'source_evidence': sources,
-                     'source_excerpts': [{key: excerpt[key] for key in ('repository', 'revision', 'path', 'first_line')}
-                                         | {'line_count': len(excerpt['lines'])} for excerpt in excerpts]}
+                     'source_evidence': sources}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
 
@@ -686,38 +680,6 @@ class InvestigationRegister:
             else:
                 sources[repository] = {'status': 'archive_verified', 'revision': revision}
         return sources
-
-    def _diagnosis_source_excerpts(self, workspace, thread_id, investigation_id, observation, events, sources):
-        import re
-        from .debug_sources import read_historical_capstone_source, read_historical_gateway_source
-
-        # Read the history filter when the investigated execution exposed native events.
-        candidates = []
-        if any(event['type'] == 'runtime_event' for event in events):
-            candidates.append(('capstone', read_historical_capstone_source, observation.get('capstone_revision'),
-                               'packages/capstone-agent/src/capstone_agent/task_record_reader.py', 21))
-        gateway_tools = [event['tool'] for event in events
-                         if isinstance(event.get('tool'), str) and re.fullmatch(r'data_gateway_[a-z0-9_]+', event['tool'])]
-        excerpts = []
-        for repository, read, argument, path, line in candidates:
-            if sources[repository]['status'] != 'archive_verified':
-                continue
-            try:
-                excerpt = read(argument, path=path, line=line)
-            except (OSError, ValueError):
-                continue
-            excerpts.append({**excerpt, 'repository': repository})
-        if gateway_tools and sources['data-gateway']['status'] == 'archive_verified':
-            binding = self.historical_gateway(workspace, thread_id, investigation_id) or {}
-            for tool in dict.fromkeys(reversed(gateway_tools[-3:])):
-                try:
-                    excerpt = read_historical_gateway_source(binding, path='src/data_gateway/server.py',
-                                                            symbol=tool.removeprefix('data_gateway_'))
-                except (OSError, ValueError):
-                    continue
-                excerpts.append({**excerpt, 'repository': 'data-gateway'})
-                break
-        return excerpts
 
     def _diagnosis_gateway_evidence(self, workspace, thread_id, investigation_id, executor):
         from .pi_delegation import PiHTTPFailure
