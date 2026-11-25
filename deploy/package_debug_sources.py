@@ -25,20 +25,22 @@ def write_entry(archive, name, data):
     archive.writestr(entry, data, compress_type=zipfile.ZIP_DEFLATED)
 
 
-def stage(root, gateway_releases, destination):
-    revision = subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+def stage(root, gateway_releases, destination, *, gateway_only=False):
+    revision = None if gateway_only else subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
     destination.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(dir=destination.parent) as tmp:
         tmp = Path(tmp)
-        with tempfile.TemporaryFile() as source:
-            subprocess.run(['git','archive',revision,'packages','configs/runtime','deploy','tools','scripts'],
-                           cwd=root,stdout=source,check=True)
-            source.seek(0)
-            with tarfile.open(fileobj=source) as files, zipfile.ZipFile(tmp/'capstone.zip','w') as archive:
-                for entry in files:
-                    if entry.isfile() and admitted(entry.name):
-                        write_entry(archive,entry.name,files.extractfile(entry).read())
-        versions = [('capstone',revision,'capstone.zip')]
+        versions = []
+        if revision:
+            with tempfile.TemporaryFile() as source:
+                subprocess.run(['git','archive',revision,'packages','configs/runtime','deploy','tools','scripts'],
+                               cwd=root,stdout=source,check=True)
+                source.seek(0)
+                with tarfile.open(fileobj=source) as files, zipfile.ZipFile(tmp/'capstone.zip','w') as archive:
+                    for entry in files:
+                        if entry.isfile() and admitted(entry.name):
+                            write_entry(archive,entry.name,files.extractfile(entry).read())
+            versions.append(('capstone',revision,'capstone.zip'))
         for gateway_release in gateway_releases:
             manifest = json.loads((gateway_release / 'release.json').read_text())
             version = manifest['source_sha256']
@@ -80,6 +82,8 @@ if __name__ == '__main__':
     parser.add_argument('--root',type=Path,required=True)
     parser.add_argument('--gateway-release',type=Path,action='append')
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--install-gateway-source',action='store_true',
+                        help='Add a verified release snapshot to the site source directory independently of image builds')
     args = parser.parse_args()
     release = args.gateway_release
     if release is None:
@@ -90,4 +94,11 @@ if __name__ == '__main__':
         release = [Path(active['release_path'])]
         if active.get('previous_release_path'):
             release.append(Path(active['previous_release_path']))
-    stage(args.root,release,args.output)
+    if args.install_gateway_source:
+        for item in release:
+            digest = json.loads((item/'release.json').read_text())['source_sha256']
+            if len(digest)!=64 or any(ch not in '0123456789abcdef' for ch in digest):
+                raise ValueError('Invalid gateway release digest')
+            stage(args.root,[item],args.output/digest,gateway_only=True)
+    else:
+        stage(args.root,release,args.output)

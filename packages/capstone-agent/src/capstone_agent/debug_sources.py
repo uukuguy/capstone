@@ -1,14 +1,25 @@
 """Resolve packaged sources against a freshly checked, thread-scoped gateway publication."""
 import json
+import re
 from pathlib import Path
 
 
-def resolve_sources(publication, root=Path('/opt/capstone-debug-sources')):
+def resolve_sources(publication, root=Path('/opt/capstone-debug-sources'), library=Path('/opt/capstone-debug-library')):
     path = root/'manifest.json'
     entries = json.loads(path.read_text())['sources'] if path.is_file() else []
     available = publication.get('available') is True
     instance = publication.get('catalog', {}).get('instance', {}) if available else {}
     revision = instance.get('source_sha256')
+    if isinstance(revision,str) and re.fullmatch('[0-9a-f]{64}',revision):
+        supplement = library/revision/'manifest.json'
+        if supplement.is_file():
+            catalog = json.loads(supplement.read_text())
+            for item in catalog.get('sources', []):
+                if (item.get('repository')=='data-gateway' and item.get('revision')==revision
+                        and item.get('archive')==f'data-gateway-{revision}.zip'
+                        and (supplement.parent/item['archive']).is_file()):
+                    entries = [item]+[entry for entry in entries if (entry['repository'],entry['revision'])!=('data-gateway',revision)]
+                    break
     match = next((row for row in entries if row['repository']=='data-gateway'
                   and revision and row['revision']==revision), None)
     return {'instance_id':instance.get('instance_id'), 'gateway_revision':revision,
