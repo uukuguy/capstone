@@ -1002,6 +1002,68 @@ def test_executor_service_binds_identity_and_control_authorization(tmp_path):
         thread.join(timeout=2)
 
 
+def test_debug_record_paging_crosses_the_leased_http_channel(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent.debug_investigations import InvestigationRegister
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from test_attempt_records import completed_task
+
+    monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
+    monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
+    service, claim = completed_task()
+    register = InvestigationRegister(service)
+    scope = (claim.workspace_name, claim.thread_id)
+    row = register.start(*scope, 'http-debug', '读取事件', claim.attempt.attempt_id)
+    failure = row['observation']['first_failure']['seq']
+    received = []
+
+    def acquire(task_id, grant, _socket, *, channel):
+        if grant != 'fixture-internal-grant' or channel != 'gateway':
+            raise PermissionError()
+        return task_id
+
+    class Runner:
+        relay = SimpleNamespace(acquire=acquire, release=lambda _: None)
+
+        def __call__(self, request, cancelled, emit):
+            url = f'{origin}/debug-tools/{request.task_id}'
+            request_body = {'call_id': 'page-one', 'name': 'agent_debug_observe',
+                            'arguments': {'operation': 'capstone_records', 'query': {'after': failure - 1}}}
+            denied = httpx.post(url, json=request_body)
+            assert denied.status_code == 403
+            headers = {'Authorization': 'Bearer fixture-internal-grant'}
+            for _ in range(40):
+                assert not cancelled()
+                response = httpx.post(url, headers=headers, json=request_body)
+                response.raise_for_status()
+                packet = response.json()
+                if not packet.get('pending'):
+                    received.append(packet)
+                    return '已读取调查事件。', {}
+                time.sleep(0.025)
+            raise AssertionError('Debug paging receipt did not arrive')
+
+    runner = Runner()
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'test'}, run_task=runner)
+    host.capability['resource_profiles'] = {'direct_pi': {'revision': 'fixture'}}
+    server = make_server(host, control_token='host-secret', address=('127.0.0.1', 0), runner=runner)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f'http://127.0.0.1:{server.server_port}'
+    try:
+        client = HttpGeneralPiExecutor(origin, identity=host.identity, capability=host.capability,
+                                       control_token='host-secret')
+        diagnosis = register.diagnose(*scope, row['investigation_id'], client)
+        assert diagnosis['status'] == 'completed'
+        assert received[0]['is_error'] is False
+        assert received[0]['result']['attempt_id'] == claim.attempt.attempt_id
+        assert received[0]['result']['events'][0]['event_seq'] == failure
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 def test_network_control_requires_host_credential_and_returns_applied_state(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     from capstone_agent.native_network_policy import NativeNetworkPolicy
