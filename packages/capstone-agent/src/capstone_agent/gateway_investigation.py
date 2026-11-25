@@ -171,7 +171,7 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     if (connection.instance_identity or {}).get('instance_id') != instance_id:
         raise GatewayError('gateway_instance_changed')
     allowed = {'list': {'limit', 'cursor'}, 'read': {'client_call_id', 'request_id'},
-               'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}}
+               'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}, 'export': set()}
     if operation not in allowed or not isinstance(query, dict) or query.keys() - allowed[operation]:
         raise GatewayError('investigation_request_invalid')
     access = await GatewayInvestigation.discover(connection.http_client, endpoint,
