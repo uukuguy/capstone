@@ -267,6 +267,9 @@ export class HttpThreadTransport implements ThreadTransport {
       throw error
     }
   }
+  async debugStatus(threadId:string){
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`)
+  }
   async listManagedResources(){return this.managedResourceRequest('/api/v1/managed-resources')}
   async readManagedResourceOperation(requestId:string){return this.managedResourceRequest(`/api/v1/managed-resources/operations/${encodeURIComponent(requestId)}`)}
   async manageResource(operation:string,document:Record<string,unknown>){return this.managedResourceRequest(`/api/v1/managed-resources/operations/${encodeURIComponent(operation)}`,{method:'POST',body:JSON.stringify(document)})}

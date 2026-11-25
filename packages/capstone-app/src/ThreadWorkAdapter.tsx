@@ -540,6 +540,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   }
   async function send(text: string,submission?:InputSubmission) {
     try{
+      if(/^\/debug\s+status\s*$/.test(text)){
+        await transport.debugStatus(currentId)
+        setNotice('当前部署已开启调试命令。')
+        return
+      }
       if(pendingGoalControl){
         await dispatch(pendingGoalControl)
         if(pendingGoalControl.kind==='start_goal'){

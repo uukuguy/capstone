@@ -1,6 +1,7 @@
 x-runtime-environment: &runtime-environment
   CAPSTONE_RUNTIME_PROFILE: capstone-dev-trial-v1
   CAPSTONE_DEPLOYMENT_STAGE: local
+  CAPSTONE_DEBUG_COMMANDS: "0"
   PROVIDER: ${PROVIDER:-}
   CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:-deepseek}
   CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:-deepseek-flash}

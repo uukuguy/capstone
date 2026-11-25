@@ -30,6 +30,7 @@ values = {
     'DEEPSEEK_API_KEY': '',
     'CAPSTONE_ARTIFACT_BUCKET': 'capstone-demo-local-private',
     'CAPSTONE_DEPLOYMENT_STAGE': 'local',
+    'CAPSTONE_DEBUG_COMMANDS': '0',
 }
 fd = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 with os.fdopen(fd, 'w') as output:

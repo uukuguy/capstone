@@ -24,6 +24,7 @@ from capstone_agent.thread_startup_timing import record_thread_startup
 
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
+from capstone_agent.debug_commands import debug_commands_enabled, parse_debug_command
 from capstone_agent.case_diagrams import CaseDiagramCache, load_case_diagram
 from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
@@ -382,6 +383,13 @@ def create_host_app(
         def require_private_thread(request: Request) -> None:
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
+
+        @app.get('/api/v1/threads/{thread_id}/debug/status')
+        def thread_debug_status(thread_id: str, request: Request):
+            require_private_thread(request)
+            if not debug_commands_enabled(os.environ):
+                raise HTTPException(403, '当前部署已关闭调试命令。')
+            return {'thread_id': thread_id, 'enabled': True}
 
         from .session_pins import register_session_pin_routes
         register_session_pin_routes(app, service=thread_service, authorize=require_private_thread)
@@ -790,6 +798,20 @@ def create_host_app(
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
                 kind = command.get("kind")
+                payload = command.get('payload')
+                if kind in ('send_message', 'work_message', 'queue_instruction',
+                            'send_auto', 'send_ordinary', 'send_professional') and isinstance(payload, dict):
+                    supplied_text = payload.get('text')
+                    if supplied_text is None and isinstance(payload.get('input'), dict):
+                        supplied_text = payload['input'].get('text')
+                    if isinstance(supplied_text, str) and supplied_text.startswith('/debug') and supplied_text.split(maxsplit=1)[0] == '/debug':
+                        if not debug_commands_enabled(os.environ):
+                            raise HTTPException(403, '当前部署已关闭调试命令。')
+                        try:
+                            parse_debug_command(supplied_text)
+                        except ValueError as error:
+                            raise HTTPException(422, str(error)) from None
+                        raise HTTPException(501, '调查执行服务尚未接入。')
                 if isinstance(kind, str) and kind in {
                     "start_case_execution", "retry_case_step", "resume_case_execution",
                 } and thread_service.is_archived(thread_id):

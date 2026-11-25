@@ -1,6 +1,18 @@
 import pytest
 
-from capstone_agent.debug_commands import DebugCommand, parse_debug_command
+from capstone_agent.debug_commands import DebugCommand, debug_commands_enabled, parse_debug_command
+
+
+@pytest.mark.parametrize(('env', 'enabled'), [
+    ({}, True),
+    ({'CAPSTONE_DEPLOYMENT_STAGE': 'cloud-development'}, True),
+    ({'CAPSTONE_DEBUG_COMMANDS': '0'}, False),
+    ({'CAPSTONE_DEBUG_COMMANDS': 'invalid'}, False),
+    ({'CAPSTONE_DEPLOYMENT_STAGE': 'user-trial', 'CAPSTONE_DEBUG_COMMANDS': '1'}, False),
+    ({'CAPSTONE_DEPLOYMENT_STAGE': 'production'}, False),
+])
+def test_stage_policy(env, enabled):
+    assert debug_commands_enabled(env) is enabled
 
 
 @pytest.mark.parametrize('text', ['普通指令', '> /debug stop', '```\n/debug stop\n```',
