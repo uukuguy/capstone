@@ -235,7 +235,8 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
         service.append_runtime_event(claim, event_type='runtime_event', visibility='public',
             payload={'native_type': 'tool_execution_end', 'tool_name': f'read_{index}',
                      'is_error': index == 104,
-                     'activity': {'output_excerpt': 'selected source remained ambiguous' if index == 104 else ''}})
+                     'activity': {'output_excerpt': 'selected source remained ambiguous' if index == 104 else '',
+                                  'input_excerpt': 'A' * 2000 + 'tail' if index == 104 else ''}})
     service.finish_attempt(claim, phase='completed', payload={'answer': 'Done'})
     register = InvestigationRegister(service)
     investigation = register.start(claim.workspace_name, claim.thread_id, 'late-error', 'Find failure',
@@ -256,6 +257,15 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
             {'operation': 'capstone_records', 'query': {'after': failure_seq - 1}}, 'fixture')
         assert page['events'][0]['event_seq'] == failure_seq
         assert page['events'][0]['payload']['activity']['output_excerpt'] == 'selected source remained ambiguous'
+        assert page['events'][0]['payload']['activity_truncated'] is True
+        excerpt = control.mission_operation('agent_debug_observe',
+            {'operation': 'capstone_excerpt', 'query': {'event_seq': failure_seq, 'field': 'input_excerpt',
+                                                        'offset': 1000}}, 'fixture')
+        assert excerpt['scope'] == 'stored_excerpt' and excerpt['next_offset'] == 2000
+        tail = control.mission_operation('agent_debug_observe',
+            {'operation': 'capstone_excerpt', 'query': {'event_seq': failure_seq, 'field': 'input_excerpt',
+                                                        'offset': 2000}}, 'fixture')
+        assert tail['text'] == 'tail' and tail['next_offset'] is None
         rejected = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'attempt_id': 'another'}}, 'fixture')
         assert rejected == {'code': 'investigation_request_invalid'}

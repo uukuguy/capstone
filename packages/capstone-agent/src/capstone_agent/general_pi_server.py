@@ -2824,7 +2824,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 scope = native['debug_scope']
                 operation = args['operation']
                 query = args.get('query', {})
-                if operation == 'capstone_records':
+                if operation in {'capstone_records', 'capstone_excerpt'}:
                     receipt = host.mission_request(task_id, packet)
                     return self.send_json(200, receipt if receipt is not None else {'pending': True})
                 source_query = operation in {'source_files', 'source_lines'}

@@ -423,8 +423,28 @@ class InvestigationRegister:
 
             def read_debug_records(name, arguments, _operation_id):
                 query = arguments.get('query', {})
+                if name != 'agent_debug_observe':
+                    return {'code': 'investigation_request_invalid'}
+                if arguments.get('operation') == 'capstone_excerpt':
+                    seq, field, offset = query.get('event_seq'), query.get('field'), query.get('offset', 0)
+                    if (query.keys() - {'event_seq', 'field', 'offset'} or type(seq) is not int or not 1 <= seq <= through
+                            or field not in ('input_excerpt', 'output_excerpt') or type(offset) is not int or offset < 0):
+                        return {'code': 'investigation_request_invalid'}
+                    page = audit_reader.read(after=seq - 1, limit=1)
+                    events = page['events']
+                    payload = events[0]['payload'] if events and events[0]['event_seq'] == seq else {}
+                    activity = payload.get('activity')
+                    text = activity.get(field) if isinstance(activity, dict) else None
+                    if not isinstance(text, str):
+                        return {'code': 'stored_excerpt_unavailable'}
+                    end = min(offset + 1000, len(text))
+                    if offset > end:
+                        return {'code': 'investigation_request_invalid'}
+                    return {'attempt_id': observation['attempt_id'], 'event_seq': seq, 'field': field,
+                            'scope': 'stored_excerpt', 'offset': offset, 'text': text[offset:end],
+                            'next_offset': end if end < len(text) else None}
                 after = query.get('after', 0)
-                if (name != 'agent_debug_observe' or arguments.get('operation') != 'capstone_records'
+                if (arguments.get('operation') != 'capstone_records'
                         or query.keys() - {'after'} or type(after) is not int or not 0 <= after <= through):
                     return {'code': 'investigation_request_invalid'}
                 return read_page(after, 1000)
@@ -449,6 +469,7 @@ class InvestigationRegister:
             instruction += ('\n用 agent_task_records_read 核对 Capstone 执行记录。'
                             '需要更早或更晚的事件时，用 agent_debug_observe 的 capstone_records，传 after 或从 0 开始。'
                             '已知异常事件编号时，可以从该编号减一开始。'
+                            '摘要字段被裁剪时，用 capstone_excerpt 按事件编号、字段和偏移续读已保存摘要。'
                             'payload_projection=bounded_summary 表示只返回获准的摘要字段，字段缺失不能作为原始记录为空的证据。'
                             '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
             task_fields = {
