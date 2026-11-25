@@ -1,14 +1,27 @@
 import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
+import {firstDebugObservation} from './debugObservation'
 
-export default function DebugWorkspace({threadId,attempts,read,allowExport,readTimeline}:{
-  threadId:string; attempts:string[]; read:AttemptRecordReader; allowExport:boolean
+export default function DebugWorkspace({threadId,attempts,through,read,allowExport,readTimeline}:{
+  threadId:string; attempts:string[]; through:number; read:AttemptRecordReader; allowExport:boolean
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
 }){
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
+  const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const attempt=attempts.includes(selection)?selection:attempts[0]
+  async function locate(){
+    if(!attempt||busy)return
+    setBusy(true)
+    setError('')
+    try{
+      const found=await firstDebugObservation(attempt,read,through)
+      setObservation({attempt,text:found?`首条公开异常记录 #${found.seq} · ${found.label}`:
+        `截至事件 #${through}，公开记录中未发现工具失败、核验失败或任务失败、中断事件。`})
+    }catch(cause){setError(cause instanceof Error?cause.message:'执行记录读取失败。')}
+    finally{setBusy(false)}
+  }
   async function download(){
     if(!attempt||busy)return
     setBusy(true)
@@ -40,7 +53,9 @@ export default function DebugWorkspace({threadId,attempts,read,allowExport,readT
     <label>执行轮次 <select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
       {attempts.map(id=><option key={id}>{id}</option>)}
     </select></label>
-    {allowExport&&<button className="thread-control-button" disabled={busy} onClick={()=>void download()}>{busy?'正在整理记录…':'下载事件时间线'}</button>}
+    <button className="thread-control-button" disabled={busy} onClick={()=>void locate()}>定位首条异常</button>
+    {observation?.attempt===attempt&&<p role="status">{observation.text}</p>}
+    {allowExport&&<button className="thread-control-button" disabled={busy} onClick={()=>void download()}>下载事件时间线</button>}
     {error&&<p role="alert">{error}</p>}
     <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
   </section>

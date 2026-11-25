@@ -1024,7 +1024,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
   if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
     content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
-      read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
+      through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId
