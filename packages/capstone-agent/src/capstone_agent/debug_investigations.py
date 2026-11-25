@@ -7,6 +7,11 @@ import json
 from psycopg.types.json import Jsonb
 
 
+def evidence_digest(document):
+    encoded = json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    return sha256(encoded.encode('utf-8')).hexdigest()
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS capstone_debug_investigations (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,

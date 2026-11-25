@@ -464,6 +464,8 @@ def create_host_app(
                                                       investigation_id, 'export', {})
                 except (ValueError, RuntimeError, OSError):
                     document['data_gateway'] = {'status': 'read_unavailable', 'events': []}
+            from .debug_investigations import evidence_digest
+            document['integrity'] = {'algorithm': 'sha256', 'digest': evidence_digest(document)}
             return JSONResponse(document, headers={'Cache-Control': 'no-store',
                 'Content-Disposition': 'attachment; filename="debug-evidence.json"'})
 

@@ -9,7 +9,7 @@ type SourceRepository = 'capstone' | 'data-gateway'
 export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,readSource,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
-  readEvidence?: (id?: string) => Promise<unknown>
+  readEvidence?: (id?: string) => Promise<string>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
   readSource?: (id: string, query: URLSearchParams) => Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
@@ -63,7 +63,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     setError('')
     try {
       const document = await readEvidence(diagnosis?.id)
-      const url = URL.createObjectURL(new Blob([JSON.stringify(document, null, 2)], {type:'application/json'}))
+      const url = URL.createObjectURL(new Blob([document], {type:'application/json'}))
       const link = window.document.createElement('a')
       link.href = url
       link.download = 'debug-evidence.json'

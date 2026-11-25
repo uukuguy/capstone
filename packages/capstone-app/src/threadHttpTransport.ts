@@ -323,7 +323,8 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async debugEvidence(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence`
-    return this.request(path)
+    const response = await this.streamRequest(path)
+    return boundedResponseText(response, 'event_page_bytes', applicationCapacity('event_page_bytes'))
   }
   async debugHistoricalSource(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/sources`
