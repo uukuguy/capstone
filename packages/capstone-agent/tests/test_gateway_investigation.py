@@ -80,6 +80,36 @@ def test_missing_extension_and_untrusted_path_make_no_request():
         asyncio.run(GatewayInvestigation.discover(None, '', {**DECLARATION, 'contract_path': '//other/contract'}))
 
 
+@pytest.mark.parametrize('policy', ['undeclared', 'allow_sanitized'])
+def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy):
+    scope = {key: EXCHANGE['read_after_response_loss'][key]
+             for key in ('workspace_id', 'investigation_id', 'binding_handle')}
+    paths = []
+
+    def respond(request):
+        paths.append(request.url.path)
+        if request.url.path == BASE + 'contract':
+            return httpx.Response(200, json={**CONTRACT, 'export': {
+                'deployment_policy': policy, 'allowed': ['state', 'client_call_id', 'request_id'],
+            }})
+        assert request.url.path == BASE + 'list'
+        assert json.loads(request.content) == {**scope, 'limit': 32}
+        return httpx.Response(200, json={'receipts': [EXCHANGE['unknown']], 'next_cursor': None})
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            access = await GatewayInvestigation.discover(client, 'https://fixture.test/mcp', DECLARATION)
+            return await access.export_receipts(scope)
+
+    exported = asyncio.run(run())
+    if policy == 'allow_sanitized':
+        assert exported == {'status': 'available', 'truncated': False, 'events': [{'state': 'unknown'}]}
+        assert paths == [BASE + 'contract', BASE + 'list']
+    else:
+        assert exported == {'status': 'export_not_authorized', 'events': []}
+        assert paths == [BASE + 'contract']
+
+
 @pytest.mark.parametrize('lost', [True, False])
 def test_registered_business_call_recovers_without_second_dispatch(lost):
     from unittest.mock import AsyncMock
