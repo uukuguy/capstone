@@ -1,5 +1,6 @@
 """Backend-only access to a gateway's declared investigation HTTP contract."""
 import json
+from hashlib import sha256
 from urllib.parse import urlsplit
 
 from .application_capacity import require_capacity
@@ -11,6 +12,10 @@ LOG_VERSION = 'gateway-investigation-logs/1'
 BASE = '/investigations/v1/'
 SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', 'Receipt'),
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
+
+
+def investigation_workspace_id(workspace):
+    return 'ws_' + sha256(workspace.encode('utf-8')).hexdigest()
 
 
 async def _request(client, method, url, document=None):
@@ -173,7 +178,7 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
         connection.investigation, connection.investigation_logs)
     if access is None:
         raise GatewayError('investigation_contract_unavailable')
-    owner = {'workspace_id': workspace, 'investigation_id': investigation_id}
+    owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': investigation_id}
     binding = await access.invoke('bind', {**owner, 'instance_id': instance_id, 'idempotency_key': investigation_id})
     scope = {**owner, 'binding_handle': binding['binding_handle']}
     if operation == 'logs':
