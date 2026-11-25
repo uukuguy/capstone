@@ -23,6 +23,7 @@ class AttemptRecordStore(Protocol):
 
 
 PUBLIC_TASK_OBSERVATION_TYPES = frozenset({
+    "execution_source_revision",
     "tool_started", "tool_completed", "tool_failed", "tool_cancelled",
     "validation_observation", "validation_failed",
     "research_state_updated", "answer_committed", "attempt_completed",

@@ -94,6 +94,11 @@ def _run_claimed_attempt(
     if service.cancel_requested(claim):
         service.finish_attempt(claim, phase='cancelled', payload={})
         return HarnessAttemptResult('cancelled', None, None)
+    from .debug_sources import packaged_capstone_revision
+    revision = packaged_capstone_revision()
+    if revision:
+        service.append_runtime_event(claim, event_type='execution_source_revision',
+                                     payload={'capstone_revision': revision}, visibility='public')
     previous = claim.previous_instruction
     manifests = (claim.submission or {}).get('_resource_manifests', ())
     if manifests:

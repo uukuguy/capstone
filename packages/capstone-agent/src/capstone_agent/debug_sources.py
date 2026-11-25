@@ -6,6 +6,15 @@ from hashlib import file_digest
 from pathlib import Path
 
 
+def packaged_capstone_revision(root=Path('/opt/capstone-debug-sources')):
+    try:
+        entries = json.loads((root / 'manifest.json').read_text())['sources']
+        return next(row['revision'] for row in entries if row['repository'] == 'capstone'
+                    and re.fullmatch('[0-9a-f]{40}', row['revision']))
+    except (OSError, ValueError, KeyError, TypeError, StopIteration):
+        return None
+
+
 def resolve_sources(publication, root=Path('/opt/capstone-debug-sources'), library=Path('/opt/capstone-debug-library')):
     path = root/'manifest.json'
     entries = json.loads(path.read_text())['sources'] if path.is_file() else []
@@ -36,15 +45,36 @@ def read_historical_gateway_source(instance, *, path=None, line=1, prefix='', of
     revision = instance.get('source_sha256')
     if not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{64}', revision):
         raise FileNotFoundError('historical_source_unavailable')
-    if type(line) is not int or not 1 <= line <= 100000 or type(offset) is not int or offset < 0:
-        raise ValueError('invalid_source_range')
     publication = {'available': True, 'catalog': {'instance': instance}}
     selected = resolve_sources(publication, root, library)['selected']
     if selected is None or selected.get('archive') != f'data-gateway-{revision}.zip':
         raise FileNotFoundError('historical_source_unavailable')
     name = selected['archive']
-    # Prefer the archive whose bytes match the admitted source manifest.
-    for candidate in (library / revision / name, root / name):
+    return _read_source_archive(selected, (library / revision / name, root / name), path, line, prefix, offset)
+
+
+def read_historical_capstone_source(revision, *, path=None, line=1, prefix='', offset=0,
+                                    root=Path('/opt/capstone-debug-sources'),
+                                    library=Path('/opt/capstone-debug-library')):
+    if not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{40}', revision):
+        raise FileNotFoundError('historical_source_unavailable')
+    for directory in (library / revision, root):
+        manifest = directory / 'manifest.json'
+        if not manifest.is_file():
+            continue
+        entries = json.loads(manifest.read_text())['sources']
+        selected = next((item for item in entries if item.get('repository') == 'capstone'
+                         and item.get('revision') == revision and item.get('archive') == 'capstone.zip'), None)
+        if selected:
+            return _read_source_archive(selected, (directory / 'capstone.zip',), path, line, prefix, offset)
+    raise FileNotFoundError('historical_source_unavailable')
+
+
+def _read_source_archive(selected, candidates, path, line, prefix, offset):
+    if type(line) is not int or not 1 <= line <= 100000 or type(offset) is not int or offset < 0:
+        raise ValueError('invalid_source_range')
+    revision = selected['revision']
+    for candidate in candidates:
         if not candidate.is_file():
             continue
         with candidate.open('rb') as stream:

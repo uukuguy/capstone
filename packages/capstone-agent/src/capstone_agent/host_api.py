@@ -529,15 +529,21 @@ def create_host_app(
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/source')
         def investigation_source_excerpt(thread_id: str, investigation_id: str, request: Request,
+                                         repository: Annotated[str, Query(pattern='^(capstone|data-gateway)$')] = 'data-gateway',
                                          path: Annotated[str | None, Query(max_length=300)] = None,
                                          line: Annotated[int, Query(ge=1, le=100000)] = 1,
                                          prefix: Annotated[str, Query(max_length=300)] = '',
                                          offset: Annotated[int, Query(ge=0)] = 0):
             require_debug(request)
-            from .debug_sources import read_historical_gateway_source
+            from .debug_sources import read_historical_capstone_source, read_historical_gateway_source
+            query = {'path': path, 'line': line, 'prefix': prefix, 'offset': offset}
             try:
-                binding = investigations.historical_gateway(request.state.workspace_name, thread_id, investigation_id)
-                result = read_historical_gateway_source(binding or {}, path=path, line=line, prefix=prefix, offset=offset)
+                scope = (request.state.workspace_name, thread_id, investigation_id)
+                if repository == 'capstone':
+                    observation = investigations.get(*scope).get('observation') or {}
+                    result = read_historical_capstone_source(observation.get('capstone_revision'), **query)
+                else:
+                    result = read_historical_gateway_source(investigations.historical_gateway(*scope) or {}, **query)
             except (KeyError, FileNotFoundError):
                 raise HTTPException(404, '找不到该调查绑定的历史源码。') from None
             return JSONResponse(result, headers={'Cache-Control': 'no-store'})

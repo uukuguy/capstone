@@ -61,6 +61,8 @@ class InvestigationRegister:
                 kind = event['event_type']
                 failed = kind in {'tool_failed', 'validation_failed', 'attempt_interrupted', 'attempt_failed'}
                 payload = event['payload']
+                if kind == 'execution_source_revision':
+                    reference['capstone_revision'] = payload.get('capstone_revision')
                 if (failed or (kind == 'tool_completed' and payload.get('ok') is False)
                         or (kind == 'runtime_event' and payload.get('native_type') == 'tool_execution_end'
                             and payload.get('is_error') is True)
