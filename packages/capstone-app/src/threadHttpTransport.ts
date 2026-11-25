@@ -271,14 +271,15 @@ export class HttpThreadTransport implements ThreadTransport {
     const value=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`) as Record<string,unknown>
     if(value?.thread_id!==threadId||value.enabled!==true)throw new Error('调试入口不可用。')
     const investigation=value.investigation as {investigation_id?:unknown;objective?:unknown;observation?:{
-      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null}}|null
+      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null};diagnosis?:{answer?:unknown}}|null
     const observation=investigation?.observation
     const finding=observation?(observation.first_failure?
       `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
       `执行轮次 ${observation.attempt_id} 截至事件 #${observation.through} 未记录公开失败事件。`):''
     return {timelineExport:value.timeline_export===true,
       investigationId:typeof investigation?.investigation_id==='string'?investigation.investigation_id:null,
-      objective:typeof investigation?.objective==='string'?investigation.objective:null,finding}
+      objective:typeof investigation?.objective==='string'?investigation.objective:null,
+      finding:typeof investigation?.diagnosis?.answer==='string'?investigation.diagnosis.answer:finding}
   }
   async debugSourceVersion(threadId:string){
     const result=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/sources`) as Record<string,unknown>
@@ -293,6 +294,12 @@ export class HttpThreadTransport implements ThreadTransport {
     const receipt=await this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})}) as Record<string,unknown>
     if(typeof receipt?.investigation_id!=='string'||!receipt.investigation_id)throw new Error('调查登记回执缺少标识。')
     return receipt.investigation_id
+  }
+  async runDebugDiagnosis(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
+    const result = await this.request(path, {method: 'POST', signal: AbortSignal.timeout(60000)}) as Record<string, unknown>
+    if (typeof result?.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
+    return result.answer
   }
   async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)

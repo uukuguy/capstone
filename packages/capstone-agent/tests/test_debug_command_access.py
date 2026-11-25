@@ -6,6 +6,38 @@ from test_thread_http_api import _Ledger, WorkerRegistry
 from test_attempt_records import completed_task
 
 
+def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
+    monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
+    service, claim = completed_task()
+    calls = []
+
+    class Executor:
+        identity = {'service_id': 'pi-local', 'instance_id': 'pi-test', 'revision': 'test'}
+
+        def execute(self, request, control, on_event):
+            calls.append(request)
+            return SimpleNamespace(status='completed', answer='输入检查失败。')
+
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+                          allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+                          thread_open_access=True, thread_service=service, native_artifact_executor=Executor())
+    path = f'/api/v1/threads/{claim.thread_id}/debug'
+    before = service.snapshot(claim.thread_id).last_event_seq
+    with TestClient(app, base_url='http://localhost') as client:
+        receipt = client.post(path + '/investigations', headers={'Idempotency-Key': 'direct-debug'},
+                              json={'objective': '检查失败', 'attempt_id': claim.attempt.attempt_id})
+        identity = receipt.json()['investigation_id']
+        response = client.post(f'{path}/investigations/{identity}/diagnose')
+        assert response.status_code == 200, response.text
+        assert calls[0].entrypoint == 'direct'
+        assert response.json()['attempt_id'] == claim.attempt.attempt_id
+        assert client.post(f'{path}/investigations/{identity}/diagnose').json() == response.json()
+        assert len(calls) == 1
+        assert service.snapshot(claim.thread_id).last_event_seq == before
+
+
 def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
     monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')

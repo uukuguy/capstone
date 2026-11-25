@@ -399,6 +399,20 @@ def create_host_app(
                     'investigation': investigations.latest(request.state.workspace_name, thread_id),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
+        def diagnose_investigation(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            if not callable(getattr(native_artifact_executor, 'execute', None)):
+                raise HTTPException(503, '诊断执行器暂不可用。')
+            try:
+                result = investigations.diagnose(request.state.workspace_name, thread_id,
+                                                 investigation_id, native_artifact_executor)
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
+            except (ValueError, RuntimeError, OSError):
+                raise HTTPException(409, '本次诊断未能完成。') from None
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/records')
         def investigation_records(thread_id: str, investigation_id: str, request: Request,
                                   after: Annotated[int, Query(ge=0)] = 0):

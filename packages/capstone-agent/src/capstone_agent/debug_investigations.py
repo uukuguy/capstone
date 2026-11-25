@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS capstone_debug_calls (
     PRIMARY KEY(investigation_id, operation_key)
 );
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS observation jsonb;
+ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS diagnosis jsonb;
 UPDATE capstone_thread_attempts a
 SET submission_snapshot = COALESCE(a.submission_snapshot, '{}'::jsonb)
     || jsonb_build_object('_debug_history', i.investigation_id)
@@ -59,6 +60,8 @@ class InvestigationRegister:
                 failed = kind in {'tool_failed', 'validation_failed', 'attempt_interrupted', 'attempt_failed'}
                 payload = event['payload']
                 if (failed or (kind == 'tool_completed' and payload.get('ok') is False)
+                        or (kind == 'runtime_event' and payload.get('native_type') == 'tool_execution_end'
+                            and payload.get('is_error') is True)
                         or (kind == 'validation_observation' and payload.get('status') == 'failed')):
                     reference['first_failure'] = {'seq': event['event_seq'], 'type': kind}
                     return reference
@@ -93,7 +96,7 @@ class InvestigationRegister:
         self.service.require_workspace(thread_id, workspace)
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
-                return connection.execute('''SELECT investigation_id,objective,observation FROM capstone_debug_investigations
+                return connection.execute('''SELECT investigation_id,objective,observation,diagnosis FROM capstone_debug_investigations
                     WHERE workspace=%s AND thread_id=%s ORDER BY created_at DESC,investigation_id DESC LIMIT 1''',
                     (workspace, thread_id)).fetchone()
         with self._lock:
@@ -144,11 +147,85 @@ class InvestigationRegister:
             raise KeyError('investigation_not_visible')
         return dict(row)
 
+    def diagnose(self, workspace, thread_id, investigation_id, executor):
+        from time import monotonic
+        from .pi_delegation import PiTaskRequest
+        from .request_intent import NodeControl
+        from .task_record_reader import SelectedTaskRecordReader
+
+        investigation = self.get(workspace, thread_id, investigation_id)
+        observation = investigation.get('observation')
+        if not observation:
+            raise ValueError('当前会话尚无可调查的用户指令。')
+        reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
+                                          workspace_name=workspace)
+        page = reader.read(limit=16)
+        events = [{'seq': event['event_seq'], 'type': event['event_type'],
+                   'tool': event['payload'].get('tool_name'),
+                   'error': event['payload'].get('is_error') is True}
+                  for event in page['events'] if event['event_seq'] <= observation['through']]
+        task_id = 'debug_' + uuid4().hex
+        timeout = 45.0
+        instruction = (
+            '用中文根据下列只读执行记录定位已观测的异常。引用事件编号，区分已证实事实与证据缺口。'
+            '提供一个可执行的下一步。不要声称已读取源码、日志或网关回执。\n'
+            f"调查问题：{investigation['objective'][:600]}\n"
+            f"目标轮次：{observation['attempt_id']}\n"
+            f"首条失败：{json.dumps(observation.get('first_failure'), ensure_ascii=False)}\n"
+            f"公开事件摘要：{json.dumps(events, ensure_ascii=False)}"
+        )
+        request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout)
+        scope = (workspace, thread_id, investigation_id)
+        diagnosis = {'status': 'running', 'answer': '', 'task_id': task_id,
+                     'attempt_id': observation['attempt_id'], 'through': observation['through']}
+        current = self._reserve_diagnosis(scope, diagnosis)
+        if current['task_id'] != task_id:
+            return current
+        try:
+            result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout), lambda _: None)
+            diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
+        except (RuntimeError, OSError, ValueError):
+            diagnosis = {**diagnosis, 'status': 'unknown'}
+        self._save_diagnosis(scope, diagnosis)
+        return diagnosis
+
+    def _reserve_diagnosis(self, scope, diagnosis):
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''SELECT diagnosis FROM capstone_debug_investigations
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s FOR UPDATE''', scope).fetchone()
+                if row is None:
+                    raise KeyError('investigation_not_visible')
+                if row['diagnosis'] is not None:
+                    return row['diagnosis']
+                connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=%s
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s''',
+                    (Jsonb(diagnosis), *scope))
+                return diagnosis
+        with self._lock:
+            return self._diagnosis_row(scope).setdefault('diagnosis', diagnosis)
+
+    def _diagnosis_row(self, scope):
+        workspace, thread_id, investigation_id = scope
+        return next(row for key, row in self._memory.items()
+                    if key[:2] == (workspace, thread_id) and row['investigation_id'] == investigation_id)
+
+    def _save_diagnosis(self, scope, diagnosis):
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=%s
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s''',
+                    (Jsonb(diagnosis), *scope))
+        else:
+            with self._lock:
+                self._diagnosis_row(scope)['diagnosis'] = diagnosis
+
     async def call_gateway(self, access, gateway, catalog, *, workspace, thread_id, investigation_id,
                            binding_handle, operation_key, tool, arguments, diagnostics):
         call_id, dispatch = await asyncio.to_thread(self.reserve_call, workspace, thread_id,
             investigation_id, operation_key, tool, arguments, binding_handle)
-        scope = {'workspace_id': workspace, 'investigation_id': investigation_id, 'binding_handle': binding_handle}
+        from .gateway_investigation import investigation_workspace_id
+        scope = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': investigation_id, 'binding_handle': binding_handle}
         if not dispatch:
             return {'receipt': await access.invoke('read', {**scope, 'client_call_id': call_id})}
         return await access.call_registered(gateway, tool, arguments, catalog, scope=scope,
