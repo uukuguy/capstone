@@ -527,6 +527,21 @@ def create_host_app(
                                  'capstone': {'status': 'historical_revision_unavailable'}},
                                 headers={'Cache-Control': 'no-store'})
 
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/source')
+        def investigation_source_excerpt(thread_id: str, investigation_id: str, request: Request,
+                                         path: Annotated[str | None, Query(max_length=300)] = None,
+                                         line: Annotated[int, Query(ge=1, le=100000)] = 1,
+                                         prefix: Annotated[str, Query(max_length=300)] = '',
+                                         offset: Annotated[int, Query(ge=0)] = 0):
+            require_debug(request)
+            from .debug_sources import read_historical_gateway_source
+            try:
+                binding = investigations.historical_gateway(request.state.workspace_name, thread_id, investigation_id)
+                result = read_historical_gateway_source(binding or {}, path=path, line=line, prefix=prefix, offset=offset)
+            except (KeyError, FileNotFoundError):
+                raise HTTPException(404, '找不到该调查绑定的历史源码。') from None
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
         @app.get('/api/v1/threads/{thread_id}/debug/sources')
         def thread_debug_sources(thread_id: str, request: Request):
             require_debug(request)

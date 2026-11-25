@@ -1,6 +1,8 @@
 """Resolve packaged sources against a freshly checked, thread-scoped gateway publication."""
 import json
 import re
+import zipfile
+from hashlib import file_digest
 from pathlib import Path
 
 
@@ -26,3 +28,41 @@ def resolve_sources(publication, root=Path('/opt/capstone-debug-sources'), libra
             'status':('unavailable' if not available else 'unreported' if not revision else
                       'matched' if match else 'source_missing'),
             'selected':match, 'sources':entries}
+
+
+def read_historical_gateway_source(instance, *, path=None, line=1, prefix='', offset=0,
+                                   root=Path('/opt/capstone-debug-sources'),
+                                   library=Path('/opt/capstone-debug-library')):
+    revision = instance.get('source_sha256')
+    if not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{64}', revision):
+        raise FileNotFoundError('historical_source_unavailable')
+    if type(line) is not int or not 1 <= line <= 100000 or type(offset) is not int or offset < 0:
+        raise ValueError('invalid_source_range')
+    publication = {'available': True, 'catalog': {'instance': instance}}
+    selected = resolve_sources(publication, root, library)['selected']
+    if selected is None or selected.get('archive') != f'data-gateway-{revision}.zip':
+        raise FileNotFoundError('historical_source_unavailable')
+    name = selected['archive']
+    # Prefer the archive whose bytes match the admitted source manifest.
+    for candidate in (library / revision / name, root / name):
+        if not candidate.is_file():
+            continue
+        with candidate.open('rb') as stream:
+            if file_digest(stream, 'sha256').hexdigest() != selected.get('sha256'):
+                continue
+            stream.seek(0)
+            with zipfile.ZipFile(stream) as archive:
+                if path is None:
+                    names = sorted(item.filename for item in archive.infolist()
+                                   if not item.is_dir() and item.filename != 'release.json'
+                                   and item.filename.startswith(prefix))
+                    return {'revision': revision, 'files': names[offset:offset + 40],
+                            'next_offset': offset + 40 if offset + 40 < len(names) else None}
+                if path == 'release.json' or path not in archive.NameToInfo:
+                    raise FileNotFoundError('source_path_unavailable')
+                with archive.open(path) as source:
+                    from itertools import islice
+                    lines = [raw[:400].decode('utf-8', errors='replace').rstrip()
+                             for raw in islice(source, line - 1, line + 39)]
+                    return {'revision': revision, 'path': path, 'first_line': line, 'lines': lines}
+    raise FileNotFoundError('historical_source_unavailable')
