@@ -14,7 +14,8 @@ export async function firstDebugObservation(attempt:string,read:AttemptRecordRea
     for(const event of page.events){
       if(event.eventSeq>through)break
       const label=event.eventType==='validation_observation'&&event.payload?.status==='failed'
-        ?'核验失败':observations.get(event.eventType)
+        ?'核验失败':event.eventType==='tool_completed'&&event.payload?.ok===false
+          ?'工具调用失败':observations.get(event.eventType)
       if(event.visibility==='public'&&label)return {seq:event.eventSeq,label}
     }
     if(!page.hasMore)break

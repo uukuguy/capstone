@@ -50,7 +50,9 @@ class InvestigationRegister:
                     continue
                 kind = event['event_type']
                 failed = kind in {'tool_failed', 'validation_failed', 'attempt_interrupted', 'attempt_failed'}
-                if failed or (kind == 'validation_observation' and event['payload'].get('status') == 'failed'):
+                payload = event['payload']
+                if (failed or (kind == 'tool_completed' and payload.get('ok') is False)
+                        or (kind == 'validation_observation' and payload.get('status') == 'failed')):
                     reference['first_failure'] = {'seq': event['event_seq'], 'type': kind}
                     return reference
             if not page['has_more'] or page['next_after'] >= through:
