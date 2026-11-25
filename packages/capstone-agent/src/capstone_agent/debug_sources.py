@@ -39,7 +39,7 @@ def resolve_sources(publication, root=Path('/opt/capstone-debug-sources'), libra
             'selected':match, 'sources':entries}
 
 
-def read_historical_gateway_source(instance, *, path=None, line=1, prefix='', offset=0,
+def read_historical_gateway_source(instance, *, path=None, line=1, prefix='', offset=0, symbol=None,
                                    root=Path('/opt/capstone-debug-sources'),
                                    library=Path('/opt/capstone-debug-library')):
     revision = instance.get('source_sha256')
@@ -50,7 +50,7 @@ def read_historical_gateway_source(instance, *, path=None, line=1, prefix='', of
     if selected is None or selected.get('archive') != f'data-gateway-{revision}.zip':
         raise FileNotFoundError('historical_source_unavailable')
     name = selected['archive']
-    return _read_source_archive(selected, (library / revision / name, root / name), path, line, prefix, offset)
+    return _read_source_archive(selected, (library / revision / name, root / name), path, line, prefix, offset, symbol)
 
 
 def read_historical_capstone_source(revision, *, path=None, line=1, prefix='', offset=0,
@@ -70,7 +70,7 @@ def read_historical_capstone_source(revision, *, path=None, line=1, prefix='', o
     raise FileNotFoundError('historical_source_unavailable')
 
 
-def _read_source_archive(selected, candidates, path, line, prefix, offset):
+def _read_source_archive(selected, candidates, path, line, prefix, offset, symbol=None):
     if type(line) is not int or not 1 <= line <= 100000 or type(offset) is not int or offset < 0:
         raise ValueError('invalid_source_range')
     revision = selected['revision']
@@ -90,6 +90,13 @@ def _read_source_archive(selected, candidates, path, line, prefix, offset):
                             'next_offset': offset + 40 if offset + 40 < len(names) else None}
                 if path == 'release.json' or path not in archive.NameToInfo:
                     raise FileNotFoundError('source_path_unavailable')
+                if symbol:
+                    pattern = re.compile(rb'^\s*(?:async\s+)?def\s+' + re.escape(symbol.encode()) + rb'\s*\(')
+                    with archive.open(path) as source:
+                        line = next((number for number, data in enumerate(source, 1)
+                                     if pattern.match(data)), None)
+                    if line is None:
+                        raise FileNotFoundError('source_symbol_unavailable')
                 with archive.open(path) as source:
                     from itertools import islice
                     lines = [raw[:400].decode('utf-8', errors='replace').rstrip()

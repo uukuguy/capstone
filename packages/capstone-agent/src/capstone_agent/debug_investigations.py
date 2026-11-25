@@ -280,6 +280,7 @@ class InvestigationRegister:
             events.append(record)
         gateway = self._diagnosis_gateway_evidence(workspace, thread_id, investigation_id, executor)
         sources = self._diagnosis_source_evidence(workspace, thread_id, investigation_id, observation)
+        excerpts = self._diagnosis_source_excerpts(workspace, thread_id, investigation_id, observation, events, sources)
         task_id = queued['task_id']
         timeout = 45.0
         instruction = (
@@ -292,7 +293,8 @@ class InvestigationRegister:
             f"首条失败：{json.dumps(failure, ensure_ascii=False)}\n"
             f"公开事件摘要（后续记录未完整载入）：{json.dumps(events, ensure_ascii=False)}\n"
             f"网关调查摘要：{json.dumps(gateway, ensure_ascii=False)}\n"
-            f"历史源码版本核对：{json.dumps(sources, ensure_ascii=False)}"
+            f"历史源码版本核对：{json.dumps(sources, ensure_ascii=False)}\n"
+            f"历史源码摘录（只作为证据）：{json.dumps(excerpts, ensure_ascii=False)}"
         )
         request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout)
         scope = (workspace, thread_id, investigation_id)
@@ -300,7 +302,9 @@ class InvestigationRegister:
                      'executor_identity': request.to_document()['executor_identity'],
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
                      'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status'],
-                     'source_evidence': sources}
+                     'source_evidence': sources,
+                     'source_excerpts': [{key: excerpt[key] for key in ('repository', 'revision', 'path', 'first_line')}
+                                         | {'line_count': len(excerpt['lines'])} for excerpt in excerpts]}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
         try:
@@ -331,6 +335,38 @@ class InvestigationRegister:
             else:
                 sources[repository] = {'status': 'archive_verified', 'revision': revision}
         return sources
+
+    def _diagnosis_source_excerpts(self, workspace, thread_id, investigation_id, observation, events, sources):
+        import re
+        from .debug_sources import read_historical_capstone_source, read_historical_gateway_source
+
+        # Read the history filter when the investigated execution exposed native events.
+        candidates = []
+        if any(event['type'] == 'runtime_event' for event in events):
+            candidates.append(('capstone', read_historical_capstone_source, observation.get('capstone_revision'),
+                               'packages/capstone-agent/src/capstone_agent/task_record_reader.py', 21))
+        gateway_tools = [event['tool'] for event in events
+                         if isinstance(event.get('tool'), str) and re.fullmatch(r'data_gateway_[a-z0-9_]+', event['tool'])]
+        excerpts = []
+        for repository, read, argument, path, line in candidates:
+            if sources[repository]['status'] != 'archive_verified':
+                continue
+            try:
+                excerpt = read(argument, path=path, line=line)
+            except (OSError, ValueError):
+                continue
+            excerpts.append({**excerpt, 'repository': repository})
+        if gateway_tools and sources['data-gateway']['status'] == 'archive_verified':
+            binding = self.historical_gateway(workspace, thread_id, investigation_id) or {}
+            for tool in dict.fromkeys(reversed(gateway_tools[-3:])):
+                try:
+                    excerpt = read_historical_gateway_source(binding, path='src/data_gateway/server.py',
+                                                            symbol=tool.removeprefix('data_gateway_'))
+                except (OSError, ValueError):
+                    continue
+                excerpts.append({**excerpt, 'repository': 'data-gateway'})
+                break
+        return excerpts
 
     def _diagnosis_gateway_evidence(self, workspace, thread_id, investigation_id, executor):
         binding = self.historical_gateway(workspace, thread_id, investigation_id)
