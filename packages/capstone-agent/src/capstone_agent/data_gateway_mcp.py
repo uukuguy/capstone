@@ -416,6 +416,8 @@ class DataGatewayMcp:
                  'tool_hashes': {name: item['progressive']['tool_contract_revision'] for name, item in tools.items()},
                  'entry_tools': [], 'instructions': getattr(connection, 'instructions', '') or '',
                  'instance': checked_instance_identity(declaration['identity']), 'progressive': declaration}
+        # Source identity belongs to the current initialize response.
+        value['instance'].pop('source_sha256', None)
         live = checked_instance_identity(getattr(connection, 'instance_identity', None))
         if live and live['instance_id'] == value['instance']['instance_id'] and live.get('source_sha256'):
             value['instance']['source_sha256'] = live['source_sha256']
@@ -624,8 +626,9 @@ class DataGatewayMcp:
             async with asyncio.timeout(limits.mcp_catalog_seconds):
                 async with self.connect() as session:
                     live = checked_instance_identity(getattr(session, 'instance_identity', None))
-                    if live and (live.get('source_sha256') != catalog.get('instance', {}).get('source_sha256')
-                                 or live['instance_id'] != catalog.get('instance', {}).get('instance_id')):
+                    cached_instance = catalog.get('instance') or {}
+                    if ((live or {}).get('source_sha256') != cached_instance.get('source_sha256')
+                            or (live and live['instance_id'] != cached_instance.get('instance_id'))):
                         return await self._prepare_connected(session)
                     if 'progressive' in catalog:
                         declaration = self._progressive_declaration(session)

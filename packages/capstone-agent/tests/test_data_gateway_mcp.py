@@ -810,3 +810,25 @@ def test_publication_accepts_additive_metadata_and_refreshes_when_it_changes(tmp
     second = asyncio.run(client.refresh_catalog(first))
     assert second['revision'] != first['revision']
     assert client._accepted[first['revision']] == first
+
+
+def test_same_endpoint_refresh_tracks_source_upgrade_rollback_and_missing_identity(tmp_path):
+    from capstone_agent.data_gateway_mcp import InitializedGatewaySession
+    client, session = contract_gateway(tmp_path)
+    identity = {'schema_version': 1, 'instance_id': 'fixture-instance', 'instance_name': 'fixture',
+                'environment': {'id': 'local', 'label': 'Local'}, 'offline': True,
+                'data_source': {'label': 'fixture'}, 'source_sha256': 'a' * 64}
+
+    @asynccontextmanager
+    async def connect():
+        yield InitializedGatewaySession(session, None, None, identity)
+
+    client.connect = connect
+    catalog = asyncio.run(client.prepare())
+    for digest in ('b' * 64, 'a' * 64, None):
+        if digest is None:
+            identity.clear()
+        else:
+            identity['source_sha256'] = digest
+        catalog = asyncio.run(client.refresh_catalog(catalog))
+        assert catalog.get('instance', {}).get('source_sha256') == digest
