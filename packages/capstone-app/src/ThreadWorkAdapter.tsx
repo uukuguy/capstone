@@ -192,7 +192,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [allowDebugExport,setAllowDebugExport]=useState(false)
   const [canReviewDebugExport,setCanReviewDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
-  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; completed?:boolean}>()
+  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean}>()
   const [debugSource,setDebugSource]=useState('')
   const [sourceQuery,setSourceQuery]=useState(0)
   const selectedGateway=sharedNavigation?.gateway??welcomeGateway
@@ -610,7 +610,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         }
         const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
         const updateDebugActivity = (message: string, completed = false) => {
-          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,completed})
+          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,objective,completed})
         }
         updateDebugActivity('正在读取执行记录')
         try {
@@ -1280,6 +1280,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
         {debugActivity?.thread===currentId&&<section className="thread-composer-notice" aria-label="Debug 调查" role="status">
           <strong>Debug</strong>
+          {debugActivity.objective&&<p>{debugActivity.objective}</p>}
           {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <> · {debugActivity.text}</>}
         </section>}
         {notice&&<p className="thread-composer-notice" role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
