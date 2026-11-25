@@ -336,8 +336,10 @@ class InvestigationRegister:
             return {'status': 'reader_unavailable'}
         try:
             page = read(binding, workspace, investigation_id, 'list', {'limit': 4})
-        except (RuntimeError, OSError, ValueError):
-            return {'status': 'read_unavailable'}
+        except (RuntimeError, OSError, ValueError) as error:
+            from .pi_delegation import PiHTTPFailure
+            status = error.diagnostic['protocol_code'] if isinstance(error, PiHTTPFailure) else 'read_unavailable'
+            return {'status': status}
         receipts = page.get('receipts') if isinstance(page, dict) else None
         if not isinstance(receipts, list):
             return {'status': 'read_unavailable'}

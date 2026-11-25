@@ -671,6 +671,11 @@ class HttpGeneralPiExecutor:
                             'gateway_registry_closed', 'gateway_timeout', 'gateway_transport_failed',
                             'gateway_endpoint_rejected', 'gateway_connection_failed', 'gateway_catalog_invalid',
                             'gateway_catalog_unavailable'})
+                        if path == '/gateway-connections/debug-observation':
+                            known.update({'investigation_credentials_unavailable', 'investigation_access_denied',
+                                          'investigation_contract_unavailable', 'investigation_request_invalid',
+                                          'investigation_response_invalid', 'gateway_bound_instance_unavailable',
+                                          'gateway_instance_changed', 'binding_expired'})
                         raise PiHTTPFailure(response.status_code, error if isinstance(error, str) and error in known else 'unrecognized_response')
                     response.raise_for_status()
             checkpoint()
