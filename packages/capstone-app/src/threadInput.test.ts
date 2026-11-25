@@ -48,7 +48,7 @@ describe('typed composer input', () => {
     expect(parseInputCommand('/skills')).toEqual({ kind: 'skills', rest: '' })
     expect(parseInputCommand('/context task')).toEqual({ kind: 'context', rest: 'task' })
     expect(parseInputCommand('/skill:power-a explain')).toEqual({ kind: 'skill', name: 'power-a', rest: 'explain' })
-    for (const text of ['/tmp/path', 'read /skills', '```\n/skills\n```', 'https://host/skills', ' /skills']) expect(parseInputCommand(text)).toBeNull()
+    for (const text of ['/debug 查失败记录', '/tmp/path', 'read /skills', '```\n/skills\n```', 'https://host/skills', ' /skills']) expect(parseInputCommand(text)).toBeNull()
     expect(parseInputCommand('/unknown')).toEqual({ kind: 'unknown', name: 'unknown', rest: '' })
   })
   it('retains resource identity, context choices and role through storage', () => {
