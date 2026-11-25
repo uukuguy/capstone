@@ -28,6 +28,11 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
                 calls[-1].task_id, calls[-1].parent_attempt_id, self.identity)
             return SimpleNamespace(status='completed', answer='已找回原诊断结果。')
 
+        def cancel(self, task_id):
+            assert task_id == calls[-1].task_id
+            return SimpleNamespace(task_id=task_id, parent_attempt_id=calls[-1].parent_attempt_id,
+                                   status='cancelled', answer='')
+
     app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
                           allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
                           thread_open_access=True, thread_service=service, native_artifact_executor=Executor())
@@ -57,6 +62,13 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         history = client.get(path + '/investigations').json()['investigations']
         assert [row['investigation_id'] for row in history] == [second.json()['investigation_id'], identity]
         assert client.get(f'{path}/investigations/{identity}/diagnose').json()['answer'] == '输入检查失败。'
+        third = client.post(path + '/investigations', headers={'Idempotency-Key': 'stop-debug'},
+                            json={'objective': '停止诊断', 'attempt_id': claim.attempt.attempt_id})
+        url = f"{path}/investigations/{third.json()['investigation_id']}/diagnose"
+        assert client.post(url).json()['status'] == 'unknown'
+        assert client.delete(url).json()['status'] == 'cancelled'
+        assert client.get(url).json()['status'] == 'cancelled'
+        assert service.snapshot(claim.thread_id).last_event_seq == before
 
 
 def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():

@@ -289,6 +289,20 @@ class InvestigationRegister:
                 self._save_diagnosis((workspace, thread_id, investigation_id), diagnosis)
         return {key: value for key, value in diagnosis.items() if key != 'executor_identity'}
 
+    def stop_diagnosis(self, workspace, thread_id, investigation_id, executor):
+        scope = (workspace, thread_id, investigation_id)
+        diagnosis = self.get(*scope).get('diagnosis')
+        if diagnosis and diagnosis['status'] in {'running', 'unknown'}:
+            cancel = getattr(executor, 'cancel', None)
+            if not callable(cancel) or diagnosis.get('executor_identity') != executor.identity:
+                raise ValueError('原诊断执行器暂不可用。')
+            result = cancel(diagnosis['task_id'])
+            if (result is None or result.task_id != diagnosis['task_id']
+                    or result.parent_attempt_id != investigation_id):
+                raise ValueError('诊断停止尚未确认。')
+            self._save_diagnosis(scope, {**diagnosis, 'status': result.status, 'answer': result.answer})
+        return self.read_diagnosis(*scope, executor)
+
     def _reserve_diagnosis(self, scope, diagnosis):
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:

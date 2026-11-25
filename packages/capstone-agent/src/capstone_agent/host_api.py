@@ -411,6 +411,18 @@ def create_host_app(
             rows = investigations.recent(request.state.workspace_name, thread_id)
             return JSONResponse({'investigations': rows}, headers={'Cache-Control': 'no-store'})
 
+        @app.delete('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
+        def stop_diagnosis(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            try:
+                diagnosis = investigations.stop_diagnosis(request.state.workspace_name, thread_id,
+                                                          investigation_id, native_artifact_executor)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            except (ValueError, RuntimeError, OSError):
+                raise HTTPException(409, '停止尚未确认，请查看原诊断状态。') from None
+            return JSONResponse(diagnosis, headers={'Cache-Control': 'no-store'})
+
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
         def read_diagnosis(thread_id: str, investigation_id: str, request: Request):
             require_debug(request)

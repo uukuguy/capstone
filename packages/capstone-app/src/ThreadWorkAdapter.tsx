@@ -600,6 +600,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         setNotice(status.objective?'最近登记的调查：'+status.objective+' '+status.finding:'当前会话尚未登记调查。')
         return
       }
+      if (/^\/debug\s+stop\s*$/.test(text)) {
+        const {investigationId} = await transport.debugStatus(currentId)
+        if (!investigationId) throw new Error('当前会话尚无调查。')
+        const result = await transport.stopDebugDiagnosis(currentId, investigationId)
+        setNotice(result.status === 'cancelled' ? '已停止诊断。' : '诊断状态：' + result.status)
+        return
+      }
       if(pendingGoalControl){
         await dispatch(pendingGoalControl)
         if(pendingGoalControl.kind==='start_goal'){

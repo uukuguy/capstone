@@ -317,6 +317,10 @@ export class HttpThreadTransport implements ThreadTransport {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
     return this.request(path) as Promise<{answer?: string; status: string}>
   }
+  async stopDebugDiagnosis(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
+    return this.request(path, {method: 'DELETE'}) as Promise<{status: string}>
+  }
   async debugEvidence(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence`
     return this.request(path)
