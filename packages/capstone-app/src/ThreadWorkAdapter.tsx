@@ -1081,7 +1081,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}
       readHistory={()=>transport.debugHistory(currentId)}
-      readDiagnosis={id=>transport.debugDiagnosis(currentId,id)}
+      readDiagnosis={async id=>{
+        const [result, source] = await Promise.all([
+          transport.debugDiagnosis(currentId,id),
+          transport.debugHistoricalSource(currentId,id).catch(()=> '历史网关源码信息暂不可读。'),
+        ])
+        return {...result, source}
+      }}
       readEvidence={async id=>{
         const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId
         if(!investigationId)throw new Error('当前会话尚无调查。')

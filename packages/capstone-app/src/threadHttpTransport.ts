@@ -325,6 +325,13 @@ export class HttpThreadTransport implements ThreadTransport {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence`
     return this.request(path)
   }
+  async debugHistoricalSource(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/sources`
+    const result = await this.request(path) as {data_gateway?: {gateway_revision?: string; status?: string}}
+    const source = result.data_gateway
+    if (!source?.gateway_revision) return '历史轮次未记录网关源码摘要。'
+    return (source.status === 'matched' ? '历史网关源码已匹配 ' : '历史网关源码尚未入库 ') + source.gateway_revision
+  }
   async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)
     const page=await this.request(path) as Record<string,unknown>

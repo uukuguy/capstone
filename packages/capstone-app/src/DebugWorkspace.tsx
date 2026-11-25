@@ -9,14 +9,14 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string) => Promise<unknown>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
-  readDiagnosis?: (id: string) => Promise<{answer?: string; status: string}>
+  readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
 }){
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<NonNullable<typeof readHistory>>>>([])
-  const [diagnosis, setDiagnosis] = useState<{id: string; text: string}>()
+  const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
   const attempt=attempts.includes(selection)?selection:attempts[0]
   async function loadHistory(){
     if (!readHistory) return
@@ -31,7 +31,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     setError('')
     try {
       const result = await readDiagnosis(id)
-      setDiagnosis({id, text: result.answer || '此调查尚无诊断结论。'})
+      setDiagnosis({id, text: result.answer || '此调查尚无诊断结论。', source: result.source})
     } catch { setError('暂时无法读取诊断结果。') }
     finally { setBusy(false) }
   }
@@ -110,6 +110,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       {history.map(item=><option key={item.investigation_id} value={item.investigation_id}>{item.objective}</option>)}
     </select></label>}
     {(diagnosis?.text || savedFinding)&&<p>{diagnosis?.text || savedFinding}</p>}
+    {diagnosis?.source&&<p>{diagnosis.source}</p>}
     {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>

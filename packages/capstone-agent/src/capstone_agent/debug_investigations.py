@@ -180,6 +180,10 @@ class InvestigationRegister:
             submission = (self.service._attempts.get(attempt_id) or {}).get('submission')
         binding = historical_binding(submission)
         if binding['connection_id'] and binding['instance_id']:
+            publication = (submission or {}).get('_native_execution', {}).get('capability', {}).get('data_gateway', {})
+            source = publication.get('catalog', {}).get('instance', {}).get('source_sha256')
+            if isinstance(source, str) and len(source) == 64 and all(c in '0123456789abcdef' for c in source):
+                binding['source_sha256'] = source
             return binding
         return None
 
