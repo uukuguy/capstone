@@ -2784,11 +2784,15 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             from zipfile import BadZipFile
             from .debug_commands import debug_commands_enabled
             from .debug_sources import read_debug_source
+            from .gateway_investigation import OBSERVATION_TOOL
+            from jsonschema import Draft202012Validator
 
             if not debug_commands_enabled(os.environ):
                 return self.send_json(403, {'error': 'investigation_request_rejected'})
             task_id = self.path.removeprefix('/debug-tools/')
             lease = None
+            call_id = None
+            source_query = False
             try:
                 grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
                 lease = runner.relay.acquire(task_id, grant, self.connection, channel='gateway')
@@ -2806,15 +2810,18 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     raise ValueError()
                 packet = json.loads(self.rfile.read(size))
                 if (not isinstance(packet, dict) or packet.get('name') != 'agent_debug_observe'
-                        or not isinstance(packet.get('call_id'), str)):
+                        or not isinstance(packet.get('call_id'), str) or not 0 < len(packet['call_id']) <= 128):
                     raise ValueError()
-                args = packet['arguments']
-                if not isinstance(args, dict) or set(args) - {'operation', 'query'} or not isinstance(args.get('query', {}), dict):
-                    raise ValueError()
+                call_id = packet['call_id']
+                args = packet.get('arguments')
+                if not Draft202012Validator(OBSERVATION_TOOL['inputSchema']).is_valid(args):
+                    return self.send_json(200, {'call_id': call_id, 'is_error': True,
+                                                'result': {'code': 'investigation_request_invalid'}})
                 scope = native['debug_scope']
                 operation = args['operation']
                 query = args.get('query', {})
-                if operation in {'source_files', 'source_lines'}:
+                source_query = operation in {'source_files', 'source_lines'}
+                if source_query:
                     result = read_debug_source(scope, operation, query)
                 elif operation in {'list', 'read', 'logs'}:
                     result = gateway_control('debug-observation', {'binding': scope['gateway'],
@@ -2822,15 +2829,19 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         'operation': operation, 'query': query})
                 else:
                     raise ValueError()
-                return self.send_json(200, {'call_id': packet['call_id'], 'is_error': False, 'result': result})
+                return self.send_json(200, {'call_id': call_id, 'is_error': False, 'result': result})
             except GatewayError as error:
-                return self.send_json(200, {'call_id': packet['call_id'], 'is_error': True,
+                return self.send_json(200, {'call_id': call_id, 'is_error': True,
                                             'result': {'code': str(error)}})
             except (KeyError, TypeError, ValueError, PermissionError):
                 return self.send_json(403, {'error': 'investigation_request_rejected'})
-            except (OSError, BadZipFile):
-                return self.send_json(200, {'call_id': packet['call_id'], 'is_error': True,
-                                            'result': {'code': 'historical_source_unavailable'}})
+            except (OSError, BadZipFile) as error:
+                if call_id is None:
+                    return self.send_json(403, {'error': 'investigation_request_rejected'})
+                code = 'historical_source_unavailable' if source_query else 'investigation_read_unavailable'
+                if source_query and isinstance(error, FileNotFoundError) and str(error) == 'source_path_unavailable':
+                    code = 'source_path_unavailable'
+                return self.send_json(200, {'call_id': call_id, 'is_error': True, 'result': {'code': code}})
             finally:
                 if lease is not None:
                     runner.relay.release(lease)
