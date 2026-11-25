@@ -2124,6 +2124,9 @@ class NativeTaskRunner:
                 builtin = {'bash', 'read', 'write', 'edit', 'grep', 'find', 'ls'}
                 role_options = {'required_tools': tuple(sorted(active & builtin)),
                                 'forbidden_tools': tuple(sorted(builtin - active))}
+            if 'debugTools' in sdk_config:
+                role_options = {'required_tools': ('agent_debug_observe', 'agent_task_records_read'),
+                                'forbidden_tools': ('bash', 'read', 'write', 'edit', 'grep', 'find', 'ls')}
             process = GeneralPiProcess(argv, environment, workspace, uid=uid, **role_options)
             timing.mark('process_launch_requested')
             def process_started() -> None:
