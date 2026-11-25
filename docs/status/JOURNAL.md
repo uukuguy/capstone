@@ -8412,3 +8412,7 @@ check passed. No CI, integration or remote deployment performed.
 - 09:23 Saved attempt-scoped first-failure references; verified status retrieval, missing attempt rejection, backend tests and frontend checks. [725794b8]
 - 09:27 Live dedicated gateway adapter recovered discarded response, denied cross-binding read, reused duplicate receipt; log contract available, export undeclared.
 - 09:29 Verified scoped log pagination and cross-workspace rejection on the live gateway; 89 adapter tests passed. [2281b6e2]
+
+- 2026-11-26 PR #273 merged to dev at fb566e2e after exact-head macOS CI; runtime inputs match a6438e17.
+
+- 2026-11-26 local-dev a6438e17 ready. Dedicated Pi inventory and real browser historical page 854 confirmed.
