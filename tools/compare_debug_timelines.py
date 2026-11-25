@@ -5,7 +5,20 @@ from itertools import zip_longest
 
 
 def events(stream):
-    header = json.loads(next(stream, 'null'))
+    first = next(stream, 'null')
+    try:
+        header = json.loads(first)
+    except json.JSONDecodeError:
+        header = json.loads(first + stream.read())
+    if isinstance(header, dict) and header.get('schema') == 'capstone-debug-evidence/1':
+        from check_debug_evidence import verify
+        verify(header)
+        if stream.read().strip():
+            raise ValueError('Unexpected content after the investigation')
+        if header['capstone'].get('truncated'):
+            raise ValueError('A truncated investigation cannot verify the full execution order')
+        yield from header['capstone']['events']
+        return
     if not isinstance(header, dict) or header.get('schema') != 'capstone-debug-timeline/1':
         raise ValueError('Unsupported timeline format')
     if not all(isinstance(header.get(key), str) and header[key] for key in ('attempt_id', 'thread_id')):
