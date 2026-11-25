@@ -1,4 +1,4 @@
-.debug-workspace { box-sizing:border-box; padding:18px 20px; max-width:100%; min-width:0; color:#274436; font:inherit; font-size:14px; line-height:1.55; }
+.debug-workspace { box-sizing:border-box; padding:18px 20px; max-width:100%; min-width:0; color:#274436; font:inherit; font-size:14px; line-height:1.55; overflow-wrap:anywhere; }
 .debug-workspace header,.debug-workspace button,.debug-source-status,.debug-actions { display:flex; align-items:center; gap:8px; }
 .debug-workspace h3,.debug-workspace h4,.debug-workspace p { margin:0; }
 .debug-workspace h3 { font-size:17px; }
@@ -15,3 +15,4 @@
 .debug-workspace details { margin-top:10px; }
 .debug-workspace summary { cursor:pointer; }
 .debug-workspace code { overflow-wrap:anywhere; font-size:.92em; }
+.debug-workspace pre { max-width:100%; overflow-x:auto; }
