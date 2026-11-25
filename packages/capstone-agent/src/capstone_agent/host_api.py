@@ -445,6 +445,14 @@ def create_host_app(
                 document = investigations.export_timeline(request.state.workspace_name, thread_id, investigation_id)
             except (KeyError, ThreadNotFound):
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
+            binding = thread_service.read_thread_gateway(thread_id)
+            if callable(reader) and binding and binding.get('instance_id'):
+                try:
+                    document['data_gateway'] = reader(binding, request.state.workspace_name,
+                                                      investigation_id, 'export', {})
+                except (ValueError, RuntimeError, OSError):
+                    document['data_gateway'] = {'status': 'read_unavailable', 'events': []}
             return JSONResponse(document, headers={'Cache-Control': 'no-store',
                 'Content-Disposition': 'attachment; filename="debug-evidence.json"'})
 

@@ -55,7 +55,9 @@ class GatewayInvestigation:
             if (operations.get(operation) != {'method': 'POST', 'path': BASE + operation}
                     or any(not isinstance(schemas.get(name), dict) for name in names)):
                 raise GatewayError('investigation_contract_invalid')
-        return cls(client, origin, schemas, log_declaration)
+        access = cls(client, origin, schemas, log_declaration)
+        access._export_policy = contract.get('export')
+        return access
 
     def __init__(self, client, origin, schemas, log_declaration=None):
         self._client = client
@@ -78,6 +80,22 @@ class GatewayInvestigation:
                     or not all(isinstance(contract.get('schemas', {}).get(name), dict) for name in ('LogRequest','LogPage'))):
                 raise GatewayError('investigation_contract_invalid')
             self._log_schemas = contract['schemas']
+        self._export_policy = None
+
+    async def export_receipts(self, scope):
+        policy = self._export_policy
+        if not isinstance(policy, dict) or policy.get('deployment_policy') != 'allow_sanitized':
+            return {'status': 'export_not_authorized', 'events': []}
+        allowed = policy.get('allowed')
+        if not isinstance(allowed, list):
+            raise GatewayError('investigation_contract_invalid')
+        safe = ('contract_version', 'state', 'observed_status', 'elapsed_ms',
+                'phase_read_status', 'truncated', 'automatic_retry')
+        keys = [key for key in safe if key in allowed]
+        page = await self.invoke('list', {**scope, 'limit': 32})
+        return {'status': 'available', 'truncated': bool(page.get('next_cursor')),
+                'events': [{key: receipt[key] for key in keys if key in receipt}
+                           for receipt in page['receipts']]}
         if scope.keys() & query.keys() or sum(bool(query.get(key)) for key in ('request_id','client_call_id')) != 1:
             raise GatewayError('investigation_request_invalid')
         document = {**scope, **query}
@@ -161,3 +179,5 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     if operation == 'logs':
         return await access.read_logs(scope, query)
     return await access.invoke(operation, {**scope, **query})
+    if operation == 'export':
+        return await access.export_receipts(scope)
