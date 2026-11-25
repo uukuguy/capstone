@@ -149,6 +149,35 @@ class InvestigationRegister:
             raise KeyError('investigation_not_visible')
         return dict(row)
 
+    def export_timeline(self, workspace, thread_id, investigation_id):
+        from .task_record_reader import SelectedTaskRecordReader
+
+        investigation = self.get(workspace, thread_id, investigation_id)
+        observation = investigation.get('observation')
+        events = []
+        truncated = False
+        if observation:
+            reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
+                                              workspace_name=workspace)
+            cursor = 0
+            for _ in range(8):
+                page = reader.read(after=cursor, limit=32)
+                events.extend({'seq': event['event_seq'], 'type': event['event_type'],
+                               'occurred_at': event['occurred_at']} for event in page['events']
+                              if event['event_seq'] <= observation['through'])
+                cursor = page['next_after']
+                if not page['has_more'] or cursor >= observation['through']:
+                    break
+            else:
+                truncated = True
+        diagnosis = investigation.get('diagnosis') or {}
+        return {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
+                'investigation_id': investigation_id, 'observation': observation,
+                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs')
+                              if key in diagnosis},
+                'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'},
+                'data_gateway': {'status': 'export_unavailable', 'events': []}}
+
     def diagnose(self, workspace, thread_id, investigation_id, executor):
         from time import monotonic
         from .pi_delegation import PiTaskRequest

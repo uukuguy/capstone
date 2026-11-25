@@ -430,6 +430,18 @@ def create_host_app(
             return JSONResponse({key: value for key, value in result.items() if key != 'executor_identity'},
                                 headers={'Cache-Control': 'no-store'})
 
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
+        def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
+                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+            try:
+                document = investigations.export_timeline(request.state.workspace_name, thread_id, investigation_id)
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
+            return JSONResponse(document, headers={'Cache-Control': 'no-store',
+                'Content-Disposition': 'attachment; filename="debug-evidence.json"'})
+
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/records')
         def investigation_records(thread_id: str, investigation_id: str, request: Request,
                                   after: Annotated[int, Query(ge=0)] = 0):

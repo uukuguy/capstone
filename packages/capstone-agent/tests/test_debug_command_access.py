@@ -109,6 +109,15 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
         assert start.status_code == 200
         finding = start.json()['observation']
         records = debug + '/investigations/' + start.json()['investigation_id'] + '/records'
+        evidence = records.removesuffix('/records') + '/evidence'
+        exported = client.get(evidence)
+        assert exported.status_code == 200
+        assert exported.json()['observation'] == finding
+        assert exported.json()['data_gateway']['status'] == 'export_unavailable'
+        assert 'Input check failed' not in exported.text
+        monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0')
+        assert client.get(evidence).status_code == 403
+        monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
         scoped = client.get(records)
         assert scoped.status_code == 200
         assert scoped.json()['attempt_id'] == claim.attempt.attempt_id
