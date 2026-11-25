@@ -61,20 +61,40 @@ def test_debug_historical_sources_check_each_admitted_revision(monkeypatch):
     }
 
 
-def test_debug_pi_cannot_select_another_source_revision(monkeypatch):
+def test_debug_pi_reads_both_archives_and_cannot_select_another_revision(monkeypatch, tmp_path):
+    from functools import partial
+    from hashlib import sha256
+    import json
+    from zipfile import ZipFile
     from capstone_agent import debug_sources
 
-    revision = 'a' * 40
-    scope = {'capstone_revision': revision, 'gateway': None, 'workspace': 'local',
+    revisions = {'capstone': 'a' * 40, 'data-gateway': 'd' * 64}
+    scope = {'capstone_revision': revisions['capstone'], 'workspace': 'local',
+             'gateway': {'connection_id': 'test', 'instance_id': 'test', 'source_sha256': revisions['data-gateway']},
              'gateway_investigation': 'inv_' + 'b' * 32}
-    monkeypatch.setattr(debug_sources, 'read_historical_capstone_source',
-                        lambda revision, **query: {'revision': revision, **query})
+    archives = {'capstone': 'capstone.zip', 'data-gateway': f"data-gateway-{revisions['data-gateway']}.zip"}
+    sources = []
+    for repository, archive in archives.items():
+        path = tmp_path / archive
+        with ZipFile(path, 'w') as bundle:
+            bundle.writestr('src/file.py', f'pass  # {repository}\n')
+        sources.append({'repository': repository, 'archive': archive, 'revision': revisions[repository],
+                        'sha256': sha256(path.read_bytes()).hexdigest()})
+    (tmp_path / 'manifest.json').write_text(json.dumps({'sources': sources}))
+    for reader in ('read_historical_capstone_source', 'read_historical_gateway_source'):
+        monkeypatch.setattr(debug_sources, reader, partial(getattr(debug_sources, reader), root=tmp_path,
+                                                           library=tmp_path / 'library'))
     debug_sources.checked_debug_scope(scope)
-    query = {'repository': 'capstone', 'path': 'src/file.py', 'line': 10}
-    assert debug_sources.read_debug_source(scope, 'source_lines', query) == {
-        'revision': revision, 'path': 'src/file.py', 'line': 10}
+    for repository in archives:
+        query = {'repository': repository, 'path': 'src/file.py', 'line': 1}
+        assert debug_sources.read_debug_source(scope, 'source_lines', query) == {
+            'revision': revisions[repository], 'path': 'src/file.py', 'first_line': 1,
+            'lines': [f'pass  # {repository}']}
     with pytest.raises(ValueError):
         debug_sources.read_debug_source(scope, 'source_lines', {**query, 'revision': 'c' * 40})
+    (tmp_path / archives['data-gateway']).write_bytes(b'changed')
+    with pytest.raises(FileNotFoundError, match='historical_source_unavailable'):
+        debug_sources.read_debug_source(scope, 'source_lines', query)
 
 
 def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
