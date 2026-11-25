@@ -1,8 +1,12 @@
 """Parse explicit browser investigation commands before task dispatch."""
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 from collections.abc import Mapping
+
+
+investigation_admission = ContextVar("investigation_admission", default=None)
 
 
 def debug_commands_enabled(environment: Mapping[str, str]) -> bool:

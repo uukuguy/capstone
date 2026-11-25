@@ -890,6 +890,7 @@ def create_host_app(
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
                 kind = command.get("kind")
+                debug_identity = None
                 payload = command.get('payload')
                 if kind in ('send_message', 'work_message', 'queue_instruction',
                             'send_auto', 'send_ordinary', 'send_professional') and isinstance(payload, dict):
@@ -915,6 +916,7 @@ def create_host_app(
                                 request.state.workspace_name,thread_id,identity)
                         except KeyError:
                             raise HTTPException(404, '本会话中找不到该调查。') from None
+                        debug_identity = investigation['investigation_id']
                         observation = investigation.get('observation') or {}
                         diagnostic_text = (f"研发调查 {identity}\n目标：{investigation['objective']}\n"
                                            f"本轮指令：{debug.argument}\n请列出观测依据、尚未知的环节和本机复验所需材料。")
@@ -956,12 +958,17 @@ def create_host_app(
                         refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
                         if callable(refresh_binding):
                             await run_in_threadpool(refresh_binding)
-                if scoped_gateway is not None:
-                    receipt = await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
-                elif kind in ('reserve_instruction_takeover', 'takeover_instruction'):
-                    receipt = await run_in_threadpool(service.submit_command, command)
-                else:
-                    receipt = service.submit_command(command)
+                from .debug_commands import investigation_admission
+                token = investigation_admission.set(debug_identity)
+                try:
+                    if scoped_gateway is not None:
+                        receipt = await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
+                    elif kind in ('reserve_instruction_takeover', 'takeover_instruction'):
+                        receipt = await run_in_threadpool(service.submit_command, command)
+                    else:
+                        receipt = service.submit_command(command)
+                finally:
+                    investigation_admission.reset(token)
                 if receipt.rejection == 'protocol_upgrade_required':
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
                 if receipt.status == 'accepted':

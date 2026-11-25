@@ -55,6 +55,7 @@ from .thread_application_transition import (
 )
 from .model_identity import page_id_for_model, validate_model_id
 from .conversation_context import ConversationContext, project_conversation
+from .debug_commands import investigation_admission
 from .task_record_reader import PUBLIC_TASK_OBSERVATION_TYPES, SelectedTaskRecordReader
 from .network_diagram import normalize_network_diagram
 from .result_projection import ResultProjection, normalize_result_projection, validate_artifact_reference
@@ -969,7 +970,7 @@ def _conversation_model_object(context: object, context_id: str | None) -> dict[
 
 
 def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str, Any],
-                              thread_id: str, cutoff: int) -> ConversationContext:
+                              thread_id: str, cutoff: int, *, investigation=None) -> ConversationContext:
     rows = []
     for event in events:
         if (event.thread_id != thread_id or event.event_seq > cutoff or event.visibility != "public"
@@ -978,6 +979,9 @@ def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str
             continue
         record = attempts.get(event.attempt_id)
         if record is None:
+            continue
+        owner = (record.get('submission') or {}).get('_debug_investigation')
+        if owner is not None and owner != investigation:
             continue
         answer = event.payload.get("answer")
         if event.event_type == "attempt_completed" and not isinstance(answer, str):
@@ -998,7 +1002,7 @@ def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str
 
 
 def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
-                                cutoff: int, *, work_id: str | None = None) -> ConversationContext:
+                                cutoff: int, *, work_id: str | None = None, investigation=None) -> ConversationContext:
     rows = connection.execute("""SELECT e.turn_id, e.attempt_id, e.model_context_id,
         CASE WHEN r.event_seq IS NOT NULL THEN 'completed'
             ELSE replace(e.event_type, 'attempt_', '') END AS status,
@@ -1010,9 +1014,10 @@ def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], 
         LEFT JOIN capstone_thread_events r ON r.thread_id=e.thread_id AND r.attempt_id=e.attempt_id
           AND r.event_type='attempt_delivery_recovered' AND r.visibility='public' AND r.event_seq <= %s
         WHERE e.thread_id = %s AND e.event_seq <= %s AND e.visibility = 'public'
+        AND (a.submission_snapshot->>'_debug_investigation' IS NULL OR a.submission_snapshot->>'_debug_investigation' = %s)
         AND (%s::text IS NULL OR a.task_context_snapshot->'binding'->>'work_id' = %s)
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
-        ORDER BY e.event_seq DESC LIMIT %s""", (cutoff, thread_id, cutoff, work_id, work_id, limits.history_turn_count + 1)).fetchall()
+        ORDER BY e.event_seq DESC LIMIT %s""", (cutoff, thread_id, cutoff, investigation, work_id, work_id, limits.history_turn_count + 1)).fetchall()
     for row in rows:
         row['admitted_instructions'] = [item['payload'] for item in connection.execute("""SELECT payload
             FROM capstone_thread_events WHERE thread_id=%s AND attempt_id=%s
@@ -1593,6 +1598,8 @@ def _work_send_input(snapshot, parsed, provider, capability_catalog):
     if rejection or selection_rejection:
         return snapshot, None, rejection or selection_rejection
     submission, rejection = admission_submission(snapshot, message, provider)
+    if not rejection and investigation_admission.get() is not None:
+        submission = {**(submission or {}), '_debug_investigation': investigation_admission.get()}
     return _with_message_selection(snapshot, message, selection), submission, rejection
 
 
@@ -2037,6 +2044,14 @@ class InMemoryThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
+        excluded_source = False
+        if previous_id and 'source_attempt_id' not in parsed['payload']:
+            owner = (self._attempts.get(previous_id, {}).get('submission') or {}).get('_debug_investigation')
+            if owner is not None and owner != investigation_admission.get():
+                excluded_source = True
+                previous_id = next((identity for identity, item in reversed(self._attempts.items())
+                    if item.get('task_context') and item['task_context'].binding.work_id == parsed['target']['id']
+                    and not (item.get('submission') or {}).get('_debug_investigation')), None)
         if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
@@ -2057,6 +2072,9 @@ class InMemoryThreadService(NativeExecutionOwner):
                 updated, attempt, task_context, instruction = create_attempt(
                     staged._snapshot, work, turn_id=turn_id,
                     bind_task_state=parsed['kind'] == 'send_message')
+                if excluded_source:
+                    task_context = replace(task_context, task_state_ref=previous_id)
+                    work['task_context'] = task_context.to_document()
                 self._events = staged._events
                 self._model_workspace = staged._model_workspace
         if rejection is None:
@@ -2077,7 +2095,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     if item.get('task_context') is not None
                     and item['task_context'].binding.work_id == work['work_id']}
                 conversation = _conversation_from_events(self._events, work_attempts,
-                    updated.thread_id, event_seq - 1)
+                    updated.thread_id, event_seq - 1, investigation=investigation_admission.get())
                 if updated.active_model_context is None:
                     assert self._native_binding is not None
                     stored_submission = {**(submission or {}), '_native_execution': binding_for_session(native_binding, updated.session_type)}
@@ -3815,6 +3833,18 @@ class PostgresThreadService(NativeExecutionOwner):
                 rejection = 'source_attempt_unavailable'
             else:
                 previous_id = source_id
+        excluded_source = False
+        if previous_id and 'source_attempt_id' not in parsed['payload']:
+            owner = connection.execute("""SELECT submission_snapshot->>'_debug_investigation' AS owner
+                FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s""",
+                (snapshot.thread_id, previous_id)).fetchone()
+            if owner and owner['owner'] is not None and owner['owner'] != investigation_admission.get():
+                excluded_source = True
+                prior = connection.execute("""SELECT attempt_id FROM capstone_thread_attempts WHERE thread_id=%s
+                    AND task_context_snapshot->'binding'->>'work_id'=%s
+                    AND submission_snapshot->>'_debug_investigation' IS NULL
+                    ORDER BY created_at DESC,attempt_id DESC LIMIT 1""", (snapshot.thread_id, parsed['target']['id'])).fetchone()
+                previous_id = prior['attempt_id'] if prior else None
         if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'} and work is not None and work['status'] == 'queued':
             assert work is not None
             selected_model = execution_model(updated)
@@ -3832,6 +3862,9 @@ class PostgresThreadService(NativeExecutionOwner):
                 updated, attempt, task_context, instruction = create_attempt(
                     updated, work, turn_id=turn_id,
                     bind_task_state=parsed['kind'] == 'send_message')
+                if excluded_source:
+                    task_context = replace(task_context, task_state_ref=previous_id)
+                    work['task_context'] = task_context.to_document()
         if rejection is None:
             assert work is not None
             if gateway_state is not None:
@@ -3905,7 +3938,7 @@ class PostgresThreadService(NativeExecutionOwner):
                      parsed['command_id'], instruction, None if context is None else context.id,
                      None if context is None else context.selection_revision,
                      None if context is None else Jsonb(context.to_document()), Jsonb(_conversation_from_postgres(connection,
-                         snapshot.thread_id, event_seq - 1, work_id=work['work_id']).to_document()),
+                         snapshot.thread_id, event_seq - 1, work_id=work['work_id'], investigation=investigation_admission.get()).to_document()),
                      Jsonb(task_context.to_document()), attempt.runtime_mode,
                      None if submission is None else Jsonb(submission)))
                 last_event_seq = accepted.event_seq
