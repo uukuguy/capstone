@@ -12,13 +12,21 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
     monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
     service, claim = completed_task()
     calls = []
+    interrupted = False
 
     class Executor:
         identity = {'service_id': 'pi-local', 'instance_id': 'pi-test', 'revision': 'test'}
 
         def execute(self, request, control, on_event):
             calls.append(request)
+            if interrupted:
+                raise OSError('lost response')
             return SimpleNamespace(status='completed', answer='输入检查失败。')
+
+        def observe_terminal_task(self, task_id, parent_attempt_id, executor_identity):
+            assert (task_id, parent_attempt_id, executor_identity) == (
+                calls[-1].task_id, calls[-1].parent_attempt_id, self.identity)
+            return SimpleNamespace(status='completed', answer='已找回原诊断结果。')
 
     app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
                           allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
@@ -36,6 +44,16 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert client.post(f'{path}/investigations/{identity}/diagnose').json() == response.json()
         assert len(calls) == 1
         assert service.snapshot(claim.thread_id).last_event_seq == before
+        interrupted = True
+        second = client.post(path + '/investigations', headers={'Idempotency-Key': 'recover-debug'},
+                             json={'objective': '恢复结果', 'attempt_id': claim.attempt.attempt_id})
+        url = f"{path}/investigations/{second.json()['investigation_id']}/diagnose"
+        assert client.post(url).json()['status'] == 'unknown'
+        restored = client.get(url).json()
+        assert restored['status'] == 'completed'
+        assert restored['answer'] == '已找回原诊断结果。'
+        assert client.post(url).json() == restored
+        assert len(calls) == 2
 
 
 def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
