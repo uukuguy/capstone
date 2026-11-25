@@ -204,15 +204,32 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     return ()=>{current=false}
   },[transport,currentId,debugThread,resourceView,sourceQuery,selectedGateway?.instance_id,selectedGateway?.connection_name])
   const debugRequest=useRef<{thread:string;objective:string;key:string;attemptId?:string}|null>(null)
+  const debugGeneration=useRef(0)
   useEffect(()=>{
-    let current=true
+    const restore = new AbortController()
+    const generation = debugGeneration.current
     setDebugThread('')
     if(nativeChat&&typeof transport.debugStatus==='function'){
-      void transport.debugStatus(currentId).then(access=>{
-        if(current){setDebugThread(currentId);setAllowDebugExport(access.timelineExport);setDebugFinding(access.finding)}
+      void transport.debugStatus(currentId).then(async access=>{
+        if (restore.signal.aborted) return
+        setDebugThread(currentId)
+        setAllowDebugExport(access.timelineExport)
+        setDebugFinding(access.finding)
+        if (!access.investigationId || !access.diagnosisStatus || debugGeneration.current !== generation ||
+            debugRequest.current?.thread === currentId || typeof transport.watchDebugDiagnosis !== 'function') return
+        const show = (text:string, completed = false) => {
+          if (!restore.signal.aborted && debugGeneration.current === generation && debugRequest.current?.thread !== currentId)
+            setDebugActivity({thread: currentId, text, completed})
+        }
+        try {
+          const answer = await transport.watchDebugDiagnosis(currentId, access.investigationId, show, {signal:restore.signal})
+          show(answer, true)
+        } catch (error) {
+          show(error instanceof Error ? error.message : '诊断状态暂不可读。')
+        }
       }).catch(()=>{})
     }
-    return ()=>{current=false}
+    return ()=>restore.abort()
   },[nativeChat,transport,currentId])
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
   const instructionViewRef=useRef(instructionView);instructionViewRef.current=instructionView
@@ -573,6 +590,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       if(start&&!/^(status|stop|close|report|compare|replay)(?:\s|$)/.test(start[1].trim())){
         if(!snapshot||concurrentSend)throw new Error('请在会话空闲时发起调查。')
         if(pending)throw new Error('请先结算待确认的会话指令。')
+        debugGeneration.current++
         const objective=start[1].trim()
         let request=debugRequest.current
         if(!request||request.thread!==currentId||request.objective!==objective){

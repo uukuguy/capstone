@@ -298,9 +298,14 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async runDebugDiagnosis(threadId: string, investigationId: string,
     onProgress: (message: string) => void = () => {}) {
+    return this.watchDebugDiagnosis(threadId, investigationId, onProgress, {submit: true})
+  }
+  async watchDebugDiagnosis(threadId: string, investigationId: string,
+    onProgress: (message: string) => void, {submit = false, signal}: {submit?: boolean; signal?: AbortSignal} = {}) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
     const deadline = Date.now() + 60000
-    let result = await this.request(path, {method: 'POST', signal: AbortSignal.timeout(60000)}) as Record<string, unknown>
+    const requestSignal = (ms: number) => signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms)
+    let result = await this.request(path, {method: submit ? 'POST' : 'GET', signal: requestSignal(5000)}) as Record<string, unknown>
     while ((result.status === 'queued' || result.status === 'running') && Date.now() < deadline) {
       const step = Array.isArray(result.progress) ? result.progress.at(-1) : undefined
       const labels: Record<string, string> = {tool_started:'正在调用', tool_finished:'调用完成', tool_failed:'调用失败'}
@@ -309,7 +314,7 @@ export class HttpThreadTransport implements ThreadTransport {
         ? `步骤 ${step.seq} · ${label} ${step.tool}`
         : result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据')
       await new Promise(resolve => setTimeout(resolve, 1000))
-      result = await this.request(path, {signal: AbortSignal.timeout(5000)}) as Record<string, unknown>
+      result = await this.request(path, {signal: requestSignal(5000)}) as Record<string, unknown>
     }
     if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
     if (result.status === 'cancelled') throw new Error('诊断已停止。')
