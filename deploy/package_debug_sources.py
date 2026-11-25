@@ -26,8 +26,9 @@ def write_entry(archive, name, data):
     archive.writestr(entry, data, compress_type=zipfile.ZIP_DEFLATED)
 
 
-def stage(root, gateway_releases, destination, *, gateway_only=False):
-    revision = None if gateway_only else subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+def stage(root, gateway_releases, destination, *, gateway_only=False, capstone_revision=None):
+    revision = None if gateway_only else capstone_revision or subprocess.check_output(
+        ['git','rev-parse','HEAD'],cwd=root,text=True).strip()
     destination.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(dir=destination.parent) as tmp:
         tmp = Path(tmp)
@@ -83,11 +84,22 @@ def install_gateway_release(root, release, library):
     digest = json.loads((release/'release.json').read_text())['source_sha256']
     if not isinstance(digest, str) or len(digest) != 64 or any(ch not in '0123456789abcdef' for ch in digest):
         raise ValueError('Invalid gateway release digest')
+    install_source(library, digest, lambda candidate: stage(root, [release], candidate, gateway_only=True))
+
+
+def install_capstone_revision(root, revision, library):
+    if len(revision) != 40 or any(ch not in '0123456789abcdef' for ch in revision):
+        raise ValueError('An exact Capstone Git revision is required')
+    subprocess.run(['git', 'cat-file', '-e', revision + '^{commit}'], cwd=root, check=True)
+    install_source(library, revision, lambda candidate: stage(root, [], candidate, capstone_revision=revision))
+
+
+def install_source(library, digest, build):
     library.mkdir(parents=True, exist_ok=True)
     destination = library/digest
     with tempfile.TemporaryDirectory(dir=library) as temporary:
         candidate = Path(temporary)/'source'
-        stage(root, [release], candidate, gateway_only=True)
+        build(candidate)
         try:
             candidate.rename(destination)
         except OSError as error:
@@ -95,11 +107,11 @@ def install_gateway_release(root, release, library):
                 raise
             manifest = (candidate/'manifest.json').read_bytes()
             if (destination/'manifest.json').read_bytes() != manifest:
-                raise ValueError('Existing gateway source differs for this revision') from error
+                raise ValueError('Existing source differs for this revision') from error
             item = json.loads(manifest)['sources'][0]
             with (destination/item['archive']).open('rb') as archive:
                 if hashlib.file_digest(archive, 'sha256').hexdigest() != item['sha256']:
-                    raise ValueError('Existing gateway source archive failed verification') from error
+                    raise ValueError('Existing source archive failed verification') from error
 
 
 if __name__ == '__main__':
@@ -109,7 +121,14 @@ if __name__ == '__main__':
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--install-gateway-source',action='store_true',
                         help='Add a verified release snapshot to the site source directory independently of image builds')
+    parser.add_argument('--install-capstone-revision',
+                        help='Add the source of an exact Capstone commit to the site source directory')
     args = parser.parse_args()
+    if args.install_capstone_revision:
+        if args.install_gateway_source or args.gateway_release:
+            parser.error('--install-capstone-revision cannot be combined with gateway release options')
+        install_capstone_revision(args.root, args.install_capstone_revision, args.output)
+        raise SystemExit(0)
     release = args.gateway_release
     if release is None:
         common = subprocess.check_output(['git','rev-parse','--path-format=absolute','--git-common-dir'],
