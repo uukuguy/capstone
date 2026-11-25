@@ -259,6 +259,19 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
         assert additional_seq < failure_seq
         running = register.get(claim.workspace_name, claim.thread_id, investigation['investigation_id'])['diagnosis']
         assert additional_seq in running['evidence_event_seqs']
+        finding = {'finding_state': 'narrowed', 'summary': '私有结论', 'next_step': '读取下一条回执'}
+        def publish(refs):
+            return control.mission_operation('agent_debug_observe',
+                {'operation': 'publish_finding', 'query': {**finding, 'event_refs': refs}}, 'finding')
+        assert publish([1_000_000]) == {'code': 'finding_evidence_invalid'}
+        checkpoint = publish([additional_seq])
+        saved = register.read_export_snapshot(claim.workspace_name, claim.thread_id,
+                                              investigation['investigation_id'], checkpoint['snapshot_id'])
+        assert saved['diagnosis']['status'] == 'running'
+        assert saved['diagnosis']['finding_event_seqs'] == [additional_seq]
+        assert '私有结论' not in str(saved)
+        assert register.read_snapshot_finding(claim.workspace_name, claim.thread_id,
+            investigation['investigation_id'], checkpoint['snapshot_id'])['summary'] == '私有结论'
         page = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'after': failure_seq - 1}}, 'fixture')
         assert page['events'][0]['event_seq'] == failure_seq

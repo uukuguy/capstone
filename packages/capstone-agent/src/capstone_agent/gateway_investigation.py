@@ -17,12 +17,16 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
 OBSERVATION_TOOL = {
     'description': 'Read on-site receipts, logs, source, or Capstone execution records for this Debug investigation. capstone_records takes after and returns next_after and has_more. capstone_excerpt takes event_seq, field and offset to continue a stored excerpt. List gateway calls before reading by ID.',
     'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['operation'],
-        'properties': {'operation': {'enum': ['list', 'read', 'logs', 'source_files', 'source_lines', 'capstone_records', 'capstone_excerpt']}, 'query': {'type': 'object',
+        'properties': {'operation': {'enum': ['list', 'read', 'logs', 'source_files', 'source_lines', 'capstone_records', 'capstone_excerpt', 'publish_finding']}, 'query': {'type': 'object',
             'additionalProperties': False, 'properties': {
                 'repository': {'enum': ['capstone', 'data-gateway']},
                 'after': {'type': 'integer', 'minimum': 0},
                 'event_seq': {'type': 'integer', 'minimum': 1},
                 'field': {'enum': ['input_excerpt', 'output_excerpt']},
+                'finding_state': {'enum': ['located', 'narrowed', 'insufficient_evidence']},
+                'event_refs': {'type': 'array', 'items': {'type': 'integer', 'minimum': 1}, 'maxItems': 16, 'uniqueItems': True},
+                'summary': {'type': 'string', 'minLength': 1, 'maxLength': 1200},
+                'next_step': {'type': 'string', 'minLength': 1, 'maxLength': 600},
                 'prefix': {'type':'string'}, 'offset': {'type':'integer'}, 'path': {'type':'string'}, 'line': {'type':'integer'},
                 'request_id': {'type': 'string'}, 'client_call_id': {'type': 'string'},
                 'cursor': {'type': 'string'}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50}}}}}}

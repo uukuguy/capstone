@@ -459,6 +459,16 @@ def create_host_app(
                 raise HTTPException(404, '本会话中找不到该调查。') from None
             return JSONResponse({'snapshots': snapshots}, headers={'Cache-Control': 'no-store'})
 
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/snapshots/{snapshot_id}/finding')
+        def read_snapshot_finding(thread_id: str, investigation_id: str, snapshot_id: str, request: Request):
+            require_debug(request)
+            try:
+                finding = investigations.read_snapshot_finding(request.state.workspace_name, thread_id,
+                                                               investigation_id, snapshot_id)
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查快照。') from None
+            return JSONResponse({'finding': finding}, headers={'Cache-Control': 'no-store'})
+
         @app.api_route('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/snapshots/{snapshot_id}/reviewed-export',
                        methods=['PUT', 'DELETE'])
         def set_reviewed_export(thread_id: str, investigation_id: str, snapshot_id: str, request: Request,

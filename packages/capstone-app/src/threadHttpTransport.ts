@@ -271,7 +271,8 @@ export class HttpThreadTransport implements ThreadTransport {
     const value=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`) as Record<string,unknown>
     if(value?.thread_id!==threadId||value.enabled!==true)throw new Error('调试入口不可用。')
     const investigation=value.investigation as {investigation_id?:unknown;objective?:unknown;observation?:{
-      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null};diagnosis?:{answer?:unknown;status?:unknown}}|null
+      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null};diagnosis?:{
+        answer?:unknown;status?:unknown;finding?:{summary?:unknown}}}|null
     const observation=investigation?.observation
     const finding=observation?(observation.first_failure?
       `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
@@ -280,7 +281,8 @@ export class HttpThreadTransport implements ThreadTransport {
       investigationId:typeof investigation?.investigation_id==='string'?investigation.investigation_id:null,
       objective:typeof investigation?.objective==='string'?investigation.objective:null,
       diagnosisStatus:typeof investigation?.diagnosis?.status==='string'?investigation.diagnosis.status:null,
-      finding:typeof investigation?.diagnosis?.answer==='string'&&investigation.diagnosis.answer.trim()?investigation.diagnosis.answer:finding}
+      finding:typeof investigation?.diagnosis?.answer==='string'&&investigation.diagnosis.answer.trim()?investigation.diagnosis.answer:
+        typeof investigation?.diagnosis?.finding?.summary==='string'?investigation.diagnosis.finding.summary:finding}
   }
   async debugSourceVersion(threadId:string){
     const result=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/sources`) as Record<string,unknown>
@@ -310,7 +312,8 @@ export class HttpThreadTransport implements ThreadTransport {
       const step = Array.isArray(result.progress) ? result.progress.at(-1) : undefined
       const labels: Record<string, string> = {tool_started:'正在调用', tool_finished:'调用完成', tool_failed:'调用失败'}
       const label = step && Object.hasOwn(labels, step.stage) ? labels[step.stage] : undefined
-      onProgress(label && typeof step.tool === 'string' && Number.isSafeInteger(step.seq)
+      const update = result.finding as {summary?: unknown} | undefined
+      onProgress(typeof update?.summary === 'string' ? update.summary : label && typeof step.tool === 'string' && Number.isSafeInteger(step.seq)
         ? `步骤 ${step.seq} · ${label} ${step.tool}`
         : result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据')
       await new Promise(resolve => setTimeout(resolve, 1000))
