@@ -84,6 +84,7 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
     service, claim = completed_task()
     calls = []
     interrupted = False
+    rejected = False
     from capstone_agent import debug_investigations
     register = debug_investigations.InvestigationRegister(service)
     monkeypatch.setattr(debug_investigations, 'InvestigationRegister', lambda service: register)
@@ -93,6 +94,11 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
 
         def execute(self, request, control, on_event):
             calls.append(request)
+            if rejected:
+                from capstone_agent.pi_delegation import PiHTTPFailure
+                error = PiHTTPFailure(503, 'executor_validation_unavailable')
+                error.diagnostic['operation'] = 'task_admission'
+                raise error
             on_event({'event_id': 'event-1', 'type': 'tool_execution_start',
                       'tool_name': 'agent_debug_observe', 'arguments': {'private': 'do not copy'}})
             running = register.get(claim.workspace_name, claim.thread_id, request.parent_attempt_id)['diagnosis']
@@ -188,6 +194,12 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert len(calls) == 2
         assert client.get(url).json()['status'] == 'cancelled'
         assert service.snapshot(claim.thread_id).last_event_seq == before
+        rejected = True
+        rejected_run = client.post(path + '/investigations', headers={'Idempotency-Key': 'rejected-debug'},
+                                   json={'objective': '检查派发拒绝', 'attempt_id': claim.attempt.attempt_id}).json()
+        failed = register.diagnose(claim.workspace_name, claim.thread_id, rejected_run['investigation_id'], executor)
+        assert failed['status'] == 'failed'
+        assert failed['failure_code'] == 'diagnosis_executor_rejected'
 
 
 def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():

@@ -315,6 +315,7 @@ export class HttpThreadTransport implements ThreadTransport {
     if (result.status === 'cancelled') throw new Error('诊断已停止。')
     if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
     if (result.failure_code === 'diagnosis_preparation_failed') throw new Error('诊断材料准备失败，Pi 尚未执行。')
+    if (result.failure_code === 'diagnosis_executor_rejected') throw new Error('Pi 在执行前拒绝了诊断请求。请核对执行器和调查工具配置。')
     if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
     return result.answer
   }

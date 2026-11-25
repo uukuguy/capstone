@@ -235,7 +235,7 @@ class InvestigationRegister:
         diagnosis = investigation.get('diagnosis') or {}
         document = {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
                 'investigation_id': investigation_id, 'observation': observation,
-                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs', 'progress',
+                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'failure_code', 'evidence_event_seqs', 'progress',
                                                              'progress_truncated', 'source_evidence',
                                                              'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
@@ -311,7 +311,7 @@ class InvestigationRegister:
 
     def diagnose(self, workspace, thread_id, investigation_id, executor):
         from time import monotonic
-        from .pi_delegation import PiTaskRequest
+        from .pi_delegation import PiHTTPFailure, PiTaskRequest
         from .request_intent import NodeControl
         from .task_record_reader import SelectedTaskRecordReader
 
@@ -456,6 +456,13 @@ class InvestigationRegister:
         try:
             result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout), observe)
             diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
+        except PiHTTPFailure as error:
+            detail = error.diagnostic
+            if (detail['operation'] == 'task_admission' and detail['protocol_code'] in
+                    {'invalid_task', 'executor_validation_unavailable'}):
+                diagnosis = {**diagnosis, 'status': 'failed', 'failure_code': 'diagnosis_executor_rejected'}
+            else:
+                diagnosis = {**diagnosis, 'status': 'unknown'}
         except (RuntimeError, OSError, ValueError):
             diagnosis = {**diagnosis, 'status': 'unknown'}
         self._save_diagnosis(scope, diagnosis)
