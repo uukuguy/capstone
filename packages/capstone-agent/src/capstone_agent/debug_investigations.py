@@ -1,4 +1,5 @@
 """Thread-scoped investigation register. Gateway credentials stay outside public records."""
+from copy import deepcopy
 from threading import RLock
 from uuid import uuid4
 from hashlib import sha256
@@ -259,6 +260,8 @@ class InvestigationRegister:
     def save_export_snapshot(self, workspace, thread_id, investigation_id, *, private_finding=None):
         document = self.export_timeline(workspace, thread_id, investigation_id)
         snapshot_id = document['snapshot_id']
+        if private_finding is not None and document['diagnosis'].get('finding_digest') != evidence_digest(private_finding):
+            private_finding = None
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
                 connection.execute('''INSERT INTO capstone_debug_snapshots
@@ -603,7 +606,7 @@ class InvestigationRegister:
             current = self.get(*scope)['diagnosis']
             if current['status'] != 'running':
                 return {'code': 'diagnosis_not_running'}
-            finding = {**query, 'event_refs': sorted(refs)}
+            finding = {**deepcopy(query), 'event_refs': sorted(refs)}
             diagnosis = {**diagnosis, 'finding': finding, 'finding_state': state,
                          'finding_event_seqs': finding['event_refs'], 'finding_digest': evidence_digest(finding)}
             self._save_diagnosis(scope, diagnosis)
@@ -644,7 +647,7 @@ class InvestigationRegister:
         except (RuntimeError, OSError, ValueError):
             diagnosis = {**diagnosis, 'status': 'unknown'}
         self._save_diagnosis(scope, diagnosis)
-        self.save_export_snapshot(*scope)
+        self.save_export_snapshot(*scope, private_finding=diagnosis.get('finding'))
         return diagnosis
 
     def _prior_diagnosis(self, workspace, thread_id, observation):

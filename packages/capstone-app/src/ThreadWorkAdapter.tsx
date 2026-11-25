@@ -1128,6 +1128,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         return {...result, source}
       }}
       readSnapshots={id=>transport.debugSnapshots(currentId,id)}
+      readSnapshotFinding={(id,snapshot)=>transport.debugSnapshotFinding(currentId,id,snapshot)}
       reviewExport={canReviewDebugExport ? (id,snapshotId,review)=>transport.reviewDebugExport(currentId,id,snapshotId,review) : undefined}
       readEvidence={async (id,snapshotId)=>{
         const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId

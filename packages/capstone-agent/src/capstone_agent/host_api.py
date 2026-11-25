@@ -451,8 +451,6 @@ def create_host_app(
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/snapshots')
         def investigation_snapshots(thread_id: str, investigation_id: str, request: Request):
             require_debug(request)
-            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
-                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
             try:
                 snapshots = investigations.recent_export_snapshots(request.state.workspace_name, thread_id, investigation_id)
             except KeyError:

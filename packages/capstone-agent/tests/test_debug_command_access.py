@@ -327,6 +327,8 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
     evidence = register.read_export_snapshot(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
         register.recent_export_snapshots(claim.workspace_name, claim.thread_id, investigation['investigation_id'])[0]['snapshot_id'])
     assert failure_seq - 5 in evidence['diagnosis']['evidence_event_seqs']
+    assert register.read_snapshot_finding(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
+                                          evidence['snapshot_id']) == diagnosis['finding']
 
 
 def test_debug_probe_retry_reads_the_original_call(monkeypatch):
@@ -403,6 +405,7 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
         assert 'Input check failed' not in exported.text
         monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0')
         assert client.get(evidence).status_code == 403
+        assert client.get(records.removesuffix('/records') + '/snapshots').status_code == 200
         monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
         scoped = client.get(records)
         assert scoped.status_code == 200

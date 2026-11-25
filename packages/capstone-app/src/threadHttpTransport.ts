@@ -345,6 +345,11 @@ export class HttpThreadTransport implements ThreadTransport {
     const result = await this.request(path) as {snapshots: {snapshot_id: string; status: string | null}[]}
     return result.snapshots
   }
+  async debugSnapshotFinding(threadId: string, investigationId: string, snapshotId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/snapshots/${encodeURIComponent(snapshotId)}/finding`
+    const result = await this.request(path) as {finding: {summary: string; next_step: string} | null}
+    return result.finding
+  }
   async debugEvidence(threadId: string, investigationId: string, snapshotId?: string) {
     const query = snapshotId ? '?snapshot_id=' + encodeURIComponent(snapshotId) : ''
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence${query}`
