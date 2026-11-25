@@ -903,7 +903,7 @@ def create_host_app(
                             debug = parse_debug_command(supplied_text)
                         except ValueError as error:
                             raise HTTPException(422, str(error)) from None
-                        if debug.operation not in {'start', 'run'}:
+                        if debug.operation != 'investigate':
                             raise HTTPException(501, '此调查操作尚未接入。')
                         if kind != 'send_message' or command.get('schema') != 'capstone-command/2':
                             raise HTTPException(409, '请在会话空闲时发起调查。')
@@ -915,8 +915,6 @@ def create_host_app(
                                 request.state.workspace_name,thread_id,identity)
                         except KeyError:
                             raise HTTPException(404, '本会话中找不到该调查。') from None
-                        if debug.operation == 'start' and debug.argument != investigation['objective']:
-                            raise HTTPException(409, '首轮指令与已登记的调查目标不一致。')
                         observation = investigation.get('observation') or {}
                         diagnostic_text = (f"研发调查 {identity}\n目标：{investigation['objective']}\n"
                                            f"本轮指令：{debug.argument}\n请列出观测依据、尚未知的环节和本机复验所需材料。")

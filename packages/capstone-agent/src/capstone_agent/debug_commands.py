@@ -24,10 +24,9 @@ def parse_debug_command(text: str) -> DebugCommand | None:
         return None
     operation = words[1] if len(words) > 1 else ''
     argument = words[2].strip() if len(words) > 2 else ''
-    if operation in {'start', 'run'}:
-        if not argument:
-            raise ValueError('请输入调查目标或指令。')
-    elif operation in {'compare', 'replay'}:
+    if not operation:
+        raise ValueError('请输入 /debug 和需要排查的问题。')
+    if operation in {'compare', 'replay'}:
         required = 2 if operation == 'compare' else 1
         if len(argument.split()) != required:
             raise ValueError(f'{operation} 需要 {required} 个引用。')
@@ -35,5 +34,5 @@ def parse_debug_command(text: str) -> DebugCommand | None:
         if argument:
             raise ValueError(f'{operation} 不接受参数。')
     else:
-        raise ValueError('可用调试命令为 start、run、status、stop、compare、report、replay、close。')
+        return DebugCommand('investigate', text[len('/debug'):].strip())
     return DebugCommand(operation, argument)

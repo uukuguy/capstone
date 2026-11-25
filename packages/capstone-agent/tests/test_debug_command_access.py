@@ -41,7 +41,7 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
         assert client.get(path).status_code == 403
 
 
-@pytest.mark.parametrize('text', ['/debug run 检查运行记录', '/debug start 检查失败调用'])
+@pytest.mark.parametrize('text', ['/debug 检查运行记录', '/debug 检查失败调用'])
 def test_open_development_access_and_release_block(monkeypatch, text):
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
     monkeypatch.delenv('CAPSTONE_DEBUG_COMMANDS', raising=False)

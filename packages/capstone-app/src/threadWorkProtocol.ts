@@ -336,7 +336,7 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
       id(target.id),revision(target.expected_revision,1),command.kind as GoalControl,payload as Record<string,string|number>)
   }
   if(command.kind==='send_message'&&'debug_investigation_id' in payload){
-    if(Object.keys(payload).length!==2||typeof payload.text!=='string'||!/^\/debug\s+(start|run)\s+\S/.test(payload.text)){
+    if(Object.keys(payload).length!==2||typeof payload.text!=='string'||!/^\/debug\s+\S/.test(payload.text)){
       throw new ThreadProtocolError('调试命令无效')
     }
     const restored=buildSendMessageCommand(threadId,id(command.run_id),id(command.command_id),

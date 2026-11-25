@@ -21,7 +21,7 @@ def test_ordinary_text(text):
     assert parse_debug_command(text) is None
 
 
-@pytest.mark.parametrize('text', ['/debug', '/debug bad', '/debug start', '/debug run',
+@pytest.mark.parametrize('text', ['/debug', 
                                   '/debug compare one', '/debug replay one two', '/debug stop now'])
 def test_invalid_reserved_command(text):
     with pytest.raises(ValueError):
@@ -29,7 +29,11 @@ def test_invalid_reserved_command(text):
 
 
 @pytest.mark.parametrize(('operation', 'argument'), [
-    ('start', '比较\n日度和月度'), ('run', '检查原回执'), ('compare', 'old new'),
+    ('compare', 'old new'),
     ('replay', 'case'), ('status', ''), ('stop', ''), ('close', ''), ('report', '')])
 def test_supported_command(operation, argument):
     assert parse_debug_command(f'/debug {operation} {argument}') == DebugCommand(operation, argument)
+
+
+def test_session_investigation_accepts_free_text():
+    assert parse_debug_command('/debug 比较\n日度和月度') == DebugCommand('investigate', '比较\n日度和月度')
