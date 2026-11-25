@@ -68,6 +68,7 @@ class InitializedGatewaySession:
     progressive: object = None
     investigation: object = None
     http_client: object = None
+    investigation_logs: object = None
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
@@ -280,7 +281,8 @@ class DataGatewayMcp:
                     declaration = experimental.get(_PROGRESSIVE) if isinstance(experimental, dict) else None
                     investigation = experimental.get('data-gateway/investigation') if isinstance(experimental, dict) else None
                     yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump(),
-                                                    instance, declaration, investigation, client)
+                                                    instance, declaration, investigation, client,
+                                                    experimental.get('data-gateway/investigation-logs') if isinstance(experimental, dict) else None)
 
     @asynccontextmanager
     async def investigation_access(self):
@@ -288,7 +290,8 @@ class DataGatewayMcp:
         from .gateway_investigation import GatewayInvestigation
         async with self.connect() as connection:
             yield await GatewayInvestigation.discover(getattr(connection, 'http_client', None),
-                self._connection['url'], getattr(connection, 'investigation', None))
+                self._connection['url'], getattr(connection, 'investigation', None),
+                getattr(connection, 'investigation_logs', None))
 
     def _progressive_declaration(self, connection):
         declaration = getattr(connection, 'progressive', None)

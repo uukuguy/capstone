@@ -15,6 +15,33 @@ EXCHANGE = json.loads((FIXTURES / 'synthetic-exchange.json').read_text())
 DECLARATION = {'version': VERSION, 'contract_path': BASE + 'contract'}
 
 
+@pytest.mark.parametrize('case', json.loads((FIXTURES / 'synthetic-logs.json').read_text())['cases'],
+                         ids=lambda case: case['case'])
+def test_logs_follow_published_examples(case):
+    declaration = {'version':'gateway-investigation-logs/1','contract_path':BASE+'log-contract'}
+    scope = {key:case['request'][key] for key in ('binding_handle','workspace_id','investigation_id')}
+    query = {key:value for key,value in case['request'].items() if key not in scope}
+
+    def respond(request):
+        if request.method == 'GET':
+            if request.url.path == BASE+'contract':
+                return httpx.Response(200,json=CONTRACT)
+            assert request.url.path == declaration['contract_path']
+            return httpx.Response(200,json=json.loads((FIXTURES/'log-contract.json').read_text()))
+        assert request.url.path == BASE+'logs' and json.loads(request.content) == case['request']
+        return httpx.Response(case['expected_http_status'],json=case['response'])
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            access = await GatewayInvestigation.discover(client,'https://fixture.test/mcp',DECLARATION,declaration)
+            if case['expected_http_status'] == 200:
+                assert await access.read_logs(scope,query) == case['response']
+            else:
+                with pytest.raises(GatewayError,match=case['response']['error']['code']):
+                    await access.read_logs(scope,query)
+    asyncio.run(run())
+
+
 def test_declared_contract_and_scoped_operations():
     paths = []
     def respond(request):

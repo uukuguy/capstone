@@ -1,0 +1,244 @@
+{
+  "synthetic": true,
+  "contract_version": "gateway-investigation-logs/1",
+  "cases": [
+    {
+      "case": "first_page",
+      "request": {
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "client_call_id": "synthetic-call-1",
+        "limit": 1
+      },
+      "expected_http_status": 200,
+      "response": {
+        "contract_version": "gateway-investigation-logs/1",
+        "association": "authorized_request_id",
+        "log_read_status": "retained",
+        "records": [
+          {
+            "record_ref": "93079b4b82825e658d1bcb127f054a4bafe1126ee42832ae5fa4614539d1fbcd",
+            "time": "2026-11-25T00:00:00+00:00",
+            "component": "gateway",
+            "stage": "gateway.call",
+            "event": "started",
+            "severity": "info",
+            "message": "阶段开始",
+            "message_basis": "gateway_template",
+            "exception_chain": []
+          }
+        ],
+        "next_cursor": "93079b4b82825e658d1bcb127f054a4bafe1126ee42832ae5fa4614539d1fbcd~c9bf0048e645568a23e4a9815aa448f9b4a527943e3a63835fceb5318a09deca",
+        "truncated": false,
+        "automatic_retry": false
+      },
+      "criterion": "仅当前调用，使用续页游标"
+    },
+    {
+      "case": "page_after_rotation",
+      "request": {
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "client_call_id": "synthetic-call-1",
+        "cursor": "93079b4b82825e658d1bcb127f054a4bafe1126ee42832ae5fa4614539d1fbcd~c9bf0048e645568a23e4a9815aa448f9b4a527943e3a63835fceb5318a09deca"
+      },
+      "expected_http_status": 200,
+      "response": {
+        "contract_version": "gateway-investigation-logs/1",
+        "association": "authorized_request_id",
+        "log_read_status": "retained",
+        "records": [
+          {
+            "record_ref": "57f4171fd824391a3747070aa4405cab84c89d6f6efceea957179a996cde3c88",
+            "time": "2026-11-25T00:00:01+00:00",
+            "component": "database",
+            "stage": "database.read",
+            "event": "started",
+            "severity": "info",
+            "message": "阶段开始",
+            "message_basis": "gateway_template",
+            "exception_chain": []
+          },
+          {
+            "record_ref": "fb0b6d31fe0a750de29d59893937853e89f53d639513578a2696b5f53aab5e5d",
+            "time": "2026-11-25T00:00:02+00:00",
+            "component": "database",
+            "stage": "database.read",
+            "event": "finished",
+            "severity": "error",
+            "message": "查询超时",
+            "message_basis": "gateway_template",
+            "exception_chain": [
+              "TimeoutError",
+              "OSError"
+            ]
+          }
+        ],
+        "next_cursor": null,
+        "truncated": false,
+        "automatic_retry": false
+      },
+      "criterion": "文件轮转后已保留游标仍可用，返回脱敏消息和类型链"
+    },
+    {
+      "case": "same_call_context",
+      "request": {
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "client_call_id": "synthetic-call-1",
+        "around_record_ref": "fb0b6d31fe0a750de29d59893937853e89f53d639513578a2696b5f53aab5e5d",
+        "limit": 3
+      },
+      "expected_http_status": 200,
+      "response": {
+        "contract_version": "gateway-investigation-logs/1",
+        "association": "authorized_request_id",
+        "log_read_status": "retained",
+        "records": [
+          {
+            "record_ref": "57f4171fd824391a3747070aa4405cab84c89d6f6efceea957179a996cde3c88",
+            "time": "2026-11-25T00:00:01+00:00",
+            "component": "database",
+            "stage": "database.read",
+            "event": "started",
+            "severity": "info",
+            "message": "阶段开始",
+            "message_basis": "gateway_template",
+            "exception_chain": []
+          },
+          {
+            "record_ref": "fb0b6d31fe0a750de29d59893937853e89f53d639513578a2696b5f53aab5e5d",
+            "time": "2026-11-25T00:00:02+00:00",
+            "component": "database",
+            "stage": "database.read",
+            "event": "finished",
+            "severity": "error",
+            "message": "查询超时",
+            "message_basis": "gateway_template",
+            "exception_chain": [
+              "TimeoutError",
+              "OSError"
+            ]
+          }
+        ],
+        "next_cursor": null,
+        "truncated": false,
+        "automatic_retry": false
+      },
+      "criterion": "前后文只含同一调用"
+    },
+    {
+      "case": "outside_binding",
+      "request": {
+        "binding_handle": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "workspace_id": "workspace-b",
+        "investigation_id": "investigation-b",
+        "client_call_id": "synthetic-call-1"
+      },
+      "expected_http_status": 404,
+      "response": {
+        "contract_version": "gateway-investigation/1",
+        "error": {
+          "code": "receipt_not_visible",
+          "automatic_retry": false
+        }
+      },
+      "criterion": "调用归属不符，和未知调用返回同样反馈"
+    },
+    {
+      "case": "no_observed_logs",
+      "request": {
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "client_call_id": "synthetic-call-2"
+      },
+      "expected_http_status": 200,
+      "response": {
+        "contract_version": "gateway-investigation-logs/1",
+        "association": "authorized_request_id",
+        "log_read_status": "not_observed",
+        "records": [],
+        "next_cursor": null,
+        "truncated": false,
+        "automatic_retry": false
+      },
+      "criterion": "已登记调用当前没有可观察日志"
+    },
+    {
+      "case": "truncated",
+      "request": {
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "client_call_id": "synthetic-call-1"
+      },
+      "expected_http_status": 200,
+      "response": {
+        "contract_version": "gateway-investigation-logs/1",
+        "association": "authorized_request_id",
+        "log_read_status": "retained",
+        "records": [
+          {
+            "record_ref": "fb0b6d31fe0a750de29d59893937853e89f53d639513578a2696b5f53aab5e5d",
+            "time": "2026-11-25T00:00:02+00:00",
+            "component": "database",
+            "stage": "database.read",
+            "event": "finished",
+            "severity": "error",
+            "message": "查询超时",
+            "message_basis": "gateway_template",
+            "exception_chain": [
+              "TimeoutError",
+              "OSError"
+            ]
+          }
+        ],
+        "next_cursor": null,
+        "truncated": true,
+        "automatic_retry": false
+      },
+      "criterion": "保留扫描达到边界，truncated 为 true"
+    },
+    {
+      "case": "cursor_anchor_removed",
+      "request": {
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "client_call_id": "synthetic-call-1",
+        "cursor": "93079b4b82825e658d1bcb127f054a4bafe1126ee42832ae5fa4614539d1fbcd~c9bf0048e645568a23e4a9815aa448f9b4a527943e3a63835fceb5318a09deca"
+      },
+      "expected_http_status": 410,
+      "response": {
+        "contract_version": "gateway-investigation/1",
+        "error": {
+          "code": "log_cursor_unavailable",
+          "automatic_retry": false
+        }
+      },
+      "criterion": "已授权游标锚点离开可读范围，不重发业务"
+    },
+    {
+      "case": "expired_binding",
+      "request": {
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "client_call_id": "synthetic-call-1"
+      },
+      "expected_http_status": 410,
+      "response": {
+        "contract_version": "gateway-investigation/1",
+        "error": {
+          "code": "binding_expired",
+          "automatic_retry": false
+        }
+      },
+      "criterion": "已授权但绑定过期"
+    }
+  ]
+}

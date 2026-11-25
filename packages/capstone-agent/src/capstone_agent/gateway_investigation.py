@@ -7,6 +7,7 @@ from .data_gateway_mcp import GatewayError, validate
 
 
 VERSION = 'gateway-investigation/1'
+LOG_VERSION = 'gateway-investigation-logs/1'
 BASE = '/investigations/v1/'
 SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', 'Receipt'),
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
@@ -15,7 +16,7 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
 async def _request(client, method, url, document=None):
     options = {'json': document} if document is not None else {}
     async with client.stream(method, url, follow_redirects=False, **options) as response:
-        if response.status_code != 200:
+        if response.status_code not in (200, 410):
             codes = {401: 'gateway_authentication_failed', 403: 'investigation_access_denied',
                      404: 'receipt_not_visible', 410: 'binding_expired', 503: 'investigation_store_unavailable'}
             raise GatewayError(codes.get(response.status_code, 'investigation_request_rejected'))
@@ -24,14 +25,20 @@ async def _request(client, method, url, document=None):
             require_capacity('mcp_frame_bytes', len(body) + len(chunk), 'investigation_response')
             body.extend(chunk)
     try:
-        return json.loads(body)
+        packet = json.loads(body)
     except ValueError:
         raise GatewayError('investigation_response_invalid') from None
+    if response.status_code == 410:
+        detail = packet.get('error') if isinstance(packet, dict) else None
+        if isinstance(detail, dict) and detail.get('code') == 'log_cursor_unavailable':
+            raise GatewayError('log_cursor_unavailable')
+        raise GatewayError('binding_expired')
+    return packet
 
 
 class GatewayInvestigation:
     @classmethod
-    async def discover(cls, client, endpoint, declaration):
+    async def discover(cls, client, endpoint, declaration, log_declaration=None):
         if not isinstance(declaration, dict) or declaration.get('version') != VERSION:
             return None
         if declaration.get('contract_path') != BASE + 'contract':
@@ -48,12 +55,44 @@ class GatewayInvestigation:
             if (operations.get(operation) != {'method': 'POST', 'path': BASE + operation}
                     or any(not isinstance(schemas.get(name), dict) for name in names)):
                 raise GatewayError('investigation_contract_invalid')
-        return cls(client, origin, schemas)
+        return cls(client, origin, schemas, log_declaration)
 
-    def __init__(self, client, origin, schemas):
+    def __init__(self, client, origin, schemas, log_declaration=None):
         self._client = client
         self._origin = origin
         self._schemas = schemas
+        self._log_declaration = log_declaration
+        self._log_schemas = None
+
+    async def read_logs(self, scope, query):
+        """Resolve logs only when selected. Ownership is supplied by the backend."""
+        declaration = self._log_declaration
+        if not isinstance(declaration, dict) or declaration.get('version') != LOG_VERSION:
+            raise GatewayError('investigation_logs_unavailable')
+        if declaration.get('contract_path') != BASE + 'log-contract':
+            raise GatewayError('investigation_contract_invalid')
+        if self._log_schemas is None:
+            contract = await _request(self._client, 'GET', self._origin + declaration['contract_path'])
+            if (not isinstance(contract, dict) or contract.get('contract_version') != LOG_VERSION
+                    or contract.get('operations', {}).get('logs') != {'method':'POST','path':BASE+'logs'}
+                    or not all(isinstance(contract.get('schemas', {}).get(name), dict) for name in ('LogRequest','LogPage'))):
+                raise GatewayError('investigation_contract_invalid')
+            self._log_schemas = contract['schemas']
+        if scope.keys() & query.keys() or sum(bool(query.get(key)) for key in ('request_id','client_call_id')) != 1:
+            raise GatewayError('investigation_request_invalid')
+        document = {**scope, **query}
+        try:
+            validate(self._log_schemas['LogRequest'], document)
+        except Exception:
+            raise GatewayError('investigation_request_invalid') from None
+        page = await _request(self._client, 'POST', self._origin + BASE + 'logs', document)
+        try:
+            validate(self._log_schemas['LogPage'], page)
+        except Exception:
+            raise GatewayError('investigation_response_invalid') from None
+        if page.get('contract_version') != LOG_VERSION or page.get('automatic_retry') is not False:
+            raise GatewayError('investigation_response_invalid')
+        return page
 
     async def invoke(self, operation, document):
         if operation not in SCHEMAS:

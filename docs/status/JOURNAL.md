@@ -8409,3 +8409,5 @@ check passed. No CI, integration or remote deployment performed.
 - Requested scoped gateway logs for Debug Pi to trace observed failures. Gateway confirmation pending. [a9f3dad8]
 - Verified gateway investigation adapter with published v1 fixtures and 81 adapter checks. Live dedicated credential pending. [9e6faf37]
 - Verified PostgreSQL investigation recovery, eight concurrent call reservations and idempotent browser API registration. [1aa7855b]
+- 09:23 Saved attempt-scoped first-failure references; verified status retrieval, missing attempt rejection, backend tests and frontend checks. [725794b8]
+- 09:27 Live dedicated gateway adapter recovered discarded response, denied cross-binding read, reused duplicate receipt; log contract available, export undeclared.

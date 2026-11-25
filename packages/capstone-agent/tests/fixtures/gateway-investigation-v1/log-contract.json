@@ -1,0 +1,577 @@
+{
+  "contract_version": "gateway-investigation-logs/1",
+  "operations": {
+    "contract": {
+      "method": "GET",
+      "path": "/investigations/v1/log-contract"
+    },
+    "logs": {
+      "method": "POST",
+      "path": "/investigations/v1/logs"
+    }
+  },
+  "schemas": {
+    "LogRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_handle": {
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "title": "Binding Handle",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "investigation_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Investigation Id",
+          "type": "string"
+        },
+        "client_call_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Call Id"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
+        "component": {
+          "anyOf": [
+            {
+              "enum": [
+                "gateway",
+                "database",
+                "cache",
+                "provider",
+                "source",
+                "execution"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Component"
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "enum": [
+                "info",
+                "warning",
+                "error"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity"
+        },
+        "start_time": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Time"
+        },
+        "end_time": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Time"
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}~[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        },
+        "around_record_ref": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Around Record Ref"
+        }
+      },
+      "required": [
+        "binding_handle",
+        "workspace_id",
+        "investigation_id"
+      ],
+      "title": "LogRequest",
+      "type": "object"
+    },
+    "LogPage": {
+      "$defs": {
+        "LogRecord": {
+          "additionalProperties": false,
+          "properties": {
+            "record_ref": {
+              "pattern": "^[a-f0-9]{64}$",
+              "title": "Record Ref",
+              "type": "string"
+            },
+            "time": {
+              "title": "Time",
+              "type": "string"
+            },
+            "component": {
+              "enum": [
+                "gateway",
+                "database",
+                "cache",
+                "provider",
+                "source",
+                "execution"
+              ],
+              "title": "Component",
+              "type": "string"
+            },
+            "stage": {
+              "title": "Stage",
+              "type": "string"
+            },
+            "event": {
+              "enum": [
+                "started",
+                "finished"
+              ],
+              "title": "Event",
+              "type": "string"
+            },
+            "severity": {
+              "enum": [
+                "info",
+                "warning",
+                "error"
+              ],
+              "title": "Severity",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "message_basis": {
+              "const": "gateway_template",
+              "title": "Message Basis",
+              "type": "string"
+            },
+            "exception_chain": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 4,
+              "title": "Exception Chain",
+              "type": "array"
+            }
+          },
+          "required": [
+            "record_ref",
+            "time",
+            "component",
+            "stage",
+            "event",
+            "severity",
+            "message",
+            "message_basis",
+            "exception_chain"
+          ],
+          "title": "LogRecord",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation-logs/1",
+          "default": "gateway-investigation-logs/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "association": {
+          "const": "authorized_request_id",
+          "default": "authorized_request_id",
+          "title": "Association",
+          "type": "string"
+        },
+        "log_read_status": {
+          "enum": [
+            "retained",
+            "not_observed",
+            "unavailable"
+          ],
+          "title": "Log Read Status",
+          "type": "string"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/LogRecord"
+          },
+          "maxItems": 50,
+          "title": "Records",
+          "type": "array"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}~[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Cursor"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "automatic_retry": {
+          "const": false,
+          "default": false,
+          "title": "Automatic Retry",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "log_read_status",
+        "records"
+      ],
+      "title": "LogPage",
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "$defs": {
+        "ErrorDetail": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Code",
+              "type": "string"
+            },
+            "automatic_retry": {
+              "const": false,
+              "default": false,
+              "title": "Automatic Retry",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "title": "ErrorDetail",
+          "type": "object"
+        },
+        "Phase": {
+          "additionalProperties": false,
+          "properties": {
+            "stage": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "unknown",
+                "ok",
+                "partial",
+                "unavailable",
+                "error",
+                "failed",
+                "cancelled"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed Ms"
+            }
+          },
+          "required": [
+            "stage",
+            "status"
+          ],
+          "title": "Phase",
+          "type": "object"
+        },
+        "Receipt": {
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "const": "gateway-investigation/1",
+              "default": "gateway-investigation/1",
+              "title": "Contract Version",
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "unknown",
+                "observed"
+              ],
+              "title": "State",
+              "type": "string"
+            },
+            "observed_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "ok",
+                    "partial",
+                    "unavailable",
+                    "error",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Observed Status"
+            },
+            "client_call_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Client Call Id",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Request Id"
+            },
+            "instance_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Instance Id",
+              "type": "string"
+            },
+            "gateway_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Gateway Version"
+            },
+            "tool": {
+              "title": "Tool",
+              "type": "string"
+            },
+            "tool_contract_revision": {
+              "title": "Tool Contract Revision",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Elapsed Ms"
+            },
+            "error_code": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Code"
+            },
+            "phases": {
+              "items": {
+                "$ref": "#/$defs/Phase"
+              },
+              "maxItems": 50,
+              "title": "Phases",
+              "type": "array"
+            },
+            "phase_read_status": {
+              "default": "not_requested",
+              "enum": [
+                "not_requested",
+                "retained",
+                "not_observed",
+                "unavailable"
+              ],
+              "title": "Phase Read Status",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "automatic_retry": {
+              "const": false,
+              "default": false,
+              "title": "Automatic Retry",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "state",
+            "observed_status",
+            "client_call_id",
+            "request_id",
+            "instance_id",
+            "gateway_version",
+            "tool",
+            "tool_contract_revision",
+            "elapsed_ms",
+            "error_code",
+            "phases"
+          ],
+          "title": "Receipt",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "default": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorDetail"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Receipt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "ErrorResponse",
+      "type": "object"
+    }
+  },
+  "limits": {
+    "max_page_size": 50,
+    "max_events_per_call": 2000,
+    "max_bytes_per_rotation_file": 4000000,
+    "max_rotation_files": 6
+  },
+  "export": {
+    "deployment_policy": "undeclared",
+    "allowed": [
+      "contract_version",
+      "association",
+      "log_read_status",
+      "truncated",
+      "automatic_retry"
+    ],
+    "onsite_only": [
+      "records",
+      "next_cursor"
+    ],
+    "unlisted": "undeclared",
+    "never_include": [
+      "binding_handle",
+      "credentials",
+      "arguments",
+      "sql_values",
+      "business_result"
+    ]
+  }
+}
