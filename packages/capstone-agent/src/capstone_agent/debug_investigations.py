@@ -120,6 +120,21 @@ class InvestigationRegister:
             raise ValueError('调查步骤的绑定、工具或参数已改变。')
         return row['client_call_id'], row['client_call_id'] == call_id
 
+    def get(self, workspace, thread_id, investigation_id):
+        self.service.require_workspace(thread_id, workspace)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''SELECT investigation_id,objective,observation FROM capstone_debug_investigations
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s''',
+                    (workspace,thread_id,investigation_id)).fetchone()
+        else:
+            with self._lock:
+                row = next((item for key,item in self._memory.items() if key[:2]==(workspace,thread_id)
+                            and item['investigation_id']==investigation_id),None)
+        if row is None:
+            raise KeyError('investigation_not_visible')
+        return dict(row)
+
     async def call_gateway(self, access, gateway, catalog, *, workspace, thread_id, investigation_id,
                            binding_handle, operation_key, tool, arguments, diagnostics):
         call_id, dispatch = await asyncio.to_thread(self.reserve_call, workspace, thread_id,

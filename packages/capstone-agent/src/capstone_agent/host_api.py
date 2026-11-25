@@ -871,10 +871,29 @@ def create_host_app(
                         if not debug_commands_enabled(os.environ):
                             raise HTTPException(403, '当前部署已关闭调试命令。')
                         try:
-                            parse_debug_command(supplied_text)
+                            debug = parse_debug_command(supplied_text)
                         except ValueError as error:
                             raise HTTPException(422, str(error)) from None
-                        raise HTTPException(501, '调查执行服务尚未接入。')
+                        if debug.operation != 'run':
+                            raise HTTPException(501, '此调查操作尚未接入。')
+                        if kind != 'send_message' or command.get('schema') != 'capstone-command/2':
+                            raise HTTPException(409, '请在会话空闲时发起调查。')
+                        identity = payload.get('debug_investigation_id')
+                        if not isinstance(identity,str) or not identity:
+                            raise HTTPException(422, '请先选择已登记的调查。')
+                        try:
+                            investigation = await run_in_threadpool(investigations.get,
+                                request.state.workspace_name,thread_id,identity)
+                        except KeyError:
+                            raise HTTPException(404, '本会话中找不到该调查。') from None
+                        observation = investigation.get('observation') or {}
+                        diagnostic_text = (f"研发调查 {identity}\n目标：{investigation['objective']}\n"
+                                           f"本轮指令：{debug.argument}\n请列出观测依据、尚未知的环节和本机复验所需材料。")
+                        if observation:
+                            diagnostic_text += (f"\n已绑定历史轮次 {observation['attempt_id']}。请读取该轮的公开执行记录，"
+                                                f"引用对应事件编号。登记时的事件上界为 {observation['through']}。")
+                        command = {**command, 'payload':{'text':diagnostic_text,
+                            **({'source_attempt_id':observation['attempt_id']} if observation else {})}}
                 if isinstance(kind, str) and kind in {
                     "start_case_execution", "retry_case_step", "resume_case_execution",
                 } and thread_service.is_archived(thread_id):

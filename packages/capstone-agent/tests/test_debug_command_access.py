@@ -43,12 +43,19 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
 def test_open_development_access_and_release_block(monkeypatch):
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
     monkeypatch.delenv('CAPSTONE_DEBUG_COMMANDS', raising=False)
-    service = _thread_service()
+    from dataclasses import replace
+    from capstone_agent.thread_service import InMemoryThreadService
+    from test_enterprise_normal_chat import native_executor
+    snapshot = _thread_service().snapshot('thr_harness')
+    service = InMemoryThreadService(replace(snapshot, active_model_context=None,
+                                    active_grid_page_id=None, minimum_protocol_version=2))
+    service.set_native_executor(native_executor())
     app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
                           allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
                           thread_open_access=True, thread_service=service)
     path = '/api/v1/threads/thr_harness'
     with TestClient(app, base_url='http://localhost') as client:
+        client.headers.update({"Capstone-Thread-Version": "2"})
         assert client.get(path + '/debug/status').json()['enabled'] is True
         headers = {'Idempotency-Key': 'test-start'}
         start_path = path + '/debug/investigations'
@@ -57,6 +64,16 @@ def test_open_development_access_and_release_block(monkeypatch):
         assert client.post(start_path, headers=headers, json={'objective':'检查失败调用'}).json() == first.json()
         assert client.get(path + '/debug/status').json()['investigation'] == first.json()
         assert client.post(start_path, headers=headers, json={'objective':'不同目标'}).status_code == 409
+        from test_thread_work_execution import command as work_command
+        run = work_command(service, 'thr_harness', 'send_message', 'debug_run',
+                           payload={'text': '/debug run 检查运行记录',
+                                    'debug_investigation_id': first.json()['investigation_id']})
+        version = {'Capstone-Thread-Version': '2'}
+        missing = {**run, 'payload': {**run['payload'], 'debug_investigation_id': 'inv_missing'}}
+        assert client.post(path + '/commands', headers=version, json=missing).status_code == 404
+        response = client.post(path + '/commands', headers=version, json=run)
+        assert response.status_code == 202, response.text
+        assert response.json()['status'] == 'accepted'
         monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'user-trial')
         assert client.post(start_path, headers=headers, json={'objective':'检查失败调用'}).status_code == 403
         assert client.get(path + '/debug/status').status_code == 403

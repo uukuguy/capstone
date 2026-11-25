@@ -587,6 +587,22 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         setNotice(status.objective?'最近登记的调查：'+status.objective+' '+status.finding:'当前会话尚未登记调查。')
         return
       }
+      if(/^\/debug\s+run(?:\s|$)/.test(text)){
+        if(!snapshot||concurrentSend)throw new Error('请在会话空闲时发起调查。')
+        if(pendingMessage?.kind==='send_message'&&pendingMessage.payload.text===text){
+          await dispatch(pendingMessage)
+          return
+        }
+        if(pending)throw new Error('请先结算待确认的会话指令。')
+        const status=await transport.debugStatus(currentId)
+        if(!status.investigationId)throw new Error('请先使用 /debug start 登记调查目标。')
+        const command=buildSendMessageCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,
+          selected,selectedWork?.revision||0,text)
+        command.payload={text,debug_investigation_id:status.investigationId}
+        await dispatch(command)
+        selectResourceView('debug')
+        return
+      }
       if(pendingGoalControl){
         await dispatch(pendingGoalControl)
         if(pendingGoalControl.kind==='start_goal'){
