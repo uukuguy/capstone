@@ -181,8 +181,25 @@ def test_argument_validation_reports_path_and_types_without_values(tmp_path):
     with pytest.raises(GatewayError, match='gateway_arguments_invalid') as error:
         asyncio.run(client.call('data_gateway_discover_data_capabilities',{'selection':{'nested':{'password':'secret-canary'}}},catalog))
     assert error.value.validation_errors[0] == {'path':'/selection/nested','rule':'type','expected':'string','actual_type':'object'}
+    assert not error.value.result_unknown
     assert 'secret-canary' not in json.dumps(error.value.validation_errors)
     assert session.calls == []
+
+
+def test_lost_business_response_remains_unknown_without_resending(tmp_path):
+    client, session = gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+
+    async def lose_response(name, arguments):
+        session.calls.append((name, arguments))
+        raise ConnectionResetError()
+
+    session.call_tool = lose_response
+    with pytest.raises(GatewayError) as error:
+        asyncio.run(client.call('data_gateway_discover_data_capabilities', {}, catalog))
+    assert error.value.result_unknown
+    assert error.value.request_id is None
+    assert session.calls == [('discover_data_capabilities', {})]
 
 
 def test_call_validates_and_preserves_partial_source(tmp_path):

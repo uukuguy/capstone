@@ -80,10 +80,11 @@ _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gatew
 
 class GatewayError(ValueError):
     """A public error code, without upstream exception text."""
-    def __init__(self, code, request_id=None, *, validation_errors=None):
+    def __init__(self, code, request_id=None, *, validation_errors=None, result_unknown=False):
         super().__init__(code)
         self.request_id = request_id if identity_text(request_id) else None
         self.validation_errors = validation_errors or []
+        self.result_unknown = result_unknown
 
 
 def argument_validation_details(error):
@@ -659,6 +660,7 @@ class DataGatewayMcp:
     async def call(self, name, arguments, catalog, *, diagnostics=None):
         from .gateway_diagnostics import checked_diagnostics
         context = checked_diagnostics(diagnostics)
+        awaiting_business_response = False
         try:
             if (self._accepted.get(catalog.get('revision')) != catalog or name not in catalog['tools']
                     or not isinstance(arguments, dict)):
@@ -695,9 +697,11 @@ class DataGatewayMcp:
                         if context is not None:
                             metadata['gateway/diagnostics'] = context
                         active: Any = getattr(connection, 'session', connection)
+                        awaiting_business_response = True
                         response = await active.send_request(types.ClientRequest(types.CallToolRequest(
                             params=types.CallToolRequestParams(name=schema['name'], arguments=arguments,
                                 _meta=types.RequestParams.Meta.model_validate(metadata)))), types.CallToolResult)
+                        awaiting_business_response = False
                         value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
                         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
                         if not value.get('isError') and 'outputSchema' in schema:
@@ -724,8 +728,10 @@ class DataGatewayMcp:
                     if current['tools'].get(name) != schema:
                         raise GatewayError('gateway_publication_changed')
                     active_session: Any = getattr(session, 'session', session)
+                    awaiting_business_response = True
                     response = await active_session.call_tool(schema['name'], arguments=arguments,
                         **({'meta': {'gateway/diagnostics': context}} if context is not None else {}))
+                    awaiting_business_response = False
                     value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
             require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
             if not value.get('isError') and 'outputSchema' in schema:
@@ -739,4 +745,5 @@ class DataGatewayMcp:
         except CapacityExceeded:
             raise
         except Exception as error:
-            raise GatewayError(public_failure(error, 'gateway_call_failed_no_retry')) from None
+            raise GatewayError(public_failure(error, 'gateway_call_failed_no_retry'),
+                               result_unknown=awaiting_business_response) from None
