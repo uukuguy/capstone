@@ -1,3 +1,5 @@
+2026-11-26 独立 Debug 调查已合入 dev。见[版本台账](VERSION-CONTROL.md)和[项目全景](PROJECT-OVERVIEW.html)。
+
 # docs/status INDEX
 
 2026-11-25 local-dev 已验证右栏 XLSX 预览和正式答复格式降级。见[版本台账](VERSION-CONTROL.md#环境台账)。
