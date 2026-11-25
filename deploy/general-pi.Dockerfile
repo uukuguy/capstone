@@ -84,6 +84,7 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py \
      packages/capstone-agent/src/capstone_agent/native_timing.py \
      packages/capstone-agent/src/capstone_agent/gateway_debug_source.py \
      packages/capstone-agent/src/capstone_agent/gateway_investigation.py \
+     packages/capstone-agent/src/capstone_agent/debug_sources.py \
      packages/capstone-agent/src/capstone_agent/debug_commands.py \
      packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py \
      packages/capstone-agent/src/capstone_agent/data_gateway_relay.py \
