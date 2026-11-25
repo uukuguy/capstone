@@ -1014,7 +1014,7 @@ def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], 
         LEFT JOIN capstone_thread_events r ON r.thread_id=e.thread_id AND r.attempt_id=e.attempt_id
           AND r.event_type='attempt_delivery_recovered' AND r.visibility='public' AND r.event_seq <= %s
         WHERE e.thread_id = %s AND e.event_seq <= %s AND e.visibility = 'public'
-        AND (a.submission_snapshot->>'_debug_investigation' IS NULL OR a.submission_snapshot->>'_debug_investigation' = %s)
+        AND (COALESCE(a.submission_snapshot->>'_debug_investigation', a.submission_snapshot->>'_debug_history') IS NULL OR COALESCE(a.submission_snapshot->>'_debug_investigation', a.submission_snapshot->>'_debug_history') = %s)
         AND (%s::text IS NULL OR a.task_context_snapshot->'binding'->>'work_id' = %s)
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
         ORDER BY e.event_seq DESC LIMIT %s""", (cutoff, thread_id, cutoff, investigation, work_id, work_id, limits.history_turn_count + 1)).fetchall()
@@ -3835,14 +3835,14 @@ class PostgresThreadService(NativeExecutionOwner):
                 previous_id = source_id
         excluded_source = False
         if previous_id and 'source_attempt_id' not in parsed['payload']:
-            owner = connection.execute("""SELECT submission_snapshot->>'_debug_investigation' AS owner
+            owner = connection.execute("""SELECT COALESCE(submission_snapshot->>'_debug_investigation',submission_snapshot->>'_debug_history') AS owner
                 FROM capstone_thread_attempts WHERE thread_id=%s AND attempt_id=%s""",
                 (snapshot.thread_id, previous_id)).fetchone()
             if owner and owner['owner'] is not None and owner['owner'] != investigation_admission.get():
                 excluded_source = True
                 prior = connection.execute("""SELECT attempt_id FROM capstone_thread_attempts WHERE thread_id=%s
                     AND task_context_snapshot->'binding'->>'work_id'=%s
-                    AND submission_snapshot->>'_debug_investigation' IS NULL
+                    AND COALESCE(submission_snapshot->>'_debug_investigation',submission_snapshot->>'_debug_history') IS NULL
                     ORDER BY created_at DESC,attempt_id DESC LIMIT 1""", (snapshot.thread_id, parsed['target']['id'])).fetchone()
                 previous_id = prior['attempt_id'] if prior else None
         if rejection is None and parsed['kind'] in {'start_work', 'send_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'} and work is not None and work['status'] == 'queued':

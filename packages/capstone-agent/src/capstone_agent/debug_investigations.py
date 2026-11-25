@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS capstone_debug_calls (
     PRIMARY KEY(investigation_id, operation_key)
 );
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS observation jsonb;
+UPDATE capstone_thread_attempts a
+SET submission_snapshot = COALESCE(a.submission_snapshot, '{}'::jsonb)
+    || jsonb_build_object('_debug_history', i.investigation_id)
+FROM capstone_debug_investigations i
+WHERE a.thread_id=i.thread_id AND a.instruction LIKE '研发调查 inv_%'
+  AND starts_with(a.instruction, '研发调查 ' || i.investigation_id || chr(10) || '目标：' || i.objective || chr(10) || '本轮指令：')
+  AND NOT (COALESCE(a.submission_snapshot, '{}'::jsonb) ?| ARRAY['_debug_investigation','_debug_history']);
 """
 
 
