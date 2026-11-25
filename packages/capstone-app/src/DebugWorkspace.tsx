@@ -1,9 +1,11 @@
+import './DebugWorkspace.css'
+import {Bug, Download, RefreshCw, ScanSearch} from 'lucide-react'
 import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import {firstDebugObservation} from './debugObservation'
 
-export default function DebugWorkspace({threadId,attempts,through,read,allowExport,readTimeline,savedFinding,sourceVersion,refreshSource}:{
-  threadId:string; attempts:string[]; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,savedFinding,sourceVersion,refreshSource}:{
+  threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
 }){
   const [selection,setSelection]=useState('')
@@ -48,18 +50,24 @@ export default function DebugWorkspace({threadId,attempts,through,read,allowExpo
     }catch(cause){setError(cause instanceof Error?cause.message:'调试记录下载失败。')}
     finally{setBusy(false)}
   }
-  const sourceControl=<div><button type="button" onClick={refreshSource}>重新核对网关源码</button><p role="status">{sourceVersion||'正在核对网关源码…'}</p></div>
-  if(!attempt)return <section aria-label="Debug">{sourceControl}<p>{savedFinding||'当前会话还没有执行记录。'}</p></section>
-  return <section aria-label="Debug">
-    {sourceControl}
-    {savedFinding&&<p>{savedFinding}</p>}
-    <label>执行轮次 <select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
-      {attempts.map(id=><option key={id}>{id}</option>)}
+  const digest=sourceVersion.match(/[0-9a-f]{64}/)?.[0]
+  const matched=sourceVersion.startsWith('当前网关源码 ')
+  return <section className="debug-workspace" aria-label="Debug">
+    <header><Bug size={18} aria-hidden="true"/><h3>会话调试</h3></header>
+    <p>在主会话输入 <code>/debug</code> 和问题，例如「/debug 刚才的请求为什么失败？」。这里可以查阅和下载执行记录。</p>
+    <section><h4>执行记录</h4>
+    {attempt?<><label>选择要检查的指令<select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
+      {attempts.map((id,index)=><option key={id} value={id}>{attemptLabel(id)??(index===0?'最近一次执行':'执行记录 · '+id.slice(-8))}</option>)}
     </select></label>
-    <button className="thread-control-button" disabled={busy} onClick={()=>void locate()}>定位首条异常</button>
+    <div className="debug-actions"><button type="button" disabled={busy} onClick={()=>void locate()}><ScanSearch size={15}/>查找首条异常</button>
+    {allowExport&&<button type="button" disabled={busy} onClick={()=>void download()}><Download size={15}/>下载时间线</button>}</div>
     {observation?.attempt===attempt&&<p role="status">{observation.text}</p>}
-    {allowExport&&<button className="thread-control-button" disabled={busy} onClick={()=>void download()}>下载事件时间线</button>}
-    {error&&<p role="alert">{error}</p>}
     <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
+    </>:<p>这段会话还没有执行记录。</p>}
+    {savedFinding&&<p>{savedFinding}</p>}
+    {error&&<p role="alert">{error}</p>}</section>
+    <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
+    <button type="button" onClick={refreshSource}><RefreshCw size={14}/>重新核对</button></div>
+    {digest&&<details><summary>查看版本摘要</summary><code>{digest}</code></details>}</section>
   </section>
 }

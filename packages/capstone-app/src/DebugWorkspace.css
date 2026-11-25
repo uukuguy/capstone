@@ -1,0 +1,17 @@
+.debug-workspace { box-sizing:border-box; padding:18px 20px; max-width:100%; min-width:0; color:#274436; font:inherit; font-size:14px; line-height:1.55; }
+.debug-workspace header,.debug-workspace button,.debug-source-status,.debug-actions { display:flex; align-items:center; gap:8px; }
+.debug-workspace h3,.debug-workspace h4,.debug-workspace p { margin:0; }
+.debug-workspace h3 { font-size:17px; }
+.debug-workspace h4 { font-size:14px; margin-bottom:10px; }
+.debug-workspace p { margin:8px 0; color:#56695f; }
+.debug-workspace section { padding:16px 0; border-top:1px solid #dce4de; margin-top:12px; }
+.debug-workspace label { display:grid; gap:5px; color:#53685b; }
+.debug-workspace select,.debug-workspace button { font:inherit; color:inherit; border:1px solid #c5d3ca; border-radius:6px; background:white; padding:5px 9px; }
+.debug-workspace select { width:100%; min-width:0; }
+.debug-workspace button { cursor:pointer; font-size:13px; }
+.debug-workspace button:hover { background:#edf4ef; }
+.debug-workspace button:disabled { opacity:.55; }
+.debug-actions,.debug-source-status { flex-wrap:wrap; margin:10px 0; }
+.debug-workspace details { margin-top:10px; }
+.debug-workspace summary { cursor:pointer; }
+.debug-workspace code { overflow-wrap:anywhere; font-size:.92em; }

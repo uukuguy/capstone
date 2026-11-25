@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode,type RefObject } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode,type RefObject } from 'react'
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { Sparkles, CircleCheck, CircleAlert } from 'lucide-react'
 import { parseInputCommand, skillCompatible, inputDraftError, type InputCatalog, type InputDraft, type SkillChoice, type SkillRole } from './threadInput'
@@ -8,6 +8,8 @@ import {missionObjectiveFromInput} from './missions'
 import {goalObjectiveFromInput} from './goalMode'
 import {isHandoffInstruction,isTakeoverInstruction} from './threadWorkProtocol'
 
+export const DebugCommandAvailable=createContext(false)
+const debugCommand={text:"/debug",label:"让 Pi 排查当前会话的问题"}
 const commands = [{ text: '/skills', label: '查看已安装技能' }, { text: '/context', label: '查看与选择上下文' }, {text:'/goal',label:'设置持续目标与执行预算'},{text:'/mission',label:'用初步意图创建 Mission'}]
 const skillLabels: Record<string, {name: string; description: string}> = {
   'capstone-brainstorming': {name: '问题梳理', description: '澄清分析目标、范围与可行路径。'},
@@ -32,8 +34,9 @@ export default function ThreadCommandMenu({ children, catalog, loading, passthro
   const [panelHeight, setPanelHeight] = useState<number>()
   const root = useRef<HTMLDivElement>(null)
   const composing = useRef(false)
+  const availableCommands=useContext(DebugCommandAvailable)?[...commands,debugCommand]:commands
   const candidates = !disabled && text.startsWith('/') && /^\/[a-z]*$/.test(text) && text !== dismissed && !panel
-    ? commands.filter(item => item.text.startsWith(text)) : []
+    ? availableCommands.filter(item => item.text.startsWith(text)) : []
   const allSkills = Object.entries(catalog?.resource_profiles || {}).flatMap(([role, profile]) => profile!.resources
     .filter(resource => resource.kind === 'skill' && skillCompatible({ role } as SkillChoice, draft.mode))
     .map(resource => ({ ...resource, role: role as SkillRole, revision: profile!.revision })))
@@ -116,13 +119,13 @@ export default function ThreadCommandMenu({ children, catalog, loading, passthro
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') setIndex((index + (event.key === 'ArrowDown' ? 1 : -1) + candidates.length) % candidates.length)
         else {
           const command = candidates[index % candidates.length].text
-          if(command==='/goal'||command==='/mission'){aui.composer.setText(command+' ');setDismissed(command)}else{aui.composer.setText('');open(command === '/skills' ? 'skills' : 'context')}
+          if(command==='/debug'||command==='/goal'||command==='/mission'){aui.composer.setText(command+' ');setDismissed(command)}else{aui.composer.setText('');open(command === '/skills' ? 'skills' : 'context')}
         }
       } else if (event.key === 'Enter' && !event.shiftKey && consumeCommand()) { event.preventDefault(); event.stopPropagation() }
     }}>
     {typeof children !== 'function' && inputTools}
     {draftError && <p className="thread-input-warning" role="alert">{draftError}</p>}
-    {candidates.length > 0 && <div role="listbox" aria-label="输入命令" className="thread-settings-popover thread-input-panel">{candidates.map((item, i) => <button type="button" role="option" aria-selected={i === index % candidates.length} key={item.text} onClick={() => { if(item.text==='/goal'||item.text==='/mission'){aui.composer.setText(item.text+' ');setDismissed(item.text);return} aui.composer.setText(''); open(item.text === '/skills' ? 'skills' : 'context') }}>{item.text}<span>{item.label}</span></button>)}</div>}
+    {candidates.length > 0 && <div role="listbox" aria-label="输入命令" className="thread-settings-popover thread-input-panel">{candidates.map((item, i) => <button type="button" role="option" aria-selected={i === index % candidates.length} key={item.text} onClick={() => { if(item.text==='/debug'||item.text==='/goal'||item.text==='/mission'){aui.composer.setText(item.text+' ');setDismissed(item.text);return} aui.composer.setText(''); open(item.text === '/skills' ? 'skills' : 'context') }}>{item.text}<span>{item.label}</span></button>)}</div>}
     {panel === 'skills' && <section role="dialog" aria-label="已安装技能" className="thread-settings-popover thread-input-panel">
       <div className="thread-input-heading"><strong>已安装技能</strong><button type="button" onClick={close}>关闭</button></div>
       <p>无需选择，应用会根据当前问题和上下文按需使用就绪技能。</p>

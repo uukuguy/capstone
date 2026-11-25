@@ -1,4 +1,5 @@
 import TaskContextPanel from './TaskContextPanel'
+import {DebugCommandAvailable} from './ThreadCommandMenu'
 import DebugWorkspace from './DebugWorkspace'
 import InstructionContextPanel, {contextIndicator} from './InstructionContextPanel'
 import {contextToolExcerpt,projectInstructionContexts} from './instructionContext'
@@ -1063,7 +1064,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
   if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
     content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
-      refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
+      attemptLabel={id=>{
+        const entry=sessionEvents.find(e=>e.attemptId===id&&e.eventType==='command_accepted')
+        const value=(entry?.payload.payload as {text?:string}|undefined)?.text??entry?.payload.text
+        if(typeof value!=='string')return undefined
+        return (value.match(/\n本轮指令：([^\n]+)/)?.[1]??value).slice(0,64)
+      }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId
@@ -1102,7 +1108,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {id:'instruction-context',label:'请求上下文',content:contextPanel,description:'查看选中模型请求的实际输入。'},
     {id:'task-context',label:'任务上下文',content:taskContextPanel,description:'按指令查看已保存的任务状态与变化。'},
   ]:[]
-  return <ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
+  return <DebugCommandAvailable.Provider value={debugThread===currentId}><ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
       {viewingLegacy&&<button type="button" disabled={busy||!!pending} onClick={()=>selectWork(snapshot?.works.find(work=>work.conversationMode||work.goalMode)?.workId||'new')}>返回当前对话</button>}
@@ -1240,5 +1246,5 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       resultProjections={professional?.resultProjections}
       caseExecution={professional?.applicationState?.caseExecution}
       onReadAttemptRecords={client.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(currentId, attemptId, after) : undefined} />}
-  </ThreadWorkspace>
+  </ThreadWorkspace></DebugCommandAvailable.Provider>
 }
