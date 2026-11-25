@@ -157,6 +157,10 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
             imported = Path(json.loads(replay.stdout)['import_directory'])
             assert json.loads((imported / 'gateway-events.jsonl').read_text()) == {'state': 'unknown'}
             assert (imported / 'capstone-events.jsonl').stat().st_size > 0
+            metadata = json.loads((imported / 'correlation.json').read_text())
+            assert metadata['attempt_id'] == claim.attempt.attempt_id
+            assert metadata['request_correlation'] == {'status': 'unverified', 'links': []}
+            assert '首条公开异常' in (imported / 'diagnosis.md').read_text()
             snapshot = response.json()['snapshot_id']
             receipt = {**receipt, 'state': 'observed', 'observed_status': 'ok'}
             candidate = tmp_path / 'candidate.json'

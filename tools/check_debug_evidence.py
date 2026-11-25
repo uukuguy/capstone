@@ -4,6 +4,7 @@ from hashlib import sha256
 from hmac import compare_digest
 import json
 from pathlib import Path
+import re
 import tempfile
 
 
@@ -90,12 +91,41 @@ def import_evidence(document, parent):
 
     capstone = document['capstone']
     gateway = document['data_gateway']
+    observation = document.get('observation') or {}
+    diagnosis = document.get('diagnosis') or {}
+    failure = observation.get('first_failure')
     write('evidence.json', encode(document))
     write('capstone-events.jsonl', b''.join(encode(row) for row in capstone['events']))
     write('gateway-events.jsonl', b''.join(encode(row) for row in gateway['events']))
     prior = document.get('previous_gateway_evidence')
     if prior is not None:
         write('previous-gateway-events.jsonl', b''.join(encode(row) for row in prior['events']))
+    correlation = {'schema': 'capstone-debug-offline-correlation/1',
+                   'investigation_id': document['investigation_id'],
+                   'attempt_id': observation.get('attempt_id'),
+                   'through': observation.get('through'),
+                   'gateway_investigation_id': diagnosis.get('gateway_investigation_id'),
+                   'gateway_export_status': gateway.get('status'),
+                   'request_correlation': {'status': 'unverified', 'links': []}}
+    write('correlation.json', encode(correlation))
+
+    def identifier(value):
+        return value if isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', value) else '未记录'
+
+    lines = ['# Debug 证据摘要', '',
+             f"- 调查 ID：`{identifier(document['investigation_id'])}`",
+             f"- Capstone 事件数：{summary['capstone_events']}",
+             f"- 网关导出状态：`{identifier(summary['gateway_status'])}`",
+             f"- 网关获准回执数：{summary['gateway_receipts']}",
+             '- 跨侧请求关联：待核验。导出范围为时间线及获准回执字段。']
+    if failure:
+        lines.append(f"- 首条公开异常：事件 #{failure['seq']}（`{identifier(failure['type'])}`）。")
+    elif observation:
+        lines.append('- 在调查范围内未记录公开异常。')
+    if summary['capstone_truncated'] or gateway.get('truncated') is True:
+        lines.append('- 证据已裁剪。完整覆盖需在现场核对。')
+    lines += ['', '复验时比较首条异常与获准网关回执状态。结合证据范围判断差异。']
+    write('diagnosis.md', ('\n'.join(lines) + '\n').encode('utf-8'))
     manifest = {'schema': 'capstone-debug-offline-import/1',
                 'evidence_sha256': document['integrity']['digest'],
                 'snapshot_id': document.get('snapshot_id'),
