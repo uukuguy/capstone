@@ -82,8 +82,11 @@ def test_missing_extension_and_untrusted_path_make_no_request():
 
 @pytest.mark.parametrize('policy', ['undeclared', 'allow_sanitized'])
 def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy):
-    scope = {key: EXCHANGE['read_after_response_loss'][key]
-             for key in ('workspace_id', 'investigation_id', 'binding_handle')}
+    from types import SimpleNamespace
+    from capstone_agent.gateway_investigation import investigation_workspace_id, read_bound_observation
+
+    owner = {'workspace_id': investigation_workspace_id('local'), 'investigation_id': 'inv_one'}
+    scope = {**owner, 'binding_handle': EXCHANGE['binding']['binding_handle']}
     paths = []
 
     def respond(request):
@@ -92,22 +95,28 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy):
             return httpx.Response(200, json={**CONTRACT, 'export': {
                 'deployment_policy': policy, 'allowed': ['state', 'client_call_id', 'request_id'],
             }})
+        if request.url.path == BASE + 'bind':
+            assert json.loads(request.content) == {**owner, 'instance_id': 'fixture', 'idempotency_key': 'inv_one'}
+            return httpx.Response(200, json=EXCHANGE['binding'])
         assert request.url.path == BASE + 'list'
         assert json.loads(request.content) == {**scope, 'limit': 32}
         return httpx.Response(200, json={'receipts': [EXCHANGE['unknown']], 'next_cursor': None})
 
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
-            access = await GatewayInvestigation.discover(client, 'https://fixture.test/mcp', DECLARATION)
-            return await access.export_receipts(scope)
+            session = SimpleNamespace(instance_identity={'instance_id': 'fixture'}, http_client=client,
+                                      investigation=DECLARATION, investigation_logs=None)
+            return await read_bound_observation(session, 'https://fixture.test/mcp', instance_id='fixture',
+                                                workspace='local', investigation_id='inv_one',
+                                                operation='export', query={})
 
     exported = asyncio.run(run())
     if policy == 'allow_sanitized':
         assert exported == {'status': 'available', 'truncated': False, 'events': [{'state': 'unknown'}]}
-        assert paths == [BASE + 'contract', BASE + 'list']
+        assert paths == [BASE + 'contract', BASE + 'bind', BASE + 'list']
     else:
         assert exported == {'status': 'export_not_authorized', 'events': []}
-        assert paths == [BASE + 'contract']
+        assert paths == [BASE + 'contract', BASE + 'bind']
 
 
 @pytest.mark.parametrize('lost', [True, False])
