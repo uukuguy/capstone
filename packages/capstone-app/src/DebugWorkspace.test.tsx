@@ -1,6 +1,8 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react'
-import {expect, it, vi} from 'vitest'
+import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {afterEach, expect, it, vi} from 'vitest'
 import DebugWorkspace from './DebugWorkspace'
+
+afterEach(cleanup)
 
 it('approves and revokes reviewed materials for the selected investigation snapshot', async () => {
   const snapshot = 'a'.repeat(64)
@@ -29,4 +31,27 @@ it('approves and revokes reviewed materials for the selected investigation snaps
   })
   fireEvent.click(screen.getByRole('button',{name:'撤回核准'}))
   await waitFor(() => expect(reviewExport).toHaveBeenLastCalledWith('inv_debug', snapshot, null))
+})
+
+it('shows a saved finding on site with export disabled', async () => {
+  const readSnapshotFinding = vi.fn().mockResolvedValue({summary:'已定位首条失败', next_step:'核对源码'})
+  render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
+    through={0} read={vi.fn()} readTimeline={vi.fn()} refreshSource={vi.fn()}
+    allowExport={false} savedFinding="" sourceVersion=""
+    readHistory={async () => [{investigation_id:'inv_debug', objective:'检查失败', status:'running'}]}
+    readDiagnosis={async () => ({status:'running'})}
+    readSnapshots={async () => [{snapshot_id:'snapshot-1', status:'running'}]}
+    readSnapshotFinding={readSnapshotFinding} readEvidence={vi.fn()}/>)
+
+  fireEvent.click(screen.getByRole('button',{name:'查看调查历史'}))
+  await screen.findByRole('option',{name:'检查失败'})
+  fireEvent.change(screen.getByRole('combobox',{name:'调查'}), {target:{value:'inv_debug'}})
+  fireEvent.click(await screen.findByRole('button',{name:'查看已保存快照'}))
+  fireEvent.change(await screen.findByRole('combobox',{name:'证据快照'}), {target:{value:'snapshot-1'}})
+  fireEvent.click(screen.getByRole('button',{name:'查看阶段结论'}))
+
+  await screen.findByText('已定位首条失败')
+  expect(screen.getByText('下一步 · 核对源码')).toBeTruthy()
+  expect(readSnapshotFinding).toHaveBeenCalledWith('inv_debug','snapshot-1')
+  expect(screen.queryByRole('button',{name:'下载调查记录'})).toBeNull()
 })

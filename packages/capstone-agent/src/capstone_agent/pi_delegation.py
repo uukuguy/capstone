@@ -675,7 +675,8 @@ class HttpGeneralPiExecutor:
                             known.update({'investigation_credentials_unavailable', 'investigation_access_denied',
                                           'investigation_contract_unavailable', 'investigation_request_invalid',
                                           'investigation_response_invalid', 'gateway_bound_instance_unavailable',
-                                          'gateway_instance_changed', 'binding_expired'})
+                                          'gateway_instance_changed', 'binding_expired',
+                                          'investigation_logs_unavailable', 'investigation_contract_invalid'})
                         raise PiHTTPFailure(response.status_code, error if isinstance(error, str) and error in known else 'unrecognized_response')
                     response.raise_for_status()
             checkpoint()

@@ -222,7 +222,7 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert failed['failure_code'] == 'diagnosis_executor_rejected'
 
 
-def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
+def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch):
     from types import SimpleNamespace
     from capstone_agent.debug_investigations import InvestigationRegister
     from test_attempt_failure_delivery import claim_attempt
@@ -242,6 +242,17 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
     investigation = register.start(claim.workspace_name, claim.thread_id, 'late-error', 'Find failure',
                                    claim.attempt.attempt_id)
     failure_seq = investigation['observation']['first_failure']['seq']
+    gateway_binding = {'connection_id': 'fixture', 'instance_id': 'fixture', 'source_sha256': 'b' * 64}
+    monkeypatch.setattr(register, 'historical_gateway', lambda *_: gateway_binding)
+    from capstone_agent import debug_sources
+    monkeypatch.setattr(debug_sources, 'read_debug_source', lambda *_: {
+        'revision': 'a' * 40, 'path': 'src/fixture.py', 'first_line': 4, 'lines': ['pass']})
+
+    def gateway_reader(binding, workspace, owner, operation, query):
+        assert (binding, workspace, owner) == (gateway_binding, claim.workspace_name, investigation['investigation_id'])
+        if operation == 'read':
+            return {'client_call_id': 'call_admitted', 'state': 'observed'}
+        return {'receipts': []}
 
     def execute(request, control, on_event):
         assert 'selected source remained ambiguous' in request.instruction
@@ -253,6 +264,38 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
                    for page in native['selected_task_records'] for event in page['events'])
         assert not any(event['event_seq'] == failure_seq
                        for page in native['selected_task_records'] for event in page['events'])
+        earlier = control.mission_operation('agent_debug_observe',
+            {'operation': 'capstone_records', 'query': {'after': failure_seq - 6}}, 'earlier')
+        additional_seq = earlier['events'][0]['event_seq']
+        assert additional_seq < failure_seq
+        running = register.get(claim.workspace_name, claim.thread_id, investigation['investigation_id'])['diagnosis']
+        assert additional_seq in running['evidence_event_seqs']
+        finding = {'finding_state': 'narrowed', 'summary': '私有结论', 'next_step': '读取下一条回执'}
+        def publish(refs):
+            return control.mission_operation('agent_debug_observe',
+                {'operation': 'publish_finding', 'query': {**finding, 'event_refs': refs}}, 'finding')
+        assert publish([1_000_000]) == {'code': 'finding_evidence_invalid'}
+        checkpoint = publish([additional_seq])
+        saved = register.read_export_snapshot(claim.workspace_name, claim.thread_id,
+                                              investigation['investigation_id'], checkpoint['snapshot_id'])
+        assert saved['diagnosis']['status'] == 'running'
+        assert saved['diagnosis']['finding_event_seqs'] == [additional_seq]
+        assert '私有结论' not in str(saved)
+        assert register.read_snapshot_finding(claim.workspace_name, claim.thread_id,
+            investigation['investigation_id'], checkpoint['snapshot_id'])['summary'] == '私有结论'
+        references = {'gateway_refs': ['call_admitted'], 'source_refs': [
+            {'repository': 'capstone', 'revision': 'a' * 40, 'path': 'src/fixture.py', 'line': 4}]}
+        def publish_references():
+            return control.mission_operation('agent_debug_observe', {'operation': 'publish_finding',
+                'query': {**finding, **references, 'event_refs': []}}, 'finding-refs')
+        assert publish_references() == {'code': 'finding_evidence_invalid'}
+        control.mission_operation('agent_debug_observe', {'operation': 'read',
+            'query': {'client_call_id': 'call_admitted'}}, 'gateway-read')
+        control.mission_operation('agent_debug_observe', {'operation': 'source_lines',
+            'query': {'repository': 'capstone', 'path': 'src/fixture.py', 'line': 4}}, 'source-read')
+        assert 'snapshot_id' in publish_references()
+        references['source_refs'][0]['line'] = 5
+        assert publish_references() == {'code': 'finding_evidence_invalid'}
         page = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'after': failure_seq - 1}}, 'fixture')
         assert page['events'][0]['event_seq'] == failure_seq
@@ -277,9 +320,15 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
 
     executor = SimpleNamespace(identity={'service_id': 'pi-local', 'instance_id': 'pi-test', 'revision': 'test'},
                                capability={'resource_profiles': {'direct_pi': {'revision': 'debug-profile'}}},
+                               debug_observation=gateway_reader,
                                execute=execute)
     diagnosis = register.diagnose(claim.workspace_name, claim.thread_id, investigation['investigation_id'], executor)
     assert failure_seq in diagnosis['evidence_event_seqs']
+    evidence = register.read_export_snapshot(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
+        register.recent_export_snapshots(claim.workspace_name, claim.thread_id, investigation['investigation_id'])[0]['snapshot_id'])
+    assert failure_seq - 5 in evidence['diagnosis']['evidence_event_seqs']
+    assert register.read_snapshot_finding(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
+                                          evidence['snapshot_id']) == diagnosis['finding']
 
 
 def test_debug_probe_retry_reads_the_original_call(monkeypatch):
@@ -356,6 +405,7 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
         assert 'Input check failed' not in exported.text
         monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0')
         assert client.get(evidence).status_code == 403
+        assert client.get(records.removesuffix('/records') + '/snapshots').status_code == 200
         monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
         scoped = client.get(records)
         assert scoped.status_code == 200

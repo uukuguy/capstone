@@ -8,11 +8,12 @@ import {firstDebugObservation} from './debugObservation'
 type SourceRepository = 'capstone' | 'data-gateway'
 type ReviewedExport = {diagnosis_markdown: string; reproduction: Record<string, unknown>}
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readSnapshots,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
+  readSnapshotFinding?: (id: string, snapshotId: string) => Promise<{summary: string; next_step: string} | null>
   reviewExport?: (id: string, snapshotId: string, review: ReviewedExport | null) => Promise<void>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
@@ -27,6 +28,18 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
   const [snapshots, setSnapshots] = useState<{id: string; rows: Awaited<ReturnType<NonNullable<typeof readSnapshots>>>}>()
   const [snapshotId, setSnapshotId] = useState('')
+  const [snapshotFinding, setSnapshotFinding] = useState<{id: string; snapshot: string; summary: string; nextStep?: string}>()
+  async function loadSnapshotFinding(id: string, snapshot: string) {
+    if (!readSnapshotFinding || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const finding = await readSnapshotFinding(id, snapshot)
+      setSnapshotFinding({id, snapshot, summary: finding?.summary ?? '此快照没有保存阶段结论。', nextStep: finding?.next_step})
+    } catch {
+      setError('暂时无法读取阶段结论。')
+    } finally { setBusy(false) }
+  }
   const [sourcePage, setSourcePage] = useState<{id: string; repository: SourceRepository; revision: string; files: string[]; next: number | null}>()
   const [excerpt, setExcerpt] = useState<{id: string; repository: SourceRepository; path: string; lines: string[]; first: number}>()
   const [probeTool, setProbeTool] = useState('')
@@ -197,9 +210,9 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       {excerpt.lines.length===40&&<button type="button" disabled={busy}
         onClick={()=>void browseSource(excerpt.id,excerpt.repository,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
     </>}
-    {allowExport&&diagnosis&&readSnapshots&&<button type="button" disabled={busy}
+    {diagnosis&&readSnapshots&&<button type="button" disabled={busy}
       onClick={()=>void loadSnapshots(diagnosis.id)}>查看已保存快照</button>}
-    {allowExport&&snapshots?.id===diagnosis?.id&&snapshots&&<label>证据快照
+    {snapshots?.id===diagnosis?.id&&snapshots&&<label>证据快照
       <select disabled={busy} value={snapshotId} onChange={event=>setSnapshotId(event.target.value)}>
         <option value="">当前调查状态</option>
         {snapshots.rows.map(item=><option key={item.snapshot_id} value={item.snapshot_id}>
@@ -207,6 +220,10 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
             unknown:'结果未知'} as Record<string,string>)[item.status ?? ''] ?? '已保存'} · {item.snapshot_id.slice(0,8)}
         </option>)}
       </select></label>}
+    {diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&readSnapshotFinding&&
+      <button type="button" disabled={busy} onClick={()=>void loadSnapshotFinding(diagnosis.id,snapshotId)}>查看阶段结论</button>}
+    {snapshotFinding&&snapshots?.id===diagnosis?.id&&snapshotFinding.id===diagnosis?.id&&snapshotFinding.snapshot===snapshotId&&
+      <div><p>{snapshotFinding.summary}</p>{snapshotFinding.nextStep&&<p>下一步 · {snapshotFinding.nextStep}</p>}</div>}
     {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
       <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
     {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}

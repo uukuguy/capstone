@@ -1,4 +1,5 @@
 """Thread-scoped investigation register. Gateway credentials stay outside public records."""
+from copy import deepcopy
 from threading import RLock
 from uuid import uuid4
 from hashlib import sha256
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS capstone_debug_snapshots (
 );
 ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS reviewed_export jsonb;
+ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS private_finding jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS observation jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS diagnosis jsonb;
 UPDATE capstone_thread_attempts a
@@ -58,6 +60,7 @@ class InvestigationRegister:
         self._calls = {}
         self._snapshots = {}
         self._reviewed_exports = {}
+        self._snapshot_findings = {}
         self._lock = RLock()
 
     def _observe(self, thread_id, attempt_id, *, through=None):
@@ -238,7 +241,9 @@ class InvestigationRegister:
         diagnosis = investigation.get('diagnosis') or {}
         document = {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
                 'investigation_id': investigation_id, 'observation': observation,
-                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'failure_code', 'evidence_event_seqs', 'progress',
+                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'failure_code', 'evidence_event_seqs',
+                                                             'evidence_event_seqs_truncated', 'progress',
+                                                             'finding_state', 'finding_event_seqs', 'finding_digest',
                                                              'progress_truncated', 'source_evidence',
                                                              'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
@@ -252,18 +257,23 @@ class InvestigationRegister:
         return {**document, 'snapshot_id': evidence_digest(document),
                 'data_gateway': {'status': 'export_unavailable', 'events': []}}
 
-    def save_export_snapshot(self, workspace, thread_id, investigation_id):
+    def save_export_snapshot(self, workspace, thread_id, investigation_id, *, private_finding=None):
         document = self.export_timeline(workspace, thread_id, investigation_id)
         snapshot_id = document['snapshot_id']
+        if private_finding is not None and document['diagnosis'].get('finding_digest') != evidence_digest(private_finding):
+            private_finding = None
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
                 connection.execute('''INSERT INTO capstone_debug_snapshots
-                    (investigation_id, snapshot_id, document) VALUES (%s,%s,%s)
+                    (investigation_id, snapshot_id, document, private_finding) VALUES (%s,%s,%s,%s)
                     ON CONFLICT (investigation_id, snapshot_id) DO NOTHING''',
-                    (investigation_id, snapshot_id, Jsonb(document)))
+                    (investigation_id, snapshot_id, Jsonb(document),
+                     Jsonb(private_finding) if private_finding is not None else None))
         else:
             with self._lock:
                 self._snapshots.setdefault((investigation_id, snapshot_id), json.dumps(document))
+                if private_finding is not None:
+                    self._snapshot_findings.setdefault((investigation_id, snapshot_id), json.dumps(private_finding))
         return document
 
     def read_export_snapshot(self, workspace, thread_id, investigation_id, snapshot_id):
@@ -288,6 +298,16 @@ class InvestigationRegister:
         with self._lock:
             return [{'snapshot_id': identity, 'status': json.loads(document)['diagnosis'].get('status')}
                     for (owner, identity), document in reversed(self._snapshots.items()) if owner == investigation_id][:32]
+
+    def read_snapshot_finding(self, workspace, thread_id, investigation_id, snapshot_id):
+        self.read_export_snapshot(workspace, thread_id, investigation_id, snapshot_id)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''SELECT private_finding FROM capstone_debug_snapshots
+                    WHERE investigation_id=%s AND snapshot_id=%s''', (investigation_id, snapshot_id)).fetchone()
+            return row['private_finding'] if row else None
+        with self._lock:
+            return json.loads(self._snapshot_findings.get((investigation_id, snapshot_id), 'null'))
 
     def set_reviewed_export(self, workspace, thread_id, investigation_id, snapshot_id, review):
         self.read_export_snapshot(workspace, thread_id, investigation_id, snapshot_id)
@@ -375,6 +395,19 @@ class InvestigationRegister:
         gateway['investigation_id'] = evidence_owner
         sources = self.historical_sources(workspace, thread_id, investigation_id)
         excerpts = self._diagnosis_source_excerpts(workspace, thread_id, investigation_id, observation, events, sources)
+        supplied_gateway_refs = {receipt['client_call_id'] for receipt in gateway.get('receipts', ())
+                                 if receipt.get('client_call_id')}
+        supplied_source_refs = set()
+
+        def admit_source_excerpt(repository, excerpt):
+            if not excerpt.get('lines'):
+                return
+            supplied_source_refs.update(
+                (repository, excerpt['revision'], excerpt['path'], line)
+                for line in range(excerpt['first_line'], excerpt['first_line'] + len(excerpt['lines'])))
+
+        for excerpt in excerpts:
+            admit_source_excerpt(excerpt['repository'], excerpt)
         task_id = queued['task_id']
         timeout = 45.0
         instruction = (
@@ -425,6 +458,36 @@ class InvestigationRegister:
                 query = arguments.get('query', {})
                 if name != 'agent_debug_observe':
                     return {'code': 'investigation_request_invalid'}
+                if arguments.get('operation') == 'publish_finding':
+                    return publish_finding(query)
+                operation = arguments.get('operation')
+                if operation in {'source_files', 'source_lines'}:
+                    from zipfile import BadZipFile
+                    from .debug_sources import read_debug_source
+
+                    try:
+                        result = read_debug_source(debug_scope, operation, query)
+                    except (KeyError, TypeError, ValueError):
+                        return {'code': 'investigation_request_invalid'}
+                    except (OSError, BadZipFile):
+                        return {'code': 'historical_source_unavailable'}
+                    if operation == 'source_lines':
+                        admit_source_excerpt(query['repository'], result)
+                    return result
+                if operation in {'list', 'read', 'logs'}:
+                    read = getattr(executor, 'debug_observation', None)
+                    if not historical_gateway or not callable(read):
+                        return {'code': 'gateway_bound_instance_unavailable'}
+                    try:
+                        result = read(historical_gateway, workspace, evidence_owner, operation, query)
+                    except PiHTTPFailure as error:
+                        return {'code': error.diagnostic['protocol_code']}
+                    except (OSError, RuntimeError, ValueError):
+                        return {'code': 'investigation_read_unavailable'}
+                    receipts = result.get('receipts', ()) if operation == 'list' else (result,) if operation == 'read' else ()
+                    supplied_gateway_refs.update(receipt['client_call_id'] for receipt in receipts
+                                                 if isinstance(receipt.get('client_call_id'), str))
+                    return result
                 if arguments.get('operation') == 'capstone_excerpt':
                     seq, field, offset = query.get('event_seq'), query.get('field'), query.get('offset', 0)
                     if (query.keys() - {'event_seq', 'field', 'offset'} or type(seq) is not int or not 1 <= seq <= through
@@ -440,6 +503,7 @@ class InvestigationRegister:
                     end = min(offset + 1000, len(text))
                     if offset > end:
                         return {'code': 'investigation_request_invalid'}
+                    record_supplied_evidence([seq])
                     return {'attempt_id': observation['attempt_id'], 'event_seq': seq, 'field': field,
                             'scope': 'stored_excerpt', 'offset': offset, 'text': text[offset:end],
                             'next_offset': end if end < len(text) else None}
@@ -447,7 +511,9 @@ class InvestigationRegister:
                 if (arguments.get('operation') != 'capstone_records'
                         or query.keys() - {'after'} or type(after) is not int or not 0 <= after <= through):
                     return {'code': 'investigation_request_invalid'}
-                return read_page(after, 1000)
+                page = read_page(after, 1000)
+                record_supplied_evidence([event['event_seq'] for event in page['events']])
+                return page
 
             pages = []
             cursor = 0
@@ -470,6 +536,9 @@ class InvestigationRegister:
                             '需要更早或更晚的事件时，用 agent_debug_observe 的 capstone_records，传 after 或从 0 开始。'
                             '已知异常事件编号时，可以从该编号减一开始。'
                             '摘要字段被裁剪时，用 capstone_excerpt 按事件编号、字段和偏移续读已保存摘要。'
+                            '确认关键事实或遇到证据缺口时，用 publish_finding 保存阶段结论。'
+                            '提供 finding_state、event_refs、summary 和 next_step。'
+                            'gateway_refs 仅传实际获得的 client_call_id，source_refs 仅传已读的 repository、revision、path 和 line。'
                             'payload_projection=bounded_summary 表示只返回获准的摘要字段，字段缺失不能作为原始记录为空的证据。'
                             '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
             task_fields = {
@@ -498,6 +567,53 @@ class InvestigationRegister:
                                          | {'line_count': len(excerpt['lines'])} for excerpt in excerpts]}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
+
+        def record_supplied_evidence(seqs):
+            nonlocal diagnosis
+            known = diagnosis['evidence_event_seqs']
+            added = sorted(set(seqs).difference(known))
+            if not added:
+                return
+            combined = [*known, *added]
+            diagnosis = {**diagnosis, 'evidence_event_seqs': sorted(combined[:256]),
+                         'evidence_event_seqs_truncated': len(combined) > 256}
+            self._save_diagnosis(scope, diagnosis)
+
+        def publish_finding(query):
+            nonlocal diagnosis
+            state = query.get('finding_state')
+            refs = query.get('event_refs')
+            required = {'finding_state', 'event_refs', 'summary', 'next_step'}
+            gateway_refs = query.get('gateway_refs', [])
+            source_refs = query.get('source_refs', [])
+            if (not required <= set(query) or query.keys() - (required | {'gateway_refs', 'source_refs'})
+                    or state not in ('located', 'narrowed', 'insufficient_evidence')
+                    or not isinstance(refs, list) or len(refs) > 16
+                    or any(type(seq) is not int or seq not in diagnosis['evidence_event_seqs'] for seq in refs)
+                    or len(set(refs)) != len(refs)
+                    or not isinstance(gateway_refs, list) or len(gateway_refs) > 16
+                    or any(not isinstance(ref, str) or ref not in supplied_gateway_refs for ref in gateway_refs)
+                    or not isinstance(source_refs, list) or len(source_refs) > 16
+                    or any(not isinstance(ref, dict) or set(ref) != {'repository', 'revision', 'path', 'line'}
+                           or any(not isinstance(ref[key], str) for key in ('repository', 'revision', 'path'))
+                           or type(ref['line']) is not int
+                           or (ref['repository'], ref['revision'], ref['path'], ref['line']) not in supplied_source_refs
+                           for ref in source_refs)
+                    or (not (refs or gateway_refs or source_refs) and state != 'insufficient_evidence')
+                    or any(not isinstance(query[key], str) or not 0 < len(query[key].strip()) <= limit
+                           for key, limit in (('summary', 1200), ('next_step', 600)))):
+                return {'code': 'finding_evidence_invalid'}
+            current = self.get(*scope)['diagnosis']
+            if current['status'] != 'running':
+                return {'code': 'diagnosis_not_running'}
+            finding = {**deepcopy(query), 'event_refs': sorted(refs)}
+            diagnosis = {**diagnosis, 'finding': finding, 'finding_state': state,
+                         'finding_event_seqs': finding['event_refs'], 'finding_digest': evidence_digest(finding)}
+            self._save_diagnosis(scope, diagnosis)
+            snapshot = self.save_export_snapshot(*scope, private_finding=finding)
+            if snapshot['diagnosis'].get('finding_digest') != diagnosis['finding_digest']:
+                return {'code': 'diagnosis_not_running'}
+            return {'snapshot_id': snapshot['snapshot_id'], 'finding_state': state, 'event_refs': finding['event_refs']}
 
         def observe(event):
             nonlocal diagnosis
@@ -531,7 +647,7 @@ class InvestigationRegister:
         except (RuntimeError, OSError, ValueError):
             diagnosis = {**diagnosis, 'status': 'unknown'}
         self._save_diagnosis(scope, diagnosis)
-        self.save_export_snapshot(*scope)
+        self.save_export_snapshot(*scope, private_finding=diagnosis.get('finding'))
         return diagnosis
 
     def _prior_diagnosis(self, workspace, thread_id, observation):

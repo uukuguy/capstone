@@ -1857,7 +1857,7 @@ export default function CapstoneAssistantThread({ onOpenInstructionContext, reso
         setRestoringSessionPosition(false)
         setReadingTailSpace(0)
         const submissionId=`assistant-submitting-${++submitSequence.current}`
-        setSubmittingThinking({id:submissionId,text:text.trim(),afterSeq:Math.max(0,...events.map(event=>event.eventSeq)),at:new Date().toISOString()})
+        if (!/^\/debug(?:\s|$)/.test(text.trim())) setSubmittingThinking({id:submissionId,text:text.trim(),afterSeq:Math.max(0,...events.map(event=>event.eventSeq)),at:new Date().toISOString()})
         try {
         if (composerMode === 'text') {
           const sent=inputDraft

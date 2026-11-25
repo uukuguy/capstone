@@ -59,6 +59,9 @@ def verify(document):
     cited = diagnosis.get('evidence_event_seqs', [])
     if not isinstance(cited, list) or any(type(seq) is not int or not 0 < seq <= through for seq in cited):
         raise ValueError('Diagnosis cites events outside the investigation scope')
+    refs = diagnosis.get('finding_event_seqs', [])
+    if not isinstance(refs, list) or any(type(seq) is not int or seq not in cited for seq in refs):
+        raise ValueError('Finding cites events outside its supplied evidence')
     missing = sorted(set(cited) - event_seqs)
     if missing and capstone.get('truncated') is not True:
         raise ValueError('Diagnosis cites missing events in a complete timeline')

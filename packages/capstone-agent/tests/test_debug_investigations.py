@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from capstone_agent.debug_investigations import InvestigationRegister
+from capstone_agent.debug_investigations import InvestigationRegister, evidence_digest
 from capstone_agent.thread_service import PostgresThreadService
 from test_harness import _thread_service
 from uuid import uuid4
@@ -45,12 +45,17 @@ def test_postgres_register_survives_reopen_and_concurrent_reservations():
             claims = list(pool.map(lambda _: worker._claim_diagnosis(scope, {**pending, 'status': 'running'}), range(8)))
         assert sum(claims) == 1
         assert worker.next_queued() is None
-        running_snapshot = worker.save_export_snapshot(*scope)
+        private_finding = {'summary': '私有现场结论'}
+        worker._save_diagnosis(scope, {**pending, 'status': 'running',
+                                       'finding_digest': evidence_digest(private_finding)})
+        running_snapshot = worker.save_export_snapshot(*scope, private_finding=private_finding)
         completed = {**pending, 'status': 'completed', 'answer': '已定位。'}
         reopened._save_diagnosis(scope, completed)
         reopened._save_diagnosis(scope, {**pending, 'status': 'unknown'})
         assert reopened.get(*scope)['diagnosis'] == completed
         assert reopened.read_export_snapshot(*scope, running_snapshot['snapshot_id']) == running_snapshot
+        assert reopened.read_snapshot_finding(*scope, running_snapshot['snapshot_id']) == private_finding
+        assert '私有现场结论' not in str(running_snapshot)
         assert reopened.recent_export_snapshots(*scope) == [
             {'snapshot_id': running_snapshot['snapshot_id'], 'status': 'running'}]
         review = {'diagnosis_markdown': '已核准的合成结论', 'reproduction': {'case': 'fixture'}}
