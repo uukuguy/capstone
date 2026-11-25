@@ -8401,3 +8401,5 @@ check passed. No CI, integration or remote deployment performed.
 - 04:25 Merged PR271 after scoped macOS CI 45478832599. [de229bd4]
 - 04:29 Merged PR270 after scoped macOS CI 45475272758 passed. [595094b4]
 - 08:23 Drafted browser investigation and gateway handoff contracts for offline debugging. [7eecd17f]
+- 08:29 Verified 21 slash command parsing cases. Browser authorization remains pending. [547c2a4f]
+- 08:29 Verified service investigation skill availability for both general Pi roles and exclusion from professional Harness.

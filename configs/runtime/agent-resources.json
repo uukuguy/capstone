@@ -134,6 +134,17 @@
       "required_tools": []
     },
     {
+      "id": "capstone-service-contract-investigation",
+      "kind": "skill",
+      "version": "1.0.0",
+      "source": "capstone:investigation-skills",
+      "roles": ["delegated_pi", "direct_pi"],
+      "enabled": true,
+      "managed": false,
+      "native_name": "service-contract-investigation",
+      "required_tools": []
+    },
+    {
       "id": "capstone-data-quality-and-comparability",
       "kind": "skill",
       "version": "1.0.0",
