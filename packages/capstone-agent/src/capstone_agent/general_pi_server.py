@@ -2264,14 +2264,6 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 raise GatewayError('investigation_credentials_unavailable')
             dedicated = DataGatewayMcp(Path(credential), access.client.policy)
             async def observe():
-                async with dedicated.connect() as session:
-                    return await read_bound_observation(session, dedicated._connection['url'],
-                        instance_id=binding['instance_id'], workspace=document['workspace'],
-                        investigation_id=document['investigation_id'], operation=document['operation'],
-                        query=document['query'])
-            return run_http(asyncio.wait_for(observe(), timeout=30))
-        if action == 'debug-source':
-            from .gateway_debug_source import cache_gateway_source
                 if document['operation'] == 'probe':
                     query = document['query']
                     if (not isinstance(query, dict) or set(query) != {'tool', 'arguments', 'client_call_id'}
@@ -2280,6 +2272,14 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         raise GatewayError('investigation_request_invalid')
                     return await run_bound_read_probe(dedicated, instance_id=binding['instance_id'],
                         workspace=document['workspace'], investigation_id=document['investigation_id'], **query)
+                async with dedicated.connect() as session:
+                    return await read_bound_observation(session, dedicated._connection['url'],
+                        instance_id=binding['instance_id'], workspace=document['workspace'],
+                        investigation_id=document['investigation_id'], operation=document['operation'],
+                        query=document['query'])
+            return run_http(asyncio.wait_for(observe(), timeout=30))
+        if action == 'debug-source':
+            from .gateway_debug_source import cache_gateway_source
             from .debug_commands import debug_commands_enabled
             if not debug_commands_enabled(os.environ):
                 raise GatewayError('debug_source_unavailable')

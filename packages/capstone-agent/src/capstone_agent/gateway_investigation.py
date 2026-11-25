@@ -183,7 +183,6 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     scope = {**owner, 'binding_handle': binding['binding_handle']}
     if operation == 'logs':
         return await access.read_logs(scope, query)
-    return await access.invoke(operation, {**scope, **query})
     if operation == 'export':
         return await access.export_receipts(scope)
     return await access.invoke(operation, {**scope, **query})
