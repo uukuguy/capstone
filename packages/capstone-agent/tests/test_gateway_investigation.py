@@ -81,39 +81,97 @@ def test_missing_extension_and_untrusted_path_make_no_request():
 
 
 @pytest.mark.parametrize('policy', ['undeclared', 'allow_sanitized'])
-def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy):
+def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch, tmp_path):
     from types import SimpleNamespace
     from capstone_agent.gateway_investigation import investigation_workspace_id, read_bound_observation
 
-    owner = {'workspace_id': investigation_workspace_id('local'), 'investigation_id': 'inv_one'}
-    scope = {**owner, 'binding_handle': EXCHANGE['binding']['binding_handle']}
     paths = []
+    deployment_policy = policy
+    receipt = EXCHANGE['unknown']
 
-    def respond(request):
+    def respond(request, owner, scope):
         paths.append(request.url.path)
         if request.url.path == BASE + 'contract':
             return httpx.Response(200, json={**CONTRACT, 'export': {
-                'deployment_policy': policy, 'allowed': ['state', 'client_call_id', 'request_id'],
+                'deployment_policy': deployment_policy, 'allowed': ['state', 'client_call_id', 'request_id'],
             }})
         if request.url.path == BASE + 'bind':
-            assert json.loads(request.content) == {**owner, 'instance_id': 'fixture', 'idempotency_key': 'inv_one'}
+            assert json.loads(request.content) == {
+                **owner, 'instance_id': 'fixture', 'idempotency_key': owner['investigation_id']}
             return httpx.Response(200, json=EXCHANGE['binding'])
         assert request.url.path == BASE + 'list'
         assert json.loads(request.content) == {**scope, 'limit': 32}
-        return httpx.Response(200, json={'receipts': [EXCHANGE['unknown']], 'next_cursor': None})
+        return httpx.Response(200, json={'receipts': [receipt], 'next_cursor': None})
 
-    async def run():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+    async def run(workspace='local', investigation_id='inv_one'):
+        owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': investigation_id}
+        scope = {**owner, 'binding_handle': EXCHANGE['binding']['binding_handle']}
+        transport = httpx.MockTransport(lambda request: respond(request, owner, scope))
+        async with httpx.AsyncClient(transport=transport) as client:
             session = SimpleNamespace(instance_identity={'instance_id': 'fixture'}, http_client=client,
                                       investigation=DECLARATION, investigation_logs=None)
             return await read_bound_observation(session, 'https://fixture.test/mcp', instance_id='fixture',
-                                                workspace='local', investigation_id='inv_one',
+                                                workspace=workspace, investigation_id=investigation_id,
                                                 operation='export', query={})
 
     exported = asyncio.run(run())
     if policy == 'allow_sanitized':
         assert exported == {'status': 'available', 'truncated': False, 'events': [{'state': 'unknown'}]}
         assert paths == [BASE + 'contract', BASE + 'bind', BASE + 'list']
+        from fastapi.testclient import TestClient
+        import subprocess
+        import sys
+        from capstone_agent import debug_investigations
+        from capstone_agent.host_api import create_host_app
+        from test_attempt_records import completed_task
+        from test_thread_http_api import _Ledger, WorkerRegistry
+
+        monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
+        monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
+        monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
+        service, claim = completed_task()
+        register = debug_investigations.InvestigationRegister(service)
+        monkeypatch.setattr(debug_investigations, 'InvestigationRegister', lambda service: register)
+        monkeypatch.setattr(register, 'historical_gateway', lambda *scope: {'instance_id': 'fixture'})
+        investigation = register.start(claim.workspace_name, claim.thread_id, 'fixture-export', '复验失败',
+                                       claim.attempt.attempt_id)
+
+        def read(binding, workspace, investigation_id, operation, query):
+            assert (binding, workspace, investigation_id, operation, query) == (
+                {'instance_id': 'fixture'}, claim.workspace_name, investigation['investigation_id'], 'export', {})
+            return asyncio.run(run(workspace, investigation_id))
+
+        app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+                             allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+                             thread_open_access=True, thread_service=service,
+                             native_artifact_executor=SimpleNamespace(debug_observation=read))
+        url = f"/api/v1/threads/{claim.thread_id}/debug/investigations/{investigation['investigation_id']}/evidence"
+        tools = Path(__file__).resolve().parents[3] / 'tools'
+        with TestClient(app, base_url='http://localhost') as client:
+            response = client.get(url)
+            assert response.status_code == 200
+            before = tmp_path / 'before.json'
+            before.write_bytes(response.content)
+            replay = subprocess.run([sys.executable, str(tools / 'check_debug_evidence.py'), str(before),
+                                     '--import-to', str(tmp_path)], check=True, capture_output=True)
+            imported = Path(json.loads(replay.stdout)['import_directory'])
+            assert json.loads((imported / 'gateway-events.jsonl').read_text()) == {'state': 'unknown'}
+            assert (imported / 'capstone-events.jsonl').stat().st_size > 0
+            snapshot = response.json()['snapshot_id']
+            receipt = {**receipt, 'state': 'observed', 'observed_status': 'ok'}
+            candidate = tmp_path / 'candidate.json'
+            candidate.write_bytes(client.get(url, params={'snapshot_id': snapshot}).content)
+            comparison = subprocess.run([sys.executable, str(tools / 'compare_debug_timelines.py'),
+                                         str(before), str(candidate)], capture_output=True)
+            assert comparison.returncode == 1, comparison.stderr
+            result = json.loads(comparison.stdout)
+            assert result['first_difference'] is None
+            assert result['gateway_receipt_comparison']['first_difference']['candidate'] == {'state': 'observed'}
+            deployment_policy = 'undeclared'
+            denied = client.get(url, params={'snapshot_id': snapshot}).json()
+            assert denied['snapshot_id'] == snapshot
+            assert denied['data_gateway']['status'] == 'export_not_authorized'
+            assert denied['data_gateway']['events'] == []
     else:
         assert exported == {'status': 'export_not_authorized', 'events': []}
         assert paths == [BASE + 'contract', BASE + 'bind']

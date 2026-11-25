@@ -1,4 +1,4 @@
-"""Compare the public event order of two downloaded Capstone debug timelines."""
+"""Compare Capstone event order and available gateway receipt states."""
 import argparse
 import json
 from itertools import zip_longest
@@ -18,6 +18,7 @@ def events(stream, state=None):
         if header['capstone'].get('truncated'):
             raise ValueError('A truncated investigation cannot verify the full execution order')
         if state is not None:
+            state['gateway'] = header['data_gateway']
             observation = header.get('observation') or {}
             failure = observation.get('first_failure')
             if 'first_failure' in observation:
@@ -56,8 +57,25 @@ def compare(first, second):
     if failure_comparable:
         failure_comparison.update(original=original_state['first_failure'], candidate=candidate_state['first_failure'],
                                   changed=original_state['first_failure'] != candidate_state['first_failure'])
+    gateway_comparison = compare_gateway(original_state.get('gateway'), candidate_state.get('gateway'))
     return {'compared_positions': count, 'first_difference': difference,
-            'first_failure_comparison': failure_comparison}
+            'first_failure_comparison': failure_comparison, 'gateway_receipt_comparison': gateway_comparison}
+
+
+def compare_gateway(original, candidate):
+    sections = (original or {}, candidate or {})
+    statuses = [item.get('status') for item in sections]
+    comparable = all(item.get('status') == 'available' and not item.get('truncated') for item in sections)
+    result = {'comparable': comparable, 'statuses': statuses, 'first_difference': None}
+    if comparable:
+        fields = ('state', 'observed_status', 'phase_read_status')
+        projections = [[{key: row[key] for key in fields if key in row} for row in item['events']]
+                       for item in sections]
+        for index, (before, after) in enumerate(zip_longest(*projections), 1):
+            if before != after:
+                result['first_difference'] = {'position': index, 'original': before, 'candidate': after}
+                break
+    return result
 
 
 def main():
@@ -70,7 +88,9 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
     print(json.dumps(comparison, ensure_ascii=False))
-    return int(comparison['first_difference'] is not None or comparison['first_failure_comparison']['changed'] is True)
+    return int(comparison['first_difference'] is not None
+               or comparison['first_failure_comparison']['changed'] is True
+               or comparison['gateway_receipt_comparison']['first_difference'] is not None)
 
 
 if __name__ == '__main__':

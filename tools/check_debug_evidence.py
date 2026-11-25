@@ -32,7 +32,7 @@ def verify(document):
     if not isinstance(capstone, dict) or not isinstance(gateway, dict):
         raise ValueError('Both evidence sections must be present')
     events, receipts = capstone.get('events'), gateway.get('events')
-    if not isinstance(events, list) or not isinstance(receipts, list):
+    if not isinstance(events, list) or not isinstance(receipts, list) or any(not isinstance(row, dict) for row in receipts):
         raise ValueError('Invalid evidence event lists')
     through = observation.get('through') if isinstance(observation, dict) else 0
     if type(through) is not int or through < 0:
