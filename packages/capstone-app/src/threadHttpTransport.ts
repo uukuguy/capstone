@@ -296,15 +296,23 @@ export class HttpThreadTransport implements ThreadTransport {
     if(typeof receipt?.investigation_id!=='string'||!receipt.investigation_id)throw new Error('调查登记回执缺少标识。')
     return receipt.investigation_id
   }
-  async runDebugDiagnosis(threadId: string, investigationId: string) {
+  async runDebugDiagnosis(threadId: string, investigationId: string,
+    onProgress: (message: string) => void = () => {}) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
     const deadline = Date.now() + 60000
     let result = await this.request(path, {method: 'POST', signal: AbortSignal.timeout(60000)}) as Record<string, unknown>
     while ((result.status === 'queued' || result.status === 'running') && Date.now() < deadline) {
+      const step = Array.isArray(result.progress) ? result.progress.at(-1) : undefined
+      const labels: Record<string, string> = {tool_started:'正在调用', tool_finished:'调用完成', tool_failed:'调用失败'}
+      const label = step && Object.hasOwn(labels, step.stage) ? labels[step.stage] : undefined
+      onProgress(label && typeof step.tool === 'string' && Number.isSafeInteger(step.seq)
+        ? `步骤 ${step.seq} · ${label} ${step.tool}`
+        : result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据')
       await new Promise(resolve => setTimeout(resolve, 1000))
       result = await this.request(path, {signal: AbortSignal.timeout(5000)}) as Record<string, unknown>
     }
     if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
+    if (result.status === 'cancelled') throw new Error('诊断已停止。')
     if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
     if (result.failure_code === 'diagnosis_preparation_failed') throw new Error('诊断材料准备失败，Pi 尚未执行。')
     if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')

@@ -22,6 +22,12 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
 
         def execute(self, request, control, on_event):
             calls.append(request)
+            on_event({'event_id': 'event-1', 'type': 'tool_execution_start',
+                      'tool_name': 'agent_debug_observe', 'arguments': {'private': 'do not copy'}})
+            running = register.get(claim.workspace_name, claim.thread_id, request.parent_attempt_id)['diagnosis']
+            assert running['progress'] == [{'seq': 1, 'stage': 'tool_started', 'tool': 'agent_debug_observe'}]
+            on_event({'event_id': 'event-2', 'type': 'tool_execution_end',
+                      'tool_name': 'agent_debug_observe', 'is_error': True, 'result': 'private result'})
             if interrupted:
                 raise OSError('lost response')
             return SimpleNamespace(status='completed', answer='输入检查失败。')
@@ -56,6 +62,10 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert calls[0].entrypoint == 'direct'
         assert '_gateway_snapshot' in register.get(claim.workspace_name, claim.thread_id, identity)['diagnosis']
         assert '_gateway_snapshot' not in client.get(f'{path}/investigations/{identity}/diagnose').json()
+        evidence = register.export_timeline(claim.workspace_name, claim.thread_id, identity)
+        assert evidence['diagnosis']['progress'] == [
+            {'seq': 1, 'stage': 'tool_started', 'tool': 'agent_debug_observe'},
+            {'seq': 2, 'stage': 'tool_failed', 'tool': 'agent_debug_observe'}]
         assert client.post(path + '/investigations', headers={'Idempotency-Key': 'direct-debug'},
                            json={'objective': '检查失败', 'attempt_id': claim.attempt.attempt_id}).json() == receipt.json()
         assert len(calls) == 1
@@ -70,6 +80,7 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         restored = client.get(url).json()
         assert restored['status'] == 'completed'
         assert restored['answer'] == '已找回原诊断结果。'
+        assert restored['progress'] == evidence['diagnosis']['progress']
         assert client.post(url).json() == restored
         assert len(calls) == 2
         history = client.get(path + '/investigations').json()['investigations']

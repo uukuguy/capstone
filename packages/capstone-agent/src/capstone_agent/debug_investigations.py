@@ -226,7 +226,8 @@ class InvestigationRegister:
         diagnosis = investigation.get('diagnosis') or {}
         return {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
                 'investigation_id': investigation_id, 'observation': observation,
-                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs',
+                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs', 'progress',
+                                                             'progress_truncated',
                                                              'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
                 'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'},
@@ -325,8 +326,29 @@ class InvestigationRegister:
                                          | {'line_count': len(excerpt['lines'])} for excerpt in excerpts]}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
+
+        def observe(event):
+            import re
+
+            nonlocal diagnosis
+            tool = event.get('tool_name')
+            kind = event.get('type')
+            if kind not in {'tool_execution_start', 'tool_execution_end'} or not isinstance(tool, str):
+                return
+            if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,127}', tool):
+                return
+            progress = diagnosis.get('progress', [])
+            if kind == 'tool_execution_start':
+                stage = 'tool_started'
+            else:
+                stage = 'tool_failed' if event.get('is_error') is True else 'tool_finished'
+            step = {'seq': progress[-1]['seq'] + 1 if progress else 1, 'stage': stage, 'tool': tool}
+            diagnosis = {**diagnosis, 'progress': [*progress[-63:], step],
+                         'progress_truncated': step['seq'] > 64}
+            self._save_diagnosis(scope, diagnosis)
+
         try:
-            result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout), lambda _: None)
+            result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout), observe)
             diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
         except (RuntimeError, OSError, ValueError):
             diagnosis = {**diagnosis, 'status': 'unknown'}

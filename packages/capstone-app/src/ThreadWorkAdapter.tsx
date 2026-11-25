@@ -190,6 +190,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [debugThread,setDebugThread]=useState('')
   const [allowDebugExport,setAllowDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
+  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string}>()
   const [debugSource,setDebugSource]=useState('')
   const [sourceQuery,setSourceQuery]=useState(0)
   const selectedGateway=sharedNavigation?.gateway??welcomeGateway
@@ -587,11 +588,20 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           debugRequest.current=request
         }
         const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
-        setNotice('正在读取执行记录并诊断…')
-        const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId)
-        setDebugFinding(diagnosis)
-        debugRequest.current=null
-        setNotice(diagnosis)
+        const updateDebugActivity = (message: string) => {
+          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message})
+        }
+        updateDebugActivity('正在读取执行记录')
+        try {
+          const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, updateDebugActivity)
+          if (debugRequest.current === request) {
+            updateDebugActivity(diagnosis)
+            setDebugFinding(diagnosis)
+            debugRequest.current=null
+          }
+        } catch (error) {
+          updateDebugActivity(error instanceof Error ? error.message : '诊断执行失败。')
+        }
         return
       }
       if(/^\/debug\s+status\s*$/.test(text)){
@@ -1244,6 +1254,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       allowConcurrentSend={queueAvailable}
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
+        {debugActivity?.thread===currentId&&<section className="thread-composer-notice" aria-label="Debug 调查" role="status">
+          <strong>Debug</strong> · {debugActivity.text}
+        </section>}
         {notice&&<p className="thread-composer-notice" role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
         <div className="thread-task-strip" aria-label="当前任务">
           {contextPanel&&<button type="button" className="thread-control-button thread-context-indicator" aria-label="查看会话上下文"
