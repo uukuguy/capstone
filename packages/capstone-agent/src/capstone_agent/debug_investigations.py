@@ -177,6 +177,7 @@ class InvestigationRegister:
         request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout)
         scope = (workspace, thread_id, investigation_id)
         diagnosis = {'status': 'running', 'answer': '', 'task_id': task_id,
+                     'executor_identity': request.to_document()['executor_identity'],
                      'attempt_id': observation['attempt_id'], 'through': observation['through']}
         current = self._reserve_diagnosis(scope, diagnosis)
         if current['task_id'] != task_id:
@@ -189,6 +190,22 @@ class InvestigationRegister:
         self._save_diagnosis(scope, diagnosis)
         return diagnosis
 
+    def read_diagnosis(self, workspace, thread_id, investigation_id, executor):
+        diagnosis = self.get(workspace, thread_id, investigation_id).get('diagnosis')
+        if diagnosis is None:
+            return {'status': 'pending'}
+        recover = getattr(executor, 'observe_terminal_task', None)
+        identity = diagnosis.get('executor_identity')
+        if diagnosis['status'] in {'running', 'unknown'} and identity and callable(recover):
+            try:
+                result = recover(diagnosis['task_id'], investigation_id, identity)
+            except (RuntimeError, OSError, ValueError):
+                result = None
+            if result is not None:
+                diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
+                self._save_diagnosis((workspace, thread_id, investigation_id), diagnosis)
+        return {key: value for key, value in diagnosis.items() if key != 'executor_identity'}
+
     def _reserve_diagnosis(self, scope, diagnosis):
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
@@ -199,7 +216,8 @@ class InvestigationRegister:
                 if row['diagnosis'] is not None:
                     return row['diagnosis']
                 connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=%s
-                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s''',
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s
+                      AND diagnosis->>'status' IN ('running', 'unknown')''',
                     (Jsonb(diagnosis), *scope))
                 return diagnosis
         with self._lock:
@@ -218,7 +236,9 @@ class InvestigationRegister:
                     (Jsonb(diagnosis), *scope))
         else:
             with self._lock:
-                self._diagnosis_row(scope)['diagnosis'] = diagnosis
+                row = self._diagnosis_row(scope)
+                if row['diagnosis']['status'] in {'running', 'unknown'}:
+                    row['diagnosis'] = diagnosis
 
     async def call_gateway(self, access, gateway, catalog, *, workspace, thread_id, investigation_id,
                            binding_handle, operation_key, tool, arguments, diagnostics):

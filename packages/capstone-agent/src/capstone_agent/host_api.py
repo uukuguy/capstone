@@ -395,19 +395,25 @@ def create_host_app(
         @app.get('/api/v1/threads/{thread_id}/debug/status')
         def thread_debug_status(thread_id: str, request: Request):
             require_debug(request)
+            workspace = request.state.workspace_name
+            investigation = investigations.latest(workspace, thread_id)
+            if investigation and investigation.get('diagnosis'):
+                diagnosis = investigations.read_diagnosis(workspace, thread_id, investigation['investigation_id'],
+                                                          native_artifact_executor)
+                investigation = {**investigation, 'diagnosis': diagnosis}
             return {'thread_id': thread_id, 'enabled': True,
-                    'investigation': investigations.latest(request.state.workspace_name, thread_id),
+                    'investigation': investigation,
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
         def read_diagnosis(thread_id: str, investigation_id: str, request: Request):
             require_debug(request)
             try:
-                investigation = investigations.get(request.state.workspace_name, thread_id, investigation_id)
+                diagnosis = investigations.read_diagnosis(request.state.workspace_name, thread_id, investigation_id,
+                                                          native_artifact_executor)
             except KeyError:
                 raise HTTPException(404, '本会话中找不到该调查。') from None
-            return JSONResponse(investigation.get('diagnosis') or {'status': 'pending'},
-                                headers={'Cache-Control': 'no-store'})
+            return JSONResponse(diagnosis, headers={'Cache-Control': 'no-store'})
 
         @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
         def diagnose_investigation(thread_id: str, investigation_id: str, request: Request):
@@ -421,7 +427,8 @@ def create_host_app(
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
             except (ValueError, RuntimeError, OSError):
                 raise HTTPException(409, '本次诊断未能完成。') from None
-            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+            return JSONResponse({key: value for key, value in result.items() if key != 'executor_identity'},
+                                headers={'Cache-Control': 'no-store'})
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/records')
         def investigation_records(thread_id: str, investigation_id: str, request: Request,
