@@ -4011,8 +4011,9 @@ class PostgresThreadService(NativeExecutionOwner):
     def initialize(self) -> None:
         from .resource_projection import SCHEMA as resource_schema
         from .session_pins import SCHEMA as pin_schema
+        from .debug_investigations import SCHEMA as investigation_schema
         with self._connect() as connection:
-            for statement in (_THREAD_SCHEMA + resource_schema + pin_schema).split(";\n"):
+            for statement in (_THREAD_SCHEMA + resource_schema + pin_schema + investigation_schema).split(";\n"):
                 if statement.strip():
                     connection.execute(statement)
 

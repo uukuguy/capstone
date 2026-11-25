@@ -8405,3 +8405,6 @@ check passed. No CI, integration or remote deployment performed.
 - 08:29 Verified service investigation skill availability for both general Pi roles and exclusion from professional Harness.
 - 08:39 Recorded bilateral binding acceptance and verified lost-response handling, partial provenance and admission rejection. [eb369bd5]
 - Recorded independent, investigation-scoped selection of packaged Capstone and gateway source revisions. [e10f7819]
+- 09:08 Verified earliest visible failure lookup across pages and snapshot boundaries, including failed validation in completed attempts. [01bbb5d8]
+- Requested scoped gateway logs for Debug Pi to trace observed failures. Gateway confirmation pending. [a9f3dad8]
+- Verified gateway investigation adapter with published v1 fixtures and 81 adapter checks. Live dedicated credential pending. [9e6faf37]

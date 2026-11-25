@@ -270,7 +270,13 @@ export class HttpThreadTransport implements ThreadTransport {
   async debugStatus(threadId:string){
     const value=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`) as Record<string,unknown>
     if(value?.thread_id!==threadId||value.enabled!==true)throw new Error('调试入口不可用。')
-    return {timelineExport:value.timeline_export===true}
+    const investigation=value.investigation as {investigation_id?:unknown;objective?:unknown}|null
+    return {timelineExport:value.timeline_export===true,
+      objective:typeof investigation?.objective==='string'?investigation.objective:null}
+  }
+  async startDebugInvestigation(threadId:string,objective:string,key:string){
+    const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
+    return this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective})})
   }
   async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)

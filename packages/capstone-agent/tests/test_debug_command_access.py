@@ -39,7 +39,15 @@ def test_open_development_access_and_release_block(monkeypatch):
     path = '/api/v1/threads/thr_harness'
     with TestClient(app, base_url='http://localhost') as client:
         assert client.get(path + '/debug/status').json()['enabled'] is True
+        headers = {'Idempotency-Key': 'test-start'}
+        start_path = path + '/debug/investigations'
+        first = client.post(start_path, headers=headers, json={'objective':'检查失败调用'})
+        assert first.status_code == 200
+        assert client.post(start_path, headers=headers, json={'objective':'检查失败调用'}).json() == first.json()
+        assert client.get(path + '/debug/status').json()['investigation'] == first.json()
+        assert client.post(start_path, headers=headers, json={'objective':'不同目标'}).status_code == 409
         monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'user-trial')
+        assert client.post(start_path, headers=headers, json={'objective':'检查失败调用'}).status_code == 403
         assert client.get(path + '/debug/status').status_code == 403
         command = {'thread_id': 'thr_harness', 'kind': 'send_message',
                    'payload': {'text': '/debug start test'}}

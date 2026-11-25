@@ -384,20 +384,41 @@ def create_host_app(
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
 
-        @app.get('/api/v1/threads/{thread_id}/debug/status')
-        def thread_debug_status(thread_id: str, request: Request):
+        from .debug_investigations import InvestigationRegister
+        investigations = InvestigationRegister(thread_service)
+
+        def require_debug(request):
             require_private_thread(request)
             if not debug_commands_enabled(os.environ):
                 raise HTTPException(403, '当前部署已关闭调试命令。')
+
+        @app.get('/api/v1/threads/{thread_id}/debug/status')
+        def thread_debug_status(thread_id: str, request: Request):
+            require_debug(request)
             return {'thread_id': thread_id, 'enabled': True,
+                    'investigation': investigations.latest(request.state.workspace_name, thread_id),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
+
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations')
+        def start_debug_investigation(thread_id: str, request: Request, body: dict,
+                                      idempotency_key: Annotated[str, Header(min_length=1, max_length=200)]):
+            require_debug(request)
+            if set(body) != {'objective'} or not isinstance(body['objective'], str) or not body['objective'].strip():
+                raise HTTPException(422, '请输入调查目标。')
+            from .application_capacity import require_capacity
+            objective = body['objective'].strip()
+            require_capacity('input_text_chars', len(objective), phase='debug_investigation')
+            try:
+                return investigations.start(request.state.workspace_name, thread_id, idempotency_key, objective)
+            except ValueError as error:
+                raise HTTPException(409, str(error)) from None
 
         @app.get('/api/v1/threads/{thread_id}/debug/attempts/{attempt_id}/timeline')
         def thread_debug_timeline(thread_id: str, attempt_id: str, request: Request,
                                   after: Annotated[int, Query(ge=0)] = 0,
                                   through: Annotated[int | None, Query(ge=0)] = None):
-            access = thread_debug_status(thread_id, request)
-            if not access['timeline_export']:
+            require_debug(request)
+            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
                 raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
             try:
                 if through is None:

@@ -188,6 +188,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [debugThread,setDebugThread]=useState('')
   const [allowDebugExport,setAllowDebugExport]=useState(false)
+  const debugRequest=useRef<{thread:string;objective:string;key:string}|null>(null)
   useEffect(()=>{
     let current=true
     setDebugThread('')
@@ -553,9 +554,23 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   }
   async function send(text: string,submission?:InputSubmission) {
     try{
+      const start=/^\/debug\s+start\s+([\s\S]+)$/.exec(text)
+      if(start){
+        const objective=start[1].trim()
+        let request=debugRequest.current
+        if(!request||request.thread!==currentId||request.objective!==objective){
+          request={thread:currentId,objective,key:commandKey()}
+          debugRequest.current=request
+        }
+        await transport.startDebugInvestigation(currentId,objective,request.key)
+        debugRequest.current=null
+        setNotice('调查目标已登记：'+objective)
+        selectResourceView('debug')
+        return
+      }
       if(/^\/debug\s+status\s*$/.test(text)){
-        await transport.debugStatus(currentId)
-        setNotice('当前部署已开启调试命令。')
+        const status=await transport.debugStatus(currentId)
+        setNotice(status.objective?'最近登记的调查：'+status.objective:'当前会话尚未登记调查。')
         return
       }
       if(pendingGoalControl){
