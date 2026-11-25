@@ -404,6 +404,10 @@ class GeneralPiHost:
             if (request.native_context or {}).get('mission_binding') is not None:
                 from .native_mission import MissionTaskChannel
                 record['mission'] = MissionTaskChannel()
+            elif (request.native_context or {}).get('debug_scope') is not None:
+                from .native_mission import MissionTaskChannel
+                from .gateway_investigation import OBSERVATION_TOOL
+                record['mission'] = MissionTaskChannel({'agent_debug_observe': OBSERVATION_TOOL})
             if execution_authority is not None:
                 record['execution_authority'] = ExecutionAuthority(
                     execution_authority['generation'], execution_authority['capability'], AUTHORITY_SECONDS)
@@ -2820,6 +2824,9 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 scope = native['debug_scope']
                 operation = args['operation']
                 query = args.get('query', {})
+                if operation == 'capstone_records':
+                    receipt = host.mission_request(task_id, packet)
+                    return self.send_json(200, receipt if receipt is not None else {'pending': True})
                 source_query = operation in {'source_files', 'source_lines'}
                 if source_query:
                     result = read_debug_source(scope, operation, query)

@@ -1000,7 +1000,9 @@ class HttpGeneralPiExecutor:
 
         def service_mission():
             nonlocal mission_receipts, last_mission_service
-            if (request.native_context or {}).get('mission_binding') is None:
+            native = request.native_context or {}
+            debug = native.get('debug_scope') is not None
+            if native.get('mission_binding') is None and not debug:
                 return
             if renewal is None or control.mission_operation is None:
                 raise ValueError('Mission tools require the leased application bridge')
@@ -1022,7 +1024,11 @@ class HttpGeneralPiExecutor:
             from capstone_control.contracts import ContractError
             from capstone_control.service import Conflict, InvalidTransition
             require_capacity('rpc_batch_requests', len(response['requests']), 'mission_control')
-            checked = MissionTaskChannel()
+            if debug:
+                from .gateway_investigation import OBSERVATION_TOOL
+                checked = MissionTaskChannel({'agent_debug_observe': OBSERVATION_TOOL})
+            else:
+                checked = MissionTaskChannel()
             receipts = []
             for call in response['requests']:
                 checked.request(call)
@@ -1030,7 +1036,8 @@ class HttpGeneralPiExecutor:
                 operation_id = 'mission_' + sha256(json.dumps([request.task_id, request.parent_attempt_id, call['call_id'], call['name']]).encode()).hexdigest()[:48]
                 try:
                     result = control.mission_operation(call['name'], call['arguments'], operation_id)
-                    receipt = dict(call_id=call['call_id'], result=result, is_error=False)
+                    receipt = dict(call_id=call['call_id'], result=result,
+                                   is_error=debug and 'code' in result)
                 except Conflict:
                     receipt = dict(call_id=call['call_id'],result={'error':'mission_operation_conflict',
                         'message':'Read the current Mission, check expected_revision against Mission.revision (not plan_revision), and check the exact current saved-result references before repairing this operation.'},is_error=True)

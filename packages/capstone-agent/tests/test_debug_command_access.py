@@ -231,11 +231,11 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
     claim = claim_attempt(service)
     service.append_runtime_event(claim, event_type='execution_source_revision', visibility='public',
                                  payload={'capstone_revision': 'a' * 40})
-    for index in range(15):
+    for index in range(105):
         service.append_runtime_event(claim, event_type='runtime_event', visibility='public',
             payload={'native_type': 'tool_execution_end', 'tool_name': f'read_{index}',
-                     'is_error': index == 14,
-                     'activity': {'output_excerpt': 'selected source remained ambiguous' if index == 14 else ''}})
+                     'is_error': index == 104,
+                     'activity': {'output_excerpt': 'selected source remained ambiguous' if index == 104 else ''}})
     service.finish_attempt(claim, phase='completed', payload={'answer': 'Done'})
     register = InvestigationRegister(service)
     investigation = register.start(claim.workspace_name, claim.thread_id, 'late-error', 'Find failure',
@@ -250,8 +250,15 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
         assert native['selected_task_source']['attempt_id'] == claim.attempt.attempt_id
         assert all(event['event_seq'] <= investigation['observation']['through']
                    for page in native['selected_task_records'] for event in page['events'])
-        assert any(event['event_seq'] == failure_seq
-                   for page in native['selected_task_records'] for event in page['events'])
+        assert not any(event['event_seq'] == failure_seq
+                       for page in native['selected_task_records'] for event in page['events'])
+        page = control.mission_operation('agent_debug_observe',
+            {'operation': 'capstone_records', 'query': {'after': failure_seq - 1}}, 'fixture')
+        assert page['events'][0]['event_seq'] == failure_seq
+        assert page['events'][0]['payload']['activity']['output_excerpt'] == 'selected source remained ambiguous'
+        rejected = control.mission_operation('agent_debug_observe',
+            {'operation': 'capstone_records', 'query': {'attempt_id': 'another'}}, 'fixture')
+        assert rejected == {'code': 'investigation_request_invalid'}
         source_event = next(event for page in native['selected_task_records'] for event in page['events']
                             if event['event_type'] == 'execution_source_revision')
         assert source_event['payload_projection'] == 'bounded_summary'

@@ -798,6 +798,7 @@ DEBUG_DEV_FILES = {
     'general_pi_server.py',
     'host_api.py',
     'native_hosted_worker.py',
+    'native_mission.py',
     'native_task_context.py',
     'pi_delegation.py',
     'resources/general-sdk.mjs',

@@ -15,11 +15,12 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
 
 
 OBSERVATION_TOOL = {
-    'description': 'Read on-site receipts, logs, or source for this Debug investigation. List calls before reading receipts or logs by client_call_id or request_id. For source_files or source_lines, specify repository. Only the exact admitted source revision is available.',
+    'description': 'Read on-site receipts, logs, source, or Capstone execution records for this Debug investigation. capstone_records takes after (default 0) and returns next_after and has_more. List gateway calls before reading receipts or logs by ID. Specify repository for source reads.',
     'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['operation'],
-        'properties': {'operation': {'enum': ['list', 'read', 'logs', 'source_files', 'source_lines']}, 'query': {'type': 'object',
+        'properties': {'operation': {'enum': ['list', 'read', 'logs', 'source_files', 'source_lines', 'capstone_records']}, 'query': {'type': 'object',
             'additionalProperties': False, 'properties': {
                 'repository': {'enum': ['capstone', 'data-gateway']},
+                'after': {'type': 'integer', 'minimum': 0},
                 'prefix': {'type':'string'}, 'offset': {'type':'integer'}, 'path': {'type':'string'}, 'line': {'type':'integer'},
                 'request_id': {'type': 'string'}, 'client_call_id': {'type': 'string'},
                 'cursor': {'type': 'string'}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50}}}}}}

@@ -202,7 +202,8 @@ def equipment_tools(current, selection, *, require_selected=True, protocol_tools
 
 class MissionTaskChannel:
     """No execution authority: only immutable pending calls and bound receipts."""
-    def __init__(self):
+    def __init__(self, catalog=CATALOG):
+        self._catalog = catalog
         self._lock = RLock()
         self._calls = {}
 
@@ -210,9 +211,9 @@ class MissionTaskChannel:
         if (not isinstance(document, dict) or set(document) != {'call_id', 'name', 'arguments'}
                 or not isinstance(document['call_id'], str)
                 or not 1 <= len(document['call_id']) <= 256 or any(ord(char) < 32 for char in document['call_id'])
-                or not isinstance(document.get('name'), str) or document['name'] not in CATALOG):
+                or not isinstance(document.get('name'), str) or document['name'] not in self._catalog):
             raise ValueError('invalid Mission tool request')
-        Draft202012Validator(CATALOG[document['name']]['inputSchema']).validate(document['arguments'])
+        Draft202012Validator(self._catalog[document['name']]['inputSchema']).validate(document['arguments'])
         require_capacity('control_document_bytes', len(json.dumps(document).encode()), 'mission_tool_request')
         with self._lock:
             old = self._calls.get(document['call_id'])

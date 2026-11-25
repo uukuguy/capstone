@@ -393,16 +393,15 @@ class InvestigationRegister:
         )
         profile = getattr(executor, 'capability', {}).get('resource_profiles', {}).get('direct_pi', {})
         task_fields = {}
+        read_debug_records = None
         if profile.get('revision'):
             from .business_context import BusinessContext
             from .native_task_context import POLICY_TEXT
 
             audit_reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
                 workspace_name=workspace, handoff={'through_event_seq': through})
-            pages = []
-            cursor = 0
-            for index in range(8):
-                page = audit_reader.read(after=cursor, limit=12)
+            def read_page(after, excerpt_limit):
+                page = audit_reader.read(after=after, limit=12)
                 visible = []
                 for event in page['events']:
                     payload = event['payload']
@@ -414,14 +413,29 @@ class InvestigationRegister:
                             and re.fullmatch('[0-9a-f]{40}', revision)):
                         summary['capstone_revision'] = revision
                     if isinstance(activity, dict):
-                        summary['activity'] = {key: activity[key][:200] for key in ('input_excerpt', 'output_excerpt')
+                        summary['activity'] = {key: activity[key][:excerpt_limit] for key in ('input_excerpt', 'output_excerpt')
                                                if isinstance(activity.get(key), str)}
+                        if any(len(activity[key]) > excerpt_limit for key in summary['activity']):
+                            summary['activity_truncated'] = True
                     visible.append({key: event[key] for key in ('event_seq', 'event_type', 'occurred_at')}
                                    | {'payload': summary, 'payload_projection': 'bounded_summary'})
+                return {key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after', 'has_more')} | {'events': visible}
+
+            def read_debug_records(name, arguments, _operation_id):
+                query = arguments.get('query', {})
+                after = query.get('after', 0)
+                if (name != 'agent_debug_observe' or arguments.get('operation') != 'capstone_records'
+                        or query.keys() - {'after'} or type(after) is not int or not 0 <= after <= through):
+                    return {'code': 'investigation_request_invalid'}
+                return read_page(after, 1000)
+
+            pages = []
+            cursor = 0
+            for index in range(8):
+                page = read_page(cursor, 200)
                 more = page['has_more']
-                pages.append({key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after')}
-                             | {'events': visible, 'has_more': more and index < 7,
-                                'records_truncated': more and index == 7})
+                pages.append({**page, 'has_more': more and index < 7,
+                              'records_truncated': more and index == 7})
                 cursor = page['next_after']
                 if not more:
                     break
@@ -433,6 +447,8 @@ class InvestigationRegister:
                             if historical_gateway else None),
             }
             instruction += ('\n用 agent_task_records_read 核对 Capstone 执行记录。'
+                            '需要更早或更晚的事件时，用 agent_debug_observe 的 capstone_records，传 after 或从 0 开始。'
+                            '已知异常事件编号时，可以从该编号减一开始。'
                             'payload_projection=bounded_summary 表示只返回获准的摘要字段，字段缺失不能作为原始记录为空的证据。'
                             '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
             task_fields = {
@@ -481,7 +497,8 @@ class InvestigationRegister:
             self._save_diagnosis(scope, diagnosis)
 
         try:
-            result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout), observe)
+            result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout,
+                                                           mission_operation=read_debug_records), observe)
             diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
         except PiHTTPFailure as error:
             detail = error.diagnostic
