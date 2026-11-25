@@ -6,6 +6,34 @@ from test_thread_http_api import _Ledger, WorkerRegistry
 from test_attempt_records import completed_task
 
 
+def test_independent_debug_reads_logs_for_a_bound_failed_call(monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent.debug_investigations import InvestigationRegister
+
+    service, claim = completed_task()
+    register = InvestigationRegister(service)
+    binding = {'instance_id': 'fixture'}
+    monkeypatch.setattr(register, 'historical_gateway', lambda *scope: binding)
+    calls = []
+
+    def read(actual_binding, workspace, investigation_id, operation, query):
+        assert (actual_binding, workspace, investigation_id) == (binding, claim.workspace_name, 'inv_fixture')
+        calls.append((operation, query))
+        if operation == 'list':
+            return {'receipts': [{'client_call_id': 'ok-call', 'state': 'observed', 'observed_status': 'ok'},
+                                 {'client_call_id': 'failed-call', 'state': 'observed', 'observed_status': 'error'}]}
+        return {'records': [{'stage': 'database.read', 'event': 'finished', 'severity': 'error',
+                             'message': '查询超时', 'private': 'excluded'}],
+                'log_read_status': 'retained', 'next_cursor': 'continue'}
+
+    evidence = register._diagnosis_gateway_evidence(claim.workspace_name, claim.thread_id, 'inv_fixture',
+                                                    SimpleNamespace(debug_observation=read))
+    assert calls == [('list', {'limit': 4}), ('logs', {'client_call_id': 'failed-call', 'limit': 8})]
+    assert evidence['logs'] == {'status': 'retained', 'client_call_id': 'failed-call', 'truncated': True,
+                                'records': [{'stage': 'database.read', 'event': 'finished', 'severity': 'error',
+                                             'message': '查询超时'}]}
+
+
 def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
     from types import SimpleNamespace
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')

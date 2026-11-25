@@ -423,6 +423,8 @@ class InvestigationRegister:
         return excerpts
 
     def _diagnosis_gateway_evidence(self, workspace, thread_id, investigation_id, executor):
+        from .pi_delegation import PiHTTPFailure
+
         binding = self.historical_gateway(workspace, thread_id, investigation_id)
         read = getattr(executor, 'debug_observation', None)
         if binding is None:
@@ -432,7 +434,6 @@ class InvestigationRegister:
         try:
             page = read(binding, workspace, investigation_id, 'list', {'limit': 4})
         except (RuntimeError, OSError, ValueError) as error:
-            from .pi_delegation import PiHTTPFailure
             status = error.diagnostic['protocol_code'] if isinstance(error, PiHTTPFailure) else 'read_unavailable'
             return {'status': status}
         receipts = page.get('receipts') if isinstance(page, dict) else None
@@ -440,10 +441,29 @@ class InvestigationRegister:
             return {'status': 'read_unavailable'}
         fields = ('request_id', 'client_call_id', 'state', 'observed_status', 'elapsed_ms',
                   'phase_read_status', 'error_code', 'truncated')
-        return {'status': 'available' if receipts else 'no_bound_records',
-                'truncated': bool(page.get('next_cursor')),
-                'receipts': [{key: row[key] for key in fields if key in row}
-                             for row in receipts[:4] if isinstance(row, dict)]}
+        receipts = [{key: row[key] for key in fields if key in row}
+                    for row in receipts[:4] if isinstance(row, dict)]
+        evidence = {'status': 'available' if receipts else 'no_bound_records',
+                    'truncated': bool(page.get('next_cursor')), 'receipts': receipts}
+        identified = [row for row in receipts if isinstance(row.get('client_call_id'), str) and row['client_call_id']]
+        if not identified:
+            return evidence
+        selected = next((row for row in identified if row.get('state') == 'unknown' or
+                        row.get('observed_status') in {'error', 'failed', 'unavailable', 'partial'}), identified[0])
+        call_id = selected['client_call_id']
+        try:
+            logs = read(binding, workspace, investigation_id, 'logs', {'client_call_id': call_id, 'limit': 8})
+        except (RuntimeError, OSError, ValueError) as error:
+            status = error.diagnostic['protocol_code'] if isinstance(error, PiHTTPFailure) else 'read_unavailable'
+            evidence['logs'] = {'status': status, 'client_call_id': call_id}
+            return evidence
+        fields = ('record_ref', 'time', 'component', 'stage', 'event', 'severity', 'message',
+                  'message_basis', 'exception_chain')
+        evidence['logs'] = {'status': logs['log_read_status'], 'client_call_id': call_id,
+                            'truncated': bool(logs.get('truncated') or logs.get('next_cursor')),
+                            'records': [{key: row[key] for key in fields if key in row}
+                                        for row in logs['records'][:8]]}
+        return evidence
 
     def read_diagnosis(self, workspace, thread_id, investigation_id, executor):
         diagnosis = self.get(workspace, thread_id, investigation_id).get('diagnosis')
