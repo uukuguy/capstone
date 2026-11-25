@@ -1,5 +1,6 @@
 """Stage read-only source archives from a Capstone commit and an installed gateway release."""
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -77,6 +78,30 @@ def stage(root, gateway_releases, destination, *, gateway_only=False):
                 old.unlink()
 
 
+def install_gateway_release(root, release, library):
+    """Publish a complete immutable source directory, including on concurrent imports."""
+    digest = json.loads((release/'release.json').read_text())['source_sha256']
+    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in '0123456789abcdef' for ch in digest):
+        raise ValueError('Invalid gateway release digest')
+    library.mkdir(parents=True, exist_ok=True)
+    destination = library/digest
+    with tempfile.TemporaryDirectory(dir=library) as temporary:
+        candidate = Path(temporary)/'source'
+        stage(root, [release], candidate, gateway_only=True)
+        try:
+            candidate.rename(destination)
+        except OSError as error:
+            if error.errno not in (errno.EEXIST, errno.ENOTEMPTY):
+                raise
+            manifest = (candidate/'manifest.json').read_bytes()
+            if (destination/'manifest.json').read_bytes() != manifest:
+                raise ValueError('Existing gateway source differs for this revision') from error
+            item = json.loads(manifest)['sources'][0]
+            with (destination/item['archive']).open('rb') as archive:
+                if hashlib.file_digest(archive, 'sha256').hexdigest() != item['sha256']:
+                    raise ValueError('Existing gateway source archive failed verification') from error
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root',type=Path,required=True)
@@ -96,9 +121,6 @@ if __name__ == '__main__':
             release.append(Path(active['previous_release_path']))
     if args.install_gateway_source:
         for item in release:
-            digest = json.loads((item/'release.json').read_text())['source_sha256']
-            if len(digest)!=64 or any(ch not in '0123456789abcdef' for ch in digest):
-                raise ValueError('Invalid gateway release digest')
-            stage(args.root,[item],args.output/digest,gateway_only=True)
+            install_gateway_release(args.root, item, args.output)
     else:
         stage(args.root,release,args.output)
