@@ -399,6 +399,16 @@ def create_host_app(
                     'investigation': investigations.latest(request.state.workspace_name, thread_id),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
+        def read_diagnosis(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            try:
+                investigation = investigations.get(request.state.workspace_name, thread_id, investigation_id)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            return JSONResponse(investigation.get('diagnosis') or {'status': 'pending'},
+                                headers={'Cache-Control': 'no-store'})
+
         @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
         def diagnose_investigation(thread_id: str, investigation_id: str, request: Request):
             require_debug(request)

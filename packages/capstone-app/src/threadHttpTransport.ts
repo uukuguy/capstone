@@ -297,8 +297,15 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async runDebugDiagnosis(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
-    const result = await this.request(path, {method: 'POST', signal: AbortSignal.timeout(60000)}) as Record<string, unknown>
-    if (typeof result?.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
+    const deadline = Date.now() + 60000
+    let result = await this.request(path, {method: 'POST', signal: AbortSignal.timeout(60000)}) as Record<string, unknown>
+    while (result.status === 'running' && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      result = await this.request(path, {signal: AbortSignal.timeout(5000)}) as Record<string, unknown>
+    }
+    if (result.status === 'running') throw new Error('诊断尚在运行，请用 /debug status 查看结果。')
+    if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
+    if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
     return result.answer
   }
   async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){

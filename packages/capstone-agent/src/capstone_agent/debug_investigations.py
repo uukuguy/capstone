@@ -136,7 +136,7 @@ class InvestigationRegister:
         self.service.require_workspace(thread_id, workspace)
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
-                row = connection.execute('''SELECT investigation_id,objective,observation FROM capstone_debug_investigations
+                row = connection.execute('''SELECT investigation_id,objective,observation,diagnosis FROM capstone_debug_investigations
                     WHERE workspace=%s AND thread_id=%s AND investigation_id=%s''',
                     (workspace,thread_id,investigation_id)).fetchone()
         else:
