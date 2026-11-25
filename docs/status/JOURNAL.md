@@ -8400,3 +8400,4 @@ check passed. No CI, integration or remote deployment performed.
 - 04:16 Verified both real XLSX sheets and the download in the 5174 right pane. App-only source bd07d4a0.
 - 04:25 Merged PR271 after scoped macOS CI 45478832599. [de229bd4]
 - 04:29 Merged PR270 after scoped macOS CI 45475272758 passed. [595094b4]
+- 08:23 Drafted browser investigation and gateway handoff contracts for offline debugging. [7eecd17f]
