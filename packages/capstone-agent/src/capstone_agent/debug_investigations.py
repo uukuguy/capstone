@@ -43,14 +43,16 @@ class InvestigationRegister:
         self._calls = {}
         self._lock = RLock()
 
-    def _observe(self, thread_id, attempt_id):
+    def _observe(self, thread_id, attempt_id, *, through=None):
         if attempt_id is None:
             return None
-        through = self.service.snapshot(thread_id).last_event_seq
+        if through is None:
+            through = self.service.snapshot(thread_id).last_event_seq
         after = 0
         reference = {'attempt_id': attempt_id, 'through': through, 'first_failure': None}
         while True:
-            page = self.service.read_attempt_records(thread_id, attempt_id, after=after, limit=32)
+            page = self.service.read_attempt_records(thread_id, attempt_id, after=after, limit=32,
+                                                     observations_only=True)
             for event in page['events']:
                 if event['event_seq'] > through:
                     return reference
@@ -163,6 +165,8 @@ class InvestigationRegister:
         through = observation['through']
         selected = {event['event_seq']: event for event in page['events'] if event['event_seq'] <= through}
         failure = observation.get('first_failure')
+        if failure is None and page['has_more']:
+            failure = self._observe(thread_id, observation['attempt_id'], through=through)['first_failure']
         if failure and failure['seq'] not in selected:
             failure_page = reader.read(after=failure['seq'] - 1, limit=4)
             selected.update((event['event_seq'], event) for event in failure_page['events']
@@ -186,7 +190,7 @@ class InvestigationRegister:
             '说明证据是否仅为摘要，不声称已读取源码或直接访问网关。\n'
             f"调查问题：{investigation['objective'][:600]}\n"
             f"目标轮次：{observation['attempt_id']}\n"
-            f"首条失败：{json.dumps(observation.get('first_failure'), ensure_ascii=False)}\n"
+            f"首条失败：{json.dumps(failure, ensure_ascii=False)}\n"
             f"公开事件摘要（后续记录未完整载入）：{json.dumps(events, ensure_ascii=False)}"
         )
         request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout)
