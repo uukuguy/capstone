@@ -56,6 +56,34 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert len(calls) == 2
 
 
+def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
+    from types import SimpleNamespace
+    from capstone_agent.debug_investigations import InvestigationRegister
+    from test_attempt_failure_delivery import claim_attempt
+
+    service = _thread_service()
+    claim = claim_attempt(service)
+    for index in range(15):
+        service.append_runtime_event(claim, event_type='runtime_event', visibility='public',
+            payload={'native_type': 'tool_execution_end', 'tool_name': f'read_{index}',
+                     'is_error': index == 14,
+                     'activity': {'output_excerpt': 'selected source remained ambiguous' if index == 14 else ''}})
+    service.finish_attempt(claim, phase='completed', payload={'answer': 'Done'})
+    register = InvestigationRegister(service)
+    investigation = register.start(claim.workspace_name, claim.thread_id, 'late-error', 'Find failure',
+                                   claim.attempt.attempt_id)
+    failure_seq = investigation['observation']['first_failure']['seq']
+
+    def execute(request, control, on_event):
+        assert 'selected source remained ambiguous' in request.instruction
+        return SimpleNamespace(status='completed', answer='Failure found')
+
+    executor = SimpleNamespace(identity={'service_id': 'pi-local', 'instance_id': 'pi-test', 'revision': 'test'},
+                               execute=execute)
+    diagnosis = register.diagnose(claim.workspace_name, claim.thread_id, investigation['investigation_id'], executor)
+    assert failure_seq in diagnosis['evidence_event_seqs']
+
+
 def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
     monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
