@@ -24,6 +24,17 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
         assert all(set(event) == {'seq', 'type', 'occurred_at'} for event in page['events'])
         assert 'unverified_answer_recorded' not in response.text
         assert 'Input check failed' not in response.text
+        debug = f'/api/v1/threads/{claim.thread_id}/debug'
+        start = client.post(debug+'/investigations', headers={'Idempotency-Key':'saved-finding'},
+                            json={'objective':'定位失败', 'attempt_id':claim.attempt.attempt_id})
+        assert start.status_code == 200
+        finding = start.json()['observation']
+        assert finding['attempt_id'] == claim.attempt.attempt_id
+        assert finding['first_failure']['type'] == 'validation_observation'
+        assert any(event['seq'] == finding['first_failure']['seq'] for event in page['events'])
+        assert client.get(debug+'/status').json()['investigation']['observation'] == finding
+        assert client.post(debug+'/investigations', headers={'Idempotency-Key':'outside'},
+                           json={'objective':'定位失败','attempt_id':'unknown'}).status_code == 404
         assert client.get(path.replace(claim.attempt.attempt_id, 'unknown')).status_code == 404
         monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '0')
         assert client.get(path).status_code == 403

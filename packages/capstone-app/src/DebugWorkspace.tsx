@@ -2,8 +2,8 @@ import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import {firstDebugObservation} from './debugObservation'
 
-export default function DebugWorkspace({threadId,attempts,through,read,allowExport,readTimeline}:{
-  threadId:string; attempts:string[]; through:number; read:AttemptRecordReader; allowExport:boolean
+export default function DebugWorkspace({threadId,attempts,through,read,allowExport,readTimeline,savedFinding}:{
+  threadId:string; attempts:string[]; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
 }){
   const [selection,setSelection]=useState('')
@@ -48,8 +48,9 @@ export default function DebugWorkspace({threadId,attempts,through,read,allowExpo
     }catch(cause){setError(cause instanceof Error?cause.message:'调试记录下载失败。')}
     finally{setBusy(false)}
   }
-  if(!attempt)return <p>当前会话还没有执行记录。</p>
+  if(!attempt)return <p>{savedFinding||'当前会话还没有执行记录。'}</p>
   return <section aria-label="Debug">
+    {savedFinding&&<p>{savedFinding}</p>}
     <label>执行轮次 <select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
       {attempts.map(id=><option key={id}>{id}</option>)}
     </select></label>

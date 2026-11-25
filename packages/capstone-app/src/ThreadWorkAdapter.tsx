@@ -188,13 +188,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [debugThread,setDebugThread]=useState('')
   const [allowDebugExport,setAllowDebugExport]=useState(false)
-  const debugRequest=useRef<{thread:string;objective:string;key:string}|null>(null)
+  const [debugFinding,setDebugFinding]=useState('')
+  const debugRequest=useRef<{thread:string;objective:string;key:string;attemptId?:string}|null>(null)
   useEffect(()=>{
     let current=true
     setDebugThread('')
     if(nativeChat&&typeof transport.debugStatus==='function'){
       void transport.debugStatus(currentId).then(access=>{
-        if(current){setDebugThread(currentId);setAllowDebugExport(access.timelineExport)}
+        if(current){setDebugThread(currentId);setAllowDebugExport(access.timelineExport);setDebugFinding(access.finding)}
       }).catch(()=>{})
     }
     return ()=>{current=false}
@@ -559,10 +560,12 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const objective=start[1].trim()
         let request=debugRequest.current
         if(!request||request.thread!==currentId||request.objective!==objective){
-          request={thread:currentId,objective,key:commandKey()}
+          request={thread:currentId,objective,key:commandKey(),attemptId:latestInstructionAttempt??undefined}
           debugRequest.current=request
         }
-        await transport.startDebugInvestigation(currentId,objective,request.key)
+        await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
+        const status=await transport.debugStatus(currentId)
+        setDebugFinding(status.finding)
         debugRequest.current=null
         setNotice('调查目标已登记：'+objective)
         selectResourceView('debug')
@@ -570,7 +573,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }
       if(/^\/debug\s+status\s*$/.test(text)){
         const status=await transport.debugStatus(currentId)
-        setNotice(status.objective?'最近登记的调查：'+status.objective:'当前会话尚未登记调查。')
+        setDebugFinding(status.finding)
+        setNotice(status.objective?'最近登记的调查：'+status.objective+' '+status.finding:'当前会话尚未登记调查。')
         return
       }
       if(pendingGoalControl){
@@ -1039,7 +1043,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
   if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
     content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
-      through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
+      savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId

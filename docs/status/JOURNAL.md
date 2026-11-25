@@ -8408,3 +8408,4 @@ check passed. No CI, integration or remote deployment performed.
 - 09:08 Verified earliest visible failure lookup across pages and snapshot boundaries, including failed validation in completed attempts. [01bbb5d8]
 - Requested scoped gateway logs for Debug Pi to trace observed failures. Gateway confirmation pending. [a9f3dad8]
 - Verified gateway investigation adapter with published v1 fixtures and 81 adapter checks. Live dedicated credential pending. [9e6faf37]
+- Verified PostgreSQL investigation recovery, eight concurrent call reservations and idempotent browser API registration. [1aa7855b]

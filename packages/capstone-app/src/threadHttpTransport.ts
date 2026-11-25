@@ -270,13 +270,18 @@ export class HttpThreadTransport implements ThreadTransport {
   async debugStatus(threadId:string){
     const value=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`) as Record<string,unknown>
     if(value?.thread_id!==threadId||value.enabled!==true)throw new Error('调试入口不可用。')
-    const investigation=value.investigation as {investigation_id?:unknown;objective?:unknown}|null
+    const investigation=value.investigation as {objective?:unknown;observation?:{
+      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null}}|null
+    const observation=investigation?.observation
+    const finding=observation?(observation.first_failure?
+      `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
+      `执行轮次 ${observation.attempt_id} 截至事件 #${observation.through} 未记录公开失败事件。`):''
     return {timelineExport:value.timeline_export===true,
-      objective:typeof investigation?.objective==='string'?investigation.objective:null}
+      objective:typeof investigation?.objective==='string'?investigation.objective:null,finding}
   }
-  async startDebugInvestigation(threadId:string,objective:string,key:string){
+  async startDebugInvestigation(threadId:string,objective:string,key:string,attemptId?:string){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
-    return this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective})})
+    return this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})})
   }
   async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)
