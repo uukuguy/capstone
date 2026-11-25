@@ -1,0 +1,967 @@
+{
+  "contract_version": "gateway-investigation/1",
+  "metadata_key": "gateway/investigation",
+  "binding_ttl_seconds": 86400,
+  "receipt_retention_seconds": 604800,
+  "max_calls_per_binding": 1000,
+  "operations": {
+    "contract": {
+      "method": "GET",
+      "path": "/investigations/v1/contract"
+    },
+    "bind": {
+      "method": "POST",
+      "path": "/investigations/v1/bind"
+    },
+    "read": {
+      "method": "POST",
+      "path": "/investigations/v1/read"
+    },
+    "list": {
+      "method": "POST",
+      "path": "/investigations/v1/list"
+    },
+    "close": {
+      "method": "POST",
+      "path": "/investigations/v1/close"
+    }
+  },
+  "schemas": {
+    "BindRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "instance_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "investigation_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Investigation Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Idempotency Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instance_id",
+        "workspace_id",
+        "investigation_id",
+        "idempotency_key"
+      ],
+      "title": "BindRequest",
+      "type": "object"
+    },
+    "BindingResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "default": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "binding_handle": {
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "title": "Binding Handle",
+          "type": "string"
+        },
+        "expires_at": {
+          "title": "Expires At",
+          "type": "number"
+        },
+        "receipt_retention_seconds": {
+          "default": 604800,
+          "title": "Receipt Retention Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "binding_handle",
+        "expires_at"
+      ],
+      "title": "BindingResponse",
+      "type": "object"
+    },
+    "ScopeRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_handle": {
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "title": "Binding Handle",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "investigation_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Investigation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_handle",
+        "workspace_id",
+        "investigation_id"
+      ],
+      "title": "ScopeRequest",
+      "type": "object"
+    },
+    "ReadRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_handle": {
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "title": "Binding Handle",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "investigation_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Investigation Id",
+          "type": "string"
+        },
+        "client_call_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Call Id"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        }
+      },
+      "required": [
+        "binding_handle",
+        "workspace_id",
+        "investigation_id"
+      ],
+      "title": "ReadRequest",
+      "type": "object"
+    },
+    "ListRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_handle": {
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "title": "Binding Handle",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "investigation_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Investigation Id",
+          "type": "string"
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}~[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        }
+      },
+      "required": [
+        "binding_handle",
+        "workspace_id",
+        "investigation_id"
+      ],
+      "title": "ListRequest",
+      "type": "object"
+    },
+    "CallMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_handle": {
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "title": "Binding Handle",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "investigation_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Investigation Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_handle",
+        "workspace_id",
+        "investigation_id",
+        "contract_version"
+      ],
+      "title": "CallMetadata",
+      "type": "object"
+    },
+    "Receipt": {
+      "$defs": {
+        "Phase": {
+          "additionalProperties": false,
+          "properties": {
+            "stage": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "unknown",
+                "ok",
+                "partial",
+                "unavailable",
+                "error",
+                "failed",
+                "cancelled"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed Ms"
+            }
+          },
+          "required": [
+            "stage",
+            "status"
+          ],
+          "title": "Phase",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "default": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "unknown",
+            "observed"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "observed_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "ok",
+                "partial",
+                "unavailable",
+                "error",
+                "failed",
+                "cancelled"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Observed Status"
+        },
+        "client_call_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Client Call Id",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Request Id"
+        },
+        "instance_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "gateway_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gateway Version"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "tool_contract_revision": {
+          "title": "Tool Contract Revision",
+          "type": "string"
+        },
+        "elapsed_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Elapsed Ms"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Error Code"
+        },
+        "phases": {
+          "items": {
+            "$ref": "#/$defs/Phase"
+          },
+          "maxItems": 50,
+          "title": "Phases",
+          "type": "array"
+        },
+        "phase_read_status": {
+          "default": "not_requested",
+          "enum": [
+            "not_requested",
+            "retained",
+            "not_observed",
+            "unavailable"
+          ],
+          "title": "Phase Read Status",
+          "type": "string"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "automatic_retry": {
+          "const": false,
+          "default": false,
+          "title": "Automatic Retry",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "state",
+        "observed_status",
+        "client_call_id",
+        "request_id",
+        "instance_id",
+        "gateway_version",
+        "tool",
+        "tool_contract_revision",
+        "elapsed_ms",
+        "error_code",
+        "phases"
+      ],
+      "title": "Receipt",
+      "type": "object"
+    },
+    "ReceiptPage": {
+      "$defs": {
+        "Phase": {
+          "additionalProperties": false,
+          "properties": {
+            "stage": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "unknown",
+                "ok",
+                "partial",
+                "unavailable",
+                "error",
+                "failed",
+                "cancelled"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed Ms"
+            }
+          },
+          "required": [
+            "stage",
+            "status"
+          ],
+          "title": "Phase",
+          "type": "object"
+        },
+        "Receipt": {
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "const": "gateway-investigation/1",
+              "default": "gateway-investigation/1",
+              "title": "Contract Version",
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "unknown",
+                "observed"
+              ],
+              "title": "State",
+              "type": "string"
+            },
+            "observed_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "ok",
+                    "partial",
+                    "unavailable",
+                    "error",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Observed Status"
+            },
+            "client_call_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Client Call Id",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Request Id"
+            },
+            "instance_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Instance Id",
+              "type": "string"
+            },
+            "gateway_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Gateway Version"
+            },
+            "tool": {
+              "title": "Tool",
+              "type": "string"
+            },
+            "tool_contract_revision": {
+              "title": "Tool Contract Revision",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Elapsed Ms"
+            },
+            "error_code": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Code"
+            },
+            "phases": {
+              "items": {
+                "$ref": "#/$defs/Phase"
+              },
+              "maxItems": 50,
+              "title": "Phases",
+              "type": "array"
+            },
+            "phase_read_status": {
+              "default": "not_requested",
+              "enum": [
+                "not_requested",
+                "retained",
+                "not_observed",
+                "unavailable"
+              ],
+              "title": "Phase Read Status",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "automatic_retry": {
+              "const": false,
+              "default": false,
+              "title": "Automatic Retry",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "state",
+            "observed_status",
+            "client_call_id",
+            "request_id",
+            "instance_id",
+            "gateway_version",
+            "tool",
+            "tool_contract_revision",
+            "elapsed_ms",
+            "error_code",
+            "phases"
+          ],
+          "title": "Receipt",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "default": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "receipts": {
+          "items": {
+            "$ref": "#/$defs/Receipt"
+          },
+          "maxItems": 50,
+          "title": "Receipts",
+          "type": "array"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}~[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Cursor"
+        }
+      },
+      "required": [
+        "receipts"
+      ],
+      "title": "ReceiptPage",
+      "type": "object"
+    },
+    "CloseResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "default": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "state": {
+          "const": "closed",
+          "default": "closed",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "title": "CloseResponse",
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "$defs": {
+        "ErrorDetail": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Code",
+              "type": "string"
+            },
+            "automatic_retry": {
+              "const": false,
+              "default": false,
+              "title": "Automatic Retry",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "title": "ErrorDetail",
+          "type": "object"
+        },
+        "Phase": {
+          "additionalProperties": false,
+          "properties": {
+            "stage": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "unknown",
+                "ok",
+                "partial",
+                "unavailable",
+                "error",
+                "failed",
+                "cancelled"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed Ms"
+            }
+          },
+          "required": [
+            "stage",
+            "status"
+          ],
+          "title": "Phase",
+          "type": "object"
+        },
+        "Receipt": {
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "const": "gateway-investigation/1",
+              "default": "gateway-investigation/1",
+              "title": "Contract Version",
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "unknown",
+                "observed"
+              ],
+              "title": "State",
+              "type": "string"
+            },
+            "observed_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "ok",
+                    "partial",
+                    "unavailable",
+                    "error",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Observed Status"
+            },
+            "client_call_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Client Call Id",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Request Id"
+            },
+            "instance_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Instance Id",
+              "type": "string"
+            },
+            "gateway_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Gateway Version"
+            },
+            "tool": {
+              "title": "Tool",
+              "type": "string"
+            },
+            "tool_contract_revision": {
+              "title": "Tool Contract Revision",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Elapsed Ms"
+            },
+            "error_code": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Code"
+            },
+            "phases": {
+              "items": {
+                "$ref": "#/$defs/Phase"
+              },
+              "maxItems": 50,
+              "title": "Phases",
+              "type": "array"
+            },
+            "phase_read_status": {
+              "default": "not_requested",
+              "enum": [
+                "not_requested",
+                "retained",
+                "not_observed",
+                "unavailable"
+              ],
+              "title": "Phase Read Status",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "automatic_retry": {
+              "const": false,
+              "default": false,
+              "title": "Automatic Retry",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "state",
+            "observed_status",
+            "client_call_id",
+            "request_id",
+            "instance_id",
+            "gateway_version",
+            "tool",
+            "tool_contract_revision",
+            "elapsed_ms",
+            "error_code",
+            "phases"
+          ],
+          "title": "Receipt",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "default": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorDetail"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Receipt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "ErrorResponse",
+      "type": "object"
+    }
+  },
+  "export": {
+    "deployment_policy": "undeclared",
+    "allowed": [
+      "contract_version",
+      "state",
+      "observed_status",
+      "elapsed_ms",
+      "phase_read_status",
+      "truncated",
+      "automatic_retry"
+    ],
+    "onsite_only": [
+      "client_call_id",
+      "request_id",
+      "instance_id",
+      "tool",
+      "error_code",
+      "phases",
+      "next_cursor"
+    ],
+    "undeclared": [
+      "gateway_version",
+      "tool_contract_revision"
+    ],
+    "never_include": [
+      "binding_handle",
+      "credentials",
+      "arguments",
+      "business_result"
+    ],
+    "unlisted": "undeclared"
+  }
+}

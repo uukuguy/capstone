@@ -1,0 +1,76 @@
+{
+  "synthetic": true,
+  "bind": {
+    "instance_id": "fixture-instance",
+    "workspace_id": "workspace-a",
+    "investigation_id": "investigation-a",
+    "idempotency_key": "bind-a"
+  },
+  "binding": {
+    "contract_version": "gateway-investigation/1",
+    "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "expires_at": 1795651200,
+    "receipt_retention_seconds": 604800
+  },
+  "call": {
+    "name": "query_source_records",
+    "arguments": {"table": "main.synthetic_sites", "columns": ["id"], "limit": 1},
+    "_meta": {
+      "gateway/diagnostics": {"client_call_id": "synthetic-call-1", "task_id": "synthetic-task", "run_id": "synthetic-run", "trace_id": "synthetic-trace", "parent_span_id": "attempt:synthetic"},
+      "gateway/investigation": {
+        "contract_version": "gateway-investigation/1",
+        "workspace_id": "workspace-a",
+        "investigation_id": "investigation-a",
+        "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    }
+  },
+  "read_after_response_loss": {
+    "workspace_id": "workspace-a",
+    "investigation_id": "investigation-a",
+    "binding_handle": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "client_call_id": "synthetic-call-1"
+  },
+  "observed": {
+    "contract_version": "gateway-investigation/1",
+    "state": "observed",
+    "observed_status": "partial",
+    "client_call_id": "synthetic-call-1",
+    "request_id": "synthetic-request-1",
+    "instance_id": "fixture-instance",
+    "gateway_version": "1.1.0",
+    "tool": "query_source_records",
+    "tool_contract_revision": "synthetic-tool-revision",
+    "elapsed_ms": 12.5,
+    "error_code": "synthetic_coverage_gap",
+    "phases": [{"stage": "database.read", "status": "ok", "elapsed_ms": 4.5}],
+    "phase_read_status": "retained",
+    "truncated": true,
+    "automatic_retry": false
+  },
+  "unknown": {
+    "contract_version": "gateway-investigation/1",
+    "state": "unknown",
+    "observed_status": null,
+    "client_call_id": "synthetic-call-2",
+    "request_id": "synthetic-request-2",
+    "instance_id": "fixture-instance",
+    "gateway_version": "1.1.0",
+    "tool": "query_source_records",
+    "tool_contract_revision": "synthetic-tool-revision",
+    "elapsed_ms": null,
+    "error_code": null,
+    "phases": [],
+    "phase_read_status": "not_observed",
+    "truncated": false,
+    "automatic_retry": false
+  },
+  "not_visible": {
+    "contract_version": "gateway-investigation/1",
+    "error": {"code": "receipt_not_visible", "automatic_retry": false}
+  },
+  "expired": {
+    "contract_version": "gateway-investigation/1",
+    "error": {"code": "binding_expired", "automatic_retry": false}
+  }
+}
