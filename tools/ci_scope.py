@@ -769,6 +769,75 @@ def gateway_capabilities_paths(paths: list[str]) -> bool:
     return anchor in paths and all(path in allowed or _control_path(path) for path in paths)
 
 
+DEBUG_DEV_FILES = {
+    '.github/workflows/verify.yml',
+    '.gitignore',
+    'Dockerfile',
+    'compose.yaml',
+    'configs/runtime/agent-resources.json',
+    'configs/runtime/general-pi/skills/service-contract-investigation/SKILL.md',
+    'deploy/cloud-run/deploy.example.sh',
+    'deploy/dev-trial/compose.yaml',
+    'deploy/general-pi.Dockerfile',
+    'deploy/intranet/compose.yaml',
+    'deploy/package_debug_sources.py',
+    'deploy/rebuild_demo_local.sh',
+    'deploy/rebuild_local.sh',
+    'tools/check_debug_evidence.py',
+    'tools/ci_scope.py',
+    'tools/compare_debug_timelines.py',
+    'tools/tests/test_ci_scope.py',
+} | {'packages/capstone-agent/src/capstone_agent/' + name for name in (
+    'data_gateway_mcp.py',
+    'data_gateway_relay.py',
+    'debug_commands.py',
+    'debug_investigations.py',
+    'debug_sources.py',
+    'gateway_debug_source.py',
+    'gateway_investigation.py',
+    'general_pi_server.py',
+    'host_api.py',
+    'native_hosted_worker.py',
+    'native_task_context.py',
+    'pi_delegation.py',
+    'resources/general-sdk.mjs',
+    'resources/mission-tools.mjs',
+    'task_record_reader.py',
+    'thread_service.py',
+    'thread_worker.py',
+)} | {'packages/capstone-agent/tests/' + name for name in (
+    'fixtures/gateway-investigation-v1/contract.json',
+    'fixtures/gateway-investigation-v1/log-contract.json',
+    'fixtures/gateway-investigation-v1/synthetic-exchange.json',
+    'fixtures/gateway-investigation-v1/synthetic-logs.json',
+    'test_attempt_records.py',
+    'test_data_gateway_mcp.py',
+    'test_debug_command_access.py',
+    'test_debug_commands.py',
+    'test_debug_investigations.py',
+    'test_debug_sources.py',
+    'test_gateway_investigation.py',
+    'test_gateway_progressive.py',
+    'test_investigation_skills.py',
+    'test_task_record_reader.py',
+    'test_thread_work_execution.py',
+)} | {'packages/capstone-app/src/' + name for name in (
+    'CapstoneAssistantThread.tsx',
+    'DebugWorkspace.css',
+    'DebugWorkspace.tsx',
+    'ThreadCommandMenu.tsx',
+    'ThreadWorkAdapter.tsx',
+    'debugObservation.test.ts',
+    'debugObservation.ts',
+    'threadHttpTransport.test.ts',
+    'threadHttpTransport.ts',
+    'threadInput.test.ts',
+    'threadInput.ts',
+    'threadWorkProtocol.test.ts',
+    'threadWorkProtocol.ts',
+)}
+
+
 def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
              runtime_dependencies: bool = False, source_topology: bool = False,
              gateway_deployment: bool = False, gateway_bindings_deployment: bool = False,
@@ -778,6 +847,9 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    if (target == 'dev' and 'packages/capstone-agent/src/capstone_agent/debug_investigations.py' in paths
+            and all(path in DEBUG_DEV_FILES or path in DOC_FILES or _control_path(path) for path in paths)):
+        return 'debug-investigations'
     query_delivery_paths = {
         '.github/workflows/verify.yml', 'tools/ci_scope.py', 'deploy/general-pi.Dockerfile',
         'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
