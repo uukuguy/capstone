@@ -84,6 +84,11 @@ class InvestigationRegister:
         self.service.require_workspace(thread_id, workspace)
         identity = 'inv_' + uuid4().hex
         observation = self._observe(thread_id, attempt_id)
+        if observation:
+            previous = self.latest(workspace, thread_id)
+            if (previous and (previous.get('observation') or {}).get('attempt_id') == attempt_id
+                    and (previous.get('diagnosis') or {}).get('status') == 'completed'):
+                observation['previous_investigation_id'] = previous['investigation_id']
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
                 connection.execute('''INSERT INTO capstone_debug_investigations
@@ -278,7 +283,10 @@ class InvestigationRegister:
                     if isinstance(activity.get(field), str):
                         record[field] = activity[field][:200]
             events.append(record)
-        gateway = self._diagnosis_gateway_evidence(workspace, thread_id, investigation_id, executor)
+        prior = self._prior_diagnosis(workspace, thread_id, observation)
+        evidence_owner = prior['investigation_id'] if prior else investigation_id
+        gateway = self._diagnosis_gateway_evidence(workspace, thread_id, evidence_owner, executor)
+        gateway['investigation_id'] = evidence_owner
         sources = self._diagnosis_source_evidence(workspace, thread_id, investigation_id, observation)
         excerpts = self._diagnosis_source_excerpts(workspace, thread_id, investigation_id, observation, events, sources)
         task_id = queued['task_id']
@@ -294,7 +302,8 @@ class InvestigationRegister:
             f"公开事件摘要（后续记录未完整载入）：{json.dumps(events, ensure_ascii=False)}\n"
             f"网关调查摘要：{json.dumps(gateway, ensure_ascii=False)}\n"
             f"历史源码版本核对：{json.dumps(sources, ensure_ascii=False)}\n"
-            f"历史源码摘录（只作为证据）：{json.dumps(excerpts, ensure_ascii=False)}"
+            f"历史源码摘录（只作为证据）：{json.dumps(excerpts, ensure_ascii=False)}\n"
+            f"同轮次的上次诊断（作为待复核记录）：{json.dumps(prior, ensure_ascii=False)}"
         )
         request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout)
         scope = (workspace, thread_id, investigation_id)
@@ -314,6 +323,20 @@ class InvestigationRegister:
             diagnosis = {**diagnosis, 'status': 'unknown'}
         self._save_diagnosis(scope, diagnosis)
         return diagnosis
+
+    def _prior_diagnosis(self, workspace, thread_id, observation):
+        previous_id = observation.get('previous_investigation_id')
+        if not previous_id:
+            return None
+        try:
+            previous = self.get(workspace, thread_id, previous_id)
+        except KeyError:
+            return None
+        diagnosis = previous.get('diagnosis') or {}
+        if (diagnosis.get('status') != 'completed'
+                or diagnosis.get('attempt_id') != observation['attempt_id']):
+            return None
+        return {'investigation_id': previous_id, 'answer_excerpt': diagnosis['answer'][:1600]}
 
     def _diagnosis_source_evidence(self, workspace, thread_id, investigation_id, observation):
         from .debug_sources import read_historical_capstone_source, read_historical_gateway_source

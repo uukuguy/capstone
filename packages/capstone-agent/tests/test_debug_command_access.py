@@ -109,6 +109,41 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
     assert failure_seq in diagnosis['evidence_event_seqs']
 
 
+def test_debug_probe_retry_reads_the_original_call(monkeypatch):
+    from capstone_agent.debug_investigations import InvestigationRegister
+
+    monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
+    monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
+    service, claim = completed_task()
+    binding = {'connection_id': 'recorded', 'instance_id': 'instance-original'}
+    monkeypatch.setattr(InvestigationRegister, 'historical_gateway', lambda *_: binding)
+    operations = []
+
+    class Executor:
+        def debug_observation(self, selected, workspace, investigation_id, operation, query):
+            assert selected == binding
+            operations.append((operation, query))
+            if operation == 'probe':
+                raise OSError('response lost after dispatch')
+            return {'state': 'observed', 'client_call_id': query['client_call_id']}
+
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+                          allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+                          thread_open_access=True, thread_service=service, native_artifact_executor=Executor())
+    path = f'/api/v1/threads/{claim.thread_id}/debug/investigations'
+    with TestClient(app, base_url='http://localhost') as client:
+        created = client.post(path, headers={'Idempotency-Key': 'probe-investigation'},
+                              json={'objective': '复验', 'attempt_id': claim.attempt.attempt_id}).json()
+        url = f"{path}/{created['investigation_id']}/probe"
+        headers = {'Idempotency-Key': 'probe-choice'}
+        body = {'tool': 'data_gateway_read', 'arguments': {'limit': 1}}
+        assert client.post(url, headers=headers, json=body).status_code == 409
+        assert client.post(url, headers=headers, json=body).json()['state'] == 'observed'
+        assert client.post(url, headers=headers, json={**body, 'arguments': {'limit': 2}}).status_code == 409
+        assert [operation for operation, _ in operations] == ['probe', 'read']
+        assert operations[0][1]['client_call_id'] == operations[1][1]['client_call_id']
+
+
 def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
     monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
