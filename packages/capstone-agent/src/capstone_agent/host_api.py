@@ -389,7 +389,30 @@ def create_host_app(
             require_private_thread(request)
             if not debug_commands_enabled(os.environ):
                 raise HTTPException(403, '当前部署已关闭调试命令。')
-            return {'thread_id': thread_id, 'enabled': True}
+            return {'thread_id': thread_id, 'enabled': True,
+                    'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
+
+        @app.get('/api/v1/threads/{thread_id}/debug/attempts/{attempt_id}/timeline')
+        def thread_debug_timeline(thread_id: str, attempt_id: str, request: Request,
+                                  after: Annotated[int, Query(ge=0)] = 0,
+                                  through: Annotated[int | None, Query(ge=0)] = None):
+            access = thread_debug_status(thread_id, request)
+            if not access['timeline_export']:
+                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+            try:
+                if through is None:
+                    through = thread_service.snapshot(thread_id).last_event_seq
+                page = thread_service.read_attempt_records(thread_id, attempt_id, after=after, limit=32)
+            except ThreadNotFound:
+                raise HTTPException(404, '执行记录不存在。') from None
+            except ThreadProtocolError:
+                raise HTTPException(422, '执行记录标识或游标无效。') from None
+            events = [{'seq': event['event_seq'], 'type': event['event_type'], 'occurred_at': event['occurred_at']}
+                      for event in page['events'] if event['visibility'] == 'public' and event['event_seq'] <= through]
+            return JSONResponse({'thread_id': thread_id, 'attempt_id': attempt_id, 'events': events,
+                                 'through': through, 'next_after': min(page['next_after'], through),
+                                 'has_more': page['has_more'] and page['next_after'] < through},
+                                headers={'Cache-Control': 'no-store'})
 
         from .session_pins import register_session_pin_routes
         register_session_pin_routes(app, service=thread_service, authorize=require_private_thread)

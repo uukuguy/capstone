@@ -1,4 +1,5 @@
 import TaskContextPanel from './TaskContextPanel'
+import DebugWorkspace from './DebugWorkspace'
 import InstructionContextPanel, {contextIndicator} from './InstructionContextPanel'
 import {contextToolExcerpt,projectInstructionContexts} from './instructionContext'
 import GoalControls from './GoalControls'
@@ -185,6 +186,18 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [requestedContext,setRequestedContext]=useState<{id:string;nonce:number}>()
   const [contextAttempt,setContextAttempt]=useSessionViewState<string|undefined>('context.attempt',undefined)
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
+  const [debugThread,setDebugThread]=useState('')
+  const [allowDebugExport,setAllowDebugExport]=useState(false)
+  useEffect(()=>{
+    let current=true
+    setDebugThread('')
+    if(nativeChat&&typeof transport.debugStatus==='function'){
+      void transport.debugStatus(currentId).then(access=>{
+        if(current){setDebugThread(currentId);setAllowDebugExport(access.timelineExport)}
+      }).catch(()=>{})
+    }
+    return ()=>{current=false}
+  },[nativeChat,transport,currentId])
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
   const instructionViewRef=useRef(instructionView);instructionViewRef.current=instructionView
   const saveInstructionView=useCallback((value:InstructionViewState)=>{instructionViewRef.current=value;setInstructionView(value)},[setInstructionView])
@@ -1009,6 +1022,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       progress={missionProgress} onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>}
   </> : undefined
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
+  if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
+    content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
+      read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
+      readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId
     if(!instruction)return attempt

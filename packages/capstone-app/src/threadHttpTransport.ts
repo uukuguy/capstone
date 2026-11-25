@@ -268,7 +268,23 @@ export class HttpThreadTransport implements ThreadTransport {
     }
   }
   async debugStatus(threadId:string){
-    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`)
+    const value=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`) as Record<string,unknown>
+    if(value?.thread_id!==threadId||value.enabled!==true)throw new Error('调试入口不可用。')
+    return {timelineExport:value.timeline_export===true}
+  }
+  async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
+    const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)
+    const page=await this.request(path) as Record<string,unknown>
+    if(page?.thread_id!==threadId||page.attempt_id!==attemptId||!Array.isArray(page.events)||
+        typeof page.next_after!=='number'||!Number.isSafeInteger(page.next_after)||page.next_after<after||
+        typeof page.has_more!=='boolean'||(page.has_more&&page.next_after===after))throw new Error('调试记录分页无效。')
+    const events=page.events.map(event=>{
+      if(!Number.isSafeInteger(event?.seq)||typeof event?.type!=='string'||typeof event?.occurred_at!=='string')throw new Error('调试事件格式无效。')
+      return {seq:event.seq as number,type:event.type as string,occurred_at:event.occurred_at as string}
+    })
+    if(typeof page.through!=='number'||!Number.isSafeInteger(page.through)||page.through<page.next_after||
+        (through!==undefined&&through!==page.through))throw new Error('调试记录快照无效。')
+    return {events,nextAfter:page.next_after,hasMore:page.has_more,through:page.through}
   }
   async listManagedResources(){return this.managedResourceRequest('/api/v1/managed-resources')}
   async readManagedResourceOperation(requestId:string){return this.managedResourceRequest(`/api/v1/managed-resources/operations/${encodeURIComponent(requestId)}`)}

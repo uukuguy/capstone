@@ -8403,3 +8403,5 @@ check passed. No CI, integration or remote deployment performed.
 - 08:23 Drafted browser investigation and gateway handoff contracts for offline debugging. [7eecd17f]
 - 08:29 Verified 21 slash command parsing cases. Browser authorization remains pending. [547c2a4f]
 - 08:29 Verified service investigation skill availability for both general Pi roles and exclusion from professional Harness.
+- 08:39 Recorded bilateral binding acceptance and verified lost-response handling, partial provenance and admission rejection. [eb369bd5]
+- Recorded independent, investigation-scoped selection of packaged Capstone and gateway source revisions. [e10f7819]
