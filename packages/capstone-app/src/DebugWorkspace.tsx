@@ -4,15 +4,34 @@ import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import {firstDebugObservation} from './debugObservation'
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
+  readEvidence?: () => Promise<unknown>
 }){
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const attempt=attempts.includes(selection)?selection:attempts[0]
+  async function downloadEvidence(){
+    if (!readEvidence || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const document = await readEvidence()
+      const url = URL.createObjectURL(new Blob([JSON.stringify(document, null, 2)], {type:'application/json'}))
+      const link = window.document.createElement('a')
+      link.href = url
+      link.download = 'debug-evidence.json'
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '暂时无法下载调查记录。')
+    } finally {
+      setBusy(false)
+    }
+  }
   async function locate(){
     if(!attempt||busy)return
     setBusy(true)
@@ -65,6 +84,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
     </>:<p>这段会话还没有执行记录。</p>}
     {savedFinding&&<p>{savedFinding}</p>}
+    {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载当前调查记录</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
     <button type="button" onClick={refreshSource}><RefreshCw size={14}/>重新核对</button></div>

@@ -308,6 +308,10 @@ export class HttpThreadTransport implements ThreadTransport {
     if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
     return result.answer
   }
+  async debugEvidence(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence`
+    return this.request(path)
+  }
   async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)
     const page=await this.request(path) as Record<string,unknown>
