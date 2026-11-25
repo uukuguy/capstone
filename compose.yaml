@@ -175,6 +175,7 @@ services:
     <<: *host-service
     volumes:
       - worker-native-runs:/app/runs
+      - ${CAPSTONE_DEBUG_SOURCE_LIBRARY_DIR:-./.capstone-agent/debug-source-library}:/opt/capstone-debug-library:ro
     environment:
       <<: *host-environment
       CAPSTONE_HOSTED_APPLICATION: native

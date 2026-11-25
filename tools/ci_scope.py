@@ -769,6 +769,24 @@ def gateway_capabilities_paths(paths: list[str]) -> bool:
     return anchor in paths and all(path in allowed or _control_path(path) for path in paths)
 
 
+def debug_deployment_document(old: str, new: str) -> bool:
+    anchor = '      - worker-native-runs:/app/runs\n'
+    library_mount = ('      - ${CAPSTONE_DEBUG_SOURCE_LIBRARY_DIR:-./.capstone-agent/debug-source-library}'
+                     ':/opt/capstone-debug-library:ro\n')
+    return old.count(anchor) == 1 and new == old.replace(anchor, anchor + library_mount, 1)
+
+
+def debug_deployment_diff(paths: list[str], base: str, head: str) -> bool:
+    if 'compose.yaml' not in paths:
+        return False
+    try:
+        old, new = [subprocess.check_output(['git', 'show', f'{revision}:compose.yaml'], text=True)
+                    for revision in (base, head)]
+    except (subprocess.CalledProcessError, OSError):
+        return False
+    return debug_deployment_document(old, new)
+
+
 DEBUG_DEV_FILES = {
     '.github/workflows/verify.yml',
     '.gitignore',
@@ -845,11 +863,15 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
              runtime_dependencies: bool = False, source_topology: bool = False,
              gateway_deployment: bool = False, gateway_bindings_deployment: bool = False,
              gateway_bindings_startup: bool = False, session_capacity_deployment: bool = False,
-             execution_lifecycle_deployment: bool = False) -> str:
+             execution_lifecycle_deployment: bool = False, debug_deployment: bool = False) -> str:
     if target == 'main' or release:
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
+    debug_mount_paths = {'compose.yaml', 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py',
+                         'tools/tests/test_dev_trial_deployment.py'}
+    if target == 'dev' and debug_deployment and all(path in debug_mount_paths or _control_path(path) for path in paths):
+        return 'debug-investigations'
     if (target == 'dev' and 'packages/capstone-agent/src/capstone_agent/debug_investigations.py' in paths
             and all(path in DEBUG_DEV_FILES or path in DOC_FILES or _control_path(path) for path in paths)):
         return 'debug-investigations'
@@ -1206,6 +1228,7 @@ def main() -> None:
             print('governance')
             return
         print(classify(paths, target=args.target, release=args.release,
+                       debug_deployment=debug_deployment_diff(paths, args.base, args.head),
                        execution_lifecycle_deployment=execution_lifecycle_deployment_diff(paths, args.base, args.head),
                        session_capacity_deployment=session_capacity_deployment_diff(paths, args.base, args.head),
                        gateway_bindings_startup=gateway_bindings_startup_diff(paths, args.base, args.head),

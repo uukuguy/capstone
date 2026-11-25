@@ -20,6 +20,22 @@ def test_debug_investigations_scope_is_bounded_to_direct_consumers():
     assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
 
 
+def test_debug_library_mount_uses_the_debug_gate_without_hiding_other_compose_changes():
+    from tools.ci_scope import classify as classify_changes, debug_deployment_document
+
+    old = '    volumes:\n      - worker-native-runs:/app/runs\n    environment:\n'
+    new = old.replace('    environment:', '      - ${CAPSTONE_DEBUG_SOURCE_LIBRARY_DIR:-./.capstone-agent/debug-source-library}'
+                      ':/opt/capstone-debug-library:ro\n    environment:')
+    paths = ['compose.yaml', 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py',
+             'tools/tests/test_dev_trial_deployment.py']
+    assert debug_deployment_document(old, new)
+    assert not debug_deployment_document(old, new.replace(':ro', ':rw'))
+    assert not debug_deployment_document(old, new + '    restart: never\n')
+    assert classify_changes(paths, debug_deployment=True) == 'debug-investigations'
+    assert classify_changes(paths) == 'product'
+    assert classify_changes(paths, debug_deployment=True, target='main') == 'release'
+
+
 def test_thin_context_has_a_focused_dev_gate():
     from tools.ci_scope import classify as classify_changes
 

@@ -36,6 +36,11 @@ def test_intranet_native_only_compose_does_not_inherit_optional_worker_origins(t
     assert 'worker' not in services
     assert 'worker-pypsa' not in services
     assert not services['general-pi'].get('profiles')
+    library = '/opt/capstone-debug-library'
+    api_mount = next(mount for mount in services['api']['volumes'] if mount['target'] == library)
+    worker_mount = next(mount for mount in services['worker-native']['volumes'] if mount['target'] == library)
+    assert worker_mount['source'] == api_mount['source']
+    assert worker_mount['read_only'] and api_mount['read_only']
 
 
 def test_user_local_default_port_is_separate_from_developer_services():
