@@ -314,7 +314,50 @@ class InvestigationRegister:
             f"历史源码摘录（只作为证据）：{json.dumps(excerpts, ensure_ascii=False)}\n"
             f"同轮次的上次诊断（作为待复核记录）：{json.dumps(prior, ensure_ascii=False)}"
         )
-        request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout)
+        profile = getattr(executor, 'capability', {}).get('resource_profiles', {}).get('direct_pi', {})
+        task_fields = {}
+        if profile.get('revision'):
+            from .business_context import BusinessContext
+            from .native_task_context import POLICY_TEXT
+
+            audit_reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
+                workspace_name=workspace, handoff={'through_event_seq': through})
+            pages = []
+            cursor = 0
+            for index in range(8):
+                page = audit_reader.read(after=cursor, limit=12)
+                visible = []
+                for event in page['events']:
+                    payload = event['payload']
+                    activity = payload.get('activity')
+                    fields = ('native_type', 'tool_name', 'is_error')
+                    summary = {key: payload[key] for key in fields if key in payload}
+                    if isinstance(activity, dict):
+                        summary['activity'] = {key: activity[key][:200] for key in ('input_excerpt', 'output_excerpt')
+                                               if isinstance(activity.get(key), str)}
+                    visible.append({key: event[key] for key in ('event_seq', 'event_type', 'occurred_at')}
+                                   | {'payload': summary})
+                more = page['has_more']
+                pages.append({key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after')}
+                             | {'events': visible, 'has_more': more and index < 7,
+                                'records_truncated': more and index == 7})
+                cursor = page['next_after']
+                if not more:
+                    break
+            instruction += '\n如需核对更多 Capstone 事件，使用 agent_task_records_read 分页。'
+            task_fields = {
+                'business_context': BusinessContext.empty(thread_id, through),
+                'resource_profile': {'profile_id': 'direct_pi', 'revision': profile['revision']},
+                'input': {'kind': 'text', 'text': instruction},
+                'native_context': {
+                    'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                               'allowed_tools': ['agent_task_records_read'], 'external_lookup_enabled': False},
+                    'selected_task_source': {'thread_id': thread_id, 'attempt_id': observation['attempt_id']},
+                    'selected_task_records': pages, 'records_truncated': pages[-1]['records_truncated'],
+                },
+            }
+        request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), executor.identity, timeout,
+                                **task_fields)
         scope = (workspace, thread_id, investigation_id)
         diagnosis = {'status': 'running', 'answer': '', 'task_id': task_id,
                      'executor_identity': request.to_document()['executor_identity'],

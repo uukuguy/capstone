@@ -176,9 +176,17 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
 
     def execute(request, control, on_event):
         assert 'selected source remained ambiguous' in request.instruction
+        native = request.to_document()['native_context']
+        assert native['policy']['allowed_tools'] == ['agent_task_records_read']
+        assert native['selected_task_source']['attempt_id'] == claim.attempt.attempt_id
+        assert all(event['event_seq'] <= investigation['observation']['through']
+                   for page in native['selected_task_records'] for event in page['events'])
+        assert any(event['event_seq'] == failure_seq
+                   for page in native['selected_task_records'] for event in page['events'])
         return SimpleNamespace(status='completed', answer='Failure found')
 
     executor = SimpleNamespace(identity={'service_id': 'pi-local', 'instance_id': 'pi-test', 'revision': 'test'},
+                               capability={'resource_profiles': {'direct_pi': {'revision': 'debug-profile'}}},
                                execute=execute)
     diagnosis = register.diagnose(claim.workspace_name, claim.thread_id, investigation['investigation_id'], executor)
     assert failure_seq in diagnosis['evidence_event_seqs']
