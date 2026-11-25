@@ -4,6 +4,7 @@ from hashlib import sha256
 from hmac import compare_digest
 import json
 from pathlib import Path
+import tempfile
 
 
 def verify(document):
@@ -60,12 +61,47 @@ def verify(document):
             'previous_gateway_receipts': len(prior['events']) if prior is not None else 0}
 
 
+def import_evidence(document, parent):
+    summary = verify(document)
+    root = Path(tempfile.mkdtemp(prefix='capstone-debug-', dir=parent))
+    members = {}
+
+    def write(name, value):
+        with (root / name).open('xb') as stream:
+            stream.write(value)
+        members[name] = sha256(value).hexdigest()
+
+    def encode(value):
+        return (json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False) + '\n').encode('utf-8')
+
+    capstone = document['capstone']
+    gateway = document['data_gateway']
+    write('evidence.json', encode(document))
+    write('capstone-events.jsonl', b''.join(encode(row) for row in capstone['events']))
+    write('gateway-events.jsonl', b''.join(encode(row) for row in gateway['events']))
+    prior = document.get('previous_gateway_evidence')
+    if prior is not None:
+        write('previous-gateway-events.jsonl', b''.join(encode(row) for row in prior['events']))
+    manifest = {'schema': 'capstone-debug-offline-import/1',
+                'evidence_sha256': document['integrity']['digest'],
+                'thread_id': document['thread_id'], 'observation': document.get('observation'),
+                'source_evidence': document.get('diagnosis', {}).get('source_evidence', {}),
+                'gateway_scope': gateway.get('scope'), 'summary': summary, 'files_sha256': members}
+    (root / 'manifest.json').write_bytes(encode(manifest))
+    return root
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('evidence', type=Path)
+    parser.add_argument('--import-to', type=Path, metavar='DIRECTORY',
+                        help='Create a private replay directory inside an existing directory')
     args = parser.parse_args()
     try:
-        result = verify(json.loads(args.evidence.read_text(encoding='utf-8')))
+        document = json.loads(args.evidence.read_text(encoding='utf-8'))
+        result = verify(document)
+        if args.import_to is not None:
+            result['import_directory'] = str(import_evidence(document, args.import_to))
     except (OSError, ValueError) as error:
         parser.error(str(error))
     print(json.dumps(result, ensure_ascii=False))
