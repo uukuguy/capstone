@@ -267,6 +267,128 @@ export class HttpThreadTransport implements ThreadTransport {
       throw error
     }
   }
+  async debugStatus(threadId:string){
+    const value=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/status`) as Record<string,unknown>
+    if(value?.thread_id!==threadId||value.enabled!==true)throw new Error('调试入口不可用。')
+    const investigation=value.investigation as {investigation_id?:unknown;objective?:unknown;observation?:{
+      attempt_id:string;through:number;first_failure:{seq:number;type:string}|null};diagnosis?:{answer?:unknown;status?:unknown}}|null
+    const observation=investigation?.observation
+    const finding=observation?(observation.first_failure?
+      `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
+      `执行轮次 ${observation.attempt_id} 截至事件 #${observation.through} 未记录公开失败事件。`):''
+    return {timelineExport:value.timeline_export===true, canReviewExport:value.can_review_export===true,
+      investigationId:typeof investigation?.investigation_id==='string'?investigation.investigation_id:null,
+      objective:typeof investigation?.objective==='string'?investigation.objective:null,
+      diagnosisStatus:typeof investigation?.diagnosis?.status==='string'?investigation.diagnosis.status:null,
+      finding:typeof investigation?.diagnosis?.answer==='string'&&investigation.diagnosis.answer.trim()?investigation.diagnosis.answer:finding}
+  }
+  async debugSourceVersion(threadId:string){
+    const result=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/sources`) as Record<string,unknown>
+    if(result.status==='matched'&&typeof result.gateway_revision==='string')return '当前网关源码 '+result.gateway_revision
+    if(result.status==='source_missing'&&result.sync_status==='unavailable')return '网关源码尚未入库。自动同步未完成，可重新核对。摘要 '+result.gateway_revision
+    if(result.status==='source_missing')return '当前网关的源码尚未入库。摘要 '+result.gateway_revision+'。导入对应发布包后可重新核对。'
+    if(result.status==='unreported')return '当前网关尚未声明源码摘要。'
+    return '当前网关连接不可用。'
+  }
+  async startDebugInvestigation(threadId:string,objective:string,key:string,attemptId?:string){
+    const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
+    const receipt=await this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})}) as Record<string,unknown>
+    if(typeof receipt?.investigation_id!=='string'||!receipt.investigation_id)throw new Error('调查登记回执缺少标识。')
+    return receipt.investigation_id
+  }
+  async runDebugDiagnosis(threadId: string, investigationId: string,
+    onProgress: (message: string) => void = () => {}) {
+    return this.watchDebugDiagnosis(threadId, investigationId, onProgress, {submit: true})
+  }
+  async watchDebugDiagnosis(threadId: string, investigationId: string,
+    onProgress: (message: string) => void, {submit = false, signal}: {submit?: boolean; signal?: AbortSignal} = {}) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
+    const deadline = Date.now() + 60000
+    const requestSignal = (ms: number) => signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms)
+    let result = await this.request(path, {method: submit ? 'POST' : 'GET', signal: requestSignal(5000)}) as Record<string, unknown>
+    while ((result.status === 'queued' || result.status === 'running') && Date.now() < deadline) {
+      const step = Array.isArray(result.progress) ? result.progress.at(-1) : undefined
+      const labels: Record<string, string> = {tool_started:'正在调用', tool_finished:'调用完成', tool_failed:'调用失败'}
+      const label = step && Object.hasOwn(labels, step.stage) ? labels[step.stage] : undefined
+      onProgress(label && typeof step.tool === 'string' && Number.isSafeInteger(step.seq)
+        ? `步骤 ${step.seq} · ${label} ${step.tool}`
+        : result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据')
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      result = await this.request(path, {signal: requestSignal(5000)}) as Record<string, unknown>
+    }
+    if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
+    if (result.status === 'cancelled') throw new Error('诊断已停止。')
+    if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
+    if (result.failure_code === 'diagnosis_preparation_failed') throw new Error('诊断材料准备失败，Pi 尚未执行。')
+    if (result.failure_code === 'diagnosis_executor_rejected') throw new Error('Pi 在执行前拒绝了诊断请求。请核对执行器和调查工具配置。')
+    if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
+    return result.answer
+  }
+  async debugHistory(threadId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
+    const result = await this.request(path) as {investigations: {investigation_id: string; objective: string; status: string | null}[]}
+    return result.investigations
+  }
+  async debugDiagnosis(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
+    return this.request(path) as Promise<{answer?: string; status: string}>
+  }
+  async stopDebugDiagnosis(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
+    return this.request(path, {method: 'DELETE'}) as Promise<{status: string}>
+  }
+  async debugSnapshots(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/snapshots`
+    const result = await this.request(path) as {snapshots: {snapshot_id: string; status: string | null}[]}
+    return result.snapshots
+  }
+  async debugEvidence(threadId: string, investigationId: string, snapshotId?: string) {
+    const query = snapshotId ? '?snapshot_id=' + encodeURIComponent(snapshotId) : ''
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence${query}`
+    const response = await this.streamRequest(path)
+    return boundedResponseText(response, 'event_page_bytes', applicationCapacity('event_page_bytes'))
+  }
+  async reviewDebugExport(threadId: string, investigationId: string, snapshotId: string,
+    review: {diagnosis_markdown: string; reproduction: Record<string, unknown>} | null) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/snapshots/${encodeURIComponent(snapshotId)}/reviewed-export`
+    await this.request(path, {method: review ? 'PUT' : 'DELETE',
+      ...(review ? {body: JSON.stringify(review)} : {})})
+  }
+  async debugProbe(threadId: string, investigationId: string,
+    tool: string, args: Record<string, unknown>) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/probe`
+    return this.request(path, {method: 'POST',
+      body: JSON.stringify({tool, arguments: args}), signal: AbortSignal.timeout(40000)})
+  }
+  async debugHistoricalSource(threadId: string, investigationId: string) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/sources`
+    type Source = {revision?: string; status?: string}
+    const result = await this.request(path) as {capstone?: Source; data_gateway?: Source}
+    const describe = (name: string, source?: Source) => {
+      if (!source?.revision) return name + ' · 历史轮次未记录源码版本'
+      const state = source.status === 'archive_verified' ? '源码已校验' : '源码档案缺失或校验失败'
+      return `${name} · ${state} ${source.revision}`
+    }
+    return [describe('Capstone', result.capstone), describe('data-gateway', result.data_gateway)].join('。')
+  }
+  async debugSourcePage(threadId: string, investigationId: string, query: URLSearchParams) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/source?${query}`
+    return this.request(path) as Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
+  }
+  async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
+    const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)
+    const page=await this.request(path) as Record<string,unknown>
+    if(page?.thread_id!==threadId||page.attempt_id!==attemptId||!Array.isArray(page.events)||
+        typeof page.next_after!=='number'||!Number.isSafeInteger(page.next_after)||page.next_after<after||
+        typeof page.has_more!=='boolean'||(page.has_more&&page.next_after===after))throw new Error('调试记录分页无效。')
+    const events=page.events.map(event=>{
+      if(!Number.isSafeInteger(event?.seq)||typeof event?.type!=='string'||typeof event?.occurred_at!=='string')throw new Error('调试事件格式无效。')
+      return {seq:event.seq as number,type:event.type as string,occurred_at:event.occurred_at as string}
+    })
+    if(typeof page.through!=='number'||!Number.isSafeInteger(page.through)||page.through<page.next_after||
+        (through!==undefined&&through!==page.through))throw new Error('调试记录快照无效。')
+    return {events,nextAfter:page.next_after,hasMore:page.has_more,through:page.through}
+  }
   async listManagedResources(){return this.managedResourceRequest('/api/v1/managed-resources')}
   async readManagedResourceOperation(requestId:string){return this.managedResourceRequest(`/api/v1/managed-resources/operations/${encodeURIComponent(requestId)}`)}
   async manageResource(operation:string,document:Record<string,unknown>){return this.managedResourceRequest(`/api/v1/managed-resources/operations/${encodeURIComponent(operation)}`,{method:'POST',body:JSON.stringify(document)})}

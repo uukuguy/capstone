@@ -177,6 +177,10 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
+    if isinstance(value, dict) and 'debug_scope' in value:
+        from .debug_sources import checked_debug_scope
+        checked_debug_scope(value['debug_scope'])
+        fields.add('debug_scope')
     if isinstance(value, dict) and 'goal_step' in value:
         from .session_goal_plan import checked_goal_step
         checked_goal_step(value['goal_step'])

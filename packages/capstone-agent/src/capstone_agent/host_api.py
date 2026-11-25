@@ -24,6 +24,7 @@ from capstone_agent.thread_startup_timing import record_thread_startup
 
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
+from capstone_agent.debug_commands import debug_commands_enabled
 from capstone_agent.case_diagrams import CaseDiagramCache, load_case_diagram
 from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
@@ -382,6 +383,312 @@ def create_host_app(
         def require_private_thread(request: Request) -> None:
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
+
+        from .debug_investigations import InvestigationRegister
+        investigations = InvestigationRegister(thread_service)
+
+        def require_debug(request):
+            require_private_thread(request)
+            if not debug_commands_enabled(os.environ):
+                raise HTTPException(403, '当前部署已关闭调试命令。')
+
+        @app.get('/api/v1/threads/{thread_id}/debug/status')
+        def thread_debug_status(thread_id: str, request: Request):
+            require_debug(request)
+            workspace = request.state.workspace_name
+            investigation = investigations.latest(workspace, thread_id)
+            if investigation and investigation.get('diagnosis'):
+                diagnosis = investigations.read_diagnosis(workspace, thread_id, investigation['investigation_id'],
+                                                          native_artifact_executor)
+                investigation = {**investigation, 'diagnosis': diagnosis}
+            return {'thread_id': thread_id, 'enabled': True,
+                    'investigation': investigation,
+                    'can_review_export': request.state.product_actor == 'operator:authenticated',
+                    'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations')
+        def list_debug_investigations(thread_id: str, request: Request):
+            require_debug(request)
+            rows = investigations.recent(request.state.workspace_name, thread_id)
+            return JSONResponse({'investigations': rows}, headers={'Cache-Control': 'no-store'})
+
+        @app.delete('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
+        def stop_diagnosis(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            try:
+                diagnosis = investigations.stop_diagnosis(request.state.workspace_name, thread_id,
+                                                          investigation_id, native_artifact_executor)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            except (ValueError, RuntimeError, OSError):
+                raise HTTPException(409, '停止尚未确认，请查看原诊断状态。') from None
+            return JSONResponse(diagnosis, headers={'Cache-Control': 'no-store'})
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
+        def read_diagnosis(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            try:
+                diagnosis = investigations.read_diagnosis(request.state.workspace_name, thread_id, investigation_id,
+                                                          native_artifact_executor)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            return JSONResponse(diagnosis, headers={'Cache-Control': 'no-store'})
+
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/diagnose')
+        def diagnose_investigation(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            if not callable(getattr(native_artifact_executor, 'execute', None)):
+                raise HTTPException(503, '诊断执行器暂不可用。')
+            try:
+                result = investigations.enqueue_diagnosis(request.state.workspace_name, thread_id, investigation_id)
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
+            except (ValueError, RuntimeError, OSError):
+                raise HTTPException(409, '本次诊断未能完成。') from None
+            return JSONResponse(investigations.public_diagnosis(result),
+                                headers={'Cache-Control': 'no-store'})
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/snapshots')
+        def investigation_snapshots(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
+                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+            try:
+                snapshots = investigations.recent_export_snapshots(request.state.workspace_name, thread_id, investigation_id)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            return JSONResponse({'snapshots': snapshots}, headers={'Cache-Control': 'no-store'})
+
+        @app.api_route('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/snapshots/{snapshot_id}/reviewed-export',
+                       methods=['PUT', 'DELETE'])
+        def set_reviewed_export(thread_id: str, investigation_id: str, snapshot_id: str, request: Request,
+                                body: dict | None = None):
+            require_debug(request)
+            if request.state.product_actor != 'operator:authenticated':
+                raise HTTPException(403, '只有已认证的操作员可以核准或撤回外带材料。')
+            if request.method == 'PUT':
+                if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
+                    raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+                if (not isinstance(body, dict) or set(body) != {'diagnosis_markdown', 'reproduction'}
+                        or not isinstance(body['diagnosis_markdown'], str) or not body['diagnosis_markdown'].strip()
+                        or not isinstance(body['reproduction'], dict)):
+                    raise HTTPException(422, '请提供已审阅的诊断结论和复现数据对象。')
+                try:
+                    size = len(json.dumps(body, ensure_ascii=False, allow_nan=False).encode())
+                except (ValueError, UnicodeError):
+                    raise HTTPException(422, '复现材料格式无效。') from None
+                if size > 32768:
+                    raise HTTPException(422, '审核材料超过 32 KiB。')
+            try:
+                investigations.set_reviewed_export(request.state.workspace_name, thread_id, investigation_id,
+                                                   snapshot_id, body if request.method == 'PUT' else None)
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查快照。') from None
+            return Response(status_code=204, headers={'Cache-Control': 'no-store'})
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
+        def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request,
+                snapshot_id: Annotated[str | None, Query(pattern='^[0-9a-f]{64}$')] = None):
+            require_debug(request)
+            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
+                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+            try:
+                scope = (request.state.workspace_name, thread_id, investigation_id)
+                document = (investigations.read_export_snapshot(*scope, snapshot_id) if snapshot_id
+                            else investigations.save_export_snapshot(*scope))
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
+            workspace = request.state.workspace_name
+
+            def gateway_export(owner):
+                binding = investigations.historical_gateway(workspace, thread_id, owner)
+                if not callable(reader) or not binding:
+                    return {'status': 'export_unavailable', 'events': []}
+                try:
+                    return reader(binding, workspace, owner, 'export', {})
+                except (ValueError, RuntimeError, OSError):
+                    return {'status': 'read_unavailable', 'events': []}
+
+            document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'download_time'}
+            observation = document.get('observation') or {}
+            previous = document['diagnosis'].get('gateway_investigation_id')
+            if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):
+                prior = investigations.get(workspace, thread_id, previous)
+                if (prior.get('observation') or {}).get('attempt_id') == observation.get('attempt_id'):
+                    document['previous_gateway_evidence'] = {'investigation_id': previous, **gateway_export(previous)}
+            reviewed = investigations.reviewed_export(*scope, document['snapshot_id'])
+            document['reviewed_export'] = ({'status': 'approved', **reviewed} if reviewed is not None
+                                           else {'status': 'not_approved'})
+            from .debug_investigations import evidence_digest
+            document['integrity'] = {'algorithm': 'sha256', 'digest': evidence_digest(document)}
+            return JSONResponse(document, headers={'Cache-Control': 'no-store',
+                'Content-Disposition': 'attachment; filename="debug-evidence.json"'})
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/records')
+        def investigation_records(thread_id: str, investigation_id: str, request: Request,
+                                  after: Annotated[int, Query(ge=0)] = 0):
+            require_debug(request)
+            workspace = request.state.workspace_name
+            try:
+                investigation = investigations.get(workspace, thread_id, investigation_id)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            observation = investigation.get('observation')
+            if not observation:
+                raise HTTPException(409, '本调查尚未纳入执行轮次。')
+            through = observation['through']
+            if after > through:
+                raise HTTPException(422, '游标超出调查范围。')
+            from .task_record_reader import SelectedTaskRecordReader
+            reader = SelectedTaskRecordReader(thread_service, thread_id, observation['attempt_id'],
+                                              workspace_name=workspace)
+            page = reader.read(after=after)
+            page['events'] = [event for event in page['events'] if event['event_seq'] <= through]
+            page['next_after'] = min(page['next_after'], through)
+            page['has_more'] = page['has_more'] and page['next_after'] < through
+            return JSONResponse({**page, 'investigation_id': investigation_id, 'through': through},
+                                headers={'Cache-Control': 'no-store'})
+
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/probe')
+        def investigation_probe(thread_id: str, investigation_id: str, request: Request, body: dict,
+                                idempotency_key: Annotated[str | None, Header(min_length=1, max_length=200)] = None):
+            require_debug(request)
+            if (set(body) != {'tool', 'arguments'} or not isinstance(body['tool'], str)
+                    or not isinstance(body['arguments'], dict)):
+                raise HTTPException(422, '请选择已发布的只读工具并提供参数。')
+            scope = (request.state.workspace_name, thread_id, investigation_id)
+            try:
+                binding = investigations.historical_gateway(*scope)
+                reader = getattr(native_artifact_executor, 'debug_observation', None)
+                if not binding or not callable(reader):
+                    raise HTTPException(409, '原执行轮次的网关绑定暂不可用。')
+                from .debug_investigations import evidence_digest
+                operation_key = idempotency_key or 'probe-' + evidence_digest(body)
+                call_id, new = investigations.reserve_call(*scope, operation_key, body['tool'],
+                                                           body['arguments'], evidence_digest(binding))
+                query = {**body, 'client_call_id': call_id} if new else {'client_call_id': call_id}
+                result = reader(binding, scope[0], investigation_id, 'probe' if new else 'read', query)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            except (RuntimeError, OSError, ValueError):
+                raise HTTPException(409, '复验结果暂不可读。请使用同一请求标识查询原回执。') from None
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/observations/{operation}')
+        def investigation_observation(thread_id: str, investigation_id: str, operation: str, request: Request, body: dict):
+            require_debug(request)
+            workspace = request.state.workspace_name
+            try:
+                investigations.get(workspace, thread_id, investigation_id)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            if operation not in {'list', 'read', 'logs'}:
+                raise HTTPException(422, '不支持的调查读取操作。')
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
+            binding = investigations.historical_gateway(workspace, thread_id, investigation_id)
+            if not callable(reader) or not binding:
+                raise HTTPException(409, '目标执行轮次缺少可读取记录的网关绑定。')
+            try:
+                page = reader(binding, workspace, investigation_id, operation, body)
+            except (ValueError, RuntimeError, OSError):
+                raise HTTPException(409, '网关调查记录暂不可读。') from None
+            return JSONResponse(page, headers={'Cache-Control': 'no-store'})
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/sources')
+        def investigation_sources(thread_id: str, investigation_id: str, request: Request):
+            require_debug(request)
+            try:
+                sources = investigations.historical_sources(request.state.workspace_name, thread_id, investigation_id)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            return JSONResponse({'capstone': sources['capstone'], 'data_gateway': sources['data-gateway']},
+                                headers={'Cache-Control': 'no-store'})
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/source')
+        def investigation_source_excerpt(thread_id: str, investigation_id: str, request: Request,
+                                         repository: Annotated[str, Query(pattern='^(capstone|data-gateway)$')] = 'data-gateway',
+                                         path: Annotated[str | None, Query(max_length=300)] = None,
+                                         line: Annotated[int, Query(ge=1, le=100000)] = 1,
+                                         prefix: Annotated[str, Query(max_length=300)] = '',
+                                         offset: Annotated[int, Query(ge=0)] = 0):
+            require_debug(request)
+            from .debug_sources import read_historical_capstone_source, read_historical_gateway_source
+            query = {'path': path, 'line': line, 'prefix': prefix, 'offset': offset}
+            try:
+                scope = (request.state.workspace_name, thread_id, investigation_id)
+                if repository == 'capstone':
+                    observation = investigations.get(*scope).get('observation') or {}
+                    result = read_historical_capstone_source(observation.get('capstone_revision'), **query)
+                else:
+                    result = read_historical_gateway_source(investigations.historical_gateway(*scope) or {}, **query)
+            except (KeyError, FileNotFoundError):
+                raise HTTPException(404, '找不到该调查绑定的历史源码。') from None
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
+        @app.get('/api/v1/threads/{thread_id}/debug/sources')
+        def thread_debug_sources(thread_id: str, request: Request):
+            require_debug(request)
+            from .debug_sources import resolve_sources
+            reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
+            publication = {}
+            if callable(reader):
+                binding = thread_service.read_thread_gateway(thread_id)
+                try:
+                    publication = reader(binding, refresh=True)
+                except (RuntimeError, ValueError, OSError):
+                    publication = {}
+            result = resolve_sources(publication or {})
+            sync = getattr(native_artifact_executor, 'sync_debug_source', None)
+            if result['status'] == 'source_missing' and callable(sync) and publication.get('connection_id'):
+                try:
+                    sync(publication['connection_id'], result['instance_id'], result['gateway_revision'])
+                except (RuntimeError, ValueError, OSError):
+                    result['sync_status'] = 'unavailable'
+                else:
+                    result = resolve_sources(publication)
+            return JSONResponse(result, headers={'Cache-Control':'no-store'})
+
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations')
+        def start_debug_investigation(thread_id: str, request: Request, body: dict,
+                                      idempotency_key: Annotated[str, Header(min_length=1, max_length=200)]):
+            require_debug(request)
+            if (set(body) - {'objective','attempt_id'} or not isinstance(body.get('objective'), str)
+                    or not body['objective'].strip() or ('attempt_id' in body and not isinstance(body['attempt_id'], str))):
+                raise HTTPException(422, '请输入调查目标。')
+            from .application_capacity import require_capacity
+            objective = body['objective'].strip()
+            require_capacity('input_text_chars', len(objective), phase='debug_investigation')
+            try:
+                return investigations.start(request.state.workspace_name, thread_id, idempotency_key, objective, body.get('attempt_id'))
+            except ThreadNotFound:
+                raise HTTPException(404, '找不到本会话的执行记录。') from None
+            except ThreadProtocolError:
+                raise HTTPException(422, '执行轮次标识无效。') from None
+            except ValueError as error:
+                raise HTTPException(409, str(error)) from None
+
+        @app.get('/api/v1/threads/{thread_id}/debug/attempts/{attempt_id}/timeline')
+        def thread_debug_timeline(thread_id: str, attempt_id: str, request: Request,
+                                  after: Annotated[int, Query(ge=0)] = 0,
+                                  through: Annotated[int | None, Query(ge=0)] = None):
+            require_debug(request)
+            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
+                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+            try:
+                if through is None:
+                    through = thread_service.snapshot(thread_id).last_event_seq
+                page = thread_service.read_attempt_records(thread_id, attempt_id, after=after, limit=32)
+            except ThreadNotFound:
+                raise HTTPException(404, '执行记录不存在。') from None
+            except ThreadProtocolError:
+                raise HTTPException(422, '执行记录标识或游标无效。') from None
+            events = [{'seq': event['event_seq'], 'type': event['event_type'], 'occurred_at': event['occurred_at']}
+                      for event in page['events'] if event['visibility'] == 'public' and event['event_seq'] <= through]
+            return JSONResponse({'thread_id': thread_id, 'attempt_id': attempt_id, 'events': events,
+                                 'through': through, 'next_after': min(page['next_after'], through),
+                                 'has_more': page['has_more'] and page['next_after'] < through},
+                                headers={'Cache-Control': 'no-store'})
 
         from .session_pins import register_session_pin_routes
         register_session_pin_routes(app, service=thread_service, authorize=require_private_thread)
@@ -790,6 +1097,16 @@ def create_host_app(
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
                 kind = command.get("kind")
+                payload = command.get('payload')
+                if kind in ('send_message', 'work_message', 'queue_instruction',
+                            'send_auto', 'send_ordinary', 'send_professional') and isinstance(payload, dict):
+                    supplied_text = payload.get('text')
+                    if supplied_text is None and isinstance(payload.get('input'), dict):
+                        supplied_text = payload['input'].get('text')
+                    if isinstance(supplied_text, str) and supplied_text.startswith('/debug') and supplied_text.split(maxsplit=1)[0] == '/debug':
+                        if not debug_commands_enabled(os.environ):
+                            raise HTTPException(403, '当前部署已关闭调试命令。')
+                        raise HTTPException(422, '请通过会话的 Debug 调查入口提交调试命令。')
                 if isinstance(kind, str) and kind in {
                     "start_case_execution", "retry_case_step", "resume_case_execution",
                 } and thread_service.is_archived(thread_id):

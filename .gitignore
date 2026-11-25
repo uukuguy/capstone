@@ -70,6 +70,7 @@ packages/trajectory-workbench/coverage/
 /deploy/demo-local.env
 /packages/capstone-app/build-environment.json
 /deploy/local-model-assets/*.nc
+/deploy/local-debug-sources/
 **/__pycache__/
 **/.pytest_cache/
 **/.coverage

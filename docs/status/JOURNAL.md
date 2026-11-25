@@ -8400,3 +8400,15 @@ check passed. No CI, integration or remote deployment performed.
 - 04:16 Verified both real XLSX sheets and the download in the 5174 right pane. App-only source bd07d4a0.
 - 04:25 Merged PR271 after scoped macOS CI 45478832599. [de229bd4]
 - 04:29 Merged PR270 after scoped macOS CI 45475272758 passed. [595094b4]
+- 08:23 Drafted browser investigation and gateway handoff contracts for offline debugging. [7eecd17f]
+- 08:29 Verified 21 slash command parsing cases. Browser authorization remains pending. [547c2a4f]
+- 08:29 Verified service investigation skill availability for both general Pi roles and exclusion from professional Harness.
+- 08:39 Recorded bilateral binding acceptance and verified lost-response handling, partial provenance and admission rejection. [eb369bd5]
+- Recorded independent, investigation-scoped selection of packaged Capstone and gateway source revisions. [e10f7819]
+- 09:08 Verified earliest visible failure lookup across pages and snapshot boundaries, including failed validation in completed attempts. [01bbb5d8]
+- Requested scoped gateway logs for Debug Pi to trace observed failures. Gateway confirmation pending. [a9f3dad8]
+- Verified gateway investigation adapter with published v1 fixtures and 81 adapter checks. Live dedicated credential pending. [9e6faf37]
+- Verified PostgreSQL investigation recovery, eight concurrent call reservations and idempotent browser API registration. [1aa7855b]
+- 09:23 Saved attempt-scoped first-failure references; verified status retrieval, missing attempt rejection, backend tests and frontend checks. [725794b8]
+- 09:27 Live dedicated gateway adapter recovered discarded response, denied cross-binding read, reused duplicate receipt; log contract available, export undeclared.
+- 09:29 Verified scoped log pagination and cross-workspace rejection on the live gateway; 89 adapter tests passed. [2281b6e2]

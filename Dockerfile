@@ -1,6 +1,6 @@
 FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS node
 
-FROM python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf25833671f512b26a9b6d778cb3
+FROM python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf25833671f512b26a9b6d778cb3 AS backend
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
@@ -112,3 +112,8 @@ USER capstone
 EXPOSE 8766
 ENTRYPOINT ["/app/deploy/entrypoint.sh"]
 CMD ["api"]
+
+FROM backend AS local-debug
+COPY deploy/local-debug-sources/manifest.json deploy/local-debug-sources/capstone.zip deploy/local-debug-sources/data-gateway-*.zip /opt/capstone-debug-sources/
+
+FROM backend AS release

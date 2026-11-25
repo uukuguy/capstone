@@ -1,6 +1,6 @@
 // Application Control requests. The native process has no Control credentials.
-export function createMissionTools(config,{fetchImpl=globalThis.fetch}={}){
- const channel=config.missionTools;
+export function createMissionTools(config,{fetchImpl=globalThis.fetch,channel=config.missionTools}={}){
+ const debug=channel===config.debugTools;
  if(!channel)return [];
  return Object.entries(channel.catalog).map(([name,schema])=>({name,label:name,executionIdentity:'owner',
   description:schema.description,parameters:schema.inputSchema,
@@ -26,7 +26,7 @@ export function createMissionTools(config,{fetchImpl=globalThis.fetch}={}){
     }
     if(receipt.call_id!==callId||typeof receipt.is_error!=='boolean'||!receipt.result||typeof receipt.result!=='object'||Array.isArray(receipt.result))throw new Error('Mission receipt identity is invalid');
     return {content:[{type:'text',text:JSON.stringify(receipt.result)}],isError:receipt.is_error,
-     details:{ok:!receipt.is_error,mission_control:true,call_id:callId}};
+     details:{ok:!receipt.is_error,...(debug?{debug_investigation:true}:{mission_control:true}),call_id:callId}};
    }
   }
  }));

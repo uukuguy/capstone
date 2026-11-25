@@ -344,6 +344,10 @@ class GeneralPiHost:
             if request.research_binding is not None:
                 from .native_research_bridge import ALL_ENTERPRISE_RESEARCH_TOOLS
                 published.update(ALL_ENTERPRISE_RESEARCH_TOOLS)
+            if native.get('debug_scope') and request.entrypoint == 'direct':
+                from .debug_commands import debug_commands_enabled
+                if debug_commands_enabled(os.environ):
+                    published.add('agent_debug_observe')
             if native['selected_task_records']:
                 published.add('agent_task_records_read')
             if native.get('resource_manifests'):
@@ -400,6 +404,10 @@ class GeneralPiHost:
             if (request.native_context or {}).get('mission_binding') is not None:
                 from .native_mission import MissionTaskChannel
                 record['mission'] = MissionTaskChannel()
+            elif (request.native_context or {}).get('debug_scope') is not None:
+                from .native_mission import MissionTaskChannel
+                from .gateway_investigation import OBSERVATION_TOOL
+                record['mission'] = MissionTaskChannel({'agent_debug_observe': OBSERVATION_TOOL})
             if execution_authority is not None:
                 record['execution_authority'] = ExecutionAuthority(
                     execution_authority['generation'], execution_authority['capability'], AUTHORITY_SECONDS)
@@ -1557,6 +1565,10 @@ class NativeTaskRunner:
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
                           'adapter_sha256': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                               for name in ('bounded_mcp.py', 'native_mission.py', 'resources/mission-tools.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest()}
+            if (request.native_context or {}).get('debug_scope'):
+                from .gateway_investigation import OBSERVATION_TOOL
+                sdk_config['debugTools'] = {'url': self.relay_origin + '/debug-tools/' + request.task_id,
+                    'grant': grant, 'catalog': {'agent_debug_observe': OBSERVATION_TOOL}}
             if (request.native_context or {}).get('mission_binding') is not None:
                 from .native_mission import CATALOG
                 sdk_config['missionTools'] = {'url': self.relay_origin + '/mission-tools/' + request.task_id,
@@ -1572,6 +1584,14 @@ class NativeTaskRunner:
                     sdk_config['interpreter'] = str(Path(sdk_config['mcp']['install']) / 'venv/bin/python')
             elif task_input['kind'] != 'text':
                 raise ValueError('native skills require an accepted resource profile')
+            if 'debugTools' in sdk_config:
+                sdk_config.update(allowedSkills=[], mcp=None)
+                guidance = self.config_root / 'skills/service-contract-investigation/SKILL.md'
+                if guidance.is_file():
+                    sdk_config.setdefault('contextFiles', []).append({
+                        'path': 'debug/service-contract-investigation/SKILL.md',
+                        'content': guidance.read_text(encoding='utf-8'),
+                    })
             if 'missionTools' in sdk_config:
                 from .native_mission import mission_entry_guidance
                 guidance = mission_entry_guidance(request.instruction)
@@ -2063,7 +2083,7 @@ class NativeTaskRunner:
                     and sdk_config.get('applicationPolicy')
                     and research_runtime.get('deepResearch') is False
                     and research_runtime.get('adaptiveAgentLoop') is True
-                    and not sdk_config.get('missionTools')):
+                    and not sdk_config.get('missionTools') and not sdk_config.get('debugTools')):
                 policy = sdk_config['applicationPolicy']
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': list(dict.fromkeys([
                     *policy['allowed_tools'], 'agent_runtime_tools', 'agent_tool_load',
@@ -2114,6 +2134,9 @@ class NativeTaskRunner:
                 builtin = {'bash', 'read', 'write', 'edit', 'grep', 'find', 'ls'}
                 role_options = {'required_tools': tuple(sorted(active & builtin)),
                                 'forbidden_tools': tuple(sorted(builtin - active))}
+            if 'debugTools' in sdk_config:
+                role_options = {'required_tools': ('agent_debug_observe', 'agent_task_records_read'),
+                                'forbidden_tools': ('bash', 'read', 'write', 'edit', 'grep', 'find', 'ls')}
             process = GeneralPiProcess(argv, environment, workspace, uid=uid, **role_options)
             timing.mark('process_launch_requested')
             def process_started() -> None:
@@ -2198,7 +2221,36 @@ class NativeTaskRunner:
                     'load_receipt': self.resources.accepted(role, profile.revision)['load_receipt']}
             finally:
                 shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
+        from .debug_commands import debug_commands_enabled
+        if debug_commands_enabled(os.environ):
+            self.verify_debug_inventory(identity, result['direct_pi']['revision'])
         return result
+
+    def verify_debug_inventory(self, identity, profile_revision):
+        from .business_context import BusinessContext
+        from .native_task_context import POLICY_TEXT
+
+        investigation_id = 'inv_' + secrets.token_hex(16)
+        task_id = 'debug-readiness-' + secrets.token_hex(8)
+        source = {'thread_id': 'thr_readiness', 'attempt_id': 'attempt_readiness'}
+        instruction = 'Verify read-only Debug tools without running a model.'
+        request = PiTaskRequest(task_id, investigation_id, 'direct', instruction, (), (), identity, 30,
+            business_context=BusinessContext.empty(source['thread_id'], 0),
+            resource_profile={'profile_id': 'direct_pi', 'revision': profile_revision},
+            input={'kind': 'text', 'text': instruction},
+            native_context={'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                                       'allowed_tools': ['agent_task_records_read', 'agent_debug_observe'],
+                                       'external_lookup_enabled': False},
+                'debug_scope': {'workspace': 'local', 'gateway_investigation': investigation_id,
+                                'gateway': None, 'capstone_revision': None},
+                'selected_task_source': source, 'records_truncated': False,
+                'selected_task_records': [{**source, 'schema': 'capstone-selected-task-records/1',
+                                           'historical_only': True, 'has_more': False,
+                                           'next_after': 0, 'events': []}]})
+        try:
+            self(request, lambda: False, lambda _: None, inventory_only=True)
+        finally:
+            shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
 
 
 def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, int],
@@ -2246,6 +2298,56 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             result = operation() if document['arguments'] is None else operation(document['arguments'])
             import inspect
             return run_http(result) if inspect.isawaitable(result) else result
+        if action == 'debug-observation':
+            from .data_gateway_mcp import DataGatewayMcp
+            from .debug_commands import debug_commands_enabled
+            from .gateway_investigation import read_bound_observation, run_bound_read_probe
+            if not debug_commands_enabled(os.environ):
+                raise GatewayError('investigation_access_denied')
+            fields = {'binding', 'workspace', 'investigation_id', 'operation', 'query'}
+            if not isinstance(document, dict) or set(document) != fields:
+                raise GatewayError('investigation_request_invalid')
+            binding = document['binding'] or {}
+            if not binding.get('connection_id') or not binding.get('instance_id'):
+                raise GatewayError('gateway_bound_instance_unavailable')
+            _, access = registry.access_for(binding['connection_id'], binding['instance_id'])
+            credential = os.environ.get('CAPSTONE_INVESTIGATION_CONNECTION_FILE')
+            if not credential:
+                raise GatewayError('investigation_credentials_unavailable')
+            dedicated = DataGatewayMcp(Path(credential), access.client.policy)
+            async def observe():
+                if document['operation'] == 'probe':
+                    query = document['query']
+                    if (not isinstance(query, dict) or set(query) != {'tool', 'arguments', 'client_call_id'}
+                            or not isinstance(query['tool'], str) or not isinstance(query['arguments'], dict)
+                            or not isinstance(query['client_call_id'], str)):
+                        raise GatewayError('investigation_request_invalid')
+                    return await run_bound_read_probe(dedicated, instance_id=binding['instance_id'],
+                        workspace=document['workspace'], investigation_id=document['investigation_id'], **query)
+                async with dedicated.connect() as session:
+                    return await read_bound_observation(session, dedicated._connection['url'],
+                        instance_id=binding['instance_id'], workspace=document['workspace'],
+                        investigation_id=document['investigation_id'], operation=document['operation'],
+                        query=document['query'])
+            return run_http(asyncio.wait_for(observe(), timeout=30))
+        if action == 'debug-source':
+            from .gateway_debug_source import cache_gateway_source
+            from .debug_commands import debug_commands_enabled
+            if not debug_commands_enabled(os.environ):
+                raise GatewayError('debug_source_unavailable')
+            if not isinstance(document, dict) or set(document) != {'connection_id', 'instance_id', 'revision'}:
+                raise GatewayError('gateway_connection_input_invalid')
+            if not all(isinstance(value, str) and value for value in document.values()):
+                raise GatewayError('gateway_connection_input_invalid')
+            _, access = registry.access_for(document['connection_id'], document['instance_id'])
+            async def sync():
+                async with access.client.connect() as session:
+                    identity = session.instance_identity or {}
+                    if (identity.get('instance_id') != document['instance_id']
+                            or identity.get('source_sha256') != document['revision']):
+                        raise GatewayError('debug_source_version_missing')
+                    return await cache_gateway_source(session, Path('/opt/capstone-debug-library'))
+            return run_http(asyncio.wait_for(sync(), timeout=90))
         if action == 'publication':
             if not isinstance(document, dict) or set(document) - {'binding', 'refresh'}:
                 raise GatewayError('gateway_connection_input_invalid')
@@ -2406,6 +2508,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if runner is not None and self.path.startswith('/debug-tools/'):
+                return self.relay_debug_observation()
             if self.path.startswith('/mission-tools/'):
                 return self.relay_mission_tools()
             if self.path.startswith('/presentation-template-tasks/'):
@@ -2686,6 +2790,75 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             finally:
                 if lease is not None:runner.relay.release(lease)
 
+        def relay_debug_observation(self):
+            from zipfile import BadZipFile
+            from .debug_commands import debug_commands_enabled
+            from .debug_sources import read_debug_source
+            from .gateway_investigation import OBSERVATION_TOOL
+            from jsonschema import Draft202012Validator
+
+            if not debug_commands_enabled(os.environ):
+                return self.send_json(403, {'error': 'investigation_request_rejected'})
+            task_id = self.path.removeprefix('/debug-tools/')
+            lease = None
+            call_id = None
+            source_query = False
+            try:
+                grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
+                lease = runner.relay.acquire(task_id, grant, self.connection, channel='gateway')
+                with host._lock:
+                    record = host._tasks[task_id]
+                    authority = record.get('execution_authority')
+                    request = record['request']
+                    native = request.native_context or {}
+                    if (not authority or not authority.active() or record['cancel'].is_set()
+                            or record['status'] != 'running' or not native.get('debug_scope')
+                            or 'agent_debug_observe' not in native['policy']['allowed_tools']):
+                        raise PermissionError()
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 8192:
+                    raise ValueError()
+                packet = json.loads(self.rfile.read(size))
+                if (not isinstance(packet, dict) or packet.get('name') != 'agent_debug_observe'
+                        or not isinstance(packet.get('call_id'), str) or not 0 < len(packet['call_id']) <= 128):
+                    raise ValueError()
+                call_id = packet['call_id']
+                args = packet.get('arguments')
+                if not Draft202012Validator(OBSERVATION_TOOL['inputSchema']).is_valid(args):
+                    return self.send_json(200, {'call_id': call_id, 'is_error': True,
+                                                'result': {'code': 'investigation_request_invalid'}})
+                scope = native['debug_scope']
+                operation = args['operation']
+                query = args.get('query', {})
+                if operation in {'capstone_records', 'capstone_excerpt'}:
+                    receipt = host.mission_request(task_id, packet)
+                    return self.send_json(200, receipt if receipt is not None else {'pending': True})
+                source_query = operation in {'source_files', 'source_lines'}
+                if source_query:
+                    result = read_debug_source(scope, operation, query)
+                elif operation in {'list', 'read', 'logs'}:
+                    result = gateway_control('debug-observation', {'binding': scope['gateway'],
+                        'workspace': scope['workspace'], 'investigation_id': scope['gateway_investigation'],
+                        'operation': operation, 'query': query})
+                else:
+                    raise ValueError()
+                return self.send_json(200, {'call_id': call_id, 'is_error': False, 'result': result})
+            except GatewayError as error:
+                return self.send_json(200, {'call_id': call_id, 'is_error': True,
+                                            'result': {'code': str(error)}})
+            except (KeyError, TypeError, ValueError, PermissionError):
+                return self.send_json(403, {'error': 'investigation_request_rejected'})
+            except (OSError, BadZipFile) as error:
+                if call_id is None:
+                    return self.send_json(403, {'error': 'investigation_request_rejected'})
+                code = 'historical_source_unavailable' if source_query else 'investigation_read_unavailable'
+                if source_query and isinstance(error, FileNotFoundError) and str(error) == 'source_path_unavailable':
+                    code = 'source_path_unavailable'
+                return self.send_json(200, {'call_id': call_id, 'is_error': True, 'result': {'code': code}})
+            finally:
+                if lease is not None:
+                    runner.relay.release(lease)
+
         def relay_mission_tools(self):
             parts = self.path.split('/')
             if runner is None or len(parts) != 3 or not parts[2]:
@@ -2960,6 +3133,9 @@ def main():
     # fixed dispatch changes remain bound by executor_revision below.
     revision = sha256(b'capstone-general-sdk/2:isolated-uid:fixed-relay:fixed-mcp'
                       + current_capacity().fingerprint.encode())
+    guidance = config / 'skills/service-contract-investigation/SKILL.md'
+    if guidance.is_file():
+        revision.update(sha256(guidance.read_bytes()).digest())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
     revision.update(os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN', '').encode())

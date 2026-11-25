@@ -47,7 +47,7 @@ export function parseInputCommand(text: string): { kind: 'skills' | 'context'; r
   const skill = /^\/skill:([\w.-]+)(?:\s+([\s\S]*))?$/.exec(text)
   if (skill) return { kind: 'skill', name: skill[1], rest: skill[2] || '' }
   const match = /^\/([a-z][\w-]*)(?:\s+([\s\S]*))?$/.exec(text)
-  if (!match) return null
+  if (!match || match[1] === 'debug') return null
   if (match[1] === 'skills' || match[1] === 'context') return { kind: match[1], rest: match[2] || '' }
   return { kind: 'unknown', name: match[1], rest: match[2] || '' }
 }

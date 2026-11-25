@@ -181,8 +181,25 @@ def test_argument_validation_reports_path_and_types_without_values(tmp_path):
     with pytest.raises(GatewayError, match='gateway_arguments_invalid') as error:
         asyncio.run(client.call('data_gateway_discover_data_capabilities',{'selection':{'nested':{'password':'secret-canary'}}},catalog))
     assert error.value.validation_errors[0] == {'path':'/selection/nested','rule':'type','expected':'string','actual_type':'object'}
+    assert not error.value.result_unknown
     assert 'secret-canary' not in json.dumps(error.value.validation_errors)
     assert session.calls == []
+
+
+def test_lost_business_response_remains_unknown_without_resending(tmp_path):
+    client, session = gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+
+    async def lose_response(name, arguments):
+        session.calls.append((name, arguments))
+        raise ConnectionResetError()
+
+    session.call_tool = lose_response
+    with pytest.raises(GatewayError) as error:
+        asyncio.run(client.call('data_gateway_discover_data_capabilities', {}, catalog))
+    assert error.value.result_unknown
+    assert error.value.request_id is None
+    assert session.calls == [('discover_data_capabilities', {})]
 
 
 def test_call_validates_and_preserves_partial_source(tmp_path):
@@ -793,3 +810,25 @@ def test_publication_accepts_additive_metadata_and_refreshes_when_it_changes(tmp
     second = asyncio.run(client.refresh_catalog(first))
     assert second['revision'] != first['revision']
     assert client._accepted[first['revision']] == first
+
+
+def test_same_endpoint_refresh_tracks_source_upgrade_rollback_and_missing_identity(tmp_path):
+    from capstone_agent.data_gateway_mcp import InitializedGatewaySession
+    client, session = contract_gateway(tmp_path)
+    identity = {'schema_version': 1, 'instance_id': 'fixture-instance', 'instance_name': 'fixture',
+                'environment': {'id': 'local', 'label': 'Local'}, 'offline': True,
+                'data_source': {'label': 'fixture'}, 'source_sha256': 'a' * 64}
+
+    @asynccontextmanager
+    async def connect():
+        yield InitializedGatewaySession(session, None, None, identity)
+
+    client.connect = connect
+    catalog = asyncio.run(client.prepare())
+    for digest in ('b' * 64, 'a' * 64, None):
+        if digest is None:
+            identity.clear()
+        else:
+            identity['source_sha256'] = digest
+        catalog = asyncio.run(client.refresh_catalog(catalog))
+        assert catalog.get('instance', {}).get('source_sha256') == digest

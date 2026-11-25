@@ -69,3 +69,21 @@ def test_publish_keeps_identity_and_content_hashes(tmp_path):
     data = (root / "0.json").read_bytes()
     assert manifest["pages"][0]["sha256"] == hashlib.sha256(data).hexdigest()
     assert json.loads(data)["historical_only"] is True
+
+
+@pytest.mark.parametrize('kind,payload', [
+    ('tool_completed', {'ok': False}), ('tool_failed', {}), ('validation_failed', {}),
+])
+def test_investigation_failure_is_readable_by_original_event_number(kind, payload):
+    from capstone_agent.debug_investigations import InvestigationRegister
+    from test_attempt_failure_delivery import claim_attempt
+    from test_harness import _thread_service
+    service = _thread_service()
+    claim = claim_attempt(service)
+    service.append_runtime_event(claim, event_type=kind, payload=payload, visibility='public')
+    service.finish_attempt(claim, phase='completed', payload={})
+    attempt = claim.attempt.attempt_id
+    finding = InvestigationRegister(service)._observe(claim.thread_id, attempt)['first_failure']
+    records = SelectedTaskRecordReader(service, claim.thread_id, attempt).read()
+    assert finding['type'] == kind
+    assert any(e['event_seq'] == finding['seq'] and e['event_type'] == kind for e in records['events'])

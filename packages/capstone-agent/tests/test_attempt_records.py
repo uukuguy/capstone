@@ -53,6 +53,27 @@ def test_attempt_records_http_requires_access_and_does_not_start_work():
     assert service.snapshot("thr_harness").last_event_seq == before
 
 
+def test_selected_history_includes_only_public_native_tool_events():
+    from capstone_agent.task_record_reader import SelectedTaskRecordReader
+
+    service = _thread_service()
+    claim = claim_attempt(service)
+    for native_type, visibility in [
+        ("tool_execution_start", "public"),
+        ("tool_execution_end", "public"),
+        ("tool_execution_end", "diagnostic"),
+        ("model_request_pool", "public"),
+    ]:
+        service.append_runtime_event(claim, event_type="runtime_event",
+            payload={"native_type": native_type}, visibility=visibility)
+    service.finish_attempt(claim, phase="completed", payload={"answer": "Finished."})
+    reader = SelectedTaskRecordReader(service, claim.thread_id, claim.attempt.attempt_id)
+    events = reader.read()["events"]
+    assert [e["payload"]["native_type"] for e in events if e["event_type"] == "runtime_event"] == [
+        "tool_execution_start", "tool_execution_end",
+    ]
+
+
 def test_request_context_is_scoped_and_reads_one_redacted_entry(monkeypatch):
     from types import SimpleNamespace
     from capstone_agent.artifacts import MemoryObjectStore

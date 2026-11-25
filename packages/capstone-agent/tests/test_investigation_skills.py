@@ -6,7 +6,7 @@ from capstone_agent.runtime_resources import resolve_resource_profile
 NAMES = {
     'brainstorming', 'task-planning-and-tracking', 'systematic-debugging',
     'verification-before-completion', 'data-investigation',
-    'data-quality-and-comparability',
+    'data-quality-and-comparability', 'service-contract-investigation',
 }
 
 

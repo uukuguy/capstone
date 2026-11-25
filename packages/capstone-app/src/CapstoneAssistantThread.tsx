@@ -1152,6 +1152,9 @@ function ChatMessage({ requestLocation, onOpenInstructionContext, resolveRequest
     admission, evidenceRefs, typeof custom?.errorCode === 'string' ? custom.errorCode : undefined,
   )
   const instruction = typeof custom?.instruction === 'string' ? custom.instruction : undefined
+  const debugInput=role==='user'?text:instruction
+  const debugTurn=debugInput?.match(/^研发调查 (inv_[0-9a-f]{32})\n[\s\S]*?\n本轮指令：([\s\S]*?)\n请列出观测依据/)
+
   const startedAt = typeof custom?.startedAt === 'string' ? custom.startedAt : undefined
   const durationMs = typeof custom?.durationMs === 'number' ? custom.durationMs : undefined
   const finishedAt = typeof custom?.finishedAt === 'string' ? custom.finishedAt : undefined
@@ -1249,6 +1252,7 @@ function ChatMessage({ requestLocation, onOpenInstructionContext, resolveRequest
   return <MessagePrimitive.Root data-context-linked={linkedContext||undefined} data-message-id={id} data-execution-id={role==='assistant'?attemptId:undefined} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     {!(inlineExecution && completedAnswer) && toolbar}
     <div className="capstone-chat-body">
+      {debugTurn&&<span className="capstone-goal-instruction-label">调试</span>}
       {role==='user'&&typeof custom?.goalStep==='string'&&<span className="capstone-goal-instruction-label">Goal 指令 · {custom.goalStep}</span>}
       {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]} readFile={readInstructionFile} saveFile={saveInstructionFile}/>}
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
@@ -1262,7 +1266,7 @@ function ChatMessage({ requestLocation, onOpenInstructionContext, resolveRequest
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
       </> : completedAnswer ? <FoldableAnswer id={id} attemptId={attemptId} text={text} author={author} finishedAt={finishedAt}
         summary={inlineExecution ? coreReply : undefined} toolbar={inlineExecution ? toolbar : undefined} /> : hasText
-        ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
+        ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:debugTurn?<><p>/debug {debugTurn[2]}</p><details><summary>查看本轮调查输入</summary><pre>{text}</pre></details></>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}
     </div>
     {role === 'assistant' && !!taskIssues?.length && <aside className="capstone-task-issues" aria-label="本轮仍需处理">

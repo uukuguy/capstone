@@ -54,6 +54,8 @@ def checked_instance_identity(value):
             or not identity_text(source.get('label'))):
         return None
     return {'schema_version': 1, 'instance_id': value['instance_id'], 'instance_name': value['instance_name'],
+            **({'source_sha256': value['source_sha256']} if isinstance(value.get('source_sha256'), str)
+               and re.fullmatch('[0-9a-f]{64}', value['source_sha256']) else {}),
             'environment': {key: environment[key] for key in ('id', 'label')},
             'offline': value['offline'], 'data_source': {'label': source['label']}}
 
@@ -66,6 +68,10 @@ class InitializedGatewaySession:
     server_info: object = None
     instance_identity: object = None
     progressive: object = None
+    investigation: object = None
+    http_client: object = None
+    investigation_logs: object = None
+    debug_source: object = None
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
@@ -80,10 +86,11 @@ _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gatew
 
 class GatewayError(ValueError):
     """A public error code, without upstream exception text."""
-    def __init__(self, code, request_id=None, *, validation_errors=None):
+    def __init__(self, code, request_id=None, *, validation_errors=None, result_unknown=False):
         super().__init__(code)
         self.request_id = request_id if identity_text(request_id) else None
         self.validation_errors = validation_errors or []
+        self.result_unknown = result_unknown
 
 
 def argument_validation_details(error):
@@ -275,7 +282,20 @@ class DataGatewayMcp:
                     experimental = initialized.capabilities.experimental
                     instance = experimental.get('data-gateway/identity') if isinstance(experimental, dict) else None
                     declaration = experimental.get(_PROGRESSIVE) if isinstance(experimental, dict) else None
-                    yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump(), instance, declaration)
+                    investigation = experimental.get('data-gateway/investigation') if isinstance(experimental, dict) else None
+                    yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump(),
+                                                    instance, declaration, investigation, client,
+                                                    experimental.get('data-gateway/investigation-logs') if isinstance(experimental, dict) else None,
+                                                    experimental.get('data-gateway/debug-source') if isinstance(experimental, dict) else None)
+
+    @asynccontextmanager
+    async def investigation_access(self):
+        """Use on a dedicated backend connection. Never publish this object in the tool catalog."""
+        from .gateway_investigation import GatewayInvestigation
+        async with self.connect() as connection:
+            yield await GatewayInvestigation.discover(getattr(connection, 'http_client', None),
+                self._connection['url'], getattr(connection, 'investigation', None),
+                getattr(connection, 'investigation_logs', None))
 
     def _progressive_declaration(self, connection):
         declaration = getattr(connection, 'progressive', None)
@@ -398,6 +418,11 @@ class DataGatewayMcp:
                  'tool_hashes': {name: item['progressive']['tool_contract_revision'] for name, item in tools.items()},
                  'entry_tools': [], 'instructions': getattr(connection, 'instructions', '') or '',
                  'instance': checked_instance_identity(declaration['identity']), 'progressive': declaration}
+        # Source identity belongs to the current initialize response.
+        value['instance'].pop('source_sha256', None)
+        live = checked_instance_identity(getattr(connection, 'instance_identity', None))
+        if live and live['instance_id'] == value['instance']['instance_id'] and live.get('source_sha256'):
+            value['instance']['source_sha256'] = live['source_sha256']
         retained_providers = admitted_provider_guidance({**value, 'providers': providers or []}, tools)
         if retained_providers:
             value['providers'] = retained_providers
@@ -422,7 +447,7 @@ class DataGatewayMcp:
         for name in dict.fromkeys(names):
             item = catalog['tools'][name]['progressive']
             key = (declaration['identity']['instance_id'], declaration['access_view_id'],
-                   item['tool_key'], item['tool_contract_revision'])
+                   declaration['publication_revision'], item['tool_key'], item['tool_contract_revision'])
             with self._exact_lock:
                 sections = deepcopy(self._exact_sections.get(key, {}))
             resolved_sections[key] = sections
@@ -602,6 +627,11 @@ class DataGatewayMcp:
         try:
             async with asyncio.timeout(limits.mcp_catalog_seconds):
                 async with self.connect() as session:
+                    live = checked_instance_identity(getattr(session, 'instance_identity', None))
+                    cached_instance = catalog.get('instance') or {}
+                    if ((live or {}).get('source_sha256') != cached_instance.get('source_sha256')
+                            or (live and live['instance_id'] != cached_instance.get('instance_id'))):
+                        return await self._prepare_connected(session)
                     if 'progressive' in catalog:
                         declaration = self._progressive_declaration(session)
                         if declaration == catalog['progressive']:
@@ -656,9 +686,15 @@ class DataGatewayMcp:
         return {'catalog_revision': catalog['revision'], 'lookup_tool': name, 'tool': target,
                 'section': section, 'contract_revision': data['contract_revision'], 'data': deepcopy(data)}
 
-    async def call(self, name, arguments, catalog, *, diagnostics=None):
+    async def call(self, name, arguments, catalog, *, diagnostics=None, investigation=None):
         from .gateway_diagnostics import checked_diagnostics
         context = checked_diagnostics(diagnostics)
+        metadata = {'gateway/diagnostics': context} if context is not None else {}
+        if investigation is not None:
+            if not context or not context.get('client_call_id'):
+                raise GatewayError('investigation_request_invalid')
+            metadata['gateway/investigation'] = investigation
+        awaiting_business_response = False
         try:
             if (self._accepted.get(catalog.get('revision')) != catalog or name not in catalog['tools']
                     or not isinstance(arguments, dict)):
@@ -678,6 +714,8 @@ class DataGatewayMcp:
             if 'progressive' in catalog:
                 async with asyncio.timeout(limits.mcp_tool_seconds):
                     async with self.connect() as connection:
+                        if investigation is not None and (getattr(connection, 'investigation', None) or {}).get('version') != 'gateway-investigation/1':
+                            raise GatewayError('investigation_contract_unavailable')
                         schemas = await self.exact_contracts([name], catalog, connection=connection)
                         schema = schemas[name]
                         try:
@@ -689,15 +727,15 @@ class DataGatewayMcp:
                         from mcp import types
                         declaration = catalog['progressive']
                         item = schema['progressive']
-                        metadata = {_PROGRESSIVE: {'version': '1', 'access_view_id': declaration['access_view_id'],
+                        metadata[_PROGRESSIVE] = {'version': '1', 'access_view_id': declaration['access_view_id'],
                             'expected_publication_revision': declaration['publication_revision'],
-                            'expected_tool_contract_revision': item['tool_contract_revision']}}
-                        if context is not None:
-                            metadata['gateway/diagnostics'] = context
+                            'expected_tool_contract_revision': item['tool_contract_revision']}
                         active: Any = getattr(connection, 'session', connection)
+                        awaiting_business_response = True
                         response = await active.send_request(types.ClientRequest(types.CallToolRequest(
                             params=types.CallToolRequestParams(name=schema['name'], arguments=arguments,
                                 _meta=types.RequestParams.Meta.model_validate(metadata)))), types.CallToolResult)
+                        awaiting_business_response = False
                         value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
                         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
                         if not value.get('isError') and 'outputSchema' in schema:
@@ -714,6 +752,8 @@ class DataGatewayMcp:
                 raise GatewayError('gateway_arguments_invalid', validation_errors=details) from None
             async with asyncio.timeout(limits.mcp_tool_seconds):
                 async with self.connect() as session:
+                    if investigation is not None and (getattr(session, 'investigation', None) or {}).get('version') != 'gateway-investigation/1':
+                        raise GatewayError('investigation_contract_unavailable')
                     expected_instance = catalog.get('instance', {}).get('instance_id')
                     actual_instance = checked_instance_identity(getattr(session, 'instance_identity', None))
                     if expected_instance and (not actual_instance or actual_instance['instance_id'] != expected_instance):
@@ -724,8 +764,10 @@ class DataGatewayMcp:
                     if current['tools'].get(name) != schema:
                         raise GatewayError('gateway_publication_changed')
                     active_session: Any = getattr(session, 'session', session)
+                    awaiting_business_response = True
                     response = await active_session.call_tool(schema['name'], arguments=arguments,
-                        **({'meta': {'gateway/diagnostics': context}} if context is not None else {}))
+                        **({'meta': metadata} if metadata else {}))
+                    awaiting_business_response = False
                     value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
             require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
             if not value.get('isError') and 'outputSchema' in schema:
@@ -739,4 +781,5 @@ class DataGatewayMcp:
         except CapacityExceeded:
             raise
         except Exception as error:
-            raise GatewayError(public_failure(error, 'gateway_call_failed_no_retry')) from None
+            raise GatewayError(public_failure(error, 'gateway_call_failed_no_retry'),
+                               result_unknown=awaiting_business_response) from None

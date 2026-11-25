@@ -846,3 +846,26 @@ def test_explicit_replacement_settles_old_attempt_and_starts_once(queue_store):
     assert started.payload['supersedes_attempt_id'] == source.attempt.attempt_id
     store.finish_attempt(successor, phase='completed', payload={'answer': 'Replacement answer'})
     assert store.snapshot(thread_id).current_attempt is None
+
+
+def test_ordinary_turn_does_not_inherit_debug_answer_or_selected_task(queue_store):
+    from capstone_agent.debug_commands import investigation_admission
+    store, thread = queue_store
+    token = investigation_admission.set('inv_test')
+    try:
+        receipt = store.submit_command(command(store, thread, 'send_message', 'debug',
+                                      payload={'text': 'Investigate the failed request'}))
+        assert receipt.status == 'accepted'
+    finally:
+        investigation_admission.reset(token)
+    debug = store.claim_attempt('debug_worker', 30)
+    assert debug.submission['_debug_investigation'] == 'inv_test'
+    store.finish_attempt(debug, phase='completed', payload={'answer':'Private debug result'})
+    work = store.snapshot(thread).works[0]
+    receipt = store.submit_command(command(store, thread, 'send_message', 'ordinary',
+        work_id=work['work_id'], revision=work['revision'], payload={'text':'Start normal work'}))
+    assert receipt.status == 'accepted'
+    ordinary = store.claim_attempt('ordinary_worker', 30)
+    assert ordinary.previous_instruction is None
+    assert ordinary.task_context.task_state_ref is None
+    assert not ordinary.conversation_context.messages

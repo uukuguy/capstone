@@ -522,6 +522,16 @@ class HttpGeneralPiExecutor:
     def thread_gateway_publication(self, binding=None, *, refresh=False):
         return self.control_gateway_connections('publication', {'binding': binding, 'refresh': refresh})
 
+    def debug_observation(self, binding, workspace, investigation_id, operation, query):
+        return self._call('POST', '/gateway-connections/debug-observation',
+            document={'binding': binding, 'workspace': workspace, 'investigation_id': investigation_id,
+                      'operation': operation, 'query': query}, timeout=34, total_timeout=35)
+
+    def sync_debug_source(self, connection_id, instance_id, revision):
+        return self._call('POST', '/gateway-connections/debug-source',
+            document={'connection_id': connection_id, 'instance_id': instance_id, 'revision': revision},
+            timeout=95, total_timeout=100)
+
     def session_grid_source(self, binding, operation, document=None):
         from .grid_source_topology import EXCHANGE_SECONDS
         return self._call('POST', '/gateway-connections/source',
@@ -661,6 +671,11 @@ class HttpGeneralPiExecutor:
                             'gateway_registry_closed', 'gateway_timeout', 'gateway_transport_failed',
                             'gateway_endpoint_rejected', 'gateway_connection_failed', 'gateway_catalog_invalid',
                             'gateway_catalog_unavailable'})
+                        if path == '/gateway-connections/debug-observation':
+                            known.update({'investigation_credentials_unavailable', 'investigation_access_denied',
+                                          'investigation_contract_unavailable', 'investigation_request_invalid',
+                                          'investigation_response_invalid', 'gateway_bound_instance_unavailable',
+                                          'gateway_instance_changed', 'binding_expired'})
                         raise PiHTTPFailure(response.status_code, error if isinstance(error, str) and error in known else 'unrecognized_response')
                     response.raise_for_status()
             checkpoint()
@@ -985,7 +1000,9 @@ class HttpGeneralPiExecutor:
 
         def service_mission():
             nonlocal mission_receipts, last_mission_service
-            if (request.native_context or {}).get('mission_binding') is None:
+            native = request.native_context or {}
+            debug = native.get('debug_scope') is not None
+            if native.get('mission_binding') is None and not debug:
                 return
             if renewal is None or control.mission_operation is None:
                 raise ValueError('Mission tools require the leased application bridge')
@@ -1007,7 +1024,11 @@ class HttpGeneralPiExecutor:
             from capstone_control.contracts import ContractError
             from capstone_control.service import Conflict, InvalidTransition
             require_capacity('rpc_batch_requests', len(response['requests']), 'mission_control')
-            checked = MissionTaskChannel()
+            if debug:
+                from .gateway_investigation import OBSERVATION_TOOL
+                checked = MissionTaskChannel({'agent_debug_observe': OBSERVATION_TOOL})
+            else:
+                checked = MissionTaskChannel()
             receipts = []
             for call in response['requests']:
                 checked.request(call)
@@ -1015,7 +1036,8 @@ class HttpGeneralPiExecutor:
                 operation_id = 'mission_' + sha256(json.dumps([request.task_id, request.parent_attempt_id, call['call_id'], call['name']]).encode()).hexdigest()[:48]
                 try:
                     result = control.mission_operation(call['name'], call['arguments'], operation_id)
-                    receipt = dict(call_id=call['call_id'], result=result, is_error=False)
+                    receipt = dict(call_id=call['call_id'], result=result,
+                                   is_error=debug and 'code' in result)
                 except Conflict:
                     receipt = dict(call_id=call['call_id'],result={'error':'mission_operation_conflict',
                         'message':'Read the current Mission, check expected_revision against Mission.revision (not plan_revision), and check the exact current saved-result references before repairing this operation.'},is_error=True)

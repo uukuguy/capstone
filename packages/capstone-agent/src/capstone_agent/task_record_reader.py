@@ -23,11 +23,22 @@ class AttemptRecordStore(Protocol):
 
 
 PUBLIC_TASK_OBSERVATION_TYPES = frozenset({
-    "tool_started", "tool_completed", "validation_observation",
+    "execution_source_revision",
+    "tool_started", "tool_completed", "tool_failed", "tool_cancelled",
+    "validation_observation", "validation_failed",
     "research_state_updated", "answer_committed", "attempt_completed",
     "attempt_failed", "attempt_interrupted", "attempt_cancelled",
     "instruction_admitted", "attempt_delivery_recovered", "native_artifact_published",
 })
+
+PUBLIC_NATIVE_OBSERVATION_TYPES = frozenset({"tool_execution_start", "tool_execution_end"})
+
+
+def is_public_task_observation(visibility, event_type, payload):
+    return visibility == "public" and (
+        event_type in PUBLIC_TASK_OBSERVATION_TYPES
+        or (event_type == "runtime_event" and payload.get("native_type") in PUBLIC_NATIVE_OBSERVATION_TYPES)
+    )
 
 
 def _historical_observation(event):
@@ -92,8 +103,9 @@ class SelectedTaskRecordReader:
             "historical_only": True,
             "instruction": page["instruction"], "model_context": page["model_context"],
             "events": [_historical_observation(event) for event in page["events"]
-                       if (through is None or event["event_seq"] <= through) and event.get("visibility") == "public"
-                       and event.get("event_type") in PUBLIC_TASK_OBSERVATION_TYPES],
+                       if (through is None or event["event_seq"] <= through)
+                       and is_public_task_observation(event.get("visibility"), event.get("event_type"),
+                                                      event.get("payload", {}))],
             # Advance over excluded events as well. An empty page can have more.
             "next_after": max(after, next_after),
             "has_more": page["has_more"] and (through is None or next_after < through),

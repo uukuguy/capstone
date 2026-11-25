@@ -1,4 +1,7 @@
 import TaskContextPanel from './TaskContextPanel'
+import {DebugCommandAvailable} from './ThreadCommandMenu'
+import DebugWorkspace from './DebugWorkspace'
+import MarkdownContent from './MarkdownContent'
 import InstructionContextPanel, {contextIndicator} from './InstructionContextPanel'
 import {contextToolExcerpt,projectInstructionContexts} from './instructionContext'
 import GoalControls from './GoalControls'
@@ -185,6 +188,51 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [requestedContext,setRequestedContext]=useState<{id:string;nonce:number}>()
   const [contextAttempt,setContextAttempt]=useSessionViewState<string|undefined>('context.attempt',undefined)
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
+  const [debugThread,setDebugThread]=useState('')
+  const [allowDebugExport,setAllowDebugExport]=useState(false)
+  const [canReviewDebugExport,setCanReviewDebugExport]=useState(false)
+  const [debugFinding,setDebugFinding]=useState('')
+  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; completed?:boolean}>()
+  const [debugSource,setDebugSource]=useState('')
+  const [sourceQuery,setSourceQuery]=useState(0)
+  const selectedGateway=sharedNavigation?.gateway??welcomeGateway
+  useEffect(()=>{
+    if(debugThread!==currentId||resourceView!=='debug')return
+    let current=true
+    setDebugSource('')
+    void transport.debugSourceVersion(currentId).then(value=>{if(current)setDebugSource(value)})
+      .catch(()=>{if(current)setDebugSource('网关源码版本暂时无法核对。')})
+    return ()=>{current=false}
+  },[transport,currentId,debugThread,resourceView,sourceQuery,selectedGateway?.instance_id,selectedGateway?.connection_name])
+  const debugRequest=useRef<{thread:string;objective:string;key:string;attemptId?:string}|null>(null)
+  const debugGeneration=useRef(0)
+  useEffect(()=>{
+    const restore = new AbortController()
+    const generation = debugGeneration.current
+    setDebugThread('')
+    if(nativeChat&&typeof transport.debugStatus==='function'){
+      void transport.debugStatus(currentId).then(async access=>{
+        if (restore.signal.aborted) return
+        setDebugThread(currentId)
+        setAllowDebugExport(access.timelineExport)
+        setCanReviewDebugExport(access.canReviewExport)
+        setDebugFinding(access.finding)
+        if (!access.investigationId || !access.diagnosisStatus || debugGeneration.current !== generation ||
+            debugRequest.current?.thread === currentId || typeof transport.watchDebugDiagnosis !== 'function') return
+        const show = (text:string, completed = false) => {
+          if (!restore.signal.aborted && debugGeneration.current === generation && debugRequest.current?.thread !== currentId)
+            setDebugActivity({thread: currentId, text, completed})
+        }
+        try {
+          const answer = await transport.watchDebugDiagnosis(currentId, access.investigationId, show, {signal:restore.signal})
+          show(answer, true)
+        } catch (error) {
+          show(error instanceof Error ? error.message : '诊断状态暂不可读。')
+        }
+      }).catch(()=>{})
+    }
+    return ()=>restore.abort()
+  },[nativeChat,transport,currentId])
   const [instructionView,setInstructionView]=useSessionViewState<InstructionViewState>('resource.instruction-view',{attemptId:null,manual:false,appliedSeq:0,automatic:null,requestNonce:0})
   const instructionViewRef=useRef(instructionView);instructionViewRef.current=instructionView
   const saveInstructionView=useCallback((value:InstructionViewState)=>{instructionViewRef.current=value;setInstructionView(value)},[setInstructionView])
@@ -540,6 +588,62 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   }
   async function send(text: string,submission?:InputSubmission) {
     try{
+      const start=/^\/debug\s+([\s\S]+)$/.exec(text)
+      if(start&&!/^(status|stop|close|report|compare|replay)(?:\s|$)/.test(start[1].trim())){
+        if(!snapshot||concurrentSend)throw new Error('请在会话空闲时发起调查。')
+        if(pending)throw new Error('请先结算待确认的会话指令。')
+        debugGeneration.current++
+        const objective=start[1].trim()
+        let request=debugRequest.current
+        if(!request||request.thread!==currentId||request.objective!==objective){
+          const previous = store.publicEvents.reduce<EventEnvelope | undefined>((latest, event) => {
+            if (event.eventType !== 'command_accepted' || !event.attemptId ||
+                !['send_message', 'send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind))) return latest
+            const work = event.payload.work as {messages?: unknown[]} | undefined
+            const input = (event.payload.payload as {text?: unknown} | undefined)?.text
+              ?? event.payload.text ?? work?.messages?.at(-1)
+            if (typeof input !== 'string' || /^(?:研发调查 inv_[a-f0-9]{32}\n|\/debug(?:\s|$))/.test(input)) return latest
+            return !latest || event.eventSeq > latest.eventSeq ? event : latest
+          }, undefined)
+          request={thread:currentId,objective,key:commandKey(),attemptId:previous?.attemptId??undefined}
+          debugRequest.current=request
+        }
+        const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
+        const updateDebugActivity = (message: string, completed = false) => {
+          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,completed})
+        }
+        updateDebugActivity('正在读取执行记录')
+        try {
+          const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, updateDebugActivity)
+          if (debugRequest.current === request) {
+            updateDebugActivity(diagnosis, true)
+            setDebugFinding(diagnosis)
+            debugRequest.current=null
+          }
+        } catch (error) {
+          updateDebugActivity(error instanceof Error ? error.message : '诊断执行失败。')
+        }
+        return
+      }
+      if(/^\/debug\s+status\s*$/.test(text)){
+        const status=await transport.debugStatus(currentId)
+        setDebugFinding(status.finding)
+        const phases: Record<string,string> = {queued:'排队中', running:'执行中', completed:'已完成',
+          failed:'失败', cancelled:'已停止', unknown:'结果未知'}
+        const phase = phases[status.diagnosisStatus ?? ''] ?? '待执行'
+        setNotice(status.objective?`最近登记的调查（${phase}） ${status.objective} ${status.finding}`:'当前会话尚未登记调查。')
+        return
+      }
+      if (/^\/debug\s+stop\s*$/.test(text)) {
+        const {investigationId} = await transport.debugStatus(currentId)
+        if (!investigationId) throw new Error('当前会话尚无调查。')
+        const result = await transport.stopDebugDiagnosis(currentId, investigationId)
+        setNotice(result.status === 'cancelled' ? '已停止诊断。' : '诊断状态：' + result.status)
+        return
+      }
+      if (/^\/debug(?:\s|$)/.test(text)) {
+        throw new Error('请输入 /debug 和调查问题，或使用 /debug status、/debug stop。')
+      }
       if(pendingGoalControl){
         await dispatch(pendingGoalControl)
         if(pendingGoalControl.kind==='start_goal'){
@@ -1004,6 +1108,32 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       progress={missionProgress} onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>}
   </> : undefined
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
+  if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
+    content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
+      attemptLabel={id=>{
+        const entry=sessionEvents.find(e=>e.attemptId===id&&e.eventType==='command_accepted')
+        const value=(entry?.payload.payload as {text?:string}|undefined)?.text??entry?.payload.text
+        if(typeof value!=='string')return undefined
+        return (value.match(/\n本轮指令：([^\n]+)/)?.[1]??value).slice(0,64)
+      }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
+      readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}
+      readHistory={()=>transport.debugHistory(currentId)}
+      runProbe={(id,tool,args)=>transport.debugProbe(currentId,id,tool,args)}
+      readSource={(id,query)=>transport.debugSourcePage(currentId,id,query)}
+      readDiagnosis={async id=>{
+        const [result, source] = await Promise.all([
+          transport.debugDiagnosis(currentId,id),
+          transport.debugHistoricalSource(currentId,id).catch(()=> '历史源码信息暂不可读。'),
+        ])
+        return {...result, source}
+      }}
+      readSnapshots={id=>transport.debugSnapshots(currentId,id)}
+      reviewExport={canReviewDebugExport ? (id,snapshotId,review)=>transport.reviewDebugExport(currentId,id,snapshotId,review) : undefined}
+      readEvidence={async (id,snapshotId)=>{
+        const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId
+        if(!investigationId)throw new Error('当前会话尚无调查。')
+        return transport.debugEvidence(currentId,investigationId,snapshotId)
+      }}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId
     if(!instruction)return attempt
@@ -1041,7 +1171,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {id:'instruction-context',label:'请求上下文',content:contextPanel,description:'查看选中模型请求的实际输入。'},
     {id:'task-context',label:'任务上下文',content:taskContextPanel,description:'按指令查看已保存的任务状态与变化。'},
   ]:[]
-  return <ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
+  return <DebugCommandAvailable.Provider value={debugThread===currentId}><ThreadWorkspace sessionKey={currentId} conversationFocusToken={requestLocation?.nonce} conversationOnly subtitle="企业任务工作台"
     navigationExtras={(!nativeChat||!!legacyWorks?.length)&&<>
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
       {viewingLegacy&&<button type="button" disabled={busy||!!pending} onClick={()=>selectWork(snapshot?.works.find(work=>work.conversationMode||work.goalMode)?.workId||'new')}>返回当前对话</button>}
@@ -1147,6 +1277,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       allowConcurrentSend={queueAvailable}
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
+        {debugActivity?.thread===currentId&&<section className="thread-composer-notice" aria-label="Debug 调查" role="status">
+          <strong>Debug</strong>
+          {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <> · {debugActivity.text}</>}
+        </section>}
         {notice&&<p className="thread-composer-notice" role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
         <div className="thread-task-strip" aria-label="当前任务">
           {contextPanel&&<button type="button" className="thread-control-button thread-context-indicator" aria-label="查看会话上下文"
@@ -1179,5 +1313,5 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       resultProjections={professional?.resultProjections}
       caseExecution={professional?.applicationState?.caseExecution}
       onReadAttemptRecords={client.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(currentId, attemptId, after) : undefined} />}
-  </ThreadWorkspace>
+  </ThreadWorkspace></DebugCommandAvailable.Provider>
 }

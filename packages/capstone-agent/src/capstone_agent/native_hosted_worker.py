@@ -119,6 +119,26 @@ def lazy_native_unscoped_recognizer(workspace_root: Path, environment=None):
     return factory
 
 
+def serve_debug_investigations(service, executor, stop):
+    import logging
+    from .debug_commands import debug_commands_enabled
+    from .debug_investigations import InvestigationRegister
+
+    register = InvestigationRegister(service)
+    while not stop.is_set():
+        try:
+            scope = register.next_queued() if debug_commands_enabled(os.environ) else None
+            if scope is not None:
+                try:
+                    register.diagnose(*scope, executor)
+                except (KeyError, ValueError):
+                    register.fail_queued_diagnosis(*scope)
+                continue
+        except Exception:
+            logging.getLogger(__name__).exception('Debug diagnosis worker could not process the queue')
+        stop.wait(1)
+
+
 def main() -> int:
     import uvicorn
     from .hosting import load_host_settings, build_artifacts
@@ -147,6 +167,9 @@ def main() -> int:
         'max_concurrent_attempts': capacity,
         'wake_event': wake, 'stop_event': stop}, daemon=True, name='capstone-native-worker')
     scheduler.start()
+    diagnosis_worker = threading.Thread(target=serve_debug_investigations,
+        args=(service, executor, stop), daemon=True, name='capstone-debug-worker')
+    diagnosis_worker.start()
     try:
         uvicorn.run(create_wake_app(wake, settings.operator_token,
             implementation_family='native', input_catalog=service.input_catalog,
@@ -157,6 +180,7 @@ def main() -> int:
         stop.set()
         wake.set()
         scheduler.join(timeout=5)
+        diagnosis_worker.join(timeout=5)
     return 0
 
 

@@ -138,3 +138,10 @@ it('builds a version-bound live takeover command and restores it from the pendin
   expect(()=>parseInstructionTakeover({takeover:{source,turn_id:'turn_source',phase:'invalid',
     answer:null,answer_truncated:false}})).toThrow()
 })
+
+it.each(['查超时','核对耗时'])('restores a pending debug %s with its original investigation',operation=>{
+  const text='/debug '+operation+' 检查失败'
+  const command=buildSendMessageCommand('thr_work','run_work','cmd_debug','idem_debug','new',0,text)
+  command.payload={text,debug_investigation_id:'inv_original'}
+  expect(parseStoredWorkCommand(command,'thr_work')).toEqual(command)
+})

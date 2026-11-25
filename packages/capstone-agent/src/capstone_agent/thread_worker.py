@@ -94,13 +94,22 @@ def _run_claimed_attempt(
     if service.cancel_requested(claim):
         service.finish_attempt(claim, phase='cancelled', payload={})
         return HarnessAttemptResult('cancelled', None, None)
+    from .debug_sources import packaged_capstone_revision
+    revision = packaged_capstone_revision()
+    if revision:
+        service.append_runtime_event(claim, event_type='execution_source_revision',
+                                     payload={'capstone_revision': revision}, visibility='public')
     previous = claim.previous_instruction
     manifests = (claim.submission or {}).get('_resource_manifests', ())
     if manifests:
         from .continuation_resources import resource_reader_for
         claim = replace(claim, resource_reader=resource_reader_for(service, claim))
     task_state_ref = None if claim.task_context is None else claim.task_context.task_state_ref
-    historical_attempt = task_state_ref or (None if previous is None else previous.attempt_id)
+    previous_attempt = None if previous is None else previous.attempt_id
+    # Debug supplies an explicit source through the admitted investigation.
+    # The conversation's last task state can belong to another debug round.
+    historical_attempt = (previous_attempt if (claim.submission or {}).get('_debug_investigation')
+                          else task_state_ref or previous_attempt)
     handoff = (claim.submission or {}).get('_task_handoff')
     if handoff is not None:
         claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
