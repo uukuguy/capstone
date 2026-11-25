@@ -162,6 +162,27 @@ class InvestigationRegister:
             raise KeyError('investigation_not_visible')
         return dict(row)
 
+    def historical_gateway(self, workspace, thread_id, investigation_id):
+        from .thread_gateway import historical_binding
+
+        investigation = self.get(workspace, thread_id, investigation_id)
+        attempt_id = (investigation.get('observation') or {}).get('attempt_id')
+        if not attempt_id:
+            return None
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''SELECT a.submission_snapshot FROM capstone_thread_attempts a
+                    JOIN capstone_threads t ON t.thread_id=a.thread_id
+                    WHERE a.thread_id=%s AND a.attempt_id=%s AND t.workspace_name=%s''',
+                    (thread_id, attempt_id, workspace)).fetchone()
+                submission = row['submission_snapshot'] if row else None
+        else:
+            submission = (self.service._attempts.get(attempt_id) or {}).get('submission')
+        binding = historical_binding(submission)
+        if binding['connection_id'] and binding['instance_id']:
+            return binding
+        return None
+
     def export_timeline(self, workspace, thread_id, investigation_id):
         from .task_record_reader import SelectedTaskRecordReader
 

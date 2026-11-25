@@ -446,8 +446,8 @@ def create_host_app(
             except (KeyError, ThreadNotFound):
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
             reader = getattr(native_artifact_executor, 'debug_observation', None)
-            binding = thread_service.read_thread_gateway(thread_id)
-            if callable(reader) and binding and binding.get('instance_id'):
+            binding = investigations.historical_gateway(request.state.workspace_name, thread_id, investigation_id)
+            if callable(reader) and binding:
                 try:
                     document['data_gateway'] = reader(binding, request.state.workspace_name,
                                                       investigation_id, 'export', {})
@@ -492,9 +492,9 @@ def create_host_app(
             if operation not in {'list', 'read', 'logs'}:
                 raise HTTPException(422, '不支持的调查读取操作。')
             reader = getattr(native_artifact_executor, 'debug_observation', None)
-            binding = thread_service.read_thread_gateway(thread_id)
-            if not callable(reader) or not binding or not binding.get('instance_id'):
-                raise HTTPException(409, '当前会话缺少可读取调查的网关绑定。')
+            binding = investigations.historical_gateway(workspace, thread_id, investigation_id)
+            if not callable(reader) or not binding:
+                raise HTTPException(409, '目标执行轮次缺少可读取记录的网关绑定。')
             try:
                 page = reader(binding, workspace, investigation_id, operation, body)
             except (ValueError, RuntimeError, OSError):
