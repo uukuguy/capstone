@@ -6,13 +6,14 @@ import {firstDebugObservation} from './debugObservation'
 
 type SourceRepository = 'capstone' | 'data-gateway'
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,readSource,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string) => Promise<string>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
   readSource?: (id: string, query: URLSearchParams) => Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
+  runProbe?: (id: string, key: string, tool: string, args: Record<string, unknown>) => Promise<unknown>
 }){
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
@@ -22,6 +23,29 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
   const [sourcePage, setSourcePage] = useState<{id: string; repository: SourceRepository; revision: string; files: string[]; next: number | null}>()
   const [excerpt, setExcerpt] = useState<{id: string; repository: SourceRepository; path: string; lines: string[]; first: number}>()
+  const [probeTool, setProbeTool] = useState('')
+  const [probeArgs, setProbeArgs] = useState('{}')
+  const [probe, setProbe] = useState<{id: string; key: string; input: string; receipt?: unknown}>()
+  async function verifyReadOnly(id: string) {
+    if (!runProbe || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const tool = probeTool.trim()
+      const args: unknown = JSON.parse(probeArgs)
+      if (!tool || !args || typeof args !== 'object' || Array.isArray(args)) {
+        throw new Error('请输入工具名和 JSON 参数对象。')
+      }
+      const input = JSON.stringify({tool, args})
+      const current = probe?.id === id && probe.input === input ? probe
+        : {id, input, key: crypto.randomUUID()}
+      setProbe(current)
+      const receipt = await runProbe(id, current.key, tool, args as Record<string, unknown>)
+      setProbe({...current, receipt})
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '暂时无法读取复验回执。')
+    } finally { setBusy(false) }
+  }
   async function browseSource(id: string, repository: SourceRepository, offset = 0, path?: string, line = 1) {
     if (!readSource || busy) return
     setBusy(true)
@@ -133,6 +157,13 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     </select></label>}
     {(diagnosis?.text || savedFinding)&&<p>{diagnosis?.text || savedFinding}</p>}
     {diagnosis?.source&&<p>{diagnosis.source}</p>}
+    {diagnosis&&runProbe&&<details>
+      <summary>只读网关复验</summary>
+      <label>工具名<input value={probeTool} disabled={busy} onChange={event=>setProbeTool(event.target.value)}/></label>
+      <label>参数（JSON）<textarea value={probeArgs} disabled={busy} onChange={event=>setProbeArgs(event.target.value)}/></label>
+      <button type="button" disabled={busy||!probeTool.trim()} onClick={()=>void verifyReadOnly(diagnosis.id)}>执行或查回原复验</button>
+      {probe?.id===diagnosis.id&&probe.receipt!==undefined&&<pre>{JSON.stringify(probe.receipt,null,2)}</pre>}
+    </details>}
     {diagnosis&&readSource&&<div className="debug-actions">
       <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'capstone')}>查看历史 Capstone 源码</button>
       <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'data-gateway')}>查看历史网关源码</button>
