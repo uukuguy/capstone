@@ -70,21 +70,6 @@ class GatewayInvestigation:
         self._schemas = schemas
         self._log_declaration = log_declaration
         self._log_schemas = None
-
-    async def read_logs(self, scope, query):
-        """Resolve logs only when selected. Ownership is supplied by the backend."""
-        declaration = self._log_declaration
-        if not isinstance(declaration, dict) or declaration.get('version') != LOG_VERSION:
-            raise GatewayError('investigation_logs_unavailable')
-        if declaration.get('contract_path') != BASE + 'log-contract':
-            raise GatewayError('investigation_contract_invalid')
-        if self._log_schemas is None:
-            contract = await _request(self._client, 'GET', self._origin + declaration['contract_path'])
-            if (not isinstance(contract, dict) or contract.get('contract_version') != LOG_VERSION
-                    or contract.get('operations', {}).get('logs') != {'method':'POST','path':BASE+'logs'}
-                    or not all(isinstance(contract.get('schemas', {}).get(name), dict) for name in ('LogRequest','LogPage'))):
-                raise GatewayError('investigation_contract_invalid')
-            self._log_schemas = contract['schemas']
         self._export_policy = None
 
     async def export_receipts(self, scope):
@@ -101,6 +86,21 @@ class GatewayInvestigation:
         return {'status': 'available', 'truncated': bool(page.get('next_cursor')),
                 'events': [{key: receipt[key] for key in keys if key in receipt}
                            for receipt in page['receipts']]}
+
+    async def read_logs(self, scope, query):
+        """Resolve logs only when selected. Ownership is supplied by the backend."""
+        declaration = self._log_declaration
+        if not isinstance(declaration, dict) or declaration.get('version') != LOG_VERSION:
+            raise GatewayError('investigation_logs_unavailable')
+        if declaration.get('contract_path') != BASE + 'log-contract':
+            raise GatewayError('investigation_contract_invalid')
+        if self._log_schemas is None:
+            contract = await _request(self._client, 'GET', self._origin + declaration['contract_path'])
+            if (not isinstance(contract, dict) or contract.get('contract_version') != LOG_VERSION
+                    or contract.get('operations', {}).get('logs') != {'method':'POST','path':BASE+'logs'}
+                    or not all(isinstance(contract.get('schemas', {}).get(name), dict) for name in ('LogRequest','LogPage'))):
+                raise GatewayError('investigation_contract_invalid')
+            self._log_schemas = contract['schemas']
         if scope.keys() & query.keys() or sum(bool(query.get(key)) for key in ('request_id','client_call_id')) != 1:
             raise GatewayError('investigation_request_invalid')
         document = {**scope, **query}
