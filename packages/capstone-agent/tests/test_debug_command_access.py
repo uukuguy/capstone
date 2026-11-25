@@ -129,6 +129,7 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         response = client.post(f'{path}/investigations/{identity}/diagnose')
         assert response.status_code == 200, response.text
         assert response.json()['status'] == 'queued'
+        queued_snapshot = register.export_timeline(claim.workspace_name, claim.thread_id, identity)['snapshot_id']
         assert not calls
         assert response.json()['attempt_id'] == claim.attempt.attempt_id
         assert client.post(f'{path}/investigations/{identity}/diagnose').json() == response.json()
@@ -137,6 +138,14 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert '_gateway_snapshot' in register.get(claim.workspace_name, claim.thread_id, identity)['diagnosis']
         assert '_gateway_snapshot' not in client.get(f'{path}/investigations/{identity}/diagnose').json()
         evidence = register.export_timeline(claim.workspace_name, claim.thread_id, identity)
+        assert evidence['snapshot_id'] != queued_snapshot
+        assert register.export_timeline(claim.workspace_name, claim.thread_id, identity)['snapshot_id'] == evidence['snapshot_id']
+        monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
+        exported = client.get(f'{path}/investigations/{identity}/evidence').json()
+        assert exported['snapshot_id'] == evidence['snapshot_id']
+        assert exported['data_gateway']['scope'] == 'download_time'
+        assert exported['integrity']['digest'] == debug_investigations.evidence_digest(
+            {key: value for key, value in exported.items() if key != 'integrity'})
         assert evidence['diagnosis']['source_evidence'] == {
             'capstone': {'status': 'revision_unavailable'}, 'data-gateway': {'status': 'revision_unavailable'}}
         assert evidence['diagnosis']['progress'] == [

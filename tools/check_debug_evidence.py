@@ -18,6 +18,13 @@ def verify(document):
     digest = integrity.get('digest')
     if not isinstance(digest, str) or not compare_digest(sha256(encoded.encode()).hexdigest(), digest):
         raise ValueError('Evidence checksum does not match')
+    snapshot_id = document.get('snapshot_id')
+    if snapshot_id is not None:
+        snapshot = {key: content.get(key) for key in ('schema', 'thread_id', 'investigation_id',
+                                                      'observation', 'diagnosis', 'capstone')}
+        encoded = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+        if not isinstance(snapshot_id, str) or not compare_digest(sha256(encoded.encode()).hexdigest(), snapshot_id):
+            raise ValueError('Diagnostic snapshot checksum does not match')
     if not all(isinstance(document.get(key), str) and document[key] for key in ('investigation_id', 'thread_id')):
         raise ValueError('Missing investigation identity')
     observation = document.get('observation')
@@ -84,6 +91,7 @@ def import_evidence(document, parent):
         write('previous-gateway-events.jsonl', b''.join(encode(row) for row in prior['events']))
     manifest = {'schema': 'capstone-debug-offline-import/1',
                 'evidence_sha256': document['integrity']['digest'],
+                'snapshot_id': document.get('snapshot_id'),
                 'thread_id': document['thread_id'], 'observation': document.get('observation'),
                 'source_evidence': document.get('diagnosis', {}).get('source_evidence', {}),
                 'gateway_scope': gateway.get('scope'), 'summary': summary, 'files_sha256': members}

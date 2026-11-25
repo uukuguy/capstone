@@ -469,12 +469,6 @@ def create_host_app(
                     return {'status': 'read_unavailable', 'events': []}
 
             document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'download_time'}
-            snapshot = investigations.gateway_snapshot(workspace, thread_id, investigation_id)
-            if snapshot:
-                document['diagnosis']['gateway_snapshot'] = {
-                    'status': snapshot['status'], 'receipt_count': len(snapshot.get('receipts', ())),
-                    'truncated': snapshot.get('truncated', False),
-                }
             observation = document.get('observation') or {}
             previous = document['diagnosis'].get('gateway_investigation_id')
             if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):

@@ -224,13 +224,20 @@ class InvestigationRegister:
             else:
                 truncated = True
         diagnosis = investigation.get('diagnosis') or {}
-        return {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
+        document = {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
                 'investigation_id': investigation_id, 'observation': observation,
                 'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs', 'progress',
                                                              'progress_truncated', 'source_evidence',
                                                              'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
-                'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'},
+                'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'}}
+        snapshot = diagnosis.get('_gateway_snapshot')
+        if snapshot:
+            document['diagnosis']['gateway_snapshot'] = {
+                'status': snapshot['status'], 'receipt_count': len(snapshot.get('receipts', ())),
+                'truncated': snapshot.get('truncated', False),
+            }
+        return {**document, 'snapshot_id': evidence_digest(document),
                 'data_gateway': {'status': 'export_unavailable', 'events': []}}
 
     def enqueue_diagnosis(self, workspace, thread_id, investigation_id):
@@ -540,10 +547,6 @@ class InvestigationRegister:
     def public_diagnosis(diagnosis):
         return {key: value for key, value in diagnosis.items()
                 if key != 'executor_identity' and not key.startswith('_')}
-
-    def gateway_snapshot(self, workspace, thread_id, investigation_id):
-        diagnosis = self.get(workspace, thread_id, investigation_id).get('diagnosis') or {}
-        return diagnosis.get('_gateway_snapshot')
 
     def stop_diagnosis(self, workspace, thread_id, investigation_id, executor):
         scope = (workspace, thread_id, investigation_id)
