@@ -253,6 +253,12 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
                    for page in native['selected_task_records'] for event in page['events'])
         assert not any(event['event_seq'] == failure_seq
                        for page in native['selected_task_records'] for event in page['events'])
+        earlier = control.mission_operation('agent_debug_observe',
+            {'operation': 'capstone_records', 'query': {'after': failure_seq - 6}}, 'earlier')
+        additional_seq = earlier['events'][0]['event_seq']
+        assert additional_seq < failure_seq
+        running = register.get(claim.workspace_name, claim.thread_id, investigation['investigation_id'])['diagnosis']
+        assert additional_seq in running['evidence_event_seqs']
         page = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'after': failure_seq - 1}}, 'fixture')
         assert page['events'][0]['event_seq'] == failure_seq
@@ -280,6 +286,9 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
                                execute=execute)
     diagnosis = register.diagnose(claim.workspace_name, claim.thread_id, investigation['investigation_id'], executor)
     assert failure_seq in diagnosis['evidence_event_seqs']
+    evidence = register.read_export_snapshot(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
+        register.recent_export_snapshots(claim.workspace_name, claim.thread_id, investigation['investigation_id'])[0]['snapshot_id'])
+    assert failure_seq - 5 in evidence['diagnosis']['evidence_event_seqs']
 
 
 def test_debug_probe_retry_reads_the_original_call(monkeypatch):

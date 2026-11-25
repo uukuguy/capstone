@@ -238,7 +238,8 @@ class InvestigationRegister:
         diagnosis = investigation.get('diagnosis') or {}
         document = {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
                 'investigation_id': investigation_id, 'observation': observation,
-                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'failure_code', 'evidence_event_seqs', 'progress',
+                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'failure_code', 'evidence_event_seqs',
+                                                             'evidence_event_seqs_truncated', 'progress',
                                                              'progress_truncated', 'source_evidence',
                                                              'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
@@ -440,6 +441,7 @@ class InvestigationRegister:
                     end = min(offset + 1000, len(text))
                     if offset > end:
                         return {'code': 'investigation_request_invalid'}
+                    record_supplied_evidence([seq])
                     return {'attempt_id': observation['attempt_id'], 'event_seq': seq, 'field': field,
                             'scope': 'stored_excerpt', 'offset': offset, 'text': text[offset:end],
                             'next_offset': end if end < len(text) else None}
@@ -447,7 +449,9 @@ class InvestigationRegister:
                 if (arguments.get('operation') != 'capstone_records'
                         or query.keys() - {'after'} or type(after) is not int or not 0 <= after <= through):
                     return {'code': 'investigation_request_invalid'}
-                return read_page(after, 1000)
+                page = read_page(after, 1000)
+                record_supplied_evidence([event['event_seq'] for event in page['events']])
+                return page
 
             pages = []
             cursor = 0
@@ -498,6 +502,17 @@ class InvestigationRegister:
                                          | {'line_count': len(excerpt['lines'])} for excerpt in excerpts]}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
+
+        def record_supplied_evidence(seqs):
+            nonlocal diagnosis
+            known = diagnosis['evidence_event_seqs']
+            added = sorted(set(seqs).difference(known))
+            if not added:
+                return
+            combined = [*known, *added]
+            diagnosis = {**diagnosis, 'evidence_event_seqs': sorted(combined[:256]),
+                         'evidence_event_seqs_truncated': len(combined) > 256}
+            self._save_diagnosis(scope, diagnosis)
 
         def observe(event):
             nonlocal diagnosis
