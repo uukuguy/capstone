@@ -36,9 +36,15 @@ def test_postgres_register_survives_reopen_and_concurrent_reservations():
         with pytest.raises(ValueError):
             reopened.reserve_call(*call[:-1], 'changed-binding')
         scope = ('enterprise', thread, first['investigation_id'])
-        pending = {'task_id': 'debug_original', 'status': 'running'}
+        pending = {'task_id': 'debug_original', 'status': 'queued'}
         assert reopened._reserve_diagnosis(scope, pending) == pending
         assert reopened._reserve_diagnosis(scope, {'task_id': 'debug_duplicate', 'status': 'running'}) == pending
+        worker = InvestigationRegister(PostgresThreadService(dsn))
+        assert worker.next_queued() == scope
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            claims = list(pool.map(lambda _: worker._claim_diagnosis(scope, {**pending, 'status': 'running'}), range(8)))
+        assert sum(claims) == 1
+        assert worker.next_queued() is None
         completed = {**pending, 'status': 'completed', 'answer': '已定位。'}
         reopened._save_diagnosis(scope, completed)
         reopened._save_diagnosis(scope, {**pending, 'status': 'unknown'})

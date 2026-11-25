@@ -98,9 +98,12 @@ class InvestigationRegister:
         self.service.require_workspace(thread_id, workspace)
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
-                return connection.execute('''SELECT investigation_id,objective,observation,diagnosis FROM capstone_debug_investigations
+                row = connection.execute('''SELECT investigation_id,objective,observation,diagnosis FROM capstone_debug_investigations
                     WHERE workspace=%s AND thread_id=%s ORDER BY created_at DESC,investigation_id DESC LIMIT 1''',
                     (workspace, thread_id)).fetchone()
+                if row is not None and row['diagnosis'] is None:
+                    row.pop('diagnosis')
+                return row
         with self._lock:
             return next((dict(self._memory[key]) for key in reversed(self._memory)
                          if key[:2] == (workspace, thread_id)), None)
