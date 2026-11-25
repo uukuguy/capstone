@@ -513,7 +513,7 @@ def create_host_app(
 
         @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/probe')
         def investigation_probe(thread_id: str, investigation_id: str, request: Request, body: dict,
-                                idempotency_key: Annotated[str, Header(min_length=1, max_length=200)]):
+                                idempotency_key: Annotated[str | None, Header(min_length=1, max_length=200)] = None):
             require_debug(request)
             if (set(body) != {'tool', 'arguments'} or not isinstance(body['tool'], str)
                     or not isinstance(body['arguments'], dict)):
@@ -525,7 +525,8 @@ def create_host_app(
                 if not binding or not callable(reader):
                     raise HTTPException(409, '原执行轮次的网关绑定暂不可用。')
                 from .debug_investigations import evidence_digest
-                call_id, new = investigations.reserve_call(*scope, idempotency_key, body['tool'],
+                operation_key = idempotency_key or 'probe-' + evidence_digest(body)
+                call_id, new = investigations.reserve_call(*scope, operation_key, body['tool'],
                                                            body['arguments'], evidence_digest(binding))
                 query = {**body, 'client_call_id': call_id} if new else {'client_call_id': call_id}
                 result = reader(binding, scope[0], investigation_id, 'probe' if new else 'read', query)

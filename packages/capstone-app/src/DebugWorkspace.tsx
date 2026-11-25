@@ -13,7 +13,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
   readSource?: (id: string, query: URLSearchParams) => Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
-  runProbe?: (id: string, key: string, tool: string, args: Record<string, unknown>) => Promise<unknown>
+  runProbe?: (id: string, tool: string, args: Record<string, unknown>) => Promise<unknown>
 }){
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
@@ -25,7 +25,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [excerpt, setExcerpt] = useState<{id: string; repository: SourceRepository; path: string; lines: string[]; first: number}>()
   const [probeTool, setProbeTool] = useState('')
   const [probeArgs, setProbeArgs] = useState('{}')
-  const [probe, setProbe] = useState<{id: string; key: string; input: string; receipt?: unknown}>()
+  const [probe, setProbe] = useState<{id: string; receipt: unknown}>()
   async function verifyReadOnly(id: string) {
     if (!runProbe || busy) return
     setBusy(true)
@@ -36,12 +36,9 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       if (!tool || !args || typeof args !== 'object' || Array.isArray(args)) {
         throw new Error('请输入工具名和 JSON 参数对象。')
       }
-      const input = JSON.stringify({tool, args})
-      const current = probe?.id === id && probe.input === input ? probe
-        : {id, input, key: crypto.randomUUID()}
-      setProbe(current)
-      const receipt = await runProbe(id, current.key, tool, args as Record<string, unknown>)
-      setProbe({...current, receipt})
+      setProbe(undefined)
+      const receipt = await runProbe(id, tool, args as Record<string, unknown>)
+      setProbe({id, receipt})
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '暂时无法读取复验回执。')
     } finally { setBusy(false) }

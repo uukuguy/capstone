@@ -146,6 +146,12 @@ def test_debug_probe_retry_reads_the_original_call(monkeypatch):
         assert client.post(url, headers=headers, json={**body, 'arguments': {'limit': 2}}).status_code == 409
         assert [operation for operation, _ in operations] == ['probe', 'read']
         assert operations[0][1]['client_call_id'] == operations[1][1]['client_call_id']
+        automatic = {'tool': 'data_gateway_read', 'arguments': {'limit': 1, 'kind': 'grid'}}
+        assert client.post(url, json=automatic).status_code == 409
+        reordered = {'arguments': {'kind': 'grid', 'limit': 1}, 'tool': 'data_gateway_read'}
+        assert client.post(url, json=reordered).json()['state'] == 'observed'
+        assert [operation for operation, _ in operations] == ['probe', 'read', 'probe', 'read']
+        assert operations[2][1]['client_call_id'] == operations[3][1]['client_call_id']
 
 
 def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):

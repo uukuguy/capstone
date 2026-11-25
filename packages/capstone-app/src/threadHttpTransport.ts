@@ -326,10 +326,10 @@ export class HttpThreadTransport implements ThreadTransport {
     const response = await this.streamRequest(path)
     return boundedResponseText(response, 'event_page_bytes', applicationCapacity('event_page_bytes'))
   }
-  async debugProbe(threadId: string, investigationId: string, key: string,
+  async debugProbe(threadId: string, investigationId: string,
     tool: string, args: Record<string, unknown>) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/probe`
-    return this.request(path, {method: 'POST', headers: {'Idempotency-Key': key},
+    return this.request(path, {method: 'POST',
       body: JSON.stringify({tool, arguments: args}), signal: AbortSignal.timeout(40000)})
   }
   async debugHistoricalSource(threadId: string, investigationId: string) {
