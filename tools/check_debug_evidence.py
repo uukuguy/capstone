@@ -45,6 +45,13 @@ def verify(document):
             raise ValueError('Event is out of order or outside the investigation scope')
         last = seq
         event_seqs.add(seq)
+    failure = observation.get('first_failure') if isinstance(observation, dict) else None
+    if failure is not None:
+        if (not isinstance(failure, dict) or type(failure.get('seq')) is not int
+                or not 0 < failure['seq'] <= through or not isinstance(failure.get('type'), str)):
+            raise ValueError('First failure is outside the investigation scope')
+        if failure['seq'] not in event_seqs and capstone.get('truncated') is not True:
+            raise ValueError('First failure is missing from a complete timeline')
     diagnosis = document.get('diagnosis', {})
     if not isinstance(diagnosis, dict):
         raise ValueError('Invalid diagnosis record')
