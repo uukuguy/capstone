@@ -363,7 +363,7 @@ export function applicationToolAdmission(config, toolName) {
   if(config.researchRuntime?.deepResearch===false&&toolName.startsWith('agent_research_'))
     return {accepted:false,reason:'Use the ordinary reasoning and tool loop.'};
   const policy = config.applicationPolicy;
-  return { accepted: (config.researchRuntime?.adaptiveAgentLoop===true||!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||Object.hasOwn(config.missionTools?.catalog??{},toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
+  return { accepted: (config.researchRuntime?.adaptiveAgentLoop===true||!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||Object.hasOwn(config.debugTools?.catalog??{},toolName)||Object.hasOwn(config.missionTools?.catalog??{},toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
       (!policy || policy.allowed_tools.includes(toolName)),
     reason: "This application did not authorize the requested tool. Select a registered resource or continue without it." };
 }
@@ -530,7 +530,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   discovery?.setLoadedWrapper(wrap);
   const skillTools=config.applicationPolicy.allowed_tools.includes('agent_skill')&&config.taskSkills?.length
     ?[createSkillRecordTool(config.taskSkills,config.contextDiagnosticSources)]:[];
-  const customTools=[...nativeTools,...externalTools,...createMissionTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...createPresentationTools(config),...skillTools].map(wrap);
+  const customTools=[...nativeTools,...externalTools,...createMissionTools(config),...(config.debugTools?createMissionTools(config,{channel:config.debugTools}):[]),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config),...createPresentationTools(config),...skillTools].map(wrap);
   for(const [name,label,description,load] of [
     ['agent_capacity_guide','Read runtime capacity guide',
       'Before planning large queries, file processing or long model steps, read the effective task limits and recovery guide. No arguments.',

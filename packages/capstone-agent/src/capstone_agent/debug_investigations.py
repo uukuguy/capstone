@@ -344,14 +344,24 @@ class InvestigationRegister:
                 cursor = page['next_after']
                 if not more:
                     break
-            instruction += '\n如需核对更多 Capstone 事件，使用 agent_task_records_read 分页。'
+            historical_gateway = self.historical_gateway(workspace, thread_id, evidence_owner)
+            debug_scope = {
+                'workspace': workspace, 'gateway_investigation': evidence_owner,
+                'capstone_revision': observation.get('capstone_revision'),
+                'gateway': ({key: historical_gateway.get(key) for key in ('connection_id', 'instance_id', 'source_sha256')}
+                            if historical_gateway else None),
+            }
+            instruction += ('\n用 agent_task_records_read 核对 Capstone 执行记录。'
+                            '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
             task_fields = {
                 'business_context': BusinessContext.empty(thread_id, through),
                 'resource_profile': {'profile_id': 'direct_pi', 'revision': profile['revision']},
                 'input': {'kind': 'text', 'text': instruction},
                 'native_context': {
                     'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
-                               'allowed_tools': ['agent_task_records_read'], 'external_lookup_enabled': False},
+                               'allowed_tools': ['agent_task_records_read', 'agent_debug_observe'],
+                               'external_lookup_enabled': False},
+                    'debug_scope': debug_scope,
                     'selected_task_source': {'thread_id': thread_id, 'attempt_id': observation['attempt_id']},
                     'selected_task_records': pages, 'records_truncated': pages[-1]['records_truncated'],
                 },

@@ -61,6 +61,22 @@ def test_debug_historical_sources_check_each_admitted_revision(monkeypatch):
     }
 
 
+def test_debug_pi_cannot_select_another_source_revision(monkeypatch):
+    from capstone_agent import debug_sources
+
+    revision = 'a' * 40
+    scope = {'capstone_revision': revision, 'gateway': None, 'workspace': 'local',
+             'gateway_investigation': 'inv_' + 'b' * 32}
+    monkeypatch.setattr(debug_sources, 'read_historical_capstone_source',
+                        lambda revision, **query: {'revision': revision, **query})
+    debug_sources.checked_debug_scope(scope)
+    query = {'repository': 'capstone', 'path': 'src/file.py', 'line': 10}
+    assert debug_sources.read_debug_source(scope, 'source_lines', query) == {
+        'revision': revision, 'path': 'src/file.py', 'line': 10}
+    with pytest.raises(ValueError):
+        debug_sources.read_debug_source(scope, 'source_lines', {**query, 'revision': 'c' * 40})
+
+
 def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
     from types import SimpleNamespace
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
@@ -177,7 +193,8 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page():
     def execute(request, control, on_event):
         assert 'selected source remained ambiguous' in request.instruction
         native = request.to_document()['native_context']
-        assert native['policy']['allowed_tools'] == ['agent_task_records_read']
+        assert native['policy']['allowed_tools'] == ['agent_task_records_read', 'agent_debug_observe']
+        assert native['debug_scope']['gateway_investigation'] == investigation['investigation_id']
         assert native['selected_task_source']['attempt_id'] == claim.attempt.attempt_id
         assert all(event['event_seq'] <= investigation['observation']['through']
                    for page in native['selected_task_records'] for event in page['events'])

@@ -70,6 +70,42 @@ def read_historical_capstone_source(revision, *, path=None, line=1, prefix='', o
     raise FileNotFoundError('historical_source_unavailable')
 
 
+def checked_debug_scope(scope):
+    if not isinstance(scope, dict) or set(scope) != {'workspace', 'gateway_investigation', 'gateway', 'capstone_revision'}:
+        raise ValueError('invalid Debug source scope')
+    from .workspace_scope import workspace_name
+
+    if workspace_name(scope['workspace']) != scope['workspace']:
+        raise ValueError('invalid Debug workspace')
+    if not re.fullmatch(r'inv_[a-f0-9]{32}', scope['gateway_investigation']):
+        raise ValueError('invalid Debug investigation')
+    revision = scope['capstone_revision']
+    if revision is not None and not re.fullmatch('[0-9a-f]{40}', revision):
+        raise ValueError('invalid Capstone source revision')
+    gateway = scope['gateway']
+    if gateway is not None and (not isinstance(gateway, dict)
+            or set(gateway) != {'connection_id', 'instance_id', 'source_sha256'}
+            or any(not isinstance(gateway[key], str) or not 0 < len(gateway[key]) <= 256
+                   for key in ('connection_id', 'instance_id'))
+            or gateway['source_sha256'] is not None and not re.fullmatch('[0-9a-f]{64}', gateway['source_sha256'])):
+        raise ValueError('invalid gateway source scope')
+
+
+def read_debug_source(scope, operation, query):
+    allowed = {'source_files': {'prefix', 'offset'}, 'source_lines': {'path', 'line'}}
+    args = {key: value for key, value in query.items() if key != 'repository'}
+    if args.keys() - allowed[operation] or (operation == 'source_lines' and not args.get('path')):
+        raise ValueError('invalid Debug source query')
+    for key in ('prefix', 'path'):
+        if key in args and (not isinstance(args[key], str) or len(args[key]) > 300):
+            raise ValueError('invalid Debug source path')
+    if query.get('repository') == 'capstone':
+        return read_historical_capstone_source(scope['capstone_revision'], **args)
+    if query.get('repository') == 'data-gateway':
+        return read_historical_gateway_source(scope['gateway'] or {}, **args)
+    raise ValueError('invalid Debug repository')
+
+
 def _read_source_archive(selected, candidates, path, line, prefix, offset, symbol=None):
     if type(line) is not int or not 1 <= line <= 100000 or type(offset) is not int or offset < 0:
         raise ValueError('invalid_source_range')

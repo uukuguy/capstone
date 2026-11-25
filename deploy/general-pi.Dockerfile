@@ -26,6 +26,11 @@ RUN mkdir -p /var/lib/general-pi/tasks /var/lib/general-pi/receipts /var/lib/gen
 
 COPY --from=managed-runtime /app/.grid-agent/runtime/pi/source/ /opt/pi/
 
+RUN --mount=from=managed-runtime,source=/opt,target=/mnt/backend-opt,readonly \
+    if [ -d /mnt/backend-opt/capstone-debug-sources ]; then \
+        cp -R /mnt/backend-opt/capstone-debug-sources /opt/; \
+    fi
+
 COPY --from=node /usr/local/lib/node_modules/npm/ /usr/local/lib/node_modules/npm/
 
 RUN ln -s /opt/pi/node_modules /opt/general/node_modules \

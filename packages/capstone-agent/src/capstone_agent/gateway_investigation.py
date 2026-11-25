@@ -14,6 +14,17 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
 
 
+OBSERVATION_TOOL = {
+    'description': 'Read on-site receipts, logs, or source for this Debug investigation. List calls before reading receipts or logs by client_call_id or request_id. For source_files or source_lines, specify repository. Only the exact admitted source revision is available.',
+    'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['operation'],
+        'properties': {'operation': {'enum': ['list', 'read', 'logs', 'source_files', 'source_lines']}, 'query': {'type': 'object',
+            'additionalProperties': False, 'properties': {
+                'repository': {'enum': ['capstone', 'data-gateway']},
+                'prefix': {'type':'string'}, 'offset': {'type':'integer'}, 'path': {'type':'string'}, 'line': {'type':'integer'},
+                'request_id': {'type': 'string'}, 'client_call_id': {'type': 'string'},
+                'cursor': {'type': 'string'}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50}}}}}}
+
+
 def investigation_workspace_id(workspace):
     return 'ws_' + sha256(workspace.encode('utf-8')).hexdigest()
 

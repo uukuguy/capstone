@@ -344,6 +344,10 @@ class GeneralPiHost:
             if request.research_binding is not None:
                 from .native_research_bridge import ALL_ENTERPRISE_RESEARCH_TOOLS
                 published.update(ALL_ENTERPRISE_RESEARCH_TOOLS)
+            if native.get('debug_scope') and request.entrypoint == 'direct':
+                from .debug_commands import debug_commands_enabled
+                if debug_commands_enabled(os.environ):
+                    published.add('agent_debug_observe')
             if native['selected_task_records']:
                 published.add('agent_task_records_read')
             if native.get('resource_manifests'):
@@ -1557,6 +1561,10 @@ class NativeTaskRunner:
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
                           'adapter_sha256': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                               for name in ('bounded_mcp.py', 'native_mission.py', 'resources/mission-tools.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest()}
+            if (request.native_context or {}).get('debug_scope'):
+                from .gateway_investigation import OBSERVATION_TOOL
+                sdk_config['debugTools'] = {'url': self.relay_origin + '/debug-tools/' + request.task_id,
+                    'grant': grant, 'catalog': {'agent_debug_observe': OBSERVATION_TOOL}}
             if (request.native_context or {}).get('mission_binding') is not None:
                 from .native_mission import CATALOG
                 sdk_config['missionTools'] = {'url': self.relay_origin + '/mission-tools/' + request.task_id,
@@ -1572,6 +1580,8 @@ class NativeTaskRunner:
                     sdk_config['interpreter'] = str(Path(sdk_config['mcp']['install']) / 'venv/bin/python')
             elif task_input['kind'] != 'text':
                 raise ValueError('native skills require an accepted resource profile')
+            if 'debugTools' in sdk_config:
+                sdk_config.update(allowedSkills=[], mcp=None)
             if 'missionTools' in sdk_config:
                 from .native_mission import mission_entry_guidance
                 guidance = mission_entry_guidance(request.instruction)
@@ -2063,7 +2073,7 @@ class NativeTaskRunner:
                     and sdk_config.get('applicationPolicy')
                     and research_runtime.get('deepResearch') is False
                     and research_runtime.get('adaptiveAgentLoop') is True
-                    and not sdk_config.get('missionTools')):
+                    and not sdk_config.get('missionTools') and not sdk_config.get('debugTools')):
                 policy = sdk_config['applicationPolicy']
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': list(dict.fromkeys([
                     *policy['allowed_tools'], 'agent_runtime_tools', 'agent_tool_load',
@@ -2456,6 +2466,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if runner is not None and self.path.startswith('/debug-tools/'):
+                return self.relay_debug_observation()
             if self.path.startswith('/mission-tools/'):
                 return self.relay_mission_tools()
             if self.path.startswith('/presentation-template-tasks/'):
@@ -2735,6 +2747,61 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 return self.send_json(400,{'error':'resource_request_rejected'})
             finally:
                 if lease is not None:runner.relay.release(lease)
+
+        def relay_debug_observation(self):
+            from zipfile import BadZipFile
+            from .debug_commands import debug_commands_enabled
+            from .debug_sources import read_debug_source
+
+            if not debug_commands_enabled(os.environ):
+                return self.send_json(403, {'error': 'investigation_request_rejected'})
+            task_id = self.path.removeprefix('/debug-tools/')
+            lease = None
+            try:
+                grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
+                lease = runner.relay.acquire(task_id, grant, self.connection, channel='gateway')
+                with host._lock:
+                    record = host._tasks[task_id]
+                    authority = record.get('execution_authority')
+                    request = record['request']
+                    native = request.native_context or {}
+                    if (not authority or not authority.active() or record['cancel'].is_set()
+                            or record['status'] != 'running' or not native.get('debug_scope')
+                            or 'agent_debug_observe' not in native['policy']['allowed_tools']):
+                        raise PermissionError()
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 8192:
+                    raise ValueError()
+                packet = json.loads(self.rfile.read(size))
+                if (not isinstance(packet, dict) or packet.get('name') != 'agent_debug_observe'
+                        or not isinstance(packet.get('call_id'), str)):
+                    raise ValueError()
+                args = packet['arguments']
+                if not isinstance(args, dict) or set(args) - {'operation', 'query'} or not isinstance(args.get('query', {}), dict):
+                    raise ValueError()
+                scope = native['debug_scope']
+                operation = args['operation']
+                query = args.get('query', {})
+                if operation in {'source_files', 'source_lines'}:
+                    result = read_debug_source(scope, operation, query)
+                elif operation in {'list', 'read', 'logs'}:
+                    result = gateway_control('debug-observation', {'binding': scope['gateway'],
+                        'workspace': scope['workspace'], 'investigation_id': scope['gateway_investigation'],
+                        'operation': operation, 'query': query})
+                else:
+                    raise ValueError()
+                return self.send_json(200, {'call_id': packet['call_id'], 'is_error': False, 'result': result})
+            except GatewayError as error:
+                return self.send_json(200, {'call_id': packet['call_id'], 'is_error': True,
+                                            'result': {'code': str(error)}})
+            except (KeyError, TypeError, ValueError, PermissionError):
+                return self.send_json(403, {'error': 'investigation_request_rejected'})
+            except (OSError, BadZipFile):
+                return self.send_json(200, {'call_id': packet['call_id'], 'is_error': True,
+                                            'result': {'code': 'historical_source_unavailable'}})
+            finally:
+                if lease is not None:
+                    runner.relay.release(lease)
 
         def relay_mission_tools(self):
             parts = self.path.split('/')
