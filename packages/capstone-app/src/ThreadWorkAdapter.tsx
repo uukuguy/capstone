@@ -579,11 +579,19 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const objective=start[1].trim()
         let request=debugRequest.current
         if(!request||request.thread!==currentId||request.objective!==objective){
-          request={thread:currentId,objective,key:commandKey(),attemptId:latestInstructionAttempt??undefined}
+          const previous = store.publicEvents.reduce<EventEnvelope | undefined>((latest, event) => {
+            if (event.eventType !== 'command_accepted' || !event.attemptId ||
+                !['send_message', 'send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind))) return latest
+            const work = event.payload.work as {messages?: unknown[]} | undefined
+            const input = (event.payload.payload as {text?: unknown} | undefined)?.text
+              ?? event.payload.text ?? work?.messages?.at(-1)
+            if (typeof input !== 'string' || /^(?:研发调查 inv_[a-f0-9]{32}\n|\/debug(?:\s|$))/.test(input)) return latest
+            return !latest || event.eventSeq > latest.eventSeq ? event : latest
+          }, undefined)
+          request={thread:currentId,objective,key:commandKey(),attemptId:previous?.attemptId??undefined}
           debugRequest.current=request
         }
-        const status=await transport.debugStatus(currentId)
-        const investigationId=status.investigationId??await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
+        const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
         const command=buildSendMessageCommand(currentId,snapshot.runId,`cmd_${request.key}`,`idem_${request.key}`,
           selected,selectedWork?.revision||0,text)
         command.payload={text,debug_investigation_id:investigationId}
