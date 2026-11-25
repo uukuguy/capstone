@@ -1081,6 +1081,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}
       readHistory={()=>transport.debugHistory(currentId)}
+      readSource={(id,query)=>transport.debugSourcePage(currentId,id,query)}
       readDiagnosis={async id=>{
         const [result, source] = await Promise.all([
           transport.debugDiagnosis(currentId,id),

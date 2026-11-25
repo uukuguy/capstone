@@ -4,12 +4,13 @@ import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import {firstDebugObservation} from './debugObservation'
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readHistory,readDiagnosis,readSource,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string) => Promise<unknown>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
+  readSource?: (id: string, query: URLSearchParams) => Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
 }){
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
@@ -17,6 +18,25 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<NonNullable<typeof readHistory>>>>([])
   const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
+  const [sourcePage, setSourcePage] = useState<{id: string; files: string[]; next: number | null}>()
+  const [excerpt, setExcerpt] = useState<{id: string; path: string; lines: string[]; first: number}>()
+  async function browseSource(id: string, offset = 0, path?: string, line = 1) {
+    if (!readSource || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const query = new URLSearchParams(path === undefined ? {offset: String(offset)} : {path, line: String(line)})
+      const result = await readSource(id, query)
+      if (path === undefined) {
+        setSourcePage({id, files: result.files ?? [], next: result.next_offset ?? null})
+        setExcerpt(undefined)
+      } else {
+        setExcerpt({id, path, lines: result.lines ?? [], first: result.first_line ?? line})
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '历史源码暂不可读。')
+    } finally { setBusy(false) }
+  }
   const attempt=attempts.includes(selection)?selection:attempts[0]
   async function loadHistory(){
     if (!readHistory) return
@@ -111,6 +131,21 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     </select></label>}
     {(diagnosis?.text || savedFinding)&&<p>{diagnosis?.text || savedFinding}</p>}
     {diagnosis?.source&&<p>{diagnosis.source}</p>}
+    {diagnosis&&readSource&&<button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id)}>查看历史网关源码</button>}
+    {sourcePage&&sourcePage.id===diagnosis?.id&&<>
+      <label>历史源码文件<select disabled={busy} value={excerpt?.id===sourcePage.id?excerpt.path:''}
+        onChange={event=>{if(event.target.value)void browseSource(sourcePage.id,0,event.target.value)}}>
+        <option value="">选择文件</option>
+        {sourcePage.files.map(path=><option key={path}>{path}</option>)}
+      </select></label>
+      {sourcePage.next!==null&&<button type="button" disabled={busy}
+        onClick={()=>void browseSource(sourcePage.id,sourcePage.next ?? 0)}>下一页文件</button>}
+    </>}
+    {excerpt&&excerpt.id===diagnosis?.id&&<>
+      <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>
+      {excerpt.lines.length===40&&<button type="button" disabled={busy}
+        onClick={()=>void browseSource(excerpt.id,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
+    </>}
     {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
