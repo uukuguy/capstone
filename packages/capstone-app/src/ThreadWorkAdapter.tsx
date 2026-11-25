@@ -1102,7 +1102,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       readDiagnosis={async id=>{
         const [result, source] = await Promise.all([
           transport.debugDiagnosis(currentId,id),
-          transport.debugHistoricalSource(currentId,id).catch(()=> '历史网关源码信息暂不可读。'),
+          transport.debugHistoricalSource(currentId,id).catch(()=> '历史源码信息暂不可读。'),
         ])
         return {...result, source}
       }}

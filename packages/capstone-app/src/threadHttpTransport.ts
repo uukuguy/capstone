@@ -344,10 +344,14 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async debugHistoricalSource(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/sources`
-    const result = await this.request(path) as {data_gateway?: {gateway_revision?: string; status?: string}}
-    const source = result.data_gateway
-    if (!source?.gateway_revision) return '历史轮次未记录网关源码摘要。'
-    return (source.status === 'matched' ? '历史网关源码已匹配 ' : '历史网关源码尚未入库 ') + source.gateway_revision
+    type Source = {revision?: string; status?: string}
+    const result = await this.request(path) as {capstone?: Source; data_gateway?: Source}
+    const describe = (name: string, source?: Source) => {
+      if (!source?.revision) return name + ' · 历史轮次未记录源码版本'
+      const state = source.status === 'archive_verified' ? '源码已校验' : '源码档案缺失或校验失败'
+      return `${name} · ${state} ${source.revision}`
+    }
+    return [describe('Capstone', result.capstone), describe('data-gateway', result.data_gateway)].join('。')
   }
   async debugSourcePage(threadId: string, investigationId: string, query: URLSearchParams) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/source?${query}`

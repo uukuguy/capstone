@@ -34,6 +34,33 @@ def test_independent_debug_reads_logs_for_a_bound_failed_call(monkeypatch):
                                              'message': '查询超时'}]}
 
 
+def test_debug_historical_sources_check_each_admitted_revision(monkeypatch):
+    from zipfile import BadZipFile
+    from capstone_agent import debug_sources
+    from capstone_agent.debug_investigations import InvestigationRegister
+
+    service, _ = completed_task()
+    register = InvestigationRegister(service)
+    capstone, gateway = 'a' * 40, 'b' * 64
+    binding = {'instance_id': 'historical', 'source_sha256': gateway}
+    monkeypatch.setattr(register, 'get', lambda *scope: {'observation': {'capstone_revision': capstone}})
+    monkeypatch.setattr(register, 'historical_gateway', lambda *scope: binding)
+
+    def read_capstone(revision):
+        assert revision == capstone
+
+    def read_gateway(instance):
+        assert instance == binding
+        raise BadZipFile('invalid archive')
+
+    monkeypatch.setattr(debug_sources, 'read_historical_capstone_source', read_capstone)
+    monkeypatch.setattr(debug_sources, 'read_historical_gateway_source', read_gateway)
+    assert register.historical_sources('local', 'thr_example', 'inv_example') == {
+        'capstone': {'status': 'archive_verified', 'revision': capstone},
+        'data-gateway': {'status': 'archive_unavailable', 'revision': gateway},
+    }
+
+
 def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
     from types import SimpleNamespace
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
@@ -80,6 +107,9 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         receipt = client.post(path + '/investigations', headers={'Idempotency-Key': 'direct-debug'},
                               json={'objective': '检查失败', 'attempt_id': claim.attempt.attempt_id})
         identity = receipt.json()['investigation_id']
+        source_path = f'{path}/investigations/{identity}/sources'
+        assert client.get(source_path).json() == {
+            'capstone': {'status': 'revision_unavailable'}, 'data_gateway': {'status': 'revision_unavailable'}}
         response = client.post(f'{path}/investigations/{identity}/diagnose')
         assert response.status_code == 200, response.text
         assert response.json()['status'] == 'queued'
@@ -91,6 +121,8 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert '_gateway_snapshot' in register.get(claim.workspace_name, claim.thread_id, identity)['diagnosis']
         assert '_gateway_snapshot' not in client.get(f'{path}/investigations/{identity}/diagnose').json()
         evidence = register.export_timeline(claim.workspace_name, claim.thread_id, identity)
+        assert evidence['diagnosis']['source_evidence'] == {
+            'capstone': {'status': 'revision_unavailable'}, 'data-gateway': {'status': 'revision_unavailable'}}
         assert evidence['diagnosis']['progress'] == [
             {'seq': 1, 'stage': 'tool_started', 'tool': 'agent_debug_observe'},
             {'seq': 2, 'stage': 'tool_failed', 'tool': 'agent_debug_observe'}]

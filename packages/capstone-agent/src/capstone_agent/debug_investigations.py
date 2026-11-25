@@ -227,7 +227,7 @@ class InvestigationRegister:
         return {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
                 'investigation_id': investigation_id, 'observation': observation,
                 'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs', 'progress',
-                                                             'progress_truncated',
+                                                             'progress_truncated', 'source_evidence',
                                                              'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
                 'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'},
@@ -296,7 +296,7 @@ class InvestigationRegister:
         evidence_owner = prior['investigation_id'] if prior else investigation_id
         gateway = self._diagnosis_gateway_evidence(workspace, thread_id, evidence_owner, executor)
         gateway['investigation_id'] = evidence_owner
-        sources = self._diagnosis_source_evidence(workspace, thread_id, investigation_id, observation)
+        sources = self.historical_sources(workspace, thread_id, investigation_id)
         excerpts = self._diagnosis_source_excerpts(workspace, thread_id, investigation_id, observation, events, sources)
         task_id = queued['task_id']
         timeout = 45.0
@@ -369,9 +369,11 @@ class InvestigationRegister:
             return None
         return {'investigation_id': previous_id, 'answer_excerpt': diagnosis['answer'][:1600]}
 
-    def _diagnosis_source_evidence(self, workspace, thread_id, investigation_id, observation):
+    def historical_sources(self, workspace, thread_id, investigation_id):
+        from zipfile import BadZipFile
         from .debug_sources import read_historical_capstone_source, read_historical_gateway_source
 
+        observation = self.get(workspace, thread_id, investigation_id).get('observation') or {}
         binding = self.historical_gateway(workspace, thread_id, investigation_id) or {}
         sources = {}
         for repository, revision, reader, argument in (
@@ -384,7 +386,7 @@ class InvestigationRegister:
                 continue
             try:
                 reader(argument)
-            except (OSError, ValueError):
+            except (OSError, ValueError, BadZipFile):
                 sources[repository] = {'status': 'archive_unavailable', 'revision': revision}
             else:
                 sources[repository] = {'status': 'archive_verified', 'revision': revision}

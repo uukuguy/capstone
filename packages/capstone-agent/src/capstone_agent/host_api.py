@@ -560,15 +560,10 @@ def create_host_app(
         def investigation_sources(thread_id: str, investigation_id: str, request: Request):
             require_debug(request)
             try:
-                binding = investigations.historical_gateway(request.state.workspace_name, thread_id, investigation_id)
+                sources = investigations.historical_sources(request.state.workspace_name, thread_id, investigation_id)
             except KeyError:
                 raise HTTPException(404, '本会话中找不到该调查。') from None
-            from .debug_sources import resolve_sources
-            instance = {key: binding[key] for key in ('instance_id', 'source_sha256') if key in binding} if binding else {}
-            sources = resolve_sources({'available': bool(binding), 'catalog': {'instance': instance}})
-            return JSONResponse({'data_gateway': {key: sources[key] for key in
-                                 ('gateway_revision', 'status', 'selected')},
-                                 'capstone': {'status': 'historical_revision_unavailable'}},
+            return JSONResponse({'capstone': sources['capstone'], 'data_gateway': sources['data-gateway']},
                                 headers={'Cache-Control': 'no-store'})
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/source')
