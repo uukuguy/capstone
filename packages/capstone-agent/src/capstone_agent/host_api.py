@@ -921,7 +921,12 @@ def create_host_app(
                         diagnostic_text = (f"研发调查 {identity}\n目标：{investigation['objective']}\n"
                                            f"本轮指令：{debug.argument}\n请列出观测依据、尚未知的环节和本机复验所需材料。"
                                            "\n先说明用户现在可以做什么。区分已观察到的失败、人工停止和仍待证实的原因。"
-                                           "若需用户确认业务选择，列出证据支持的候选与续接方式。")
+                                           "若需用户确认业务选择，列出证据支持的候选与续接方式。"
+                                           "\n诊断须先找出第一条改变执行结果的回执，再沿相关调用检查已授权、版本匹配的源码。"
+                                           "跨服务故障要核对 Capstone 的传参、data-gateway 的绑定及返回；"
+                                           "用请求 ID 和源码版本、文件、行号支持归因。"
+                                           "若记录或对应源码不可用，明确写出缺少的证据和获取方式，并标记诊断未完成。"
+                                           "不要从工作目录内容或任务标题推断根因。")
                         if observation:
                             diagnostic_text += (f"\n已绑定历史轮次 {observation['attempt_id']}。请读取该轮的公开执行记录，"
                                                 f"引用对应事件编号。登记时的事件上界为 {observation['through']}。")
