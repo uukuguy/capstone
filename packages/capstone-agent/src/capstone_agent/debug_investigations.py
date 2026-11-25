@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS capstone_debug_snapshots (
     PRIMARY KEY(investigation_id, snapshot_id)
 );
 ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS reviewed_export jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS observation jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS diagnosis jsonb;
 UPDATE capstone_thread_attempts a
@@ -56,6 +57,7 @@ class InvestigationRegister:
         self._memory = {}
         self._calls = {}
         self._snapshots = {}
+        self._reviewed_exports = {}
         self._lock = RLock()
 
     def _observe(self, thread_id, attempt_id, *, through=None):
@@ -286,6 +288,27 @@ class InvestigationRegister:
         with self._lock:
             return [{'snapshot_id': identity, 'status': json.loads(document)['diagnosis'].get('status')}
                     for (owner, identity), document in reversed(self._snapshots.items()) if owner == investigation_id][:32]
+
+    def set_reviewed_export(self, workspace, thread_id, investigation_id, snapshot_id, review):
+        self.read_export_snapshot(workspace, thread_id, investigation_id, snapshot_id)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                connection.execute('''UPDATE capstone_debug_snapshots SET reviewed_export=%s
+                    WHERE investigation_id=%s AND snapshot_id=%s''',
+                    (Jsonb(review) if review is not None else None, investigation_id, snapshot_id))
+        else:
+            with self._lock:
+                self._reviewed_exports[(investigation_id, snapshot_id)] = json.dumps(review)
+
+    def reviewed_export(self, workspace, thread_id, investigation_id, snapshot_id):
+        self.get(workspace, thread_id, investigation_id)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''SELECT reviewed_export FROM capstone_debug_snapshots
+                    WHERE investigation_id=%s AND snapshot_id=%s''', (investigation_id, snapshot_id)).fetchone()
+            return row['reviewed_export'] if row else None
+        with self._lock:
+            return json.loads(self._reviewed_exports.get((investigation_id, snapshot_id), 'null'))
 
     def enqueue_diagnosis(self, workspace, thread_id, investigation_id):
         observation = self.get(workspace, thread_id, investigation_id).get('observation')

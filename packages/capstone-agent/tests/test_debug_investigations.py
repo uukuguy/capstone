@@ -53,6 +53,11 @@ def test_postgres_register_survives_reopen_and_concurrent_reservations():
         assert reopened.read_export_snapshot(*scope, running_snapshot['snapshot_id']) == running_snapshot
         assert reopened.recent_export_snapshots(*scope) == [
             {'snapshot_id': running_snapshot['snapshot_id'], 'status': 'running'}]
+        review = {'diagnosis_markdown': '已核准的合成结论', 'reproduction': {'case': 'fixture'}}
+        worker.set_reviewed_export(*scope, running_snapshot['snapshot_id'], review)
+        assert reopened.reviewed_export(*scope, running_snapshot['snapshot_id']) == review
+        reopened.set_reviewed_export(*scope, running_snapshot['snapshot_id'], None)
+        assert worker.reviewed_export(*scope, running_snapshot['snapshot_id']) is None
         with pytest.raises(KeyError):
             reopened.read_export_snapshot('other', thread, first['investigation_id'], running_snapshot['snapshot_id'])
     finally:

@@ -190,6 +190,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [debugThread,setDebugThread]=useState('')
   const [allowDebugExport,setAllowDebugExport]=useState(false)
+  const [canReviewDebugExport,setCanReviewDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
   const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; completed?:boolean}>()
   const [debugSource,setDebugSource]=useState('')
@@ -214,6 +215,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         if (restore.signal.aborted) return
         setDebugThread(currentId)
         setAllowDebugExport(access.timelineExport)
+        setCanReviewDebugExport(access.canReviewExport)
         setDebugFinding(access.finding)
         if (!access.investigationId || !access.diagnosisStatus || debugGeneration.current !== generation ||
             debugRequest.current?.thread === currentId || typeof transport.watchDebugDiagnosis !== 'function') return
@@ -1126,6 +1128,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         return {...result, source}
       }}
       readSnapshots={id=>transport.debugSnapshots(currentId,id)}
+      reviewExport={canReviewDebugExport ? (id,snapshotId,review)=>transport.reviewDebugExport(currentId,id,snapshotId,review) : undefined}
       readEvidence={async (id,snapshotId)=>{
         const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId
         if(!investigationId)throw new Error('当前会话尚无调查。')

@@ -162,6 +162,20 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
             assert metadata['request_correlation'] == {'status': 'unverified', 'links': []}
             assert '首条公开异常' in (imported / 'diagnosis.md').read_text()
             snapshot = response.json()['snapshot_id']
+            assert response.json()['reviewed_export'] == {'status': 'not_approved'}
+            approval = url.removesuffix('/evidence') + f'/snapshots/{snapshot}/reviewed-export'
+            reviewed = {'diagnosis_markdown': '原调用超时，查回同一合成请求。', 'reproduction': {'case': 'synthetic-timeout'}}
+            headers = {'Authorization': 'Bearer hosted-secret'}
+            assert client.put(approval, json=reviewed).status_code == 403
+            assert client.put(approval, json=reviewed, headers=headers).status_code == 204
+            approved = client.get(url, params={'snapshot_id': snapshot}).json()
+            assert approved['reviewed_export'] == {'status': 'approved', **reviewed}
+            before.write_text(json.dumps(approved))
+            replay = subprocess.run([sys.executable, str(tools / 'check_debug_evidence.py'), str(before),
+                                     '--import-to', str(tmp_path)], check=True, capture_output=True)
+            approved_dir = Path(json.loads(replay.stdout)['import_directory'])
+            assert json.loads((approved_dir / 'repro/input.json').read_text()) == reviewed['reproduction']
+            assert reviewed['diagnosis_markdown'] in (approved_dir / 'diagnosis.md').read_text()
             receipt = {**receipt, 'state': 'observed', 'observed_status': 'ok'}
             candidate = tmp_path / 'candidate.json'
             candidate.write_bytes(client.get(url, params={'snapshot_id': snapshot}).content)
@@ -172,8 +186,10 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
             assert result['first_difference'] is None
             assert result['gateway_receipt_comparison']['first_difference']['candidate'] == {'state': 'observed'}
             deployment_policy = 'undeclared'
+            assert client.delete(approval, headers=headers).status_code == 204
             denied = client.get(url, params={'snapshot_id': snapshot}).json()
             assert denied['snapshot_id'] == snapshot
+            assert denied['reviewed_export'] == {'status': 'not_approved'}
             assert denied['data_gateway']['status'] == 'export_not_authorized'
             assert denied['data_gateway']['events'] == []
     else:

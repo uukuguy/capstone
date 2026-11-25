@@ -276,7 +276,7 @@ export class HttpThreadTransport implements ThreadTransport {
     const finding=observation?(observation.first_failure?
       `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
       `执行轮次 ${observation.attempt_id} 截至事件 #${observation.through} 未记录公开失败事件。`):''
-    return {timelineExport:value.timeline_export===true,
+    return {timelineExport:value.timeline_export===true, canReviewExport:value.can_review_export===true,
       investigationId:typeof investigation?.investigation_id==='string'?investigation.investigation_id:null,
       objective:typeof investigation?.objective==='string'?investigation.objective:null,
       diagnosisStatus:typeof investigation?.diagnosis?.status==='string'?investigation.diagnosis.status:null,
@@ -347,6 +347,12 @@ export class HttpThreadTransport implements ThreadTransport {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/evidence${query}`
     const response = await this.streamRequest(path)
     return boundedResponseText(response, 'event_page_bytes', applicationCapacity('event_page_bytes'))
+  }
+  async reviewDebugExport(threadId: string, investigationId: string, snapshotId: string,
+    review: {diagnosis_markdown: string; reproduction: Record<string, unknown>} | null) {
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/snapshots/${encodeURIComponent(snapshotId)}/reviewed-export`
+    await this.request(path, {method: review ? 'PUT' : 'DELETE',
+      ...(review ? {body: JSON.stringify(review)} : {})})
   }
   async debugProbe(threadId: string, investigationId: string,
     tool: string, args: Record<string, unknown>) {

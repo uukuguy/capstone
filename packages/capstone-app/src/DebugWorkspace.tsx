@@ -6,12 +6,14 @@ import MarkdownContent from './MarkdownContent'
 import {firstDebugObservation} from './debugObservation'
 
 type SourceRepository = 'capstone' | 'data-gateway'
+type ReviewedExport = {diagnosis_markdown: string; reproduction: Record<string, unknown>}
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readSnapshots,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readSnapshots,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
+  reviewExport?: (id: string, snapshotId: string, review: ReviewedExport | null) => Promise<void>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
   readSource?: (id: string, query: URLSearchParams) => Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
@@ -205,10 +207,43 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
             unknown:'结果未知'} as Record<string,string>)[item.status ?? ''] ?? '已保存'} · {item.snapshot_id.slice(0,8)}
         </option>)}
       </select></label>}
+    {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
+      <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
     {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
     <button type="button" onClick={refreshSource}><RefreshCw size={14}/>重新核对</button></div>
     {digest&&<details><summary>查看版本摘要</summary><code>{digest}</code></details>}</section>
   </section>
+}
+
+function DebugExportReview({review}:{review:(value: ReviewedExport | null)=>Promise<void>}) {
+  const [conclusion,setConclusion]=useState('')
+  const [example,setExample]=useState('{}')
+  const [busy,setBusy]=useState(false)
+  const [status,setStatus]=useState('')
+  async function save(approve:boolean) {
+    setBusy(true)
+    setStatus('')
+    try {
+      const reproduction: unknown = approve ? JSON.parse(example) : {}
+      if (!reproduction || typeof reproduction!=='object' || Array.isArray(reproduction))
+        throw new Error('复现数据须为 JSON 对象。')
+      await review(approve ? {diagnosis_markdown:conclusion.trim(), reproduction:reproduction as Record<string, unknown>} : null)
+      setStatus(approve ? '该快照的外带材料已核准。' : '该快照的外带材料已撤回。')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : '暂时无法更新外带审核。')
+    } finally {setBusy(false)}
+  }
+  return <details>
+    <summary>审核快照外带材料</summary>
+    <p>填写允许交给研发的结论和最小复现数据。网关记录仍按网关策略导出。</p>
+    <label>已审阅结论<textarea value={conclusion} onChange={event=>setConclusion(event.target.value)} disabled={busy}/></label>
+    <label>复现数据（JSON）<textarea value={example} onChange={event=>setExample(event.target.value)} disabled={busy}/></label>
+    <div className="debug-actions">
+      <button type="button" disabled={busy||!conclusion.trim()} onClick={()=>void save(true)}>核准外带</button>
+      <button type="button" disabled={busy} onClick={()=>void save(false)}>撤回核准</button>
+    </div>
+    {status&&<p role="status">{status}</p>}
+  </details>
 }

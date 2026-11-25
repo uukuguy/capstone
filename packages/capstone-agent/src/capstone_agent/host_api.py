@@ -403,6 +403,7 @@ def create_host_app(
                 investigation = {**investigation, 'diagnosis': diagnosis}
             return {'thread_id': thread_id, 'enabled': True,
                     'investigation': investigation,
+                    'can_review_export': request.state.product_actor == 'operator:authenticated',
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations')
@@ -458,6 +459,33 @@ def create_host_app(
                 raise HTTPException(404, '本会话中找不到该调查。') from None
             return JSONResponse({'snapshots': snapshots}, headers={'Cache-Control': 'no-store'})
 
+        @app.api_route('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/snapshots/{snapshot_id}/reviewed-export',
+                       methods=['PUT', 'DELETE'])
+        def set_reviewed_export(thread_id: str, investigation_id: str, snapshot_id: str, request: Request,
+                                body: dict | None = None):
+            require_debug(request)
+            if request.state.product_actor != 'operator:authenticated':
+                raise HTTPException(403, '只有已认证的操作员可以核准或撤回外带材料。')
+            if request.method == 'PUT':
+                if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
+                    raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+                if (not isinstance(body, dict) or set(body) != {'diagnosis_markdown', 'reproduction'}
+                        or not isinstance(body['diagnosis_markdown'], str) or not body['diagnosis_markdown'].strip()
+                        or not isinstance(body['reproduction'], dict)):
+                    raise HTTPException(422, '请提供已审阅的诊断结论和复现数据对象。')
+                try:
+                    size = len(json.dumps(body, ensure_ascii=False, allow_nan=False).encode())
+                except (ValueError, UnicodeError):
+                    raise HTTPException(422, '复现材料格式无效。') from None
+                if size > 32768:
+                    raise HTTPException(422, '审核材料超过 32 KiB。')
+            try:
+                investigations.set_reviewed_export(request.state.workspace_name, thread_id, investigation_id,
+                                                   snapshot_id, body if request.method == 'PUT' else None)
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查快照。') from None
+            return Response(status_code=204, headers={'Cache-Control': 'no-store'})
+
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
         def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request,
                 snapshot_id: Annotated[str | None, Query(pattern='^[0-9a-f]{64}$')] = None):
@@ -489,6 +517,9 @@ def create_host_app(
                 prior = investigations.get(workspace, thread_id, previous)
                 if (prior.get('observation') or {}).get('attempt_id') == observation.get('attempt_id'):
                     document['previous_gateway_evidence'] = {'investigation_id': previous, **gateway_export(previous)}
+            reviewed = investigations.reviewed_export(*scope, document['snapshot_id'])
+            document['reviewed_export'] = ({'status': 'approved', **reviewed} if reviewed is not None
+                                           else {'status': 'not_approved'})
             from .debug_investigations import evidence_digest
             document['integrity'] = {'algorithm': 'sha256', 'digest': evidence_digest(document)}
             return JSONResponse(document, headers={'Cache-Control': 'no-store',

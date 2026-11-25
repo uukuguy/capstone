@@ -69,6 +69,13 @@ def verify(document):
                 or prior['investigation_id'] != observation.get('previous_investigation_id')
                 or prior['investigation_id'] != diagnosis.get('gateway_investigation_id')):
             raise ValueError('Prior gateway evidence is outside the diagnosis scope')
+    review = document.get('reviewed_export')
+    if review is not None and (not isinstance(review, dict) or not (
+            review == {'status': 'not_approved'} or
+            set(review) == {'status', 'diagnosis_markdown', 'reproduction'} and review['status'] == 'approved'
+            and isinstance(review['diagnosis_markdown'], str) and review['diagnosis_markdown'].strip()
+            and isinstance(review['reproduction'], dict))):
+        raise ValueError('Invalid reviewed Debug export')
     return {'investigation_id': document['investigation_id'], 'capstone_events': len(events),
             'capstone_truncated': capstone.get('truncated') is True,
             'diagnosis_events_missing_from_export': missing,
@@ -125,6 +132,11 @@ def import_evidence(document, parent):
     if summary['capstone_truncated'] or gateway.get('truncated') is True:
         lines.append('- 证据已裁剪。完整覆盖需在现场核对。')
     lines += ['', '复验时比较首条异常与获准网关回执状态。结合证据范围判断差异。']
+    review = document.get('reviewed_export', {})
+    if review.get('status') == 'approved':
+        lines += ['', '## 已核准的诊断结论', '', review['diagnosis_markdown']]
+        (root / 'repro').mkdir(mode=0o700)
+        write('repro/input.json', encode(review['reproduction']))
     write('diagnosis.md', ('\n'.join(lines) + '\n').encode('utf-8'))
     manifest = {'schema': 'capstone-debug-offline-import/1',
                 'evidence_sha256': document['integrity']['digest'],
