@@ -2249,7 +2249,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
         if action == 'debug-observation':
             from .data_gateway_mcp import DataGatewayMcp
             from .debug_commands import debug_commands_enabled
-            from .gateway_investigation import read_bound_observation
+            from .gateway_investigation import read_bound_observation, run_bound_read_probe
             if not debug_commands_enabled(os.environ):
                 raise GatewayError('investigation_access_denied')
             fields = {'binding', 'workspace', 'investigation_id', 'operation', 'query'}
@@ -2272,6 +2272,14 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             return run_http(asyncio.wait_for(observe(), timeout=30))
         if action == 'debug-source':
             from .gateway_debug_source import cache_gateway_source
+                if document['operation'] == 'probe':
+                    query = document['query']
+                    if (not isinstance(query, dict) or set(query) != {'tool', 'arguments', 'client_call_id'}
+                            or not isinstance(query['tool'], str) or not isinstance(query['arguments'], dict)
+                            or not isinstance(query['client_call_id'], str)):
+                        raise GatewayError('investigation_request_invalid')
+                    return await run_bound_read_probe(dedicated, instance_id=binding['instance_id'],
+                        workspace=document['workspace'], investigation_id=document['investigation_id'], **query)
             from .debug_commands import debug_commands_enabled
             if not debug_commands_enabled(os.environ):
                 raise GatewayError('debug_source_unavailable')

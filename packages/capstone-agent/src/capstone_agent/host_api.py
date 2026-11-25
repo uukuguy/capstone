@@ -494,6 +494,30 @@ def create_host_app(
             return JSONResponse({**page, 'investigation_id': investigation_id, 'through': through},
                                 headers={'Cache-Control': 'no-store'})
 
+        @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/probe')
+        def investigation_probe(thread_id: str, investigation_id: str, request: Request, body: dict,
+                                idempotency_key: Annotated[str, Header(min_length=1, max_length=200)]):
+            require_debug(request)
+            if (set(body) != {'tool', 'arguments'} or not isinstance(body['tool'], str)
+                    or not isinstance(body['arguments'], dict)):
+                raise HTTPException(422, '请选择已发布的只读工具并提供参数。')
+            scope = (request.state.workspace_name, thread_id, investigation_id)
+            try:
+                binding = investigations.historical_gateway(*scope)
+                reader = getattr(native_artifact_executor, 'debug_observation', None)
+                if not binding or not callable(reader):
+                    raise HTTPException(409, '原执行轮次的网关绑定暂不可用。')
+                from .debug_investigations import evidence_digest
+                call_id, new = investigations.reserve_call(*scope, idempotency_key, body['tool'],
+                                                           body['arguments'], evidence_digest(binding))
+                query = {**body, 'client_call_id': call_id} if new else {'client_call_id': call_id}
+                result = reader(binding, scope[0], investigation_id, 'probe' if new else 'read', query)
+            except KeyError:
+                raise HTTPException(404, '本会话中找不到该调查。') from None
+            except (RuntimeError, OSError, ValueError):
+                raise HTTPException(409, '复验结果暂不可读。请使用同一请求标识查询原回执。') from None
+            return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
         @app.post('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/observations/{operation}')
         def investigation_observation(thread_id: str, investigation_id: str, operation: str, request: Request, body: dict):
             require_debug(request)

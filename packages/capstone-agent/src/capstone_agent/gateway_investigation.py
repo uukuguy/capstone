@@ -186,3 +186,38 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     return await access.invoke(operation, {**scope, **query})
     if operation == 'export':
         return await access.export_receipts(scope)
+    return await access.invoke(operation, {**scope, **query})
+
+
+async def run_bound_read_probe(gateway, *, instance_id, workspace, investigation_id,
+                               tool, arguments, client_call_id):
+    catalog = await gateway.prepare()
+    if (catalog.get('instance') or {}).get('instance_id') != instance_id:
+        raise GatewayError('gateway_instance_changed')
+    if tool not in catalog['tools']:
+        raise GatewayError('investigation_request_invalid')
+    exact = (await gateway.exact_contracts([tool], catalog))[tool]
+    hints = exact.get('annotations') or {}
+    if not (hints.get('readOnlyHint') is True and hints.get('destructiveHint') is False
+            and hints.get('openWorldHint') is False):
+        raise GatewayError('investigation_access_denied')
+    try:
+        validate(exact['inputSchema'], arguments)
+    except Exception:
+        raise GatewayError('investigation_request_invalid') from None
+    async with gateway.connect() as session:
+        if (session.instance_identity or {}).get('instance_id') != instance_id:
+            raise GatewayError('gateway_instance_changed')
+        access = await GatewayInvestigation.discover(session.http_client, gateway._connection['url'],
+                                                     session.investigation, session.investigation_logs)
+        if access is None:
+            raise GatewayError('investigation_contract_unavailable')
+        owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': investigation_id}
+        binding = await access.invoke('bind', {**owner, 'instance_id': instance_id, 'idempotency_key': investigation_id})
+        scope = {**owner, 'binding_handle': binding['binding_handle']}
+        trace = sha256(investigation_id.encode('utf-8')).hexdigest()[:32]
+        await access.call_registered(gateway, tool, arguments, catalog, scope=scope, diagnostics={
+            'client_call_id': client_call_id, 'task_id': investigation_id, 'run_id': investigation_id,
+            'trace_id': trace, 'parent_span_id': 'attempt:' + trace,
+        })
+        return await access.invoke('read', {**scope, 'client_call_id': client_call_id})
