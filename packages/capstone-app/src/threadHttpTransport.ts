@@ -290,7 +290,9 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async startDebugInvestigation(threadId:string,objective:string,key:string,attemptId?:string){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
-    return this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})})
+    const receipt=await this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})}) as Record<string,unknown>
+    if(typeof receipt?.investigation_id!=='string'||!receipt.investigation_id)throw new Error('调查登记回执缺少标识。')
+    return receipt.investigation_id
   }
   async debugTimeline(threadId:string,attemptId:string,after:number,through?:number){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/attempts/${encodeURIComponent(attemptId)}/timeline?after=${after}`+(through===undefined?'':`&through=${through}`)

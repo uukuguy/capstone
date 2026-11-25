@@ -568,17 +568,27 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     try{
       const start=/^\/debug\s+start\s+([\s\S]+)$/.exec(text)
       if(start){
+        if(!snapshot||concurrentSend)throw new Error('请在会话空闲时发起调查。')
+        if(pendingMessage?.kind==='send_message'&&pendingMessage.payload.text===text){
+          await dispatch(pendingMessage)
+          debugRequest.current=null
+          selectResourceView('debug')
+          return
+        }
+        if(pending)throw new Error('请先结算待确认的会话指令。')
         const objective=start[1].trim()
         let request=debugRequest.current
         if(!request||request.thread!==currentId||request.objective!==objective){
           request={thread:currentId,objective,key:commandKey(),attemptId:latestInstructionAttempt??undefined}
           debugRequest.current=request
         }
-        await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
-        const status=await transport.debugStatus(currentId)
-        setDebugFinding(status.finding)
+        const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
+        const command=buildSendMessageCommand(currentId,snapshot.runId,`cmd_${request.key}`,`idem_${request.key}`,
+          selected,selectedWork?.revision||0,text)
+        command.payload={text,debug_investigation_id:investigationId}
+        await dispatch(command)
         debugRequest.current=null
-        setNotice('调查目标已登记：'+objective)
+        setNotice('已提交首轮调查：'+objective)
         selectResourceView('debug')
         return
       }

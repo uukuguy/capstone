@@ -335,6 +335,15 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
     return goalCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),
       id(target.id),revision(target.expected_revision,1),command.kind as GoalControl,payload as Record<string,string|number>)
   }
+  if(command.kind==='send_message'&&'debug_investigation_id' in payload){
+    if(Object.keys(payload).length!==2||typeof payload.text!=='string'||!/^\/debug\s+(start|run)\s+\S/.test(payload.text)){
+      throw new ThreadProtocolError('调试命令无效')
+    }
+    const restored=buildSendMessageCommand(threadId,id(command.run_id),id(command.command_id),
+      id(command.idempotency_key),id(target.id),revision(target.expected_revision),payload.text)
+    restored.payload={text:payload.text,debug_investigation_id:id(payload.debug_investigation_id)}
+    return restored
+  }
   if (command.kind === 'send_message' && typeof payload.text === 'string'
       && Object.keys(payload).every(key => ['text', 'input', 'context_selection', 'resource_profile', 'source_attempt_id', 'task_handoff', 'material_refs','context_product_refs','attachment_refs','deep_research','llm_profile_id'].includes(key))) {
     const {text, source_attempt_id, task_handoff, ...submission} = payload

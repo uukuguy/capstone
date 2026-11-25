@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from capstone_agent.host_api import create_host_app
 from test_harness import _thread_service
@@ -40,7 +41,8 @@ def test_export_requires_permission_and_excludes_event_payloads(monkeypatch):
         assert client.get(path).status_code == 403
 
 
-def test_open_development_access_and_release_block(monkeypatch):
+@pytest.mark.parametrize('text', ['/debug run 检查运行记录', '/debug start 检查失败调用'])
+def test_open_development_access_and_release_block(monkeypatch, text):
     monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
     monkeypatch.delenv('CAPSTONE_DEBUG_COMMANDS', raising=False)
     from dataclasses import replace
@@ -66,7 +68,7 @@ def test_open_development_access_and_release_block(monkeypatch):
         assert client.post(start_path, headers=headers, json={'objective':'不同目标'}).status_code == 409
         from test_thread_work_execution import command as work_command
         run = work_command(service, 'thr_harness', 'send_message', 'debug_run',
-                           payload={'text': '/debug run 检查运行记录',
+                           payload={'text': text,
                                     'debug_investigation_id': first.json()['investigation_id']})
         version = {'Capstone-Thread-Version': '2'}
         missing = {**run, 'payload': {**run['payload'], 'debug_investigation_id': 'inv_missing'}}
