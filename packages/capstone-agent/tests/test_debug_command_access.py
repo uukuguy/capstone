@@ -54,6 +54,10 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert client.post(f'{path}/investigations/{identity}/diagnose').json() == response.json()
         register.diagnose(claim.workspace_name, claim.thread_id, identity, executor)
         assert calls[0].entrypoint == 'direct'
+        assert '_gateway_snapshot' in register.get(claim.workspace_name, claim.thread_id, identity)['diagnosis']
+        assert '_gateway_snapshot' not in client.get(f'{path}/investigations/{identity}/diagnose').json()
+        assert client.post(path + '/investigations', headers={'Idempotency-Key': 'direct-debug'},
+                           json={'objective': '检查失败', 'attempt_id': claim.attempt.attempt_id}).json() == receipt.json()
         assert len(calls) == 1
         assert service.snapshot(claim.thread_id).last_event_seq == before
         interrupted = True

@@ -104,7 +104,7 @@ class InvestigationRegister:
                     {'investigation_id': identity, 'objective': objective, 'observation': observation})
         if row['objective'] != objective or (row['observation'] or {}).get('attempt_id') != attempt_id:
             raise ValueError('同一请求标识已经用于其他调查目标。')
-        return dict(row)
+        return {key: row[key] for key in ('investigation_id', 'objective', 'observation')}
 
     def latest(self, workspace, thread_id):
         self.service.require_workspace(thread_id, workspace)
@@ -312,7 +312,7 @@ class InvestigationRegister:
                      'executor_identity': request.to_document()['executor_identity'],
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
                      'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status'],
-                     'gateway_investigation_id': evidence_owner,
+                     'gateway_investigation_id': evidence_owner, '_gateway_snapshot': gateway,
                      'source_evidence': sources,
                      'source_excerpts': [{key: excerpt[key] for key in ('repository', 'revision', 'path', 'first_line')}
                                          | {'line_count': len(excerpt['lines'])} for excerpt in excerpts]}
@@ -430,7 +430,16 @@ class InvestigationRegister:
             if result is not None:
                 diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
                 self._save_diagnosis((workspace, thread_id, investigation_id), diagnosis)
-        return {key: value for key, value in diagnosis.items() if key != 'executor_identity'}
+        return self.public_diagnosis(diagnosis)
+
+    @staticmethod
+    def public_diagnosis(diagnosis):
+        return {key: value for key, value in diagnosis.items()
+                if key != 'executor_identity' and not key.startswith('_')}
+
+    def gateway_snapshot(self, workspace, thread_id, investigation_id):
+        diagnosis = self.get(workspace, thread_id, investigation_id).get('diagnosis') or {}
+        return diagnosis.get('_gateway_snapshot')
 
     def stop_diagnosis(self, workspace, thread_id, investigation_id, executor):
         scope = (workspace, thread_id, investigation_id)

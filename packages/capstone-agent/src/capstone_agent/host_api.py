@@ -444,7 +444,7 @@ def create_host_app(
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
             except (ValueError, RuntimeError, OSError):
                 raise HTTPException(409, '本次诊断未能完成。') from None
-            return JSONResponse({key: value for key, value in result.items() if key != 'executor_identity'},
+            return JSONResponse(investigations.public_diagnosis(result),
                                 headers={'Cache-Control': 'no-store'})
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
@@ -468,7 +468,13 @@ def create_host_app(
                 except (ValueError, RuntimeError, OSError):
                     return {'status': 'read_unavailable', 'events': []}
 
-            document['data_gateway'] = gateway_export(investigation_id)
+            document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'download_time'}
+            snapshot = investigations.gateway_snapshot(workspace, thread_id, investigation_id)
+            if snapshot:
+                document['diagnosis']['gateway_snapshot'] = {
+                    'status': snapshot['status'], 'receipt_count': len(snapshot.get('receipts', ())),
+                    'truncated': snapshot.get('truncated', False),
+                }
             observation = document.get('observation') or {}
             previous = document['diagnosis'].get('gateway_investigation_id')
             if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):
