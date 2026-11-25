@@ -226,7 +226,8 @@ class InvestigationRegister:
         diagnosis = investigation.get('diagnosis') or {}
         return {'schema': 'capstone-debug-evidence/1', 'thread_id': thread_id,
                 'investigation_id': investigation_id, 'observation': observation,
-                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs')
+                'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'evidence_event_seqs',
+                                                             'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
                 'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'},
                 'data_gateway': {'status': 'export_unavailable', 'events': []}}
@@ -311,6 +312,7 @@ class InvestigationRegister:
                      'executor_identity': request.to_document()['executor_identity'],
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
                      'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status'],
+                     'gateway_investigation_id': evidence_owner,
                      'source_evidence': sources,
                      'source_excerpts': [{key: excerpt[key] for key in ('repository', 'revision', 'path', 'first_line')}
                                          | {'line_count': len(excerpt['lines'])} for excerpt in excerpts]}

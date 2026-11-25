@@ -457,13 +457,24 @@ def create_host_app(
             except (KeyError, ThreadNotFound):
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
             reader = getattr(native_artifact_executor, 'debug_observation', None)
-            binding = investigations.historical_gateway(request.state.workspace_name, thread_id, investigation_id)
-            if callable(reader) and binding:
+            workspace = request.state.workspace_name
+
+            def gateway_export(owner):
+                binding = investigations.historical_gateway(workspace, thread_id, owner)
+                if not callable(reader) or not binding:
+                    return {'status': 'export_unavailable', 'events': []}
                 try:
-                    document['data_gateway'] = reader(binding, request.state.workspace_name,
-                                                      investigation_id, 'export', {})
+                    return reader(binding, workspace, owner, 'export', {})
                 except (ValueError, RuntimeError, OSError):
-                    document['data_gateway'] = {'status': 'read_unavailable', 'events': []}
+                    return {'status': 'read_unavailable', 'events': []}
+
+            document['data_gateway'] = gateway_export(investigation_id)
+            observation = document.get('observation') or {}
+            previous = document['diagnosis'].get('gateway_investigation_id')
+            if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):
+                prior = investigations.get(workspace, thread_id, previous)
+                if (prior.get('observation') or {}).get('attempt_id') == observation.get('attempt_id'):
+                    document['previous_gateway_evidence'] = {'investigation_id': previous, **gateway_export(previous)}
             from .debug_investigations import evidence_digest
             document['integrity'] = {'algorithm': 'sha256', 'digest': evidence_digest(document)}
             return JSONResponse(document, headers={'Cache-Control': 'no-store',
