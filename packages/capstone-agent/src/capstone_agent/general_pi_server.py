@@ -1586,6 +1586,12 @@ class NativeTaskRunner:
                 raise ValueError('native skills require an accepted resource profile')
             if 'debugTools' in sdk_config:
                 sdk_config.update(allowedSkills=[], mcp=None)
+                guidance = self.config_root / 'skills/service-contract-investigation/SKILL.md'
+                if guidance.is_file():
+                    sdk_config.setdefault('contextFiles', []).append({
+                        'path': 'debug/service-contract-investigation/SKILL.md',
+                        'content': guidance.read_text(encoding='utf-8'),
+                    })
             if 'missionTools' in sdk_config:
                 from .native_mission import mission_entry_guidance
                 guidance = mission_entry_guidance(request.instruction)
@@ -3127,6 +3133,9 @@ def main():
     # fixed dispatch changes remain bound by executor_revision below.
     revision = sha256(b'capstone-general-sdk/2:isolated-uid:fixed-relay:fixed-mcp'
                       + current_capacity().fingerprint.encode())
+    guidance = config / 'skills/service-contract-investigation/SKILL.md'
+    if guidance.is_file():
+        revision.update(sha256(guidance.read_bytes()).digest())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
     revision.update(os.environ.get('CAPSTONE_PRESENTATION_API_ORIGIN', '').encode())
