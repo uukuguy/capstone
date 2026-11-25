@@ -54,6 +54,8 @@ def checked_instance_identity(value):
             or not identity_text(source.get('label'))):
         return None
     return {'schema_version': 1, 'instance_id': value['instance_id'], 'instance_name': value['instance_name'],
+            **({'source_sha256': value['source_sha256']} if isinstance(value.get('source_sha256'), str)
+               and re.fullmatch('[0-9a-f]{64}', value['source_sha256']) else {}),
             'environment': {key: environment[key] for key in ('id', 'label')},
             'offline': value['offline'], 'data_source': {'label': source['label']}}
 
@@ -414,6 +416,9 @@ class DataGatewayMcp:
                  'tool_hashes': {name: item['progressive']['tool_contract_revision'] for name, item in tools.items()},
                  'entry_tools': [], 'instructions': getattr(connection, 'instructions', '') or '',
                  'instance': checked_instance_identity(declaration['identity']), 'progressive': declaration}
+        live = checked_instance_identity(getattr(connection, 'instance_identity', None))
+        if live and live['instance_id'] == value['instance']['instance_id'] and live.get('source_sha256'):
+            value['instance']['source_sha256'] = live['source_sha256']
         retained_providers = admitted_provider_guidance({**value, 'providers': providers or []}, tools)
         if retained_providers:
             value['providers'] = retained_providers
@@ -618,6 +623,10 @@ class DataGatewayMcp:
         try:
             async with asyncio.timeout(limits.mcp_catalog_seconds):
                 async with self.connect() as session:
+                    live = checked_instance_identity(getattr(session, 'instance_identity', None))
+                    if live and (live.get('source_sha256') != catalog.get('instance', {}).get('source_sha256')
+                                 or live['instance_id'] != catalog.get('instance', {}).get('instance_id')):
+                        return await self._prepare_connected(session)
                     if 'progressive' in catalog:
                         declaration = self._progressive_declaration(session)
                         if declaration == catalog['progressive']:

@@ -189,6 +189,16 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [debugThread,setDebugThread]=useState('')
   const [allowDebugExport,setAllowDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
+  const [debugSource,setDebugSource]=useState('')
+  const selectedGateway=sharedNavigation?.gateway??welcomeGateway
+  useEffect(()=>{
+    if(debugThread!==currentId||resourceView!=='debug')return
+    let current=true
+    setDebugSource('')
+    void transport.debugSourceVersion(currentId).then(value=>{if(current)setDebugSource(value)})
+      .catch(()=>{if(current)setDebugSource('网关源码版本暂时无法核对。')})
+    return ()=>{current=false}
+  },[transport,currentId,debugThread,resourceView,selectedGateway?.instance_id,selectedGateway?.connection_name])
   const debugRequest=useRef<{thread:string;objective:string;key:string;attemptId?:string}|null>(null)
   useEffect(()=>{
     let current=true
@@ -1043,7 +1053,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
   if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
     content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
-      savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
+      sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId

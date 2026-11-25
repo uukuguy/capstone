@@ -279,6 +279,13 @@ export class HttpThreadTransport implements ThreadTransport {
     return {timelineExport:value.timeline_export===true,
       objective:typeof investigation?.objective==='string'?investigation.objective:null,finding}
   }
+  async debugSourceVersion(threadId:string){
+    const result=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/sources`) as Record<string,unknown>
+    if(result.status==='matched'&&typeof result.gateway_revision==='string')return '当前网关源码 '+result.gateway_revision
+    if(result.status==='source_missing')return '当前网关版本尚未随镜像打包。'
+    if(result.status==='unreported')return '当前网关尚未声明源码摘要。'
+    return '当前网关连接不可用。'
+  }
   async startDebugInvestigation(threadId:string,objective:string,key:string,attemptId?:string){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
     return this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})})

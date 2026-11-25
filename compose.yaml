@@ -62,7 +62,9 @@ x-host-environment: &host-environment
 
 x-host-service: &host-service
   image: ${CAPSTONE_BACKEND_IMAGE:-capstone-backend:local}
-  build: .
+  build: &backend-build
+    context: .
+    target: ${CAPSTONE_BACKEND_BUILD_TARGET:-release}
   restart: unless-stopped
   environment: *host-environment
   depends_on:
@@ -100,7 +102,7 @@ services:
 
   objects-init:
     image: ${CAPSTONE_BACKEND_IMAGE:-capstone-backend:local}
-    build: .
+    build: *backend-build
     entrypoint: [/app/packages/capstone-agent/.venv/bin/python, /app/deploy/ensure_bucket.py]
     restart: "no"
     environment:

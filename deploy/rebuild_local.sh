@@ -21,6 +21,17 @@ case "$app_environment" in
   *) fail "App environment must be local-dev or local-demo" ;;
 esac
 export CAPSTONE_APP_ENVIRONMENT="$app_environment"
+if [ "$app_environment" = local-dev ]; then
+  source_options=()
+  if [ -n "${CAPSTONE_DEBUG_GATEWAY_RELEASE:-}" ]; then
+    source_options+=(--gateway-release "$CAPSTONE_DEBUG_GATEWAY_RELEASE")
+  fi
+  python3 "$repo_root/deploy/package_debug_sources.py" --root "$repo_root" \
+    --output "$repo_root/deploy/local-debug-sources" ${source_options[@]+"${source_options[@]}"}
+  export CAPSTONE_BACKEND_BUILD_TARGET=local-debug
+else
+  export CAPSTONE_BACKEND_BUILD_TARGET=release
+fi
 
 # Check before dependency installation or Docker writes. Operators may set a
 # different reserve for their build host; do not delete user data automatically.

@@ -8411,3 +8411,4 @@ check passed. No CI, integration or remote deployment performed.
 - Verified PostgreSQL investigation recovery, eight concurrent call reservations and idempotent browser API registration. [1aa7855b]
 - 09:23 Saved attempt-scoped first-failure references; verified status retrieval, missing attempt rejection, backend tests and frontend checks. [725794b8]
 - 09:27 Live dedicated gateway adapter recovered discarded response, denied cross-binding read, reused duplicate receipt; log contract available, export undeclared.
+- 09:29 Verified scoped log pagination and cross-workspace rejection on the live gateway; 89 adapter tests passed. [2281b6e2]

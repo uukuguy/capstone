@@ -399,6 +399,20 @@ def create_host_app(
                     'investigation': investigations.latest(request.state.workspace_name, thread_id),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
+        @app.get('/api/v1/threads/{thread_id}/debug/sources')
+        def thread_debug_sources(thread_id: str, request: Request):
+            require_debug(request)
+            from .debug_sources import resolve_sources
+            reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
+            publication = {}
+            if callable(reader):
+                binding = thread_service.read_thread_gateway(thread_id)
+                try:
+                    publication = reader(binding, refresh=True)
+                except (RuntimeError, ValueError, OSError):
+                    publication = {}
+            return JSONResponse(resolve_sources(publication or {}), headers={'Cache-Control':'no-store'})
+
         @app.post('/api/v1/threads/{thread_id}/debug/investigations')
         def start_debug_investigation(thread_id: str, request: Request, body: dict,
                                       idempotency_key: Annotated[str, Header(min_length=1, max_length=200)]):
