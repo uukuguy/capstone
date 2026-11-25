@@ -235,11 +235,10 @@ def test_open_development_access_and_release_block(monkeypatch, text):
                            payload={'text': text,
                                     'debug_investigation_id': first.json()['investigation_id']})
         version = {'Capstone-Thread-Version': '2'}
-        missing = {**run, 'payload': {**run['payload'], 'debug_investigation_id': 'inv_missing'}}
-        assert client.post(path + '/commands', headers=version, json=missing).status_code == 404
+        before = service.snapshot('thr_harness')
         response = client.post(path + '/commands', headers=version, json=run)
-        assert response.status_code == 202, response.text
-        assert response.json()['status'] == 'accepted'
+        assert response.status_code == 422, response.text
+        assert service.snapshot('thr_harness') == before
         monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'user-trial')
         assert client.post(start_path, headers=headers, json={'objective':'检查失败调用'}).status_code == 403
         assert client.get(path + '/debug/status').status_code == 403

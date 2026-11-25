@@ -24,7 +24,7 @@ from capstone_agent.thread_startup_timing import record_thread_startup
 
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
-from capstone_agent.debug_commands import debug_commands_enabled, parse_debug_command
+from capstone_agent.debug_commands import debug_commands_enabled
 from capstone_agent.case_diagrams import CaseDiagramCache, load_case_diagram
 from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
@@ -1063,7 +1063,6 @@ def create_host_app(
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
                 kind = command.get("kind")
-                debug_identity = None
                 payload = command.get('payload')
                 if kind in ('send_message', 'work_message', 'queue_instruction',
                             'send_auto', 'send_ordinary', 'send_professional') and isinstance(payload, dict):
@@ -1073,38 +1072,7 @@ def create_host_app(
                     if isinstance(supplied_text, str) and supplied_text.startswith('/debug') and supplied_text.split(maxsplit=1)[0] == '/debug':
                         if not debug_commands_enabled(os.environ):
                             raise HTTPException(403, '当前部署已关闭调试命令。')
-                        try:
-                            debug = parse_debug_command(supplied_text)
-                        except ValueError as error:
-                            raise HTTPException(422, str(error)) from None
-                        if debug.operation != 'investigate':
-                            raise HTTPException(501, '此调查操作尚未接入。')
-                        if kind != 'send_message' or command.get('schema') != 'capstone-command/2':
-                            raise HTTPException(409, '请在会话空闲时发起调查。')
-                        identity = payload.get('debug_investigation_id')
-                        if not isinstance(identity,str) or not identity:
-                            raise HTTPException(422, '请先选择已登记的调查。')
-                        try:
-                            investigation = await run_in_threadpool(investigations.get,
-                                request.state.workspace_name,thread_id,identity)
-                        except KeyError:
-                            raise HTTPException(404, '本会话中找不到该调查。') from None
-                        debug_identity = investigation['investigation_id']
-                        observation = investigation.get('observation') or {}
-                        diagnostic_text = (f"研发调查 {identity}\n目标：{investigation['objective']}\n"
-                                           f"本轮指令：{debug.argument}\n请列出观测依据、尚未知的环节和本机复验所需材料。"
-                                           "\n先说明用户现在可以做什么。区分已观察到的失败、人工停止和仍待证实的原因。"
-                                           "若需用户确认业务选择，列出证据支持的候选与续接方式。"
-                                           "\n诊断须先找出第一条改变执行结果的回执，再沿相关调用检查已授权、版本匹配的源码。"
-                                           "跨服务故障要核对 Capstone 的传参、data-gateway 的绑定及返回；"
-                                           "用请求 ID 和源码版本、文件、行号支持归因。"
-                                           "若记录或对应源码不可用，明确写出缺少的证据和获取方式，并标记诊断未完成。"
-                                           "不要从工作目录内容或任务标题推断根因。")
-                        if observation:
-                            diagnostic_text += (f"\n已绑定历史轮次 {observation['attempt_id']}。请读取该轮的公开执行记录，"
-                                                f"引用对应事件编号。登记时的事件上界为 {observation['through']}。")
-                        command = {**command, 'payload':{'text':diagnostic_text,
-                            **({'source_attempt_id':observation['attempt_id']} if observation else {})}}
+                        raise HTTPException(422, '请通过会话的 Debug 调查入口提交调试命令。')
                 if isinstance(kind, str) and kind in {
                     "start_case_execution", "retry_case_step", "resume_case_execution",
                 } and thread_service.is_archived(thread_id):
@@ -1138,17 +1106,12 @@ def create_host_app(
                         refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
                         if callable(refresh_binding):
                             await run_in_threadpool(refresh_binding)
-                from .debug_commands import investigation_admission
-                token = investigation_admission.set(debug_identity)
-                try:
-                    if scoped_gateway is not None:
-                        receipt = await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
-                    elif kind in ('reserve_instruction_takeover', 'takeover_instruction'):
-                        receipt = await run_in_threadpool(service.submit_command, command)
-                    else:
-                        receipt = service.submit_command(command)
-                finally:
-                    investigation_admission.reset(token)
+                if scoped_gateway is not None:
+                    receipt = await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
+                elif kind in ('reserve_instruction_takeover', 'takeover_instruction'):
+                    receipt = await run_in_threadpool(service.submit_command, command)
+                else:
+                    receipt = service.submit_command(command)
                 if receipt.rejection == 'protocol_upgrade_required':
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
                 if receipt.status == 'accepted':
