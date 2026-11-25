@@ -21,7 +21,7 @@ def test_ordinary_text(text):
     assert parse_debug_command(text) is None
 
 
-@pytest.mark.parametrize('text', ['/debug', 
+@pytest.mark.parametrize('text', ['/debug',
                                   '/debug compare one', '/debug replay one two', '/debug stop now'])
 def test_invalid_reserved_command(text):
     with pytest.raises(ValueError):
