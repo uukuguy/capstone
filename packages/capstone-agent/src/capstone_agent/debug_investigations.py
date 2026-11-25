@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS capstone_debug_calls (
     client_call_id text NOT NULL UNIQUE,
     PRIMARY KEY(investigation_id, operation_key)
 );
+CREATE TABLE IF NOT EXISTS capstone_debug_snapshots (
+    investigation_id text NOT NULL REFERENCES capstone_debug_investigations(investigation_id) ON DELETE CASCADE,
+    snapshot_id text NOT NULL,
+    document jsonb NOT NULL,
+    PRIMARY KEY(investigation_id, snapshot_id)
+);
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS observation jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS diagnosis jsonb;
 UPDATE capstone_thread_attempts a
@@ -46,6 +52,7 @@ class InvestigationRegister:
         self.service = service
         self._memory = {}
         self._calls = {}
+        self._snapshots = {}
         self._lock = RLock()
 
     def _observe(self, thread_id, attempt_id, *, through=None):
@@ -239,6 +246,32 @@ class InvestigationRegister:
             }
         return {**document, 'snapshot_id': evidence_digest(document),
                 'data_gateway': {'status': 'export_unavailable', 'events': []}}
+
+    def save_export_snapshot(self, workspace, thread_id, investigation_id):
+        document = self.export_timeline(workspace, thread_id, investigation_id)
+        snapshot_id = document['snapshot_id']
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                connection.execute('''INSERT INTO capstone_debug_snapshots
+                    (investigation_id, snapshot_id, document) VALUES (%s,%s,%s)
+                    ON CONFLICT (investigation_id, snapshot_id) DO NOTHING''',
+                    (investigation_id, snapshot_id, Jsonb(document)))
+        else:
+            with self._lock:
+                self._snapshots.setdefault((investigation_id, snapshot_id), json.dumps(document))
+        return document
+
+    def read_export_snapshot(self, workspace, thread_id, investigation_id, snapshot_id):
+        self.get(workspace, thread_id, investigation_id)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''SELECT document FROM capstone_debug_snapshots
+                    WHERE investigation_id=%s AND snapshot_id=%s''', (investigation_id, snapshot_id)).fetchone()
+            if row is None:
+                raise KeyError('snapshot_not_visible')
+            return row['document']
+        with self._lock:
+            return json.loads(self._snapshots[(investigation_id, snapshot_id)])
 
     def enqueue_diagnosis(self, workspace, thread_id, investigation_id):
         observation = self.get(workspace, thread_id, investigation_id).get('observation')

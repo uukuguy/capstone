@@ -45,9 +45,13 @@ def test_postgres_register_survives_reopen_and_concurrent_reservations():
             claims = list(pool.map(lambda _: worker._claim_diagnosis(scope, {**pending, 'status': 'running'}), range(8)))
         assert sum(claims) == 1
         assert worker.next_queued() is None
+        running_snapshot = worker.save_export_snapshot(*scope)
         completed = {**pending, 'status': 'completed', 'answer': '已定位。'}
         reopened._save_diagnosis(scope, completed)
         reopened._save_diagnosis(scope, {**pending, 'status': 'unknown'})
         assert reopened.get(*scope)['diagnosis'] == completed
+        assert reopened.read_export_snapshot(*scope, running_snapshot['snapshot_id']) == running_snapshot
+        with pytest.raises(KeyError):
+            reopened.read_export_snapshot('other', thread, first['investigation_id'], running_snapshot['snapshot_id'])
     finally:
         service.delete_thread(thread)

@@ -448,12 +448,15 @@ def create_host_app(
                                 headers={'Cache-Control': 'no-store'})
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
-        def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request):
+        def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request,
+                snapshot_id: Annotated[str | None, Query(pattern='^[0-9a-f]{64}$')] = None):
             require_debug(request)
             if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
                 raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
             try:
-                document = investigations.export_timeline(request.state.workspace_name, thread_id, investigation_id)
+                scope = (request.state.workspace_name, thread_id, investigation_id)
+                document = (investigations.read_export_snapshot(*scope, snapshot_id) if snapshot_id
+                            else investigations.save_export_snapshot(*scope))
             except (KeyError, ThreadNotFound):
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
             reader = getattr(native_artifact_executor, 'debug_observation', None)
