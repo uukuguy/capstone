@@ -2142,7 +2142,7 @@ class NativeTaskRunner:
                 role_options = {'required_tools': tuple(sorted(active & builtin)),
                                 'forbidden_tools': tuple(sorted(builtin - active))}
             if 'debugTools' in sdk_config:
-                role_options = {'required_tools': ('agent_debug_observe', 'agent_task_records_read'),
+                role_options = {'required_tools': ('agent_debug_observe',),
                                 'forbidden_tools': ('bash', 'read', 'write', 'edit', 'grep', 'find', 'ls')}
             process = GeneralPiProcess(argv, environment, workspace, uid=uid, **role_options)
             timing.mark('process_launch_requested')
@@ -2246,7 +2246,7 @@ class NativeTaskRunner:
             resource_profile={'profile_id': 'direct_pi', 'revision': profile_revision},
             input={'kind': 'text', 'text': instruction},
             native_context={'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
-                                       'allowed_tools': ['agent_task_records_read', 'agent_debug_observe'],
+                                       'allowed_tools': ['agent_debug_observe'],
                                        'external_lookup_enabled': False},
                 'debug_scope': {'workspace': 'local', 'gateway_investigation': investigation_id,
                                 'gateway': None, 'capstone_revision': None},

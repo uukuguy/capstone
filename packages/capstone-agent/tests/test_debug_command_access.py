@@ -275,7 +275,7 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
     def execute(request, control, on_event):
         assert 'selected source remained ambiguous' in request.instruction
         native = request.to_document()['native_context']
-        assert native['policy']['allowed_tools'] == ['agent_task_records_read', 'agent_debug_observe']
+        assert native['policy']['allowed_tools'] == ['agent_debug_observe']
         assert native['debug_scope']['gateway_investigation'] == investigation['investigation_id']
         assert native['selected_task_source']['attempt_id'] == claim.attempt.attempt_id
         assert all(event['event_seq'] <= investigation['observation']['through']
@@ -317,6 +317,10 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         page = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'after': failure_seq - 1}}, 'fixture')
         assert page['events'][0]['event_seq'] == failure_seq
+        bounded = control.mission_operation('agent_debug_observe', {'operation': 'capstone_records',
+            'query': {'after': failure_seq - 1, 'limit': 1}}, 'bounded-page')
+        assert [row['event_seq'] for row in bounded['events']] == [failure_seq]
+        assert bounded['has_more'] is True
         assert page['events'][0]['payload']['activity']['output_excerpt'] == 'selected source remained ambiguous'
         assert page['events'][0]['payload']['activity_truncated'] is True
         excerpt = control.mission_operation('agent_debug_observe',

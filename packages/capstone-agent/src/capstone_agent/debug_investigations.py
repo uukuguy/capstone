@@ -490,8 +490,8 @@ class InvestigationRegister:
 
             audit_reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
                 workspace_name=workspace, handoff={'through_event_seq': through})
-            def read_page(after, excerpt_limit):
-                page = audit_reader.read(after=after, limit=12)
+            def read_page(after, excerpt_limit, limit=12):
+                page = audit_reader.read(after=after, limit=limit)
                 visible = []
                 for event in page['events']:
                     payload = event['payload']
@@ -578,11 +578,12 @@ class InvestigationRegister:
                     return {'attempt_id': observation['attempt_id'], 'event_seq': seq, 'field': field,
                             'scope': 'stored_excerpt', 'offset': offset, 'text': text[offset:end],
                             'next_offset': end if end < len(text) else None}
-                after = query.get('after', 0)
+                after, limit = query.get('after', 0), query.get('limit', 12)
                 if (arguments.get('operation') != 'capstone_records'
-                        or query.keys() - {'after'} or type(after) is not int or not 0 <= after <= through):
+                        or query.keys() - {'after', 'limit'} or type(after) is not int or not 0 <= after <= through
+                        or type(limit) is not int or not 1 <= limit <= 50):
                     return {'code': 'investigation_request_invalid'}
-                page = read_page(after, 1000)
+                page = read_page(after, 1000, min(limit, 12))
                 record_supplied_evidence([event['event_seq'] for event in page['events']])
                 return page
 
@@ -603,8 +604,8 @@ class InvestigationRegister:
                 'gateway': ({key: historical_gateway.get(key) for key in ('connection_id', 'instance_id', 'source_sha256')}
                             if historical_gateway else None),
             }
-            instruction += ('\n用 agent_task_records_read 核对 Capstone 执行记录。'
-                            '需要更早或更晚的事件时，用 agent_debug_observe 的 capstone_records，传 after 或从 0 开始。'
+            instruction += ('\n需要核对 Capstone 执行记录时，用 agent_debug_observe 的 capstone_records。'
+                            'query 只接受 after 和可选 limit，默认从 0 开始，每页最多返回 12 条。'
                             '已知异常事件编号时，可以从该编号减一开始。'
                             '先核对 excerpt_fields。仅当字段 available 且有 next_offset 时，才用 capstone_excerpt 续读。'
                             'not_applicable 表示该事件没有此类文字。not_retained 表示此类文字未保留。两种状态均不重试。'
@@ -619,7 +620,7 @@ class InvestigationRegister:
                 'input': {'kind': 'text', 'text': instruction},
                 'native_context': {
                     'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
-                               'allowed_tools': ['agent_task_records_read', 'agent_debug_observe'],
+                               'allowed_tools': ['agent_debug_observe'],
                                'external_lookup_enabled': False},
                     'debug_scope': debug_scope,
                     'selected_task_source': {'thread_id': thread_id, 'attempt_id': observation['attempt_id']},
