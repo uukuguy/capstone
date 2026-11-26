@@ -16,10 +16,13 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
 
 
+DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'source_files', 'source_lines', 'capstone_records', 'capstone_excerpt', 'publish_finding']
+
+
 OBSERVATION_TOOL = {
     'description': 'Read on-site receipts, logs, source, or Capstone execution records for this Debug investigation. capstone_records takes after and returns next_after and has_more. capstone_excerpt takes event_seq, field and offset to continue a stored excerpt. List gateway calls before reading by ID.',
     'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['operation'],
-        'properties': {'operation': {'enum': ['list', 'read', 'logs', 'source_files', 'source_lines', 'capstone_records', 'capstone_excerpt', 'publish_finding']}, 'query': {'type': 'object',
+        'properties': {'operation': {'enum': DEBUG_OBSERVATION_OPERATIONS}, 'query': {'type': 'object',
             'additionalProperties': False, 'properties': {
                 'repository': {'enum': ['capstone', 'data-gateway']},
                 'after': {'type': 'integer', 'minimum': 0},

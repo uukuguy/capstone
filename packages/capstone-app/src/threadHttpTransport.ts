@@ -299,26 +299,25 @@ export class HttpThreadTransport implements ThreadTransport {
     return receipt.investigation_id
   }
   async runDebugDiagnosis(threadId: string, investigationId: string,
-    onProgress: (message: string) => void = () => {}) {
+    onProgress: (message: string, steps: string[]) => void = () => {}) {
     return this.watchDebugDiagnosis(threadId, investigationId, onProgress, {submit: true})
   }
   async watchDebugDiagnosis(threadId: string, investigationId: string,
-    onProgress: (message: string) => void, {submit = false, signal}: {submit?: boolean; signal?: AbortSignal} = {}) {
+    onProgress: (message: string, steps: string[]) => void, {submit = false, signal}: {submit?: boolean; signal?: AbortSignal} = {}) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
     const deadline = Date.now() + 60000
     const requestSignal = (ms: number) => signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms)
     let result = await this.request(path, {method: submit ? 'POST' : 'GET', signal: requestSignal(5000)}) as Record<string, unknown>
     while ((result.status === 'queued' || result.status === 'running') && Date.now() < deadline) {
-      const step = Array.isArray(result.progress) ? result.progress.at(-1) : undefined
-      const labels: Record<string, string> = {tool_started:'正在调用', tool_finished:'调用完成', tool_failed:'调用失败'}
-      const label = step && Object.hasOwn(labels, step.stage) ? labels[step.stage] : undefined
+      const steps = debugProgressLabels(result.progress)
       const update = result.finding as {summary?: unknown} | undefined
-      onProgress(typeof update?.summary === 'string' ? update.summary : label && typeof step.tool === 'string' && Number.isSafeInteger(step.seq)
-        ? `步骤 ${step.seq} · ${label} ${step.tool}`
-        : result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据')
+      onProgress(typeof update?.summary === 'string' ? update.summary :
+        steps.at(-1) ?? (result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据'), steps)
       await new Promise(resolve => setTimeout(resolve, 1000))
       result = await this.request(path, {signal: requestSignal(5000)}) as Record<string, unknown>
     }
+    const terminalSteps = debugProgressLabels(result.progress)
+    if (terminalSteps.length) onProgress(result.status === 'completed' ? '诊断已完成' : '已读取运行步骤', terminalSteps)
     if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
     if (result.status === 'cancelled') throw new Error('诊断已停止。')
     if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
@@ -836,4 +835,25 @@ export class HttpThreadTransport implements ThreadTransport {
       reader.releaseLock()
     }
   }
+}
+
+
+const debugOperations: Record<string, string> = {
+  list: '列出网关回执', read: '读取网关回执', logs: '读取网关日志',
+  source_files: '查找源码文件', source_lines: '读取源码行',
+  capstone_records: '读取 Capstone 执行记录', capstone_excerpt: '续读执行摘要',
+  publish_finding: '保存阶段结论',
+}
+
+function debugProgressLabels(progress: unknown): string[] {
+  if (!Array.isArray(progress)) return []
+  return progress.flatMap(step => {
+    if (!step || !Number.isSafeInteger(step.seq) || typeof step.tool !== 'string') return []
+    const operation = typeof step.operation === 'string' && Object.hasOwn(debugOperations, step.operation)
+      ? debugOperations[step.operation] : `调用 ${step.tool}`
+    if (step.stage === 'tool_started') return [`步骤 ${step.seq} · 开始${operation}`]
+    if (step.stage === 'tool_finished') return [`步骤 ${step.seq} · 已${operation}`]
+    if (step.stage === 'tool_failed') return [`步骤 ${step.seq} · ${operation}失败`]
+    return []
+  })
 }

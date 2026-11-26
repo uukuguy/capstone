@@ -192,7 +192,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [allowDebugExport,setAllowDebugExport]=useState(false)
   const [canReviewDebugExport,setCanReviewDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
-  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean}>()
+  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean; steps?:string[]}>()
   const [debugSource,setDebugSource]=useState('')
   const [sourceQuery,setSourceQuery]=useState(0)
   const selectedGateway=sharedNavigation?.gateway??welcomeGateway
@@ -219,12 +219,16 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         setDebugFinding(access.finding)
         if (!access.investigationId || !access.diagnosisStatus || debugGeneration.current !== generation ||
             debugRequest.current?.thread === currentId || typeof transport.watchDebugDiagnosis !== 'function') return
+        let steps: string[] = []
         const show = (text:string, completed = false) => {
           if (!restore.signal.aborted && debugGeneration.current === generation && debugRequest.current?.thread !== currentId)
-            setDebugActivity({thread: currentId, text, completed})
+            setDebugActivity({thread: currentId, text, completed, steps})
         }
         try {
-          const answer = await transport.watchDebugDiagnosis(currentId, access.investigationId, show, {signal:restore.signal})
+          const answer = await transport.watchDebugDiagnosis(currentId, access.investigationId, (text, history) => {
+            steps = history
+            show(text)
+          }, {signal:restore.signal})
           show(answer, true)
         } catch (error) {
           show(error instanceof Error ? error.message : '诊断状态暂不可读。')
@@ -609,12 +613,16 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           debugRequest.current=request
         }
         const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
+        let steps: string[] = []
         const updateDebugActivity = (message: string, completed = false) => {
-          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,objective,completed})
+          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,objective,completed,steps})
         }
         updateDebugActivity('正在读取执行记录')
         try {
-          const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, updateDebugActivity)
+          const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, (message, history) => {
+            steps = history
+            updateDebugActivity(message)
+          })
           if (debugRequest.current === request) {
             updateDebugActivity(diagnosis, true)
             setDebugFinding(diagnosis)
@@ -1280,6 +1288,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         <strong>Debug</strong>
         {debugActivity.objective&&<p>{debugActivity.objective}</p>}
         {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <p>{debugActivity.text}</p>}
+        {Boolean(debugActivity.steps?.length)&&<details>
+          <summary>运行步骤 · {debugActivity.steps?.at(-1)}</summary>
+          <ol>{debugActivity.steps?.map(step=><li key={step}>{step}</li>)}</ol>
+        </details>}
       </section>}
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}

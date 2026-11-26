@@ -61,12 +61,16 @@ def verify(document):
         raise ValueError('Invalid diagnosis timeline')
     last_step = 0
     for step in steps:
-        if (not isinstance(step, dict) or set(step) != {'seq', 'stage', 'tool'}
+        required = {'seq', 'stage', 'tool'}
+        if (not isinstance(step, dict) or not required <= step.keys() <= required | {'operation'}
                 or type(step['seq']) is not int or step['seq'] <= last_step
                 or step['stage'] not in ('tool_started', 'tool_finished', 'tool_failed')
                 or not isinstance(step['tool'], str)
                 or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,127}', step['tool'])):
             raise ValueError('Invalid diagnosis timeline step')
+        if 'operation' in step and (step['tool'] != 'agent_debug_observe' or not isinstance(step['operation'], str)
+                                    or not re.fullmatch(r'[a-z_]{1,32}', step['operation'])):
+            raise ValueError('Invalid diagnosis tool operation')
         last_step = step['seq']
     cited = diagnosis.get('evidence_event_seqs', [])
     if not isinstance(cited, list) or any(type(seq) is not int or not 0 < seq <= through for seq in cited):
