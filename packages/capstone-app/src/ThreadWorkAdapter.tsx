@@ -1276,13 +1276,13 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?(pendingMessage||missionPending)?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={missionPending?.text??initialText} onDraftChange={onDraftChange}
       storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&!concurrentSend&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage||!!missionPending}
       allowConcurrentSend={queueAvailable}
+      transcriptStatus={debugActivity?.thread===currentId&&<section className="thread-debug-status" aria-label="Debug 调查" role="status">
+        <strong>Debug</strong>
+        {debugActivity.objective&&<p>{debugActivity.objective}</p>}
+        {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <p>{debugActivity.text}</p>}
+      </section>}
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
-        {debugActivity?.thread===currentId&&<section className="thread-composer-notice" aria-label="Debug 调查" role="status">
-          <strong>Debug</strong>
-          {debugActivity.objective&&<p>{debugActivity.objective}</p>}
-          {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <> · {debugActivity.text}</>}
-        </section>}
         {notice&&<p className="thread-composer-notice" role="status">{notice === '停止请求已接收，正在等待实际执行停止。' && selectedWork?.status === 'cancelled' ? '任务已停止。' : notice}</p>}
         <div className="thread-task-strip" aria-label="当前任务">
           {contextPanel&&<button type="button" className="thread-control-button thread-context-indicator" aria-label="查看会话上下文"

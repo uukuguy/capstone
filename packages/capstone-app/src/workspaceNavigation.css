@@ -15,6 +15,7 @@
 .thread-task-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 4px 0 7px; color: #36554a; font-size: 12px; }
 .thread-task-strip > .thread-control-button { min-height: 28px; border-radius: 6px; }
 .thread-composer-notice { margin: 4px 0; color: #36554a; font-size: 12px; }
+.thread-debug-status { flex: none; min-width: 0; margin: 16px 0; padding: 12px 16px; border: 1px solid #d3e1da; border-radius: 8px; color: #36554a; background: #f5f9f7; overflow-wrap: anywhere; }
 .thread-task-strip:empty { display: none; }
 @media (pointer: coarse) { .workspace-navigation-gateway { height: 44px; } }
 @media (max-width: 760px) {
