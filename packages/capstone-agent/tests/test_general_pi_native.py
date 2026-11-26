@@ -488,3 +488,28 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
         provider.shutdown()
         provider.server_close()
         thread.join(timeout=2)
+
+
+def test_thin_native_context_indexes_older_records_with_exact_reader_positions(tmp_path):
+    from pathlib import Path
+
+    history = [{'role': 'user', 'content': f'record {index} ' + 'x' * 512}
+               for index in range(7)]
+    config = tmp_path / 'sdk.json'
+    config.write_text(json.dumps({'thinInitialContext': True,
+                                  'context': {'messages': history, 'dependency_results': []}}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
+    result = subprocess.run(['node', '--input-type=module', '-e',
+        'const {default:register}=await import(process.argv[1]); '
+        'const events={};register({on:(name,fn)=>{events[name]=fn}}); '
+        'const view=await events.context({messages:[{role:"user",content:"Current request"}]}); '
+        'console.log(JSON.stringify(view.messages));',
+        extension.as_uri(), str(config)], cwd=tmp_path, capture_output=True, text=True, check=True)
+    messages = json.loads(result.stdout)
+    projection = json.loads(messages[0]['content'])
+    assert projection['historical_records'] == history[3:]
+    assert projection['earlier_record_count'] == 3
+    assert [item['index'] for item in projection['earlier_records']] == [0, 1, 2]
+    assert all(item['preview'] == history[item['index']]['content'][:80]
+               for item in projection['earlier_records'])
+    assert messages[-1]['content'] == 'Current request'
