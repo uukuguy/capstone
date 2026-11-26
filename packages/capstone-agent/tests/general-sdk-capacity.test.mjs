@@ -317,7 +317,7 @@ test('explicit admitted message IDs displace unrelated recent bodies',async()=>{
   assert.equal(selected.reason,'explicit_message_reference');
   assert.deepEqual([...selected.inline],[0]);
   assert.deepEqual(historyIndexPage(history,undefined,undefined,undefined,selected.inline).earlier_records.map(row=>row.index),[1,2,3,4]);
-  assert.deepEqual([...historyInlineSelection(history,'Read msg-01 and unknown').inline],[3,4]);
+  assert.deepEqual([...historyInlineSelection(history,'Read msg-01 and unknown').inline],[]);
 });
 
 test('distinctive instruction terms prioritize an older matching record',async()=>{
@@ -328,5 +328,5 @@ test('distinctive instruction terms prioritize an older matching record',async()
     {role:'user',content:'独立算术问题。'},
   ];
   assert.deepEqual([...historyInlineSelection(history,'核对北区变电站设备验收编码').inline],[0]);
-  assert.deepEqual([...historyInlineSelection(history,'多少？').inline],[1,2]);
+  assert.deepEqual([...historyInlineSelection(history,'多少？').inline],[]);
 });

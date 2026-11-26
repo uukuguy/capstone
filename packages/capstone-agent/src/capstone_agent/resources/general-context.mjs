@@ -44,6 +44,7 @@ export function historyInlineSelection(history,instruction){
       return {inline:new Set(best.map(row=>row.index)),reason:'instruction_term_overlap'};
     }
   }
+  if(instruction?.trim())return {inline:new Set(),reason:'history_previews_only'};
   return {inline:new Set(history.flatMap((_message,index)=>isIndexedHistoryRecord(history,index)?[]:[index])),
     reason:'bounded_recent_records'};
 }
