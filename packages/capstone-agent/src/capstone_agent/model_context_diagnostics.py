@@ -44,6 +44,13 @@ def _checked_origin(value):
             or delivery not in ('text', 'reference', 'preview')):
         return None
     result = {'kind': kind, 'id': identifier, 'revision': revision, 'delivery': delivery}
+    selection = value.get('selection')
+    if kind == 'history' and identifier == 'historical-conversation' and isinstance(selection, dict):
+        counts = ('inline_records', 'indexed_records', 'omitted_previews')
+        if (selection.get('reason') == 'bounded_recent_records'
+                and all(type(selection.get(key)) is int and 0 <= selection[key] <= 10_000 for key in counts)
+                and selection['omitted_previews'] <= selection['indexed_records']):
+            result['selection'] = {'reason': selection['reason'], **{key: selection[key] for key in counts}}
     if kind == 'file':
         digest, offset, length = (value.get(field) for field in ('digest', 'offset', 'length'))
         if (not _matches(digest, re.compile(r'[a-f0-9]{64}')) or type(offset) is not int or type(length) is not int
@@ -81,7 +88,7 @@ def checked_snapshot(event: dict) -> dict | None:
             redacted = redacted.replace(credential, '[REDACTED]')
         row = {'index': index, 'carrier': carrier, 'role': role, 'text': redacted,
                'truncated': truncated, 'redacted': redacted != text or item.get('redacted') is True,
-               'digest': sha256(redacted.encode()).hexdigest()}
+               'digest': sha256(redacted.encode()).hexdigest(), 'projected_bytes': len(redacted.encode())}
         if carrier in {'messages', 'tool_results'}:
             message_index, block_index = item.get('message_index'), item.get('block_index')
             if all(type(value) is int and 1 <= value <= 2**31 - 1 for value in (message_index, block_index)):
