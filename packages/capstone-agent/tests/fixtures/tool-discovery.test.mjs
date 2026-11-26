@@ -76,11 +76,14 @@ test('discovery ranks publication name terms before description-only ties',async
   z_read_view:{name:'read_view',description:'Read a saved resource'},
   hidden_read_view:{name:'private_read_view',description:'Read a view'}};
  const discovery=createToolDiscovery({publications,tools:Object.keys(publications).map(name=>({name})),
-   admittedNames:['a_inspect','z_read_view'],pageSize:1});
+   admittedNames:['a_inspect','z_read_view'],pageSize:1,appendLoads:true});
  const search=async args=>JSON.parse((await discovery.tools[0].execute('find',args)).content[0].text);
  assert.equal((await search({query:'read view'})).tools[0].name,'z_read_view');
  assert.equal((await search({query:'read view',offset:1})).tools[0].name,'a_inspect');
  assert.equal((await search({query:'inspect'})).tools[0].name,'a_inspect');
+ const catalog=await search({query:'unmatched wording'});
+ assert.deepEqual(catalog.published_names,['inspect','read_view']);
+ assert.equal((await search({query:'unmatched wording'})).published_names,undefined);
 });
 
 test('unresolved publications load exact contracts before registration without placeholder schemas',async t=>{

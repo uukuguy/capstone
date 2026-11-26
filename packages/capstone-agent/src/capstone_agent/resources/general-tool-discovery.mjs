@@ -71,6 +71,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     }
   }
   const searched=new Set();
+  let offeredNames=false;
   function check(signal){signal?.throwIfAborted();if(closed)throw new Error('Tool discovery task is closed');}
   function initialToolNames(existingNames){
     return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames,...initial])];
@@ -128,10 +129,21 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
         matches.sort((left,right)=>scores.get(right)-scores.get(left));
       }
       const selected=matches.slice(offset,offset+pageSize);
+      let publishedNames;
+      if(!offeredNames&&appendLoads&&args.toolset===undefined&&offset===0&&
+        (mode==='partial_terms'||matches.length===0)){
+        const aliases=names.map(name=>entries.get(name).publication.name??name);
+        if(Buffer.byteLength(JSON.stringify(aliases))<=4096){
+          publishedNames=aliases;
+          offeredNames=true;
+        }
+      }
       const searchKey=JSON.stringify([terms,offset,args.toolset??null]),repeated=searched.has(searchKey);
       if(searched.size>=64&&!repeated)searched.delete(searched.values().next().value);
       searched.add(searchKey);
       return reply({capacity,match_mode:mode,active_entry_tools:initial,toolsets:[...groups.values()],selection_guidance:selectionReminder,
+        ...(publishedNames?{published_names:publishedNames,
+          names_guidance:'Use these authorized names to identify a relevant operation when search wording does not match. Load an exact selected name directly.'}:{}),
         tools:selected.map(name=>({name,active:active.has(name),matched_terms:matched.get(name),toolset:gatewayToolGroup(entries.get(name).publication),access:gatewayToolAccess(entries.get(name).publication),description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
         ...(gatewaySelectionSummary(entries.get(name).publication,maxSummaryChars)?{
           published_selection:gatewaySelectionSummary(entries.get(name).publication,maxSummaryChars)
