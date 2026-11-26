@@ -16,8 +16,7 @@ it('downloads the saved snapshot for the selected history row', async () => {
     ]}
     readDiagnosis={async () => ({status:'completed',answer:'已保存'})} readSnapshots={readSnapshots} readEvidence={readEvidence}/>)
 
-  fireEvent.click(await screen.findByRole('button',{name:'查看证据 · 第一次补查'}))
-  fireEvent.click(await screen.findByRole('button',{name:'下载此证据'}))
+  fireEvent.click(await screen.findByRole('button',{name:'下载此证据 · 第一次补查'}))
   await screen.findByRole('alert')
   expect(readSnapshots).toHaveBeenCalledWith('inv_first')
   expect(readEvidence).toHaveBeenCalledWith('inv_first','saved-first')

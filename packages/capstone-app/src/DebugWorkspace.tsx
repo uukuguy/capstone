@@ -196,11 +196,16 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
             <p>{item.objective}</p>
             <span>{statusLabels[item.status ?? ''] ?? '已登记'}</span>
           </div>
-          <button type="button" disabled={busy} aria-expanded={open}
-            aria-label={`${open ? '收起证据' : '查看证据'} · ${item.objective}`}
-            onClick={()=>void selectDiagnosis(open ? '' : item.investigation_id)}>
-            {open ? '收起证据' : '查看证据'}
-          </button>
+          <div className="debug-actions">
+            <button type="button" disabled={busy} aria-expanded={open}
+              aria-label={`${open ? '收起证据' : '查看证据'} · ${item.objective}`}
+              onClick={()=>void selectDiagnosis(open ? '' : item.investigation_id)}>
+              {open ? '收起证据' : '查看证据'}
+            </button>
+            {allowExport&&readEvidence&&<button type="button" disabled={busy}
+              aria-label={`下载此证据 · ${item.objective}`}
+              onClick={()=>void downloadEvidence(item.investigation_id,open&&snapshots?.id===item.investigation_id ? snapshotId : undefined)}>下载此证据</button>}
+          </div>
           {open&&<div className="debug-evidence-detail">
               {diagnosis?.text&&<MarkdownContent>{diagnosis.text}</MarkdownContent>}
               {diagnosis?.source&&<p>{diagnosis.source}</p>}
@@ -268,8 +273,6 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
                 </div>}
               {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
                 <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
-              {allowExport&&readEvidence&&diagnosis&&
-                <button type="button" disabled={busy} onClick={()=>void downloadEvidence(diagnosis.id,snapshots?.id===diagnosis.id ? snapshotId : undefined)}>下载此证据</button>}
           </div>}
         </li>
       })}
