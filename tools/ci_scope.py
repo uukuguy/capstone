@@ -856,6 +856,7 @@ DEBUG_DEV_FILES = {
     'threadInput.ts',
     'threadWorkProtocol.test.ts',
     'threadWorkProtocol.ts',
+    'workspaceNavigation.css',
 )}
 
 

@@ -299,25 +299,27 @@ export class HttpThreadTransport implements ThreadTransport {
     return receipt.investigation_id
   }
   async runDebugDiagnosis(threadId: string, investigationId: string,
-    onProgress: (message: string, steps: string[]) => void = () => {}) {
+    onProgress: (message: string, report: DebugProgressReport) => void = () => {}) {
     return this.watchDebugDiagnosis(threadId, investigationId, onProgress, {submit: true})
   }
   async watchDebugDiagnosis(threadId: string, investigationId: string,
-    onProgress: (message: string, steps: string[]) => void, {submit = false, signal}: {submit?: boolean; signal?: AbortSignal} = {}) {
+    onProgress: (message: string, report: DebugProgressReport) => void, {submit = false, signal}: {submit?: boolean; signal?: AbortSignal} = {}) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
     const deadline = Date.now() + 60000
     const requestSignal = (ms: number) => signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms)
     let result = await this.request(path, {method: submit ? 'POST' : 'GET', signal: requestSignal(5000)}) as Record<string, unknown>
     while ((result.status === 'queued' || result.status === 'running') && Date.now() < deadline) {
-      const steps = debugProgressLabels(result.progress)
+      const report = debugProgressReport(result)
       const update = result.finding as {summary?: unknown} | undefined
       onProgress(typeof update?.summary === 'string' ? update.summary :
-        steps.at(-1) ?? (result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据'), steps)
+        result.status === 'queued' ? '等待诊断执行' : 'Pi 正在核对证据', report)
       await new Promise(resolve => setTimeout(resolve, 1000))
       result = await this.request(path, {signal: requestSignal(5000)}) as Record<string, unknown>
     }
-    const terminalSteps = debugProgressLabels(result.progress)
-    if (terminalSteps.length) onProgress(result.status === 'completed' ? '诊断已完成' : '已读取运行步骤', terminalSteps)
+    const report = debugProgressReport(result)
+    if (report.rows.length || report.durationMs !== undefined) {
+      onProgress(result.status === 'completed' ? '诊断已完成' : '已读取运行步骤', report)
+    }
     if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
     if (result.status === 'cancelled') throw new Error('诊断已停止。')
     if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
@@ -845,15 +847,36 @@ const debugOperations: Record<string, string> = {
   publish_finding: '保存阶段结论',
 }
 
-function debugProgressLabels(progress: unknown): string[] {
-  if (!Array.isArray(progress)) return []
-  return progress.flatMap(step => {
-    if (!step || !Number.isSafeInteger(step.seq) || typeof step.tool !== 'string') return []
-    const operation = typeof step.operation === 'string' && Object.hasOwn(debugOperations, step.operation)
-      ? debugOperations[step.operation] : `调用 ${step.tool}`
-    if (step.stage === 'tool_started') return [`步骤 ${step.seq} · 开始${operation}`]
-    if (step.stage === 'tool_finished') return [`步骤 ${step.seq} · 已${operation}`]
-    if (step.stage === 'tool_failed') return [`步骤 ${step.seq} · ${operation}失败`]
-    return []
-  })
+export type DebugProgressReport = {
+  rows: {id: number; label: string; status: 'running' | 'completed' | 'failed'; elapsedMs?: number}[]
+  durationMs?: number
+}
+
+function debugProgressReport(result: Record<string, unknown>): DebugProgressReport {
+  const report: DebugProgressReport = {rows: []}
+  if (typeof result.duration_ms === 'number' && result.duration_ms >= 0) report.durationMs = result.duration_ms
+  if (!Array.isArray(result.progress)) return report
+  const pending = new Map<number, string>()
+  for (const step of result.progress) {
+    if (!step || !Number.isSafeInteger(step.seq) || typeof step.tool !== 'string') continue
+    const label = typeof step.operation === 'string' && Object.hasOwn(debugOperations, step.operation)
+      ? debugOperations[step.operation] : step.tool === 'agent_task_records_read' ? '读取目标执行记录' : '执行诊断工具'
+    const key = step.tool + ':' + label
+    if (step.stage === 'tool_started') {
+      pending.set(step.seq, key)
+      report.rows.push({id: step.seq, label, status: 'running'})
+      continue
+    }
+    if (step.stage !== 'tool_finished' && step.stage !== 'tool_failed') continue
+    const candidates = [...pending].filter(([, value]) => value === key)
+    const call = Number.isSafeInteger(step.call_seq) ? step.call_seq
+      : candidates.length === 1 ? candidates[0][0] : step.seq
+    const row = {id: call, label, status: step.stage === 'tool_finished' ? 'completed' as const : 'failed' as const,
+      ...(typeof step.elapsed_ms === 'number' && step.elapsed_ms >= 0 ? {elapsedMs: step.elapsed_ms} : {})}
+    const index = report.rows.findIndex(item => item.id === call)
+    if (index >= 0) report.rows[index] = row
+    else report.rows.push(row)
+    pending.delete(call)
+  }
+  return report
 }

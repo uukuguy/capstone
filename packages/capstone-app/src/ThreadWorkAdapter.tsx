@@ -1,3 +1,4 @@
+import type { DebugProgressReport } from './threadHttpTransport'
 import TaskContextPanel from './TaskContextPanel'
 import {DebugCommandAvailable} from './ThreadCommandMenu'
 import DebugWorkspace from './DebugWorkspace'
@@ -192,7 +193,15 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [allowDebugExport,setAllowDebugExport]=useState(false)
   const [canReviewDebugExport,setCanReviewDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
-  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean; steps?:string[]}>()
+  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean; report?:DebugProgressReport}>()
+  const debugCard = useRef<HTMLElement>(null)
+  const revealDebugCard = useRef(false)
+  useEffect(()=>{
+    if (revealDebugCard.current && debugCard.current) {
+      revealDebugCard.current = false
+      debugCard.current.scrollIntoView?.({block:'nearest'})
+    }
+  },[debugActivity])
   const [debugSource,setDebugSource]=useState('')
   const [sourceQuery,setSourceQuery]=useState(0)
   const selectedGateway=sharedNavigation?.gateway??welcomeGateway
@@ -219,14 +228,14 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         setDebugFinding(access.finding)
         if (!access.investigationId || !access.diagnosisStatus || debugGeneration.current !== generation ||
             debugRequest.current?.thread === currentId || typeof transport.watchDebugDiagnosis !== 'function') return
-        let steps: string[] = []
+        let report: DebugProgressReport | undefined
         const show = (text:string, completed = false) => {
           if (!restore.signal.aborted && debugGeneration.current === generation && debugRequest.current?.thread !== currentId)
-            setDebugActivity({thread: currentId, text, completed, steps})
+            setDebugActivity({thread: currentId, text, completed, report, objective: access.objective || undefined})
         }
         try {
           const answer = await transport.watchDebugDiagnosis(currentId, access.investigationId, (text, history) => {
-            steps = history
+            report = history
             show(text)
           }, {signal:restore.signal})
           show(answer, true)
@@ -612,15 +621,16 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           request={thread:currentId,objective,key:commandKey(),attemptId:previous?.attemptId??undefined}
           debugRequest.current=request
         }
-        const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
-        let steps: string[] = []
+        let report: DebugProgressReport | undefined
         const updateDebugActivity = (message: string, completed = false) => {
-          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,objective,completed,steps})
+          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,objective,completed,report})
         }
-        updateDebugActivity('正在读取执行记录')
+        revealDebugCard.current = true
+        updateDebugActivity('正在登记调查…')
         try {
+          const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
           const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, (message, history) => {
-            steps = history
+            report = history
             updateDebugActivity(message)
           })
           if (debugRequest.current === request) {
@@ -1284,12 +1294,20 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?(pendingMessage||missionPending)?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={missionPending?.text??initialText} onDraftChange={onDraftChange}
       storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&!concurrentSend&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage||!!missionPending}
       allowConcurrentSend={queueAvailable}
-      transcriptStatus={debugActivity?.thread===currentId&&<section className="thread-debug-status" aria-label="Debug 调查" role="status">
-        <strong>Debug</strong>
-        {debugActivity.objective&&<p>{debugActivity.objective}</p>}
-        {Boolean(debugActivity.steps?.length)&&<details open>
-          <summary>Pi 执行过程</summary>
-          <ol aria-label="Pi 执行步骤">{debugActivity.steps?.map(step=><li key={step}>{step}</li>)}</ol>
+      transcriptStatus={debugActivity?.thread===currentId&&<section ref={debugCard} className="thread-debug-status" aria-label="Debug 调查" role="status">
+        <header className="thread-debug-header">
+          <strong>Pi 诊断</strong>
+          {Boolean(debugActivity.report?.rows.length)&&<span>{debugActivity.report?.rows.length} 项操作</span>}
+          {debugActivity.report?.durationMs!==undefined&&<span>Pi 用时 {formatDebugDuration(debugActivity.report.durationMs)}</span>}
+        </header>
+        {debugActivity.objective&&<p className="thread-debug-command"><code>/debug</code> {debugActivity.objective}</p>}
+        {Boolean(debugActivity.report?.rows.length)&&<details className="thread-debug-trace" open>
+          <summary>执行过程</summary>
+          <ul aria-label="Pi 执行步骤">{debugActivity.report?.rows.map(step=><li key={step.id}>
+            <span>{step.label}</span>
+            <span data-status={step.status}>{{running:'执行中',completed:'完成',failed:'失败'}[step.status]}</span>
+            <span>{step.elapsedMs===undefined?'':formatDebugDuration(step.elapsedMs)}</span>
+          </li>)}</ul>
         </details>}
         {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <p>{debugActivity.text}</p>}
       </section>}
@@ -1328,4 +1346,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       caseExecution={professional?.applicationState?.caseExecution}
       onReadAttemptRecords={client.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(currentId, attemptId, after) : undefined} />}
   </ThreadWorkspace></DebugCommandAvailable.Provider>
+}
+
+function formatDebugDuration(ms: number): string {
+  return ms < 1000 ? `${ms} 毫秒` : `${(ms / 1000).toFixed(1)} 秒`
 }

@@ -129,8 +129,11 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
                       'tool_name': 'agent_debug_observe', 'tool_call_id': 'call_1',
                       'is_error': True, 'result': 'private result'})
             running = register.get(claim.workspace_name, claim.thread_id, request.parent_attempt_id)['diagnosis']
-            assert running['progress'][-1] == {'seq': 2, 'stage': 'tool_failed', 'tool': 'agent_debug_observe',
-                                               'operation': 'source_lines'}
+            completed_step = running['progress'][-1]
+            assert completed_step['elapsed_ms'] >= 0
+            assert {key: value for key, value in completed_step.items() if key != 'elapsed_ms'} == {
+                'seq': 2, 'stage': 'tool_failed', 'tool': 'agent_debug_observe',
+                'operation': 'source_lines', 'call_seq': 1}
             if interrupted:
                 raise OSError('lost response')
             return SimpleNamespace(status='completed', answer='输入检查失败。')
@@ -189,9 +192,10 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert client.get(export_url, params={'snapshot_id': queued_snapshot}).status_code == 403
         assert evidence['diagnosis']['source_evidence'] == {
             'capstone': {'status': 'revision_unavailable'}, 'data-gateway': {'status': 'revision_unavailable'}}
-        assert evidence['diagnosis']['progress'] == [
-            {'seq': 1, 'stage': 'tool_started', 'tool': 'agent_debug_observe', 'operation': 'source_lines'},
-            {'seq': 2, 'stage': 'tool_failed', 'tool': 'agent_debug_observe', 'operation': 'source_lines'}]
+        first, last = evidence['diagnosis']['progress']
+        assert first == {'seq': 1, 'stage': 'tool_started', 'tool': 'agent_debug_observe', 'operation': 'source_lines'}
+        assert last['stage'] == 'tool_failed' and last['call_seq'] == first['seq']
+        assert evidence['diagnosis']['duration_ms'] >= last['elapsed_ms']
         assert client.post(path + '/investigations', headers={'Idempotency-Key': 'direct-debug'},
                            json={'objective': '检查失败', 'attempt_id': claim.attempt.attempt_id}).json() == receipt.json()
         assert len(calls) == 1
