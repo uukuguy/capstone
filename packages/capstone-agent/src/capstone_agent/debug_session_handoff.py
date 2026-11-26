@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from tempfile import TemporaryDirectory, mkdtemp
+from tempfile import TemporaryDirectory, TemporaryFile, mkdtemp
 from typing import TYPE_CHECKING, Any, BinaryIO
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -328,14 +328,22 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
             if not isinstance(ref, str) or not re.fullmatch(r"resource_[a-f0-9]{32}", ref):
                 gaps.append({"kind": "input_file", "status": "unsupported_reference"})
                 continue
-            try:
-                if uploads is None:
-                    raise ValueError("resource storage unavailable")
-                uploads.published(thread_id, ref, version=version)
-            except ValueError:
-                gaps.append({"kind": "input_file", "status": "unavailable", "resource_id": ref, "version": version})
-                continue
-            yield HandoffMember(f"files/inputs/{ref}/v{version}", uploads.read(thread_id, ref, version=version))
+            with TemporaryFile(mode="w+b") as staged:
+                try:
+                    if uploads is None:
+                        raise ValueError("resource storage unavailable")
+                    resource = uploads.published(thread_id, ref, version=version)
+                    digest = hashlib.sha256()
+                    for chunk in uploads.read(thread_id, ref, version=version):
+                        digest.update(chunk)
+                        staged.write(chunk)
+                    if staged.tell() != resource["size_bytes"] or digest.hexdigest() != resource["sha256"]:
+                        raise ValueError("published resource bytes failed verification")
+                except (KeyError, ValueError, OSError):
+                    gaps.append({"kind": "input_file", "status": "unavailable", "resource_id": ref, "version": version})
+                    continue
+                staged.seek(0)
+                yield HandoffMember(f"files/inputs/{ref}/v{version}", iter(lambda: staged.read(1024 * 1024), b""))
         from .native_artifact_projection import read_native_artifact
         from .thread_deliveries import read_delivery_content
 

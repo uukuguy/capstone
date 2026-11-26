@@ -161,3 +161,27 @@ def test_session_handoff_exports_exact_delivery_revisions(monkeypatch):
         "kind": "produced_file", "status": "unavailable", "artifact_id": "art_abc",
         "attempt_id": None, "revision": 2,
     } in manifest["gaps"]
+
+
+def test_missing_attachment_chunk_preserves_other_session_evidence():
+    ref = "resource_" + "a" * 32
+    event = {"event_type": "command_accepted", "event_seq": 1, "thread_id": "thr_test",
+             "visibility": "public", "payload": {"kind": "send_auto", "text": "Read the input",
+             "attachment_refs": [ref], "attachment_versions": {ref: 2}}}
+    service = SimpleNamespace(read_history=lambda thread, before: {
+        "thread_id": thread, "has_more": False, "events": [event],
+    })
+
+    def chunks(thread, resource, *, version):
+        assert (thread, resource, version) == ("thr_test", ref, 2)
+        yield b"first"
+        raise FileNotFoundError()
+
+    uploads = SimpleNamespace(read=chunks, published=lambda *_args, **_kwargs: {})
+    output = BytesIO()
+    manifest = write_session_handoff(output, service, "thr_test", 1, uploads=uploads, capstone_revision=None)
+    assert {"kind": "input_file", "status": "unavailable", "resource_id": ref, "version": 2} in manifest["gaps"]
+    with ZipFile(output) as archive:
+        assert archive.testzip() is None
+        assert b"Read the input" in archive.read("conversation.jsonl")
+        assert all(not path.startswith("files/inputs/") for path in archive.namelist())
