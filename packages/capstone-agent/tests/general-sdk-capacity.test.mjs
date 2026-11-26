@@ -242,6 +242,7 @@ test('managed thin parent activates tools and automatically compacts at the thre
       input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write]},runtime);
     assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='write')??false),[false,true,false,true]);
     assert.equal(writes,1);
+    assert.match(requests[0].systemPrompt,/capstone-workspace-products\/1/);
     assert.match(requests[0].systemPrompt,/Host-admitted operation fixture-ref/);
     assert.match(requests[0].systemPrompt,/Host-admitted contract index/);
     assert.match(requests[0].systemPrompt,/Use the existing negotiated gateway index/);
