@@ -2327,7 +2327,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             fields = {'binding', 'workspace', 'investigation_id', 'operation', 'query'}
             if not isinstance(document, dict) or set(document) != fields:
                 raise GatewayError('investigation_request_invalid')
-            if document['operation'] == 'session_offline_evidence':
+            if document['operation'] in {'session_offline_evidence', 'session_gateway_receipts'}:
                 from .gateway_diagnostics import diagnostic_id
                 from .gateway_investigation import SessionCallJournal, export_session_calls
                 query = document['query']
@@ -2338,7 +2338,10 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 workspace = diagnostic_id(document['workspace'])
                 thread = diagnostic_id(document['investigation_id'])
                 journal = SessionCallJournal(host.root / 'receipts' / 'gateway-session-calls.sqlite3')
-                return run_http(asyncio.wait_for(export_session_calls(journal, registry, workspace, thread, attempts), timeout=30))
+                return run_http(asyncio.wait_for(export_session_calls(
+                    journal, registry, workspace, thread, attempts,
+                    onsite=document['operation'] == 'session_gateway_receipts',
+                ), timeout=30))
             binding = document['binding'] or {}
             if not binding.get('connection_id') or not binding.get('instance_id'):
                 raise GatewayError('gateway_bound_instance_unavailable')

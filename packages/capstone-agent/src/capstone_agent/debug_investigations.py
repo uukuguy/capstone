@@ -502,6 +502,7 @@ class InvestigationRegister:
             audit_reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
                 workspace_name=workspace, handoff={'through_event_seq': through})
             visible_attempts = {observation['attempt_id']}
+            settled_session_attempts = set()
 
             def read_page(after, excerpt_limit, limit=12, *, reader=audit_reader):
                 page = reader.read(after=after, limit=limit)
@@ -533,6 +534,24 @@ class InvestigationRegister:
                 if arguments.get('operation') == 'publish_finding':
                     return publish_finding(query)
                 operation = arguments.get('operation')
+                if operation == 'session_gateway_receipts':
+                    if not isinstance(query, dict) or set(query) != {'attempt_id'}:
+                        return {'code': 'investigation_request_invalid'}
+                    attempt = query['attempt_id']
+                    if not isinstance(attempt, str) or attempt not in settled_session_attempts:
+                        return {'code': 'investigation_request_invalid'}
+                    read = getattr(executor, 'debug_observation', None)
+                    if not callable(read):
+                        return {'code': 'gateway_bound_instance_unavailable'}
+                    try:
+                        page = read({}, workspace, thread_id, operation, {'attempt_ids': [attempt]})
+                    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                        return {'code': 'investigation_read_unavailable'}
+                    for item in page.get('events', ()):
+                        call_id = (item.get('receipt') or {}).get('client_call_id')
+                        if isinstance(call_id, str):
+                            supplied_gateway_refs.add(call_id)
+                    return page
                 if operation == 'probe_data':
                     read = getattr(executor, 'debug_observation', None)
                     if not historical_gateway or not callable(read):
@@ -576,6 +595,11 @@ class InvestigationRegister:
                         return {'code': 'investigation_request_invalid'}
                     visible_attempts.update(event['attempt_id'] for event in page['events']
                                             if isinstance(event['attempt_id'], str))
+                    settled_session_attempts.update(event['attempt_id'] for event in page['events']
+                        if isinstance(event['attempt_id'], str) and event['event_type'] in {
+                            'attempt_completed', 'attempt_delivery_recovered', 'attempt_failed',
+                            'attempt_cancelled', 'attempt_interrupted',
+                        })
                     record_supplied_evidence(event['event_seq'] for event in page['events'])
                     return page
                 if operation in {'source_files', 'source_lines'}:
@@ -683,6 +707,8 @@ class InvestigationRegister:
                             '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
             instruction += ('\n用户需要核对现场数据信息时，可以用 probe_data 提交已知只读工具名和 arguments_json。'
                             '只取定位所需的最小数据。新探查与原调用是不同证据，现场正文只供本次诊断。')
+            instruction += ('\n要查回会话原始网关调用，先用 session_records 找到已结束轮次，再传该 attempt_id 给 session_gateway_receipts。'
+                            '原回执属于现场证据。没有登记或查回失败时保留缺口。')
             task_fields = {
                 'business_context': BusinessContext.empty(thread_id, through),
                 'resource_profile': {'profile_id': 'direct_pi', 'revision': profile['revision']},

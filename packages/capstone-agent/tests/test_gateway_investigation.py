@@ -103,6 +103,10 @@ def test_ordinary_offline_export_rechecks_original_scope(monkeypatch, tmp_path):
     access.read_offline_evidence.assert_awaited_once_with({}, scope, {'client_call_id': 'private-call'})
     assert result == {'status': 'export_not_authorized', 'truncated': False, 'events': [
         {'entry': 1, 'attempt_id': 'attempt-1', 'status': 'export_not_authorized'}]}
+    access.invoke.return_value = {'client_call_id':'private-call', 'state':'observed', 'private':'excluded'}
+    onsite = asyncio.run(export_session_calls(journal, registry, 'owner', 'thr_test', ['attempt-1'], onsite=True))
+    access.invoke.assert_awaited_once_with('read', {**scope, 'client_call_id':'private-call'})
+    assert onsite['events'][0]['receipt'] == {'client_call_id':'private-call', 'state':'observed'}
 
 
 @pytest.mark.parametrize('policy', ['undeclared', 'allow_sanitized'])

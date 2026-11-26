@@ -21,7 +21,7 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
 
 
-DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'probe_data', 'source_files', 'source_lines', 'session_records', 'capstone_records', 'capstone_excerpt', 'publish_finding']
+DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'probe_data', 'source_files', 'source_lines', 'session_records', 'session_gateway_receipts', 'capstone_records', 'capstone_excerpt', 'publish_finding']
 
 
 OBSERVATION_TOOL = {
@@ -110,7 +110,7 @@ class SessionCallJournal:
         return json.loads(row[0]), row[2]
 
 
-async def export_session_calls(journal, registry, workspace, thread_id, attempt_ids):
+async def export_session_calls(journal, registry, workspace, thread_id, attempt_ids, *, onsite=False):
     rows = await asyncio.to_thread(journal.calls, workspace, thread_id, attempt_ids, limit=17)
 
     async def project(entry, row):
@@ -128,6 +128,11 @@ async def export_session_calls(journal, registry, workspace, thread_id, attempt_
                 if access is None:
                     return {**result, 'status': 'capability_unavailable'}
                 scope = {key: binding[key] for key in ('workspace_id', 'investigation_id', 'binding_handle')}
+                if onsite:
+                    receipt = await access.invoke('read', {**scope, 'client_call_id': call_id})
+                    fields = (*EXPORT_RECEIPT_FIELDS, 'client_call_id', 'request_id', 'error_code', 'phases')
+                    return {**result, 'status': 'available',
+                            'receipt': {key: receipt[key] for key in fields if key in receipt}}
                 evidence = await access.read_offline_evidence(
                     getattr(connection, 'investigation_evidence', None), scope, {'client_call_id': call_id},
                 )
