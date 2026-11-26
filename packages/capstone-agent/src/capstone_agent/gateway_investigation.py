@@ -1,5 +1,7 @@
 """Backend-only access to a gateway's declared investigation HTTP contract."""
+import asyncio
 import json
+import re
 from hashlib import sha256
 from urllib.parse import urlsplit
 
@@ -66,6 +68,17 @@ async def _request(client, method, url, document=None):
     return packet
 
 
+EXPORT_RECEIPT_FIELDS = ('contract_version', 'state', 'observed_status', 'elapsed_ms',
+                         'phase_read_status', 'truncated', 'automatic_retry')
+
+
+def capture_gateway_receipts(page):
+    return {'truncated': bool(page.get('next_cursor') or page.get('truncated')),
+            'receipts': [{key: row[key] for key in ('client_call_id', *EXPORT_RECEIPT_FIELDS) if key in row}
+                         for row in page['receipts'][:32]
+                         if isinstance(row, dict) and isinstance(row.get('client_call_id'), str)]}
+
+
 class GatewayInvestigation:
     @classmethod
     async def discover(cls, client, endpoint, declaration, log_declaration=None):
@@ -97,20 +110,46 @@ class GatewayInvestigation:
         self._log_schemas = None
         self._export_policy = None
 
-    async def export_receipts(self, scope):
+    def export_fields(self):
         policy = self._export_policy
         if not isinstance(policy, dict) or policy.get('deployment_policy') != 'allow_sanitized':
-            return {'status': 'export_not_authorized', 'events': []}
+            return None
         allowed = policy.get('allowed')
         if not isinstance(allowed, list):
             raise GatewayError('investigation_contract_invalid')
-        safe = ('contract_version', 'state', 'observed_status', 'elapsed_ms',
-                'phase_read_status', 'truncated', 'automatic_retry')
-        keys = [key for key in safe if key in allowed]
+        return [key for key in EXPORT_RECEIPT_FIELDS if key in allowed]
+
+    async def export_receipts(self, scope):
+        keys = self.export_fields()
+        if keys is None:
+            return {'status': 'export_not_authorized', 'events': []}
         page = await self.invoke('list', {**scope, 'limit': 32})
         return {'status': 'available', 'truncated': bool(page.get('next_cursor')),
-                'events': [{key: receipt[key] for key in keys if key in receipt}
-                           for receipt in page['receipts']]}
+                'events': [{key: row[key] for key in keys if key in row} for row in page['receipts']]}
+
+    async def authorize_snapshot_export(self, scope, call_ids):
+        keys = self.export_fields()
+        if keys is None:
+            return {'status': 'export_not_authorized'}
+        page = await self.invoke('list', {**scope, 'limit': 32})
+        visible = {row['client_call_id'] for row in page['receipts']}
+        if page.get('next_cursor'):
+            missing = [call_id for call_id in call_ids if call_id not in visible]
+
+            async def check(call_id):
+                try:
+                    await self.invoke('read', {**scope, 'client_call_id': call_id})
+                except GatewayError as error:
+                    if str(error) != 'receipt_not_visible':
+                        raise
+                    return None
+                return call_id
+
+            for offset in range(0, len(missing), 4):
+                verified = await asyncio.gather(*(check(call_id) for call_id in missing[offset:offset + 4]))
+                visible.update(call_id for call_id in verified if call_id is not None)
+        return {'status': 'available', 'allowed': keys,
+                'client_call_ids': [call_id for call_id in call_ids if call_id in visible]}
 
     async def read_logs(self, scope, query):
         """Resolve logs only when selected. Ownership is supplied by the backend."""
@@ -196,7 +235,8 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     if (connection.instance_identity or {}).get('instance_id') != instance_id:
         raise GatewayError('gateway_instance_changed')
     allowed = {'list': {'limit', 'cursor'}, 'read': {'client_call_id', 'request_id'},
-               'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}, 'export': set()}
+               'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}, 'export': set(),
+               'authorize_snapshot_export': {'client_call_ids'}}
     if operation not in allowed or not isinstance(query, dict) or query.keys() - allowed[operation]:
         raise GatewayError('investigation_request_invalid')
     access = await GatewayInvestigation.discover(connection.http_client, endpoint,
@@ -210,6 +250,13 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
         return await access.read_logs(scope, query)
     if operation == 'export':
         return await access.export_receipts(scope)
+    if operation == 'authorize_snapshot_export':
+        call_ids = query.get('client_call_ids')
+        if (not isinstance(call_ids, list) or len(call_ids) > 32 or any(
+                not isinstance(call_id, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', call_id)
+                for call_id in call_ids) or len(set(call_ids)) != len(call_ids)):
+            raise GatewayError('investigation_request_invalid')
+        return await access.authorize_snapshot_export(scope, call_ids)
     return await access.invoke(operation, {**scope, **query})
 
 

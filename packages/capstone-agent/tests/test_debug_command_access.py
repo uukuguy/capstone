@@ -173,7 +173,7 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert register.export_timeline(claim.workspace_name, claim.thread_id, identity)['snapshot_id'] == evidence['snapshot_id']
         exported = client.get(export_url).json()
         assert exported['snapshot_id'] == evidence['snapshot_id']
-        assert exported['data_gateway']['scope'] == 'download_time'
+        assert exported['data_gateway']['scope'] == 'snapshot'
         assert exported['integrity']['digest'] == debug_investigations.evidence_digest(
             {key: value for key, value in exported.items() if key != 'integrity'})
         retained = client.get(export_url, params={'snapshot_id': queued_snapshot})

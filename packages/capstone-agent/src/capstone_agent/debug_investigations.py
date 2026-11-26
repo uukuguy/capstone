@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS capstone_debug_snapshots (
 ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS reviewed_export jsonb;
 ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS private_finding jsonb;
+ALTER TABLE capstone_debug_snapshots ADD COLUMN IF NOT EXISTS private_gateway_capture jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS observation jsonb;
 ALTER TABLE capstone_debug_investigations ADD COLUMN IF NOT EXISTS diagnosis jsonb;
 UPDATE capstone_thread_attempts a
@@ -61,6 +62,7 @@ class InvestigationRegister:
         self._snapshots = {}
         self._reviewed_exports = {}
         self._snapshot_findings = {}
+        self._snapshot_gateway = {}
         self._lock = RLock()
 
     def _observe(self, thread_id, attempt_id, *, through=None):
@@ -257,24 +259,64 @@ class InvestigationRegister:
         return {**document, 'snapshot_id': evidence_digest(document),
                 'data_gateway': {'status': 'export_unavailable', 'events': []}}
 
-    def save_export_snapshot(self, workspace, thread_id, investigation_id, *, private_finding=None):
+    def save_export_snapshot(self, workspace, thread_id, investigation_id, *, private_finding=None,
+                             gateway_capture=None, gateway_reader=None):
+        from .gateway_investigation import capture_gateway_receipts
+
         document = self.export_timeline(workspace, thread_id, investigation_id)
+        if callable(gateway_reader):
+            if private_finding is None and document['diagnosis'].get('finding_digest'):
+                private_finding = (self.get(workspace, thread_id, investigation_id).get('diagnosis') or {}).get('finding')
+            gateway_capture = {}
+            previous = document['diagnosis'].get('gateway_investigation_id')
+            observation = document.get('observation') or {}
+            owners = [investigation_id]
+            if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):
+                prior = self.get(workspace, thread_id, previous)
+                if (prior.get('observation') or {}).get('attempt_id') == observation.get('attempt_id'):
+                    owners.append(previous)
+            for owner in owners:
+                binding = self.historical_gateway(workspace, thread_id, owner)
+                if not binding:
+                    continue
+                try:
+                    page = gateway_reader(binding, workspace, owner, 'list', {'limit': 32})
+                    gateway_capture[owner] = capture_gateway_receipts(page)
+                except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                    continue
+        if gateway_capture:
+            document['diagnosis']['gateway_capture_sha256'] = evidence_digest(gateway_capture)
+            document['snapshot_id'] = evidence_digest({key: value for key, value in document.items()
+                                                       if key not in {'snapshot_id', 'data_gateway'}})
         snapshot_id = document['snapshot_id']
         if private_finding is not None and document['diagnosis'].get('finding_digest') != evidence_digest(private_finding):
             private_finding = None
         if hasattr(self.service, '_connect'):
             with self.service._connect() as connection:
                 connection.execute('''INSERT INTO capstone_debug_snapshots
-                    (investigation_id, snapshot_id, document, private_finding) VALUES (%s,%s,%s,%s)
-                    ON CONFLICT (investigation_id, snapshot_id) DO NOTHING''',
+                    (investigation_id, snapshot_id, document, private_finding, private_gateway_capture)
+                    VALUES (%s,%s,%s,%s,%s) ON CONFLICT (investigation_id, snapshot_id) DO NOTHING''',
                     (investigation_id, snapshot_id, Jsonb(document),
-                     Jsonb(private_finding) if private_finding is not None else None))
+                     Jsonb(private_finding) if private_finding is not None else None,
+                     Jsonb(gateway_capture) if gateway_capture else None))
         else:
             with self._lock:
                 self._snapshots.setdefault((investigation_id, snapshot_id), json.dumps(document))
                 if private_finding is not None:
                     self._snapshot_findings.setdefault((investigation_id, snapshot_id), json.dumps(private_finding))
+                if gateway_capture:
+                    self._snapshot_gateway.setdefault((investigation_id, snapshot_id), json.dumps(gateway_capture))
         return document
+
+    def read_snapshot_gateway_capture(self, workspace, thread_id, investigation_id, snapshot_id):
+        self.get(workspace, thread_id, investigation_id)
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''SELECT private_gateway_capture FROM capstone_debug_snapshots
+                    WHERE investigation_id=%s AND snapshot_id=%s''', (investigation_id, snapshot_id)).fetchone()
+            return (row['private_gateway_capture'] or {}) if row else {}
+        with self._lock:
+            return json.loads(self._snapshot_gateway.get((investigation_id, snapshot_id), '{}'))
 
     def read_export_snapshot(self, workspace, thread_id, investigation_id, snapshot_id):
         self.get(workspace, thread_id, investigation_id)
@@ -393,6 +435,9 @@ class InvestigationRegister:
         evidence_owner = prior['investigation_id'] if prior else investigation_id
         gateway = self._diagnosis_gateway_evidence(workspace, thread_id, evidence_owner, executor)
         gateway['investigation_id'] = evidence_owner
+        from .gateway_investigation import capture_gateway_receipts
+        gateway_capture = ({evidence_owner: capture_gateway_receipts(gateway)}
+                           if 'receipts' in gateway else {})
         sources = self.historical_sources(workspace, thread_id, investigation_id)
         supplied_gateway_refs = {receipt['client_call_id'] for receipt in gateway.get('receipts', ())
                                  if receipt.get('client_call_id')}
@@ -483,6 +528,14 @@ class InvestigationRegister:
                     receipts = result.get('receipts', ()) if operation == 'list' else (result,) if operation == 'read' else ()
                     supplied_gateway_refs.update(receipt['client_call_id'] for receipt in receipts
                                                  if isinstance(receipt.get('client_call_id'), str))
+                    if operation in {'list', 'read'}:
+                        before = gateway_capture.get(evidence_owner, {'receipts': [], 'truncated': False})
+                        seen = {row['client_call_id']: row for row in before['receipts']}
+                        seen.update((row['client_call_id'], row) for row in
+                                    capture_gateway_receipts({'receipts': list(receipts)})['receipts'])
+                        gateway_capture[evidence_owner] = capture_gateway_receipts({
+                            'receipts': list(seen.values()),
+                            'truncated': before['truncated'] or bool(result.get('next_cursor')) or len(seen) > 32})
                     return result
                 if arguments.get('operation') == 'capstone_excerpt':
                     seq, field, offset = query.get('event_seq'), query.get('field'), query.get('offset', 0)
@@ -604,7 +657,7 @@ class InvestigationRegister:
             diagnosis = {**diagnosis, 'finding': finding, 'finding_state': state,
                          'finding_event_seqs': finding['event_refs'], 'finding_digest': evidence_digest(finding)}
             self._save_diagnosis(scope, diagnosis)
-            snapshot = self.save_export_snapshot(*scope, private_finding=finding)
+            snapshot = self.save_export_snapshot(*scope, private_finding=finding, gateway_capture=gateway_capture)
             if snapshot['diagnosis'].get('finding_digest') != diagnosis['finding_digest']:
                 return {'code': 'diagnosis_not_running'}
             return {'snapshot_id': snapshot['snapshot_id'], 'finding_state': state, 'event_refs': finding['event_refs']}
@@ -641,7 +694,7 @@ class InvestigationRegister:
         except (RuntimeError, OSError, ValueError):
             diagnosis = {**diagnosis, 'status': 'unknown'}
         self._save_diagnosis(scope, diagnosis)
-        self.save_export_snapshot(*scope, private_finding=diagnosis.get('finding'))
+        self.save_export_snapshot(*scope, private_finding=diagnosis.get('finding'), gateway_capture=gateway_capture)
         return diagnosis
 
     def _prior_diagnosis(self, workspace, thread_id, observation):
@@ -699,11 +752,12 @@ class InvestigationRegister:
         if not isinstance(receipts, list):
             return {'status': 'read_unavailable'}
         fields = ('request_id', 'client_call_id', 'state', 'observed_status', 'elapsed_ms',
-                  'phase_read_status', 'error_code', 'truncated')
+                  'phase_read_status', 'error_code', 'truncated', 'automatic_retry', 'contract_version')
+        truncated = bool(page.get('next_cursor')) or len(receipts) > 4
         receipts = [{key: row[key] for key in fields if key in row}
                     for row in receipts[:4] if isinstance(row, dict)]
         evidence = {'status': 'available' if receipts else 'no_bound_records',
-                    'truncated': bool(page.get('next_cursor')), 'receipts': receipts}
+                    'truncated': truncated, 'receipts': receipts}
         identified = [row for row in receipts if isinstance(row.get('client_call_id'), str) and row['client_call_id']]
         if not identified:
             return evidence
