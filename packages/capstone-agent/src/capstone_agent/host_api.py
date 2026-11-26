@@ -392,6 +392,47 @@ def create_host_app(
             if not debug_commands_enabled(os.environ):
                 raise HTTPException(403, '当前部署已关闭调试命令。')
 
+        def session_handoff_allowed(request):
+            return (request.state.product_actor == 'operator:authenticated'
+                    and os.environ.get('CAPSTONE_DEBUG_SESSION_EXPORT', '0') == '1')
+
+        @app.get('/api/v1/threads/{thread_id}/debug/session-handoff')
+        def download_session_handoff(thread_id: str, request: Request):
+            from functools import partial
+            from tempfile import TemporaryFile
+            from starlette.background import BackgroundTask
+            from .debug_session_handoff import write_session_handoff
+            from .debug_sources import packaged_capstone_revision
+            from .thread_resources import ResourceUploads
+
+            require_debug(request)
+            if not session_handoff_allowed(request):
+                raise HTTPException(403, '当前权限不允许外带会话调试包。')
+            workspace = request.state.workspace_name
+            thread_service.require_workspace(thread_id, workspace)
+            through = thread_service.snapshot(thread_id).last_event_seq
+            uploads = ResourceUploads(thread_service, material_objects) if material_objects is not None else None
+            package = TemporaryFile(mode='w+b')
+            try:
+                write_session_handoff(package, thread_service, thread_id, through,
+                                      uploads=uploads, capstone_revision=packaged_capstone_revision())
+                thread_service.require_workspace(thread_id, workspace)
+                if not session_handoff_allowed(request):
+                    raise HTTPException(403, '当前权限不允许外带会话调试包。')
+                size = package.tell()
+                package.seek(0)
+            except BaseException:
+                package.close()
+                raise
+            return StreamingResponse(
+                iter(partial(package.read, 1024 * 1024), b''),
+                media_type='application/zip',
+                headers={'Cache-Control': 'private, no-store', 'Content-Length': str(size),
+                         'Content-Disposition': 'attachment; filename="capstone-debug-session.zip"',
+                         'X-Content-Type-Options': 'nosniff'},
+                background=BackgroundTask(package.close),
+            )
+
         @app.get('/api/v1/threads/{thread_id}/debug/status')
         def thread_debug_status(thread_id: str, request: Request):
             require_debug(request)
@@ -404,6 +445,7 @@ def create_host_app(
             return {'thread_id': thread_id, 'enabled': True,
                     'investigation': investigation,
                     'can_review_export': request.state.product_actor == 'operator:authenticated',
+                    'session_handoff_export': session_handoff_allowed(request),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations')

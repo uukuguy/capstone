@@ -278,11 +278,39 @@ export class HttpThreadTransport implements ThreadTransport {
       `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
       `执行轮次 ${observation.attempt_id} 截至事件 #${observation.through} 未记录公开失败事件。`):''
     return {timelineExport:value.timeline_export===true, canReviewExport:value.can_review_export===true,
+      sessionHandoffExport:value.session_handoff_export===true,
       investigationId:typeof investigation?.investigation_id==='string'?investigation.investigation_id:null,
       objective:typeof investigation?.objective==='string'?investigation.objective:null,
       diagnosisStatus:typeof investigation?.diagnosis?.status==='string'?investigation.diagnosis.status:null,
       finding:typeof investigation?.diagnosis?.answer==='string'&&investigation.diagnosis.answer.trim()?investigation.diagnosis.answer:
         typeof investigation?.diagnosis?.finding?.summary==='string'?investigation.diagnosis.finding.summary:finding}
+  }
+  async downloadDebugSession(threadId: string) {
+    const filename = 'capstone-debug-session.zip'
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/session-handoff`
+    type SaveHandle = {createWritable: () => Promise<WritableStream<Uint8Array>>}
+    const picker = (globalThis as {showSaveFilePicker?: (options: {suggestedName: string}) => Promise<SaveHandle>}).showSaveFilePicker
+    if (picker) {
+      const handle = await picker({suggestedName: filename})
+      const response = await this.streamRequest(path)
+      if (!response.body) throw new Error('调试包内容缺失。')
+      await response.body.pipeTo(await handle.createWritable())
+      return
+    }
+    const response = await this.streamRequest(path)
+    const size = Number(response.headers.get('Content-Length'))
+    if (!Number.isSafeInteger(size) || size <= 0 || exceedsCapacity(size, 'artifact_file_bytes')) {
+      await response.body?.cancel()
+      throw new Error('请使用支持直接保存大文件的浏览器下载此调试包。')
+    }
+    const blob = await response.blob()
+    if (blob.size !== size) throw new Error('调试包下载不完整。')
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   async debugSourceVersion(threadId:string){
     const result=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/sources`) as Record<string,unknown>

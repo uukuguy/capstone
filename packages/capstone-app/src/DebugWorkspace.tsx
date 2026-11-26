@@ -9,10 +9,11 @@ import type {DebugSnapshotFinding} from './threadHttpTransport'
 type SourceRepository = 'capstone' | 'data-gateway'
 type ReviewedExport = {diagnosis_markdown: string; reproduction: Record<string, unknown>}
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,readTimeline,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,readTimeline,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
+  downloadSession?: () => Promise<void>
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
   readSnapshotFinding?: (id: string, snapshotId: string) => Promise<DebugSnapshotFinding | null>
   reviewExport?: (id: string, snapshotId: string, review: ReviewedExport | null) => Promise<void>
@@ -172,7 +173,18 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const matched=sourceVersion.startsWith('当前网关源码 ')
   return <section className="debug-workspace" aria-label="Debug">
     <header><Bug size={18} aria-hidden="true"/><h3>调试调查</h3></header>
-    <p>在主会话输入 <code>/debug</code> 和问题，例如「/debug 刚才的请求为什么失败？」。这里可以查阅和下载执行记录。</p>
+    {downloadSession&&<button type="button" disabled={busy} onClick={async ()=>{
+      setBusy(true)
+      setError('')
+      try { await downloadSession() }
+      catch(cause) {
+        if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+          setError(cause instanceof Error ? cause.message : '调试包下载失败。')
+        }
+      }
+      finally { setBusy(false) }
+    }}><Download size={15}/>下载调试包</button>}
+    <p>在主会话输入 <code>/debug</code> 和问题，可以补查证据。</p>
     <section><h4>执行记录</h4>
     {attempt?<><label>选择要检查的指令<select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
       {attempts.map((id,index)=><option key={id} value={id}>{attemptLabel(id)??(index===0?'最近一次执行':'执行记录 · '+id.slice(-8))}</option>)}

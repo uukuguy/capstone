@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import sqlite3
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import closing
@@ -112,6 +113,12 @@ def _conversation_entry(
         entry["text"] = text
     if isinstance(refs, list):
         entry["attachment_refs"] = [ref for ref in refs if isinstance(ref, str)]
+        versions = payload.get("attachment_versions")
+        if isinstance(versions, dict):
+            entry["attachment_versions"] = {
+                ref: versions[ref] for ref in entry["attachment_refs"]
+                if type(versions.get(ref)) is int and versions[ref] > 0
+            }
     return entry
 
 
@@ -124,6 +131,13 @@ def read_conversation(
     may_export_text: Callable[[dict[str, Any]], bool],
 ) -> Iterator[dict[str, Any]]:
     """Project public history within an already authorized, frozen session range."""
+    return _read_public_history(
+        service, thread_id, start_seq, through_seq,
+        lambda event: _conversation_entry(event, may_export_text),
+    )
+
+
+def _read_public_history(service, thread_id, start_seq, through_seq, project):
     if start_seq < 1 or through_seq < start_seq - 1:
         raise ValueError("invalid session handoff range")
     before = through_seq + 1
@@ -146,7 +160,7 @@ def read_conversation(
                     or not start_seq <= seq < before
                 ):
                     continue
-                entry = _conversation_entry(event, may_export_text)
+                entry = project(event)
                 if entry is not None:
                     spool.execute(
                         "INSERT INTO conversation VALUES (?, ?)",
@@ -161,3 +175,53 @@ def read_conversation(
 
         for (entry_json,) in spool.execute("SELECT entry FROM conversation ORDER BY seq"):
             yield json.loads(entry_json)
+
+
+def write_session_handoff(destination, service, thread_id, through_seq, *, uploads, capstone_revision):
+    """Build the local session package after the application grants export."""
+    gaps = [
+        {"kind": "data_gateway", "status": "not_collected"},
+        {"kind": "produced_files", "status": "not_collected"},
+        {"kind": "supplementary_evidence", "status": "not_collected"},
+    ]
+    attachments: dict[tuple[str, int], None] = {}
+
+    def conversation():
+        for entry in read_conversation(service, thread_id, 1, through_seq, may_export_text=lambda _: True):
+            versions = entry.get("attachment_versions", {})
+            for ref in entry.get("attachment_refs", ()):
+                attachments[(ref, versions.get(ref, 1))] = None
+            yield entry
+
+    def execution_entry(event):
+        if event.get("attempt_id"):
+            return {key: event[key] for key in (
+                "event_seq", "event_id", "event_type", "occurred_at", "attempt_id", "turn_id",
+            ) if key in event}
+        return None
+
+    def members():
+        yield HandoffMember("conversation.jsonl", json_lines(conversation()))
+        events = _read_public_history(service, thread_id, 1, through_seq, execution_entry)
+        yield HandoffMember("execution/capstone/events.jsonl", json_lines(events))
+        for ref, version in attachments:
+            if not isinstance(ref, str) or not re.fullmatch(r"resource_[a-f0-9]{32}", ref):
+                gaps.append({"kind": "input_file", "status": "unsupported_reference"})
+                continue
+            try:
+                if uploads is None:
+                    raise ValueError("resource storage unavailable")
+                uploads.published(thread_id, ref, version=version)
+            except ValueError:
+                gaps.append({"kind": "input_file", "status": "unavailable", "resource_id": ref, "version": version})
+                continue
+            yield HandoffMember(f"files/inputs/{ref}/v{version}", uploads.read(thread_id, ref, version=version))
+        yield HandoffMember("repro.md", [
+            "# 会话复验\n\n打开 conversation.jsonl 定位指令。按事件编号查阅执行记录。"
+            "核对 manifest.json 的版本、文件校验和与缺口。\n".encode()
+        ])
+
+    return write_handoff(
+        destination, thread_id=thread_id, start_seq=1, through_seq=through_seq,
+        members=members(), gaps=gaps, revisions={"capstone": capstone_revision},
+    )

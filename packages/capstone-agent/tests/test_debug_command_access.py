@@ -6,6 +6,35 @@ from test_thread_http_api import _Ledger, WorkerRegistry
 from test_attempt_records import completed_task
 
 
+def test_session_handoff_http_checks_export_and_workspace(monkeypatch):
+    import json
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
+    monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
+    service, claim = completed_task()
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+                          allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+                          thread_open_access=True, thread_service=service)
+    path = f'/api/v1/threads/{claim.thread_id}/debug/session-handoff'
+    auth = {'Authorization': 'Bearer hosted-secret', 'Capstone-Thread-Version': '2'}
+    with TestClient(app, base_url='http://localhost') as client:
+        assert client.get(path, headers=auth).status_code == 403
+        monkeypatch.setenv('CAPSTONE_DEBUG_SESSION_EXPORT', '1')
+        assert client.get(path, headers={'Capstone-Thread-Version': '2'}).status_code == 403
+        assert client.get(path, headers={**auth, 'Capstone-Workspace': 'another'}).status_code == 404
+        response = client.get(path, headers=auth)
+        assert response.status_code == 200, response.text
+        assert 'no-store' in response.headers['cache-control']
+        with ZipFile(BytesIO(response.content)) as archive:
+            manifest = json.loads(archive.read('manifest.json'))
+            assert manifest['through_event_seq'] == service.snapshot(claim.thread_id).last_event_seq
+            assert manifest['thread_id'] == claim.thread_id
+            assert archive.read('execution/capstone/events.jsonl')
+            assert archive.read('conversation.jsonl')
+
+
 def test_independent_debug_reads_logs_for_a_bound_failed_call(monkeypatch):
     from types import SimpleNamespace
     from capstone_agent.debug_investigations import InvestigationRegister
