@@ -188,11 +188,14 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     <p>证据不足时，在主会话发送 <code>/debug 核对刚才失败的查询，定位第一个异常阶段</code>。</p>
     <p>进度显示在主会话。保存的结果列在下方，需要交给研发时可重新下载调试包。</p>
     {readHistory&&<button type="button" disabled={busy} onClick={()=>void loadHistory()}>刷新补查证据</button>}
-    {history.length===0 ? <p>暂无补查记录。</p> : <ul>
+    {history.length===0 ? <p>暂无补查记录。</p> : <ul className="debug-evidence-list">
       {history.map(item=>{
         const open = diagnosis?.id === item.investigation_id
-        return <li key={item.investigation_id}>
-          <p>{item.objective} · {statusLabels[item.status ?? ''] ?? '已登记'}</p>
+        return <li key={item.investigation_id} className="debug-evidence-item" data-open={open}>
+          <div className="debug-evidence-heading">
+            <p>{item.objective}</p>
+            <span>{statusLabels[item.status ?? ''] ?? '已登记'}</span>
+          </div>
           <button type="button" disabled={busy} aria-expanded={open}
             aria-label={`${open ? '收起证据' : '查看证据'} · ${item.objective}`}
             onClick={()=>void selectDiagnosis(open ? '' : item.investigation_id)}>

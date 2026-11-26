@@ -45,3 +45,11 @@
 .debug-source-citation { margin:8px 0; min-width:0; }
 .debug-source-citation button { max-width:100%; word-break:break-word; text-align:start; }
 .debug-source-citation > code { display:block; margin-top:3px; }
+
+.debug-evidence-list { display:grid; gap:12px; padding:0; margin:14px 0 0; list-style:none; }
+.debug-evidence-item { min-width:0; padding:12px; border:1px solid #d9dcec; border-radius:8px; background:#fff; }
+.debug-evidence-item[data-open="true"] { border-color:#8b80c5; }
+.debug-evidence-heading { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.debug-evidence-heading > p { margin:0; color:#262644; }
+.debug-evidence-heading > span { flex:none; color:#4c536b; font-size:12px; }
+.debug-evidence-detail { margin:12px -12px -12px; padding:12px; border-top:1px solid #d9dcec; border-radius:0 0 7px 7px; background:#f0f0fa; }
