@@ -191,6 +191,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [resourceView,setResourceView]=useSessionViewState('resource.view',client.supportsProductIndex?'products':'process-products')
   const [debugThread,setDebugThread]=useState('')
   const [allowDebugExport,setAllowDebugExport]=useState(false)
+  const [allowDebugSessionExport,setAllowDebugSessionExport]=useState(false)
   const [canReviewDebugExport,setCanReviewDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
   const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean; report?:DebugProgressReport; interrupted?:boolean}>()
@@ -213,7 +214,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       .catch(()=>{if(current)setDebugSource('网关源码版本暂时无法核对。')})
     return ()=>{current=false}
   },[transport,currentId,debugThread,resourceView,sourceQuery,selectedGateway?.instance_id,selectedGateway?.connection_name])
-  const debugRequest=useRef<{thread:string;objective:string;key:string;attemptId?:string}|null>(null)
+  const debugRequest=useRef<{thread:string;objective:string;key:string}|null>(null)
   const debugGeneration=useRef(0)
   useEffect(()=>{
     const restore = new AbortController()
@@ -224,6 +225,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         if (restore.signal.aborted) return
         setDebugThread(currentId)
         setAllowDebugExport(access.timelineExport)
+        setAllowDebugSessionExport(access.sessionHandoffExport)
         setCanReviewDebugExport(access.canReviewExport)
         setDebugFinding(access.finding)
         if (!access.investigationId || !access.diagnosisStatus || debugGeneration.current !== generation ||
@@ -609,16 +611,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const objective=start[1].trim()
         let request=debugRequest.current
         if(!request||request.thread!==currentId||request.objective!==objective){
-          const previous = store.publicEvents.reduce<EventEnvelope | undefined>((latest, event) => {
-            if (event.eventType !== 'command_accepted' || !event.attemptId ||
-                !['send_message', 'send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind))) return latest
-            const work = event.payload.work as {messages?: unknown[]} | undefined
-            const input = (event.payload.payload as {text?: unknown} | undefined)?.text
-              ?? event.payload.text ?? work?.messages?.at(-1)
-            if (typeof input !== 'string' || /^(?:研发调查 inv_[a-f0-9]{32}\n|\/debug(?:\s|$))/.test(input)) return latest
-            return !latest || event.eventSeq > latest.eventSeq ? event : latest
-          }, undefined)
-          request={thread:currentId,objective,key:commandKey(),attemptId:previous?.attemptId??undefined}
+          request={thread:currentId,objective,key:commandKey()}
           debugRequest.current=request
         }
         let report: DebugProgressReport | undefined
@@ -628,7 +621,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         revealDebugCard.current = true
         updateDebugActivity('正在登记调查…')
         try {
-          const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
+          const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key)
           const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, (message, history) => {
             report = history
             updateDebugActivity(message)
@@ -1125,6 +1118,10 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {missionRef&&<MissionStatus key={missionRef.missionId} transport={transport} missionId={missionRef.missionId}
       progress={missionProgress} onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>}
   </> : undefined
+  const readDebugHistory=useCallback(()=>transport.debugHistory(currentId), [transport,currentId])
+  const debugOperatorUrl = new URL(window.location.href)
+  debugOperatorUrl.searchParams.set('thread', currentId)
+  debugOperatorUrl.searchParams.set('operator', '1')
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
   if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
     content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
@@ -1134,8 +1131,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         if(typeof value!=='string')return undefined
         return (value.match(/\n本轮指令：([^\n]+)/)?.[1]??value).slice(0,64)
       }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
-      readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}
-      readHistory={()=>transport.debugHistory(currentId)}
+      downloadSession={allowDebugSessionExport ? streamToFile=>transport.downloadDebugSession(currentId,streamToFile) : undefined}
+      operatorLoginUrl={canReviewDebugExport ? undefined : debugOperatorUrl.toString()}
+      readHistory={readDebugHistory}
       runProbe={(id,tool,args)=>transport.debugProbe(currentId,id,tool,args)}
       readSource={(id,query)=>transport.debugSourcePage(currentId,id,query)}
       readDiagnosis={async id=>{
@@ -1147,12 +1145,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }}
       readSnapshots={id=>transport.debugSnapshots(currentId,id)}
       readSnapshotFinding={(id,snapshot)=>transport.debugSnapshotFinding(currentId,id,snapshot)}
-      reviewExport={canReviewDebugExport ? (id,snapshotId,review)=>transport.reviewDebugExport(currentId,id,snapshotId,review) : undefined}
-      readEvidence={async (id,snapshotId)=>{
-        const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId
-        if(!investigationId)throw new Error('当前会话尚无调查。')
-        return transport.debugEvidence(currentId,investigationId,snapshotId)
-      }}/>})
+      reviewExport={canReviewDebugExport ? (id,snapshotId,review)=>transport.reviewDebugExport(currentId,id,snapshotId,review) : undefined}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId
     if(!instruction)return attempt

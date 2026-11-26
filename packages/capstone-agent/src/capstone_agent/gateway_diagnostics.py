@@ -96,6 +96,16 @@ def research_diagnostics(binding, attempt_id):
     return checked_diagnostics({'task_id': work_id, 'run_id': run_id,
         'trace_id': trace_id, 'parent_span_id': 'attempt:' + trace_id})
 
+
+def attempt_diagnostics(attempt_id):
+    """Correlate ordinary task calls with a durable Capstone attempt."""
+    from hashlib import sha256
+
+    attempt = diagnostic_id(attempt_id)
+    trace_id = sha256(('gateway-attempt:' + attempt).encode()).hexdigest()[:32]
+    return checked_diagnostics({'task_id': attempt, 'run_id': attempt,
+        'trace_id': trace_id, 'parent_span_id': 'attempt:' + trace_id})
+
 def response_diagnostics(result):
     content = result.get('structuredContent', {})
     provenance = content.get('provenance', {}) if isinstance(content, dict) else {}

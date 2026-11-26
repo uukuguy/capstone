@@ -1708,12 +1708,25 @@ class NativeTaskRunner:
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
                         *sdk_config['applicationPolicy']['allowed_tools'], *gateway_discovery_tools(native,
                             gateway_publication, gateway_available=True)})}
-                    from .gateway_diagnostics import research_diagnostics
+                    from .gateway_diagnostics import attempt_diagnostics, research_diagnostics
                     task_catalog = gateway_publication['catalog']
+                    registered_dispatch = None
+                    if frozen_gateway and request.managed_workspace and request.business_context is not None:
+                        from functools import partial
+                        from .debug_commands import debug_commands_enabled
+                        from .gateway_investigation import SessionCallJournal, registered_session_call
+                        if debug_commands_enabled(os.environ):
+                            journal = SessionCallJournal(self.root / 'receipts' / 'gateway-session-calls.sqlite3')
+                            registered_dispatch = partial(
+                                registered_session_call, journal=journal, workspace=request.managed_workspace,
+                                thread_id=document['business_context']['workspace_id'],
+                                attempt_id=request.parent_attempt_id, connection_id=frozen_gateway['connection_id'],
+                            )
                     task_gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway, catalog=task_catalog,
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
-                            request.parent_attempt_id))
+                            request.parent_attempt_id) or attempt_diagnostics(request.parent_attempt_id),
+                        **({'registered_dispatch': registered_dispatch} if registered_dispatch is not None else {}))
                     saved_operations = (document.get('structural_context') or {}).get('gateway_operations')
                     if saved_operations is not None and saved_operations['binding'] == frozen_gateway:
                         task_gateway.restore_operations(request.task_id, frozen_gateway, saved_operations)
@@ -2314,6 +2327,21 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             fields = {'binding', 'workspace', 'investigation_id', 'operation', 'query'}
             if not isinstance(document, dict) or set(document) != fields:
                 raise GatewayError('investigation_request_invalid')
+            if document['operation'] in {'session_offline_evidence', 'session_gateway_receipts'}:
+                from .gateway_diagnostics import diagnostic_id
+                from .gateway_investigation import SessionCallJournal, export_session_calls
+                query = document['query']
+                if (document['binding'] != {} or not isinstance(query, dict) or set(query) != {'attempt_ids'}
+                        or not isinstance(query['attempt_ids'], list) or not 1 <= len(query['attempt_ids']) <= 32):
+                    raise GatewayError('investigation_request_invalid')
+                attempts = [diagnostic_id(attempt) for attempt in query['attempt_ids']]
+                workspace = diagnostic_id(document['workspace'])
+                thread = diagnostic_id(document['investigation_id'])
+                journal = SessionCallJournal(host.root / 'receipts' / 'gateway-session-calls.sqlite3')
+                return run_http(asyncio.wait_for(export_session_calls(
+                    journal, registry, workspace, thread, attempts,
+                    onsite=document['operation'] == 'session_gateway_receipts',
+                ), timeout=30))
             binding = document['binding'] or {}
             if not binding.get('connection_id') or not binding.get('instance_id'):
                 raise GatewayError('gateway_bound_instance_unavailable')
@@ -2323,14 +2351,19 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 raise GatewayError('investigation_credentials_unavailable')
             dedicated = DataGatewayMcp(Path(credential), access.client.policy)
             async def observe():
-                if document['operation'] == 'probe':
+                if document['operation'] in {'probe', 'probe_data'}:
                     query = document['query']
                     if (not isinstance(query, dict) or set(query) != {'tool', 'arguments', 'client_call_id'}
                             or not isinstance(query['tool'], str) or not isinstance(query['arguments'], dict)
                             or not isinstance(query['client_call_id'], str)):
                         raise GatewayError('investigation_request_invalid')
+                    if document['operation'] == 'probe_data':
+                        publication = await access.client.prepare()
+                        if query['tool'] not in publication['tools']:
+                            raise GatewayError('investigation_access_denied')
                     return await run_bound_read_probe(dedicated, instance_id=binding['instance_id'],
-                        workspace=document['workspace'], investigation_id=document['investigation_id'], **query)
+                        workspace=document['workspace'], investigation_id=document['investigation_id'],
+                        include_result=document['operation'] == 'probe_data', **query)
                 async with dedicated.connect() as session:
                     return await read_bound_observation(session, dedicated._connection['url'],
                         instance_id=binding['instance_id'], workspace=document['workspace'],

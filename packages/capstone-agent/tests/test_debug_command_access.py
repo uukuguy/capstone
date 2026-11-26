@@ -6,6 +6,87 @@ from test_thread_http_api import _Ledger, WorkerRegistry
 from test_attempt_records import completed_task
 
 
+def test_session_handoff_http_checks_export_and_workspace(monkeypatch):
+    import json
+    from io import BytesIO
+    from pathlib import Path
+    from types import SimpleNamespace
+    from zipfile import ZipFile
+
+    from capstone_agent import debug_investigations
+
+    monkeypatch.setenv('CAPSTONE_DEPLOYMENT_STAGE', 'local')
+    monkeypatch.setenv('CAPSTONE_DEBUG_COMMANDS', '1')
+    service, claim = completed_task()
+    register = debug_investigations.InvestigationRegister(service)
+    monkeypatch.setattr(debug_investigations, 'InvestigationRegister', lambda _: register)
+    monkeypatch.setattr(register, 'historical_gateway', lambda *_: {'instance_id': 'fixture'})
+    fixture = Path(__file__).parent / 'fixtures/gateway-investigation-v1/synthetic-evidence-offline.json'
+    projection = json.loads(fixture.read_text())['projection']
+    private_id = 'synthetic-private-call'
+
+    def observe(binding, workspace, owner, operation, query):
+        if operation == 'session_offline_evidence':
+            assert binding == {} and workspace == claim.workspace_name and owner == claim.thread_id
+            assert query == {'attempt_ids': [claim.attempt.attempt_id]}
+            return {'status': 'available', 'truncated': False, 'events': [
+                {'entry': 1, 'attempt_id': claim.attempt.attempt_id, 'status': 'available', 'projection': projection},
+            ]}
+        assert binding == {'instance_id': 'fixture'} and workspace == claim.workspace_name
+        if operation == 'list':
+            return {'receipts': [{'client_call_id': private_id, 'state': 'observed'}]}
+        if operation == 'offline_evidence':
+            assert query == {'client_call_id': private_id}
+            return {'status': 'available', 'projection': projection}
+        assert operation == 'authorize_snapshot_export'
+        assert query == {'client_call_ids': [private_id]}
+        return {'status': 'export_not_authorized'}
+
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+                          allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+                          thread_open_access=True, thread_service=service,
+                          native_artifact_executor=SimpleNamespace(debug_observation=observe))
+    path = f'/api/v1/threads/{claim.thread_id}/debug/session-handoff'
+    auth = {'Authorization': 'Bearer hosted-secret', 'Capstone-Thread-Version': '2'}
+    with TestClient(app, base_url='http://localhost') as client:
+        assert client.get(path, headers=auth).status_code == 403
+        monkeypatch.setenv('CAPSTONE_DEBUG_SESSION_EXPORT', '1')
+        assert client.get(path, headers={'Capstone-Thread-Version': '2'}).status_code == 403
+        assert client.get(path, headers={**auth, 'Capstone-Workspace': 'another'}).status_code == 404
+        response = client.get(path, headers=auth)
+        assert response.status_code == 200, response.text
+        assert 'no-store' in response.headers['cache-control']
+        with ZipFile(BytesIO(response.content)) as archive:
+            manifest = json.loads(archive.read('manifest.json'))
+            assert manifest['through_event_seq'] == service.snapshot(claim.thread_id).last_event_seq
+            assert manifest['thread_id'] == claim.thread_id
+            assert archive.read('execution/capstone/events.jsonl')
+            assert archive.read('conversation.jsonl')
+        monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
+        debug_path = path.removesuffix('/session-handoff')
+        start_headers = {**auth, 'Idempotency-Key': 'session-supplement'}
+        investigation = client.post(
+            debug_path + '/investigations', headers=start_headers,
+            json={'objective': '核对执行记录', 'scope': 'session'},
+        )
+        assert investigation.status_code == 200, investigation.text
+        observation = investigation.json()['observation']
+        assert observation['scope'] == 'session' and observation['attempt_id'] == claim.attempt.attempt_id
+        owner = investigation.json()['investigation_id']
+        evidence = client.get(f'{debug_path}/investigations/{owner}/evidence', headers=auth)
+        assert evidence.status_code == 200, evidence.text
+        gateway = evidence.json()['data_gateway']
+        assert gateway['events'] == []
+        assert gateway['offline_evidence'] == [{'entry': 1, 'status': 'available', 'projection': projection}]
+        assert private_id not in evidence.text
+        package = client.get(path, headers=auth)
+        with ZipFile(BytesIO(package.content)) as archive:
+            exported = archive.read('execution/supplementary-evidence.jsonl').splitlines()
+            assert [json.loads(row) for row in exported] == [evidence.json()]
+            original = json.loads(archive.read('execution/data-gateway/original-calls.json'))
+            assert original['events'][0]['projection'] == projection
+
+
 def test_independent_debug_reads_logs_for_a_bound_failed_call(monkeypatch):
     from types import SimpleNamespace
     from capstone_agent.debug_investigations import InvestigationRegister
@@ -270,6 +351,9 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         assert (binding, workspace, owner) == (gateway_binding, claim.workspace_name, investigation['investigation_id'])
         if operation == 'read':
             return {'client_call_id': 'call_admitted', 'state': 'observed'}
+        if operation == 'probe_data':
+            return {'data_status': 'onsite_only', 'data': {'coverage': 'onsite-fixture'},
+                    'receipt': {'client_call_id': query['client_call_id'], 'state': 'observed'}}
         return {'receipts': []}
 
     def execute(request, control, on_event):
@@ -334,6 +418,16 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         rejected = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'attempt_id': 'another'}}, 'fixture')
         assert rejected == {'code': 'investigation_request_invalid'}
+        history = control.mission_operation('agent_debug_observe', {'operation': 'session_records'}, 'history')
+        selected = next(row['attempt_id'] for row in history['events'] if row['event_seq'] == failure_seq)
+        explicit = control.mission_operation('agent_debug_observe', {'operation': 'capstone_records',
+            'query': {'attempt_id': selected, 'after': failure_seq - 1}}, 'history-details')
+        assert explicit['events'][0]['event_seq'] == failure_seq
+        probe = {'operation': 'probe_data', 'query': {'tool': 'read_fixture', 'arguments_json': '{}'}}
+        onsite = control.mission_operation('agent_debug_observe', probe, 'onsite-data')
+        assert onsite['data'] == {'coverage': 'onsite-fixture'}
+        retry = control.mission_operation('agent_debug_observe', probe, 'onsite-data')
+        assert retry['data_status'] == 'unavailable' and 'data' not in retry
         source_event = next(event for page in native['selected_task_records'] for event in page['events']
                             if event['event_type'] == 'execution_source_revision')
         assert source_event['payload_projection'] == 'bounded_summary'

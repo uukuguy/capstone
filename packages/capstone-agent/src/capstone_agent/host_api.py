@@ -392,6 +392,55 @@ def create_host_app(
             if not debug_commands_enabled(os.environ):
                 raise HTTPException(403, '当前部署已关闭调试命令。')
 
+        def session_handoff_allowed(request):
+            return (request.state.product_actor == 'operator:authenticated'
+                    and os.environ.get('CAPSTONE_DEBUG_SESSION_EXPORT', '0') == '1')
+
+        @app.get('/api/v1/threads/{thread_id}/debug/session-handoff')
+        def download_session_handoff(thread_id: str, request: Request):
+            from functools import partial
+            from tempfile import TemporaryFile
+            from starlette.background import BackgroundTask
+            from .debug_session_handoff import write_session_handoff
+            from .debug_sources import packaged_capstone_revision
+            from .thread_resources import ResourceUploads
+
+            require_debug(request)
+            if not session_handoff_allowed(request):
+                raise HTTPException(403, '当前权限不允许外带会话调试包。')
+            workspace = request.state.workspace_name
+            thread_service.require_workspace(thread_id, workspace)
+            through = thread_service.snapshot(thread_id).last_event_seq
+            uploads = ResourceUploads(thread_service, material_objects) if material_objects is not None else None
+            package = TemporaryFile(mode='w+b')
+            try:
+                supplements = (session_supplements(workspace, thread_id, through)
+                               if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1' else None)
+                reader = getattr(native_artifact_executor, 'debug_observation', None)
+                def original_calls(attempts):
+                    return reader({}, workspace, thread_id, 'session_offline_evidence', {'attempt_ids': attempts})
+                write_session_handoff(package, thread_service, thread_id, through,
+                                      uploads=uploads, capstone_revision=packaged_capstone_revision(),
+                                      objects=material_objects, native_executor=native_artifact_executor,
+                                      supplements=supplements,
+                                      read_gateway_calls=original_calls if callable(reader) else None)
+                thread_service.require_workspace(thread_id, workspace)
+                if not session_handoff_allowed(request):
+                    raise HTTPException(403, '当前权限不允许外带会话调试包。')
+                size = package.tell()
+                package.seek(0)
+            except BaseException:
+                package.close()
+                raise
+            return StreamingResponse(
+                iter(partial(package.read, 1024 * 1024), b''),
+                media_type='application/zip',
+                headers={'Cache-Control': 'private, no-store', 'Content-Length': str(size),
+                         'Content-Disposition': 'attachment; filename="capstone-debug-session.zip"',
+                         'X-Content-Type-Options': 'nosniff'},
+                background=BackgroundTask(package.close),
+            )
+
         @app.get('/api/v1/threads/{thread_id}/debug/status')
         def thread_debug_status(thread_id: str, request: Request):
             require_debug(request)
@@ -404,6 +453,7 @@ def create_host_app(
             return {'thread_id': thread_id, 'enabled': True,
                     'investigation': investigation,
                     'can_review_export': request.state.product_actor == 'operator:authenticated',
+                    'session_handoff_export': session_handoff_allowed(request),
                     'timeline_export': os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1'}
 
         @app.get('/api/v1/threads/{thread_id}/debug/investigations')
@@ -494,6 +544,73 @@ def create_host_app(
                 raise HTTPException(404, '找不到本会话的调查快照。') from None
             return Response(status_code=204, headers={'Cache-Control': 'no-store'})
 
+        def investigation_export(workspace, thread_id, investigation_id, document, reader):
+            scope = (workspace, thread_id, investigation_id)
+            capture = investigations.read_snapshot_gateway_capture(*scope, document['snapshot_id'])
+
+            def gateway_export(owner):
+                binding = investigations.historical_gateway(workspace, thread_id, owner)
+                if not callable(reader) or not binding:
+                    return {'status': 'export_unavailable', 'events': []}
+                if owner not in capture:
+                    return {'status': 'snapshot_gateway_evidence_unavailable', 'events': []}
+                frozen = capture[owner]
+                call_ids = [row['client_call_id'] for row in frozen['receipts']]
+                offline = []
+                for index, call_id in enumerate(call_ids, 1):
+                    try:
+                        item = reader(binding, workspace, owner, 'offline_evidence', {'client_call_id': call_id})
+                    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                        item = {'status': 'read_unavailable'}
+                    offline.append({'entry': index, **item})
+                    if item.get('status') in {'capability_unavailable', 'export_not_authorized'}:
+                        break
+                offline_fields = {'offline_evidence': offline}
+                projected_entries = {item['entry'] for item in offline if item['status'] == 'available'}
+                try:
+                    grant = reader(binding, workspace, owner, 'authorize_snapshot_export',
+                                   {'client_call_ids': call_ids})
+                    if grant['status'] != 'available':
+                        return {'status': grant['status'], 'events': [], **offline_fields}
+                    from .gateway_investigation import EXPORT_RECEIPT_FIELDS
+                    keys = [key for key in EXPORT_RECEIPT_FIELDS if key in grant['allowed']]
+                    visible = set(grant['client_call_ids'])
+                    events = [{**({'entry': index} if index in projected_entries else {}),
+                               **{key: row[key] for key in keys if key in row}}
+                              for index, row in enumerate(frozen['receipts'], 1) if row['client_call_id'] in visible]
+                    return {'status': 'available', 'events': events,
+                            'truncated': frozen['truncated'] or len(events) != len(call_ids), **offline_fields}
+                except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                    return {'status': 'read_unavailable', 'events': [], **offline_fields}
+
+            document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'snapshot'}
+            observation = document.get('observation') or {}
+            previous = (document.get('diagnosis') or {}).get('gateway_investigation_id')
+            if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):
+                prior = investigations.get(workspace, thread_id, previous)
+                if (prior.get('observation') or {}).get('attempt_id') == observation.get('attempt_id'):
+                    document['previous_gateway_evidence'] = {'investigation_id': previous, **gateway_export(previous)}
+            reviewed = investigations.reviewed_export(*scope, document['snapshot_id'])
+            document['reviewed_export'] = ({'status': 'approved', **reviewed} if reviewed is not None
+                                           else {'status': 'not_approved'})
+            from .debug_investigations import evidence_digest
+            document['integrity'] = {'algorithm': 'sha256', 'digest': evidence_digest(document)}
+            return document
+
+        def session_supplements(workspace, thread_id, through):
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
+            for item in investigations.recent(workspace, thread_id):
+                owner = item['investigation_id']
+                observation = item.get('observation') or {}
+                if type(observation.get('through')) is not int or observation['through'] > through:
+                    continue
+                for snapshot in investigations.recent_export_snapshots(workspace, thread_id, owner):
+                    document = investigations.read_export_snapshot(workspace, thread_id, owner, snapshot['snapshot_id'])
+                    frozen = document.get('observation') or {}
+                    if type(frozen.get('through')) is int and frozen['through'] <= through:
+                        yield investigation_export(workspace, thread_id, owner, document, reader)
+                        break
+
         @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
         def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request,
                 snapshot_id: Annotated[str | None, Query(pattern='^[0-9a-f]{64}$')] = None):
@@ -505,46 +622,9 @@ def create_host_app(
                 scope = (request.state.workspace_name, thread_id, investigation_id)
                 document = (investigations.read_export_snapshot(*scope, snapshot_id) if snapshot_id
                             else investigations.save_export_snapshot(*scope, gateway_reader=reader))
-                capture = investigations.read_snapshot_gateway_capture(*scope, document['snapshot_id'])
+                document = investigation_export(*scope, document, reader)
             except (KeyError, ThreadNotFound):
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
-            workspace = request.state.workspace_name
-
-            def gateway_export(owner):
-                binding = investigations.historical_gateway(workspace, thread_id, owner)
-                if not callable(reader) or not binding:
-                    return {'status': 'export_unavailable', 'events': []}
-                try:
-                    if owner not in capture:
-                        return {'status': 'snapshot_gateway_evidence_unavailable', 'events': []}
-                    frozen = capture[owner]
-                    call_ids = [row['client_call_id'] for row in frozen['receipts']]
-                    grant = reader(binding, workspace, owner, 'authorize_snapshot_export',
-                                   {'client_call_ids': call_ids})
-                    if grant['status'] != 'available':
-                        return {'status': grant['status'], 'events': []}
-                    from .gateway_investigation import EXPORT_RECEIPT_FIELDS
-                    keys = [key for key in EXPORT_RECEIPT_FIELDS if key in grant['allowed']]
-                    visible = set(grant['client_call_ids'])
-                    events = [{key: row[key] for key in keys if key in row}
-                              for row in frozen['receipts'] if row['client_call_id'] in visible]
-                    return {'status': 'available', 'events': events,
-                            'truncated': frozen['truncated'] or len(events) != len(call_ids)}
-                except (KeyError, TypeError, ValueError, RuntimeError, OSError):
-                    return {'status': 'read_unavailable', 'events': []}
-
-            document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'snapshot'}
-            observation = document.get('observation') or {}
-            previous = document['diagnosis'].get('gateway_investigation_id')
-            if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):
-                prior = investigations.get(workspace, thread_id, previous)
-                if (prior.get('observation') or {}).get('attempt_id') == observation.get('attempt_id'):
-                    document['previous_gateway_evidence'] = {'investigation_id': previous, **gateway_export(previous)}
-            reviewed = investigations.reviewed_export(*scope, document['snapshot_id'])
-            document['reviewed_export'] = ({'status': 'approved', **reviewed} if reviewed is not None
-                                           else {'status': 'not_approved'})
-            from .debug_investigations import evidence_digest
-            document['integrity'] = {'algorithm': 'sha256', 'digest': evidence_digest(document)}
             return JSONResponse(document, headers={'Cache-Control': 'no-store',
                 'Content-Disposition': 'attachment; filename="debug-evidence.json"'})
 
@@ -676,14 +756,16 @@ def create_host_app(
         def start_debug_investigation(thread_id: str, request: Request, body: dict,
                                       idempotency_key: Annotated[str, Header(min_length=1, max_length=200)]):
             require_debug(request)
-            if (set(body) - {'objective','attempt_id'} or not isinstance(body.get('objective'), str)
+            if (set(body) - {'objective','attempt_id','scope'} or not isinstance(body.get('objective'), str)
+                    or ('scope' in body and (body['scope'] != 'session' or 'attempt_id' in body))
                     or not body['objective'].strip() or ('attempt_id' in body and not isinstance(body['attempt_id'], str))):
                 raise HTTPException(422, '请输入调查目标。')
             from .application_capacity import require_capacity
             objective = body['objective'].strip()
             require_capacity('input_text_chars', len(objective), phase='debug_investigation')
             try:
-                return investigations.start(request.state.workspace_name, thread_id, idempotency_key, objective, body.get('attempt_id'))
+                return investigations.start(request.state.workspace_name, thread_id, idempotency_key, objective,
+                                            body.get('attempt_id'), session_scope=body.get('scope') == 'session')
             except ThreadNotFound:
                 raise HTTPException(404, '找不到本会话的执行记录。') from None
             except ThreadProtocolError:

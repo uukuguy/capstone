@@ -3,7 +3,11 @@ import asyncio
 import json
 import re
 from hashlib import sha256
+from contextlib import closing
+import sqlite3
 from urllib.parse import urlsplit
+
+from httpx import TransportError
 
 from .application_capacity import require_capacity
 from .data_gateway_mcp import GatewayError, validate
@@ -11,21 +15,26 @@ from .data_gateway_mcp import GatewayError, validate
 
 VERSION = 'gateway-investigation/1'
 LOG_VERSION = 'gateway-investigation-logs/1'
+EVIDENCE_VERSION = 'gateway-investigation-evidence/1'
 BASE = '/investigations/v1/'
 SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', 'Receipt'),
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
 
 
-DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'source_files', 'source_lines', 'capstone_records', 'capstone_excerpt', 'publish_finding']
+DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'probe_data', 'source_files', 'source_lines', 'session_records', 'session_gateway_receipts', 'capstone_records', 'capstone_excerpt', 'publish_finding']
 
 
 OBSERVATION_TOOL = {
-    'description': 'Read on-site receipts, logs, source, or Capstone execution records for this Debug investigation. capstone_records accepts only after and optional limit; it returns at most 12 events, next_after and has_more. capstone_excerpt takes event_seq, field and offset to continue a stored excerpt. List gateway calls before reading by ID.',
+    'description': 'Read on-site receipts, logs, source, or Capstone execution records. Use session_records to find attempts in this session. Pass a returned attempt_id to capstone_records or capstone_excerpt to read its details. List gateway calls before reading by ID.',
     'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['operation'],
         'properties': {'operation': {'enum': DEBUG_OBSERVATION_OPERATIONS}, 'query': {'type': 'object',
             'additionalProperties': False, 'properties': {
                 'repository': {'enum': ['capstone', 'data-gateway']},
                 'after': {'type': 'integer', 'minimum': 0},
+                'before': {'type': 'integer', 'minimum': 1},
+                'attempt_id': {'type': 'string'},
+                'tool': {'type': 'string', 'minLength': 1, 'maxLength': 128},
+                'arguments_json': {'type': 'string', 'maxLength': 8192},
                 'event_seq': {'type': 'integer', 'minimum': 1},
                 'field': {'enum': ['input_excerpt', 'output_excerpt']},
                 'finding_state': {'enum': ['located', 'narrowed', 'insufficient_evidence']},
@@ -46,6 +55,168 @@ OBSERVATION_TOOL = {
 
 def investigation_workspace_id(workspace):
     return 'ws_' + sha256(workspace.encode('utf-8')).hexdigest()
+
+
+class SessionCallJournal:
+    """Private, durable dispatch reservations for ordinary session calls."""
+
+    def __init__(self, path):
+        self.path = path
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("""CREATE TABLE IF NOT EXISTS session_calls (
+                workspace TEXT NOT NULL, thread_id TEXT NOT NULL, attempt_id TEXT NOT NULL,
+                operation TEXT NOT NULL, binding TEXT NOT NULL, digest TEXT NOT NULL, client_call_id TEXT NOT NULL,
+                PRIMARY KEY (workspace, thread_id, attempt_id, operation))""")
+
+    def reserve(self, *, workspace, thread_id, attempt_id, operation, binding, tool, arguments, client_call_id):
+        identity = (workspace, thread_id, attempt_id, operation)
+        binding_json = json.dumps(binding, sort_keys=True, allow_nan=False)
+        digest = sha256(json.dumps([tool, arguments], sort_keys=True, allow_nan=False).encode()).hexdigest()
+        with closing(sqlite3.connect(self.path)) as db, db:
+            inserted = db.execute(
+                'INSERT OR IGNORE INTO session_calls VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (*identity, binding_json, digest, client_call_id),
+            ).rowcount
+            saved = db.execute(
+                'SELECT binding, digest, client_call_id FROM session_calls '
+                'WHERE workspace=? AND thread_id=? AND attempt_id=? AND operation=?', identity,
+            ).fetchone()
+            if saved[:2] != (binding_json, digest):
+                raise GatewayError('investigation_request_invalid')
+            return saved[2], inserted == 1
+
+    def calls(self, workspace, thread_id, attempt_ids, *, limit, include_operation=False):
+        placeholders = ','.join('?' for _ in attempt_ids)
+        with closing(sqlite3.connect(self.path)) as db:
+            rows = db.execute(
+                'SELECT attempt_id, binding, client_call_id, operation FROM session_calls WHERE workspace=? AND thread_id=? '
+                f'AND attempt_id IN ({placeholders}) ORDER BY rowid DESC LIMIT ?',
+                (workspace, thread_id, *attempt_ids, limit),
+            ).fetchall()
+        return [
+            (attempt_id, json.loads(binding), call_id, *((operation,) if include_operation else ()))
+            for attempt_id, binding, call_id, operation in rows
+        ]
+
+    def lookup(self, workspace, thread_id, attempt_id, operation, tool, arguments):
+        digest = sha256(json.dumps([tool, arguments], sort_keys=True, allow_nan=False).encode()).hexdigest()
+        with closing(sqlite3.connect(self.path)) as db:
+            row = db.execute(
+                'SELECT binding, digest, client_call_id FROM session_calls '
+                'WHERE workspace=? AND thread_id=? AND attempt_id=? AND operation=?',
+                (workspace, thread_id, attempt_id, operation),
+            ).fetchone()
+        if row is None:
+            return None
+        if row[1] != digest:
+            raise GatewayError('investigation_request_invalid')
+        return json.loads(row[0]), row[2]
+
+
+async def export_session_calls(journal, registry, workspace, thread_id, attempt_ids, *, onsite=False):
+    rows = await asyncio.to_thread(journal.calls, workspace, thread_id, attempt_ids, limit=17, include_operation=True)
+
+    async def project(entry, row):
+        attempt_id, binding, call_id, operation = row
+        result = {'entry': entry, 'attempt_id': attempt_id}
+        if not onsite:
+            result['_operation'] = operation
+        try:
+            _, gateway = registry.access_for(binding['connection_id'], binding['instance_id'])
+            async with asyncio.timeout(6), gateway.client.connect() as connection:
+                if (connection.instance_identity or {}).get('instance_id') != binding['instance_id']:
+                    return {**result, 'status': 'gateway_instance_changed'}
+                access = await GatewayInvestigation.discover(
+                    connection.http_client, gateway.client._connection['url'],
+                    connection.investigation, connection.investigation_logs,
+                )
+                if access is None:
+                    return {**result, 'status': 'capability_unavailable'}
+                scope = {key: binding[key] for key in ('workspace_id', 'investigation_id', 'binding_handle')}
+                if onsite:
+                    receipt = await access.invoke('read', {**scope, 'client_call_id': call_id})
+                    fields = (*EXPORT_RECEIPT_FIELDS, 'client_call_id', 'request_id', 'error_code', 'phases')
+                    return {**result, 'status': 'available',
+                            'receipt': {key: receipt[key] for key in fields if key in receipt}}
+                evidence = await access.read_offline_evidence(
+                    getattr(connection, 'investigation_evidence', None), scope, {'client_call_id': call_id},
+                )
+                return {**result, **evidence}
+        except (KeyError, RuntimeError, ValueError, TransportError, OSError, TimeoutError):
+            return {**result, 'status': 'read_unavailable'}
+
+    events = []
+    for start in range(0, min(len(rows), 16), 4):
+        events.extend(await asyncio.gather(*(
+            project(index + 1, rows[index]) for index in range(start, min(start + 4, len(rows), 16))
+        )))
+    statuses = {event['status'] for event in events}
+    if not statuses:
+        status = 'not_registered'
+    elif len(statuses) == 1:
+        status = next(iter(statuses))
+    elif 'available' in statuses:
+        status = 'partial'
+    else:
+        status = 'unavailable'
+    return {'status': status, 'events': events, 'truncated': len(rows) > 16}
+
+
+async def registered_session_call(client, catalog, tool, arguments, diagnostics, *, journal,
+                                  workspace, thread_id, attempt_id, operation, connection_id):
+    """Register calls only when the original business connection supports binding."""
+    instance = (catalog.get('instance') or {}).get('instance_id')
+    if not instance or not diagnostics:
+        return None
+    previous = await asyncio.to_thread(journal.lookup, workspace, thread_id, attempt_id, operation, tool, arguments)
+    async with client.connect() as connection:
+        try:
+            if (connection.instance_identity or {}).get('instance_id') != instance:
+                raise GatewayError('gateway_instance_changed')
+            endpoint = client._connection['url']
+            access = await GatewayInvestigation.discover(
+                connection.http_client, endpoint, connection.investigation, connection.investigation_logs,
+            )
+            if access is None:
+                if previous is None:
+                    return None
+                raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
+            if previous is not None:
+                original, call_id = previous
+                if original['instance_id'] != instance or original['connection_id'] != connection_id:
+                    raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
+                scope = {key: original[key] for key in ('workspace_id', 'investigation_id', 'binding_handle')}
+                try:
+                    await access.invoke('read', {**scope, 'client_call_id': call_id})
+                except (GatewayError, TransportError, OSError, TimeoutError):
+                    pass
+                raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
+            owner_id = 'session_' + sha256(json.dumps([workspace, thread_id, attempt_id, connection_id, instance]).encode()).hexdigest()
+            owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': owner_id}
+            binding = await access.invoke('bind', {**owner, 'instance_id': instance, 'idempotency_key': owner_id})
+            scope = {**owner, 'binding_handle': binding['binding_handle']}
+            stored_binding = {**scope, 'instance_id': instance, 'connection_id': connection_id,
+                              'catalog_revision': catalog['revision']}
+            call_id, dispatch = await asyncio.to_thread(
+                journal.reserve, workspace=workspace, thread_id=thread_id, attempt_id=attempt_id, operation=operation,
+                binding=stored_binding, tool=tool, arguments=arguments, client_call_id=diagnostics['client_call_id'],
+            )
+            if dispatch:
+                observed = await access.call_registered(client, tool, arguments, catalog, scope=scope,
+                                                        diagnostics={**diagnostics, 'client_call_id': call_id})
+                if 'business_response' in observed:
+                    return observed['business_response']
+            else:
+                try:
+                    await access.invoke('read', {**scope, 'client_call_id': call_id})
+                except (GatewayError, TransportError, OSError, TimeoutError):
+                    pass
+        except GatewayError as error:
+            failure = error
+        else:
+            # A receipt proves transport state. It cannot replace a business body.
+            failure = GatewayError('gateway_result_body_unavailable', result_unknown=True)
+    raise failure
 
 
 async def _request(client, method, url, document=None):
@@ -121,6 +292,44 @@ class GatewayInvestigation:
         if not isinstance(allowed, list):
             raise GatewayError('investigation_contract_invalid')
         return [key for key in EXPORT_RECEIPT_FIELDS if key in allowed]
+
+    async def read_offline_evidence(self, declaration, scope, query):
+        if declaration != {'version': EVIDENCE_VERSION, 'contract_path': BASE + 'evidence-contract'}:
+            return {'status': 'capability_unavailable'}
+        contract = await _request(self._client, 'GET', self._origin + BASE + 'evidence-contract')
+        if (not isinstance(contract, dict) or contract.get('contract_version') != EVIDENCE_VERSION
+                or (contract.get('operations') or {}).get('read') != {'method': 'POST', 'path': BASE + 'evidence'}):
+            raise GatewayError('investigation_contract_invalid')
+        policy = contract.get('export') or {}
+        if policy.get('deployment_policy') != 'allow_sanitized':
+            return {'status': 'export_not_authorized'}
+        fields = {'contract_version', 'evidence_status', 'observed_status', 'truncated', 'first_confirmed_anomaly'}
+        if not isinstance(policy.get('allowed'), list) or not fields <= set(policy['allowed']):
+            raise GatewayError('investigation_contract_invalid')
+        if len(query) != 1 or not all(isinstance(value, str) and value for value in query.values()):
+            raise GatewayError('investigation_request_invalid')
+        payload = {**scope, **query}
+        schemas = contract.get('schemas') or {}
+        try:
+            validate(schemas['ReadRequest'], payload)
+        except Exception:
+            raise GatewayError('investigation_request_invalid') from None
+        result = await _request(self._client, 'POST', self._origin + BASE + 'evidence', payload)
+        try:
+            validate(schemas['Evidence'], result)
+            if (not isinstance(result, dict) or result.keys() != fields
+                    or result.get('contract_version') != EVIDENCE_VERSION):
+                raise ValueError()
+            anomaly = result['first_confirmed_anomaly']
+            if anomaly is not None and (
+                not isinstance(anomaly, dict) or anomaly.keys() != {
+                    'component', 'stage_category', 'observed_status', 'error_category',
+                } or result['truncated'] is not False
+            ):
+                raise ValueError()
+        except Exception:
+            raise GatewayError('investigation_response_invalid') from None
+        return {'status': 'available', 'projection': result}
 
     async def export_receipts(self, scope):
         keys = self.export_fields()
@@ -217,7 +426,11 @@ class GatewayInvestigation:
         except GatewayError as error:
             if not error.result_unknown:
                 raise
-            receipt = await self.invoke('read', {**scope, 'client_call_id': client_id})
+            try:
+                receipt = await self.invoke('read', {**scope, 'client_call_id': client_id})
+            except (GatewayError, TransportError, OSError, TimeoutError):
+                return {'result_state': 'unknown', 'receipt_status': 'unavailable',
+                        'client_call_id': client_id, 'automatic_retry': False}
             return {'receipt': receipt}
         body = response.get('structuredContent')
         if response.get('isError') and isinstance(body, dict) and body.get('contract_version') == VERSION:
@@ -238,6 +451,7 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     if (connection.instance_identity or {}).get('instance_id') != instance_id:
         raise GatewayError('gateway_instance_changed')
     allowed = {'list': {'limit', 'cursor'}, 'read': {'client_call_id', 'request_id'},
+               'offline_evidence': {'client_call_id', 'request_id'},
                'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}, 'export': set(),
                'authorize_snapshot_export': {'client_call_ids'}}
     if operation not in allowed or not isinstance(query, dict) or query.keys() - allowed[operation]:
@@ -251,6 +465,8 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     scope = {**owner, 'binding_handle': binding['binding_handle']}
     if operation == 'logs':
         return await access.read_logs(scope, query)
+    if operation == 'offline_evidence':
+        return await access.read_offline_evidence(getattr(connection, 'investigation_evidence', None), scope, query)
     if operation == 'export':
         return await access.export_receipts(scope)
     if operation == 'authorize_snapshot_export':
@@ -264,7 +480,7 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
 
 
 async def run_bound_read_probe(gateway, *, instance_id, workspace, investigation_id,
-                               tool, arguments, client_call_id):
+                               tool, arguments, client_call_id, include_result=False):
     catalog = await gateway.prepare()
     if (catalog.get('instance') or {}).get('instance_id') != instance_id:
         raise GatewayError('gateway_instance_changed')
@@ -290,8 +506,21 @@ async def run_bound_read_probe(gateway, *, instance_id, workspace, investigation
         binding = await access.invoke('bind', {**owner, 'instance_id': instance_id, 'idempotency_key': investigation_id})
         scope = {**owner, 'binding_handle': binding['binding_handle']}
         trace = sha256(investigation_id.encode('utf-8')).hexdigest()[:32]
-        await access.call_registered(gateway, tool, arguments, catalog, scope=scope, diagnostics={
+        observed = await access.call_registered(gateway, tool, arguments, catalog, scope=scope, diagnostics={
             'client_call_id': client_call_id, 'task_id': investigation_id, 'run_id': investigation_id,
             'trace_id': trace, 'parent_span_id': 'attempt:' + trace,
         })
-        return await access.invoke('read', {**scope, 'client_call_id': client_call_id})
+        if observed.get('result_state') == 'unknown':
+            return {**observed, **({'data_status': 'unavailable'} if include_result else {})}
+        receipt = observed.get('receipt')
+        if receipt is None:
+            receipt = await access.invoke('read', {**scope, 'client_call_id': client_call_id})
+        if not include_result:
+            return receipt
+        result = observed.get('business_response')
+        content = result.get('structuredContent') if isinstance(result, dict) else None
+        if content is None:
+            return {'receipt': receipt, 'data_status': 'unavailable'}
+        if len(json.dumps(content, ensure_ascii=False).encode()) > 16 * 1024:
+            return {'receipt': receipt, 'data_status': 'exceeds_summary_limit'}
+        return {'receipt': receipt, 'data_status': 'onsite_only', 'data': content}

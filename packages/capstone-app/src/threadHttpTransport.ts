@@ -278,11 +278,40 @@ export class HttpThreadTransport implements ThreadTransport {
       `执行轮次 ${observation.attempt_id} 的首条公开异常为 #${observation.first_failure.seq}（${observation.first_failure.type}）。`:
       `执行轮次 ${observation.attempt_id} 截至事件 #${observation.through} 未记录公开失败事件。`):''
     return {timelineExport:value.timeline_export===true, canReviewExport:value.can_review_export===true,
+      sessionHandoffExport:value.session_handoff_export===true,
       investigationId:typeof investigation?.investigation_id==='string'?investigation.investigation_id:null,
       objective:typeof investigation?.objective==='string'?investigation.objective:null,
       diagnosisStatus:typeof investigation?.diagnosis?.status==='string'?investigation.diagnosis.status:null,
       finding:typeof investigation?.diagnosis?.answer==='string'&&investigation.diagnosis.answer.trim()?investigation.diagnosis.answer:
         typeof investigation?.diagnosis?.finding?.summary==='string'?investigation.diagnosis.finding.summary:finding}
+  }
+  async downloadDebugSession(threadId: string, streamToFile = false) {
+    const filename = 'capstone-debug-session.zip'
+    const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/session-handoff`
+    type SaveHandle = {createWritable: () => Promise<WritableStream<Uint8Array>>}
+    const picker = (globalThis as {showSaveFilePicker?: (options: {suggestedName: string}) => Promise<SaveHandle>}).showSaveFilePicker
+    if (streamToFile && picker) {
+      const handle = await picker({suggestedName: filename})
+      const response = await this.streamRequest(path)
+      if (!response.body) throw new Error('调试包内容缺失。')
+      await response.body.pipeTo(await handle.createWritable())
+      return
+    }
+    const response = await this.streamRequest(path)
+    const size = Number(response.headers.get('Content-Length'))
+    if (!Number.isSafeInteger(size) || size <= 0 || exceedsCapacity(size, 'artifact_file_bytes')) {
+      await response.body?.cancel()
+      throw Object.assign(new Error(picker ? '调试包超过浏览器内下载上限，可直接保存到文件。'
+        : '请使用支持直接保存大文件的浏览器下载此调试包。'), {name: picker ? 'DebugStreamSaveRequired' : 'Error'})
+    }
+    const blob = await response.blob()
+    if (blob.size !== size) throw new Error('调试包下载不完整。')
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   async debugSourceVersion(threadId:string){
     const result=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/sources`) as Record<string,unknown>
@@ -292,9 +321,9 @@ export class HttpThreadTransport implements ThreadTransport {
     if(result.status==='unreported')return '当前网关尚未声明源码摘要。'
     return '当前网关连接不可用。'
   }
-  async startDebugInvestigation(threadId:string,objective:string,key:string,attemptId?:string){
+  async startDebugInvestigation(threadId:string,objective:string,key:string){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
-    const receipt=await this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})}) as Record<string,unknown>
+    const receipt=await this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,scope:'session'})}) as Record<string,unknown>
     if(typeof receipt?.investigation_id!=='string'||!receipt.investigation_id)throw new Error('调查登记回执缺少标识。')
     return receipt.investigation_id
   }
@@ -321,11 +350,14 @@ export class HttpThreadTransport implements ThreadTransport {
       onProgress(result.status === 'completed' ? '诊断已完成' : '已读取运行步骤', report)
     }
     if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
-    if (result.status === 'cancelled') throw new Error('诊断已停止。')
-    if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
+    const finding = result.finding as {summary?: unknown} | undefined
+    const saved = typeof finding?.summary === 'string' && finding.summary.trim()
+      ? `\n\n**已保存的阶段结论**\n\n${finding.summary}` : ''
+    if (result.status === 'cancelled') throw new Error('诊断已停止。' + saved)
+    if (result.status === 'unknown') throw new Error('执行结果未知。' + saved)
     if (result.failure_code === 'diagnosis_preparation_failed') throw new Error('诊断材料准备失败，Pi 尚未执行。')
     if (result.failure_code === 'diagnosis_executor_rejected') throw new Error('Pi 在执行前拒绝了诊断请求。请核对执行器和调查工具配置。')
-    if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
+    if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断未返回最终结论。' + saved)
     return result.answer
   }
   async debugHistory(threadId: string) {
@@ -335,7 +367,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async debugDiagnosis(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
-    return this.request(path) as Promise<{answer?: string; status: string}>
+    return this.request(path) as Promise<{answer?: string; status: string; finding?: {summary?: string}}>
   }
   async stopDebugDiagnosis(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
@@ -843,6 +875,7 @@ export class HttpThreadTransport implements ThreadTransport {
 const debugOperations: Record<string, string> = {
   list: '列出网关回执', read: '读取网关回执', logs: '读取网关日志',
   source_files: '查找源码文件', source_lines: '读取源码行',
+  session_records: '读取会话记录', session_gateway_receipts: '查回原网关回执', probe_data: '补查网关数据',
   capstone_records: '读取 Capstone 执行记录', capstone_excerpt: '续读执行摘要',
   publish_finding: '保存阶段结论',
 }

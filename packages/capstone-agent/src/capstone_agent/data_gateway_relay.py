@@ -143,7 +143,7 @@ class DataGatewayAccess:
                  **({'request_id': self.contract_request_id} if self.contract_request_id else {})} if error else
                 {'available': True, 'catalog': catalog, 'identity': identity})
 
-    def bind(self, task_id, attempt_id, allowed_tools, *, diagnostics=None, catalog=None):
+    def bind(self, task_id, attempt_id, allowed_tools, *, diagnostics=None, catalog=None, registered_dispatch=None):
         from .gateway_diagnostics import checked_diagnostics
         context = checked_diagnostics(diagnostics)
         with self._lock:
@@ -157,7 +157,8 @@ class DataGatewayAccess:
             if task_id in self._tasks:
                 raise GatewayError('gateway_task_already_bound')
             self._tasks[task_id] = {'attempt_id': attempt_id, 'catalog': deepcopy(catalog), 'allowed_tools': frozenset(allowed_tools),
-                                    'started': set(), 'issued': {}, 'diagnostics': context, 'diagnostic_calls': []}
+                                    'started': set(), 'issued': {}, 'diagnostics': context, 'diagnostic_calls': [],
+                                    'registered_dispatch': registered_dispatch}
 
     def frozen_catalog(self, revision):
         with self._lock:
@@ -418,8 +419,15 @@ class DataGatewayAccess:
                 async with _DISPATCH_QUEUE.acquire_async(dispatch_receipt, resource='gateway-transport', read_only=read_only):
                     _DISPATCH_QUEUE.record(dispatch_receipt, 'dispatch_started')
                     try:
-                        result = await self.client.call(name, deepcopy(arguments), catalog,
-                            **({'diagnostics': context} if context is not None else {}))
+                        register = record.get('registered_dispatch')
+                        result = None
+                        if (register is not None and read_only and hints.get('destructiveHint') is False
+                                and hints.get('openWorldHint') is False and exact.get('progressive', {}).get('provider_id')):
+                            result = await register(self.client, catalog, name, deepcopy(arguments), context,
+                                                    operation=f'{task_id}:{call_id}')
+                        if result is None:
+                            result = await self.client.call(name, deepcopy(arguments), catalog,
+                                **({'diagnostics': context} if context is not None else {}))
                     finally:
                         _DISPATCH_QUEUE.record(dispatch_receipt, 'dispatch_ended')
             with self._lock:

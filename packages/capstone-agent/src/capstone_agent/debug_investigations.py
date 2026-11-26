@@ -110,10 +110,19 @@ class InvestigationRegister:
                 raise ValueError('执行记录游标无效。')
             after = page['next_after']
 
-    def start(self, workspace, thread_id, request_key, objective, attempt_id=None):
+    def start(self, workspace, thread_id, request_key, objective, attempt_id=None, *, session_scope=False):
         self.service.require_workspace(thread_id, workspace)
         identity = 'inv_' + uuid4().hex
-        observation = self._observe(thread_id, attempt_id)
+        through = None
+        if session_scope:
+            from .debug_session_handoff import latest_instruction_attempt
+            through = self.service.snapshot(thread_id).last_event_seq
+            attempt_id = latest_instruction_attempt(self.service, thread_id, through)
+            if attempt_id is None:
+                raise ValueError('当前会话尚无可调查的用户指令。')
+        observation = self._observe(thread_id, attempt_id, through=through)
+        if session_scope:
+            observation = {**(observation or {}), 'scope': 'session', 'through': through}
         if observation:
             previous = self.latest(workspace, thread_id)
             if (previous and (previous.get('observation') or {}).get('attempt_id') == attempt_id
@@ -132,7 +141,9 @@ class InvestigationRegister:
             with self._lock:
                 row = self._memory.setdefault((workspace, thread_id, request_key),
                     {'investigation_id': identity, 'objective': objective, 'observation': observation})
-        if row['objective'] != objective or (row['observation'] or {}).get('attempt_id') != attempt_id:
+        saved = row['observation'] or {}
+        if (row['objective'] != objective or (saved.get('scope') == 'session') != session_scope
+                or (not session_scope and saved.get('attempt_id') != attempt_id)):
             raise ValueError('同一请求标识已经用于其他调查目标。')
         return {key: row[key] for key in ('investigation_id', 'objective', 'observation')}
 
@@ -474,7 +485,7 @@ class InvestigationRegister:
             '说明证据是否仅为摘要。只有网关证据列出的观测可以归因到网关，'
             '不引用未提供的源码内容。\n'
             f"调查问题：{investigation['objective'][:600]}\n"
-            f"目标轮次：{observation['attempt_id']}\n"
+            f"调查范围：当前会话，截至事件 {through}。初始线索轮次：{observation['attempt_id']}。\n"
             f"首条失败：{json.dumps(failure, ensure_ascii=False)}\n"
             f"公开事件摘要（后续记录未完整载入）：{json.dumps(events, ensure_ascii=False)}\n"
             f"网关调查摘要：{json.dumps(gateway, ensure_ascii=False)}\n"
@@ -490,8 +501,11 @@ class InvestigationRegister:
 
             audit_reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
                 workspace_name=workspace, handoff={'through_event_seq': through})
-            def read_page(after, excerpt_limit, limit=12):
-                page = audit_reader.read(after=after, limit=limit)
+            visible_attempts = {observation['attempt_id']}
+            settled_session_attempts = set()
+
+            def read_page(after, excerpt_limit, limit=12, *, reader=audit_reader):
+                page = reader.read(after=after, limit=limit)
                 visible = []
                 for event in page['events']:
                     payload = event['payload']
@@ -513,13 +527,81 @@ class InvestigationRegister:
                                    | {'payload': summary, 'payload_projection': 'bounded_summary'})
                 return {key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after', 'has_more')} | {'events': visible}
 
-            def read_debug_records(name, arguments, _operation_id):
+            def read_debug_records(name, arguments, operation_id):
                 query = arguments.get('query', {})
                 if name != 'agent_debug_observe':
                     return {'code': 'investigation_request_invalid'}
                 if arguments.get('operation') == 'publish_finding':
                     return publish_finding(query)
                 operation = arguments.get('operation')
+                if operation == 'session_gateway_receipts':
+                    if not isinstance(query, dict) or set(query) != {'attempt_id'}:
+                        return {'code': 'investigation_request_invalid'}
+                    attempt = query['attempt_id']
+                    if not isinstance(attempt, str) or attempt not in settled_session_attempts:
+                        return {'code': 'investigation_request_invalid'}
+                    read = getattr(executor, 'debug_observation', None)
+                    if not callable(read):
+                        return {'code': 'gateway_bound_instance_unavailable'}
+                    try:
+                        page = read({}, workspace, thread_id, operation, {'attempt_ids': [attempt]})
+                    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                        return {'code': 'investigation_read_unavailable'}
+                    for item in page.get('events', ()):
+                        call_id = (item.get('receipt') or {}).get('client_call_id')
+                        if isinstance(call_id, str):
+                            supplied_gateway_refs.add(call_id)
+                    return page
+                if operation == 'probe_data':
+                    read = getattr(executor, 'debug_observation', None)
+                    if not historical_gateway or not callable(read):
+                        return {'code': 'gateway_bound_instance_unavailable'}
+                    if (not isinstance(query, dict) or set(query) != {'tool', 'arguments_json'}
+                            or not isinstance(query['tool'], str) or not 1 <= len(query['tool']) <= 128
+                            or not isinstance(query['arguments_json'], str) or len(query['arguments_json']) > 8192):
+                        return {'code': 'investigation_request_invalid'}
+                    try:
+                        inputs = json.loads(query['arguments_json'])
+                        if not isinstance(inputs, dict):
+                            return {'code': 'investigation_request_invalid'}
+                        call_id, dispatch = self.reserve_call(
+                            *scope, f'pi:{operation_id}', query['tool'], inputs, evidence_digest(historical_gateway),
+                        )
+                        if dispatch:
+                            result = read(historical_gateway, workspace, investigation_id, 'probe_data',
+                                          {'tool': query['tool'], 'arguments': inputs, 'client_call_id': call_id})
+                        else:
+                            receipt = read(historical_gateway, workspace, investigation_id, 'read',
+                                           {'client_call_id': call_id})
+                            result = {'data_status': 'unavailable', 'receipt': receipt}
+                        receipt = result.get('receipt') or {}
+                        if receipt.get('client_call_id') == call_id:
+                            supplied_gateway_refs.add(call_id)
+                            previous_capture = gateway_capture.get(investigation_id, {'receipts': [], 'truncated': False})
+                            seen = {row['client_call_id']: row for row in previous_capture['receipts']}
+                            seen[call_id] = receipt
+                            gateway_capture[investigation_id] = capture_gateway_receipts(
+                                {'receipts': list(seen.values()), 'truncated': previous_capture['truncated'] or len(seen) > 32})
+                        return result
+                    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                        return {'code': 'investigation_read_unavailable'}
+                if operation == 'session_records':
+                    from .debug_session_handoff import read_session_observations
+                    if not isinstance(query, dict) or query.keys() - {'before'}:
+                        return {'code': 'investigation_request_invalid'}
+                    try:
+                        page = read_session_observations(self.service, thread_id, through, before=query.get('before'))
+                    except (KeyError, ValueError):
+                        return {'code': 'investigation_request_invalid'}
+                    visible_attempts.update(event['attempt_id'] for event in page['events']
+                                            if isinstance(event['attempt_id'], str))
+                    settled_session_attempts.update(event['attempt_id'] for event in page['events']
+                        if isinstance(event['attempt_id'], str) and event['event_type'] in {
+                            'attempt_completed', 'attempt_delivery_recovered', 'attempt_failed',
+                            'attempt_cancelled', 'attempt_interrupted',
+                        })
+                    record_supplied_evidence(event['event_seq'] for event in page['events'])
+                    return page
                 if operation in {'source_files', 'source_lines'}:
                     from zipfile import BadZipFile
                     from .debug_sources import read_debug_source
@@ -555,12 +637,20 @@ class InvestigationRegister:
                             'receipts': list(seen.values()),
                             'truncated': before['truncated'] or bool(result.get('next_cursor')) or len(seen) > 32})
                     return result
-                if arguments.get('operation') == 'capstone_excerpt':
+                if operation not in {'capstone_records', 'capstone_excerpt'} or not isinstance(query, dict):
+                    return {'code': 'investigation_request_invalid'}
+                attempt = query.get('attempt_id', observation['attempt_id'])
+                if not isinstance(attempt, str) or attempt not in visible_attempts:
+                    return {'code': 'investigation_request_invalid'}
+                reader = (audit_reader if attempt == observation['attempt_id'] else
+                          SelectedTaskRecordReader(self.service, thread_id, attempt, workspace_name=workspace,
+                                                   handoff={'through_event_seq': through}))
+                if operation == 'capstone_excerpt':
                     seq, field, offset = query.get('event_seq'), query.get('field'), query.get('offset', 0)
-                    if (query.keys() - {'event_seq', 'field', 'offset'} or type(seq) is not int or not 1 <= seq <= through
+                    if (query.keys() - {'attempt_id', 'event_seq', 'field', 'offset'} or type(seq) is not int or not 1 <= seq <= through
                             or field not in ('input_excerpt', 'output_excerpt') or type(offset) is not int or offset < 0):
                         return {'code': 'investigation_request_invalid'}
-                    page = audit_reader.read(after=seq - 1, limit=1)
+                    page = reader.read(after=seq - 1, limit=1)
                     events = page['events']
                     if not events or events[0]['event_seq'] != seq:
                         return {'code': 'event_not_visible'}
@@ -568,22 +658,20 @@ class InvestigationRegister:
                     status = _excerpt_status(event, field, 1000)['status']
                     record_supplied_evidence([seq])
                     if status != 'available':
-                        return {'attempt_id': observation['attempt_id'], 'event_seq': seq,
+                        return {'attempt_id': attempt, 'event_seq': seq,
                                 'event_type': event['event_type'], 'field': field, 'status': status}
                     text = event['payload']['activity'][field]
                     end = min(offset + 1000, len(text))
                     if offset > end:
                         return {'code': 'investigation_request_invalid'}
-                    record_supplied_evidence([seq])
-                    return {'attempt_id': observation['attempt_id'], 'event_seq': seq, 'field': field,
+                    return {'attempt_id': attempt, 'event_seq': seq, 'field': field,
                             'scope': 'stored_excerpt', 'offset': offset, 'text': text[offset:end],
                             'next_offset': end if end < len(text) else None}
                 after, limit = query.get('after', 0), query.get('limit', 12)
-                if (arguments.get('operation') != 'capstone_records'
-                        or query.keys() - {'after', 'limit'} or type(after) is not int or not 0 <= after <= through
+                if (query.keys() - {'attempt_id', 'after', 'limit'} or type(after) is not int or not 0 <= after <= through
                         or type(limit) is not int or not 1 <= limit <= 50):
                     return {'code': 'investigation_request_invalid'}
-                page = read_page(after, 1000, min(limit, 12))
+                page = read_page(after, 1000, min(limit, 12), reader=reader)
                 record_supplied_evidence([event['event_seq'] for event in page['events']])
                 return page
 
@@ -604,8 +692,11 @@ class InvestigationRegister:
                 'gateway': ({key: historical_gateway.get(key) for key in ('connection_id', 'instance_id', 'source_sha256')}
                             if historical_gateway else None),
             }
-            instruction += ('\n需要核对 Capstone 执行记录时，用 agent_debug_observe 的 capstone_records。'
-                            'query 只接受 after 和可选 limit，默认从 0 开始，每页最多返回 12 条。'
+            instruction += ('\n需要查看整个会话的问答和执行事件时，用 agent_debug_observe 的 session_records。'
+                            '首次不传 before，之后传 next_before 查看更早的记录。返回内容是有界摘要。'
+                            '需要核对详细执行记录时，用 capstone_records。可传 session_records 返回的 attempt_id。'
+                            '再用 capstone_excerpt 时传同一 attempt_id。不传时读取初始线索轮次。'
+                            'after 默认从 0 开始，每页最多返回 12 条。'
                             '已知异常事件编号时，可以从该编号减一开始。'
                             '先核对 excerpt_fields。仅当字段 available 且有 next_offset 时，才用 capstone_excerpt 续读。'
                             'not_applicable 表示该事件没有此类文字。not_retained 表示此类文字未保留。两种状态均不重试。'
@@ -614,6 +705,10 @@ class InvestigationRegister:
                             'gateway_refs 仅传实际获得的 client_call_id，source_refs 仅传已读的 repository、revision、path 和 line。'
                             'payload_projection=bounded_summary 表示只返回获准的摘要字段，字段缺失不能作为原始记录为空的证据。'
                             '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
+            instruction += ('\n用户需要核对现场数据信息时，可以用 probe_data 提交已知只读工具名和 arguments_json。'
+                            '只取定位所需的最小数据。新探查与原调用是不同证据，现场正文只供本次诊断。')
+            instruction += ('\n要查回会话原始网关调用，先用 session_records 找到已结束轮次，再传该 attempt_id 给 session_gateway_receipts。'
+                            '原回执属于现场证据。没有登记或查回失败时保留缺口。')
             task_fields = {
                 'business_context': BusinessContext.empty(thread_id, through),
                 'resource_profile': {'profile_id': 'direct_pi', 'revision': profile['revision']},

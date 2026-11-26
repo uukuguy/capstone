@@ -4,20 +4,33 @@ import DebugWorkspace from './DebugWorkspace'
 
 afterEach(cleanup)
 
+it('offers only the session package download with history expanded', async () => {
+  const downloadSession = vi.fn().mockResolvedValue(undefined)
+  render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
+    through={0} read={vi.fn()} refreshSource={vi.fn()} allowExport savedFinding="" sourceVersion=""
+    readHistory={async () => [{investigation_id:'inv_first', objective:'第一次补查', status:'completed'}]}
+    readDiagnosis={async () => ({status:'completed',answer:'已保存'})} downloadSession={downloadSession}/>)
+
+  fireEvent.click(await screen.findByRole('button',{name:'查看证据 · 第一次补查'}))
+  await screen.findByText('已保存')
+  const downloads = screen.getAllByRole('button',{name:/下载/})
+  expect(downloads).toHaveLength(1)
+  fireEvent.click(downloads[0])
+  expect(downloadSession).toHaveBeenCalledWith(false)
+})
+
 it('approves and revokes reviewed materials for the selected investigation snapshot', async () => {
   const snapshot = 'a'.repeat(64)
   const reviewExport = vi.fn().mockResolvedValue(undefined)
   render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
-    through={0} read={vi.fn()} readTimeline={vi.fn()} refreshSource={vi.fn()}
+    through={0} read={vi.fn()} refreshSource={vi.fn()}
     allowExport savedFinding="" sourceVersion=""
     readHistory={async () => [{investigation_id:'inv_debug', objective:'检查失败', status:'completed'}]}
     readDiagnosis={async () => ({status:'completed', answer:'现场诊断答复'})}
     readSnapshots={async () => [{snapshot_id:snapshot, status:'completed'}]}
     reviewExport={reviewExport}/>)
 
-  fireEvent.click(screen.getByRole('button',{name:'查看调查历史'}))
-  await screen.findByRole('option',{name:'检查失败'})
-  fireEvent.change(screen.getByRole('combobox',{name:'调查'}), {target:{value:'inv_debug'}})
+  fireEvent.click(await screen.findByRole('button',{name:'查看证据 · 检查失败'}))
   fireEvent.click(await screen.findByRole('button',{name:'查看已保存快照'}))
   fireEvent.change(await screen.findByRole('combobox',{name:'证据快照'}), {target:{value:snapshot}})
   fireEvent.click(screen.getByText('审核快照外带材料'))
@@ -40,16 +53,14 @@ it('shows a saved finding on site with export disabled', async () => {
     source_refs:[{repository:'capstone', revision, path:'src/example.py', line:21}]})
   const readSource = vi.fn().mockResolvedValue({revision, first_line:21, lines:['observed line']})
   render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
-    through={0} read={vi.fn()} readTimeline={vi.fn()} refreshSource={vi.fn()}
+    through={0} read={vi.fn()} refreshSource={vi.fn()}
     allowExport={false} savedFinding="" sourceVersion=""
     readHistory={async () => [{investigation_id:'inv_debug', objective:'检查失败', status:'running'}]}
     readDiagnosis={async () => ({status:'running'})}
     readSnapshots={async () => [{snapshot_id:'snapshot-1', status:'running'}]}
-    readSnapshotFinding={readSnapshotFinding} readEvidence={vi.fn()} readSource={readSource}/>)
+    readSnapshotFinding={readSnapshotFinding} readSource={readSource}/>)
 
-  fireEvent.click(screen.getByRole('button',{name:'查看调查历史'}))
-  await screen.findByRole('option',{name:'检查失败'})
-  fireEvent.change(screen.getByRole('combobox',{name:'调查'}), {target:{value:'inv_debug'}})
+  fireEvent.click(await screen.findByRole('button',{name:'查看证据 · 检查失败'}))
   fireEvent.click(await screen.findByRole('button',{name:'查看已保存快照'}))
   fireEvent.change(await screen.findByRole('combobox',{name:'证据快照'}), {target:{value:'snapshot-1'}})
   fireEvent.click(screen.getByRole('button',{name:'查看阶段结论'}))

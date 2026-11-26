@@ -43,6 +43,16 @@ def test_admitted_work_is_stable_across_revision_runs():
     assert research_diagnostics(binding,'attempt-1')==first
     assert research_diagnostics(None,'attempt-1') is None
 
+
+def test_ordinary_attempt_has_a_stable_gateway_trace():
+    from capstone_agent.gateway_diagnostics import attempt_diagnostics
+
+    first = attempt_diagnostics('attempt-1')
+    assert first['run_id'] == first['task_id'] == 'attempt-1'
+    assert first['parent_span_id'] == 'attempt:' + first['trace_id']
+    assert attempt_diagnostics('attempt-1') == first
+    assert attempt_diagnostics('attempt-2')['trace_id'] != first['trace_id']
+
 def test_client_injects_meta_without_changing_business_arguments(tmp_path):
     client,session=gateway(tmp_path)
     original=session.call_tool
