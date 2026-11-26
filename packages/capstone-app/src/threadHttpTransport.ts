@@ -349,11 +349,14 @@ export class HttpThreadTransport implements ThreadTransport {
       onProgress(result.status === 'completed' ? '诊断已完成' : '已读取运行步骤', report)
     }
     if (result.status === 'queued' || result.status === 'running') throw new Error('诊断尚未结束，请用 /debug status 查看结果。')
-    if (result.status === 'cancelled') throw new Error('诊断已停止。')
-    if (result.status === 'unknown') throw new Error('执行结果未知。请检查已保存的诊断回执。')
+    const finding = result.finding as {summary?: unknown} | undefined
+    const saved = typeof finding?.summary === 'string' && finding.summary.trim()
+      ? `\n\n**已保存的阶段结论**\n\n${finding.summary}` : ''
+    if (result.status === 'cancelled') throw new Error('诊断已停止。' + saved)
+    if (result.status === 'unknown') throw new Error('执行结果未知。' + saved)
     if (result.failure_code === 'diagnosis_preparation_failed') throw new Error('诊断材料准备失败，Pi 尚未执行。')
     if (result.failure_code === 'diagnosis_executor_rejected') throw new Error('Pi 在执行前拒绝了诊断请求。请核对执行器和调查工具配置。')
-    if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断执行未返回结论。')
+    if (typeof result.answer !== 'string' || !result.answer.trim()) throw new Error('诊断未返回最终结论。' + saved)
     return result.answer
   }
   async debugHistory(threadId: string) {
@@ -363,7 +366,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async debugDiagnosis(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
-    return this.request(path) as Promise<{answer?: string; status: string}>
+    return this.request(path) as Promise<{answer?: string; status: string; finding?: {summary?: string}}>
   }
   async stopDebugDiagnosis(threadId: string, investigationId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/diagnose`
@@ -871,6 +874,7 @@ export class HttpThreadTransport implements ThreadTransport {
 const debugOperations: Record<string, string> = {
   list: '列出网关回执', read: '读取网关回执', logs: '读取网关日志',
   source_files: '查找源码文件', source_lines: '读取源码行',
+  session_records: '读取会话记录', session_gateway_receipts: '查回原网关回执', probe_data: '补查网关数据',
   capstone_records: '读取 Capstone 执行记录', capstone_excerpt: '续读执行摘要',
   publish_finding: '保存阶段结论',
 }

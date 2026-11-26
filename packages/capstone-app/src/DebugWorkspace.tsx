@@ -21,7 +21,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   readSnapshotFinding?: (id: string, snapshotId: string) => Promise<DebugSnapshotFinding | null>
   reviewExport?: (id: string, snapshotId: string, review: ReviewedExport | null) => Promise<void>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
-  readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
+  readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string; finding?: {summary?: string}}>
   readSource?: (id: string, query: URLSearchParams) => Promise<{revision: string; files?: string[]; next_offset?: number | null; lines?: string[]; first_line?: number}>
   runProbe?: (id: string, tool: string, args: Record<string, unknown>) => Promise<unknown>
 }){
@@ -112,7 +112,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     setError('')
     try {
       const result = await readDiagnosis(id)
-      setDiagnosis({id, text: result.answer || '此调查尚无诊断结论。', source: result.source})
+      setDiagnosis({id, text: result.answer || result.finding?.summary || '此调查尚无诊断结论。', source: result.source})
     } catch { setError('暂时无法读取诊断结果。') }
     finally { setBusy(false) }
   }

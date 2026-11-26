@@ -11,6 +11,15 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('retains the saved finding when Debug stops before the final answer', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      status: 'cancelled', finding: {summary: '已核对原回执。'},
+    })))
+    const transport = new HttpThreadTransport('https://api.example', 'operator', fetcher)
+    await expect(transport.watchDebugDiagnosis('thr_demo', 'inv_demo', vi.fn())).rejects.toThrow(
+      '诊断已停止。\n\n**已保存的阶段结论**\n\n已核对原回执。',
+    )
+  })
   it('restores a Debug result with a read and never submits the investigation again', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       status: 'completed', answer: '已定位异常。',
