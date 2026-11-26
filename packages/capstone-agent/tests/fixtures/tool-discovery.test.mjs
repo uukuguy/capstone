@@ -40,6 +40,18 @@ test('domain publications use bounded discovery without gateway grants or eager 
  discovery.close();
 });
 
+test('thin discovery shortens previews while preserving the exact selected contract',async()=>{
+ const publication={name:'inspect',description:'Inventory details. '+'x'.repeat(500),inputSchema:{type:'object'}};
+ const discovery=host.createApplicationToolDiscovery({thinInitialContext:true,
+  applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load','pack_inspect']},
+  domainTools:{onDemandTools:true,catalog:{tools:{pack_inspect:publication}}}});
+ const search=async args=>JSON.parse((await discovery.tools[0].execute('query',args)).content[0].text);
+ const preview=(await search({query:'inspect'})).tools[0];
+ assert.equal(preview.description.length,240);
+ assert.deepEqual((await search({query:'inspect',exact_contract:true})).tools[0].publication,publication);
+ discovery.close();
+});
+
 test('mixed discovery preserves gateway composition scope and rejects identity collisions',async t=>{
  const cwd=await mkdtemp(join(tmpdir(),'mixed-discovery-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
  const publication={description:'Read admitted data',inputSchema:{type:'object'}};
