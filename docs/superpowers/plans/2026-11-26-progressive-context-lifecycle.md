@@ -52,3 +52,20 @@ At `6b1723a7`, `thin-guides-ordinary.json` passed without guide calls.
 reused the contract on a narrower-window follow-up. Both calls matched the
 requested arguments and saved values. Record PPTX cost alongside Word
 delivery and initial gateway discovery on the promotion revision.
+
+Same-image comparison at `c8815c3d` is recorded in
+`matched-acceptance-c881.json`. Both modes passed the window, source values
+and downloaded report checks. Neither report queried the gateway again.
+The figures below are one matched pair per case.
+
+| Case | Model calls, control to thin | Uncached input tokens, control to thin | Elapsed seconds, control to thin |
+| --- | --- | --- | --- |
+| Single-slide PPTX | 5 to 5 | 10,816 to 4,794 | 13.93 to 8.04 |
+| First gateway query | 4 to 5 | 15,648 to 20,613 | 9.60 to 9.31 |
+| Narrower window | 5 to 3 | 13,971 to 9,437 | 12.71 to 7.67 |
+| Word report from saved evidence | 4 to 5 | 11,392 to 6,410 | 19.21 to 14.79 |
+
+Two additional thin PPTX runs each made one render and passed download
+verification. The first-query path still adds a model call and uncached
+input in this pair. The thinner prefix also reduced cached input in all
+four cases. Use the receipt's separate cache counters when comparing cost.
