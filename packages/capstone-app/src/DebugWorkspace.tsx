@@ -166,7 +166,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const digest=sourceVersion.match(/[0-9a-f]{64}/)?.[0]
   const matched=sourceVersion.startsWith('当前网关源码 ')
   return <section className="debug-workspace" aria-label="Debug">
-    <header><Bug size={18} aria-hidden="true"/><h3>会话调试</h3></header>
+    <header><Bug size={18} aria-hidden="true"/><h3>调试调查</h3></header>
     <p>在主会话输入 <code>/debug</code> 和问题，例如「/debug 刚才的请求为什么失败？」。这里可以查阅和下载执行记录。</p>
     <section><h4>执行记录</h4>
     {attempt?<><label>选择要检查的指令<select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>

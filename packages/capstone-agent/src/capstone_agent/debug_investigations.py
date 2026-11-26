@@ -392,8 +392,9 @@ class InvestigationRegister:
         scope = (workspace, thread_id, investigation_id)
         diagnosis = self.get(*scope).get('diagnosis')
         if diagnosis and diagnosis['status'] == 'queued':
-            self._claim_diagnosis(scope, {**diagnosis, 'status': 'failed',
-                                        'failure_code': 'diagnosis_preparation_failed'})
+            if self._claim_diagnosis(scope, {**diagnosis, 'status': 'failed',
+                                             'failure_code': 'diagnosis_preparation_failed'}):
+                self.save_export_snapshot(*scope)
 
     def diagnose(self, workspace, thread_id, investigation_id, executor):
         from time import monotonic
@@ -611,6 +612,7 @@ class InvestigationRegister:
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
                      'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status'],
                      'gateway_investigation_id': evidence_owner, '_gateway_snapshot': gateway,
+                     '_gateway_capture': deepcopy(gateway_capture),
                      'source_evidence': sources}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
@@ -655,7 +657,8 @@ class InvestigationRegister:
                 return {'code': 'diagnosis_not_running'}
             finding = {**deepcopy(query), 'event_refs': sorted(refs)}
             diagnosis = {**diagnosis, 'finding': finding, 'finding_state': state,
-                         'finding_event_seqs': finding['event_refs'], 'finding_digest': evidence_digest(finding)}
+                         'finding_event_seqs': finding['event_refs'], 'finding_digest': evidence_digest(finding),
+                         '_gateway_capture': deepcopy(gateway_capture)}
             self._save_diagnosis(scope, diagnosis)
             snapshot = self.save_export_snapshot(*scope, private_finding=finding, gateway_capture=gateway_capture)
             if snapshot['diagnosis'].get('finding_digest') != diagnosis['finding_digest']:
@@ -711,7 +714,7 @@ class InvestigationRegister:
                                 'diagnosis_not_running'):
                         step['failure_code'] = code
             diagnosis = {**diagnosis, 'progress': [*progress[-63:], step],
-                         'progress_truncated': step['seq'] > 64}
+                         'progress_truncated': step['seq'] > 64, '_gateway_capture': deepcopy(gateway_capture)}
             self._save_diagnosis(scope, diagnosis)
 
         started_at = monotonic()
@@ -826,8 +829,8 @@ class InvestigationRegister:
             except (RuntimeError, OSError, ValueError):
                 result = None
             if result is not None:
-                diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
-                self._save_diagnosis((workspace, thread_id, investigation_id), diagnosis)
+                diagnosis = self._settle_external_diagnosis((workspace, thread_id, investigation_id),
+                                                           diagnosis['task_id'], result)
         return self.public_diagnosis(diagnosis)
 
     @staticmethod
@@ -840,6 +843,7 @@ class InvestigationRegister:
         diagnosis = self.get(*scope).get('diagnosis')
         if diagnosis and diagnosis['status'] == 'queued':
             if self._claim_diagnosis(scope, {**diagnosis, 'status': 'cancelled'}):
+                self.save_export_snapshot(*scope)
                 return self.read_diagnosis(*scope, executor)
             diagnosis = self.get(*scope).get('diagnosis')
         if diagnosis and diagnosis['status'] in {'running', 'unknown'}:
@@ -850,8 +854,34 @@ class InvestigationRegister:
             if (result is None or result.task_id != diagnosis['task_id']
                     or result.parent_attempt_id != investigation_id):
                 raise ValueError('诊断停止尚未确认。')
-            self._save_diagnosis(scope, {**diagnosis, 'status': result.status, 'answer': result.answer})
+            return self.public_diagnosis(self._settle_external_diagnosis(scope, diagnosis['task_id'], result))
         return self.read_diagnosis(*scope, executor)
+
+    def _settle_external_diagnosis(self, scope, task_id, result):
+        if result.status not in {'completed', 'failed', 'cancelled'}:
+            return self.get(*scope)['diagnosis']
+        terminal = {'status': result.status, 'answer': result.answer}
+        settled = None
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=diagnosis || %s
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s
+                      AND diagnosis->>'status' IN ('running', 'unknown')
+                      AND diagnosis->>'task_id'=%s RETURNING diagnosis''',
+                    (Jsonb(terminal), *scope, task_id)).fetchone()
+                if row:
+                    settled = row['diagnosis']
+        else:
+            with self._lock:
+                row = self._diagnosis_row(scope)
+                current = row['diagnosis']
+                if current['task_id'] == task_id and current['status'] in {'running', 'unknown'}:
+                    settled = row['diagnosis'] = {**current, **terminal}
+        if settled is None:
+            return self.get(*scope)['diagnosis']
+        self.save_export_snapshot(*scope, private_finding=settled.get('finding'),
+                                  gateway_capture=settled.get('_gateway_capture'))
+        return settled
 
     def _claim_diagnosis(self, scope, diagnosis):
         if hasattr(self.service, '_connect'):

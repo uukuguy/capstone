@@ -142,6 +142,10 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         def observe_terminal_task(self, task_id, parent_attempt_id, executor_identity):
             assert (task_id, parent_attempt_id, executor_identity) == (
                 calls[-1].task_id, calls[-1].parent_attempt_id, self.identity)
+            scope = (claim.workspace_name, claim.thread_id, parent_attempt_id)
+            current = register.get(*scope)['diagnosis']
+            register._save_diagnosis(scope, {**current, 'progress': [*current['progress'],
+                {'seq': 3, 'stage': 'tool_finished', 'tool': 'agent_debug_observe'}]})
             return SimpleNamespace(status='completed', answer='已找回原诊断结果。')
 
         def cancel(self, task_id):
@@ -211,7 +215,9 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         restored = client.get(url).json()
         assert restored['status'] == 'completed'
         assert restored['answer'] == '已找回原诊断结果。'
-        assert restored['progress'] == evidence['diagnosis']['progress']
+        assert client.get(url.removesuffix('/diagnose') + '/snapshots').json()['snapshots'][0]['status'] == 'completed'
+        assert restored['progress'][:2] == evidence['diagnosis']['progress']
+        assert restored['progress'][-1]['seq'] == 3
         assert client.post(url).json() == restored
         assert len(calls) == 2
         history = client.get(path + '/investigations').json()['investigations']
@@ -224,6 +230,7 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert client.delete(url).json()['status'] == 'cancelled'
         assert len(calls) == 2
         assert client.get(url).json()['status'] == 'cancelled'
+        assert client.get(url.removesuffix('/diagnose') + '/snapshots').json()['snapshots'][0]['status'] == 'cancelled'
         assert service.snapshot(claim.thread_id).last_event_seq == before
         rejected = True
         rejected_run = client.post(path + '/investigations', headers={'Idempotency-Key': 'rejected-debug'},
