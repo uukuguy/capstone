@@ -294,7 +294,8 @@ test('host follows historical gateway arguments exactly and rejects changed obse
   const result=await follow.execute('second',selection);
   assert.deepEqual(calls,[['registered_read',args]]);
   assert.equal(result.details,undefined);
-  await assert.rejects(follow.execute('foreign',{...selection,historical_call_id:'unknown'}),/admitted/i);
+  const missing=await follow.execute('foreign',{...selection,historical_call_id:'unknown'});
+  assert.equal(JSON.parse(missing.content[0].text).executed,false);
   await assert.rejects(follow.execute('edited',{...selection,arguments:{offset:2}}),/pointer|arguments/i);
   const denied=createHistoricalGatewayFollow(admitted,catalog,[],invoke);
   await assert.rejects(denied.execute('denied',selection),/admitted|registered/i);
