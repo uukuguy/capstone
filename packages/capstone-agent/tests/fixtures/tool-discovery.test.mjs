@@ -300,6 +300,21 @@ test('SDK discovery uses the application capacity snapshot instead of module def
   assert.equal(host.createApplicationToolDiscovery(config).tools[1].parameters.properties.names.maxItems,1024);
 });
 
+test('thin discovery paginates candidate previews and still finds exact admitted names',async()=>{
+  const tools=Object.fromEntries(Array.from({length:8},(_,i)=>[`registered_${i}`,{
+    name:`source_${i}`,description:'A common catalog source',inputSchema:{type:'object'}}]));
+  const config={thinInitialContext:true,dataGateway:{onDemandTools:true,catalog:{tools}},
+    applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',...Object.keys(tools)]}};
+  const [search]=host.createApplicationToolDiscovery(config).tools;
+  const find=async(query,offset)=>JSON.parse((await search.execute('search',{query,offset})).content[0].text);
+  const first=await find('common',0);
+  const next=await find('common',first.next_offset);
+  assert.deepEqual(first.tools.map(tool=>tool.name),Object.keys(tools).slice(0,4));
+  assert.deepEqual(next.tools.map(tool=>tool.name),Object.keys(tools).slice(4));
+  assert.equal(next.next_offset,null);
+  assert.deepEqual((await find('source_7',0)).tools.map(tool=>tool.name),['registered_7']);
+});
+
 test('rejected selection names are explicit and do not activate any tool',async()=>{
   const {controller:c,calls}=fixture();
   await assert.rejects(c.tools[1].execute('bad',{names:['source_0','missing','source_19']}),

@@ -396,7 +396,7 @@ export function createApplicationToolDiscovery(config) {
     appendLoads:config.thinInitialContext===true,
     ...(gateway?{resolveContracts:(names,options)=>resolveGatewayContracts(config,names,options)}:{}),
     maxActiveTools:config.runtimeLimits?.tool_active_count,maxActiveSchemaChars:config.runtimeLimits?.tool_schema_chars,
-    pageSize:config.thinInitialContext?Math.min(config.runtimeLimits?.tool_search_page_items??8,8):config.runtimeLimits?.tool_search_page_items,
+    pageSize:config.thinInitialContext?Math.min(config.runtimeLimits?.tool_search_page_items??4,4):config.runtimeLimits?.tool_search_page_items,
     maxSummaryChars:config.thinInitialContext?Math.min(config.runtimeLimits?.tool_summary_chars??240,240):config.runtimeLimits?.tool_summary_chars,
     initialNames:gateway?.catalog.entry_tools??[],detailedGuidance:config.thinInitialContext!==true||!config.gatewayGuide,
     contractHashes:{...gateway?.catalog.tool_hashes,...domain?.catalog.tool_hashes},admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
