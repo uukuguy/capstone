@@ -12,7 +12,7 @@ import { parseNetworkDiagram } from './networkValidation'
 import type { NetworkDiagram } from './types'
 import { Plus } from 'lucide-react'
 import { rotateStorageNamespace, storageNamespace } from './threadSessionState'
-import { readThreadAccess, type ThreadAccessMode } from './threadAccess'
+import { readThreadAccess as readServerThreadAccess, type ThreadAccessMode } from './threadAccess'
 import WorkbenchPreparation from './WorkbenchPreparationView'
 import { prepareWorkbench, type PreparationUpdate } from './workbenchPreparation'
 import ThreadWorkAdapter from './ThreadWorkAdapter'
@@ -27,6 +27,11 @@ import WorkspaceNavigationFrame from './WorkspaceNavigationFrame'
 import {useWorkspaceNavigation} from './workspaceNavigationContext'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
+
+async function readThreadAccess(origin: string, signal: AbortSignal): Promise<ThreadAccessMode> {
+  const access = await readServerThreadAccess(origin, signal)
+  return new URLSearchParams(window.location.search).get('operator') === '1' ? 'operator' : access
+}
 const initialPreparation: PreparationUpdate[] = [
   { component: 'api', status: 'preparing' },
   { component: 'database', status: 'waiting' },

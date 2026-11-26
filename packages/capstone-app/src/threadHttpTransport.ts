@@ -285,12 +285,12 @@ export class HttpThreadTransport implements ThreadTransport {
       finding:typeof investigation?.diagnosis?.answer==='string'&&investigation.diagnosis.answer.trim()?investigation.diagnosis.answer:
         typeof investigation?.diagnosis?.finding?.summary==='string'?investigation.diagnosis.finding.summary:finding}
   }
-  async downloadDebugSession(threadId: string) {
+  async downloadDebugSession(threadId: string, streamToFile = false) {
     const filename = 'capstone-debug-session.zip'
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/session-handoff`
     type SaveHandle = {createWritable: () => Promise<WritableStream<Uint8Array>>}
     const picker = (globalThis as {showSaveFilePicker?: (options: {suggestedName: string}) => Promise<SaveHandle>}).showSaveFilePicker
-    if (picker) {
+    if (streamToFile && picker) {
       const handle = await picker({suggestedName: filename})
       const response = await this.streamRequest(path)
       if (!response.body) throw new Error('调试包内容缺失。')
@@ -301,7 +301,8 @@ export class HttpThreadTransport implements ThreadTransport {
     const size = Number(response.headers.get('Content-Length'))
     if (!Number.isSafeInteger(size) || size <= 0 || exceedsCapacity(size, 'artifact_file_bytes')) {
       await response.body?.cancel()
-      throw new Error('请使用支持直接保存大文件的浏览器下载此调试包。')
+      throw Object.assign(new Error(picker ? '调试包超过浏览器内下载上限，可直接保存到文件。'
+        : '请使用支持直接保存大文件的浏览器下载此调试包。'), {name: picker ? 'DebugStreamSaveRequired' : 'Error'})
     }
     const blob = await response.blob()
     if (blob.size !== size) throw new Error('调试包下载不完整。')

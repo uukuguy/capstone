@@ -1129,7 +1129,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         return (value.match(/\n本轮指令：([^\n]+)/)?.[1]??value).slice(0,64)
       }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}
-      downloadSession={allowDebugSessionExport ? ()=>transport.downloadDebugSession(currentId) : undefined}
+      downloadSession={allowDebugSessionExport ? streamToFile=>transport.downloadDebugSession(currentId,streamToFile) : undefined}
       readHistory={readDebugHistory}
       runProbe={(id,tool,args)=>transport.debugProbe(currentId,id,tool,args)}
       readSource={(id,query)=>transport.debugSourcePage(currentId,id,query)}

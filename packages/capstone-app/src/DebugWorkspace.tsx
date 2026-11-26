@@ -16,7 +16,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
-  downloadSession?: () => Promise<void>
+  downloadSession?: (streamToFile?: boolean) => Promise<void>
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
   readSnapshotFinding?: (id: string, snapshotId: string) => Promise<DebugSnapshotFinding | null>
   reviewExport?: (id: string, snapshotId: string, review: ReviewedExport | null) => Promise<void>
@@ -28,6 +28,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [selection,setSelection]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
+  const [streamSave,setStreamSave]=useState(false)
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<NonNullable<typeof readHistory>>>>([])
   useEffect(() => {
@@ -191,14 +192,15 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     {downloadSession&&<button type="button" disabled={busy} onClick={async ()=>{
       setBusy(true)
       setError('')
-      try { await downloadSession() }
+      try { await downloadSession(streamSave); setStreamSave(false) }
       catch(cause) {
         if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+          if (cause instanceof Error && cause.name === 'DebugStreamSaveRequired') setStreamSave(true)
           setError(cause instanceof Error ? cause.message : '调试包下载失败。')
         }
       }
       finally { setBusy(false) }
-    }}><Download size={15}/>下载调试包</button>}
+    }}><Download size={15}/>{streamSave?'保存调试包到文件':'下载调试包'}</button>}
     <p>在主会话输入 <code>/debug</code> 和问题，可以补查证据。</p>
     <section><h4>执行记录</h4>
     {attempt?<><label>选择要检查的指令<select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
