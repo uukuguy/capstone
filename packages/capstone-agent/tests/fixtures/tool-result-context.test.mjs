@@ -224,7 +224,12 @@ test('historical gateway reads project exact pointers and reject unadmitted call
   assert.deepEqual(JSON.parse(result.content[0].text).value,{
     '/data/data_ref':'opaque','/data/points':[1,2,3],'/provenance/request_id':'original',
   });
-  assert.equal((await reader.execute('read',{...args,historical_call_id:'unadmitted'})).isError,true);
+  const unknown=await reader.execute('read',{...args,historical_call_id:'attempt:admitted'});
+  assert.equal(unknown.isError,true);
+  assert.equal(JSON.parse(unknown.content[0].text).code,'historical_call_unavailable');
+  const invalid=await reader.execute('read',{...args,pointers:['data.points']});
+  assert.equal(invalid.isError,true);
+  assert.match(JSON.parse(invalid.content[0].text).message,/slash-prefixed JSON pointers/);
   await writeFile(path,'{}');
   assert.equal((await reader.execute('read',args)).isError,true);
 });
