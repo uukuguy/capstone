@@ -8515,3 +8515,18 @@ check passed. No CI, integration or remote deployment performed.
   The incompatible branch failed the no-substitute-dispatch expectation.
   Receipt: normal-profile-old-receipt-audit.json.
 - PR 296 merged at c5c9ccaa. Cross-binding synthetic test and independent call passed in thr_2108e84f2c8fceabc23b.
+- 5174 candidate 2797343a exported a two-turn synthetic exact-follow debug
+  package. Offline import validated all member hashes, joined both original
+  gateway receipts and seven model dispatch timings, and linked three
+  history-selection records. Export contained no model input items or
+  private snapshot references. Thread thr_fc37a3d4265afd96cee1. Private
+  receipts: follow-audit-export.zip and follow-audit-verification.json.
+  Restored context diagnostics and session export to disabled.
+- 5174 batch projection experiment at 2797343a reproduced the hard-budget
+  path. Thread thr_ff654193361da2005dd5, ctx-2: 10,698 estimated input
+  tokens, 7,782 ceiling, 5,789 from tool results. No provider dispatch.
+  Each text preview was already shorter than the pressure projection's
+  512-character excerpt bound, so repeated envelope metadata remained.
+  Offline failure evidence and checks: live-projection-batch-verification.json.
+  Temporary profile, context diagnostic capture and export were restored.
+- PR 299 merged at 007cccdf; 5174 thr_61c9a09ac2bde516b98a verified pressure projection and offline diagnostics.
