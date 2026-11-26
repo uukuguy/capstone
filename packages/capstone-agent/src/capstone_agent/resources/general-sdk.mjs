@@ -462,15 +462,20 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
         guide:{type:'boolean',description:'Read detailed guidance for environment-specific or multi-step execution.'},
         include_tools:{type:'boolean',description:'Include the tool directory with the guide when both are needed.'},
         history_before:{type:'integer',minimum:1,description:'Get older history previews using next_before, without reading record bodies.'},
+        history_query:{type:'string',minLength:1,maxLength:128,description:'Find earlier admitted records containing this exact phrase.'},
+        history_role:{type:'string',enum:['user','assistant'],description:'Limit history previews to this original role.'},
         history_index:{type:'integer',minimum:0,description:'Read one earlier admitted conversation record by its zero-based index.'},
         history_indexes:{type:'array',minItems:1,maxItems:4,uniqueItems:true,items:{type:'integer',minimum:0},
           description:'Read up to four related records from earlier_records in one call.'}},additionalProperties:false},
       async execute(_id,args){
-        if(args.history_before!==undefined){
-          const before=args.history_before;
-          if(!Number.isSafeInteger(before)||before<1||before>history.length||args.history_index!==undefined||args.history_indexes!==undefined)
-            return {isError:true,content:[text({message:'Use next_before to request an older history preview page.'})]};
-          return {content:[text(historyIndexPage(history,before))]};
+        if(args.history_before!==undefined||args.history_query!==undefined||args.history_role!==undefined){
+          const {history_before:before,history_query:query,history_role:role}=args;
+          if((before!==undefined&&(!Number.isSafeInteger(before)||before<1||before>history.length))||
+            (query!==undefined&&(typeof query!=='string'||!query.trim()||query.length>128))||
+            (role!==undefined&&!['user','assistant'].includes(role))||
+            args.history_index!==undefined||args.history_indexes!==undefined)
+            return {isError:true,content:[text({message:'Use a short exact phrase, an original role or the next_before cursor.'})]};
+          return {content:[text(historyIndexPage(history,before,query,role))]};
         }
         if(args.history_index!==undefined||args.history_indexes!==undefined){
           const indexes=args.history_indexes??[args.history_index];

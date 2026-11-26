@@ -180,6 +180,12 @@ test('append-only guides deduplicate only while their exact observation remains 
   assert.deepEqual(JSON.parse(page.content[0].text),{earlier_records:[
     {index:0,role:'user',preview:'record 0'},{index:1,role:'user',preview:'record 1'},
   ],next_before:null});
+  const found=await view.tool.execute('history-search',{history_query:'record 3',history_role:'user'});
+  assert.deepEqual(JSON.parse(found.content[0].text),{earlier_records:[
+    {index:3,role:'user',preview:'record 3'},
+  ],next_before:null});
+  assert.deepEqual(JSON.parse((await view.tool.execute('no-match',{history_query:'record 5'})).content[0].text),
+    {earlier_records:[],next_before:null});
   const request={systemPrompt:'Stable',messages,tools:[]};
   const first=await view.tool.execute('first',{guide:true});
   assert.match(first.content[0].text,/Use the actual task paths\./);
