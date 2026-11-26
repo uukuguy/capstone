@@ -181,7 +181,7 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                           objects=None, native_executor=None, supplements=None):
     """Build the local session package after the application grants export."""
     gaps = [
-        {"kind": "data_gateway", "status": "not_collected"},
+        {"kind": "data_gateway_original_calls", "status": "not_collected"},
     ]
     if supplements is None:
         gaps.append({"kind": "supplementary_evidence", "status": "export_unavailable"})

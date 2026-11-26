@@ -11,6 +11,7 @@ from .data_gateway_mcp import GatewayError, validate
 
 VERSION = 'gateway-investigation/1'
 LOG_VERSION = 'gateway-investigation-logs/1'
+EVIDENCE_VERSION = 'gateway-investigation-evidence/1'
 BASE = '/investigations/v1/'
 SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', 'Receipt'),
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
@@ -121,6 +122,44 @@ class GatewayInvestigation:
         if not isinstance(allowed, list):
             raise GatewayError('investigation_contract_invalid')
         return [key for key in EXPORT_RECEIPT_FIELDS if key in allowed]
+
+    async def read_offline_evidence(self, declaration, scope, query):
+        if declaration != {'version': EVIDENCE_VERSION, 'contract_path': BASE + 'evidence-contract'}:
+            return {'status': 'capability_unavailable'}
+        contract = await _request(self._client, 'GET', self._origin + BASE + 'evidence-contract')
+        if (not isinstance(contract, dict) or contract.get('contract_version') != EVIDENCE_VERSION
+                or (contract.get('operations') or {}).get('read') != {'method': 'POST', 'path': BASE + 'evidence'}):
+            raise GatewayError('investigation_contract_invalid')
+        policy = contract.get('export') or {}
+        if policy.get('deployment_policy') != 'allow_sanitized':
+            return {'status': 'export_not_authorized'}
+        fields = {'contract_version', 'evidence_status', 'observed_status', 'truncated', 'first_confirmed_anomaly'}
+        if not isinstance(policy.get('allowed'), list) or not fields <= set(policy['allowed']):
+            raise GatewayError('investigation_contract_invalid')
+        if len(query) != 1 or not all(isinstance(value, str) and value for value in query.values()):
+            raise GatewayError('investigation_request_invalid')
+        payload = {**scope, **query}
+        schemas = contract.get('schemas') or {}
+        try:
+            validate(schemas['ReadRequest'], payload)
+        except Exception:
+            raise GatewayError('investigation_request_invalid') from None
+        result = await _request(self._client, 'POST', self._origin + BASE + 'evidence', payload)
+        try:
+            validate(schemas['Evidence'], result)
+            if (not isinstance(result, dict) or result.keys() != fields
+                    or result.get('contract_version') != EVIDENCE_VERSION):
+                raise ValueError()
+            anomaly = result['first_confirmed_anomaly']
+            if anomaly is not None and (
+                not isinstance(anomaly, dict) or anomaly.keys() != {
+                    'component', 'stage_category', 'observed_status', 'error_category',
+                } or result['truncated'] is not False
+            ):
+                raise ValueError()
+        except Exception:
+            raise GatewayError('investigation_response_invalid') from None
+        return {'status': 'available', 'projection': result}
 
     async def export_receipts(self, scope):
         keys = self.export_fields()
@@ -238,6 +277,7 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     if (connection.instance_identity or {}).get('instance_id') != instance_id:
         raise GatewayError('gateway_instance_changed')
     allowed = {'list': {'limit', 'cursor'}, 'read': {'client_call_id', 'request_id'},
+               'offline_evidence': {'client_call_id', 'request_id'},
                'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}, 'export': set(),
                'authorize_snapshot_export': {'client_call_ids'}}
     if operation not in allowed or not isinstance(query, dict) or query.keys() - allowed[operation]:
@@ -251,6 +291,8 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     scope = {**owner, 'binding_handle': binding['binding_handle']}
     if operation == 'logs':
         return await access.read_logs(scope, query)
+    if operation == 'offline_evidence':
+        return await access.read_offline_evidence(getattr(connection, 'investigation_evidence', None), scope, query)
     if operation == 'export':
         return await access.export_receipts(scope)
     if operation == 'authorize_snapshot_export':

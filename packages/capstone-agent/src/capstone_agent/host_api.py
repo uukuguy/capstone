@@ -548,24 +548,36 @@ def create_host_app(
                 binding = investigations.historical_gateway(workspace, thread_id, owner)
                 if not callable(reader) or not binding:
                     return {'status': 'export_unavailable', 'events': []}
+                if owner not in capture:
+                    return {'status': 'snapshot_gateway_evidence_unavailable', 'events': []}
+                frozen = capture[owner]
+                call_ids = [row['client_call_id'] for row in frozen['receipts']]
+                offline = []
+                for index, call_id in enumerate(call_ids, 1):
+                    try:
+                        item = reader(binding, workspace, owner, 'offline_evidence', {'client_call_id': call_id})
+                    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                        item = {'status': 'read_unavailable'}
+                    offline.append({'entry': index, **item})
+                    if item.get('status') in {'capability_unavailable', 'export_not_authorized'}:
+                        break
+                offline_fields = {'offline_evidence': offline}
+                projected_entries = {item['entry'] for item in offline if item['status'] == 'available'}
                 try:
-                    if owner not in capture:
-                        return {'status': 'snapshot_gateway_evidence_unavailable', 'events': []}
-                    frozen = capture[owner]
-                    call_ids = [row['client_call_id'] for row in frozen['receipts']]
                     grant = reader(binding, workspace, owner, 'authorize_snapshot_export',
                                    {'client_call_ids': call_ids})
                     if grant['status'] != 'available':
-                        return {'status': grant['status'], 'events': []}
+                        return {'status': grant['status'], 'events': [], **offline_fields}
                     from .gateway_investigation import EXPORT_RECEIPT_FIELDS
                     keys = [key for key in EXPORT_RECEIPT_FIELDS if key in grant['allowed']]
                     visible = set(grant['client_call_ids'])
-                    events = [{key: row[key] for key in keys if key in row}
-                              for row in frozen['receipts'] if row['client_call_id'] in visible]
+                    events = [{**({'entry': index} if index in projected_entries else {}),
+                               **{key: row[key] for key in keys if key in row}}
+                              for index, row in enumerate(frozen['receipts'], 1) if row['client_call_id'] in visible]
                     return {'status': 'available', 'events': events,
-                            'truncated': frozen['truncated'] or len(events) != len(call_ids)}
+                            'truncated': frozen['truncated'] or len(events) != len(call_ids), **offline_fields}
                 except (KeyError, TypeError, ValueError, RuntimeError, OSError):
-                    return {'status': 'read_unavailable', 'events': []}
+                    return {'status': 'read_unavailable', 'events': [], **offline_fields}
 
             document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'snapshot'}
             observation = document.get('observation') or {}

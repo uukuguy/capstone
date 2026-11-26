@@ -72,6 +72,7 @@ class InitializedGatewaySession:
     http_client: object = None
     investigation_logs: object = None
     debug_source: object = None
+    investigation_evidence: object = None
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
@@ -286,7 +287,8 @@ class DataGatewayMcp:
                     yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump(),
                                                     instance, declaration, investigation, client,
                                                     experimental.get('data-gateway/investigation-logs') if isinstance(experimental, dict) else None,
-                                                    experimental.get('data-gateway/debug-source') if isinstance(experimental, dict) else None)
+                                                    experimental.get('data-gateway/debug-source') if isinstance(experimental, dict) else None,
+                                                    experimental.get('data-gateway/investigation-evidence') if isinstance(experimental, dict) else None)
 
     @asynccontextmanager
     async def investigation_access(self):

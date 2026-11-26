@@ -1,0 +1,15 @@
+{
+  "example_deployment_policy": "allow_sanitized",
+  "projection": {
+    "contract_version": "gateway-investigation-evidence/1",
+    "evidence_status": "retained",
+    "observed_status": "error",
+    "truncated": false,
+    "first_confirmed_anomaly": {
+      "component": "database",
+      "stage_category": "read",
+      "observed_status": "error",
+      "error_category": "timeout"
+    }
+  }
+}

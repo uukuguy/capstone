@@ -15,6 +15,39 @@ EXCHANGE = json.loads((FIXTURES / 'synthetic-exchange.json').read_text())
 DECLARATION = {'version': VERSION, 'contract_path': BASE + 'contract'}
 
 
+@pytest.mark.parametrize('policy', ['undeclared', 'allow_sanitized'])
+def test_offline_evidence_follows_published_contract(policy):
+    contract = json.loads((FIXTURES / 'evidence-contract.json').read_text())
+    projection = json.loads((FIXTURES / 'synthetic-evidence-offline.json').read_text())['projection']
+    contract['export']['deployment_policy'] = policy
+    declaration = {'version': contract['contract_version'], 'contract_path': BASE + 'evidence-contract'}
+    scope = {'binding_handle': 'a' * 43, 'workspace_id': 'ws_example', 'investigation_id': 'inv_example'}
+    query = {'client_call_id': 'call_example'}
+
+    def respond(request):
+        if request.url.path == BASE + 'evidence-contract':
+            assert request.method == 'GET'
+            return httpx.Response(200, json=contract)
+        assert policy == 'allow_sanitized'
+        assert request.method == 'POST' and request.url.path == BASE + 'evidence'
+        assert json.loads(request.content) == {**scope, **query}
+        return httpx.Response(200, json=projection)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            access = GatewayInvestigation(client, 'https://fixture.test', {})
+            result = await access.read_offline_evidence(declaration, scope, query)
+            if policy == 'allow_sanitized':
+                assert result == {'status': 'available', 'projection': projection}
+                projection['request_id'] = 'onsite-only'
+                with pytest.raises(GatewayError, match='investigation_response_invalid'):
+                    await access.read_offline_evidence(declaration, scope, query)
+            else:
+                assert result == {'status': 'export_not_authorized'}
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize('case', json.loads((FIXTURES / 'synthetic-logs.json').read_text())['cases'],
                          ids=lambda case: case['case'])
 def test_logs_follow_published_examples(case):

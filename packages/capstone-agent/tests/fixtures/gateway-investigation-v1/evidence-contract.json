@@ -1,0 +1,442 @@
+{
+  "contract_version": "gateway-investigation-evidence/1",
+  "capability": "data-gateway/investigation-evidence",
+  "operations": {
+    "contract": {
+      "method": "GET",
+      "path": "/investigations/v1/evidence-contract"
+    },
+    "read": {
+      "method": "POST",
+      "path": "/investigations/v1/evidence"
+    }
+  },
+  "schemas": {
+    "ReadRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_handle": {
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "title": "Binding Handle",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "investigation_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "title": "Investigation Id",
+          "type": "string"
+        },
+        "client_call_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Call Id"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        }
+      },
+      "required": [
+        "binding_handle",
+        "workspace_id",
+        "investigation_id"
+      ],
+      "title": "ReadRequest",
+      "type": "object"
+    },
+    "Evidence": {
+      "$defs": {
+        "Anomaly": {
+          "additionalProperties": false,
+          "properties": {
+            "component": {
+              "enum": [
+                "gateway",
+                "provider",
+                "database",
+                "source",
+                "cache",
+                "execution"
+              ],
+              "title": "Component",
+              "type": "string"
+            },
+            "stage_category": {
+              "enum": [
+                "dispatch",
+                "execute",
+                "read",
+                "budget"
+              ],
+              "title": "Stage Category",
+              "type": "string"
+            },
+            "observed_status": {
+              "enum": [
+                "partial",
+                "unavailable",
+                "error",
+                "failed",
+                "cancelled"
+              ],
+              "title": "Observed Status",
+              "type": "string"
+            },
+            "error_category": {
+              "enum": [
+                "timeout",
+                "access_denied",
+                "input_validation",
+                "source_unavailable",
+                "unknown"
+              ],
+              "title": "Error Category",
+              "type": "string"
+            }
+          },
+          "required": [
+            "component",
+            "stage_category",
+            "observed_status",
+            "error_category"
+          ],
+          "title": "Anomaly",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation-evidence/1",
+          "default": "gateway-investigation-evidence/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "evidence_status": {
+          "enum": [
+            "retained",
+            "missing",
+            "unknown"
+          ],
+          "title": "Evidence Status",
+          "type": "string"
+        },
+        "observed_status": {
+          "enum": [
+            "ok",
+            "partial",
+            "unavailable",
+            "error",
+            "failed",
+            "cancelled",
+            "unknown"
+          ],
+          "title": "Observed Status",
+          "type": "string"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "first_confirmed_anomaly": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Anomaly"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "evidence_status",
+        "observed_status",
+        "truncated",
+        "first_confirmed_anomaly"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "$defs": {
+        "ErrorDetail": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Code",
+              "type": "string"
+            },
+            "automatic_retry": {
+              "const": false,
+              "default": false,
+              "title": "Automatic Retry",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "title": "ErrorDetail",
+          "type": "object"
+        },
+        "Phase": {
+          "additionalProperties": false,
+          "properties": {
+            "stage": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Stage",
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "unknown",
+                "ok",
+                "partial",
+                "unavailable",
+                "error",
+                "failed",
+                "cancelled"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed Ms"
+            }
+          },
+          "required": [
+            "stage",
+            "status"
+          ],
+          "title": "Phase",
+          "type": "object"
+        },
+        "Receipt": {
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "const": "gateway-investigation/1",
+              "default": "gateway-investigation/1",
+              "title": "Contract Version",
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "unknown",
+                "observed"
+              ],
+              "title": "State",
+              "type": "string"
+            },
+            "observed_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "ok",
+                    "partial",
+                    "unavailable",
+                    "error",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Observed Status"
+            },
+            "client_call_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Client Call Id",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Request Id"
+            },
+            "instance_id": {
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+              "title": "Instance Id",
+              "type": "string"
+            },
+            "gateway_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Gateway Version"
+            },
+            "tool": {
+              "title": "Tool",
+              "type": "string"
+            },
+            "tool_contract_revision": {
+              "title": "Tool Contract Revision",
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Elapsed Ms"
+            },
+            "error_code": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Code"
+            },
+            "phases": {
+              "items": {
+                "$ref": "#/$defs/Phase"
+              },
+              "maxItems": 50,
+              "title": "Phases",
+              "type": "array"
+            },
+            "phase_read_status": {
+              "default": "not_requested",
+              "enum": [
+                "not_requested",
+                "retained",
+                "not_observed",
+                "unavailable"
+              ],
+              "title": "Phase Read Status",
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "title": "Truncated",
+              "type": "boolean"
+            },
+            "automatic_retry": {
+              "const": false,
+              "default": false,
+              "title": "Automatic Retry",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "state",
+            "observed_status",
+            "client_call_id",
+            "request_id",
+            "instance_id",
+            "gateway_version",
+            "tool",
+            "tool_contract_revision",
+            "elapsed_ms",
+            "error_code",
+            "phases"
+          ],
+          "title": "Receipt",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "gateway-investigation/1",
+          "default": "gateway-investigation/1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorDetail"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Receipt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "ErrorResponse",
+      "type": "object"
+    }
+  },
+  "export": {
+    "deployment_policy": "undeclared",
+    "allowed": [
+      "contract_version",
+      "evidence_status",
+      "observed_status",
+      "truncated",
+      "first_confirmed_anomaly"
+    ],
+    "unlisted": "onsite_only",
+    "correlation": "capstone_generated_bundle_entry"
+  },
+  "limits": {
+    "max_events": 2000,
+    "max_bytes_per_file": 4000000,
+    "max_rotation_files": 6
+  }
+}
