@@ -193,3 +193,27 @@ instruction made one data query. The second thin sample also made two
 read-only metadata calls before the query. The continuation improved in
 both thin samples. The initial cost was variable. This sample does not
 establish a general initial-request improvement.
+
+The current local image at `7d832123` also delivered eight Word reports
+from the synthetic Beijing and Jiangsu values. Each mode ran each
+instruction twice. The first instruction repeated the expected values.
+The second required the earlier conversation as the source for the exact
+values. All eight downloads matched their published digest, expected
+numbers, units and synthetic-source label.
+
+| Report instruction and mode | Model requests | Uncached input tokens | Elapsed seconds |
+| --- | --- | --- | --- |
+| Values repeated, thin | 4 / 6 | 5,464 / 5,854 | 8.94 / 12.72 |
+| Values repeated, control | 3 / 4 | 10,389 / 9,322 | 7.17 / 7.06 |
+| Values from history, thin | 8 / 3 | 7,240 / 6,035 | 17.25 / 9.82 |
+| Values from history, control | 7 / 3 | 11,920 / 9,208 | 17.56 / 8.08 |
+
+The thin samples reduced uncached input in both report cases. Their
+latency varied and the report that repeated the values took longer in
+both thin samples. One history-only control labeled the synthetic values
+as capacity, even though the user did not define that metric. These
+results support report delivery and numerical continuity for the tested
+profile. They do not establish a latency improvement or preservation of
+every semantic qualifier. Retain the scoped rollout and the per-model
+rollback. See `final-word-same-image-matched.json` and
+`history-word-same-image-matched.json`.
