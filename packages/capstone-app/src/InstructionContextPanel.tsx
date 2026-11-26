@@ -135,6 +135,8 @@ export default function InstructionContextPanel({rows,attempt,requested,labels,o
           <div className="context-metrics">
             <div><span>已用上下文</span><div><strong>{current.inputTokens===undefined?'未记录':tokens(current.inputTokens)}</strong>{current.windowTokens!==undefined&&<small> / {tokens(current.windowTokens)} token</small>}</div>
               <small>{current.basis==='provider'?'Provider 回执':current.basis==='estimate'?'估算':''}{occupancy!==undefined&&` · ${occupancy}%`}</small>
+              {current.inputCeilingTokens!==undefined&&<small> · 理论输入上限 {tokens(current.inputCeilingTokens)} token</small>}
+              {current.estimatedProjectionSavings!==undefined&&<small> · 裁剪约节省 {tokens(current.estimatedProjectionSavings)} token</small>}
           {occupancy!==undefined&&<div className="context-window-meter" role="meter" aria-label="请求输入占模型窗口比例"
             aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100,occupancy)} aria-valuetext={`${occupancy}%`}>
             <i style={{width:`${Math.min(100,occupancy)}%`}} />
