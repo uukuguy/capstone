@@ -173,3 +173,23 @@ accept strings without a timezone offset, which the execution contract
 rejects. Follow the [gateway handoff](../../reports/2026-11-27-gateway-view-window-contract-handoff.md)
 for the source-side contract and joint validation. Keep the broad rollout
 default off while the instruction-type cost and joint contract checks remain open.
+
+The same-image synthetic comparison at `7d832123` used two Threads per
+mode, the same model and gateway, and the same two instructions. The
+gateway dropped the response to the registered data query in each Thread.
+The provider reported these per-instruction measurements. See
+`response-loss-same-image-matched.json`.
+
+| Mode and stage | Model requests | Uncached input tokens | Cache read tokens | Elapsed seconds |
+| --- | --- | --- | --- | --- |
+| Thin, initial | 4 / 7 | 7,117 / 20,131 | 14,080 / 40,448 | 7.31 / 12.58 |
+| Control, initial | 4 / 6 | 12,815 / 11,961 | 73,600 / 124,032 | 9.81 / 11.86 |
+| Thin, continuation | 3 / 3 | 3,859 / 4,246 | 11,520 / 12,672 | 7.51 / 9.30 |
+| Control, continuation | 8 / 5 | 23,765 / 16,078 | 210,944 / 106,880 | 20.44 / 13.30 |
+
+All four continuations distinguished confirmed gateway execution from
+unavailable query data. Each made zero gateway calls. Each initial
+instruction made one data query. The second thin sample also made two
+read-only metadata calls before the query. The continuation improved in
+both thin samples. The initial cost was variable. This sample does not
+establish a general initial-request improvement.
