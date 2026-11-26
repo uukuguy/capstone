@@ -36,6 +36,16 @@ def _matches(value, pattern):
     return isinstance(value, str) and pattern.fullmatch(value) is not None
 
 
+def checked_history_selection(selection):
+    counts = ('inline_records', 'indexed_records', 'omitted_previews')
+    if (isinstance(selection, dict)
+            and selection.get('reason') in ('bounded_recent_records', 'explicit_message_reference', 'instruction_term_overlap', 'history_previews_only')
+            and all(type(selection.get(key)) is int and 0 <= selection[key] <= 10_000 for key in counts)
+            and selection['omitted_previews'] <= selection['indexed_records']):
+        return {'reason': selection['reason'], **{key: selection[key] for key in counts}}
+    return None
+
+
 def _checked_origin(value):
     if not isinstance(value, dict):
         return None
@@ -44,6 +54,10 @@ def _checked_origin(value):
             or delivery not in ('text', 'reference', 'preview')):
         return None
     result = {'kind': kind, 'id': identifier, 'revision': revision, 'delivery': delivery}
+    if kind == 'history' and identifier == 'historical-conversation':
+        selection = checked_history_selection(value.get('selection'))
+        if selection is not None:
+            result['selection'] = selection
     if kind == 'file':
         digest, offset, length = (value.get(field) for field in ('digest', 'offset', 'length'))
         if (not _matches(digest, re.compile(r'[a-f0-9]{64}')) or type(offset) is not int or type(length) is not int
@@ -81,7 +95,7 @@ def checked_snapshot(event: dict) -> dict | None:
             redacted = redacted.replace(credential, '[REDACTED]')
         row = {'index': index, 'carrier': carrier, 'role': role, 'text': redacted,
                'truncated': truncated, 'redacted': redacted != text or item.get('redacted') is True,
-               'digest': sha256(redacted.encode()).hexdigest()}
+               'digest': sha256(redacted.encode()).hexdigest(), 'projected_bytes': len(redacted.encode())}
         if carrier in {'messages', 'tool_results'}:
             message_index, block_index = item.get('message_index'), item.get('block_index')
             if all(type(value) is int and 1 <= value <= 2**31 - 1 for value in (message_index, block_index)):

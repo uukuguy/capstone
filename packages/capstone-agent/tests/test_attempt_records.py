@@ -85,13 +85,18 @@ def test_request_context_is_scoped_and_reads_one_redacted_entry(monkeypatch):
     service, claim = completed_task()
     objects = MemoryObjectStore()
     snapshot = checked_snapshot({
-        'request_id': 'ctx-1', 'dispatch_id': 'request-1', 'kind': 'main', 'total_entries': 2,
+        'request_id': 'ctx-1', 'dispatch_id': 'request-1', 'kind': 'main', 'total_entries': 3,
         'entries': [
             {'index': 1, 'carrier': 'system', 'role': 'system', 'text': 'Retained instruction', 'truncated': False},
             {'index': 2, 'carrier': 'tool_results', 'role': 'toolResult', 'text': 'api_key: example-secret',
              'truncated': False, 'source_id': 'call-real',
              'origin': {'kind': 'file', 'id': 'resource_test', 'revision': '2', 'delivery': 'reference',
                         'digest': '1' * 64, 'offset': 256, 'length': 64}},
+            {'index': 3, 'carrier': 'messages', 'role': 'user', 'text': '旧记录', 'truncated': False,
+             'origin': {'kind': 'history', 'id': 'historical-conversation', 'revision': 'admitted',
+                        'delivery': 'text', 'selection': {'reason': 'bounded_recent_records',
+                            'inline_records': 2, 'indexed_records': 19, 'omitted_previews': 7,
+                            'private_label': 'withhold-this'}}},
         ],
     })
     attempt = claim.attempt.attempt_id
@@ -113,4 +118,8 @@ def test_request_context_is_scoped_and_reads_one_redacted_entry(monkeypatch):
         assert tool['origin']['offset'] == 256 and tool['origin']['length'] == 64
         assert tool['redacted'] is True and 'example-secret' not in tool['text']
         assert client.get(path.replace(f'/attempts/{attempt}/', '/attempts/other_attempt/'), headers=auth).status_code == 404
-        assert client.get(path, params={'index': 3}, headers=auth).status_code == 404
+        history = listing.json()['entries'][2]
+        assert history['projected_bytes'] == 9
+        assert history['origin']['selection'] == {'reason': 'bounded_recent_records',
+            'inline_records': 2, 'indexed_records': 19, 'omitted_previews': 7}
+        assert client.get(path, params={'index': 4}, headers=auth).status_code == 404

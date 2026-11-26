@@ -982,16 +982,25 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     source = agent + 'src/capstone_agent/'
     thin_context = {source + 'general_pi_server.py', source + 'resources/general-sdk.mjs'}
     thin_context_paths = thin_context | {
+        'packages/capstone-app/src/InstructionContextPanel.tsx',
+        'packages/capstone-app/src/instructionContext.ts',
+        'packages/capstone-app/src/instructionContext.test.ts',
+        'tools/native_report.py', 'tools/native_presentation_library.py', 'tools/tests/test_native_presentation.py',
         'compose.yaml', '.github/workflows/verify.yml', 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py',
         'packages/pandapower-domain-pack/src/pandapower_domain/tool_service.py',
         'packages/pandapower-domain-pack/tests/test_tool_service.py',
     } | {source + name for name in (
+        'application_capacity.py', 'debug_session_handoff.py', 'delegated_runtime.py',
+        'general_pi_storage.py', 'model_context_diagnostics.py', 'pi_delegation.py',
+        'thread_worker.py', 'workbench_llm_profiles.py',
         'native_environment.py', 'resources/general-context.mjs', 'resources/general-domain-tools.mjs',
         'resources/general-tool-discovery.mjs', 'resources/model-context-input.mjs',
         'resources/presentation-templates.mjs', 'resources/tool-result-context.mjs',
     )} | {agent + 'tests/' + name for name in (
         'fixtures/presentation-templates.test.mjs', 'fixtures/tool-discovery.test.mjs',
         'fixtures/tool-result-context.test.mjs', 'general-sdk-capacity.test.mjs',
+        'test_attempt_records.py', 'test_data_gateway_relay.py', 'test_debug_session_handoff.py',
+        'test_general_pi_native.py', 'test_native_resources.py', 'test_workbench_llm_profiles.py',
         'test_general_pi_server.py', 'test_native_environment.py', 'test_main_chain_context.py',
     )}
     if thin_context.issubset(paths) and all(path in thin_context_paths or _control_path(path) for path in paths):

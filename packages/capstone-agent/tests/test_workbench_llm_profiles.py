@@ -226,3 +226,27 @@ def test_registered_default_reasoning_capability_is_typed_and_revision_bound():
         registry.profiles[selected['profile_id']]['reasoning'] = invalid
         with pytest.raises(ValueError, match='reasoning'):
             registry.freeze()
+
+
+def test_thin_context_can_roll_back_a_single_profile_without_invalidating_selection():
+    env = {'DEEPSEEK_API_KEY': 'private', 'CAPSTONE_THIN_INITIAL_CONTEXT': '1'}
+    initial = ProfileRegistry(environment=env)
+    selection = initial.freeze('commercial-deepseek-flash')
+    registry = ProfileRegistry(environment={**env, 'CAPSTONE_THIN_CONTEXT_PROFILES':
+        '{"commercial-deepseek-flash":false}'})
+    assert registry.resolve(selection)['id'] == 'commercial-deepseek-flash'
+    assert registry.thin_context_enabled('commercial-deepseek-flash') is False
+    assert registry.thin_context_enabled('intranet-qwen-8011') is True
+
+
+def test_thin_context_can_enable_one_profile_with_a_disabled_default():
+    registry = ProfileRegistry(environment={'CAPSTONE_THIN_CONTEXT_PROFILES':
+        '{"commercial-deepseek-flash":true}'})
+    assert registry.thin_context_enabled('commercial-deepseek-flash') is True
+    assert registry.thin_context_enabled('intranet-qwen-8011') is False
+
+
+@pytest.mark.parametrize('overrides', ['[]', 'broken', '{"missing":true}', '{"commercial-deepseek-flash":"1"}'])
+def test_thin_context_rejects_invalid_profile_overrides(overrides):
+    with pytest.raises(ValueError, match='thin context profile overrides'):
+        ProfileRegistry(environment={'CAPSTONE_THIN_CONTEXT_PROFILES': overrides})

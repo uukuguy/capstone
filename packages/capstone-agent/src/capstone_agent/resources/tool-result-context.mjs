@@ -12,6 +12,17 @@ export const savedToolObservation=result=>structuredClone(result?.[savedResult])
 const issuedObservationRefs=new Set();
 const referenceKey=ref=>JSON.stringify([ref.path,ref.sha256,ref.size_bytes,ref.tool,ref.call_id,ref.base_pointer]);
 const digest=value=>createHash('sha256').update(value).digest('hex');
+function selectObservationPointers(pointers,read){
+  const selected=[],missing=[];
+  for(const pointer of pointers){
+    try{selected.push([pointer,read(pointer)]);}
+    catch(error){
+      if(!(error instanceof ObservationPointerError))throw error;
+      missing.push(pointer);
+    }
+  }
+  return {value:Object.fromEntries(selected),...(missing.length?{missing_pointers:missing}:{})};
+}
 export async function readSavedObservation(ref,pointer,{cwd}){
   if(!ref||typeof ref!=='object'||!issuedObservationRefs.has(referenceKey(ref)))
     throw Error('Unknown saved observation reference');
@@ -32,7 +43,9 @@ export async function readSavedObservation(ref,pointer,{cwd}){
     if(position!==ref.size_bytes||extra.bytesRead||digest(body)!==ref.sha256)throw Error('Saved observation identity changed');
     const value=ref.path.endsWith('.json')?JSON.parse(body.toString('utf8')):body.toString('utf8');
     const prefix=ref.base_pointer??'';
-    return readObservation(new Map([['saved',{value:observationPointer(value,prefix),envelope_pointer:prefix}]]),'saved',pointer);
+    const records=new Map([['saved',{value:observationPointer(value,prefix),envelope_pointer:prefix}]]);
+    return Array.isArray(pointer)?selectObservationPointers(pointer,key=>readObservation(records,'saved',key))
+      :readObservation(records,'saved',pointer);
   }finally{await handle.close();}
 }
 export async function resolveTaskObservation(records,ref,{cwd,useLedger}){
@@ -145,38 +158,68 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   return {...result,content,[originalResult]:result,[savedResult]:saved};
 }
 
-export function createObservationReadTool(cwd){
+export function createObservationReadTool(cwd,historical=[]){
   const reply=(value,isError=false)=>({isError,content:[{type:'text',text:JSON.stringify(value)}]});
   return {
     name:'agent_observation_read',label:'Read saved tool output',
-    description:'Read fields or pages from a native script result that returned a full_result file reference. Use a JSON pointer, or an empty string for the root.',
+    description:'Read the current tool result with its issued full_result reference. Use historical_call_id only for an earlier call from the host-admitted list. Multiple exact pointers return available fields and list missing fields. To page an array, use one pointer and select fields by key.',
     parameters:{type:'object',properties:{
       reference:{type:'object',properties:{
         path:{type:'string'},sha256:{type:'string'},size_bytes:{type:'integer'},tool:{type:'string'},call_id:{type:'string'},
         base_pointer:{anyOf:[{type:'string'},{type:'null'}]},
       },required:['path','sha256','size_bytes','tool','call_id','base_pointer'],additionalProperties:false},
+      historical_call_id:{type:'string',maxLength:128},
+      pointers:{type:'array',minItems:1,maxItems:16,uniqueItems:true,items:{type:'string',maxLength:512}},
+      fields:{type:'array',minItems:1,maxItems:16,uniqueItems:true,
+        items:{type:'string',minLength:1,maxLength:128}},
       pointer:{type:'string',maxLength:512},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:2000},
-    },required:['reference'],additionalProperties:false},
-    async execute(_callId,{reference,pointer='',offset,limit},signal){
+    },additionalProperties:false},
+    async execute(_callId,{reference,pointer='',offset,limit,fields,historical_call_id,pointers},signal){
       signal?.throwIfAborted();
-      let value;
-      try{value=await readSavedObservation(reference,pointer,{cwd});}
+      let selection;
+      const paged=offset!==undefined||limit!==undefined||fields!==undefined;
+      if(pointers?.length&&paged)return reply({code:'observation_not_pageable',
+        message:'To page a result, select one field with pointer.'},true);
+      try{
+        if(historical_call_id!==undefined){
+          const item=historical.find(entry=>entry.tool_call_id===historical_call_id);
+          if(!item||reference!==undefined)return reply({code:'historical_call_unavailable',
+            message:'Use the exact historical_call_id from the admitted list, without an attempt prefix or a reference.'},true);
+          if((pointers??[pointer]).some(key=>key!==''&&!key.startsWith('/')))
+            return reply({code:'invalid_observation_pointer',
+              message:'Use slash-prefixed JSON pointers such as /data and /provenance/request_id.'},true);
+          const bytes=await readFile(item.path);
+          if(digest(bytes)!==item.sha256)throw new Error('Historical observation digest changed');
+          const envelope=JSON.parse(bytes);
+          const source=envelope.structuredContent??envelope;
+          selection=pointers?.length?selectObservationPointers(pointers,key=>observationPointer(source,key))
+            :{value:observationPointer(source,pointer)};
+        }else selection=pointers?.length?await readSavedObservation(reference,pointers,{cwd})
+          :{value:await readSavedObservation(reference,pointer,{cwd})};
+      }
       catch(error){
         signal?.throwIfAborted();
         return reply({code:'observation_unavailable',message:error instanceof ObservationPointerError
           ?error.message:'Use an exact saved observation reference issued in this task.'},true);
       }
       signal?.throwIfAborted();
-      const paged=offset!==undefined||limit!==undefined;
+      const {value,missing_pointers}=selection;
       if(paged){
         if(!Array.isArray(value)&&typeof value!=='string')
           return reply({code:'observation_not_pageable',message:'Select an array or text field to page.'},true);
         const start=offset??0,end=Math.min(start+(limit??20),value.length);
-        const page={complete:end>=value.length,value:value.slice(start,end),total:value.length,
+        let selected=value.slice(start,end);
+        if(fields!==undefined){
+          if(!Array.isArray(selected)||selected.some(row=>!row||typeof row!=='object'||Array.isArray(row)))
+            return reply({code:'observation_fields_unavailable',message:'Select an array of records for a field projection.'},true);
+          selected=selected.map(row=>Object.fromEntries(fields.filter(field=>Object.hasOwn(row,field))
+            .map(field=>[field,row[field]])));
+        }
+        const page={complete:end>=value.length,value:selected,total:value.length,
           ...(end<value.length?{next_offset:end}:{})};
         if(Buffer.byteLength(JSON.stringify(page))<=4000)return reply(page);
-      }else if(Buffer.byteLength(JSON.stringify(value))<=3800)return reply({complete:true,value});
-      return reply({complete:false,structure:structureIndex(value),
+      }else if(Buffer.byteLength(JSON.stringify(selection))<=3800)return reply({complete:true,...selection});
+      return reply({complete:false,structure:structureIndex(value),...(missing_pointers?{missing_pointers}:{}),
         instruction:'Select a narrower JSON pointer or a smaller page. For an oversized array item, select one of its fields.'});
     },
   };
@@ -221,12 +264,16 @@ export function projectObservationHistory(messages,{recentPreviews=6,maxPreviewC
       typeof full.path!=='string'||!/(?:^|\/)\.observations\/[a-f0-9]{64}\.(?:json|txt)$/.test(full.path)||
       !/^[a-f0-9]{64}$/.test(full.sha256??'')||!Number.isSafeInteger(full.size_bytes)||full.size_bytes<0||
       !issuedObservationRefs.has(referenceKey(full)))continue;
-    if(recent++<recentPreviews||envelope.history_preview_compacted===true)continue;
-    const preview=JSON.stringify(envelope.preview);
+    if(recent++<recentPreviews)continue;
+    const suffix='… [older preview shortened; read full_result for exact data]';
+    const excerpt=envelope.preview_excerpt;
+    const preview=envelope.history_preview_compacted===true
+      ?(typeof excerpt==='string'&&excerpt.endsWith(suffix)?excerpt.slice(0,-suffix.length):undefined)
+      :JSON.stringify(envelope.preview);
     if(typeof preview!=='string'||preview.length<=maxPreviewChars)continue;
     const {preview:omitted,...retained}=envelope;
     const small={...retained,history_preview_compacted:true,
-      preview_excerpt:preview.slice(0,maxPreviewChars)+'… [older preview shortened; read full_result for exact data]'};
+      preview_excerpt:preview.slice(0,maxPreviewChars)+suffix};
     projected[i]={...message,content:[{...part,text:JSON.stringify(small)},...message.content.slice(1)]};
     changed=true;
   }

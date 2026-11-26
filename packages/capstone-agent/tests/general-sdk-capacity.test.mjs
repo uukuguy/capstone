@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -109,6 +109,7 @@ test('thin runtime exposes only resident and explicitly loaded admitted contract
   const a={name:'write',label:'Write a task file',description:'Save a relative path.',parameters:{type:'object'}};
   const b={name:'run',label:'Run a task command',description:'Execute a fixed operation.',parameters:{type:'object'}};
   const search={name:'agent_tool_search',parameters:{type:'object'}};
+  const runtimeTools={name:'agent_runtime_tools',parameters:{type:'object'}};
   const view=createThinToolView(['agent_runtime_tools','agent_tool_search','write'],['agent_tool_search']);
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search]);
   const catalogue=await view.tool.execute('catalog',{});
@@ -129,8 +130,19 @@ test('thin runtime exposes only resident and explicitly loaded admitted contract
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search]);
   await loader.execute('load',{names:['write','data_gateway_existing']});
   assert.deepEqual(seen,[['run'],['data_gateway_existing']]);
-  assert.match(JSON.stringify(await loader.execute('local',{names:['write']})),/write/);
+  const repeated=await loader.execute('local',{names:['write']});
+  assert.deepEqual(JSON.parse(repeated.content[0].text),{
+    loaded:['write'],newly_loaded:[],already_active:['write'],
+  });
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search,a]);
+  assert.deepEqual(view.project({tools:[a,search,runtimeTools]}).tools,[runtimeTools,search,a]);
+  assert.deepEqual(view.project({tools:[search,runtimeTools,a]}).tools,[runtimeTools,search,a]);
+  const revised={...a,parameters:{type:'object',required:['path']}};
+  assert.deepEqual(view.project({tools:[search,revised,b]}).tools,[search]);
+  await loader.execute('reload',{names:['write']});
+  assert.deepEqual(view.project({tools:[search,revised,b]}).tools,[search,revised]);
+  assert.deepEqual(view.project({tools:[search]}).tools,[search]);
+  assert.deepEqual(view.project({tools:[search,revised]}).tools,[search]);
 });
 
 test('thin tool replacement frees native slots and rejects unadmitted residents',async()=>{
@@ -153,7 +165,27 @@ test('append-only guides deduplicate only while their exact observation remains 
   const {createThinToolView}=await import('../src/capstone_agent/resources/general-sdk.mjs');
   let messages=[];
   const read=createGuideReader({'runtime-guide':'Use the actual task paths.'},()=>messages);
-  const view=createThinToolView([],[],()=>read('runtime-guide'));
+  const history=Array.from({length:6},(_,index)=>({role:'user',content:'record '+index,internal:'hidden'}));
+  const view=createThinToolView([],[],()=>read('runtime-guide'),16,history);
+  const earlier=await view.tool.execute('history',{history_index:1});
+  assert.deepEqual(JSON.parse(earlier.content[0].text),{history_index:1,record:{role:'user',content:'record 1'}});
+  assert.equal((await view.tool.execute('outside',{history_index:4})).isError,true);
+  const batch=await view.tool.execute('batch',{history_indexes:[3,0]});
+  assert.deepEqual(batch.content.map(part=>JSON.parse(part.text)),[
+    {history_index:3,record:{role:'user',content:'record 3'}},
+    {history_index:0,record:{role:'user',content:'record 0'}},
+  ]);
+  assert.equal((await view.tool.execute('bad-batch',{history_indexes:[0,4]})).isError,true);
+  const page=await view.tool.execute('older-page',{history_before:2});
+  assert.deepEqual(JSON.parse(page.content[0].text),{earlier_records:[
+    {index:0,role:'user',preview:'record 0'},{index:1,role:'user',preview:'record 1'},
+  ],next_before:null});
+  const found=await view.tool.execute('history-search',{history_query:'record 3',history_role:'user'});
+  assert.deepEqual(JSON.parse(found.content[0].text),{earlier_records:[
+    {index:3,role:'user',preview:'record 3'},
+  ],next_before:null});
+  assert.deepEqual(JSON.parse((await view.tool.execute('no-match',{history_query:'record 5'})).content[0].text),
+    {earlier_records:[],next_before:null});
   const request={systemPrompt:'Stable',messages,tools:[]};
   const first=await view.tool.execute('first',{guide:true});
   assert.match(first.content[0].text,/Use the actual task paths\./);
@@ -165,4 +197,144 @@ test('append-only guides deduplicate only while their exact observation remains 
   assert.doesNotMatch(repeated.content[0].text,/actual task paths/);
   messages=[];
   assert.deepEqual(await view.tool.execute('after-compaction',{guide:true}),first);
+  const both=await view.tool.execute('both',{guide:true,include_tools:true});
+  assert.deepEqual(both.content,[...first.content,...(await view.tool.execute('catalog',{})).content]);
+});
+
+for(const summaryFailure of [false,true])test(`managed thin parent preserves completed tool work when summary ${summaryFailure?'fails':'succeeds'}`,async()=>{
+  const {Readable}=await import('node:stream');
+  const root=resolve('.grid-agent/runtime/pi/source/packages');
+  const sdk=await import(pathToFileURL(resolve(root,'coding-agent/dist/index.js')).href);
+  const ai=await import(pathToFileURL(resolve(root,'ai/dist/index.js')).href);
+  const {runManagedSession}=await import('../src/capstone_agent/resources/general-sdk.mjs');
+  const cwd=await mkdtemp(resolve(tmpdir(),'thin-parent-'));
+  const previousCwd=process.cwd(), previousAgent=process.env.PI_CODING_AGENT_DIR;
+  const stdin=Object.getOwnPropertyDescriptor(process,'stdin');
+  const model={id:'thin-fixture',name:'Offline',provider:'capstone-general',api:'openai-completions',
+    baseUrl:'http://127.0.0.1:1',reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024};
+  const requests=[], events=[];
+  const stdoutWrite=process.stdout.write;
+  let writes=0;
+  const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,
+    getAuth:async()=>({auth:{apiKey:'offline-fixture'}}),isUsingOAuth:()=>false,
+    streamSimple(_model,context){
+      requests.push(context);
+      const contents=[
+        {type:'toolCall',id:'load',name:'agent_tool_load',arguments:{names:['edit']}},
+        {type:'toolCall',id:'save',name:'edit',arguments:{}},
+        {type:'text',text:'Summary: the product was saved.'},
+        {type:'text',text:'Saved the product.'},
+      ];
+      const stopReason=requests.length<3?'toolUse':'stop';
+      const inputTokens=requests.length===2?31500:100;
+      const message={role:'assistant',content:[contents[requests.length-1]],api:model.api,
+        provider:model.provider,model:model.id,timestamp:Date.now(),stopReason,
+        usage:{input:inputTokens,output:0,cacheRead:0,cacheWrite:0,
+          totalTokens:inputTokens,cost:{total:0}}};
+      const stream=ai.createAssistantMessageEventStream();
+      if(summaryFailure&&requests.length===3){
+        stream.push({type:'error',reason:'error',error:{...message,content:[],stopReason:'error',
+          errorMessage:'Injected summary service failure'}});
+      }else stream.push({type:'done',reason:stopReason,message});
+      stream.end();
+      return stream;
+    }};
+  const write={name:'write',label:'Write',description:'Save the product.',parameters:{type:'object'},
+    async execute(){writes++;await writeFile('product.txt','Product saved.\n');return {content:[{type:'text',text:'Product saved.'}]};}};
+  try{
+    process.stdout.write=function(chunk,...args){
+      const line=String(chunk);
+      if(!line.startsWith('{"type":'))return stdoutWrite.call(this,chunk,...args);
+      events.push(JSON.parse(line));
+      return true;
+    };
+    process.chdir(cwd);
+    process.env.PI_CODING_AGENT_DIR=resolve(cwd,'agent');
+    await mkdir(process.env.PI_CODING_AGENT_DIR);
+    Object.defineProperty(process,'stdin',{value:Readable.from(['{"type":"prompt","message":"trigger"}\n']),configurable:true});
+    await runManagedSession({model:model.id,thinInitialContext:true,settings:{compaction:{enabled:true,reserveTokens:1024,keepRecentTokens:16}},
+      extensions:[],allowedSkills:[],contextFiles:[
+        {path:'admitted-gateway-operations',content:'Host-admitted operation fixture-ref'},
+        {path:'gateway-contract-context',content:'Host-admitted contract index'},
+        {path:'registered-gateway-progressive-discovery',content:'Use the existing negotiated gateway index'},
+      ],systemPrompt:'Save the requested product.',
+      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','bash','write','edit']},
+      input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write,{...write,name:'bash'},{...write,name:'edit'}]},runtime);
+    assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='edit')??false),[false,true,false,true]);
+    assert.ok(requests[0].tools.some(tool=>tool.name==='write'));
+    assert.equal(writes,1);
+    assert.ok(requests[0].tools.some(tool=>tool.name==='bash'));
+    assert.match(requests[0].systemPrompt,/capstone-workspace-products\/1/);
+    assert.match(requests[0].systemPrompt,/Host-admitted operation fixture-ref/);
+    assert.match(requests[0].systemPrompt,/Host-admitted contract index/);
+    assert.match(requests[0].systemPrompt,/Use the existing negotiated gateway index/);
+    const summaryState=summaryFailure?'failed':'completed';
+    assert.ok(events.some(event=>event.type==='compaction_end'&&event.reason==='threshold'&&event.status===summaryState));
+    assert.ok(events.some(event=>event.type==='model_context_usage'&&event.kind==='summary'&&event.state===summaryState));
+    assert.match(JSON.stringify(requests[3].messages),summaryFailure?/Product saved\./:/Summary: the product was saved/);
+    assert.match(JSON.stringify(events.findLast(event=>event.type==='agent_end')),/Saved the product\./);
+    assert.match(JSON.stringify(requests[2].messages),/Save the product/);
+    model.contextWindow=2048;
+    const oversized='a'.repeat(12000);
+    Object.defineProperty(process,'stdin',{value:Readable.from([
+      JSON.stringify({type:'prompt',message:oversized})+'\n',
+    ]),configurable:true});
+    await assert.rejects(runManagedSession({
+      model:model.id,thinInitialContext:true,settings:{compaction:{enabled:true,reserveTokens:1024,keepRecentTokens:16}},
+      extensions:[],allowedSkills:[],contextFiles:[],systemPrompt:'Use the current instruction.',
+      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load']},
+      input:{kind:'text',text:oversized},
+    },sdk,runtime),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:972});
+    assert.equal(requests.length,4);
+    assert.equal(writes,1);
+    assert.equal(await readFile('product.txt','utf8'),'Product saved.\n');
+  }finally{
+    process.stdout.write=stdoutWrite;
+    Object.defineProperty(process,'stdin',stdin);
+    process.chdir(previousCwd);
+    if(previousAgent===undefined)delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR=previousAgent;
+    await rm(cwd,{recursive:true,force:true});
+  }
+});
+
+test('history previews page backward without repeating or omitting an indexed record',async()=>{
+  const {historyIndexPage}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=Array.from({length:31},(_,index)=>({role:'user',content:'record '+index}));
+  const newest=historyIndexPage(history);
+  const older=historyIndexPage(history,newest.next_before);
+  const oldest=historyIndexPage(history,older.next_before);
+  assert.deepEqual([newest,older,oldest].map(page=>page.earlier_records.length),[12,12,5]);
+  assert.equal(oldest.next_before,null);
+  assert.deepEqual([oldest,older,newest].flatMap(page=>page.earlier_records.map(row=>row.index)),
+    Array.from({length:29},(_,index)=>index));
+});
+
+test('explicit admitted message IDs displace unrelated recent bodies',async()=>{
+  const {historyInlineSelection,historyIndexPage}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=Array.from({length:5},(_,index)=>({message_id:'msg-'+index,role:'user',content:'record '+index}));
+  const selected=historyInlineSelection(history,'Read msg-0 exactly');
+  assert.equal(selected.reason,'explicit_message_reference');
+  assert.deepEqual([...selected.inline],[0]);
+  assert.deepEqual(historyIndexPage(history,undefined,undefined,undefined,selected.inline).earlier_records.map(row=>row.index),[1,2,3,4]);
+  assert.deepEqual([...historyInlineSelection(history,'Read msg-01 and unknown').inline],[]);
+});
+
+test('distinctive instruction terms prioritize an older matching record',async()=>{
+  const {historyInlineSelection}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=[
+    {role:'user',content:'北区变电站设备验收记录，附件包含验收编码。'},
+    {role:'assistant',content:'南区配电线路施工情况。'},
+    {role:'user',content:'独立算术问题。'},
+  ];
+  assert.deepEqual([...historyInlineSelection(history,'核对北区变电站设备验收编码').inline],[0]);
+  assert.deepEqual([...historyInlineSelection(history,'多少？').inline],[]);
+});
+
+test('overlapping wording alone does not inline a different pair of numeric inputs',async()=>{
+  const {historyInlineSelection}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=[{message_id:'msg-older',role:'user',content:'北区变电站有功负荷 830 MW，基准 800 MW。计算差值。'}];
+  assert.equal(historyInlineSelection(history,'仅用北区变电站有功负荷 410 MW，基准 400 MW，计算差值。').reason,
+    'history_previews_only');
+  assert.deepEqual([...historyInlineSelection(history,'用 msg-older 的北区变电站有功负荷与 410 MW、400 MW 对比。').inline],[0]);
 });

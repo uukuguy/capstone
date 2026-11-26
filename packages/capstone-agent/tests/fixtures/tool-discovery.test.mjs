@@ -40,6 +40,18 @@ test('domain publications use bounded discovery without gateway grants or eager 
  discovery.close();
 });
 
+test('thin discovery shortens previews while preserving the exact selected contract',async()=>{
+ const publication={name:'inspect',description:'Inventory details. '+'x'.repeat(500),inputSchema:{type:'object'}};
+ const discovery=host.createApplicationToolDiscovery({thinInitialContext:true,
+  applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load','pack_inspect']},
+  domainTools:{onDemandTools:true,catalog:{tools:{pack_inspect:publication}}}});
+ const search=async args=>JSON.parse((await discovery.tools[0].execute('query',args)).content[0].text);
+ const preview=(await search({query:'inspect'})).tools[0];
+ assert.equal(preview.description.length,240);
+ assert.deepEqual((await search({query:'inspect',exact_contract:true})).tools[0].publication,publication);
+ discovery.close();
+});
+
 test('mixed discovery preserves gateway composition scope and rejects identity collisions',async t=>{
  const cwd=await mkdtemp(join(tmpdir(),'mixed-discovery-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
  const publication={description:'Read admitted data',inputSchema:{type:'object'}};
@@ -71,6 +83,22 @@ test('an explicit identity inside a search is not replaced by description refere
  assert.equal(hidden.total,0);
 });
 
+test('discovery ranks publication name terms before description-only ties',async()=>{
+ const publications={a_inspect:{name:'inspect',description:'Read a view'},
+  z_read_view:{name:'read_view',description:'Read a saved resource'},
+  hidden_read_view:{name:'private_read_view',description:'Read a view'}};
+ const discovery=createToolDiscovery({publications,tools:Object.keys(publications).map(name=>({name})),
+   admittedNames:['a_inspect','z_read_view'],pageSize:1,appendLoads:true});
+ const search=async args=>JSON.parse((await discovery.tools[0].execute('find',args)).content[0].text);
+ assert.equal((await search({query:'read view'})).tools[0].name,'z_read_view');
+ assert.equal((await search({query:'read view',offset:1})).tools[0].name,'a_inspect');
+ const partial=await search({query:'read view a unknown'});
+ assert.equal(partial.tools[0].name,'z_read_view');
+ assert.deepEqual(partial.published_names,['inspect','read_view']);
+ assert.equal((await search({query:'inspect'})).tools[0].name,'a_inspect');
+ assert.equal((await search({query:'unmatched wording'})).published_names,undefined);
+});
+
 test('unresolved publications load exact contracts before registration without placeholder schemas',async t=>{
  const cwd=await mkdtemp(join(tmpdir(),'progressive-discovery-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
  const publications={selected:{name:'source',description:'Read selected',progressive:{tool_key:'key'}}};
@@ -79,6 +107,13 @@ test('unresolved publications load exact contracts before registration without p
   resolveContracts:async names=>{reads++;assert.deepEqual(names,['selected']);return {selected:{...publications.selected,inputSchema:{type:'object',required:['value']}}};}});
  c.configure({on:(name,fn)=>hooks.set(name,fn),registerTool:t=>registrations.push(t),getActiveTools:()=>[],setActiveTools:()=>{}});
  assert.equal(c.guardedTools.length,0);
+ const inspected=JSON.parse((await c.tools[0].execute('inspect',{query:'source',exact_contract:true})).content[0].text);
+ assert.deepEqual(inspected.tools[0].publication.inputSchema,{type:'object',required:['value']});
+ const selected=JSON.parse((await c.tools[0].execute('fields',{query:'source',exact_contract:true,
+  contract_pointers:['/inputSchema/required','/usage']})).content[0].text);
+ assert.deepEqual(selected.fields,{'/inputSchema/required':{value:['value']},'/usage':{present:false}});
+ assert.equal(reads,1);assert.equal(registrations.length,0);
+ await assert.rejects(c.tools[0].execute('inspect-unknown',{query:'unknown',exact_contract:true}),/not admitted for this task/);
  await c.tools[1].execute('load',{names:['selected']});
  assert.equal(reads,1);assert.equal(registrations.length,1);
  assert.deepEqual(registrations[0].parameters,{type:'object',required:['value']});
@@ -263,6 +298,21 @@ test('SDK discovery uses the application capacity snapshot instead of module def
     applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',...Object.keys(tools)]},
     runtimeLimits:{tool_active_count:1024,tool_schema_chars:1000000,tool_search_page_items:10,tool_summary_chars:500}};
   assert.equal(host.createApplicationToolDiscovery(config).tools[1].parameters.properties.names.maxItems,1024);
+});
+
+test('thin discovery paginates candidate previews and still finds exact admitted names',async()=>{
+  const tools=Object.fromEntries(Array.from({length:8},(_,i)=>[`registered_${i}`,{
+    name:`source_${i}`,description:'A common catalog source',inputSchema:{type:'object'}}]));
+  const config={thinInitialContext:true,dataGateway:{onDemandTools:true,catalog:{tools}},
+    applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',...Object.keys(tools)]}};
+  const [search]=host.createApplicationToolDiscovery(config).tools;
+  const find=async(query,offset)=>JSON.parse((await search.execute('search',{query,offset})).content[0].text);
+  const first=await find('common',0);
+  const next=await find('common',first.next_offset);
+  assert.deepEqual(first.tools.map(tool=>tool.name),Object.keys(tools).slice(0,4));
+  assert.deepEqual(next.tools.map(tool=>tool.name),Object.keys(tools).slice(4));
+  assert.equal(next.next_offset,null);
+  assert.deepEqual((await find('source_7',0)).tools.map(tool=>tool.name),['registered_7']);
 });
 
 test('rejected selection names are explicit and do not activate any tool',async()=>{

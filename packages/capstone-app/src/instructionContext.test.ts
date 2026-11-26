@@ -6,14 +6,14 @@ it('keeps explicit requests and compaction with the right retry and omits privat
   const event=(eventSeq:number,attemptId:string,turnId:string,payload:Record<string,unknown>,visibility='public')=>({
     eventSeq,eventId:'evt_'+eventSeq,attemptId,turnId,visibility,eventType:'runtime_event',payload,
   }) as EventEnvelope
-  const start={request_id:'ctx-1',dispatch_id:'request-71',kind:'main',state:'started',window_tokens:10000,estimated_input:{system:1000,tools:200}}
+  const start={request_id:'ctx-1',dispatch_id:'request-71',kind:'main',state:'started',window_tokens:10000,input_ceiling_tokens:8000,estimated_input:{system:1000,tools:200,tool_results:0},estimated_input_before_projection:{tool_results:180}}
   const events=[
     event(2,'one','turn-a',{model_context_usage:start}),
     event(3,'one','turn-a',{model_context_usage:{...start,state:'completed',usage:{input:100,cacheRead:1000,cacheWrite:100,output:35}}}),
     event(4,'one','turn-a',{native_type:'runtime_phase',runtime_phase:{name:'context_compaction',state:'completed',reason:'threshold',tokens_before:9000}}),
     event(5,'two','turn-a',{model_context_usage:start}),
     event(6,'two','turn-a',{model_context_usage:{...start,state:'completed',usage:{input:600,output:10}}}),
-    event(7,'other','turn-b',{model_context_usage:start}),
+    event(7,'other','turn-b',{model_context_usage:{...start,estimated_input:{system:7000,tools:1500}}}),
     event(8,'other','turn-b',{model_context_usage:{...start,request_id:'ctx-2'}},'diagnostic'),
   ]
   const rows=projectInstructionContexts(events)
@@ -23,6 +23,9 @@ it('keeps explicit requests and compaction with the right retry and omits privat
   expect(rows[2].basis).toBe('estimate')
   expect(rows).toHaveLength(4)
   expect(rows[0].dispatchId).toBe('request-71')
+  expect(rows[0].inputCeilingTokens).toBe(8000)
+  expect(rows[0].estimatedProjectionSavings).toBe(180)
+  expect(rows.find(row=>row.instructionId==='turn-b')?.estimatedAboveCeiling).toBe(500)
 })
 
 it('reads an exact saved tool excerpt, without exposing private or ambiguous events',()=>{

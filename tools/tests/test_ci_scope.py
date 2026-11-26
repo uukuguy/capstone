@@ -48,6 +48,25 @@ def test_thin_context_has_a_focused_dev_gate():
     assert classify_changes(paths) == 'thin-context'
     assert classify_changes(paths, target='main') == 'release'
 
+def test_progressive_context_lifecycle_uses_scoped_dev_gate():
+    from tools.ci_scope import classify as classify_changes
+
+    paths = [
+        'compose.yaml',
+        'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+        'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+        'packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py',
+        'packages/capstone-agent/src/capstone_agent/model_context_diagnostics.py',
+        'packages/capstone-agent/src/capstone_agent/debug_session_handoff.py',
+        'packages/capstone-agent/tests/test_data_gateway_relay.py',
+        'packages/capstone-app/src/InstructionContextPanel.tsx',
+        'tools/native_report.py',
+    ]
+    assert classify_changes(paths) == 'thin-context'
+    assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
+    assert classify_changes(paths, target='main') == 'release'
+
+
 def test_managed_skill_scope_excludes_unrelated_product_changes():
     from tools.ci_scope import classify as classify_changes
     paths = ['AGENTS.md', '.github/workflows/verify.yml', 'configs/runtime/native-analysis.json',

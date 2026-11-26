@@ -21,6 +21,9 @@ export type ContextObservation = {
   state:string
   inputTokens?:number
   windowTokens?:number
+  inputCeilingTokens?:number
+  estimatedProjectionSavings?:number
+  estimatedAboveCeiling?:number
   basis?:'provider'|'estimate'
   categories?:Partial<Record<Category,number>>
   items?:Partial<Record<Category,ContextItems>>
@@ -110,10 +113,19 @@ export function projectInstructionContexts(events:readonly EventEnvelope[]):Cont
       const usage=numericFields(raw.usage,['input','output','cacheRead','cacheWrite'] as const)
       const categories=numericFields(raw.estimated_input,Object.keys(contextCategories) as Category[])
       const estimate=Object.keys(categories).length ? Object.values(categories).reduce((total,value)=>total+value,0) : undefined
+      const before=numericFields(raw.estimated_input_before_projection,['tool_results'] as const).tool_results
+      const after=categories.tool_results
+      const savings=before!==undefined&&after!==undefined&&before>after?before-after:undefined
+      const ceiling=count(raw.input_ceiling_tokens)&&raw.input_ceiling_tokens>0?raw.input_ceiling_tokens:undefined
+      const inputCeiling=ceiling??prior?.inputCeilingTokens
+      const aboveCeiling=estimate!==undefined&&inputCeiling!==undefined
+        ? Math.max(0,estimate-inputCeiling) : prior?.estimatedAboveCeiling
       const measured=raw.state==='completed'?inputUsage(usage):undefined
       observed.set(requestKey,{
         id:typeof event.payload.task_id==='string'?attemptId+':'+event.payload.task_id+':'+raw.request_id:attemptId+':'+raw.request_id,snapshotRef,taskId:typeof event.payload.task_id==='string'?event.payload.task_id:undefined,dispatchId:dispatchId??prior?.dispatchId,instructionId,attemptId,sequence:prior?.sequence??event.eventSeq,
         kind:raw.kind,state:raw.state,windowTokens:count(raw.window_tokens)&&raw.window_tokens>0?raw.window_tokens:prior?.windowTokens,
+        inputCeilingTokens:inputCeiling,estimatedAboveCeiling:aboveCeiling,
+        estimatedProjectionSavings:savings??prior?.estimatedProjectionSavings,
         categories,items:contextItems(raw.input_items),usage,inputTokens:measured??estimate,basis:measured!==undefined?'provider':estimate!==undefined?'estimate':undefined,
       })
     }

@@ -265,6 +265,9 @@ class GeneralPiHost:
         bind_gateway_operations = getattr(run_task, 'bind_gateway_operation_writer', None)
         if callable(bind_gateway_operations):
             bind_gateway_operations(self.record_gateway_operations)
+        bind_gateway_observations = getattr(run_task, 'bind_gateway_observation_reader', None)
+        if callable(bind_gateway_observations):
+            bind_gateway_observations(self.storage.selected_gateway_observation)
 
     def record_gateway_operations(self, task_id, value):
         from .structural_context import checked_gateway_operations
@@ -777,6 +780,9 @@ class GeneralPiHost:
                         and event.get('kind') in ('main', 'analysis', 'summary')
                         and event.get('state') in ('started', 'completed', 'failed')):
                     counts = {key: event[key] for key in ('request_id', 'kind', 'state')}
+                    fingerprint = event.get('prefix_fingerprint')
+                    if isinstance(fingerprint, str) and re.fullmatch(r'[a-f0-9]{64}', fingerprint):
+                        counts['prefix_fingerprint'] = fingerprint
                     dispatch_id = event.get('dispatch_id')
                     if isinstance(dispatch_id, str) and re.fullmatch(r'request-[1-9][0-9]{0,8}', dispatch_id):
                         dispatch = record.get('model_request_pool_bindings', {}).get(dispatch_id)
@@ -785,8 +791,16 @@ class GeneralPiHost:
                     window = event.get('window_tokens')
                     if type(window) is int and 0 < window <= 100_000_000:
                         counts['window_tokens'] = window
+                        allowance = event.get('output_allowance_tokens')
+                        if type(allowance) is int and 0 < allowance < window:
+                            counts['output_allowance_tokens'] = allowance
+                            encoding = event.get('encoding_allowance_tokens', 0)
+                            if type(encoding) is int and 0 <= encoding < window - allowance:
+                                counts['encoding_allowance_tokens'] = encoding
+                                counts['input_ceiling_tokens'] = window - allowance - encoding
                     for field, keys in (
                         ('estimated_input', ('system', 'tools', 'messages', 'tool_results')),
+                        ('estimated_input_before_projection', ('system', 'tools', 'messages', 'tool_results')),
                         ('usage', ('input', 'output', 'cacheRead', 'cacheWrite')),
                     ):
                         raw = event.get(field)
@@ -1467,6 +1481,9 @@ class NativeTaskRunner:
     mission_transport = True
     from .managed_resource_service import ManagedResourceService
     managed_resource_service: ManagedResourceService | None = None
+    def bind_gateway_observation_reader(self, reader):
+        self.gateway_observation_reader = reader
+
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
                  model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
                  experimental_llm_pool: bool = False, presentation_api_origin: str | None = None) -> None:
@@ -2054,7 +2071,15 @@ class NativeTaskRunner:
                         name: route for name, route in self.task_domain_routes[request.task_id].items()
                         if name in allowed}
             research_runtime = sdk_config.get('researchRuntime', {})
-            if (os.environ.get('CAPSTONE_PROGRESSIVE_PPT_GUIDE') == '1' and self.environment_sections
+            thin_context_enabled = (self.llm_profiles.thin_context_enabled(profile['id'])
+                if profile is not None else os.environ.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1')
+            thin_initial_context = (thin_context_enabled
+                    and bool(sdk_config.get('applicationPolicy'))
+                    and research_runtime.get('deepResearch') is False
+                    and research_runtime.get('adaptiveAgentLoop') is True
+                    and not sdk_config.get('missionTools') and not sdk_config.get('debugTools'))
+            if ((thin_initial_context or os.environ.get('CAPSTONE_PROGRESSIVE_PPT_GUIDE') == '1')
+                    and self.environment_sections
                     and self.environment_sections[1] and sdk_config.get('presentationLibrary')
                     and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)
                     and 'agent_presentations' in sdk_config.get('applicationPolicy', {}).get('allowed_tools', ())):
@@ -2069,7 +2094,7 @@ class NativeTaskRunner:
                             '\nFor a new PPTX, call agent_presentation_guide with no arguments '
                             'before preparing slide files. After it succeeds, follow the loaded guide and render '
                             'from the saved spec using task-relative paths.')
-            if (os.environ.get('CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE') == '1'
+            if ((thin_initial_context or os.environ.get('CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE') == '1')
                     and sdk_config.get('applicationPolicy')
                     and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)):
                 policy = sdk_config['applicationPolicy']
@@ -2083,7 +2108,7 @@ class NativeTaskRunner:
                             'reads and checkpoint before the accepted task deadline in execution_state. '
                             'Before planning large retrievals, files or long steps, call agent_capacity_guide '
                             'with no arguments for the current limits and recovery instructions.')
-            if (os.environ.get('CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE') == '1'
+            if ((thin_initial_context or os.environ.get('CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE') == '1')
                     and sdk_config.get('dataGateway')
                     and 'agent_tool_search' in sdk_config.get('applicationPolicy', {}).get('allowed_tools', ())
                     and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)):
@@ -2092,22 +2117,29 @@ class NativeTaskRunner:
                     *policy['allowed_tools'], 'agent_gateway_guide']}
                 for source in sdk_config['contextFiles']:
                     if source['path'] == 'registered-production-data':
-                        sdk_config['gatewayGuide'] = source['content']
+                        sdk_config['gatewayGuide'] = (
+                            'Match the request to the current gateway scope. Search the admitted index only when '
+                            'the operation is unknown. Load selected inactive tools to obtain their exact schemas '
+                            'before a direct call. Use the published usage and returned status to resolve prerequisites. '
+                            'Use bounded reads and reuse saved observations for analysis and reports. Preserve source '
+                            'identity, coverage, units and gaps. A view definition and query result have different scopes. '
+                            'Use returned references and cursors unchanged with their originating operation and arguments. '
+                            'For jobs, follow the published next action, state and polling delay. Preserve unknown outcomes '
+                            'and reconcile the original call before retrying. If a dependency fails, keep independent '
+                            'work and available results. The current grant and contract govern every call.'
+                        ) if thin_initial_context else source['content']
                         source['content'] = (
                             'Use the registered data gateway only for tasks within its published business-data scope. '
                             'Check scope and exclusions before selecting a source. Prior use and an unavailable '
                             'alternative do not establish relevance. Use only admitted tools and exact contracts. '
                             'Keep source status, identity, coverage and evidence boundaries. For multi-step gateway '
-                            'retrieval, polling or recovery, call agent_gateway_guide after selecting this source.')
-            if (os.environ.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1'
-                    and sdk_config.get('applicationPolicy')
-                    and research_runtime.get('deepResearch') is False
-                    and research_runtime.get('adaptiveAgentLoop') is True
-                    and not sdk_config.get('missionTools') and not sdk_config.get('debugTools')):
+                            'retrieval, polling or recovery, call agent_gateway_guide after selecting this source. '
+                            'For a bounded read with a known contract, use the tool directly.')
+            if thin_initial_context:
                 policy = sdk_config['applicationPolicy']
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': list(dict.fromkeys([
                     *policy['allowed_tools'], 'agent_runtime_tools', 'agent_tool_load',
-                    *(['agent_observation_read'] if 'bash' in policy['allowed_tools'] else []),
+                    *(['agent_observation_read'] if {'bash', 'read'}.intersection(policy['allowed_tools']) else []),
                     *(['agent_skill_step'] if sdk_config.get('presentationGuide') else []),
                 ]))}
                 sdk_config['thinInitialContext'] = True
@@ -2117,6 +2149,61 @@ class NativeTaskRunner:
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
+            selected_gateway_files = []
+            read_gateway_observation = getattr(self, 'gateway_observation_reader', None)
+            if (callable(read_gateway_observation) and sdk_config.get('thinInitialContext') and request.managed_workspace
+                    and request.business_context and frozen_gateway and sdk_config.get('dataGateway')
+                    and 'read' in sdk_config['applicationPolicy']['allowed_tools']):
+                thread_id = document['business_context']['workspace_id']
+                hashes = sdk_config['dataGateway']['catalog']['tool_hashes']
+                root = inputs / 'selected-gateway-observations'
+                observations = []
+                unavailable = 0
+                deferred = 0
+                remaining = limits.native_context_bytes
+                for page in sdk_config.get('selectedTaskRecords', ()):
+                    if page['thread_id'] != thread_id:
+                        continue
+                    for event in page['events']:
+                        payload = event.get('payload', {})
+                        tool = payload.get('tool_name')
+                        if (payload.get('native_type') != 'tool_execution_end' or payload.get('is_error')
+                                or tool not in hashes):
+                            continue
+                        call_id = payload.get('tool_call_id')
+                        raw = read_gateway_observation(
+                            task_id=payload.get('task_id'), attempt_id=page['attempt_id'],
+                            call_id=call_id, tool=tool, workspace=request.managed_workspace,
+                            thread_id=thread_id, binding=frozen_gateway, tool_hash=hashes[tool])
+                        if raw is None:
+                            unavailable += 1
+                            continue
+                        size = len(raw.encode())
+                        if size > remaining:
+                            deferred += 1
+                            continue
+                        remaining -= size
+                        path = root / (str(len(observations)) + '.json')
+                        selected_gateway_files.append((path, raw))
+                        observations.append({'tool': tool, 'tool_call_id': call_id, 'path': str(path),
+                                             'sha256': sha256(raw.encode()).hexdigest()})
+                if observations or unavailable or deferred:
+                    sdk_config['selectedGatewayObservations'] = observations
+                    sdk_config['contextFiles'].append({
+                        'path': 'selected-gateway-observations',
+                        'content': 'Read the listed authorized historical gateway calls by their call IDs. '
+                                   'Use agent_observation_read with historical_call_id and pointers to read several exact JSON fields together. '
+                                   'Use slash-prefixed JSON pointers such as /data and /provenance/request_id. '
+                                   'Omit the envelope prefix and use the call ID exactly as listed. '
+                                   'These results do not grant new gateway calls. An unavailable prior result is a gap. '
+                                   'Do not substitute remembered values or repeat the source call unless the current instruction authorizes it.\n'
+                                   + json.dumps({
+                                       'admitted_calls': [{key: item[key] for key in ('tool', 'tool_call_id')}
+                                                          for item in observations],
+                                       'unavailable_count': unavailable,
+                                       'omitted_for_budget_count': deferred,
+                                   }, ensure_ascii=False),
+                    })
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
                 config_root=self.config_root, model=profile['model'] if profile else self.model,
                 model_reasoning=profile.get('reasoning', False) if profile else False,
@@ -2124,6 +2211,9 @@ class NativeTaskRunner:
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
                 sdk_config=sdk_config, context_policy=profile.get('context_policy') if profile else None,
                 **launch_options)
+            for path, raw in selected_gateway_files:
+                path.parent.mkdir(exist_ok=True)
+                path.write_text(raw, encoding='utf-8')
             capacity_path = workspace / '.runtime-capacity.json'
             capacity_path.write_text(json.dumps(task_capacity, ensure_ascii=False, indent=2))
             capacity_path.chmod(0o444)

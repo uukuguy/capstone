@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {boundToolResult} from './tool-result-context.mjs';
 import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance,gatewaySelectionSummary,gatewaySearchMetadata} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
+import {observationPointer,ObservationPointerError} from './observed-action.mjs';
 
 export const discoveryToolNames=['agent_tool_search','agent_tool_load'];
 const reply=value=>({content:[{type:'text',text:JSON.stringify(value)}]});
@@ -52,6 +53,10 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   const learned=new Set(initial);
   let publishActivation,installedSession,restoreStream,extensionApi,wrapLoaded=tool=>tool;
   const dynamicRegistered=new Set();
+  const deferredRegistration=new Set(names.filter(name=>{
+    const publication=entries.get(name).publication;
+    return publication.progressive&&!Object.hasOwn(publication,'inputSchema');
+  }));
   async function resolveSelected(names,signal){
     const missing=names.filter(name=>entries.get(name).publication.progressive&&!Object.hasOwn(entries.get(name).publication,'inputSchema'));
     if(!missing.length)return;
@@ -63,24 +68,43 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
           publication.progressive?.tool_contract_revision!==entry.publication.progressive?.tool_contract_revision)
         throw Error('Selected exact contract identity changed');
       entry.publication=publication;entry.tool.parameters=publication.inputSchema;
-      if(extensionApi&&!dynamicRegistered.has(name)){
-        extensionApi.registerTool(wrapLoaded(guarded(name,entry.tool)));dynamicRegistered.add(name);
-      }
     }
   }
   const searched=new Set();
+  let offeredNames=false;
   function check(signal){signal?.throwIfAborted();if(closed)throw new Error('Tool discovery task is closed');}
   function initialToolNames(existingNames){
     return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames,...initial])];
   }
   const search={name:'agent_tool_search',label:'Search admitted tools',
     description:'Search the task-granted published tool index only when the required tool is not already known. Results report activation and published toolset membership; optionally filter by a returned toolset ID. Exact registered or published names, including complete query terms, take priority over description references. Otherwise, if no tool matches all keywords, return the bounded best partial matches, marked partial_terms; these are candidates, not a semantic selection. Already active tools need no load. For composition, select known granted names and inspect tools.describe(name) without loading them into the direct-call menu. Follow current service selection and provider rules.',
-    parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0}},required:['query'],additionalProperties:false},
+    parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0},
+      exact_contract:{type:'boolean',description:'Inspect an exact contract without activating the tool. For a tool you intend to execute, agent_tool_load already obtains its exact schema.'},
+      contract_pointers:{type:'array',minItems:1,maxItems:8,uniqueItems:true,description:'With exact_contract:true, return only the exact JSON pointers needed, such as /inputSchema/required or /usage.',
+        items:{type:'string',maxLength:256,pattern:'^/'}}},required:['query'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
       if(typeof args.query!=='string'||args.query.length>256||!Number.isSafeInteger(args.offset??0)||(args.offset??0)<0)
         throw new Error('Invalid tool search arguments');
       if(args.toolset!==undefined&&(typeof args.toolset!=='string'||!args.toolset.length||args.toolset.length>128))throw new Error('Invalid toolset filter');
+      const pointers=args.contract_pointers;
+      if(pointers!==undefined&&(args.exact_contract!==true||!Array.isArray(pointers)||pointers.length<1||
+        pointers.length>8||pointers.some(pointer=>typeof pointer!=='string'||pointer.length>256||!pointer.startsWith('/'))))
+        throw new Error('Use one to eight slash-prefixed JSON pointers with exact_contract:true');
+      if(args.exact_contract===true){
+        if(args.toolset!==undefined||args.offset!==undefined)throw new Error('Use only the exact admitted tool name for a contract read');
+        const name=identities.resolve(args.query.trim());
+        await resolveSelected([name],signal);
+        const [contract]=checkedContracts([name]);
+        const result=pointers?{name,contract_sha256:contract.contract_sha256,fields:Object.fromEntries(pointers.map(pointer=>{
+          try{return [pointer,{value:observationPointer(contract.publication,pointer)}];}
+          catch(error){
+            if(!(error instanceof ObservationPointerError))throw error;
+            return [pointer,{present:false}];
+          }
+        }))}:{tools:[contract]};
+        return boundToolResult(reply(result),{cwd,toolName:'agent_tool_search',callId:_id,reader:'agent_observation_read'});
+      }
       const query=args.query.trim().toLowerCase(),terms=[...new Set(query.split(/\s+/).filter(Boolean))],offset=args.offset??0;
       const candidates=names.filter(name=>args.toolset===undefined||gatewayToolGroup(entries.get(name).publication)===args.toolset);
       const matched=new Map(candidates.map(name=>{
@@ -94,13 +118,36 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       let matches=exact.length?exact:identityMatches.length?identityMatches:candidates.filter(name=>matched.get(name).length===terms.length);
       if(!matches.length&&terms.length){
         const best=Math.max(0,...candidates.map(name=>matched.get(name).length));
-        if(best){mode='partial_terms';matches=candidates.filter(name=>matched.get(name).length===best);}
+        if(best){
+          mode='partial_terms';
+          matches=candidates.filter(name=>matched.get(name).length>=(appendLoads?1:best));
+        }
+      }
+      if(terms.length&&matches.length>1){
+        const scores=new Map(matches.map(name=>{
+          const published=entries.get(name).publication.name??name;
+          const tokens=new Set(published.toLowerCase().split(/[^\p{L}\p{N}]+/u));
+          return [name,terms.filter(term=>tokens.has(term)).length];
+        }));
+        matches.sort((left,right)=>scores.get(right)-scores.get(left)||
+          matched.get(right).length-matched.get(left).length);
       }
       const selected=matches.slice(offset,offset+pageSize);
+      let publishedNames;
+      if(!offeredNames&&appendLoads&&args.toolset===undefined&&offset===0&&
+        (mode==='partial_terms'||matches.length===0)){
+        const aliases=names.map(name=>entries.get(name).publication.name??name);
+        if(Buffer.byteLength(JSON.stringify(aliases))<=4096){
+          publishedNames=aliases;
+          offeredNames=true;
+        }
+      }
       const searchKey=JSON.stringify([terms,offset,args.toolset??null]),repeated=searched.has(searchKey);
       if(searched.size>=64&&!repeated)searched.delete(searched.values().next().value);
       searched.add(searchKey);
       return reply({capacity,match_mode:mode,active_entry_tools:initial,toolsets:[...groups.values()],selection_guidance:selectionReminder,
+        ...(publishedNames?{published_names:publishedNames,
+          names_guidance:'Use these authorized names to identify a relevant operation when search wording does not match. Load an exact selected name directly.'}:{}),
         tools:selected.map(name=>({name,active:active.has(name),matched_terms:matched.get(name),toolset:gatewayToolGroup(entries.get(name).publication),access:gatewayToolAccess(entries.get(name).publication),description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
         ...(gatewaySelectionSummary(entries.get(name).publication,maxSummaryChars)?{
           published_selection:gatewaySelectionSummary(entries.get(name).publication,maxSummaryChars)
@@ -129,6 +176,11 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       await resolveSelected(resolved,signal);
       const selected=select();
       const contracts=checkedContracts(selected);
+      if(extensionApi)for(const name of resolved){
+        if(!deferredRegistration.has(name)||dynamicRegistered.has(name))continue;
+        extensionApi.registerTool(wrapLoaded(guarded(name,entries.get(name).tool)));
+        dynamicRegistered.add(name);
+      }
       if(appendLoads&&selected.length===active.size&&selected.every(name=>active.has(name))&&!pending)
         return reply({activation:'already_active',tools:resolved,active_tools:[...active],
           guidance:'Call the required tool directly now.'});

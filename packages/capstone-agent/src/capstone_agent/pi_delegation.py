@@ -381,7 +381,11 @@ def _validate_result(document, task_id, parent_attempt_id, executor_identity):
                     'code', 'dimension', 'actual', 'limit', 'unit', 'phase', 'retryable'}
                     or capacity['code'] != 'capacity_exceeded' or capacity['retryable'] is not False
                     or not isinstance(capacity['dimension'], str)
-                    or capacity['dimension'] not in current_capacity().values
+                    or (capacity['dimension'] not in current_capacity().values
+                        and not (capacity['dimension'] == 'model_input_tokens'
+                                 and capacity['unit'] == 'tokens'
+                                 and capacity['phase'] == 'model_dispatch'
+                                 and failure['phase'] == 'execution'))
                     or type(capacity['actual']) is not int or type(capacity['limit']) is not int
                     or not 0 <= capacity['limit'] < capacity['actual']
                     or capacity['unit'] not in {'bytes', 'seconds', 'items', 'chars', 'tokens'}

@@ -223,3 +223,46 @@ def test_package_correlates_gateway_calls_with_capstone_events_without_exporting
         start, end, _ = [json.loads(line) for line in execution.splitlines()]
         assert start["native_stage"] == "tool_execution_start"
         assert end["native_stage"] == "tool_execution_end" and end["is_error"] is True
+
+
+def test_package_exports_bounded_model_usage_without_input_content():
+    usage = {"request_id": "ctx-1", "dispatch_id": "request-1", "kind": "main", "state": "completed",
+             "estimated_input": {"messages": 450, "private_field": "secret-input"},
+             "usage": {"input": 300, "cacheRead": 150}, "prefix_fingerprint": "a" * 64,
+             "input_items": {"messages": {"contents": "secret-input"}}}
+    service = SimpleNamespace(read_history=lambda thread, before: {
+        "thread_id": thread, "has_more": False, "events": [
+            {"thread_id": thread, "visibility": "public", "attempt_id": "attempt_test",
+             "event_seq": 1, "event_type": "runtime_event", "payload": {
+                 "native_type": "model_context_usage", "model_context_usage": usage}},
+            {"thread_id": thread, "visibility": "public", "attempt_id": "attempt_test",
+             "event_seq": 2, "event_type": "runtime_event", "payload": {
+                 "native_type": "model_request_pool", "model_request_pool": {
+                     "request_id": "request-1", "status": "completed", "started_at_ms": 100,
+                     "first_content_at_ms": 200, "finished_at_ms": 300, "title": "secret-input"}}},
+            {"thread_id": thread, "visibility": "public", "attempt_id": "attempt_test",
+             "event_seq": 3, "event_type": "runtime_event", "payload": {
+                 "native_type": "model_context_snapshot", "model_context_snapshot_ref": {
+                     "request_id": "ctx-1", "ref": "private-snapshot-reference",
+                     "history_selection": {"reason": "explicit_message_reference", "inline_records": 1,
+                         "indexed_records": 22, "omitted_previews": 10, "contents": "secret-input"}}}},
+        ],
+    })
+    output = BytesIO()
+    write_session_handoff(output, service, "thr_test", 3, uploads=None, capstone_revision=None)
+    with ZipFile(output) as archive:
+        data = archive.read("execution/capstone/events.jsonl")
+        assert b"secret-input" not in data
+        assert b"private-snapshot-reference" not in data
+        row, timing, selection = map(json.loads, data.splitlines())
+        assert row["model_context_usage"] == {
+            "request_id": "ctx-1", "dispatch_id": "request-1", "kind": "main", "state": "completed",
+            "estimated_input": {"messages": 450}, "usage": {"input": 300, "cacheRead": 150},
+            "prefix_fingerprint": "a" * 64,
+        }
+        assert timing["model_request_pool"] == {
+            "request_id": "request-1", "status": "completed", "started_at_ms": 100,
+            "first_content_at_ms": 200, "finished_at_ms": 300,
+        }
+        assert selection["history_selection"] == {"request_id": "ctx-1", "reason": "explicit_message_reference",
+            "inline_records": 1, "indexed_records": 22, "omitted_previews": 10}

@@ -78,6 +78,8 @@ test('large gateway data stays complete on disk and exact at the host while mode
   const cwd=await mkdtemp(join(tmpdir(),'bounded-observation-'));
   try{
     const data={status:'ok',data:{unit:'MW',points:Array.from({length:5000},(_,i)=>({time:i,value:i+.5}))},gaps:[]};
+    const businessRef='opaque/result?scope=original&signature='+ 'a'.repeat(512);
+    data.data.points[4999].result_ref=businessRef;
     const body=JSON.stringify({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
     const raw={content:[{type:'text',text:body}],details:{kind:'external_gateway_observation',output_sha256:'host-issued'}};
     const result=await boundToolResult(raw,{cwd,toolName:'data_gateway_series',callId:'query',maxChars:6000});
@@ -88,6 +90,8 @@ test('large gateway data stays complete on disk and exact at the host while mode
     assert.equal(await readFile(projected.full_result.path,'utf8'),body);
     assert.equal(projected.preview.data.unit,'MW');
     assert.equal(projected.preview_pointer,'/structuredContent');
+    assert.equal(JSON.stringify(projected.preview).includes(businessRef),false);
+    assert.equal(await readSavedObservation(projected.full_result,'/data/points/4999/result_ref',{cwd}),businessRef);
     const saved=JSON.parse(await readFile(projected.full_result.path,'utf8'));
     assert.deepEqual(saved.structuredContent.data.unit,projected.preview.data.unit);
     const observed={...result,content:[...result.content,{type:'text',text:'Host observation reference: source-exact'}],
@@ -140,6 +144,25 @@ test('older saved observation previews shrink without changing messages, source 
   assert.ok(result[1].content[0].text.length<1500);
   assert.equal(result[1].content[1],old.content[1]);
   assert.equal(projectObservationHistory(result,{recentPreviews:1,maxPreviewChars:500}),result);
+  const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+  const preprojected=projectObservationHistory(messages,{recentPreviews:1,maxPreviewChars:1200});
+  const sent=[],receipts=[];
+  const runtime={streamSimple(_model,context){
+    sent.push(context.messages);
+    return {result:async()=>({stopReason:'stop'})};
+  }};
+  const observed=observeModelContext(runtime,'main',()=> 'ctx-1',event=>receipts.push(event),false,
+    undefined,undefined,undefined,undefined,true);
+  observed.streamSimple({contextWindow:32000,maxTokens:256},{messages});
+  observed.streamSimple({contextWindow:1024,maxTokens:256},{messages:preprojected});
+  assert.equal(sent[0],messages);
+  assert.equal(receipts[0].estimated_input_before_projection,undefined);
+  assert.ok(receipts[1].estimated_input_before_projection.tool_results>
+    receipts[1].estimated_input.tool_results);
+  assert.equal(sent[1][3],recent);
+  assert.deepEqual(JSON.parse(sent[1][1].content[0].text).full_result,full.full_result);
+  assert.ok(sent[1][1].content[0].text.length<preprojected[1].content[0].text.length);
+  assert.equal(JSON.stringify(messages),before);
   }finally{await rm(cwd,{recursive:true,force:true});}
 });
 
@@ -165,8 +188,15 @@ test('native output projection reads exact saved fields and bounds large reads',
  assert.equal(restoreToolResult(bounded).content[0].text,body);
  const read=async args=>JSON.parse((await reader.execute('read',{reference:envelope.full_result,...args})).content[0].text);
  assert.deepEqual((await read({pointer:'/rows/52/index'})).value,52);
+ assert.deepEqual((await read({pointers:['/rows/52/index','/rows/53/index']})).value,
+   {'/rows/52/index':52,'/rows/53/index':53});
+ assert.deepEqual(await read({pointers:['/rows/52/index','/missing']}),{
+   complete:true,value:{'/rows/52/index':52},missing_pointers:['/missing']});
  assert.equal((await read({pointer:'/rows',offset:52,limit:2})).next_offset,54);
  assert.equal((await read({pointer:'/rows'})).complete,false);
+ const page=await read({pointer:'/rows',fields:['index','missing'],offset:50,limit:25});
+ assert.equal(page.next_offset,75);
+ assert.deepEqual(page.value,Array.from({length:25},(_,i)=>({index:50+i})));
  assert.equal((await read({reference:{...envelope.full_result,sha256:'0'.repeat(64)}})).code,'observation_unavailable');
 });
 
@@ -181,4 +211,67 @@ test('native read excludes binary decoded as text and preserves image and text h
  assert.equal(projectNativeRead(text),text);
  const image={content:[{type:'text',text:'image'},{type:'image',data:'base64',mimeType:'image/png'}]};
  assert.equal(projectNativeRead(image),image);
+});
+
+test('historical gateway reads project exact pointers and reject unadmitted calls',async t=>{
+  const cwd=await mkdtemp(join(tmpdir(),'historical-gateway-'));
+  t.after(()=>rm(cwd,{recursive:true,force:true}));
+  const {createObservationReadTool}=await import('../../src/capstone_agent/resources/tool-result-context.mjs');
+  const path=join(cwd,'original.json'), body=JSON.stringify({structuredContent:{
+    data:{data_ref:'opaque',points:[1,2,3]},provenance:{request_id:'original'},
+  }});
+  await writeFile(path,body);
+  const reader=createObservationReadTool(cwd,[{path,tool_call_id:'admitted',
+    sha256:createHash('sha256').update(body).digest('hex')}]);
+  const args={historical_call_id:'admitted',pointers:['/data/data_ref','/data/points','/provenance/request_id']};
+  const result=await reader.execute('read',args);
+  assert.deepEqual(JSON.parse(result.content[0].text).value,{
+    '/data/data_ref':'opaque','/data/points':[1,2,3],'/provenance/request_id':'original',
+  });
+  const partial=await reader.execute('read',{...args,pointers:['/optional','/data/data_ref']});
+  assert.deepEqual(JSON.parse(partial.content[0].text),{
+    complete:true,value:{'/data/data_ref':'opaque'},missing_pointers:['/optional'],
+  });
+  const unknown=await reader.execute('read',{...args,historical_call_id:'attempt:admitted'});
+  assert.equal(unknown.isError,true);
+  assert.equal(JSON.parse(unknown.content[0].text).code,'historical_call_unavailable');
+  const invalid=await reader.execute('read',{...args,pointers:['data.points']});
+  assert.equal(invalid.isError,true);
+  assert.match(JSON.parse(invalid.content[0].text).message,/slash-prefixed JSON pointers/);
+  await writeFile(path,'{}');
+  assert.equal((await reader.execute('read',args)).isError,true);
+});
+
+test('request prefix identity tracks ordered contracts and model within its observer scope',async()=>{
+  const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+  const runtime={streamSimple:()=>({result:async()=>({stopReason:'stop'})})};
+  const receipts=[];
+  const observe=()=>observeModelContext(runtime,'main',()=> 'ctx-1',event=>receipts.push(event));
+  const model={id:'model-one',provider:'fixture',api:'fixture'};
+  const context={systemPrompt:'Task policy',tools:[{name:'read',parameters:{type:'object'}},{name:'list'}]};
+  const observer=observe();
+  observer.streamSimple(model,context);
+  observer.streamSimple(model,{...context,messages:[{role:'user',content:'New instruction'}]});
+  observer.streamSimple(model,{...context,tools:[...context.tools].reverse()});
+  observer.streamSimple({...model,id:'model-two'},context);
+  observe().streamSimple(model,context);
+  const fingerprints=receipts.map(event=>event.prefix_fingerprint);
+  assert.match(fingerprints[0],/^[0-9a-f]{64}$/);
+  assert.equal(fingerprints[1],fingerprints[0]);
+  assert.equal(new Set(fingerprints).size,4);
+});
+
+test('unfit thin requests report capacity without provider dispatch',async()=>{
+  const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+  const runtime={streamSimple:()=>assert.fail('Oversized request reached provider')};
+  const receipts=[], failures=[];
+  const observer=observeModelContext(runtime,'main',()=> 'ctx-1',event=>receipts.push(event),
+    false,undefined,undefined,undefined,undefined,true,error=>failures.push(error));
+  assert.throws(()=>observer.streamSimple({id:'fixture',contextWindow:1200,maxTokens:200},{
+    systemPrompt:'policy',messages:[{role:'user',content:'a'.repeat(5000)}],
+  }),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:950});
+  assert.equal(failures.length,1);
+  assert.equal(receipts.at(-1).state,'failed');
+  assert.equal(receipts.at(-1).estimated_input.messages,1250);
+  assert.equal(receipts.at(-1).encoding_allowance_tokens,50);
 });

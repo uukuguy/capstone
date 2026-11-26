@@ -106,10 +106,11 @@ def _run_claimed_attempt(
         claim = replace(claim, resource_reader=resource_reader_for(service, claim))
     task_state_ref = None if claim.task_context is None else claim.task_context.task_state_ref
     previous_attempt = None if previous is None else previous.attempt_id
-    # Debug supplies an explicit source through the admitted investigation.
-    # The conversation's last task state can belong to another debug round.
-    historical_attempt = (previous_attempt if (claim.submission or {}).get('_debug_investigation')
-                          else task_state_ref or previous_attempt)
+    # The claim resolves an explicitly selected source within the Thread.
+    # The latest Work state can belong to a different attempt.
+    historical_attempt = previous_attempt or task_state_ref
+    if (claim.submission or {}).get('_debug_investigation'):
+        historical_attempt = previous_attempt
     handoff = (claim.submission or {}).get('_task_handoff')
     if handoff is not None:
         claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(

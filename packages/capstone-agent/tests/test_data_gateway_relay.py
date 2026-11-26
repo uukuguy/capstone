@@ -915,6 +915,7 @@ def test_unavailable_gateway_retains_only_configured_identity(tmp_path, monkeypa
 
 
 def test_saved_view_requires_registered_manifest_and_survives_restart():
+    import json
     from test_grid_electrical_view import manifest, page
 
     producer, reader = 'data_gateway_open_network_model_view', 'data_gateway_read_network_model_view'
@@ -943,6 +944,23 @@ def test_saved_view_requires_registered_manifest_and_survives_restart():
         asyncio.run(after.call('task-1', call))
     after.restore_operations('task-1', binding, saved)
     assert asyncio.run(after.call('task-1', call))['is_error'] is False
+    assert after.issued_operations('task-1') == saved['operations']
+
+    expiry_calls = []
+    expired = {'structuredContent': {'status': 'error', 'data': {}, 'gaps': [{
+        'reason': 'view_expired', 'message': 'Frozen view expired; open the model again',
+    }], 'provenance': {'request_id': 'expired-source'}}}
+
+    async def expire(name, arguments, catalog):
+        expiry_calls.append((name, arguments))
+        return expired
+
+    after.client.call = expire
+    expired_result = asyncio.run(after.call('task-1', {**call, 'call_id': 'expired'}))
+    assert expired_result['is_error'] is True
+    assert json.loads(expired_result['result_json']) == expired
+    assert after.verify('task-1', 'expired', reader, expired_result['observation'], expired_result['result_json'])
+    assert expiry_calls == [(reader, call['arguments'])]
     assert after.issued_operations('task-1') == saved['operations']
 
     async def changed(*_):

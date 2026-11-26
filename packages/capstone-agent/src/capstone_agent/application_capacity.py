@@ -38,6 +38,7 @@ class CapacityExceeded(ValueError):
         document = {'code': 'capacity_exceeded', 'dimension': self.dimension,
                 'actual': self.actual, 'limit': self.limit, 'phase': self.phase,
                 'unit': ('bytes' if self.dimension.endswith('_bytes') else
+                         'tokens' if self.dimension.endswith('_tokens') else
                          'seconds' if self.dimension.endswith('_seconds') else 'items'),
                 'retryable': False}
         if self.mode == 'debug':

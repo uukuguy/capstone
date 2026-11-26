@@ -1845,3 +1845,32 @@ def test_admission_uses_bound_gateway_catalog_instead_of_default(tmp_path, monke
     with pytest.raises(Admitted if accepted else ValueError):
         host.submit(request)
     assert bindings == [('selected', 'bound-instance')]
+
+
+def test_selected_gateway_observation_reads_exact_bound_receipt_after_reopen(tmp_path):
+    import json
+    from hashlib import sha256
+    from capstone_agent.general_pi_storage import GeneralPiStorage
+
+    task, attempt, tool, call = 'pi-source', 'attempt-source', 'data_gateway_read', 'call-source'
+    binding = {'connection_id': 'one', 'instance_id': 'instance', 'catalog_revision': 'revision'}
+    scope = dict(task_id=task, attempt_id=attempt, call_id=call, tool=tool,
+                 workspace='enterprise', thread_id='thread-one', binding=binding, tool_hash='schema')
+    raw = '{"data":{"data_ref":"opaque","points":[1,2,3]},"provenance":{"request_id":"original"}}'
+    details = dict(kind='external_gateway_observation', task_id=task, parent_attempt_id=attempt,
+                   tool_call_id=call, tool=tool, catalog_revision='revision', tool_schema_sha256='schema',
+                   output_sha256=sha256(raw.encode()).hexdigest())
+    body = json.dumps({'details': details, 'content': [{'type': 'text', 'text': raw}]}).encode()
+    source_id = 'observation-0-' + sha256(body).hexdigest()
+    storage = GeneralPiStorage(tmp_path)
+    storage.observation(task, source_id, body)
+    storage.save({'task_id': task, 'parent_attempt_id': attempt, 'managed_workspace': 'enterprise',
+                  'business_context': {'workspace_id': 'thread-one'}, 'native_context': {'gateway_binding': binding}},
+                 {'sources': [{'source_id': source_id, 'metadata': {'tool_call_id': call, 'tool_name': tool}}]})
+    reopened = GeneralPiStorage(tmp_path)
+    assert reopened.selected_gateway_observation(**scope) == raw
+    for key, value in [('workspace', 'other'), ('thread_id', 'other'), ('attempt_id', 'other'),
+                       ('call_id', 'other'), ('tool_hash', 'other'), ('binding', {})]:
+        assert reopened.selected_gateway_observation(**{**scope, key: value}) is None
+    storage.observation(task, source_id, b'corrupt')
+    assert reopened.selected_gateway_observation(**scope) is None

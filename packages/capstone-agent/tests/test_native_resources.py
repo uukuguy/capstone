@@ -431,7 +431,7 @@ const message={stopReason:'stop',usage:{input:10,cacheRead:2,cacheWrite:3,output
 const stream={result:async()=>message,[Symbol.for('capstone.modelRequestId')]:'request-3'};
 const raw={streamSimple(model,prompt){if(prompt!==context)throw Error('context changed');return stream;}};
 const observed=observeModelContext(raw,'main',()=> 'ctx-1',event=>events.push(event));
-if(observed.streamSimple({contextWindow:2048},context)!==stream)throw Error('stream changed');
+if(observed.streamSimple({contextWindow:2048,maxTokens:512},context,{maxTokens:256})!==stream)throw Error('stream changed');
 await new Promise(resolve=>setImmediate(resolve));
 console.log(JSON.stringify(events));
 '''
@@ -442,6 +442,8 @@ console.log(JSON.stringify(events));
     assert start['request_id'] == end['request_id'] == 'ctx-1'
     assert start['dispatch_id'] == end['dispatch_id'] == 'request-3'
     assert start['window_tokens'] == 2048
+    assert start['output_allowance_tokens'] == 256
+    assert start['input_ceiling_tokens'] == 1792
     assert start['estimated_input']['tool_results'] > 0
     assert start['input_items']['tools']['items'][0]['name'] == 'read'
     assert start['input_items']['messages']['items'][0]['kind'] == 'user'
