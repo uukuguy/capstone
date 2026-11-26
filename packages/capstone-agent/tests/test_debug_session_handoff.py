@@ -134,7 +134,8 @@ def test_session_handoff_exports_exact_delivery_revisions(monkeypatch):
     rows = [
         {
             "event_type": "delivery_published", "event_seq": version, "thread_id": "thr_test",
-            "visibility": "public", "payload": {"delivery": {"artifact_id": "art_abc", "revision": version}},
+            "visibility": "public", "payload": {"delivery": {"artifact_id": "art_abc", "revision": version,
+                                                            "file_name": "report.md"}},
         }
         for version in (1, 2, 3)
     ]
@@ -157,6 +158,10 @@ def test_session_handoff_exports_exact_delivery_revisions(monkeypatch):
         assert archive.read("files/deliveries/art_abc/r1") == b"original"
         assert "files/deliveries/art_abc/r2" not in archive.namelist()
         assert "files/deliveries/art_abc/r3" not in archive.namelist()
+        assert json.loads(archive.read("files/index.jsonl")) == {
+            "path": "files/deliveries/art_abc/r1", "file_name": "report.md", "revision": 1,
+            "artifact_id": "art_abc", "attempt_id": None, "capstone_event_seqs": [1],
+        }
     assert {
         "kind": "produced_file", "status": "unavailable", "artifact_id": "art_abc",
         "attempt_id": None, "revision": 2,

@@ -294,8 +294,9 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
     gaps = []
     if supplements is None:
         gaps.append({"kind": "supplementary_evidence", "status": "export_unavailable"})
-    attachments: dict[tuple[str, int], None] = {}
+    attachments: dict[tuple[str, int], list[int]] = {}
     outputs = {}
+    file_index = []
     settled_attempts = {}
     observed_attempts = set()
     operation_events = {}
@@ -304,7 +305,7 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
         for entry in read_conversation(service, thread_id, 1, through_seq, may_export_text=lambda _: True):
             versions = entry.get("attachment_versions", {})
             for ref in entry.get("attachment_refs", ()):
-                attachments[(ref, versions.get(ref, 1))] = None
+                attachments.setdefault((ref, versions.get(ref, 1)), []).append(entry["event_seq"])
             yield entry
 
     def execution_entry(event):
@@ -326,7 +327,9 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
             descriptor = event["payload"].get(field)
             if isinstance(descriptor, dict):
                 output = (kind, event.get("attempt_id"), descriptor.get("artifact_id"), descriptor.get("revision"))
-                outputs.setdefault(output, descriptor)
+                saved = outputs.get(output)
+                if saved is None or event["event_seq"] > saved[0]:
+                    outputs[output] = (event["event_seq"], descriptor)
         if event.get("attempt_id") or kind == "delivery_published":
             summary = {key: event[key] for key in (
                 "event_seq", "event_id", "event_type", "occurred_at", "attempt_id", "turn_id",
@@ -344,7 +347,7 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
         yield HandoffMember("conversation.jsonl", json_lines(conversation()))
         events = _read_public_history(service, thread_id, 1, through_seq, execution_entry)
         yield HandoffMember("execution/capstone/events.jsonl", json_lines(events))
-        for ref, version in attachments:
+        for (ref, version), event_seqs in attachments.items():
             if not isinstance(ref, str) or not re.fullmatch(r"resource_[a-f0-9]{32}", ref):
                 gaps.append({"kind": "input_file", "status": "unsupported_reference"})
                 continue
@@ -363,11 +366,15 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                     gaps.append({"kind": "input_file", "status": "unavailable", "resource_id": ref, "version": version})
                     continue
                 staged.seek(0)
-                yield HandoffMember(f"files/inputs/{ref}/v{version}", iter(lambda: staged.read(1024 * 1024), b""))
+                path = f"files/inputs/{ref}/v{version}"
+                file_index.append({"path": path, "file_name": resource.get("file_name"), "version": version,
+                                   "resource_id": ref, "capstone_event_seqs": event_seqs})
+                yield HandoffMember(path, iter(lambda: staged.read(1024 * 1024), b""))
         from .native_artifact_projection import read_native_artifact
         from .thread_deliveries import read_delivery_content
 
-        for (kind, attempt_id, ref, version), descriptor in sorted(outputs.items(), key=lambda item: str(item[0])):
+        for (kind, attempt_id, ref, version), (event_seq, descriptor) in sorted(
+                outputs.items(), key=lambda item: str(item[0])):
             try:
                 if not isinstance(ref, str) or not re.fullmatch(r"[a-zA-Z0-9_-]+", ref):
                     raise ValueError("invalid artifact identity")
@@ -386,7 +393,11 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                 gaps.append({"kind": "produced_file", "status": "unavailable", "artifact_id": ref,
                              "attempt_id": attempt_id, "revision": version})
                 continue
+            file_index.append({"path": path, "file_name": descriptor.get("file_name"), "revision": version,
+                               "artifact_id": ref, "attempt_id": attempt_id, "capstone_event_seqs": [event_seq]})
             yield HandoffMember(path, [data])
+        if file_index:
+            yield HandoffMember("files/index.jsonl", json_lines(file_index))
         if supplements is not None:
             yield HandoffMember("execution/supplementary-evidence.jsonl", json_lines(supplements))
         if read_gateway_calls is None:
@@ -418,6 +429,7 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
             gaps.append({"kind": "data_gateway_original_calls", "status": "attempts_not_settled", "attempt_count": pending})
         yield HandoffMember("repro.md", [
             "# 会话复验\n\n打开 conversation.jsonl 定位指令。按事件编号查阅执行记录。"
+            "如有附件或产出，打开 files/index.jsonl 查找原文件名和版本。"
             "核对 manifest.json 的版本、文件校验和与缺口。\n".encode()
         ])
 
