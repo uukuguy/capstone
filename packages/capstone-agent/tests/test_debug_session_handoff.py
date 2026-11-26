@@ -7,7 +7,7 @@ from zipfile import ZipFile
 import pytest
 
 from capstone_agent.debug_session_handoff import (
-    HandoffMember, read_conversation, read_session_observations, write_handoff, write_session_handoff,
+    HandoffMember, import_handoff, read_conversation, read_session_observations, write_handoff, write_session_handoff,
 )
 
 
@@ -104,6 +104,28 @@ def test_handoff_rejects_unsafe_member_path(path):
             gaps=[],
             revisions={},
         )
+
+
+def test_import_validates_members_before_making_files_available(tmp_path):
+    source = tmp_path / "source.zip"
+    with source.open("wb") as output:
+        write_handoff(
+            output, thread_id="thr_test", start_seq=1, through_seq=1,
+            members=[HandoffMember("files/input.csv", [b"original"])], gaps=[], revisions={},
+        )
+    target = import_handoff(source, tmp_path, max_uncompressed_bytes=8192)
+    assert (target / "files/input.csv").read_bytes() == b"original"
+    with ZipFile(source) as original:
+        manifest = original.read("manifest.json")
+    with ZipFile(source, "w") as changed:
+        changed.writestr("manifest.json", manifest)
+        changed.writestr("files/input.csv", b"modified")
+    with pytest.raises(ValueError, match="member digest mismatch"):
+        import_handoff(source, tmp_path, max_uncompressed_bytes=8192)
+    assert list(tmp_path.glob("capstone-debug-*")) == [target.parent]
+    assert not list(tmp_path.glob(".capstone-import-*"))
+    with pytest.raises(ValueError, match="import size limit"):
+        import_handoff(source, tmp_path, max_uncompressed_bytes=8)
 
 
 def test_session_handoff_exports_exact_delivery_revisions(monkeypatch):

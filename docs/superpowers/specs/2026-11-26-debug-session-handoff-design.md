@@ -47,6 +47,15 @@
 - 现有调查注册、冻结快照、Pi 工具和 data-gateway 绑定用于补查。旧调查和证据包继续可读，新入口直接创建会话交接版本。
 - 复用离线证据校验思路，为会话交接格式校验成员和校验和。导入结果保留可定位的问答、文件版本、执行记录和缺口。
 
+研发环境从仓库根目录运行以下命令。按本次复验允许的解包总量设定字节上限，并指定已存在的工作目录。工具逐项校验大小和摘要，全部通过后输出私有导入目录。
+
+```sh
+PYTHONPATH=packages/capstone-agent/src python tools/import_debug_session.py \
+  capstone-debug-session.zip --import-to ./runs --max-uncompressed-bytes 1073741824
+```
+
+会话包包含问答和文件正文。Compose 使用 `CAPSTONE_DEBUG_SESSION_EXPORT=1` 授权该部署的已认证操作员导出，缺省关闭。补查证据仍受 `CAPSTONE_DEBUG_TIMELINE_EXPORT`、快照核准和实时网关外带策略约束。
+
 ## 验收
 
 以同一会话故障的在线调试结果为基准。三条路径使用相同的会话事件边界、输入版本、Capstone 和 data-gateway 发布版本。在线调试先保存故障现象、首个可确认的异常阶段、责任侧、可确认的原因、关键证据及复验结果。交接包和 Pi 补查各自独立完成后，再逐项对照。

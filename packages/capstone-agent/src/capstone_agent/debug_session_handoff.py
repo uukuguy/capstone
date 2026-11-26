@@ -1,5 +1,7 @@
 """Bounded projections for a session handoff."""
 
+from __future__ import annotations
+
 import hashlib
 import json
 import re
@@ -7,11 +9,13 @@ import sqlite3
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import closing
 from dataclasses import dataclass
-from pathlib import PurePosixPath
-from typing import Any, BinaryIO
+from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory, mkdtemp
+from typing import TYPE_CHECKING, Any, BinaryIO
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from .thread_service import ThreadService
+if TYPE_CHECKING:
+    from .thread_service import ThreadService
 
 _USER_COMMANDS = {"send_auto", "send_ordinary", "send_professional", "send_message"}
 _ASSISTANT_STATES = {
@@ -27,6 +31,14 @@ _ASSISTANT_STATES = {
 class HandoffMember:
     path: str
     chunks: Iterable[bytes]
+
+
+def _safe_path(name: str) -> bool:
+    path = PurePosixPath(name)
+    return (
+        not path.is_absolute() and ".." not in path.parts and path.as_posix() == name
+        and name != "." and not any(character in name for character in ("\\", ":", "\x00"))
+    )
 
 
 def json_lines(rows: Iterable[Mapping[str, Any]]) -> Iterator[bytes]:
@@ -56,15 +68,7 @@ def write_handoff(
     seen = {"manifest.json"}
     with ZipFile(destination, "w", compression=ZIP_DEFLATED) as archive:
         for member in members:
-            path = PurePosixPath(member.path)
-            if (
-                path.is_absolute()
-                or ".." in path.parts
-                or path.as_posix() != member.path
-                or member.path == "."
-                or any(character in member.path for character in ("\\", ":", "\x00"))
-                or member.path in seen
-            ):
+            if not _safe_path(member.path) or member.path in seen:
                 raise ValueError("invalid or duplicate handoff member path")
             seen.add(member.path)
             size = 0
@@ -80,6 +84,64 @@ def write_handoff(
         manifest["package_id"] = hashlib.sha256(identity).hexdigest()
         archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, allow_nan=False))
     return manifest
+
+
+def import_handoff(source: Path, parent: Path, *, max_uncompressed_bytes: int) -> Path:
+    """Verify all contents before publishing them in a new private directory."""
+    with ZipFile(source) as archive:
+        entries = archive.infolist()
+        names = {entry.filename for entry in entries}
+        if (len(names) != len(entries) or "manifest.json" not in names
+                or any(not _safe_path(entry.filename) or entry.is_dir() for entry in entries)):
+            raise ValueError("invalid package member paths")
+        if sum(entry.file_size for entry in entries) > max_uncompressed_bytes:
+            raise ValueError("package exceeds import size limit")
+        if archive.getinfo("manifest.json").file_size > 16 * 1024 * 1024:
+            raise ValueError("package manifest exceeds size limit")
+        manifest_bytes = archive.read("manifest.json")
+        manifest = json.loads(manifest_bytes)
+        if not isinstance(manifest, dict) or manifest.get("schema") != "capstone-debug-session-handoff/1":
+            raise ValueError("unsupported session handoff format")
+        identity = manifest.pop("package_id", None)
+        encoded = json.dumps(manifest, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()
+        if hashlib.sha256(encoded).hexdigest() != identity:
+            raise ValueError("package identity mismatch")
+        members = manifest.get("members")
+        if not isinstance(members, list) or any(
+            not isinstance(row, dict) or set(row) != {"path", "size", "sha256"}
+            or not isinstance(row["path"], str) or type(row["size"]) is not int
+            or not isinstance(row["sha256"], str)
+            for row in members
+        ):
+            raise ValueError("invalid package manifest members")
+        paths = {row["path"] for row in members}
+        if len(paths) != len(members) or paths != names - {"manifest.json"}:
+            raise ValueError("package member list mismatch")
+
+        with TemporaryDirectory(prefix=".capstone-import-", dir=parent) as staging:
+            root = Path(staging) / "contents"
+            root.mkdir(mode=0o700)
+            for row in members:
+                name = row["path"]
+                if archive.getinfo(name).file_size != row["size"]:
+                    raise ValueError("package member size mismatch")
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                digest = hashlib.sha256()
+                with archive.open(name) as original, target.open("xb") as output:
+                    while chunk := original.read(1024 * 1024):
+                        digest.update(chunk)
+                        output.write(chunk)
+                if digest.hexdigest() != row["sha256"]:
+                    raise ValueError("package member digest mismatch")
+            (root / "manifest.json").write_bytes(manifest_bytes)
+            destination = Path(mkdtemp(prefix="capstone-debug-", dir=parent))
+            try:
+                root.rename(destination / "contents")
+            except OSError:
+                destination.rmdir()
+                raise
+            return destination / "contents"
 
 
 def _conversation_entry(
