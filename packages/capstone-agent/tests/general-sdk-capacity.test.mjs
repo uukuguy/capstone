@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -185,7 +185,7 @@ test('append-only guides deduplicate only while their exact observation remains 
   assert.deepEqual(both.content,[...first.content,...(await view.tool.execute('catalog',{})).content]);
 });
 
-test('managed thin parent activates tools and automatically compacts at the threshold',async()=>{
+for(const summaryFailure of [false,true])test(`managed thin parent preserves completed tool work when summary ${summaryFailure?'fails':'succeeds'}`,async()=>{
   const {Readable}=await import('node:stream');
   const root=resolve('.grid-agent/runtime/pi/source/packages');
   const sdk=await import(pathToFileURL(resolve(root,'coding-agent/dist/index.js')).href);
@@ -210,17 +210,21 @@ test('managed thin parent activates tools and automatically compacts at the thre
         {type:'text',text:'Saved the product.'},
       ];
       const stopReason=requests.length<3?'toolUse':'stop';
+      const inputTokens=requests.length===2?31500:100;
       const message={role:'assistant',content:[contents[requests.length-1]],api:model.api,
         provider:model.provider,model:model.id,timestamp:Date.now(),stopReason,
-        usage:{input:requests.length===2?31500:0,output:0,cacheRead:0,cacheWrite:0,
-          totalTokens:requests.length===2?31500:0,cost:{total:0}}};
+        usage:{input:inputTokens,output:0,cacheRead:0,cacheWrite:0,
+          totalTokens:inputTokens,cost:{total:0}}};
       const stream=ai.createAssistantMessageEventStream();
-      stream.push({type:'done',reason:stopReason,message});
+      if(summaryFailure&&requests.length===3){
+        stream.push({type:'error',reason:'error',error:{...message,content:[],stopReason:'error',
+          errorMessage:'Injected summary service failure'}});
+      }else stream.push({type:'done',reason:stopReason,message});
       stream.end();
       return stream;
     }};
   const write={name:'write',label:'Write',description:'Save the product.',parameters:{type:'object'},
-    async execute(){writes++;return {content:[{type:'text',text:'Product saved.'}]};}};
+    async execute(){writes++;await writeFile('product.txt','Product saved.\n');return {content:[{type:'text',text:'Product saved.'}]};}};
   try{
     process.stdout.write=function(chunk,...args){
       const line=String(chunk);
@@ -247,9 +251,11 @@ test('managed thin parent activates tools and automatically compacts at the thre
     assert.match(requests[0].systemPrompt,/Host-admitted operation fixture-ref/);
     assert.match(requests[0].systemPrompt,/Host-admitted contract index/);
     assert.match(requests[0].systemPrompt,/Use the existing negotiated gateway index/);
-    assert.ok(events.some(event=>event.type==='compaction_end'&&event.reason==='threshold'&&event.status==='completed'));
-    assert.ok(events.some(event=>event.type==='model_context_usage'&&event.kind==='summary'&&event.state==='completed'));
-    assert.match(JSON.stringify(requests[3].messages),/Summary: the product was saved/);
+    const summaryState=summaryFailure?'failed':'completed';
+    assert.ok(events.some(event=>event.type==='compaction_end'&&event.reason==='threshold'&&event.status===summaryState));
+    assert.ok(events.some(event=>event.type==='model_context_usage'&&event.kind==='summary'&&event.state===summaryState));
+    assert.match(JSON.stringify(requests[3].messages),summaryFailure?/Product saved\./:/Summary: the product was saved/);
+    assert.match(JSON.stringify(events.findLast(event=>event.type==='agent_end')),/Saved the product\./);
     assert.match(JSON.stringify(requests[2].messages),/Save the product/);
     model.contextWindow=2048;
     const oversized='a'.repeat(12000);
@@ -264,6 +270,7 @@ test('managed thin parent activates tools and automatically compacts at the thre
     },sdk,runtime),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:1024});
     assert.equal(requests.length,4);
     assert.equal(writes,1);
+    assert.equal(await readFile('product.txt','utf8'),'Product saved.\n');
   }finally{
     process.stdout.write=stdoutWrite;
     Object.defineProperty(process,'stdin',stdin);
