@@ -13,7 +13,7 @@ it('keeps explicit requests and compaction with the right retry and omits privat
     event(4,'one','turn-a',{native_type:'runtime_phase',runtime_phase:{name:'context_compaction',state:'completed',reason:'threshold',tokens_before:9000}}),
     event(5,'two','turn-a',{model_context_usage:start}),
     event(6,'two','turn-a',{model_context_usage:{...start,state:'completed',usage:{input:600,output:10}}}),
-    event(7,'other','turn-b',{model_context_usage:start}),
+    event(7,'other','turn-b',{model_context_usage:{...start,estimated_input:{system:7000,tools:1500}}}),
     event(8,'other','turn-b',{model_context_usage:{...start,request_id:'ctx-2'}},'diagnostic'),
   ]
   const rows=projectInstructionContexts(events)
@@ -25,6 +25,7 @@ it('keeps explicit requests and compaction with the right retry and omits privat
   expect(rows[0].dispatchId).toBe('request-71')
   expect(rows[0].inputCeilingTokens).toBe(8000)
   expect(rows[0].estimatedProjectionSavings).toBe(180)
+  expect(rows.find(row=>row.instructionId==='turn-b')?.estimatedAboveCeiling).toBe(500)
 })
 
 it('reads an exact saved tool excerpt, without exposing private or ambiguous events',()=>{
