@@ -123,3 +123,11 @@ past its recorded expiry and made one devices read with the original signed
 reference. The gateway returned `view_expired`. No reopen or source refresh
 was dispatched. The evidence receipt retains the reference digest and the
 verified argument match.
+
+At `fff316b1`, the combined gateway and automatic compaction test in
+`fixed-gateway-compaction.json` returned SYN000 before compaction and SYN001
+on the next instruction. The host resolved the retained observation and
+copied the entire next-page argument object, including explicit null filters
+and ordering. Each instruction made one gateway dispatch. The prior direct
+model call returned the expected row but omitted those fields. The fix
+merged in PR 294 and the temporary profile was removed from local-dev.

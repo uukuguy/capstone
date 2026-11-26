@@ -8484,3 +8484,25 @@ check passed. No CI, integration or remote deployment performed.
   after its 60-second lifetime. No reopen or source refresh was dispatched.
   Thread thr_1af396e8814dda5a018a. The feature worktree preserves the private
   receipts and detailed session journal.
+- `ba7b698d` recorded the verified merge and exact local-dev source in the canonical register and browser-checked control graph.
+- 5174 dev 52473e30 verified Beijing-to-Jiangsu dynamic-slice continuity
+  and exact retained selection actions for both provinces, one dispatch per
+  selection. Thread thr_344513a38c43a88eb7bd. Prepare reported
+  requires_choice=false before the read returned choose_source.
+  Restored the workspace default to local-integration after TTL testing.
+  Private evidence: merged-cross-province-verified.json.
+- On the same 5174 cross-province Thread, the CSV turn reused both
+  saved data_ref values with the correct province and source ID. The
+  downloaded six rows, offsets, MW values and SHA-256 matched. Four model
+  requests and three local tools, zero gateway dispatches. Private evidence:
+  merged-cross-province-reuse.json.
+- Combined 5174 compaction and synthetic gateway continuation on 52473e30.
+  Thread thr_d3121d4f26ff1909762d returned SYN000 then SYN001, with one
+  business dispatch per turn and successful threshold summaries. The
+  recovered action supplied explicit null filters and order_by, but the
+  direct call omitted both. The exact continuation check failed despite
+  matching data. Receipt: merged-gateway-compaction.json. The temporary
+  model profile was removed and normal local-dev readiness restored.
+- PR 294 merged at 66ce89ed after scoped macOS CI 45886497599.
+  5174 built fff316b1, which has identical tracked content. Local
+  compaction continuation verified in thr_3c6b8fea0a9da80e4e10.
