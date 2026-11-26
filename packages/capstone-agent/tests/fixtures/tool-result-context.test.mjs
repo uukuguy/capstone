@@ -159,7 +159,9 @@ test('older saved observation previews shrink without changing messages, source 
   assert.equal(receipts[0].estimated_input_before_projection,undefined);
   assert.ok(receipts[1].estimated_input_before_projection.tool_results>
     receipts[1].estimated_input.tool_results);
-  assert.equal(sent[1][3],recent);
+  assert.equal(sent[1][2],error);
+  assert.deepEqual(JSON.parse(sent[1][3].content[0].text).full_result,
+    JSON.parse(recent.content[0].text).full_result);
   assert.deepEqual(JSON.parse(sent[1][1].content[0].text).full_result,full.full_result);
   assert.ok(sent[1][1].content[0].text.length<preprojected[1].content[0].text.length);
   assert.equal(JSON.stringify(messages),before);
@@ -328,5 +330,11 @@ test('pressure projection reduces short text envelopes and preserves exact saved
   assert.equal(sent[0][1],recent);
   assert.equal(await readSavedObservation(compact.full_result,'',{cwd}),body);
   assert.ok(receipts[0].estimated_input_before_projection.tool_results>receipts[0].estimated_input.tool_results);
+  observer.streamSimple({contextWindow:620,maxTokens:256},{messages:[old,recent]});
+  assert.deepEqual(JSON.parse(sent[1][1].content[0].text).full_result,
+    JSON.parse(recent.content[0].text).full_result);
+  assert.equal(JSON.parse(sent[1][1].content[0].text).structure,undefined);
+  assert.ok(receipts.find(event=>event.state==='started'&&event.input_ceiling_tokens===364)
+    .estimated_input.tool_results<364);
  }finally{await rm(cwd,{recursive:true,force:true});}
 });

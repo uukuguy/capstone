@@ -274,7 +274,6 @@ export function projectObservationHistory(messages,{recentPreviews=6,maxPreviewC
         preview_truncated:true,history_preview_compacted:true,full_result:full,
         ...(typeof envelope.original_output_complete==='boolean'
           ?{original_output_complete:envelope.original_output_complete}:{}),
-        instruction:'Read full_result for exact data.',
       };
       const text=JSON.stringify(reference);
       if(Buffer.byteLength(text)>=Buffer.byteLength(part.text))continue;
