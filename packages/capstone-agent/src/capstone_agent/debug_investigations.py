@@ -14,6 +14,19 @@ def evidence_digest(document):
     return sha256(encoded.encode('utf-8')).hexdigest()
 
 
+def _excerpt_status(event, field, preview_limit):
+    payload = event['payload']
+    activity = payload.get('activity')
+    text = activity.get(field) if isinstance(activity, dict) else None
+    if isinstance(text, str) and text:
+        return {'status': 'available', 'next_offset': preview_limit if len(text) > preview_limit else None}
+    kind = payload.get('native_type') if event['event_type'] == 'runtime_event' else event['event_type']
+    expected = {'input_excerpt': {'tool_execution_start', 'tool_started'},
+                'output_excerpt': {'tool_execution_end', 'tool_completed', 'tool_failed', 'tool_cancelled'}}
+    return {'status': 'not_retained' if isinstance(kind, str) and kind in expected[field] else 'not_applicable'}
+
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS capstone_debug_investigations (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -233,7 +246,9 @@ class InvestigationRegister:
             for _ in range(8):
                 page = reader.read(after=cursor, limit=32)
                 events.extend({'seq': event['event_seq'], 'type': event['event_type'],
-                               'occurred_at': event['occurred_at']} for event in page['events']
+                               'occurred_at': event['occurred_at'],
+                               'excerpt_status': {field: _excerpt_status(event, field, 0)['status']
+                                                  for field in ('input_excerpt', 'output_excerpt')}} for event in page['events']
                               if event['event_seq'] <= observation['through'])
                 cursor = page['next_after']
                 if not page['has_more'] or cursor >= observation['through']:
@@ -492,6 +507,8 @@ class InvestigationRegister:
                                                if isinstance(activity.get(key), str)}
                         if any(len(activity[key]) > excerpt_limit for key in summary['activity']):
                             summary['activity_truncated'] = True
+                    summary['excerpt_fields'] = {field: _excerpt_status(event, field, excerpt_limit)
+                                                 for field in ('input_excerpt', 'output_excerpt')}
                     visible.append({key: event[key] for key in ('event_seq', 'event_type', 'occurred_at')}
                                    | {'payload': summary, 'payload_projection': 'bounded_summary'})
                 return {key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after', 'has_more')} | {'events': visible}
@@ -545,11 +562,15 @@ class InvestigationRegister:
                         return {'code': 'investigation_request_invalid'}
                     page = audit_reader.read(after=seq - 1, limit=1)
                     events = page['events']
-                    payload = events[0]['payload'] if events and events[0]['event_seq'] == seq else {}
-                    activity = payload.get('activity')
-                    text = activity.get(field) if isinstance(activity, dict) else None
-                    if not isinstance(text, str):
-                        return {'code': 'stored_excerpt_unavailable'}
+                    if not events or events[0]['event_seq'] != seq:
+                        return {'code': 'event_not_visible'}
+                    event = events[0]
+                    status = _excerpt_status(event, field, 1000)['status']
+                    record_supplied_evidence([seq])
+                    if status != 'available':
+                        return {'attempt_id': observation['attempt_id'], 'event_seq': seq,
+                                'event_type': event['event_type'], 'field': field, 'status': status}
+                    text = event['payload']['activity'][field]
                     end = min(offset + 1000, len(text))
                     if offset > end:
                         return {'code': 'investigation_request_invalid'}
@@ -585,7 +606,8 @@ class InvestigationRegister:
             instruction += ('\n用 agent_task_records_read 核对 Capstone 执行记录。'
                             '需要更早或更晚的事件时，用 agent_debug_observe 的 capstone_records，传 after 或从 0 开始。'
                             '已知异常事件编号时，可以从该编号减一开始。'
-                            '摘要字段被裁剪时，用 capstone_excerpt 按事件编号、字段和偏移续读已保存摘要。'
+                            '先核对 excerpt_fields。仅当字段 available 且有 next_offset 时，才用 capstone_excerpt 续读。'
+                            'not_applicable 表示该事件没有此类文字。not_retained 表示此类文字未保留。两种状态均不重试。'
                             '确认关键事实或遇到证据缺口时，用 publish_finding 保存阶段结论。'
                             '提供 finding_state、event_refs、summary 和 next_step。'
                             'gateway_refs 仅传实际获得的 client_call_id，source_refs 仅传已读的 repository、revision、path 和 line。'

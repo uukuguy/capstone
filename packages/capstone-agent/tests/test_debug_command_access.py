@@ -333,6 +333,13 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         source_event = next(event for page in native['selected_task_records'] for event in page['events']
                             if event['event_type'] == 'execution_source_revision')
         assert source_event['payload_projection'] == 'bounded_summary'
+        assert source_event['payload']['excerpt_fields']['input_excerpt'] == {'status': 'not_applicable'}
+        unavailable = control.mission_operation('agent_debug_observe', {'operation': 'capstone_excerpt',
+            'query': {'event_seq': source_event['event_seq'], 'field': 'input_excerpt'}}, 'source-excerpt')
+        assert unavailable['status'] == 'not_applicable'
+        assert 'code' not in unavailable
+        assert page['events'][0]['payload']['excerpt_fields']['input_excerpt'] == {
+            'status': 'available', 'next_offset': 1000}
         assert source_event['payload']['capstone_revision'] == native['debug_scope']['capstone_revision'] == 'a' * 40
         return SimpleNamespace(status='completed', answer='Failure found')
 
@@ -345,6 +352,12 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
     evidence = register.read_export_snapshot(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
         register.recent_export_snapshots(claim.workspace_name, claim.thread_id, investigation['investigation_id'])[0]['snapshot_id'])
     assert failure_seq - 5 in evidence['diagnosis']['evidence_event_seqs']
+    exported_source = next(event for event in evidence['capstone']['events'] if event['type'] == 'execution_source_revision')
+    assert exported_source['excerpt_status'] == {'input_excerpt': 'not_applicable', 'output_excerpt': 'not_applicable'}
+    exported_failure = next(event for event in evidence['capstone']['events'] if event['seq'] == failure_seq)
+    assert exported_failure['excerpt_status'] == {'input_excerpt': 'available', 'output_excerpt': 'available'}
+    assert 'selected source remained ambiguous' not in str(exported_failure)
+
     assert register.read_snapshot_finding(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
                                           evidence['snapshot_id']) == diagnosis['finding']
 
