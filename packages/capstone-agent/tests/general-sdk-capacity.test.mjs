@@ -172,3 +172,57 @@ test('append-only guides deduplicate only while their exact observation remains 
   messages=[];
   assert.deepEqual(await view.tool.execute('after-compaction',{guide:true}),first);
 });
+
+test('managed thin parent dispatches loaded tools only after activation',async()=>{
+  const {Readable}=await import('node:stream');
+  const root=resolve('.grid-agent/runtime/pi/source/packages');
+  const sdk=await import(pathToFileURL(resolve(root,'coding-agent/dist/index.js')).href);
+  const ai=await import(pathToFileURL(resolve(root,'ai/dist/index.js')).href);
+  const {runManagedSession}=await import('../src/capstone_agent/resources/general-sdk.mjs');
+  const cwd=await mkdtemp(resolve(tmpdir(),'thin-parent-'));
+  const previousCwd=process.cwd(), previousAgent=process.env.PI_CODING_AGENT_DIR;
+  const stdin=Object.getOwnPropertyDescriptor(process,'stdin');
+  const model={id:'thin-fixture',name:'Offline',provider:'capstone-general',api:'openai-completions',
+    baseUrl:'http://127.0.0.1:1',reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024};
+  const requests=[];
+  let writes=0;
+  const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,
+    getAuth:async()=>({auth:{apiKey:'offline-fixture'}}),isUsingOAuth:()=>false,
+    streamSimple(_model,context){
+      requests.push(context);
+      const contents=[
+        {type:'toolCall',id:'load',name:'agent_tool_load',arguments:{names:['write']}},
+        {type:'toolCall',id:'save',name:'write',arguments:{}},
+        {type:'text',text:'Saved the product.'},
+      ];
+      const stopReason=requests.length<3?'toolUse':'stop';
+      const message={role:'assistant',content:[contents[requests.length-1]],api:model.api,
+        provider:model.provider,model:model.id,timestamp:Date.now(),stopReason,
+        usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{total:0}}};
+      const stream=ai.createAssistantMessageEventStream();
+      stream.push({type:'done',reason:stopReason,message});
+      stream.end();
+      return stream;
+    }};
+  const write={name:'write',label:'Write',description:'Save the product.',parameters:{type:'object'},
+    async execute(){writes++;return {content:[{type:'text',text:'Product saved.'}]};}};
+  try{
+    process.chdir(cwd);
+    process.env.PI_CODING_AGENT_DIR=resolve(cwd,'agent');
+    await mkdir(process.env.PI_CODING_AGENT_DIR);
+    Object.defineProperty(process,'stdin',{value:Readable.from(['{"type":"prompt","message":"trigger"}\n']),configurable:true});
+    await runManagedSession({model:model.id,thinInitialContext:true,settings:{compaction:{enabled:false}},
+      extensions:[],allowedSkills:[],contextFiles:[],systemPrompt:'Save the requested product.',
+      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','write']},
+      input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write]},runtime);
+    assert.deepEqual(requests.map(request=>request.tools.some(tool=>tool.name==='write')),[false,true,true]);
+    assert.equal(writes,1);
+    assert.match(JSON.stringify(requests[2].messages),/Product saved/);
+  }finally{
+    Object.defineProperty(process,'stdin',stdin);
+    process.chdir(previousCwd);
+    if(previousAgent===undefined)delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR=previousAgent;
+    await rm(cwd,{recursive:true,force:true});
+  }
+});
