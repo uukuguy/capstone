@@ -221,12 +221,16 @@ export function projectObservationHistory(messages,{recentPreviews=6,maxPreviewC
       typeof full.path!=='string'||!/(?:^|\/)\.observations\/[a-f0-9]{64}\.(?:json|txt)$/.test(full.path)||
       !/^[a-f0-9]{64}$/.test(full.sha256??'')||!Number.isSafeInteger(full.size_bytes)||full.size_bytes<0||
       !issuedObservationRefs.has(referenceKey(full)))continue;
-    if(recent++<recentPreviews||envelope.history_preview_compacted===true)continue;
-    const preview=JSON.stringify(envelope.preview);
+    if(recent++<recentPreviews)continue;
+    const suffix='… [older preview shortened; read full_result for exact data]';
+    const excerpt=envelope.preview_excerpt;
+    const preview=envelope.history_preview_compacted===true
+      ?(typeof excerpt==='string'&&excerpt.endsWith(suffix)?excerpt.slice(0,-suffix.length):undefined)
+      :JSON.stringify(envelope.preview);
     if(typeof preview!=='string'||preview.length<=maxPreviewChars)continue;
     const {preview:omitted,...retained}=envelope;
     const small={...retained,history_preview_compacted:true,
-      preview_excerpt:preview.slice(0,maxPreviewChars)+'… [older preview shortened; read full_result for exact data]'};
+      preview_excerpt:preview.slice(0,maxPreviewChars)+suffix};
     projected[i]={...message,content:[{...part,text:JSON.stringify(small)},...message.content.slice(1)]};
     changed=true;
   }

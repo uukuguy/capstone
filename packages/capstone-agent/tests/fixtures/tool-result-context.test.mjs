@@ -145,6 +145,7 @@ test('older saved observation previews shrink without changing messages, source 
   assert.equal(result[1].content[1],old.content[1]);
   assert.equal(projectObservationHistory(result,{recentPreviews:1,maxPreviewChars:500}),result);
   const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+  const preprojected=projectObservationHistory(messages,{recentPreviews:1,maxPreviewChars:1200});
   const sent=[],receipts=[];
   const runtime={streamSimple(_model,context){
     sent.push(context.messages);
@@ -153,14 +154,14 @@ test('older saved observation previews shrink without changing messages, source 
   const observed=observeModelContext(runtime,'main',()=> 'ctx-1',event=>receipts.push(event),false,
     undefined,undefined,undefined,undefined,true);
   observed.streamSimple({contextWindow:32000,maxTokens:256},{messages});
-  observed.streamSimple({contextWindow:1024,maxTokens:256},{messages});
+  observed.streamSimple({contextWindow:1024,maxTokens:256},{messages:preprojected});
   assert.equal(sent[0],messages);
   assert.equal(receipts[0].estimated_input_before_projection,undefined);
   assert.ok(receipts[1].estimated_input_before_projection.tool_results>
     receipts[1].estimated_input.tool_results);
   assert.equal(sent[1][3],recent);
   assert.deepEqual(JSON.parse(sent[1][1].content[0].text).full_result,full.full_result);
-  assert.ok(sent[1][1].content[0].text.length<old.content[0].text.length);
+  assert.ok(sent[1][1].content[0].text.length<preprojected[1].content[0].text.length);
   assert.equal(JSON.stringify(messages),before);
   }finally{await rm(cwd,{recursive:true,force:true});}
 });
