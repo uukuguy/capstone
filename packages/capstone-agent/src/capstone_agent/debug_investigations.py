@@ -662,6 +662,8 @@ class InvestigationRegister:
                 return {'code': 'diagnosis_not_running'}
             return {'snapshot_id': snapshot['snapshot_id'], 'finding_state': state, 'event_refs': finding['event_refs']}
 
+        debug_calls = {}
+
         def observe(event):
             nonlocal diagnosis
             tool = event.get('tool_name')
@@ -676,6 +678,20 @@ class InvestigationRegister:
             else:
                 stage = 'tool_failed' if event.get('is_error') is True else 'tool_finished'
             step = {'seq': progress[-1]['seq'] + 1 if progress else 1, 'stage': stage, 'tool': tool}
+            if tool == 'agent_debug_observe':
+                from .gateway_investigation import DEBUG_OBSERVATION_OPERATIONS
+                call_id = event.get('tool_call_id')
+                if isinstance(call_id, str) and 0 < len(call_id) <= 128:
+                    if stage == 'tool_started':
+                        operation = event.get('debug_operation')
+                        if operation in DEBUG_OBSERVATION_OPERATIONS:
+                            if len(debug_calls) >= 64:
+                                debug_calls.pop(next(iter(debug_calls)))
+                            debug_calls[call_id] = operation
+                    else:
+                        operation = debug_calls.pop(call_id, None)
+                    if operation in DEBUG_OBSERVATION_OPERATIONS:
+                        step['operation'] = operation
             diagnosis = {**diagnosis, 'progress': [*progress[-63:], step],
                          'progress_truncated': step['seq'] > 64}
             self._save_diagnosis(scope, diagnosis)

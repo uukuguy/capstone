@@ -913,6 +913,13 @@ class GeneralPiHost:
             elif kind in {'tool_execution_start', 'tool_execution_end'}:
                 payload = {'type': kind, 'tool_name': str(event.get('toolName', ''))[:128],
                            'tool_call_id': str(event.get('toolCallId', ''))[:128]}
+                if kind == 'tool_execution_start' and payload['tool_name'] == 'agent_debug_observe' and (
+                        request.native_context or {}).get('debug_scope'):
+                    from .gateway_investigation import DEBUG_OBSERVATION_OPERATIONS
+                    arguments = event.get('args')
+                    operation = arguments.get('operation') if isinstance(arguments, dict) else None
+                    if operation in DEBUG_OBSERVATION_OPERATIONS:
+                        payload['debug_operation'] = operation
                 if adaptive and kind == 'tool_execution_start':
                     call_id, tool_name = payload['tool_call_id'], payload['tool_name']
                     if not call_id or (call_id in direct_calls and direct_calls[call_id] != tool_name):
