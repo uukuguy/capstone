@@ -107,3 +107,10 @@ dispatch after the timezone-free argument rejection. All final values
 matched. Cached token counts and individual elapsed times remain in the
 receipt. These measurements cover the local model profile and gateway
 publication. The same image was restored to thin mode after the comparison.
+
+The deployment default remains `CAPSTONE_THIN_INITIAL_CONTEXT`. Set
+`CAPSTONE_THIN_CONTEXT_PROFILES` to a JSON object from registered profile IDs
+to booleans for individual overrides. For example,
+`{"commercial-deepseek-flash":false}` rolls that profile back when the global
+default is enabled. Omitted profiles use the global default. The override
+changes task admission without changing the frozen model identity.

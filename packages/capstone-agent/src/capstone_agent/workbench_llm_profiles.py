@@ -27,6 +27,18 @@ class ProfileRegistry:
             raise ValueError('Unknown workbench deployment preset')
         self.default = self.document['defaults'][preset]
         self.profiles = {p['id']: p for p in self.document['profiles']}
+        try:
+            overrides = json.loads(self.environment.get('CAPSTONE_THIN_CONTEXT_PROFILES') or '{}')
+        except json.JSONDecodeError:
+            raise ValueError('Invalid thin context profile overrides') from None
+        if (not isinstance(overrides, dict) or any(profile not in self.profiles or type(enabled) is not bool
+                for profile, enabled in overrides.items())):
+            raise ValueError('Invalid thin context profile overrides')
+        self._thin_context_overrides = overrides
+
+    def thin_context_enabled(self, profile_id):
+        default = self.environment.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1'
+        return self._thin_context_overrides.get(profile_id, default)
 
     def _resolved(self, profile_id):
         if profile_id not in self.profiles:

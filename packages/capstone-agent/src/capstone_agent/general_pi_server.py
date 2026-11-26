@@ -2071,7 +2071,9 @@ class NativeTaskRunner:
                         name: route for name, route in self.task_domain_routes[request.task_id].items()
                         if name in allowed}
             research_runtime = sdk_config.get('researchRuntime', {})
-            thin_initial_context = (os.environ.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1'
+            thin_context_enabled = (self.llm_profiles.thin_context_enabled(profile['id'])
+                if profile is not None else os.environ.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1')
+            thin_initial_context = (thin_context_enabled
                     and bool(sdk_config.get('applicationPolicy'))
                     and research_runtime.get('deepResearch') is False
                     and research_runtime.get('adaptiveAgentLoop') is True
