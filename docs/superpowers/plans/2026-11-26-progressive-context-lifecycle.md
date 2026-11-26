@@ -140,3 +140,11 @@ successful call on the current gateway. The host tool also rejects an
 unavailable action before resolving or dispatching any leaf. See
 `incompatible-action-check.json` and PR 296. The live result verifies the
 tested model behavior. A separately authorized direct call remains available.
+
+At `191bf573`, the 5174 batch test reported all 16 requested labels.
+The downloaded package linked `ctx-2` to `request-2` and recorded estimated
+input of 10,597 before projection and 7,781 after, against a ceiling of
+7,782. Tool-result estimates fell from 5,789 to 2,973. This is one synthetic
+pressure sample at a temporarily small window, with only one estimated token
+of margin. The regression checks both projection levels and exact saved-file
+reads. See `live-projection-batch-final-verification.json` and PR 299.
