@@ -176,6 +176,10 @@ test('append-only guides deduplicate only while their exact observation remains 
     {history_index:0,record:{role:'user',content:'record 0'}},
   ]);
   assert.equal((await view.tool.execute('bad-batch',{history_indexes:[0,4]})).isError,true);
+  const page=await view.tool.execute('older-page',{history_before:2});
+  assert.deepEqual(JSON.parse(page.content[0].text),{earlier_records:[
+    {index:0,role:'user',preview:'record 0'},{index:1,role:'user',preview:'record 1'},
+  ],next_before:null});
   const request={systemPrompt:'Stable',messages,tools:[]};
   const first=await view.tool.execute('first',{guide:true});
   assert.match(first.content[0].text,/Use the actual task paths\./);
@@ -286,4 +290,16 @@ for(const summaryFailure of [false,true])test(`managed thin parent preserves com
     else process.env.PI_CODING_AGENT_DIR=previousAgent;
     await rm(cwd,{recursive:true,force:true});
   }
+});
+
+test('history previews page backward without repeating or omitting an indexed record',async()=>{
+  const {historyIndexPage}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=Array.from({length:31},(_,index)=>({role:'user',content:'record '+index}));
+  const newest=historyIndexPage(history);
+  const older=historyIndexPage(history,newest.next_before);
+  const oldest=historyIndexPage(history,older.next_before);
+  assert.deepEqual([newest,older,oldest].map(page=>page.earlier_records.length),[12,12,5]);
+  assert.equal(oldest.next_before,null);
+  assert.deepEqual([oldest,older,newest].flatMap(page=>page.earlier_records.map(row=>row.index)),
+    Array.from({length:29},(_,index)=>index));
 });
