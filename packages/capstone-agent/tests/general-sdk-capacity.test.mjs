@@ -309,3 +309,13 @@ test('history previews page backward without repeating or omitting an indexed re
   assert.deepEqual([oldest,older,newest].flatMap(page=>page.earlier_records.map(row=>row.index)),
     Array.from({length:29},(_,index)=>index));
 });
+
+test('explicit admitted message IDs displace unrelated recent bodies',async()=>{
+  const {historyInlineSelection,historyIndexPage}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=Array.from({length:5},(_,index)=>({message_id:'msg-'+index,role:'user',content:'record '+index}));
+  const selected=historyInlineSelection(history,'Read msg-0 exactly');
+  assert.equal(selected.reason,'explicit_message_reference');
+  assert.deepEqual([...selected.inline],[0]);
+  assert.deepEqual(historyIndexPage(history,undefined,undefined,undefined,selected.inline).earlier_records.map(row=>row.index),[1,2,3,4]);
+  assert.deepEqual([...historyInlineSelection(history,'Read msg-01 and unknown').inline],[3,4]);
+});

@@ -47,7 +47,7 @@ def _checked_origin(value):
     selection = value.get('selection')
     if kind == 'history' and identifier == 'historical-conversation' and isinstance(selection, dict):
         counts = ('inline_records', 'indexed_records', 'omitted_previews')
-        if (selection.get('reason') == 'bounded_recent_records'
+        if (selection.get('reason') in ('bounded_recent_records', 'explicit_message_reference')
                 and all(type(selection.get(key)) is int and 0 <= selection[key] <= 10_000 for key in counts)
                 and selection['omitted_previews'] <= selection['indexed_records']):
             result['selection'] = {'reason': selection['reason'], **{key: selection[key] for key in counts}}

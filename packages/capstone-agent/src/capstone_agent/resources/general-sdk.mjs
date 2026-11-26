@@ -1,4 +1,4 @@
-import {isIndexedHistoryRecord,historicalRecord,historyIndexPage} from './general-context.mjs';
+import {historicalRecord,historyIndexPage,historyInlineSelection} from './general-context.mjs';
 import {diagnosticContextInput,createGuideProjection,createGuideReader} from "./model-context-input.mjs";
 import { readFileSync, constants } from "node:fs";
 import { createHash, createHmac, randomUUID } from "node:crypto";
@@ -402,7 +402,8 @@ export function createApplicationToolDiscovery(config) {
     contractHashes:{...gateway?.catalog.tool_hashes,...domain?.catalog.tool_hashes},admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
 }
 
-export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{}, maxActiveTools=16, history=[]) {
+export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{}, maxActiveTools=16, history=[], instruction) {
+  const {inline}=historyInlineSelection(history,instruction);
   const grants=new Set(admitted), stable=new Set(['agent_runtime_tools','agent_tool_load',...residents]);
   const loaded=new Set();
   let contracts=new Map();
@@ -475,13 +476,13 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
             (role!==undefined&&!['user','assistant'].includes(role))||
             args.history_index!==undefined||args.history_indexes!==undefined)
             return {isError:true,content:[text({message:'Use a short exact phrase, an original role or the next_before cursor.'})]};
-          return {content:[text(historyIndexPage(history,before,query,role))]};
+          return {content:[text(historyIndexPage(history,before,query,role,inline))]};
         }
         if(args.history_index!==undefined||args.history_indexes!==undefined){
           const indexes=args.history_indexes??[args.history_index];
           if((args.history_index!==undefined&&args.history_indexes!==undefined)||
             !Array.isArray(indexes)||!indexes.length||indexes.length>4||new Set(indexes).size!==indexes.length||
-            indexes.some(index=>!Number.isInteger(index)||index<0||index>=history.length||!isIndexedHistoryRecord(history,index)))
+            indexes.some(index=>!Number.isInteger(index)||index<0||index>=history.length||inline.has(index)))
             return {isError:true,content:[text({message:'Use exact indexes from earlier_records.'})]};
           const content=indexes.map(index=>text({history_index:index,record:historicalRecord(history[index])}));
           if(indexes.length>1&&content.reduce((bytes,part)=>bytes+Buffer.byteLength(part.text),0)>8192)
@@ -1639,7 +1640,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const gatewayNames=Object.keys(config.dataGateway?.catalog?.tools??{});
     config.thinToolView=createThinToolView(config.applicationPolicy.allowed_tools,
       [...discoveryToolNames,...domainNames,...gatewayNames,'bash','write','agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_skill_step'],
-      ()=>loadGuide('runtime-guide'),config.runtimeLimits.tool_active_count,config.context?.messages);
+      ()=>loadGuide('runtime-guide'),config.runtimeLimits.tool_active_count,config.context?.messages,config.input?.text);
     config.stablePresentationStep=true;
   }
   const discovery=createApplicationToolDiscovery(config);
