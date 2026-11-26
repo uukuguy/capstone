@@ -2133,7 +2133,7 @@ class NativeTaskRunner:
             if (callable(read_gateway_observation) and sdk_config.get('thinInitialContext') and request.managed_workspace
                     and request.business_context and frozen_gateway and sdk_config.get('dataGateway')
                     and 'read' in sdk_config['applicationPolicy']['allowed_tools']):
-                thread_id = request.business_context['workspace_id']
+                thread_id = document['business_context']['workspace_id']
                 hashes = sdk_config['dataGateway']['catalog']['tool_hashes']
                 root = inputs / 'selected-gateway-observations'
                 observations = []
