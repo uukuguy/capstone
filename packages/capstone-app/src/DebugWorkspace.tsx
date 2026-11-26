@@ -189,83 +189,88 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     <p>进度显示在主会话。保存的结果列在下方，需要交给研发时可重新下载调试包。</p>
     {readHistory&&<button type="button" disabled={busy} onClick={()=>void loadHistory()}>刷新补查证据</button>}
     {history.length===0 ? <p>暂无补查记录。</p> : <ul>
-      {history.map(item=><li key={item.investigation_id}>
-        <p>{item.objective} · {statusLabels[item.status ?? ''] ?? '已登记'}</p>
-        <div className="debug-actions">
-          <button type="button" disabled={busy} aria-label={`查看证据 · ${item.objective}`}
-            onClick={()=>void selectDiagnosis(item.investigation_id)}>查看证据</button>
-
-        </div>
-      </li>)}
+      {history.map(item=>{
+        const open = diagnosis?.id === item.investigation_id
+        return <li key={item.investigation_id}>
+          <p>{item.objective} · {statusLabels[item.status ?? ''] ?? '已登记'}</p>
+          <button type="button" disabled={busy} aria-expanded={open}
+            aria-label={`${open ? '收起证据' : '查看证据'} · ${item.objective}`}
+            onClick={()=>void selectDiagnosis(open ? '' : item.investigation_id)}>
+            {open ? '收起证据' : '查看证据'}
+          </button>
+          {open&&<div className="debug-evidence-detail">
+              {diagnosis?.text&&<MarkdownContent>{diagnosis.text}</MarkdownContent>}
+              {diagnosis?.source&&<p>{diagnosis.source}</p>}
+              {diagnosis&&runProbe&&<details>
+                <summary>只读网关复验</summary>
+                <label>工具名<input value={probeTool} disabled={busy} onChange={event=>setProbeTool(event.target.value)}/></label>
+                <label>参数（JSON）<textarea value={probeArgs} disabled={busy} onChange={event=>setProbeArgs(event.target.value)}/></label>
+                <button type="button" disabled={busy||!probeTool.trim()} onClick={()=>void verifyReadOnly(diagnosis.id)}>执行或查回原复验</button>
+                {probe?.id===diagnosis.id&&probe.receipt!==undefined&&<pre>{JSON.stringify(probe.receipt,null,2)}</pre>}
+              </details>}
+              {diagnosis&&readSource&&<div className="debug-actions">
+                <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'capstone')}>查看历史 Capstone 源码</button>
+                <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'data-gateway')}>查看历史网关源码</button>
+              </div>}
+              {sourcePage&&sourcePage.id===diagnosis?.id&&<>
+                <p>{sourcePage.repository} <code>{sourcePage.revision}</code></p>
+                <label>历史源码文件<select disabled={busy} value={excerpt?.id===sourcePage.id?excerpt.path:''}
+                  onChange={event=>{if(event.target.value)void browseSource(sourcePage.id,sourcePage.repository,0,event.target.value)}}>
+                  <option value="">选择文件</option>
+                  {sourcePage.files.map(path=><option key={path}>{path}</option>)}
+                </select></label>
+                {sourcePage.next!==null&&<button type="button" disabled={busy}
+                  onClick={()=>void browseSource(sourcePage.id,sourcePage.repository,sourcePage.next ?? 0)}>下一页文件</button>}
+              </>}
+              {excerpt&&excerpt.id===diagnosis?.id&&!excerpt.citation&&<>
+                <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>
+                {excerpt.lines.length===40&&<button type="button" disabled={busy}
+                  onClick={()=>void browseSource(excerpt.id,excerpt.repository,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
+              </>}
+              {diagnosis&&readSnapshots&&<button type="button" disabled={busy}
+                onClick={()=>void loadSnapshots(diagnosis.id)}>查看已保存快照</button>}
+              {snapshots?.id===diagnosis?.id&&snapshots&&<label>证据快照
+                <select disabled={busy} value={snapshotId} onChange={event=>setSnapshotId(event.target.value)}>
+                  <option value="">当前调查状态</option>
+                  {snapshots.rows.map(item=><option key={item.snapshot_id} value={item.snapshot_id}>
+                    {({queued:'排队', running:'执行中', completed:'已完成', failed:'失败', cancelled:'已停止',
+                      unknown:'结果未知'} as Record<string,string>)[item.status ?? ''] ?? '已保存'} · {item.snapshot_id.slice(0,8)}
+                  </option>)}
+                </select></label>}
+              {diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&readSnapshotFinding&&
+                <button type="button" disabled={busy} onClick={()=>void loadSnapshotFinding(diagnosis.id,snapshotId)}>查看阶段结论</button>}
+              {snapshotFinding&&snapshots?.id===diagnosis?.id&&snapshotFinding.id===diagnosis?.id&&snapshotFinding.snapshot===snapshotId&&
+                <div className="debug-finding">
+                  <p>{snapshotFinding.finding?.summary ?? '此快照没有保存阶段结论。'}</p>
+                  {snapshotFinding.finding?.next_step&&<p>下一步 · {snapshotFinding.finding.next_step}</p>}
+                  {Boolean(snapshotFinding.finding?.event_refs?.length)&&<p>Capstone 事件
+                    {' '}{snapshotFinding.finding?.event_refs?.map(seq=><code key={seq}>#{seq}</code>)}
+                  </p>}
+                  {Boolean(snapshotFinding.finding?.gateway_refs?.length)&&<p>网关回执
+                    {' '}{snapshotFinding.finding?.gateway_refs?.map(call=><code key={call}>{call}</code>)}
+                  </p>}
+                  {snapshotFinding.finding?.source_refs?.map(ref=>{
+                    const label = `${ref.repository} ${ref.path}:${ref.line}`
+                    const key = `${snapshotId}/${ref.revision}/${label}`
+                    return <div key={key} className="debug-source-citation">
+                      {readSource ? <button type="button" disabled={busy}
+                        onClick={()=>void browseSource(snapshotFinding.id,ref.repository,0,ref.path,ref.line,key,ref.revision)}>
+                        {label}
+                      </button> : <span>{label}</span>}
+                      <code title={ref.revision}>{ref.revision.slice(0,12)}</code>
+                      {excerpt?.id===snapshotFinding.id&&excerpt.citation===key&&
+                        <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>}
+                    </div>
+                  })}
+                </div>}
+              {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
+                <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
+              {allowExport&&readEvidence&&diagnosis&&
+                <button type="button" disabled={busy} onClick={()=>void downloadEvidence(diagnosis.id,snapshots?.id===diagnosis.id ? snapshotId : undefined)}>下载此证据</button>}
+          </div>}
+        </li>
+      })}
     </ul>}
-    {(diagnosis?.text || savedFinding)&&<MarkdownContent>{diagnosis?.text || savedFinding}</MarkdownContent>}
-    {diagnosis?.source&&<p>{diagnosis.source}</p>}
-    {diagnosis&&runProbe&&<details>
-      <summary>只读网关复验</summary>
-      <label>工具名<input value={probeTool} disabled={busy} onChange={event=>setProbeTool(event.target.value)}/></label>
-      <label>参数（JSON）<textarea value={probeArgs} disabled={busy} onChange={event=>setProbeArgs(event.target.value)}/></label>
-      <button type="button" disabled={busy||!probeTool.trim()} onClick={()=>void verifyReadOnly(diagnosis.id)}>执行或查回原复验</button>
-      {probe?.id===diagnosis.id&&probe.receipt!==undefined&&<pre>{JSON.stringify(probe.receipt,null,2)}</pre>}
-    </details>}
-    {diagnosis&&readSource&&<div className="debug-actions">
-      <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'capstone')}>查看历史 Capstone 源码</button>
-      <button type="button" disabled={busy} onClick={()=>void browseSource(diagnosis.id,'data-gateway')}>查看历史网关源码</button>
-    </div>}
-    {sourcePage&&sourcePage.id===diagnosis?.id&&<>
-      <p>{sourcePage.repository} <code>{sourcePage.revision}</code></p>
-      <label>历史源码文件<select disabled={busy} value={excerpt?.id===sourcePage.id?excerpt.path:''}
-        onChange={event=>{if(event.target.value)void browseSource(sourcePage.id,sourcePage.repository,0,event.target.value)}}>
-        <option value="">选择文件</option>
-        {sourcePage.files.map(path=><option key={path}>{path}</option>)}
-      </select></label>
-      {sourcePage.next!==null&&<button type="button" disabled={busy}
-        onClick={()=>void browseSource(sourcePage.id,sourcePage.repository,sourcePage.next ?? 0)}>下一页文件</button>}
-    </>}
-    {excerpt&&excerpt.id===diagnosis?.id&&!excerpt.citation&&<>
-      <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>
-      {excerpt.lines.length===40&&<button type="button" disabled={busy}
-        onClick={()=>void browseSource(excerpt.id,excerpt.repository,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
-    </>}
-    {diagnosis&&readSnapshots&&<button type="button" disabled={busy}
-      onClick={()=>void loadSnapshots(diagnosis.id)}>查看已保存快照</button>}
-    {snapshots?.id===diagnosis?.id&&snapshots&&<label>证据快照
-      <select disabled={busy} value={snapshotId} onChange={event=>setSnapshotId(event.target.value)}>
-        <option value="">当前调查状态</option>
-        {snapshots.rows.map(item=><option key={item.snapshot_id} value={item.snapshot_id}>
-          {({queued:'排队', running:'执行中', completed:'已完成', failed:'失败', cancelled:'已停止',
-            unknown:'结果未知'} as Record<string,string>)[item.status ?? ''] ?? '已保存'} · {item.snapshot_id.slice(0,8)}
-        </option>)}
-      </select></label>}
-    {diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&readSnapshotFinding&&
-      <button type="button" disabled={busy} onClick={()=>void loadSnapshotFinding(diagnosis.id,snapshotId)}>查看阶段结论</button>}
-    {snapshotFinding&&snapshots?.id===diagnosis?.id&&snapshotFinding.id===diagnosis?.id&&snapshotFinding.snapshot===snapshotId&&
-      <div className="debug-finding">
-        <p>{snapshotFinding.finding?.summary ?? '此快照没有保存阶段结论。'}</p>
-        {snapshotFinding.finding?.next_step&&<p>下一步 · {snapshotFinding.finding.next_step}</p>}
-        {Boolean(snapshotFinding.finding?.event_refs?.length)&&<p>Capstone 事件
-          {' '}{snapshotFinding.finding?.event_refs?.map(seq=><code key={seq}>#{seq}</code>)}
-        </p>}
-        {Boolean(snapshotFinding.finding?.gateway_refs?.length)&&<p>网关回执
-          {' '}{snapshotFinding.finding?.gateway_refs?.map(call=><code key={call}>{call}</code>)}
-        </p>}
-        {snapshotFinding.finding?.source_refs?.map(ref=>{
-          const label = `${ref.repository} ${ref.path}:${ref.line}`
-          const key = `${snapshotId}/${ref.revision}/${label}`
-          return <div key={key} className="debug-source-citation">
-            {readSource ? <button type="button" disabled={busy}
-              onClick={()=>void browseSource(snapshotFinding.id,ref.repository,0,ref.path,ref.line,key,ref.revision)}>
-              {label}
-            </button> : <span>{label}</span>}
-            <code title={ref.revision}>{ref.revision.slice(0,12)}</code>
-            {excerpt?.id===snapshotFinding.id&&excerpt.citation===key&&
-              <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>}
-          </div>
-        })}
-      </div>}
-    {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
-      <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
-    {allowExport&&readEvidence&&diagnosis&&
-      <button type="button" disabled={busy} onClick={()=>void downloadEvidence(diagnosis.id,snapshots?.id===diagnosis.id ? snapshotId : undefined)}>下载此证据</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><details><summary>执行详情</summary>
     {attempt?<><label>选择要检查的指令<select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
