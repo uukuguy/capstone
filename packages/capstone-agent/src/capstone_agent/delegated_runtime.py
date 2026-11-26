@@ -415,6 +415,20 @@ class DelegatedRuntime:
                     and isinstance(resource_failure.get('code'), str)
                     and resource_failure.get('code') in {'historical_resource_unavailable',
                         'resource_read_failed', 'resource_identity_rejected'} else None)
+            recovery = event.get('gateway_response_loss')
+            gateway_response_loss = None
+            if (kind == 'tool_execution_end' and event.get('is_error') is True
+                    and isinstance(tool_name, str) and tool_name.startswith('data_gateway_')
+                    and isinstance(recovery, Mapping)
+                    and recovery.get('business_response') == 'unavailable'
+                    and recovery.get('automatic_retry') is False
+                    and recovery.get('gateway_observed_status') in
+                        ('ok', 'partial', 'unavailable', 'error', 'failed', 'cancelled', 'unknown')
+                    and all(isinstance(recovery.get(key), str) and 0 < len(recovery[key]) <= 128
+                            for key in ('instance_id', 'catalog_revision'))):
+                gateway_response_loss = {key: recovery[key] for key in (
+                    'instance_id', 'catalog_revision', 'business_response',
+                    'gateway_observed_status', 'automatic_retry')}
             source_view = None
             if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
                 if (isinstance(tool_name, str) and tool_name.startswith('data_gateway_') and isinstance(tool_call_id, str)
@@ -455,6 +469,7 @@ class DelegatedRuntime:
                 **({'skill_activity': event['skill_activity']} if isinstance(event.get('skill_activity'), Mapping)
                     and tool_name == 'agent_skill' and kind == 'tool_execution_end' else {}),
                 **({'source_view': source_view} if source_view is not None else {}),
+                **({'gateway_response_loss': gateway_response_loss} if gateway_response_loss is not None else {}),
                 **({'research_cycle': {key: event[key] for key in
                     ('owner', 'attempt_id', 'action_id', 'checkpoint', 'progress') if key in event}}
                     if kind == 'enterprise_cycle_progress' else {}),

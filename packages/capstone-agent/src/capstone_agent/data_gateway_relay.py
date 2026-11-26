@@ -398,7 +398,7 @@ class DataGatewayAccess:
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
             span = {**(context or {}), 'span_id': uuid4().hex, 'tool_call_id': call_id,
-                    'status': 'sending', **({'retry_of': retry_of} if retry_of is not None else {})}
+                    'tool': name, 'status': 'sending', **({'retry_of': retry_of} if retry_of is not None else {})}
             # Host-owned leaf identity, independent of model-selected call labels.
             span['client_call_id'] = span['span_id']
             if context is not None:
@@ -446,6 +446,8 @@ class DataGatewayAccess:
                 span.update(status='adapter_error', failure_phase='gateway_client')
                 if error.result_unknown:
                     span['gateway_result'] = 'unknown'
+                if str(error) == 'gateway_result_body_unavailable':
+                    span['business_response'] = 'unavailable'
                 if error.gateway_observed_status is not None:
                     span['gateway_observed_status'] = error.gateway_observed_status
             if str(error) in TASK_STOP_ERRORS:
@@ -563,6 +565,25 @@ class DataGatewayAccess:
                             record.setdefault('operation_refs', set()).add(ref)
                         issued[field, ref] = item
         return response
+
+    def response_loss(self, task_id, call_id, name):
+        """Project a host-owned diagnostic without business results or credentials."""
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None:
+                return None
+            for span in reversed(record['diagnostic_calls']):
+                if (span['tool_call_id'] == call_id and span['tool'] == name
+                        and span.get('business_response') == 'unavailable'):
+                    catalog = record['catalog']
+                    return {
+                        'gateway_observed_status': span.get('gateway_observed_status', 'unknown'),
+                        'business_response': 'unavailable',
+                        'automatic_retry': False,
+                        'catalog_revision': catalog['revision'],
+                        'instance_id': (catalog.get('instance') or {}).get('instance_id'),
+                    }
+        return None
 
     def diagnostic_calls(self, task_id):
         """Host reads before revoke; durable event persistence is the host's job."""

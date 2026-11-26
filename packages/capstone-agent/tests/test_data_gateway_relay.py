@@ -1049,3 +1049,25 @@ def test_published_locator_preserves_versioned_local_view_read():
         'arguments': {'view_ref': 'view-one', 'expected_model_revision': 'revision-one', 'objects': []}}))
     assert asyncio.run(resource.call('task-1', {
         'call_id': 'read', 'name': reader, 'arguments': read_args}))['is_error'] is False
+
+
+def test_response_loss_diagnostic_is_scoped_to_original_call():
+    async def run():
+        resource = access()
+
+        async def lose_response(*args, **kwargs):
+            raise GatewayError('gateway_result_body_unavailable', result_unknown=True,
+                               gateway_observed_status='ok')
+
+        resource.client.call = lose_response
+        document = request()
+        with pytest.raises(GatewayError, match='gateway_result_body_unavailable'):
+            await resource.call('task-1', document)
+        diagnostic = resource.response_loss('task-1', document['call_id'], document['name'])
+        assert diagnostic['gateway_observed_status'] == 'ok'
+        assert diagnostic['business_response'] == 'unavailable'
+        assert diagnostic['automatic_retry'] is False
+        assert resource.response_loss('different-task', document['call_id'], document['name']) is None
+        assert resource.response_loss('task-1', document['call_id'], 'different-tool') is None
+
+    asyncio.run(run())

@@ -975,6 +975,14 @@ class GeneralPiHost:
                 if kind == 'tool_execution_end' and (type(event.get('isError')) is bool
                         or event.get('result', {}).get('isError') is True):
                     payload['is_error'] = event.get('isError') is True or event.get('result', {}).get('isError') is True
+                    if payload['is_error'] and payload['tool_name'].startswith('data_gateway_'):
+                        gateway = getattr(self._run, 'task_gateways', {}).get(
+                            request.task_id, getattr(self._run, 'gateway', None))
+                        response_loss = getattr(gateway, 'response_loss', None)
+                        if callable(response_loss):
+                            diagnostic = response_loss(request.task_id, payload['tool_call_id'], payload['tool_name'])
+                            if diagnostic is not None:
+                                payload['gateway_response_loss'] = diagnostic
                 if kind == 'tool_execution_end' and request.research_binding is not None:
                     # Even after the capture budget is full, an admitted ID
                     # cannot alias a later different observation.
@@ -2158,6 +2166,9 @@ class NativeTaskRunner:
                 hashes = sdk_config['dataGateway']['catalog']['tool_hashes']
                 root = inputs / 'selected-gateway-observations'
                 observations = []
+                response_losses = []
+                catalog = sdk_config['dataGateway']['catalog']
+                instance_id = frozen_gateway['instance_id']
                 unavailable = []
                 deferred = 0
                 remaining = limits.native_context_bytes
@@ -2167,11 +2178,22 @@ class NativeTaskRunner:
                     for event in page['events']:
                         payload = event.get('payload', {})
                         tool = payload.get('tool_name')
-                        if (payload.get('native_type') != 'tool_execution_end' or payload.get('is_error')
+                        if (payload.get('native_type') != 'tool_execution_end'
                                 or tool not in hashes):
                             continue
                         call_id = payload.get('tool_call_id')
                         if not isinstance(call_id, str) or not call_id:
+                            continue
+                        if payload.get('is_error'):
+                            diagnostic = payload.get('gateway_response_loss')
+                            if (len(response_losses) < 4 and isinstance(diagnostic, dict) and instance_id
+                                    and diagnostic.get('instance_id') == instance_id
+                                    and diagnostic.get('catalog_revision') == catalog['revision']):
+                                response_losses.append({
+                                    'tool': tool, 'tool_call_id': call_id,
+                                    'gateway_observed_status': diagnostic.get('gateway_observed_status', 'unknown'),
+                                    'business_response': 'unavailable', 'automatic_retry': False,
+                                })
                             continue
                         raw = read_gateway_observation(
                             task_id=payload.get('task_id'), attempt_id=page['attempt_id'],
@@ -2189,6 +2211,14 @@ class NativeTaskRunner:
                         selected_gateway_files.append((path, raw))
                         observations.append({'tool': tool, 'tool_call_id': call_id, 'path': str(path),
                                              'sha256': sha256(raw.encode()).hexdigest()})
+                if response_losses:
+                    sdk_config['contextFiles'].append({
+                        'path': 'selected-gateway-recovery',
+                        'content': 'For a continuation of one of these calls, use its recorded gateway status. '
+                                   'The business response is unavailable and remains unknown. '
+                                   'Report both states. End that continuation without searching for tools or replaying the call.\n'
+                                   + json.dumps(response_losses, ensure_ascii=False),
+                    })
                 if observations or unavailable or deferred:
                     sdk_config['selectedGatewayObservations'] = observations
                     policy = sdk_config['applicationPolicy']
