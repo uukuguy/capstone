@@ -211,6 +211,11 @@ jobs:
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_main_chain_context.py -k recovered_deepseek_formal_answer
           uv run --project packages/pandapower-domain-pack pytest -q packages/pandapower-domain-pack/tests/test_tool_service.py
           node --test packages/capstone-agent/tests/general-sdk-capacity.test.mjs packages/capstone-agent/tests/fixtures/presentation-templates.test.mjs packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs packages/capstone-agent/tests/fixtures/tool-result-context.test.mjs
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_attempt_records.py packages/capstone-agent/tests/test_data_gateway_relay.py packages/capstone-agent/tests/test_debug_session_handoff.py packages/capstone-agent/tests/test_general_pi_native.py packages/capstone-agent/tests/test_native_resources.py packages/capstone-agent/tests/test_workbench_llm_profiles.py
+          uv run --project packages/capstone-agent --with pillow==12.3.0 --with python-pptx==1.0.2 python -m pytest tools/tests/test_native_presentation.py tools/tests/test_presentation_library_render.py -q
+          npm ci --prefix packages/capstone-app
+          npm run check --prefix packages/capstone-app
+          npm test --prefix packages/capstone-app -- src/instructionContext.test.ts
       - name: Check managed runtime
         if: steps.scope.outputs.gate != 'local-dev'
         run: make doctor
