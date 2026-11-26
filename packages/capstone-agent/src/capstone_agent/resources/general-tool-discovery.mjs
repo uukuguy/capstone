@@ -119,6 +119,14 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
         const best=Math.max(0,...candidates.map(name=>matched.get(name).length));
         if(best){mode='partial_terms';matches=candidates.filter(name=>matched.get(name).length===best);}
       }
+      if(terms.length&&matches.length>1){
+        const scores=new Map(matches.map(name=>{
+          const published=entries.get(name).publication.name??name;
+          const tokens=new Set(published.toLowerCase().split(/[^\p{L}\p{N}]+/u));
+          return [name,terms.filter(term=>tokens.has(term)).length];
+        }));
+        matches.sort((left,right)=>scores.get(right)-scores.get(left));
+      }
       const selected=matches.slice(offset,offset+pageSize);
       const searchKey=JSON.stringify([terms,offset,args.toolset??null]),repeated=searched.has(searchKey);
       if(searched.size>=64&&!repeated)searched.delete(searched.values().next().value);

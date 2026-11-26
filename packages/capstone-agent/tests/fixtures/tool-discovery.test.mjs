@@ -71,6 +71,18 @@ test('an explicit identity inside a search is not replaced by description refere
  assert.equal(hidden.total,0);
 });
 
+test('discovery ranks publication name terms before description-only ties',async()=>{
+ const publications={a_inspect:{name:'inspect',description:'Read a view'},
+  z_read_view:{name:'read_view',description:'Read a saved resource'},
+  hidden_read_view:{name:'private_read_view',description:'Read a view'}};
+ const discovery=createToolDiscovery({publications,tools:Object.keys(publications).map(name=>({name})),
+   admittedNames:['a_inspect','z_read_view'],pageSize:1});
+ const search=async args=>JSON.parse((await discovery.tools[0].execute('find',args)).content[0].text);
+ assert.equal((await search({query:'read view'})).tools[0].name,'z_read_view');
+ assert.equal((await search({query:'read view',offset:1})).tools[0].name,'a_inspect');
+ assert.equal((await search({query:'inspect'})).tools[0].name,'a_inspect');
+});
+
 test('unresolved publications load exact contracts before registration without placeholder schemas',async t=>{
  const cwd=await mkdtemp(join(tmpdir(),'progressive-discovery-'));t.after(()=>rm(cwd,{recursive:true,force:true}));
  const publications={selected:{name:'source',description:'Read selected',progressive:{tool_key:'key'}}};
