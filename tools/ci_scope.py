@@ -1004,7 +1004,12 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         'test_general_pi_native.py', 'test_native_resources.py', 'test_workbench_llm_profiles.py',
         'test_general_pi_server.py', 'test_native_environment.py', 'test_main_chain_context.py',
     )}
-    if thin_context.issubset(paths) and all(path in thin_context_paths or _control_path(path) for path in paths):
+    handoff_test = agent + 'tests/test_debug_session_handoff.py'
+    handoff_test_only = handoff_test in paths and all(
+        path in {handoff_test, 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py'} or _control_path(path)
+        for path in paths)
+    if handoff_test_only or (thin_context.issubset(paths)
+            and all(path in thin_context_paths or _control_path(path) for path in paths)):
         return 'thin-context'
     managed_skill_anchors = {source + 'managed_resource_runtime.py', source + 'managed_resource_service.py',
                              source + 'resources/managed-resource-tools.mjs'}
