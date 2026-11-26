@@ -8,15 +8,16 @@ it('downloads the saved snapshot for the selected history row', async () => {
   const readSnapshots = vi.fn().mockResolvedValue([{snapshot_id:'saved-first', status:'completed'}])
   const readEvidence = vi.fn().mockRejectedValue(new Error('下载授权已撤回'))
   render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
-    through={0} read={vi.fn()} readTimeline={vi.fn()} refreshSource={vi.fn()}
+    through={0} read={vi.fn()} refreshSource={vi.fn()}
     allowExport savedFinding="" sourceVersion=""
     readHistory={async () => [
       {investigation_id:'inv_second', objective:'第二次补查', status:'completed'},
       {investigation_id:'inv_first', objective:'第一次补查', status:'completed'},
     ]}
-    readSnapshots={readSnapshots} readEvidence={readEvidence}/>)
+    readDiagnosis={async () => ({status:'completed',answer:'已保存'})} readSnapshots={readSnapshots} readEvidence={readEvidence}/>)
 
-  fireEvent.click(await screen.findByRole('button',{name:'下载证据 · 第一次补查'}))
+  fireEvent.click(await screen.findByRole('button',{name:'查看证据 · 第一次补查'}))
+  fireEvent.click(await screen.findByRole('button',{name:'下载此证据'}))
   await screen.findByRole('alert')
   expect(readSnapshots).toHaveBeenCalledWith('inv_first')
   expect(readEvidence).toHaveBeenCalledWith('inv_first','saved-first')
@@ -27,7 +28,7 @@ it('approves and revokes reviewed materials for the selected investigation snaps
   const snapshot = 'a'.repeat(64)
   const reviewExport = vi.fn().mockResolvedValue(undefined)
   render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
-    through={0} read={vi.fn()} readTimeline={vi.fn()} refreshSource={vi.fn()}
+    through={0} read={vi.fn()} refreshSource={vi.fn()}
     allowExport savedFinding="" sourceVersion=""
     readHistory={async () => [{investigation_id:'inv_debug', objective:'检查失败', status:'completed'}]}
     readDiagnosis={async () => ({status:'completed', answer:'现场诊断答复'})}
@@ -57,7 +58,7 @@ it('shows a saved finding on site with export disabled', async () => {
     source_refs:[{repository:'capstone', revision, path:'src/example.py', line:21}]})
   const readSource = vi.fn().mockResolvedValue({revision, first_line:21, lines:['observed line']})
   render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
-    through={0} read={vi.fn()} readTimeline={vi.fn()} refreshSource={vi.fn()}
+    through={0} read={vi.fn()} refreshSource={vi.fn()}
     allowExport={false} savedFinding="" sourceVersion=""
     readHistory={async () => [{investigation_id:'inv_debug', objective:'检查失败', status:'running'}]}
     readDiagnosis={async () => ({status:'running'})}

@@ -12,9 +12,8 @@ const statusLabels: Record<string, string> = {
   queued:'排队', running:'执行中', completed:'已完成', failed:'失败', cancelled:'已停止', unknown:'结果未知',
 }
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,readTimeline,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
-  readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
   downloadSession?: (streamToFile?: boolean) => Promise<void>
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
@@ -159,32 +158,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     }catch(cause){setError(cause instanceof Error?cause.message:'执行记录读取失败。')}
     finally{setBusy(false)}
   }
-  async function download(){
-    if(!attempt||busy)return
-    setBusy(true)
-    setError('')
-    try{
-      const parts:BlobPart[]=[JSON.stringify({schema:'capstone-debug-timeline/1',thread_id:threadId,attempt_id:attempt})+'\n']
-      let after=0
-      let through:number|undefined
-      for(;;){
-        const page=await readTimeline(attempt,after,through)
-        through=page.through
-        for(const event of page.events){
-          parts.push(JSON.stringify(event)+'\n')
-        }
-        if(!page.hasMore)break
-        after=page.nextAfter
-      }
-      const url=URL.createObjectURL(new Blob(parts,{type:'application/x-ndjson'}))
-      const link=document.createElement('a')
-      link.href=url
-      link.download='debug-'+attempt+'.ndjson'
-      link.click()
-      setTimeout(()=>URL.revokeObjectURL(url),1000)
-    }catch(cause){setError(cause instanceof Error?cause.message:'调试记录下载失败。')}
-    finally{setBusy(false)}
-  }
+
   const digest=sourceVersion.match(/[0-9a-f]{64}/)?.[0]
   const matched=sourceVersion.startsWith('当前网关源码 ')
   return <section className="debug-workspace" aria-label="Debug">
@@ -207,7 +181,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       {attempts.map((id,index)=><option key={id} value={id}>{attemptLabel(id)??(index===0?'最近一次执行':'执行记录 · '+id.slice(-8))}</option>)}
     </select></label>
     <div className="debug-actions"><button type="button" disabled={busy} onClick={()=>void locate()}><ScanSearch size={15}/>查找首条异常</button>
-    {allowExport&&<button type="button" disabled={busy} onClick={()=>void download()}><Download size={15}/>下载时间线</button>}</div>
+    </div>
     {observation?.attempt===attempt&&<p role="status">{observation.text}</p>}
     <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
     </>:<p>这段会话还没有执行记录。</p>}
@@ -221,9 +195,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
         <div className="debug-actions">
           <button type="button" disabled={busy} aria-label={`查看证据 · ${item.objective}`}
             onClick={()=>void selectDiagnosis(item.investigation_id)}>查看证据</button>
-          {allowExport&&readEvidence&&<button type="button" disabled={busy}
-            aria-label={`下载证据 · ${item.objective}`}
-            onClick={()=>void downloadEvidence(item.investigation_id)}>下载证据</button>}
+
         </div>
       </li>)}
     </ul>}
@@ -293,8 +265,8 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       </div>}
     {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
       <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
-    {allowExport&&readEvidence&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
-      <button type="button" disabled={busy} onClick={()=>void downloadEvidence(diagnosis.id,snapshotId)}>下载所选快照</button>}
+    {allowExport&&readEvidence&&diagnosis&&
+      <button type="button" disabled={busy} onClick={()=>void downloadEvidence(diagnosis.id,snapshots?.id===diagnosis.id ? snapshotId : undefined)}>下载此证据</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
     <button type="button" onClick={refreshSource}><RefreshCw size={14}/>重新核对</button></div>
