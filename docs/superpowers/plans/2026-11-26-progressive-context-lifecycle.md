@@ -39,7 +39,16 @@ performance disposition has been accepted.
 The candidate at `fd4efd52` passed both short-task sequences in
 `acceptance-current.json`. The latest Word evidence replay passed its hashes
 and facts with no gateway dispatch in `acceptance-report-current.json`, while
-the request count rose to nine. The PPTX smoke in `acceptance-ppt-current.json`
-passed the slide count, text and hash checks. It did not load the distinct
-presentation guide. The live guide flag was off. Verify the presentation
-admission and on-demand guide path before closing the guide requirement.
+the request count rose to nine. The PPTX smoke in `acceptance-ppt-current.json` passed the slide count, text
+and hash checks with the legacy guide flag off. The thin-mode guide then
+loaded on demand in `thin-guides-ppt.json`. Its default cover caused the
+explicit one-slide request to fail. After the renderer and guide accepted
+explicit cover omission, `thin-single-slide.json` passed completion, slide
+count, text and download hash at `c8815c3d`. It used six model calls and
+rendered twice, so the delivery pass does not establish a cost improvement.
+
+At `6b1723a7`, `thin-guides-ordinary.json` passed without guide calls.
+`thin-guides-gateway.json` loaded the gateway guide on the first turn and
+reused the contract on a narrower-window follow-up. Both calls matched the
+requested arguments and saved values. Record PPTX cost alongside Word
+delivery and initial gateway discovery on the promotion revision.
