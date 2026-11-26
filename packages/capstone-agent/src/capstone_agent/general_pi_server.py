@@ -1708,12 +1708,12 @@ class NativeTaskRunner:
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
                         *sdk_config['applicationPolicy']['allowed_tools'], *gateway_discovery_tools(native,
                             gateway_publication, gateway_available=True)})}
-                    from .gateway_diagnostics import research_diagnostics
+                    from .gateway_diagnostics import attempt_diagnostics, research_diagnostics
                     task_catalog = gateway_publication['catalog']
                     task_gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway, catalog=task_catalog,
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
-                            request.parent_attempt_id))
+                            request.parent_attempt_id) or attempt_diagnostics(request.parent_attempt_id))
                     saved_operations = (document.get('structural_context') or {}).get('gateway_operations')
                     if saved_operations is not None and saved_operations['binding'] == frozen_gateway:
                         task_gateway.restore_operations(request.task_id, frozen_gateway, saved_operations)
