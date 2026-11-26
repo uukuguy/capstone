@@ -190,6 +190,9 @@ test('native output projection reads exact saved fields and bounds large reads',
  assert.deepEqual((await read({pointer:'/rows/52/index'})).value,52);
  assert.equal((await read({pointer:'/rows',offset:52,limit:2})).next_offset,54);
  assert.equal((await read({pointer:'/rows'})).complete,false);
+ const page=await read({pointer:'/rows',fields:['index','missing'],offset:50,limit:25});
+ assert.equal(page.next_offset,75);
+ assert.deepEqual(page.value,Array.from({length:25},(_,i)=>({index:50+i})));
  assert.equal((await read({reference:{...envelope.full_result,sha256:'0'.repeat(64)}})).code,'observation_unavailable');
 });
 

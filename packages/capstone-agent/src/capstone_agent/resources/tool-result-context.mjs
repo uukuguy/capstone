@@ -149,15 +149,17 @@ export function createObservationReadTool(cwd){
   const reply=(value,isError=false)=>({isError,content:[{type:'text',text:JSON.stringify(value)}]});
   return {
     name:'agent_observation_read',label:'Read saved tool output',
-    description:'Read fields or pages from a native script result that returned a full_result file reference. Use a JSON pointer, or an empty string for the root.',
+    description:'Read fields or pages from a native script result that returned a full_result file reference. Use an exact JSON pointer without wildcards. For an array of records, select fields by exact key to read a smaller page.',
     parameters:{type:'object',properties:{
       reference:{type:'object',properties:{
         path:{type:'string'},sha256:{type:'string'},size_bytes:{type:'integer'},tool:{type:'string'},call_id:{type:'string'},
         base_pointer:{anyOf:[{type:'string'},{type:'null'}]},
       },required:['path','sha256','size_bytes','tool','call_id','base_pointer'],additionalProperties:false},
+      fields:{type:'array',minItems:1,maxItems:16,uniqueItems:true,
+        items:{type:'string',minLength:1,maxLength:128}},
       pointer:{type:'string',maxLength:512},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:2000},
     },required:['reference'],additionalProperties:false},
-    async execute(_callId,{reference,pointer='',offset,limit},signal){
+    async execute(_callId,{reference,pointer='',offset,limit,fields},signal){
       signal?.throwIfAborted();
       let value;
       try{value=await readSavedObservation(reference,pointer,{cwd});}
@@ -167,12 +169,19 @@ export function createObservationReadTool(cwd){
           ?error.message:'Use an exact saved observation reference issued in this task.'},true);
       }
       signal?.throwIfAborted();
-      const paged=offset!==undefined||limit!==undefined;
+      const paged=offset!==undefined||limit!==undefined||fields!==undefined;
       if(paged){
         if(!Array.isArray(value)&&typeof value!=='string')
           return reply({code:'observation_not_pageable',message:'Select an array or text field to page.'},true);
         const start=offset??0,end=Math.min(start+(limit??20),value.length);
-        const page={complete:end>=value.length,value:value.slice(start,end),total:value.length,
+        let selected=value.slice(start,end);
+        if(fields!==undefined){
+          if(!Array.isArray(selected)||selected.some(row=>!row||typeof row!=='object'||Array.isArray(row)))
+            return reply({code:'observation_fields_unavailable',message:'Select an array of records for a field projection.'},true);
+          selected=selected.map(row=>Object.fromEntries(fields.filter(field=>Object.hasOwn(row,field))
+            .map(field=>[field,row[field]])));
+        }
+        const page={complete:end>=value.length,value:selected,total:value.length,
           ...(end<value.length?{next_offset:end}:{})};
         if(Buffer.byteLength(JSON.stringify(page))<=4000)return reply(page);
       }else if(Buffer.byteLength(JSON.stringify(value))<=3800)return reply({complete:true,value});
