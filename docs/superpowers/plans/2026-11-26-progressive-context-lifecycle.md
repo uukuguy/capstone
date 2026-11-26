@@ -27,7 +27,7 @@ contain source observations and conversation excerpts.
 | Context selection and order | `explicit-history-selection.json`, `history-preview-only-dispatch-audit.json`, `same-topic-strong-dispatch-audit.json` | Exact IDs take precedence. Lexical ranking stays bounded and may defer bodies to on-demand reads. The same-topic replay still exposed old values in a preview. |
 | Request budget and cache | `context-estimator-calibration.json`, `real-context-limit-encoding.json`, `prefix-usage.json` | The current encoder allowance is calibrated on local samples. First content and provider prefill are distinct. This provider did not report prefill. |
 | Compaction and recovery | `real-context-compaction-verified.json`, `real-context-limit-encoding.json`; pinned SDK summary failure regression | Live threshold compaction, an oversized instruction and restart were exercised. Summary failure was injected in the pinned SDK test. |
-| Gateway identity and exact continuation | `gateway-integrated-matrix.json`, `joint-gateway-next-page.json`, `joint-gateway-binding-gap.json`; restored-view expiry regression | Gateway reference expiry was exercised at the isolated gateway and relay boundaries. A naturally expired reference remains unverified in local-dev. |
+| Gateway identity and exact continuation | `gateway-integrated-matrix.json`, `joint-gateway-next-page.json`, `four-context-restart-next-page.json`, `joint-gateway-binding-gap.json`; restored-view expiry regression | Gateway reference expiry was exercised at the isolated gateway and relay boundaries. A naturally expired reference remains unverified in local-dev. |
 | File delivery from admitted evidence | `gateway-evidence-report-fields-1.json`, `gateway-evidence-report-fields-2.json` | Both Word reports matched the saved values and hashes with no new gateway dispatch. Optional conversion still occurred in some samples. |
 | Offline diagnosis | `model-context-handoff-verification.json`, `joint-gateway-handoff-verification.json`, `history-selection-handoff-verification.json` | The original-call projection is available for the dedicated synthetic gateway. Deployments without registered evidence report a gap. |
 | Per-type cost and instruction fit | `matched-enforced-ceiling.json`, `matched-contract-plan.json`, `gateway-integrated-matrix.json`, `gateway-short-preview.json` | Initial gateway discovery has mixed cost. Compare again on the promotion revision before enabling a broader rollout. |
@@ -76,3 +76,19 @@ and avoided describing the view again. One initial call lacked a timezone
 offset and required correction. The published exact schema accepted both
 forms. See [the gateway window contract handoff](../../reports/2026-11-27-gateway-view-window-contract-handoff.md)
 and `thin-bounded-guide.json`.
+
+
+At `09afb501`, both four-candidate trials completed the first query and
+the narrower window with exact parameters and matching values. The first
+queries took five and six calls. Uncached input was 14,622 and 15,180 tokens,
+versus 21,263 and 19,412 in the previous two samples. The follow-ups took four
+and three calls with one gateway dispatch each. This cross-revision comparison
+measures payload reduction with variable turn count. See
+`thin-four-candidates.json` and `four-candidate-attribution.json`.
+
+The same revision passed a synthetic gateway continuation after Pi service
+restart. The first request returned SYN000. The next turn read the saved
+observation and sent the exact arguments in its next-page action. It returned
+SYN001. Each turn made one dispatch. The live check covers an offset carried
+in the gateway action. The isolated restored-view regression covers expired
+opaque view references.
