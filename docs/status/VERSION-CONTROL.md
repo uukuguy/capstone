@@ -1,3 +1,5 @@
+2026-11-26 会话调试包完成 local-dev 阶段验收，进入 dev PR。5174 浏览器通过单入口下载、原位查看补查和主会话进度检查。18011 合成网关同一故障的现场回执、调试包和 Pi 补查均定位到提供方执行阶段。研发离线复现已保存结论被隐藏的问题，旧版失败，修复版通过。生产受控主机复验尚未执行。[设计与修复循环](../superpowers/specs/2026-11-26-debug-session-handoff-design.md)
+
 2026-11-26 [PR289](https://github.com/uukuguy/capstone/pull/289) 合入 dev `81dc2d4d`。调试快照现场展示经核验的 Capstone 事件、网关回执编号和源码引用。历史版本 e4e00eda 的第 21 行从快照 18252154 的引用打开。[App CI](https://github.com/uukuguy/capstone/actions/runs/45740594602) 通过。
 
 2026-11-26 [PR287](https://github.com/uukuguy/capstone/pull/287) 合入 dev `09b465c8`。恢复和停止保留终态快照，摘要回执区分适用性和保留状态，Debug 只发布一个 Capstone 记录读取入口。[macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45739112597) 通过。右栏标题与会话卡一致。
@@ -1549,6 +1551,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | debug-readable-local-20261126 | dfeda7ce | feature | Debug 会话与步骤联验 | local-dev 就绪，浏览器滚轮和下载导入通过 | 长结论及展开步骤随消息区滚动。[环境台账](#环境台账) | local-dev |
 | debug-card-visual-local-20261126 | 24245085 | feature | 调试卡和 Debug 右栏交互联验 | local-dev 就绪，真实浏览器通过 | 可见命令、调用用时与取证缺口。[环境台账](#环境台账) | local-dev |
 | debug-evidence-recovery-local-20261126 | 22e9bf5f | feature | Debug 终态与摘要联验 | local-dev 就绪，浏览器与离线包验证通过 | 可核对摘要适用性、停止快照和单一记录读取入口。[环境台账](#环境台账) | local-dev |
+| debug-session-package-local-20261126 | c30aac1e | feature | 会话调试包与离线修复 | local-dev 及 18011 合成联验通过 | 单入口下载、现场补查、离线复现及修复复验。 | local-dev |
 | independent-debug-merge-20261126 | fb566e2e | main | 独立 Debug 调查 | PR273 合入 dev，macOS 专项 CI 通过 | 独立 Pi、双仓取证、受审阅快照和离线复验。 | shared-agent |
 | debug-stage-findings-merge-20261126 | 4ddecb99 | main | Debug 阶段结论与快照 | PR275 合入 dev，macOS 专项通过 | 证据引用经服务端核验，右栏回看阶段结论并按授权下载。 | shared-agent |
 | debug-history-worker-merge-20261126 | 7650fd78 | main | Debug 历史源码库接线 | PR278 合入 dev，macOS 专项通过 | API 与 native worker 使用相同的只读历史源码库。 | shared-agent |
@@ -2012,6 +2015,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | debug-readable-local-20261126 | 本机开发部署来源 | feat/debug-readable-progress | 长结论随会话滚动；运行步骤保留操作名 | local-dev 同镜像就绪 |
 | debug-card-visual-local-20261126 | 本机开发部署来源 | fix/debug-visible-progress | 蓝紫色调试卡；执行时间和回执缺口 | local-dev 同镜像就绪，浏览器通过 |
 | debug-evidence-recovery-local-20261126 | 本机开发部署来源 | fix/debug-terminal-snapshots | 自动保存终态快照；核对摘要是否适用 | local-dev 同镜像就绪 |
+| debug-session-package-local-20261126 | 本机开发部署来源 | docs/debug-session-handoff | 单入口导出；离线修复复验 | local-dev 与 18011 合成网关通过 |
 | local-dev-xlsx-preview | 本机开发部署来源 | dev | 右栏工作簿预览；可切换工作表与下载原件 | 5174 实测两个工作表，38 行和 11 行 |
 | local-dev-flash-closeout | 本机开发部署来源 | dev | 5174 从 dev 规范重建；包含可选薄上下文及校验器操作流程 | API、worker 和 Pi 就绪，10 个原置顶及存储卷核对通过 |
 | local-llama-request | 本机推理请求适配 | dev | 固定容量提示；为两款本机 Qwen 预设统一请求字段 | 本机 187 项相关检查通过，macOS CI 45099572315 通过 |
@@ -2418,7 +2422,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API、worker 与 Pi `22e9bf5f`，Vite App `d1c7af4c` | 后端 884e56b3bf5e，Pi 3419f42f4a43，均就绪，镜像含双仓源码 | App http://127.0.0.1:5174/。浏览器停止保留终态快照，事件 854 标为摘要不适用，证据包可导入，右栏快照源码引用可打开原版本。 |
+| local-dev | API、worker 与 Pi `c30aac1e`，Vite App `aca7a422` | 后端 ab4bd79e56e3，Pi 5b1a26aaaec8，均就绪，镜像含双仓源码 | App http://127.0.0.1:5174/。调试包下载、离线导入、合成网关故障对照、Pi 补查及离线修复回放通过。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |

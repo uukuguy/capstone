@@ -8416,3 +8416,58 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-26 PR #273 merged to dev at fb566e2e after exact-head macOS CI; runtime inputs match a6438e17.
 
 - 2026-11-26 local-dev a6438e17 ready. Dedicated Pi inventory and real browser historical page 854 confirmed.
+- 2026-11-26 `b8d18055` specify session handoff as the Debug entry point, with optional Pi evidence collection.
+- 2026-11-26 `9bfbce1b` require independent evidence package and Pi checks against the same online debugging baseline.
+- 2026-11-26 `85aef3f9` add bounded conversation projection and package integrity; align Debug entry points and gateway evidence scope.
+- 2026-11-26 `4af77c2f` specify gateway evidence contracts to confirm and shared debugging acceptance cases.
+- 2026-11-26 `57dd5d0e` wire session ZIP download with operator authorization; verify session scope and archive transport.
+- 2026-11-26 `521957fb` include frozen published outputs and mark unavailable revisions in session downloads.
+- 2026-11-26 `4a84a09c` reuse investigation export authorization for session handoffs; verify single and bundled evidence match.
+- 2026-11-26 `ce9e74d7` integrate declared gateway offline evidence into investigation exports; verify authorization and schema with 35 tests.
+- 2026-11-26 `eb09c132` add bounded cross-attempt session evidence reads to Debug Pi; 36 focused tests pass.
+- 2026-11-26 `5d7f639f` allow detailed Debug reads for attempts discovered within the frozen session; 36 tests pass.
+- 2026-11-26 `07455a97` show saved supplements by investigation with direct snapshot downloads; three UI tests pass.
+- 2026-11-26 `7011b41f` verify and import session packages privately; expose explicit export policy in Compose.
+- 2026-11-26 `a33c72c9` admit bounded onsite data probes to Debug Pi; persist call identity before dispatch and test repeated reads.
+- 2026-11-26 local-dev rebuild started from a33c72c9 with both verified source archives; current build session 83006.
+- 2026-11-26 `5e00e3a2` prove authorized offline projections reach the ZIP even when legacy receipt export is denied.
+- 2026-11-26 `f89f0080` correlate ordinary calls by durable attempt; 54 tests pass. Candidate build precedes this change.
+- 2026-11-26 local-dev API and workers ready on a33c72c9; downloaded and imported a real four-member session ZIP.
+- 2026-11-26 `898e06f7` select Debug scope from persistent session history; 20 backend tests and TypeScript pass.
+- 2026-11-26 `8607e70a` verify attachment bytes before ZIP insertion and preserve independent evidence after a missing chunk.
+- 2026-11-26 `8b51b603` preserve unknown registered call outcomes when receipt lookup fails; 39 tests pass.
+- 2026-11-26 `a584f2f7` persist eligible ordinary gateway call reservations before dispatch; verify reopen and prior-call lookup.
+- 2026-11-26 `3d487735` export ordinary gateway projections scoped to settled attempts; 41 focused tests pass.
+- 2026-11-26 `b5d96819` verify original gateway binding scope and cross-workspace evidence exclusion.
+- 2026-11-26 rebuild local-dev from `3d487735`, session 93158. Local ordinary credential does not advertise investigation binding.
+- 2026-11-26 live dedicated gateway handshake declares offline evidence; export remains undeclared.
+- 2026-11-26 `6080800b` document observed live gateway permissions and request scoped credentials for parity validation.
+- 2026-11-26 local-dev 3d487735 ready; imported live 12-row session ZIP with explicit not_registered gateway status; switched Vite.
+- 2026-11-26 live Pi inv_72ae65bad7d0442097f0556fac124c12 completed on 3d487735; saved six references across two attempts and verified ZIP inclusion.
+- 2026-11-26 `60b30fc0` distinguish withheld and pending ordinary gateway evidence in session ZIP manifests.
+- 2026-11-26 `987fd310` preserve typed lookup failure across MCP cleanup; 96 tests and dedicated live repeat pass.
+- 2026-11-26 `1dc775f1` recover original binding without rebinding; preserve no-retry signal through Pi relay. 96 tests pass.
+- 2026-11-26 `50fd4e11` expose original session receipts to onsite Pi for settled attempts; 96 focused tests pass.
+- 2026-11-26 started local-dev rebuild at 50fd4e11 (session 35102); verified both source archives; 3 frontend tests pass.
+- 2026-11-26 `7a4c8cf0` correlate offline gateway projections with exact public Capstone event numbers; 97 tests pass.
+- 2026-11-26 `5af6c6ae` retain tool start, end, and failure status in referenced offline Capstone events.
+- 2026-11-26 local-dev 50fd4e11 ready with both archives; live Pi inv_bdb5d1b0e24a4182b5296f2f8eb95ee3 completed; ZIP preserves not_registered.
+- 2026-11-26 `c30aac1e` index exported attachments and outputs by original filename, version, and event number.
+- 2026-11-26 local-dev rebuild c30aac1e session 87442; actual historical-file ZIP smoke waits for exact revision on session 86735.
+- 2026-11-26 local-dev c30aac1e ready; actual ZIP import verified six saved file names, contents, and event links.
+- 2026-11-26 actual 18011 gateway plus Capstone adapter: injected reply loss, one dispatch, original receipt, linked sanitized ZIP import.
+- 2026-11-26 18011 ordinary session thr_e60f002565198b9d5329 completed; imported ZIP linked one sanitized projection; Pi saved original receipt citation before 45-second timeout.
+- 2026-11-26 `bf977a70` surface saved conclusions when diagnosis stops early; 30 frontend tests pass.
+- 2026-11-26 18011 real Pi inv_115dc2f0e65542fc8651d82a53bf7d00 completed and saved an original ordinary-call receipt citation.
+- 2026-11-26 18011 missing-table fault: offline provider.execute failure and Pi receipt agree; linked events 34/36; inv_031306b4f2f44cac937ff99b2e8cfe70 completed.
+- 2026-11-26 `ed5ed083` restore operator download in open workspace; Orca verified browser ZIP import, slash progress, and standalone evidence download.
+- 2026-11-26 `83a097cb` keep one primary Debug download; move single evidence download into details. Browser confirmed.
+- 2026-11-26 `5f88a80d` guide users from Debug to operator sign-in, handoff download, and optional investigation; verified in browser.
+- 2026-11-26 `88508687` expand evidence below its investigation; verify visible expanded and collapsed states in browser.
+- 2026-11-26 `d83ada9e` add distinct evidence card borders and shaded expanded details; verified computed browser styles.
+- 2026-11-26 `8ffadf98` place per-investigation download next to view; verify collapsed download and browser placement.
+- 2026-11-26 verified 5174 browser ZIP and standalone snapshot match; offline package reproduces cancelled-finding bug on c30aac1e and passes bf977a70.
+- 2026-11-26 `12c40f5d` require package-first repair and identical offline regression; online inspection assists verification and evidence collection.
+- 2026-11-26 `0a1396ec` document repeatable offline repair, controlled-host redeployment, and verification package handoff.
+- 2026-11-26 `aca7a422` use one Debug handoff download; browser verifies individual evidence remains viewable.
+- 2026-11-26 completed 5174 package-repair replay and browser verification; local receipt runs/debug-package-repair-verification.json.
