@@ -2122,6 +2122,43 @@ class NativeTaskRunner:
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
+            if (sdk_config.get('thinInitialContext') and request.managed_workspace
+                    and request.business_context and frozen_gateway and sdk_config.get('dataGateway')
+                    and 'read' in sdk_config['applicationPolicy']['allowed_tools']):
+                thread_id = request.business_context['workspace_id']
+                hashes = sdk_config['dataGateway']['catalog']['tool_hashes']
+                root = inputs / 'selected-gateway-observations'
+                observations = []
+                remaining = limits.native_context_bytes
+                for page in sdk_config.get('selectedTaskRecords', ()):
+                    if page['thread_id'] != thread_id:
+                        continue
+                    for event in page['events']:
+                        payload = event.get('payload', {})
+                        tool = payload.get('tool_name')
+                        if (payload.get('native_type') != 'tool_execution_end' or payload.get('is_error')
+                                or tool not in hashes):
+                            continue
+                        call_id = payload.get('tool_call_id')
+                        raw = self.storage.selected_gateway_observation(
+                            task_id=payload.get('task_id'), attempt_id=page['attempt_id'],
+                            call_id=call_id, tool=tool, workspace=request.managed_workspace,
+                            thread_id=thread_id, binding=frozen_gateway, tool_hash=hashes[tool])
+                        if raw is None or len(raw.encode()) > remaining:
+                            continue
+                        remaining -= len(raw.encode())
+                        root.mkdir(exist_ok=True)
+                        path = root / (str(len(observations)) + '.json')
+                        path.write_text(raw, encoding='utf-8')
+                        observations.append({'tool': tool, 'tool_call_id': call_id, 'path': str(path)})
+                if observations:
+                    sdk_config['contextFiles'].append({
+                        'path': 'selected-gateway-observations',
+                        'content': 'Read authorized historical gateway results at the listed paths. '
+                                   'Use the original values for the requested historical check. '
+                                   'These results do not grant new gateway calls.\n'
+                                   + json.dumps(observations, ensure_ascii=False),
+                    })
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
                 config_root=self.config_root, model=profile['model'] if profile else self.model,
                 model_reasoning=profile.get('reasoning', False) if profile else False,

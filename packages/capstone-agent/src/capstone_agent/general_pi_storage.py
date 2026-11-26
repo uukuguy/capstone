@@ -4,6 +4,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 from threading import RLock
 import time
@@ -82,6 +83,48 @@ class GeneralPiStorage:
 
     def observation(self, task_id: str, source_id: str, data: bytes):
         self._write(self.root / 'observations' / task_id / (source_id + '.json'), data)
+
+    def selected_gateway_observation(self, *, task_id, attempt_id, call_id, tool,
+                                     workspace, thread_id, binding, tool_hash):
+        """Read only a stored observation bound to the admitted historical call."""
+        if not isinstance(task_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', task_id):
+            return None
+        receipt = self.load(task_id)
+        if not receipt or not receipt.get('result'):
+            return None
+        request = receipt['request']
+        if (request.get('parent_attempt_id') != attempt_id
+                or request.get('managed_workspace') != workspace
+                or (request.get('business_context') or {}).get('workspace_id') != thread_id
+                or (request.get('native_context') or {}).get('gateway_binding') != binding):
+            return None
+        for item in receipt['result'].get('sources', ()):
+            metadata = item.get('metadata', {})
+            source_id = item.get('source_id', '')
+            if (metadata.get('tool_call_id') != call_id or metadata.get('tool_name') != tool
+                    or not re.fullmatch(r'observation-[0-9]+-[0-9a-f]{64}', source_id)):
+                continue
+            path = self.root / 'observations' / task_id / (source_id + '.json')
+            try:
+                with path.open('rb') as stream:
+                    body = stream.read(limits.native_context_bytes + 1)
+                if (len(body) > limits.native_context_bytes
+                        or sha256(body).hexdigest() != source_id.rsplit('-', 1)[-1]):
+                    return None
+                result = json.loads(body)
+                details = result['details']
+                raw = result['content'][0]['text']
+                if (details.get('kind') == 'external_gateway_observation'
+                        and details.get('task_id') == task_id
+                        and details.get('parent_attempt_id') == attempt_id
+                        and details.get('tool_call_id') == call_id and details.get('tool') == tool
+                        and details.get('catalog_revision') == binding['catalog_revision']
+                        and details.get('tool_schema_sha256') == tool_hash
+                        and details.get('output_sha256') == sha256(raw.encode()).hexdigest()):
+                    return raw
+            except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError):
+                return None
+        return None
 
     def artifacts(self, task_id: str, workspace: Path, artifacts: list[dict]):
         saved = []
