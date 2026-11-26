@@ -240,14 +240,21 @@ def test_package_exports_bounded_model_usage_without_input_content():
                  "native_type": "model_request_pool", "model_request_pool": {
                      "request_id": "request-1", "status": "completed", "started_at_ms": 100,
                      "first_content_at_ms": 200, "finished_at_ms": 300, "title": "secret-input"}}},
+            {"thread_id": thread, "visibility": "public", "attempt_id": "attempt_test",
+             "event_seq": 3, "event_type": "runtime_event", "payload": {
+                 "native_type": "model_context_snapshot", "model_context_snapshot_ref": {
+                     "request_id": "ctx-1", "ref": "private-snapshot-reference",
+                     "history_selection": {"reason": "explicit_message_reference", "inline_records": 1,
+                         "indexed_records": 22, "omitted_previews": 10, "contents": "secret-input"}}}},
         ],
     })
     output = BytesIO()
-    write_session_handoff(output, service, "thr_test", 2, uploads=None, capstone_revision=None)
+    write_session_handoff(output, service, "thr_test", 3, uploads=None, capstone_revision=None)
     with ZipFile(output) as archive:
         data = archive.read("execution/capstone/events.jsonl")
         assert b"secret-input" not in data
-        row, timing = map(json.loads, data.splitlines())
+        assert b"private-snapshot-reference" not in data
+        row, timing, selection = map(json.loads, data.splitlines())
         assert row["model_context_usage"] == {
             "request_id": "ctx-1", "dispatch_id": "request-1", "kind": "main", "state": "completed",
             "estimated_input": {"messages": 450}, "usage": {"input": 300, "cacheRead": 150},
@@ -257,3 +264,5 @@ def test_package_exports_bounded_model_usage_without_input_content():
             "request_id": "request-1", "status": "completed", "started_at_ms": 100,
             "first_content_at_ms": 200, "finished_at_ms": 300,
         }
+        assert selection["history_selection"] == {"request_id": "ctx-1", "reason": "explicit_message_reference",
+            "inline_records": 1, "indexed_records": 22, "omitted_previews": 10}

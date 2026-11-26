@@ -391,6 +391,14 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                 timing = _model_request_timing(payload)
                 if timing:
                     summary["model_request_pool"] = timing
+            if kind == "runtime_event" and native_stage == "model_context_snapshot":
+                from .model_context_diagnostics import checked_history_selection
+                snapshot = payload.get("model_context_snapshot_ref")
+                if isinstance(snapshot, dict):
+                    selection = checked_history_selection(snapshot.get("history_selection"))
+                    request_id = snapshot.get("request_id")
+                    if selection is not None and isinstance(request_id, str) and re.fullmatch(r"ctx-[1-9][0-9]{0,8}", request_id):
+                        summary["history_selection"] = {"request_id": request_id, **selection}
             return summary
         return None
 

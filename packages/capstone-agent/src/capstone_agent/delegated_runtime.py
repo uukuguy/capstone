@@ -318,9 +318,12 @@ class DelegatedRuntime:
                         snapshot = checked_snapshot(event.get('model_context_snapshot') or {})
                         if snapshot is not None:
                             ref = save_snapshot(self._artifact_store, self._claim.thread_id, parent, snapshot)
+                            selection = next((entry['origin']['selection'] for entry in snapshot['entries']
+                                              if 'selection' in entry.get('origin', {})), None)
                             self._emit(on_event, {'native_type': kind, 'task_id': task_id,
                                 'model_context_snapshot_ref': {'ref': ref, 'request_id': snapshot['request_id'],
-                                    'dispatch_id': snapshot['dispatch_id']}}, visibility='public')
+                                    'dispatch_id': snapshot['dispatch_id'],
+                                    **({'history_selection': selection} if selection is not None else {})}}, visibility='public')
                     except Exception:
                         # Recording is optional. Continue the instruction if the private store is unavailable.
                         pass

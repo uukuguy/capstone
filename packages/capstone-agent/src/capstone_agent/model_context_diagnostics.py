@@ -36,6 +36,16 @@ def _matches(value, pattern):
     return isinstance(value, str) and pattern.fullmatch(value) is not None
 
 
+def checked_history_selection(selection):
+    counts = ('inline_records', 'indexed_records', 'omitted_previews')
+    if (isinstance(selection, dict)
+            and selection.get('reason') in ('bounded_recent_records', 'explicit_message_reference')
+            and all(type(selection.get(key)) is int and 0 <= selection[key] <= 10_000 for key in counts)
+            and selection['omitted_previews'] <= selection['indexed_records']):
+        return {'reason': selection['reason'], **{key: selection[key] for key in counts}}
+    return None
+
+
 def _checked_origin(value):
     if not isinstance(value, dict):
         return None
@@ -44,13 +54,10 @@ def _checked_origin(value):
             or delivery not in ('text', 'reference', 'preview')):
         return None
     result = {'kind': kind, 'id': identifier, 'revision': revision, 'delivery': delivery}
-    selection = value.get('selection')
-    if kind == 'history' and identifier == 'historical-conversation' and isinstance(selection, dict):
-        counts = ('inline_records', 'indexed_records', 'omitted_previews')
-        if (selection.get('reason') in ('bounded_recent_records', 'explicit_message_reference')
-                and all(type(selection.get(key)) is int and 0 <= selection[key] <= 10_000 for key in counts)
-                and selection['omitted_previews'] <= selection['indexed_records']):
-            result['selection'] = {'reason': selection['reason'], **{key: selection[key] for key in counts}}
+    if kind == 'history' and identifier == 'historical-conversation':
+        selection = checked_history_selection(value.get('selection'))
+        if selection is not None:
+            result['selection'] = selection
     if kind == 'file':
         digest, offset, length = (value.get(field) for field in ('digest', 'offset', 'length'))
         if (not _matches(digest, re.compile(r'[a-f0-9]{64}')) or type(offset) is not int or type(length) is not int
