@@ -159,7 +159,9 @@ test('older saved observation previews shrink without changing messages, source 
   assert.equal(receipts[0].estimated_input_before_projection,undefined);
   assert.ok(receipts[1].estimated_input_before_projection.tool_results>
     receipts[1].estimated_input.tool_results);
-  assert.equal(sent[1][3],recent);
+  assert.equal(sent[1][2],error);
+  assert.deepEqual(JSON.parse(sent[1][3].content[0].text).full_result,
+    JSON.parse(recent.content[0].text).full_result);
   assert.deepEqual(JSON.parse(sent[1][1].content[0].text).full_result,full.full_result);
   assert.ok(sent[1][1].content[0].text.length<preprojected[1].content[0].text.length);
   assert.equal(JSON.stringify(messages),before);
@@ -302,5 +304,37 @@ test('host follows historical gateway arguments exactly and rejects changed obse
   await writeFile(path,body.replace('"offset":1','"offset":2'));
   await assert.rejects(follow.execute('changed',selection),/digest/i);
   assert.equal(calls.length,1);
+ }finally{await rm(cwd,{recursive:true,force:true});}
+});
+
+test('pressure projection reduces short text envelopes and preserves exact saved reads',async()=>{
+ const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+ const cwd=await mkdtemp(join(tmpdir(),'pressure-preview-'));
+ try{
+  const body='Retained synthetic evidence. '.repeat(210);
+  const result=await boundToolResult({content:[{type:'text',text:body}]},
+    {cwd,toolName:'bash',callId:'old',maxChars:4000,reader:'agent_observation_read'});
+  const envelope=JSON.parse(result.content[0].text);
+  assert.ok(JSON.stringify(envelope.preview).length<512);
+  const old={role:'toolResult',toolCallId:'old',toolName:'bash',content:result.content};
+  const recentResult=await boundToolResult({content:[{type:'text',text:body}]},
+    {cwd,toolName:'bash',callId:'recent',maxChars:4000,reader:'agent_observation_read'});
+  const recent={...old,toolCallId:'recent',content:recentResult.content};
+  const sent=[],receipts=[];
+  const observer=observeModelContext({streamSimple(_model,context){sent.push(context.messages);return {};}},
+    'main',()=> 'ctx-1',event=>receipts.push(event),false,undefined,undefined,undefined,undefined,true);
+  observer.streamSimple({contextWindow:768,maxTokens:256},{messages:[old,recent]});
+  const compact=JSON.parse(sent[0][0].content[0].text);
+  assert.deepEqual(compact.full_result,envelope.full_result);
+  assert.equal(compact.structure,undefined);
+  assert.equal(sent[0][1],recent);
+  assert.equal(await readSavedObservation(compact.full_result,'',{cwd}),body);
+  assert.ok(receipts[0].estimated_input_before_projection.tool_results>receipts[0].estimated_input.tool_results);
+  observer.streamSimple({contextWindow:620,maxTokens:256},{messages:[old,recent]});
+  assert.deepEqual(JSON.parse(sent[1][1].content[0].text).full_result,
+    JSON.parse(recent.content[0].text).full_result);
+  assert.equal(JSON.parse(sent[1][1].content[0].text).structure,undefined);
+  assert.ok(receipts.find(event=>event.state==='started'&&event.input_ceiling_tokens===364)
+    .estimated_input.tool_results<364);
  }finally{await rm(cwd,{recursive:true,force:true});}
 });

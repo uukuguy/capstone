@@ -76,6 +76,18 @@ def test_projection_handoff_regression_routes_to_thin_context_gate():
     assert classify_changes(paths, target='main') == 'release'
 
 
+def test_thin_context_pressure_projection_uses_focused_dev_gate():
+    from tools.ci_scope import classify as classify_changes
+
+    paths = ['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+             'packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs',
+             'packages/capstone-agent/tests/fixtures/tool-result-context.test.mjs',
+             'tools/ci_scope.py', 'tools/tests/test_ci_scope.py']
+    assert classify_changes(paths) == 'thin-context'
+    assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
+    assert classify_changes(paths, target='main') == 'release'
+
+
 def test_managed_skill_scope_excludes_unrelated_product_changes():
     from tools.ci_scope import classify as classify_changes
     paths = ['AGENTS.md', '.github/workflows/verify.yml', 'configs/runtime/native-analysis.json',

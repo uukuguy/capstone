@@ -1565,18 +1565,19 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
       try{
         let measured=measure(context);
         let beforeProjection;
-        const estimatedTokens=Object.values(measured.estimated_input).reduce((sum,count)=>sum+count,0);
-        if(limitObservationHistory&&requestKind==='main'&&validAllowance&&
-          estimatedTokens>=inputCeiling&&Array.isArray(context.messages)){
-          const messages=projectObservationHistory(context.messages,{recentPreviews:1,maxPreviewChars:512});
-          if(messages!==context.messages){
-            const candidate={...context,messages};
-            const reduced=measure(candidate);
-            if(reduced.estimated_input.tool_results<measured.estimated_input.tool_results){
-              beforeProjection=measured.estimated_input;
-              context=candidate;
-              measured=reduced;
-            }
+        if(limitObservationHistory&&requestKind==='main'&&validAllowance&&Array.isArray(context.messages)){
+          // Keep the latest preview if it fits. Its exact saved reference
+          // remains readable even when the whole batch needs projection.
+          for(const recentPreviews of [1,0]){
+            const estimatedTokens=Object.values(measured.estimated_input).reduce((sum,count)=>sum+count,0);
+            if(estimatedTokens<inputCeiling)break;
+            const messages=projectObservationHistory(context.messages,{recentPreviews,referenceOnly:true});
+            if(messages===context.messages)continue;
+            const candidate={...context,messages},reduced=measure(candidate);
+            if(reduced.estimated_input.tool_results>=measured.estimated_input.tool_results)continue;
+            beforeProjection??=measured.estimated_input;
+            context=candidate;
+            measured=reduced;
           }
         }
         details={...measured,

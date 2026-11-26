@@ -1008,7 +1008,8 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     handoff_test_only = handoff_test in paths and all(
         path in {handoff_test, 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py'} or _control_path(path)
         for path in paths)
-    if handoff_test_only or (thin_context.issubset(paths)
+    thin_projection = {source + 'resources/general-sdk.mjs', source + 'resources/tool-result-context.mjs'}
+    if handoff_test_only or ((thin_context.issubset(paths) or thin_projection.issubset(paths))
             and all(path in thin_context_paths or _control_path(path) for path in paths)):
         return 'thin-context'
     managed_skill_anchors = {source + 'managed_resource_runtime.py', source + 'managed_resource_service.py',

@@ -252,7 +252,7 @@ export function projectNativeRead(result){
 }
 
 /** Project older previews only. Files, audit receipts and tool calls stay exact. */
-export function projectObservationHistory(messages,{recentPreviews=6,maxPreviewChars=1200}={}){
+export function projectObservationHistory(messages,{recentPreviews=6,maxPreviewChars=1200,referenceOnly=false}={}){
   if(!Number.isSafeInteger(recentPreviews)||recentPreviews<0||
     !Number.isSafeInteger(maxPreviewChars)||maxPreviewChars<128)
     throw new Error('Invalid observation history context budget');
@@ -269,6 +269,18 @@ export function projectObservationHistory(messages,{recentPreviews=6,maxPreviewC
       !/^[a-f0-9]{64}$/.test(full.sha256??'')||!Number.isSafeInteger(full.size_bytes)||full.size_bytes<0||
       !issuedObservationRefs.has(referenceKey(full)))continue;
     if(recent++<recentPreviews)continue;
+    if(referenceOnly){
+      const reference={
+        preview_truncated:true,history_preview_compacted:true,full_result:full,
+        ...(typeof envelope.original_output_complete==='boolean'
+          ?{original_output_complete:envelope.original_output_complete}:{}),
+      };
+      const text=JSON.stringify(reference);
+      if(Buffer.byteLength(text)>=Buffer.byteLength(part.text))continue;
+      projected[i]={...message,content:[{...part,text},...message.content.slice(1)]};
+      changed=true;
+      continue;
+    }
     const suffix='… [older preview shortened; read full_result for exact data]';
     const excerpt=envelope.preview_excerpt;
     const preview=envelope.history_preview_compacted===true
