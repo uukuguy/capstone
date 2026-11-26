@@ -457,17 +457,24 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
     },
     tool:{
       name:'agent_runtime_tools',label:'Find task tools or read runtime guidance',
-      description:'List exact names and short summaries of authorized native task tools with no arguments. Use agent_tool_load to activate selected names.',
+      description:'Read selected indexed history or list authorized native tools. Use agent_tool_load to activate a listed tool.',
       parameters:{type:'object',properties:{
         guide:{type:'boolean',description:'Read detailed guidance for environment-specific or multi-step execution.'},
         include_tools:{type:'boolean',description:'Include the tool directory with the guide when both are needed.'},
-        history_index:{type:'integer',minimum:0,description:'Read one earlier admitted conversation record by its zero-based index.'}},additionalProperties:false},
+        history_index:{type:'integer',minimum:0,description:'Read one earlier admitted conversation record by its zero-based index.'},
+        history_indexes:{type:'array',minItems:1,maxItems:4,uniqueItems:true,items:{type:'integer',minimum:0},
+          description:'Read up to four related records from earlier_records in one call.'}},additionalProperties:false},
       async execute(_id,args){
-        if(args.history_index!==undefined){
-          const index=args.history_index;
-          if(!Number.isInteger(index)||index<0||index>=history.length||!isIndexedHistoryRecord(history,index))
-            return {isError:true,content:[text({message:'Use an index from earlier_records.'})]};
-          return {content:[text({history_index:index,record:historicalRecord(history[index])})]};
+        if(args.history_index!==undefined||args.history_indexes!==undefined){
+          const indexes=args.history_indexes??[args.history_index];
+          if((args.history_index!==undefined&&args.history_indexes!==undefined)||
+            !Array.isArray(indexes)||!indexes.length||indexes.length>4||new Set(indexes).size!==indexes.length||
+            indexes.some(index=>!Number.isInteger(index)||index<0||index>=history.length||!isIndexedHistoryRecord(history,index)))
+            return {isError:true,content:[text({message:'Use exact indexes from earlier_records.'})]};
+          const content=indexes.map(index=>text({history_index:index,record:historicalRecord(history[index])}));
+          if(indexes.length>1&&content.reduce((bytes,part)=>bytes+Buffer.byteLength(part.text),0)>8192)
+            return {isError:true,content:[text({message:'The selected records exceed the batch budget. Read the most relevant record by history_index.'})]};
+          return {content};
         }
         const content=[];
         if(args.guide)content.push(loadRuntimeGuide()??text({guide:'loaded for the next request'}));

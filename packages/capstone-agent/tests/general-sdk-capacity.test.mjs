@@ -170,6 +170,12 @@ test('append-only guides deduplicate only while their exact observation remains 
   const earlier=await view.tool.execute('history',{history_index:1});
   assert.deepEqual(JSON.parse(earlier.content[0].text),{history_index:1,record:{role:'user',content:'record 1'}});
   assert.equal((await view.tool.execute('outside',{history_index:4})).isError,true);
+  const batch=await view.tool.execute('batch',{history_indexes:[3,0]});
+  assert.deepEqual(batch.content.map(part=>JSON.parse(part.text)),[
+    {history_index:3,record:{role:'user',content:'record 3'}},
+    {history_index:0,record:{role:'user',content:'record 0'}},
+  ]);
+  assert.equal((await view.tool.execute('bad-batch',{history_indexes:[0,4]})).isError,true);
   const request={systemPrompt:'Stable',messages,tools:[]};
   const first=await view.tool.execute('first',{guide:true});
   assert.match(first.content[0].text,/Use the actual task paths\./);
