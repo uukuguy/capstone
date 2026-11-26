@@ -39,3 +39,9 @@
   color:inherit;
   background:transparent;
 }
+
+.debug-finding { margin:12px 0; padding:8px 12px; border-inline-start:2px solid #6254b3; background:#f0f0fb; }
+.debug-finding p > code { display:inline-block; margin-inline-end:6px; }
+.debug-source-citation { margin:8px 0; min-width:0; }
+.debug-source-citation button { max-width:100%; word-break:break-word; text-align:start; }
+.debug-source-citation > code { display:block; margin-top:3px; }

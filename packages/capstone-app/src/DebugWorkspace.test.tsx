@@ -34,14 +34,18 @@ it('approves and revokes reviewed materials for the selected investigation snaps
 })
 
 it('shows a saved finding on site with export disabled', async () => {
-  const readSnapshotFinding = vi.fn().mockResolvedValue({summary:'已定位首条失败', next_step:'核对源码'})
+  const revision = 'a'.repeat(40)
+  const readSnapshotFinding = vi.fn().mockResolvedValue({summary:'已定位首条失败', next_step:'核对源码',
+    event_refs:[854], gateway_refs:['call_fixture'],
+    source_refs:[{repository:'capstone', revision, path:'src/example.py', line:21}]})
+  const readSource = vi.fn().mockResolvedValue({revision, first_line:21, lines:['observed line']})
   render(<DebugWorkspace threadId="thr_debug" attempts={[]} attemptLabel={() => undefined}
     through={0} read={vi.fn()} readTimeline={vi.fn()} refreshSource={vi.fn()}
     allowExport={false} savedFinding="" sourceVersion=""
     readHistory={async () => [{investigation_id:'inv_debug', objective:'检查失败', status:'running'}]}
     readDiagnosis={async () => ({status:'running'})}
     readSnapshots={async () => [{snapshot_id:'snapshot-1', status:'running'}]}
-    readSnapshotFinding={readSnapshotFinding} readEvidence={vi.fn()}/>)
+    readSnapshotFinding={readSnapshotFinding} readEvidence={vi.fn()} readSource={readSource}/>)
 
   fireEvent.click(screen.getByRole('button',{name:'查看调查历史'}))
   await screen.findByRole('option',{name:'检查失败'})
@@ -53,5 +57,16 @@ it('shows a saved finding on site with export disabled', async () => {
   await screen.findByText('已定位首条失败')
   expect(screen.getByText('下一步 · 核对源码')).toBeTruthy()
   expect(readSnapshotFinding).toHaveBeenCalledWith('inv_debug','snapshot-1')
+  expect(screen.getByText('#854')).toBeTruthy()
+  expect(screen.getByText('call_fixture')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'capstone src/example.py:21'}))
+  await screen.findByText('21 observed line', {normalizer:text=>text.replace(/\s+/g,' ').trim()})
+  expect(readSource).toHaveBeenCalledWith('inv_debug', new URLSearchParams({
+    repository:'capstone', path:'src/example.py', line:'21',
+  }))
+  readSource.mockResolvedValueOnce({revision:'b'.repeat(40), first_line:21, lines:['wrong revision']})
+  fireEvent.click(screen.getByRole('button',{name:'capstone src/example.py:21'}))
+  await screen.findByText('返回的源码版本与快照引用不同。')
+  expect(screen.queryByText(/wrong revision|observed line/)).toBeNull()
   expect(screen.queryByRole('button',{name:'下载调查记录'})).toBeNull()
 })
