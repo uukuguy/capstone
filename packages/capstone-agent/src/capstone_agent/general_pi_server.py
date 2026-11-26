@@ -265,6 +265,9 @@ class GeneralPiHost:
         bind_gateway_operations = getattr(run_task, 'bind_gateway_operation_writer', None)
         if callable(bind_gateway_operations):
             bind_gateway_operations(self.record_gateway_operations)
+        bind_gateway_observations = getattr(run_task, 'bind_gateway_observation_reader', None)
+        if callable(bind_gateway_observations):
+            bind_gateway_observations(self.storage.selected_gateway_observation)
 
     def record_gateway_operations(self, task_id, value):
         from .structural_context import checked_gateway_operations
@@ -1472,6 +1475,9 @@ class NativeTaskRunner:
     mission_transport = True
     from .managed_resource_service import ManagedResourceService
     managed_resource_service: ManagedResourceService | None = None
+    def bind_gateway_observation_reader(self, reader):
+        self.gateway_observation_reader = reader
+
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
                  model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
                  experimental_llm_pool: bool = False, presentation_api_origin: str | None = None) -> None:
@@ -2123,7 +2129,8 @@ class NativeTaskRunner:
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
             selected_gateway_files = []
-            if (sdk_config.get('thinInitialContext') and request.managed_workspace
+            read_gateway_observation = getattr(self, 'gateway_observation_reader', None)
+            if (callable(read_gateway_observation) and sdk_config.get('thinInitialContext') and request.managed_workspace
                     and request.business_context and frozen_gateway and sdk_config.get('dataGateway')
                     and 'read' in sdk_config['applicationPolicy']['allowed_tools']):
                 thread_id = request.business_context['workspace_id']
@@ -2141,7 +2148,7 @@ class NativeTaskRunner:
                                 or tool not in hashes):
                             continue
                         call_id = payload.get('tool_call_id')
-                        raw = self.storage.selected_gateway_observation(
+                        raw = read_gateway_observation(
                             task_id=payload.get('task_id'), attempt_id=page['attempt_id'],
                             call_id=call_id, tool=tool, workspace=request.managed_workspace,
                             thread_id=thread_id, binding=frozen_gateway, tool_hash=hashes[tool])
