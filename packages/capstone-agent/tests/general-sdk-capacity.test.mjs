@@ -165,7 +165,11 @@ test('append-only guides deduplicate only while their exact observation remains 
   const {createThinToolView}=await import('../src/capstone_agent/resources/general-sdk.mjs');
   let messages=[];
   const read=createGuideReader({'runtime-guide':'Use the actual task paths.'},()=>messages);
-  const view=createThinToolView([],[],()=>read('runtime-guide'));
+  const history=Array.from({length:6},(_,index)=>({role:'user',content:'record '+index,internal:'hidden'}));
+  const view=createThinToolView([],[],()=>read('runtime-guide'),16,history);
+  const earlier=await view.tool.execute('history',{history_index:1});
+  assert.deepEqual(JSON.parse(earlier.content[0].text),{history_index:1,record:{role:'user',content:'record 1'}});
+  assert.equal((await view.tool.execute('outside',{history_index:2})).isError,true);
   const request={systemPrompt:'Stable',messages,tools:[]};
   const first=await view.tool.execute('first',{guide:true});
   assert.match(first.content[0].text,/Use the actual task paths\./);

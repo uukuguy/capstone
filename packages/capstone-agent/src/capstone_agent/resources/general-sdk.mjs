@@ -1,3 +1,4 @@
+import {thinRecentHistoryRecords,historicalRecord} from './general-context.mjs';
 import {diagnosticContextInput,createGuideProjection,createGuideReader} from "./model-context-input.mjs";
 import { readFileSync, constants } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
@@ -401,7 +402,7 @@ export function createApplicationToolDiscovery(config) {
     contractHashes:{...gateway?.catalog.tool_hashes,...domain?.catalog.tool_hashes},admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
 }
 
-export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{}, maxActiveTools=16) {
+export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{}, maxActiveTools=16, history=[]) {
   const grants=new Set(admitted), stable=new Set(['agent_runtime_tools','agent_tool_load',...residents]);
   const loaded=new Set();
   let contracts=new Map();
@@ -459,8 +460,16 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
       description:'List exact names and short summaries of authorized native task tools with no arguments. Use agent_tool_load to activate selected names.',
       parameters:{type:'object',properties:{
         guide:{type:'boolean',description:'Read detailed guidance for scripts, saved files or multi-step execution.'},
-        include_tools:{type:'boolean',description:'Include the tool directory with the guide when both are needed.'}},additionalProperties:false},
+        include_tools:{type:'boolean',description:'Include the tool directory with the guide when both are needed.'},
+        history_index:{type:'integer',minimum:0,description:'Read one earlier admitted conversation record by its zero-based index.'}},additionalProperties:false},
       async execute(_id,args){
+        if(args.history_index!==undefined){
+          const index=args.history_index;
+          const available=Math.max(0,history.length-thinRecentHistoryRecords);
+          if(!Number.isInteger(index)||index<0||index>=available)
+            return {isError:true,content:[text({earlier_record_count:available})]};
+          return {content:[text({history_index:index,record:historicalRecord(history[index])})]};
+        }
         const content=[];
         if(args.guide)content.push(loadRuntimeGuide()??text({guide:'loaded for the next request'}));
         if(!args.guide||args.include_tools){
@@ -1583,7 +1592,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const gatewayNames=Object.keys(config.dataGateway?.catalog?.tools??{});
     config.thinToolView=createThinToolView(config.applicationPolicy.allowed_tools,
       [...discoveryToolNames,...domainNames,...gatewayNames,'agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_skill_step'],
-      ()=>loadGuide('runtime-guide'),config.runtimeLimits.tool_active_count);
+      ()=>loadGuide('runtime-guide'),config.runtimeLimits.tool_active_count,config.context?.messages);
     config.stablePresentationStep=true;
   }
   const discovery=createApplicationToolDiscovery(config);
