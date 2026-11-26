@@ -4,7 +4,7 @@ import { readFileSync, constants } from "node:fs";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createInterface } from "node:readline";
-import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
+import {CapacityExceeded,checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
@@ -809,6 +809,7 @@ export async function runSettledPrompt(session, input, skillName, emit, continua
       if (!terminal) throw new Error("Native session did not publish completion");
       if(control.failure?.()){
         const failure=control.failure();
+        if(failure instanceof CapacityExceeded)throw failure;
         completedMessages.push(...observedAssistants.slice(observedStart));
         emit({...terminal,success:false,code:failure.code,phase:failure.phase,message:failure.message,
           messages:completedMessages.map(message=>({...message,content:[]}))});
@@ -1464,7 +1465,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
  * Publish only request identity and counts. Read the same context passed to
  * the provider. The byte heuristic excludes binary media and provider framing.
  */
-export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captureInput=false, systemSources=()=>[], toolSources, messageSources=()=>[], projectContext, limitObservationHistory=false) {
+export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captureInput=false, systemSources=()=>[], toolSources, messageSources=()=>[], projectContext, limitObservationHistory=false, recordBudgetFailure) {
   // Keep fingerprints comparable within this observer and unlinkable across
   // execution scopes. This describes the SDK input, not a provider cache key.
   const prefixKey=randomUUID();
@@ -1548,6 +1549,21 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
           details.prefix_fingerprint=createHmac('sha256',prefixKey).update(JSON.stringify(prefix)).digest('hex');
         }
       }catch{/* Leave unmeasured fields absent. */}
+      if(recordBudgetFailure&&details.input_ceiling_tokens&&details.estimated_input){
+        const dimension='model_input_tokens';
+        const actual=Object.values(details.estimated_input).reduce((sum,count)=>sum+count,0);
+        const limit=details.input_ceiling_tokens;
+        if(actual>limit){
+          const error=new CapacityExceeded({[dimension]:limit},dimension,actual,'tokens','model_dispatch');
+          // The pinned SDK recognizes this message and can compact and retry once.
+          error.message='Request exceeds the model context length limit';
+          recordBudgetFailure(error,requestKind);
+          publish('started',details);
+          publish('failed',details);
+          throw error;
+        }
+        if(requestKind==='main')recordBudgetFailure(undefined,requestKind);
+      }
       let observedMessages=[];
       if(captureInput)try{observedMessages=messageSources();}catch{/* An unavailable source does not block a request. */}
       const observeDispatch=captureInput?((dispatchId,input)=>{
@@ -1749,7 +1765,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       maxRequests:policy.max_requests,requestTimeoutMs:policy.request_timeout_ms,
       emit:event=>hostEmit({type:'model_request_pool',schema:policy.schema,...event})});
   }
-  let contextRequest=0,compactingContext=false;
+  let contextRequest=0,compactingContext=false,modelBudgetFailure;
   const nextContextRequest=()=>`ctx-${++contextRequest}`;
   const modelRuntime=observeModelContext(modelRequestPool?.forChain('main',{kind:'main',getModelTurnNumber:()=>Math.max(1,mainModelTurn)})??baseModelRuntime,
     ()=>compactingContext?'summary':'main',nextContextRequest,hostEmit,config.contextDiagnostics===true,()=>[
@@ -1764,7 +1780,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     }),guideProjection||thin?(context=>{
       const projected=guideProjection?.project(context)??context;
       return config.thinToolView?config.thinToolView.project(projected):projected;
-    }):undefined,thin);
+    }):undefined,thin,thin?error=>{modelBudgetFailure=error}:undefined);
   const model = modelRuntime.getModel("capstone-general", config.model);
   if (!model) throw new Error("Managed native model is unavailable");
   const nativeTools = createIsolatedNativeTools(sdk,process.cwd());
@@ -1941,7 +1957,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
           started=true;
           runSettledPrompt(session,config.input,config.skillName,emit,
             async()=>await llmPool?.continuation()??await researchController?.continuationState(),
-            {taskId:config.taskId,failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()})
+            {taskId:config.taskId,failure:()=>modelBudgetFailure??diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()})
             .then(()=>{settled=true;resolve();},fail);
         });
         lines.on('close',()=>{if(!started)fail(new Error('Native prompt is missing'));});

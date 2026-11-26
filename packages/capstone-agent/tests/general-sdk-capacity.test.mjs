@@ -251,6 +251,19 @@ test('managed thin parent activates tools and automatically compacts at the thre
     assert.ok(events.some(event=>event.type==='model_context_usage'&&event.kind==='summary'&&event.state==='completed'));
     assert.match(JSON.stringify(requests[3].messages),/Summary: the product was saved/);
     assert.match(JSON.stringify(requests[2].messages),/Save the product/);
+    model.contextWindow=2048;
+    const oversized='a'.repeat(12000);
+    Object.defineProperty(process,'stdin',{value:Readable.from([
+      JSON.stringify({type:'prompt',message:oversized})+'\n',
+    ]),configurable:true});
+    await assert.rejects(runManagedSession({
+      model:model.id,thinInitialContext:true,settings:{compaction:{enabled:true,reserveTokens:1024,keepRecentTokens:16}},
+      extensions:[],allowedSkills:[],contextFiles:[],systemPrompt:'Use the current instruction.',
+      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load']},
+      input:{kind:'text',text:oversized},
+    },sdk,runtime),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:1024});
+    assert.equal(requests.length,4);
+    assert.equal(writes,1);
   }finally{
     process.stdout.write=stdoutWrite;
     Object.defineProperty(process,'stdin',stdin);

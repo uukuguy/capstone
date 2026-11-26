@@ -252,3 +252,17 @@ test('request prefix identity tracks ordered contracts and model within its obse
   assert.equal(fingerprints[1],fingerprints[0]);
   assert.equal(new Set(fingerprints).size,4);
 });
+
+test('unfit thin requests report capacity without provider dispatch',async()=>{
+  const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+  const runtime={streamSimple:()=>assert.fail('Oversized request reached provider')};
+  const receipts=[], failures=[];
+  const observer=observeModelContext(runtime,'main',()=> 'ctx-1',event=>receipts.push(event),
+    false,undefined,undefined,undefined,undefined,true,error=>failures.push(error));
+  assert.throws(()=>observer.streamSimple({id:'fixture',contextWindow:1200,maxTokens:200},{
+    systemPrompt:'policy',messages:[{role:'user',content:'a'.repeat(5000)}],
+  }),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:1000});
+  assert.equal(failures.length,1);
+  assert.equal(receipts.at(-1).state,'failed');
+  assert.equal(receipts.at(-1).estimated_input.messages,1250);
+});
