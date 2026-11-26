@@ -27,6 +27,8 @@ Schema 接受带偏移和无偏移的值。网关的量测时间窗校验随后�
 在 `21c4f796` 的 5174 会话 `thr_bcd30f17da96963bc04a` 中，调用
 带时区的范围和 `page_size:100`。网关返回 `invalid_slice_page`，说明
 该视图使用原生取数或任务续接。去掉 `page_size` 后，同一时间窗成功。
-请在同一套视图级契约中声明可用的分页方式、允许的参数和互斥条件。
-联验时用此类原生取数视图检查带 `page_size` 的请求，再用发布了分页动作
-的视图检查原引用续页。
+后续核对发布修订 `d698cbea3708` 时，`describe_slice_view` 返回的
+视图专用 `data.call_schema` 已通过 `additionalProperties: false` 排除
+`page_size`。同一专用 Schema 的起止时间仍只声明为 `string`，
+接受缺少时区的值。对该视图，分页允许字段已经发布，待补的是时区约束。
+联验继续覆盖按网关返回的原引用续页。
