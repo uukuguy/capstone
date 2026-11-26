@@ -137,6 +137,35 @@ def read_conversation(
     )
 
 
+def read_session_observations(service, thread_id, through, *, before=None):
+    """Read one bounded page across all attempts in the frozen session."""
+    cursor = through + 1 if before is None else before
+    if type(cursor) is not int or not 1 <= cursor <= through + 1:
+        raise ValueError("invalid session observation cursor")
+    page = service.read_history(thread_id, before=cursor, limit=12)
+    if page["thread_id"] != thread_id:
+        raise ValueError("history page belongs to a different session")
+    observations = []
+    for event in page["events"]:
+        if (event.get("thread_id") != thread_id or event.get("visibility") != "public"
+                or not 1 <= event["event_seq"] < cursor):
+            continue
+        summary = {key: event.get(key) for key in ("event_seq", "event_type", "attempt_id", "occurred_at")}
+        payload = event["payload"]
+        for field in ("native_type", "tool_name", "is_error", "ok"):
+            value = payload.get(field)
+            if isinstance(value, (str, bool)):
+                summary[field] = value[:120] if isinstance(value, str) else value
+        entry = _conversation_entry(event, lambda _: True)
+        if entry is not None and "text" in entry:
+            summary.update(role=entry["role"], text=entry["text"][:600], text_truncated=len(entry["text"]) > 600)
+        observations.append(summary)
+    next_before = page["next_before_event_seq"] if page["has_more"] else None
+    if next_before is not None and not 1 <= next_before < cursor:
+        raise ValueError("session observation cursor failed to advance")
+    return {"events": observations, "through": through, "next_before": next_before}
+
+
 def _read_public_history(service, thread_id, start_seq, through_seq, project):
     if start_seq < 1 or through_seq < start_seq - 1:
         raise ValueError("invalid session handoff range")

@@ -17,7 +17,7 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
 
 
-DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'source_files', 'source_lines', 'capstone_records', 'capstone_excerpt', 'publish_finding']
+DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'source_files', 'source_lines', 'session_records', 'capstone_records', 'capstone_excerpt', 'publish_finding']
 
 
 OBSERVATION_TOOL = {
@@ -27,6 +27,7 @@ OBSERVATION_TOOL = {
             'additionalProperties': False, 'properties': {
                 'repository': {'enum': ['capstone', 'data-gateway']},
                 'after': {'type': 'integer', 'minimum': 0},
+                'before': {'type': 'integer', 'minimum': 1},
                 'event_seq': {'type': 'integer', 'minimum': 1},
                 'field': {'enum': ['input_excerpt', 'output_excerpt']},
                 'finding_state': {'enum': ['located', 'narrowed', 'insufficient_evidence']},

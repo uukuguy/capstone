@@ -474,7 +474,7 @@ class InvestigationRegister:
             '说明证据是否仅为摘要。只有网关证据列出的观测可以归因到网关，'
             '不引用未提供的源码内容。\n'
             f"调查问题：{investigation['objective'][:600]}\n"
-            f"目标轮次：{observation['attempt_id']}\n"
+            f"调查范围：当前会话，截至事件 {through}。初始线索轮次：{observation['attempt_id']}。\n"
             f"首条失败：{json.dumps(failure, ensure_ascii=False)}\n"
             f"公开事件摘要（后续记录未完整载入）：{json.dumps(events, ensure_ascii=False)}\n"
             f"网关调查摘要：{json.dumps(gateway, ensure_ascii=False)}\n"
@@ -520,6 +520,16 @@ class InvestigationRegister:
                 if arguments.get('operation') == 'publish_finding':
                     return publish_finding(query)
                 operation = arguments.get('operation')
+                if operation == 'session_records':
+                    from .debug_session_handoff import read_session_observations
+                    if not isinstance(query, dict) or query.keys() - {'before'}:
+                        return {'code': 'investigation_request_invalid'}
+                    try:
+                        page = read_session_observations(self.service, thread_id, through, before=query.get('before'))
+                    except (KeyError, ValueError):
+                        return {'code': 'investigation_request_invalid'}
+                    record_supplied_evidence(event['event_seq'] for event in page['events'])
+                    return page
                 if operation in {'source_files', 'source_lines'}:
                     from zipfile import BadZipFile
                     from .debug_sources import read_debug_source
@@ -604,7 +614,9 @@ class InvestigationRegister:
                 'gateway': ({key: historical_gateway.get(key) for key in ('connection_id', 'instance_id', 'source_sha256')}
                             if historical_gateway else None),
             }
-            instruction += ('\n需要核对 Capstone 执行记录时，用 agent_debug_observe 的 capstone_records。'
+            instruction += ('\n需要查看整个会话的问答和执行事件时，用 agent_debug_observe 的 session_records。'
+                            '首次不传 before，之后传 next_before 查看更早的记录。返回内容是有界摘要。'
+                            '需要核对初始线索轮次的详细执行记录时，用 capstone_records。'
                             'query 只接受 after 和可选 limit，默认从 0 开始，每页最多返回 12 条。'
                             '已知异常事件编号时，可以从该编号减一开始。'
                             '先核对 excerpt_fields。仅当字段 available 且有 next_offset 时，才用 capstone_excerpt 续读。'

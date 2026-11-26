@@ -6,7 +6,34 @@ from zipfile import ZipFile
 
 import pytest
 
-from capstone_agent.debug_session_handoff import HandoffMember, read_conversation, write_handoff, write_session_handoff
+from capstone_agent.debug_session_handoff import (
+    HandoffMember, read_conversation, read_session_observations, write_handoff, write_session_handoff,
+)
+
+
+def test_session_observations_page_across_attempts_with_frozen_boundary():
+    def history(thread, *, before, limit):
+        assert limit == 12
+        rows = [
+            {"thread_id": thread, "event_seq": seq, "attempt_id": f"attempt_{seq}", "visibility": "public",
+             "event_type": "attempt_completed", "payload": {"answer": "a" * 650, "secret": "excluded"}}
+            for seq in range(1, 4)
+        ]
+        selected = [row for row in rows if row["event_seq"] < before][-1:]
+        seq = selected[0]["event_seq"]
+        return {"thread_id": thread, "events": selected, "has_more": seq > 1, "next_before_event_seq": seq}
+
+    service = SimpleNamespace(read_history=history)
+    latest = read_session_observations(service, "thr_test", 2)
+    earlier = read_session_observations(service, "thr_test", 2, before=latest["next_before"])
+    assert latest["events"][0]["attempt_id"] == "attempt_2"
+    first = earlier["events"][0]
+    assert first["attempt_id"] == "attempt_1"
+    assert first["text_truncated"] is True and len(first["text"]) == 600
+    assert "secret" not in first
+    assert earlier["next_before"] is None
+    with pytest.raises(ValueError, match="invalid session observation cursor"):
+        read_session_observations(service, "thr_test", 2, before=4)
 
 
 def test_conversation_freezes_range_and_projects_only_authorized_questions_and_answers():
