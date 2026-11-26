@@ -58,11 +58,14 @@ def test_session_handoff_http_checks_export_and_workspace(monkeypatch):
             assert archive.read('conversation.jsonl')
         monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
         debug_path = path.removesuffix('/session-handoff')
+        start_headers = {**auth, 'Idempotency-Key': 'session-supplement'}
         investigation = client.post(
-            debug_path + '/investigations', headers={**auth, 'Idempotency-Key': 'session-supplement'},
-            json={'objective': '核对执行记录', 'attempt_id': claim.attempt.attempt_id},
+            debug_path + '/investigations', headers=start_headers,
+            json={'objective': '核对执行记录', 'scope': 'session'},
         )
         assert investigation.status_code == 200, investigation.text
+        observation = investigation.json()['observation']
+        assert observation['scope'] == 'session' and observation['attempt_id'] == claim.attempt.attempt_id
         owner = investigation.json()['investigation_id']
         evidence = client.get(f'{debug_path}/investigations/{owner}/evidence', headers=auth)
         assert evidence.status_code == 200, evidence.text

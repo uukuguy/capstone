@@ -752,14 +752,16 @@ def create_host_app(
         def start_debug_investigation(thread_id: str, request: Request, body: dict,
                                       idempotency_key: Annotated[str, Header(min_length=1, max_length=200)]):
             require_debug(request)
-            if (set(body) - {'objective','attempt_id'} or not isinstance(body.get('objective'), str)
+            if (set(body) - {'objective','attempt_id','scope'} or not isinstance(body.get('objective'), str)
+                    or ('scope' in body and (body['scope'] != 'session' or 'attempt_id' in body))
                     or not body['objective'].strip() or ('attempt_id' in body and not isinstance(body['attempt_id'], str))):
                 raise HTTPException(422, '请输入调查目标。')
             from .application_capacity import require_capacity
             objective = body['objective'].strip()
             require_capacity('input_text_chars', len(objective), phase='debug_investigation')
             try:
-                return investigations.start(request.state.workspace_name, thread_id, idempotency_key, objective, body.get('attempt_id'))
+                return investigations.start(request.state.workspace_name, thread_id, idempotency_key, objective,
+                                            body.get('attempt_id'), session_scope=body.get('scope') == 'session')
             except ThreadNotFound:
                 raise HTTPException(404, '找不到本会话的执行记录。') from None
             except ThreadProtocolError:

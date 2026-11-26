@@ -320,9 +320,9 @@ export class HttpThreadTransport implements ThreadTransport {
     if(result.status==='unreported')return '当前网关尚未声明源码摘要。'
     return '当前网关连接不可用。'
   }
-  async startDebugInvestigation(threadId:string,objective:string,key:string,attemptId?:string){
+  async startDebugInvestigation(threadId:string,objective:string,key:string){
     const path=`${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations`
-    const receipt=await this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,attempt_id:attemptId})}) as Record<string,unknown>
+    const receipt=await this.request(path,{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({objective,scope:'session'})}) as Record<string,unknown>
     if(typeof receipt?.investigation_id!=='string'||!receipt.investigation_id)throw new Error('调查登记回执缺少标识。')
     return receipt.investigation_id
   }

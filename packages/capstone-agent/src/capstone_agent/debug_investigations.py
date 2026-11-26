@@ -110,10 +110,19 @@ class InvestigationRegister:
                 raise ValueError('执行记录游标无效。')
             after = page['next_after']
 
-    def start(self, workspace, thread_id, request_key, objective, attempt_id=None):
+    def start(self, workspace, thread_id, request_key, objective, attempt_id=None, *, session_scope=False):
         self.service.require_workspace(thread_id, workspace)
         identity = 'inv_' + uuid4().hex
-        observation = self._observe(thread_id, attempt_id)
+        through = None
+        if session_scope:
+            from .debug_session_handoff import latest_instruction_attempt
+            through = self.service.snapshot(thread_id).last_event_seq
+            attempt_id = latest_instruction_attempt(self.service, thread_id, through)
+            if attempt_id is None:
+                raise ValueError('当前会话尚无可调查的用户指令。')
+        observation = self._observe(thread_id, attempt_id, through=through)
+        if session_scope:
+            observation = {**(observation or {}), 'scope': 'session', 'through': through}
         if observation:
             previous = self.latest(workspace, thread_id)
             if (previous and (previous.get('observation') or {}).get('attempt_id') == attempt_id
@@ -132,7 +141,9 @@ class InvestigationRegister:
             with self._lock:
                 row = self._memory.setdefault((workspace, thread_id, request_key),
                     {'investigation_id': identity, 'objective': objective, 'observation': observation})
-        if row['objective'] != objective or (row['observation'] or {}).get('attempt_id') != attempt_id:
+        saved = row['observation'] or {}
+        if (row['objective'] != objective or (saved.get('scope') == 'session') != session_scope
+                or (not session_scope and saved.get('attempt_id') != attempt_id)):
             raise ValueError('同一请求标识已经用于其他调查目标。')
         return {key: row[key] for key in ('investigation_id', 'objective', 'observation')}
 

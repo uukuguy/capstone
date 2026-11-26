@@ -228,6 +228,26 @@ def read_session_observations(service, thread_id, through, *, before=None):
     return {"events": observations, "through": through, "next_before": next_before}
 
 
+def latest_instruction_attempt(service, thread_id, through):
+    """Select an initial lead from persisted session history."""
+    before = through + 1
+    while before > 1:
+        page = service.read_history(thread_id, before=before)
+        for event in reversed(page["events"]):
+            payload = event["payload"]
+            if (event.get("thread_id") == thread_id and event.get("visibility") == "public"
+                    and 1 <= event["event_seq"] < before and event["event_type"] == "command_accepted"
+                    and payload.get("kind") in _USER_COMMANDS and event.get("attempt_id")):
+                return event["attempt_id"]
+        if not page["has_more"]:
+            return None
+        cursor = page["next_before_event_seq"]
+        if not 1 <= cursor < before:
+            raise ValueError("session history cursor failed to advance")
+        before = cursor
+    return None
+
+
 def _read_public_history(service, thread_id, start_seq, through_seq, project):
     if start_seq < 1 or through_seq < start_seq - 1:
         raise ValueError("invalid session handoff range")

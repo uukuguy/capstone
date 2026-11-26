@@ -214,7 +214,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       .catch(()=>{if(current)setDebugSource('网关源码版本暂时无法核对。')})
     return ()=>{current=false}
   },[transport,currentId,debugThread,resourceView,sourceQuery,selectedGateway?.instance_id,selectedGateway?.connection_name])
-  const debugRequest=useRef<{thread:string;objective:string;key:string;attemptId?:string}|null>(null)
+  const debugRequest=useRef<{thread:string;objective:string;key:string}|null>(null)
   const debugGeneration=useRef(0)
   useEffect(()=>{
     const restore = new AbortController()
@@ -611,16 +611,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         const objective=start[1].trim()
         let request=debugRequest.current
         if(!request||request.thread!==currentId||request.objective!==objective){
-          const previous = store.publicEvents.reduce<EventEnvelope | undefined>((latest, event) => {
-            if (event.eventType !== 'command_accepted' || !event.attemptId ||
-                !['send_message', 'send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind))) return latest
-            const work = event.payload.work as {messages?: unknown[]} | undefined
-            const input = (event.payload.payload as {text?: unknown} | undefined)?.text
-              ?? event.payload.text ?? work?.messages?.at(-1)
-            if (typeof input !== 'string' || /^(?:研发调查 inv_[a-f0-9]{32}\n|\/debug(?:\s|$))/.test(input)) return latest
-            return !latest || event.eventSeq > latest.eventSeq ? event : latest
-          }, undefined)
-          request={thread:currentId,objective,key:commandKey(),attemptId:previous?.attemptId??undefined}
+          request={thread:currentId,objective,key:commandKey()}
           debugRequest.current=request
         }
         let report: DebugProgressReport | undefined
@@ -630,7 +621,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         revealDebugCard.current = true
         updateDebugActivity('正在登记调查…')
         try {
-          const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key,request.attemptId)
+          const investigationId=await transport.startDebugInvestigation(currentId,objective,request.key)
           const diagnosis = await transport.runDebugDiagnosis(currentId, investigationId, (message, history) => {
             report = history
             updateDebugActivity(message)
