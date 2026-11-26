@@ -1366,3 +1366,25 @@ def test_independent_files_are_delivered_before_retry_or_failure(monkeypatch, tr
         assert transferred == [first, second]
     published = [event['payload']['artifact'] for event in events if event['event_type'] == 'native_artifact_published']
     assert published == ([second, first] if transient else [second])
+
+
+def test_gateway_response_loss_survives_public_event_without_private_fields():
+    diagnostic = {'gateway_observed_status': 'ok', 'business_response': 'unavailable',
+                  'automatic_retry': False, 'catalog_revision': 'revision', 'instance_id': 'instance'}
+
+    class RecoveryExecutor(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'type': 'tool_execution_end', 'tool_name': 'data_gateway_query',
+                      'tool_call_id': 'source-call', 'is_error': True,
+                      'gateway_response_loss': {**diagnostic, 'binding_handle': 'private'}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', 'Done', (), (), {})
+
+    service, current = claim()
+    result = run(service, current, factory(RecoveryExecutor(), Recognizer([
+        goal('lookup', 'external_lookup', refs=['general-pi'])])))
+    assert result.status == 'completed'
+    events = service.read_events(current.thread_id, 0).events
+    saved = [event.payload['gateway_response_loss'] for event in events
+             if 'gateway_response_loss' in event.payload]
+    assert saved == [diagnostic]

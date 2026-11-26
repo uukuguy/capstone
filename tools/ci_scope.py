@@ -992,7 +992,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         'packages/pandapower-domain-pack/src/pandapower_domain/tool_service.py',
         'packages/pandapower-domain-pack/tests/test_tool_service.py',
     } | {source + name for name in (
-        'application_capacity.py', 'debug_session_handoff.py', 'delegated_runtime.py',
+        'application_capacity.py', 'data_gateway_relay.py', 'debug_session_handoff.py', 'delegated_runtime.py',
         'general_pi_storage.py', 'model_context_diagnostics.py', 'pi_delegation.py',
         'thread_worker.py', 'workbench_llm_profiles.py',
         'native_environment.py', 'resources/general-context.mjs', 'resources/general-domain-tools.mjs',
@@ -1002,7 +1002,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     )} | {agent + 'tests/' + name for name in (
         'fixtures/presentation-templates.test.mjs', 'fixtures/tool-discovery.test.mjs',
         'fixtures/tool-result-context.test.mjs', 'general-sdk-capacity.test.mjs',
-        'test_attempt_records.py', 'test_data_gateway_relay.py', 'test_debug_session_handoff.py',
+        'test_attempt_records.py', 'test_data_gateway_relay.py', 'test_debug_session_handoff.py', 'test_delegated_runtime.py',
         'test_general_pi_native.py', 'test_native_resources.py', 'test_workbench_llm_profiles.py',
         'test_general_pi_server.py', 'test_native_environment.py', 'test_main_chain_context.py',
     )}
