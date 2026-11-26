@@ -19,6 +19,7 @@ const briefProperties={
  rows:{type:'array',minItems:1,maxItems:10,items:{type:'array',minItems:1,maxItems:8,
   items:{anyOf:[{...briefText,maxLength:120},{type:'number'}]}}},
  explanation:briefText,source_note:briefText,
+ include_cover:{type:'boolean',description:'Defaults to true. Set false for exactly one slide.'},
 };
 const validText=(value,limit)=>typeof value==='string'&&value.length<=limit&&value.trim().length>0;
 const csvCell=value=>'"'+String(value).replaceAll('"','""')+'"';
@@ -27,16 +28,16 @@ function createBriefTool(config,library){
  return {
   name:buildName,label:'Build a PPTX with one evidence table',
   description:'Write the supplied table, conclusion and source note, then render and register a downloadable PPTX with the selected template. Supply complete rows and include measurement units in the headers.',
-  parameters:{type:'object',properties:briefProperties,required:Object.keys(briefProperties),additionalProperties:false},
+  parameters:{type:'object',properties:briefProperties,required:['title','columns','rows','explanation','source_note'],additionalProperties:false},
   async execute(callId,args,signal){
    const failure=(code,message,saved_inputs={})=>({isError:true,content:[{type:'text',text:message}],
     details:{capability:buildName,ok:false,code,saved_inputs,evidence_refs:[]}});
    if(config.presentationBuildReady&&!config.presentationBuildReady())
     return failure('presentation_guide_required','Read agent_presentation_guide to open the briefing workflow.');
-   const {title,columns,rows,explanation,source_note}=args??{};
+   const {title,columns,rows,explanation,source_note,include_cover=true}=args??{};
    if(!args||typeof args!=='object'||Array.isArray(args)||
       Object.keys(args).some(key=>!Object.hasOwn(briefProperties,key))||
-      !validText(title,120)||!validText(explanation,400)||!validText(source_note,400)||
+      typeof include_cover!=='boolean'||!validText(title,120)||!validText(explanation,400)||!validText(source_note,400)||
       !Array.isArray(columns)||columns.length<1||columns.length>8||
       columns.some(column=>!validText(column,80))||new Set(columns).size!==columns.length||
       !Array.isArray(rows)||rows.length<1||rows.length>10||
@@ -56,7 +57,7 @@ function createBriefTool(config,library){
     await writeFile(join(cwd,csv),[columns,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n',
      {flag:'wx',mode:0o600,signal});
     saved.csv=csv;
-    const draft={schema:'capstone-presentation/2',title,slides:[{
+    const draft={schema:'capstone-presentation/2',title,include_cover,slides:[{
      title,argument:{explanation},source_notes:[source_note],
      blocks:[{type:'table',csv,columns,max_rows:rows.length}],
     }]};
@@ -195,7 +196,7 @@ export function createPresentationTools(config,{fetchImpl=globalThis.fetch,runRe
     signal?.throwIfAborted();
     guideRead=true;
     return {content:[{type:'text',text:'For a PPTX with one evidence table, call agent_skill_step once. '+
-      'Use step "'+buildName+'" and arguments with exactly these fields: title, columns (strings), rows (arrays of strings or numbers), explanation and source_note. '+
+      'Use step "'+buildName+'" and arguments title, columns (strings), rows (arrays of strings or numbers), explanation and source_note. Set include_cover:false when the user requests exactly one slide. '+
       'The script saves and renders with the selected template. For other layouts, load agent_presentations and read its contract.'}],
       details:{capability:'agent_presentation_guide',ok:true,evidence_refs:[]}};
    }

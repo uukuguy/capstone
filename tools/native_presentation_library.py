@@ -23,7 +23,7 @@ BUDGET = 128 * 1024 * 1024
 def content_contract():
     return {'schema':'capstone-presentation-content-contract/1',
         'formats':['capstone-presentation/1','capstone-presentation/2'],
-        'required_fields':['schema','title','slides'],'optional_fields':['subtitle'],
+        'required_fields':['schema','title','slides'],'optional_fields':['subtitle','include_cover'],
         'slide_required_fields':['title','blocks'],
         'slide_optional_fields':['role','section','source_notes','speaker_notes','argument'],
         'slide_defaults':{'role':'content'},'roles':['content','agenda','closing'],
@@ -32,7 +32,7 @@ def content_contract():
             'An agenda uses paragraph(text) or bullets(items) with unique exact chapter titles.',
             'When an agenda exists, each content slide section must equal one chapter title in nondecreasing agenda order; each chapter has content.',
             'Missing role means content. Closing is last and has zero blocks or one short paragraph.',
-            'The library selects the template. Do not add author, date, cover or other unsupported root fields.',
+            'The library selects the template. The cover is included by default. Set include_cover to false to omit it; subtitle requires a cover.',
             'Template composition keeps one saved record per slide. Fix overflow without silently splitting pages or shrinking fonts.'],
         'blocks':{'paragraph':{'required':['type','text']},'bullets':{'required':['type','items']},
             'table':{'required':['type','csv','max_rows'],'optional':['columns','caption']},

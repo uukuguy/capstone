@@ -65,6 +65,17 @@ def test_omitted_template_uses_state_grid_artwork_and_receipt(tmp_path):
     assert actual.slides[1].slide_layout.part.partname == original.slides[2].slide_layout.part.partname
 
 
+def test_default_template_can_render_one_content_slide_without_a_cover(tmp_path):
+    value = spec([{'type': 'paragraph', 'text': 'Supported saved findings.'}])
+    value.pop('template')
+    value['include_cover'] = False
+    result = run(tmp_path, value)
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt['slide_roles'] == ['content']
+    assert receipt['slides'] == len(Presentation(tmp_path / 'report.pptx').slides) == 1
+
+
 def test_default_template_overflow_does_not_fall_back_to_unbranded_layout(tmp_path):
     value = spec([{'type':'paragraph','text':'Saved reasoning '*600}])
     value.pop('template')
