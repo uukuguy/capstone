@@ -190,6 +190,8 @@ test('native output projection reads exact saved fields and bounds large reads',
  assert.deepEqual((await read({pointer:'/rows/52/index'})).value,52);
  assert.deepEqual((await read({pointers:['/rows/52/index','/rows/53/index']})).value,
    {'/rows/52/index':52,'/rows/53/index':53});
+ assert.deepEqual(await read({pointers:['/rows/52/index','/missing']}),{
+   complete:true,value:{'/rows/52/index':52},missing_pointers:['/missing']});
  assert.equal((await read({pointer:'/rows',offset:52,limit:2})).next_offset,54);
  assert.equal((await read({pointer:'/rows'})).complete,false);
  const page=await read({pointer:'/rows',fields:['index','missing'],offset:50,limit:25});
@@ -225,6 +227,10 @@ test('historical gateway reads project exact pointers and reject unadmitted call
   const result=await reader.execute('read',args);
   assert.deepEqual(JSON.parse(result.content[0].text).value,{
     '/data/data_ref':'opaque','/data/points':[1,2,3],'/provenance/request_id':'original',
+  });
+  const partial=await reader.execute('read',{...args,pointers:['/optional','/data/data_ref']});
+  assert.deepEqual(JSON.parse(partial.content[0].text),{
+    complete:true,value:{'/data/data_ref':'opaque'},missing_pointers:['/optional'],
   });
   const unknown=await reader.execute('read',{...args,historical_call_id:'attempt:admitted'});
   assert.equal(unknown.isError,true);

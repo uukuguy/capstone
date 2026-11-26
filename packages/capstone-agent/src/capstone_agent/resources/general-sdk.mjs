@@ -1739,7 +1739,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
           'When supplied values and the output format are sufficient, use an active file tool in the first action. The product contract above is sufficient for a simple file with known values. '
         : '')+
       (config.applicationPolicy.allowed_tools.includes('bash') ? nativeShellGuidance+' ' : '')+
-      (verifiedEnvironment?'For an analysis report artifact, check the runtime guide for the verified report renderer and deliver the requested format. ':'')+
+      (verifiedEnvironment?'For an analysis report artifact, check the runtime guide for the required renderer and deliver the requested format. Validate the saved file and its required facts. If optional conversion fails, use format-native validation and report the rendering limitation. Do not repeat optional conversion with unchanged inputs. ':'')+
       (config.thinExternalAccess===false?'External network access is disabled. Report when live public sources are unavailable. ':'')+
       (config.presentationGuide?'For a new PPTX, call agent_presentation_guide before authoring. ':'')+
       'Preserve saved files and report any failure or partial result. '+

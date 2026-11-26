@@ -12,6 +12,17 @@ export const savedToolObservation=result=>structuredClone(result?.[savedResult])
 const issuedObservationRefs=new Set();
 const referenceKey=ref=>JSON.stringify([ref.path,ref.sha256,ref.size_bytes,ref.tool,ref.call_id,ref.base_pointer]);
 const digest=value=>createHash('sha256').update(value).digest('hex');
+function selectObservationPointers(pointers,read){
+  const selected=[],missing=[];
+  for(const pointer of pointers){
+    try{selected.push([pointer,read(pointer)]);}
+    catch(error){
+      if(!(error instanceof ObservationPointerError))throw error;
+      missing.push(pointer);
+    }
+  }
+  return {value:Object.fromEntries(selected),...(missing.length?{missing_pointers:missing}:{})};
+}
 export async function readSavedObservation(ref,pointer,{cwd}){
   if(!ref||typeof ref!=='object'||!issuedObservationRefs.has(referenceKey(ref)))
     throw Error('Unknown saved observation reference');
@@ -33,7 +44,7 @@ export async function readSavedObservation(ref,pointer,{cwd}){
     const value=ref.path.endsWith('.json')?JSON.parse(body.toString('utf8')):body.toString('utf8');
     const prefix=ref.base_pointer??'';
     const records=new Map([['saved',{value:observationPointer(value,prefix),envelope_pointer:prefix}]]);
-    return Array.isArray(pointer)?Object.fromEntries(pointer.map(key=>[key,readObservation(records,'saved',key)]))
+    return Array.isArray(pointer)?selectObservationPointers(pointer,key=>readObservation(records,'saved',key))
       :readObservation(records,'saved',pointer);
   }finally{await handle.close();}
 }
@@ -151,7 +162,7 @@ export function createObservationReadTool(cwd,historical=[]){
   const reply=(value,isError=false)=>({isError,content:[{type:'text',text:JSON.stringify(value)}]});
   return {
     name:'agent_observation_read',label:'Read saved tool output',
-    description:'Read the current tool result with its issued full_result reference. Use historical_call_id only for an earlier call from the host-admitted list. On either source, select one pointer or multiple exact pointers, without wildcards. To page an array, use one pointer and select fields by key.',
+    description:'Read the current tool result with its issued full_result reference. Use historical_call_id only for an earlier call from the host-admitted list. Multiple exact pointers return available fields and list missing fields. To page an array, use one pointer and select fields by key.',
     parameters:{type:'object',properties:{
       reference:{type:'object',properties:{
         path:{type:'string'},sha256:{type:'string'},size_bytes:{type:'integer'},tool:{type:'string'},call_id:{type:'string'},
@@ -165,7 +176,7 @@ export function createObservationReadTool(cwd,historical=[]){
     },additionalProperties:false},
     async execute(_callId,{reference,pointer='',offset,limit,fields,historical_call_id,pointers},signal){
       signal?.throwIfAborted();
-      let value;
+      let selection;
       const paged=offset!==undefined||limit!==undefined||fields!==undefined;
       if(pointers?.length&&paged)return reply({code:'observation_not_pageable',
         message:'To page a result, select one field with pointer.'},true);
@@ -181,9 +192,10 @@ export function createObservationReadTool(cwd,historical=[]){
           if(digest(bytes)!==item.sha256)throw new Error('Historical observation digest changed');
           const envelope=JSON.parse(bytes);
           const source=envelope.structuredContent??envelope;
-          value=pointers?.length?Object.fromEntries(pointers.map(key=>[key,observationPointer(source,key)]))
-            :observationPointer(source,pointer);
-        }else value=await readSavedObservation(reference,pointers?.length?pointers:pointer,{cwd});
+          selection=pointers?.length?selectObservationPointers(pointers,key=>observationPointer(source,key))
+            :{value:observationPointer(source,pointer)};
+        }else selection=pointers?.length?await readSavedObservation(reference,pointers,{cwd})
+          :{value:await readSavedObservation(reference,pointer,{cwd})};
       }
       catch(error){
         signal?.throwIfAborted();
@@ -191,6 +203,7 @@ export function createObservationReadTool(cwd,historical=[]){
           ?error.message:'Use an exact saved observation reference issued in this task.'},true);
       }
       signal?.throwIfAborted();
+      const {value,missing_pointers}=selection;
       if(paged){
         if(!Array.isArray(value)&&typeof value!=='string')
           return reply({code:'observation_not_pageable',message:'Select an array or text field to page.'},true);
@@ -205,8 +218,8 @@ export function createObservationReadTool(cwd,historical=[]){
         const page={complete:end>=value.length,value:selected,total:value.length,
           ...(end<value.length?{next_offset:end}:{})};
         if(Buffer.byteLength(JSON.stringify(page))<=4000)return reply(page);
-      }else if(Buffer.byteLength(JSON.stringify(value))<=3800)return reply({complete:true,value});
-      return reply({complete:false,structure:structureIndex(value),
+      }else if(Buffer.byteLength(JSON.stringify(selection))<=3800)return reply({complete:true,...selection});
+      return reply({complete:false,structure:structureIndex(value),...(missing_pointers?{missing_pointers}:{}),
         instruction:'Select a narrower JSON pointer or a smaller page. For an oversized array item, select one of its fields.'});
     },
   };
