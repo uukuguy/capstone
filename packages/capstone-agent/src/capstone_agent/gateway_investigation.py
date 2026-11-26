@@ -85,6 +85,49 @@ class SessionCallJournal:
                 raise GatewayError('investigation_request_invalid')
             return saved[2], inserted == 1
 
+    def calls(self, workspace, thread_id, attempt_ids, *, limit):
+        placeholders = ','.join('?' for _ in attempt_ids)
+        with closing(sqlite3.connect(self.path)) as db:
+            rows = db.execute(
+                'SELECT attempt_id, binding, client_call_id FROM session_calls WHERE workspace=? AND thread_id=? '
+                f'AND attempt_id IN ({placeholders}) ORDER BY rowid DESC LIMIT ?',
+                (workspace, thread_id, *attempt_ids, limit),
+            ).fetchall()
+        return [(attempt_id, json.loads(binding), call_id) for attempt_id, binding, call_id in rows]
+
+
+async def export_session_calls(journal, registry, workspace, thread_id, attempt_ids):
+    rows = await asyncio.to_thread(journal.calls, workspace, thread_id, attempt_ids, limit=17)
+
+    async def project(entry, row):
+        attempt_id, binding, call_id = row
+        result = {'entry': entry, 'attempt_id': attempt_id}
+        try:
+            _, gateway = registry.access_for(binding['connection_id'], binding['instance_id'])
+            async with asyncio.timeout(6), gateway.client.connect() as connection:
+                if (connection.instance_identity or {}).get('instance_id') != binding['instance_id']:
+                    return {**result, 'status': 'gateway_instance_changed'}
+                access = await GatewayInvestigation.discover(
+                    connection.http_client, gateway.client._connection['url'],
+                    connection.investigation, connection.investigation_logs,
+                )
+                if access is None:
+                    return {**result, 'status': 'capability_unavailable'}
+                scope = {key: binding[key] for key in ('workspace_id', 'investigation_id', 'binding_handle')}
+                evidence = await access.read_offline_evidence(
+                    getattr(connection, 'investigation_evidence', None), scope, {'client_call_id': call_id},
+                )
+                return {**result, **evidence}
+        except (KeyError, RuntimeError, ValueError, TransportError, OSError, TimeoutError):
+            return {**result, 'status': 'read_unavailable'}
+
+    events = []
+    for start in range(0, min(len(rows), 16), 4):
+        events.extend(await asyncio.gather(*(
+            project(index + 1, rows[index]) for index in range(start, min(start + 4, len(rows), 16))
+        )))
+    return {'status': 'available' if events else 'not_registered', 'events': events, 'truncated': len(rows) > 16}
+
 
 async def registered_session_call(client, catalog, tool, arguments, diagnostics, *, journal,
                                   workspace, thread_id, attempt_id, operation, connection_id):

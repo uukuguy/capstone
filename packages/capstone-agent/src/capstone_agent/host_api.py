@@ -416,10 +416,14 @@ def create_host_app(
             try:
                 supplements = (session_supplements(workspace, thread_id, through)
                                if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1' else None)
+                reader = getattr(native_artifact_executor, 'debug_observation', None)
+                def original_calls(attempts):
+                    return reader({}, workspace, thread_id, 'session_offline_evidence', {'attempt_ids': attempts})
                 write_session_handoff(package, thread_service, thread_id, through,
                                       uploads=uploads, capstone_revision=packaged_capstone_revision(),
                                       objects=material_objects, native_executor=native_artifact_executor,
-                                      supplements=supplements)
+                                      supplements=supplements,
+                                      read_gateway_calls=original_calls if callable(reader) else None)
                 thread_service.require_workspace(thread_id, workspace)
                 if not session_handoff_allowed(request):
                     raise HTTPException(403, '当前权限不允许外带会话调试包。')

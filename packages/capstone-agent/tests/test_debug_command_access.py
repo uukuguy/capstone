@@ -26,6 +26,12 @@ def test_session_handoff_http_checks_export_and_workspace(monkeypatch):
     private_id = 'synthetic-private-call'
 
     def observe(binding, workspace, owner, operation, query):
+        if operation == 'session_offline_evidence':
+            assert binding == {} and workspace == claim.workspace_name and owner == claim.thread_id
+            assert query == {'attempt_ids': [claim.attempt.attempt_id]}
+            return {'status': 'available', 'truncated': False, 'events': [
+                {'entry': 1, 'attempt_id': claim.attempt.attempt_id, 'status': 'available', 'projection': projection},
+            ]}
         assert binding == {'instance_id': 'fixture'} and workspace == claim.workspace_name
         if operation == 'list':
             return {'receipts': [{'client_call_id': private_id, 'state': 'observed'}]}
@@ -77,6 +83,8 @@ def test_session_handoff_http_checks_export_and_workspace(monkeypatch):
         with ZipFile(BytesIO(package.content)) as archive:
             exported = archive.read('execution/supplementary-evidence.jsonl').splitlines()
             assert [json.loads(row) for row in exported] == [evidence.json()]
+            original = json.loads(archive.read('execution/data-gateway/original-calls.json'))
+            assert original['events'][0]['projection'] == projection
 
 
 def test_independent_debug_reads_logs_for_a_bound_failed_call(monkeypatch):

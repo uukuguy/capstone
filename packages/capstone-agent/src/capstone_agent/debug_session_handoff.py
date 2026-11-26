@@ -289,15 +289,14 @@ def _read_public_history(service, thread_id, start_seq, through_seq, project):
 
 
 def write_session_handoff(destination, service, thread_id, through_seq, *, uploads, capstone_revision,
-                          objects=None, native_executor=None, supplements=None):
+                          objects=None, native_executor=None, supplements=None, read_gateway_calls=None):
     """Build the local session package after the application grants export."""
-    gaps = [
-        {"kind": "data_gateway_original_calls", "status": "not_collected"},
-    ]
+    gaps = []
     if supplements is None:
         gaps.append({"kind": "supplementary_evidence", "status": "export_unavailable"})
     attachments: dict[tuple[str, int], None] = {}
     outputs = {}
+    settled_attempts = {}
 
     def conversation():
         for entry in read_conversation(service, thread_id, 1, through_seq, may_export_text=lambda _: True):
@@ -308,6 +307,8 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
 
     def execution_entry(event):
         kind = event["event_type"]
+        if kind in _ASSISTANT_STATES and event.get("attempt_id"):
+            settled_attempts[event["attempt_id"]] = None
         if kind in {"native_artifact_published", "delivery_published"}:
             field = "artifact" if kind == "native_artifact_published" else "delivery"
             descriptor = event["payload"].get(field)
@@ -369,6 +370,25 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
             yield HandoffMember(path, [data])
         if supplements is not None:
             yield HandoffMember("execution/supplementary-evidence.jsonl", json_lines(supplements))
+        if read_gateway_calls is None:
+            gaps.append({"kind": "data_gateway_original_calls", "status": "capability_unavailable"})
+        elif settled_attempts:
+            try:
+                selected = list(settled_attempts)[-32:]
+                gateway = read_gateway_calls(selected)
+                if len(settled_attempts) > len(selected):
+                    gateway = {**gateway, "truncated": True}
+                yield HandoffMember("execution/data-gateway/original-calls.json", [
+                    json.dumps(gateway, ensure_ascii=False, allow_nan=False).encode(),
+                ])
+                if gateway["status"] != "available" or gateway["truncated"]:
+                    gaps.append({"kind": "data_gateway_original_calls", "status": gateway["status"],
+                                 "truncated": gateway["truncated"]})
+                for row in gateway["events"]:
+                    if row["status"] != "available":
+                        gaps.append({"kind": "data_gateway_original_call", "status": row["status"], "entry": row["entry"]})
+            except (KeyError, ValueError, RuntimeError, OSError):
+                gaps.append({"kind": "data_gateway_original_calls", "status": "read_unavailable"})
         yield HandoffMember("repro.md", [
             "# 会话复验\n\n打开 conversation.jsonl 定位指令。按事件编号查阅执行记录。"
             "核对 manifest.json 的版本、文件校验和与缺口。\n".encode()
