@@ -1886,6 +1886,15 @@ describe('CapstoneAssistantThread', () => {
     expect(second.querySelector('details')?.open).toBe(false)
   })
 
+  it('keeps Debug results in the conversation viewport and the input in its fixed composer', () => {
+    render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]}
+      transcriptStatus={<section aria-label="Debug 调查">较长的诊断结论</section>}
+      onSend={async () => {}} onCancel={async () => {}} />)
+    const status = screen.getByRole('region', {name:'Debug 调查'})
+    expect(screen.getByRole('region', {name:'会话内容'}).contains(status)).toBe(true)
+    expect(status.closest('.capstone-chat-composer')).toBeNull()
+  })
+
   it('displays a recovered summary above the full formal answer in the conversation', () => {
     render(<CapstoneAssistantThread inlineExecution events={[
       event('attempt_completed', 1, {answer:'已保存的正式回答。'}, 'attempt_1'),
