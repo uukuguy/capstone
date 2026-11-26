@@ -39,7 +39,7 @@ def _matches(value, pattern):
 def checked_history_selection(selection):
     counts = ('inline_records', 'indexed_records', 'omitted_previews')
     if (isinstance(selection, dict)
-            and selection.get('reason') in ('bounded_recent_records', 'explicit_message_reference')
+            and selection.get('reason') in ('bounded_recent_records', 'explicit_message_reference', 'instruction_term_overlap')
             and all(type(selection.get(key)) is int and 0 <= selection[key] <= 10_000 for key in counts)
             and selection['omitted_previews'] <= selection['indexed_records']):
         return {'reason': selection['reason'], **{key: selection[key] for key in counts}}

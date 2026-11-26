@@ -319,3 +319,14 @@ test('explicit admitted message IDs displace unrelated recent bodies',async()=>{
   assert.deepEqual(historyIndexPage(history,undefined,undefined,undefined,selected.inline).earlier_records.map(row=>row.index),[1,2,3,4]);
   assert.deepEqual([...historyInlineSelection(history,'Read msg-01 and unknown').inline],[3,4]);
 });
+
+test('distinctive instruction terms prioritize an older matching record',async()=>{
+  const {historyInlineSelection}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=[
+    {role:'user',content:'北区变电站设备验收记录，附件包含验收编码。'},
+    {role:'assistant',content:'南区配电线路施工情况。'},
+    {role:'user',content:'独立算术问题。'},
+  ];
+  assert.deepEqual([...historyInlineSelection(history,'核对北区变电站设备验收编码').inline],[0]);
+  assert.deepEqual([...historyInlineSelection(history,'多少？').inline],[1,2]);
+});

@@ -20,13 +20,32 @@ export function historicalRecord(message) {
     .filter(key=>key in message).map(key=>[key,message[key]]));
 }
 
+const wordSegments=new Intl.Segmenter(undefined,{granularity:'word'});
+function historyTerms(text){
+  return new Set([...wordSegments.segment(text.normalize('NFKC').toLowerCase())]
+    .filter(({segment,isWordLike})=>isWordLike&&segment.length>=2).map(({segment})=>segment));
+}
+
 export function historyInlineSelection(history,instruction){
   const references=new Set((instruction??'').match(/[A-Za-z0-9_.:-]+/g)??[]);
   const explicit=history.flatMap((message,index)=>references.has(message.message_id)&&
     Buffer.byteLength(message.content)<=4096?[index]:[]);
-  return explicit.length?{inline:new Set(explicit.slice(0,2)),reason:'explicit_message_reference'}:
-    {inline:new Set(history.flatMap((_message,index)=>isIndexedHistoryRecord(history,index)?[]:[index])),
-      reason:'bounded_recent_records'};
+  if(explicit.length)return {inline:new Set(explicit.slice(0,2)),reason:'explicit_message_reference'};
+  const terms=Buffer.byteLength(instruction??'')<=4096?historyTerms(instruction??''):new Set();
+  if(terms.size>=3){
+    const matches=history.flatMap((message,index)=>{
+      if(Buffer.byteLength(message.content)>4096)return [];
+      const words=historyTerms(message.content);
+      const score=[...terms].filter(term=>words.has(term)).length;
+      return score>=3&&score*2>=terms.size?[{index,score}]:[];
+    }).sort((left,right)=>right.score-left.score||right.index-left.index);
+    if(matches.length){
+      const best=matches.filter(row=>row.score===matches[0].score).slice(0,2);
+      return {inline:new Set(best.map(row=>row.index)),reason:'instruction_term_overlap'};
+    }
+  }
+  return {inline:new Set(history.flatMap((_message,index)=>isIndexedHistoryRecord(history,index)?[]:[index])),
+    reason:'bounded_recent_records'};
 }
 
 export default function (pi) {
