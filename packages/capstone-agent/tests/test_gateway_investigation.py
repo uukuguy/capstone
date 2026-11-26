@@ -273,12 +273,14 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
         assert paths == [BASE + 'contract', BASE + 'bind']
 
 
-@pytest.mark.parametrize('lost', [True, False])
-def test_registered_business_call_recovers_without_second_dispatch(lost):
+@pytest.mark.parametrize(('lost', 'readable'), [(True, True), (True, False), (False, True)])
+def test_registered_business_call_recovers_without_second_dispatch(lost, readable):
     from unittest.mock import AsyncMock
     calls = []
     def respond(request):
         calls.append(request.method)
+        if request.method == 'POST' and not readable:
+            return httpx.Response(404)
         return httpx.Response(200, json=CONTRACT if request.method == 'GET' else EXCHANGE['unknown'])
 
     async def run():
@@ -294,7 +296,11 @@ def test_registered_business_call_recovers_without_second_dispatch(lost):
             scope = {k:v for k,v in meta['gateway/investigation'].items() if k != 'contract_version'}
             diagnostics = {**meta['gateway/diagnostics'], 'client_call_id': EXCHANGE['unknown']['client_call_id']}
             result = await access.call_registered(gateway, 'test', {}, {}, scope=scope, diagnostics=diagnostics)
-            assert result == {'receipt': EXCHANGE['unknown']}
+            if readable:
+                assert result == {'receipt': EXCHANGE['unknown']}
+            else:
+                assert result == {'result_state': 'unknown', 'receipt_status': 'unavailable',
+                                  'client_call_id': diagnostics['client_call_id'], 'automatic_retry': False}
             gateway.call.assert_awaited_once()
     asyncio.run(run())
     assert calls == (['GET', 'POST'] if lost else ['GET'])

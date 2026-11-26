@@ -5,6 +5,8 @@ import re
 from hashlib import sha256
 from urllib.parse import urlsplit
 
+from httpx import TransportError
+
 from .application_capacity import require_capacity
 from .data_gateway_mcp import GatewayError, validate
 
@@ -260,7 +262,11 @@ class GatewayInvestigation:
         except GatewayError as error:
             if not error.result_unknown:
                 raise
-            receipt = await self.invoke('read', {**scope, 'client_call_id': client_id})
+            try:
+                receipt = await self.invoke('read', {**scope, 'client_call_id': client_id})
+            except (GatewayError, TransportError, OSError, TimeoutError):
+                return {'result_state': 'unknown', 'receipt_status': 'unavailable',
+                        'client_call_id': client_id, 'automatic_retry': False}
             return {'receipt': receipt}
         body = response.get('structuredContent')
         if response.get('isError') and isinstance(body, dict) and body.get('contract_version') == VERSION:
@@ -340,6 +346,8 @@ async def run_bound_read_probe(gateway, *, instance_id, workspace, investigation
             'client_call_id': client_call_id, 'task_id': investigation_id, 'run_id': investigation_id,
             'trace_id': trace, 'parent_span_id': 'attempt:' + trace,
         })
+        if observed.get('result_state') == 'unknown':
+            return {**observed, **({'data_status': 'unavailable'} if include_result else {})}
         receipt = observed.get('receipt')
         if receipt is None:
             receipt = await access.invoke('read', {**scope, 'client_call_id': client_call_id})
