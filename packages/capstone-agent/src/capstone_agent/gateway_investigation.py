@@ -21,13 +21,14 @@ DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'source_files', 'source_
 
 
 OBSERVATION_TOOL = {
-    'description': 'Read on-site receipts, logs, source, or Capstone execution records for this Debug investigation. capstone_records accepts only after and optional limit; it returns at most 12 events, next_after and has_more. capstone_excerpt takes event_seq, field and offset to continue a stored excerpt. List gateway calls before reading by ID.',
+    'description': 'Read on-site receipts, logs, source, or Capstone execution records. Use session_records to find attempts in this session. Pass a returned attempt_id to capstone_records or capstone_excerpt to read its details. List gateway calls before reading by ID.',
     'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['operation'],
         'properties': {'operation': {'enum': DEBUG_OBSERVATION_OPERATIONS}, 'query': {'type': 'object',
             'additionalProperties': False, 'properties': {
                 'repository': {'enum': ['capstone', 'data-gateway']},
                 'after': {'type': 'integer', 'minimum': 0},
                 'before': {'type': 'integer', 'minimum': 1},
+                'attempt_id': {'type': 'string'},
                 'event_seq': {'type': 'integer', 'minimum': 1},
                 'field': {'enum': ['input_excerpt', 'output_excerpt']},
                 'finding_state': {'enum': ['located', 'narrowed', 'insufficient_evidence']},

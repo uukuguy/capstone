@@ -377,6 +377,11 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         rejected = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'attempt_id': 'another'}}, 'fixture')
         assert rejected == {'code': 'investigation_request_invalid'}
+        history = control.mission_operation('agent_debug_observe', {'operation': 'session_records'}, 'history')
+        selected = next(row['attempt_id'] for row in history['events'] if row['event_seq'] == failure_seq)
+        explicit = control.mission_operation('agent_debug_observe', {'operation': 'capstone_records',
+            'query': {'attempt_id': selected, 'after': failure_seq - 1}}, 'history-details')
+        assert explicit['events'][0]['event_seq'] == failure_seq
         source_event = next(event for page in native['selected_task_records'] for event in page['events']
                             if event['event_type'] == 'execution_source_revision')
         assert source_event['payload_projection'] == 'bounded_summary'
