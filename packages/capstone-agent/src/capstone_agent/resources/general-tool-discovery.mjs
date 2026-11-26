@@ -118,7 +118,10 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       let matches=exact.length?exact:identityMatches.length?identityMatches:candidates.filter(name=>matched.get(name).length===terms.length);
       if(!matches.length&&terms.length){
         const best=Math.max(0,...candidates.map(name=>matched.get(name).length));
-        if(best){mode='partial_terms';matches=candidates.filter(name=>matched.get(name).length===best);}
+        if(best){
+          mode='partial_terms';
+          matches=candidates.filter(name=>matched.get(name).length>=(appendLoads?1:best));
+        }
       }
       if(terms.length&&matches.length>1){
         const scores=new Map(matches.map(name=>{
@@ -126,7 +129,8 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
           const tokens=new Set(published.toLowerCase().split(/[^\p{L}\p{N}]+/u));
           return [name,terms.filter(term=>tokens.has(term)).length];
         }));
-        matches.sort((left,right)=>scores.get(right)-scores.get(left));
+        matches.sort((left,right)=>scores.get(right)-scores.get(left)||
+          matched.get(right).length-matched.get(left).length);
       }
       const selected=matches.slice(offset,offset+pageSize);
       let publishedNames;

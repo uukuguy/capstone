@@ -80,9 +80,10 @@ test('discovery ranks publication name terms before description-only ties',async
  const search=async args=>JSON.parse((await discovery.tools[0].execute('find',args)).content[0].text);
  assert.equal((await search({query:'read view'})).tools[0].name,'z_read_view');
  assert.equal((await search({query:'read view',offset:1})).tools[0].name,'a_inspect');
+ const partial=await search({query:'read view a unknown'});
+ assert.equal(partial.tools[0].name,'z_read_view');
+ assert.deepEqual(partial.published_names,['inspect','read_view']);
  assert.equal((await search({query:'inspect'})).tools[0].name,'a_inspect');
- const catalog=await search({query:'unmatched wording'});
- assert.deepEqual(catalog.published_names,['inspect','read_view']);
  assert.equal((await search({query:'unmatched wording'})).published_names,undefined);
 });
 
