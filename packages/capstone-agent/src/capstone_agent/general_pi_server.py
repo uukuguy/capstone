@@ -2122,6 +2122,7 @@ class NativeTaskRunner:
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
+            selected_gateway_files = []
             if (sdk_config.get('thinInitialContext') and request.managed_workspace
                     and request.business_context and frozen_gateway and sdk_config.get('dataGateway')
                     and 'read' in sdk_config['applicationPolicy']['allowed_tools']):
@@ -2147,9 +2148,8 @@ class NativeTaskRunner:
                         if raw is None or len(raw.encode()) > remaining:
                             continue
                         remaining -= len(raw.encode())
-                        root.mkdir(exist_ok=True)
                         path = root / (str(len(observations)) + '.json')
-                        path.write_text(raw, encoding='utf-8')
+                        selected_gateway_files.append((path, raw))
                         observations.append({'tool': tool, 'tool_call_id': call_id, 'path': str(path)})
                 if observations:
                     sdk_config['contextFiles'].append({
@@ -2166,6 +2166,9 @@ class NativeTaskRunner:
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
                 sdk_config=sdk_config, context_policy=profile.get('context_policy') if profile else None,
                 **launch_options)
+            for path, raw in selected_gateway_files:
+                path.parent.mkdir(exist_ok=True)
+                path.write_text(raw, encoding='utf-8')
             capacity_path = workspace / '.runtime-capacity.json'
             capacity_path.write_text(json.dumps(task_capacity, ensure_ascii=False, indent=2))
             capacity_path.chmod(0o444)
