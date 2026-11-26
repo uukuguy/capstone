@@ -79,7 +79,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   const search={name:'agent_tool_search',label:'Search admitted tools',
     description:'Search the task-granted published tool index only when the required tool is not already known. Results report activation and published toolset membership; optionally filter by a returned toolset ID. Exact registered or published names, including complete query terms, take priority over description references. Otherwise, if no tool matches all keywords, return the bounded best partial matches, marked partial_terms; these are candidates, not a semantic selection. Already active tools need no load. For composition, select known granted names and inspect tools.describe(name) without loading them into the direct-call menu. Follow current service selection and provider rules.',
     parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0},
-      exact_contract:{type:'boolean',description:'Read the exact input and output contract by admitted tool name without calling or activating it.'},
+      exact_contract:{type:'boolean',description:'Inspect an exact contract without activating the tool. For a tool you intend to execute, agent_tool_load already obtains its exact schema.'},
       contract_pointers:{type:'array',minItems:1,maxItems:8,uniqueItems:true,description:'With exact_contract:true, return only the exact JSON pointers needed, such as /inputSchema/required or /usage.',
         items:{type:'string',maxLength:256,pattern:'^/'}}},required:['query'],additionalProperties:false},
     async execute(_id,args,signal){
