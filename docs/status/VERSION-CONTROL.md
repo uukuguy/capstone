@@ -1,3 +1,5 @@
+2026-11-27 [PR294](https://github.com/uukuguy/capstone/pull/294) 合入 dev `66ce89ed`。受检 `fff316b1`，[macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45886497599) 通过。5174 验证自动压缩后沿原动作续页，保留显式空值，单次派发。
+
 2026-11-27 [PR292](https://github.com/uukuguy/capstone/pull/292) 合入 dev `52473e30`。受检 `4f471b47`，[macOS 薄上下文专项 CI](https://github.com/uukuguy/capstone/actions/runs/45882687001) 通过。按指令组装上下文，保留按需取证、预算与压缩、跨轮业务引用，以及模型级启停。全局默认关闭。[验收记录](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md)
 
 2026-11-26 会话调试包完成 local-dev 阶段验收，进入 dev PR。5174 浏览器通过单入口下载、原位查看补查和主会话进度检查。18011 合成网关同一故障的现场回执、调试包和 Pi 补查均定位到提供方执行阶段。研发离线复现已保存结论被隐藏的问题，旧版失败，修复版通过。生产受控主机复验尚未执行。[设计与修复循环](../superpowers/specs/2026-11-26-debug-session-handoff-design.md)
@@ -1720,6 +1722,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | local-dev-xlsx-preview | bd07d4a0 | main | local-dev 工作簿预览 | PR271 合入 dev，5174 真实工作簿验收通过 | 右栏只读工作表、工作表切换和原件下载。[环境台账](#环境台账) | local-dev |
 | local-dev-flash-closeout | 9a0826a0 | main | local-dev 薄上下文与校验器交付 | 5174 规范重建就绪，置顶和存储卷核对通过 | 从 dev 0f3726ca 构建，包含可选薄上下文、正式答复回归和 Harness 规则审核。[环境台账](#环境台账) | local-dev |
 | progressive-context-dev | 52473e30 | main | dev · 薄上下文生命周期 | PR292 已合入，macOS 专项通过 | 逐次装配、预算与压缩、引用续接及模型级回退。[验收记录](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md) | shared-agent |
+| exact-gateway-follow-dev | fff316b1 | main | 薄上下文 · 网关动作精确续接 | macOS 专项和 5174 压缩后续页通过 | 宿主按原回执和当前授权执行，保留全部参数。[验收记录](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md) | shared-agent |
 | dev-head | origin/dev | main | dev · 当前研发位置 | 研发主线以远端已合并提交为准 | 动态绑定实际 dev 并连接已核对的祖先，保留本地工作分支和运行来源。[当前状态](CURRENT-STATE.md) | shared-agent |
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
 | compact-composition-context | f4076615 | main | 精简工具组合说明 | PR249 定向 macOS CI 通过 | 保留两种调用形式和原授权校验，重复说明由现有系统指南和按需帮助提供。[实测与后续方案](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | shared-agent |
@@ -2001,6 +2004,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | instruction-takeover-local-dev-20261122 | dev 集成里程碑 | dev | 接管保留和指导等待短暂行锁；续作命令唤醒原生 worker | 候选 0c01a89d 通过定向 CI 44925279516 和两条真实接管链路 |
 | continuous-task-local-dev-20261121 | 本机三入口验收来源 | dev | 真实三入口均完成交付；API 和 worker 共同使用已验证镜像 | 本机规范重建，三份下载文件摘要一致 |
 | progressive-context-dev | 薄上下文生命周期 | dev | 逐次装配和预算控制；模型级回退与业务引用续接 | macOS 专项与 5174 实测通过 |
+| exact-gateway-follow-dev | 本机研发部署来源 | fix/thin-exact-gateway-follow | 宿主续接原业务动作；压缩后保留显式空值和单次派发 | macOS 专项与 5174 实测通过 |
 | dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR205 确认 local-dev 实施范围，实际三入口 API 复验通过 |
 | local-qwen-preset-deployed | 本机开发部署来源 | dev | 27B 和 35B 独立配置；模型菜单展示短名及 Qwen 图标 | 27B 可选，首次工作台请求超时 |
 | compact-composition-context | 本机开发部署来源 | dev | 精简工具组合模型可见说明；保留按需帮助与调用约束 | 103 项直接运行时检查及 macOS CI 通过 |
@@ -2071,6 +2075,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 294 | 历史网关动作精确续接 | fix/thin-exact-gateway-follow | dev | MERGED | 合并 66ce89ed，受检 fff316b1。5174 自动压缩后只派发一次原动作。 |
 | 292 | 薄上下文生命周期 | feat/progressive-context-lifecycle | dev | MERGED | 合并 52473e30，受检 4f471b47，macOS CI 45882687001 通过。保留全局和模型级回退。 |
 | 273 | 独立 Debug 调查 | feat/browser-debug-investigations | dev | MERGED | 合并 fb566e2e，受检 a6438e17，macOS CI 45719583373 通过。local-dev 已复验真实 Pi。 |
 | 275 | Debug 阶段结论与现场快照 | feat/debug-evidence-references | dev | MERGED | 合并 4ddecb99，受检 d30ec37e，macOS CI 45722784316 通过。 |
@@ -2427,7 +2432,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API、worker 与 Pi `52473e30`，Vite App `21c4f796` | 后端 3f7271935a2a，Pi 30a732e74ae8，均就绪，镜像含双仓源码 | App http://127.0.0.1:5174/。薄模式问答、追问、CSV 和切换话题已复验。Vite App 内容与合并源码一致。 |
+| local-dev | API、worker 与 Pi `fff316b1`，Vite App `21c4f796` | 后端 bdedff064156，Pi 8249b1a929e8，均就绪 | App http://127.0.0.1:5174/。验证压缩后一次派发原动作，候选内容与 dev 66ce89ed 一致。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
