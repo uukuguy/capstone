@@ -1,7 +1,7 @@
 import {thinRecentHistoryRecords,historicalRecord} from './general-context.mjs';
 import {diagnosticContextInput,createGuideProjection,createGuideReader} from "./model-context-input.mjs";
 import { readFileSync, constants } from "node:fs";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createInterface } from "node:readline";
 import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
@@ -1465,6 +1465,9 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
  * the provider. The byte heuristic excludes binary media and provider framing.
  */
 export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captureInput=false, systemSources=()=>[], toolSources, messageSources=()=>[], projectContext, limitObservationHistory=false) {
+  // Keep fingerprints comparable within this observer and unlinkable across
+  // execution scopes. This describes the SDK input, not a provider cache key.
+  const prefixKey=randomUUID();
   const estimate = bytes => Math.min(100_000_000, Math.ceil(bytes / 4));
   const size = text => typeof text === 'string' ? Buffer.byteLength(text) : 0;
   function measure(context) {
@@ -1539,6 +1542,11 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
             output_allowance_tokens:outputAllowance,
             input_ceiling_tokens:window-outputAllowance,
           }:{})};
+        if(typeof model?.id==='string'){
+          const tools=(context.tools??[]).map(({name,description,parameters})=>[name,description,parameters]);
+          const prefix=[requestKind,model.provider,model.api,model.id,context.systemPrompt,tools];
+          details.prefix_fingerprint=createHmac('sha256',prefixKey).update(JSON.stringify(prefix)).digest('hex');
+        }
       }catch{/* Leave unmeasured fields absent. */}
       let observedMessages=[];
       if(captureInput)try{observedMessages=messageSources();}catch{/* An unavailable source does not block a request. */}

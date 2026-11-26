@@ -233,3 +233,22 @@ test('historical gateway reads project exact pointers and reject unadmitted call
   await writeFile(path,'{}');
   assert.equal((await reader.execute('read',args)).isError,true);
 });
+
+test('request prefix identity tracks ordered contracts and model within its observer scope',async()=>{
+  const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+  const runtime={streamSimple:()=>({result:async()=>({stopReason:'stop'})})};
+  const receipts=[];
+  const observe=()=>observeModelContext(runtime,'main',()=> 'ctx-1',event=>receipts.push(event));
+  const model={id:'model-one',provider:'fixture',api:'fixture'};
+  const context={systemPrompt:'Task policy',tools:[{name:'read',parameters:{type:'object'}},{name:'list'}]};
+  const observer=observe();
+  observer.streamSimple(model,context);
+  observer.streamSimple(model,{...context,messages:[{role:'user',content:'New instruction'}]});
+  observer.streamSimple(model,{...context,tools:[...context.tools].reverse()});
+  observer.streamSimple({...model,id:'model-two'},context);
+  observe().streamSimple(model,context);
+  const fingerprints=receipts.map(event=>event.prefix_fingerprint);
+  assert.match(fingerprints[0],/^[0-9a-f]{64}$/);
+  assert.equal(fingerprints[1],fingerprints[0]);
+  assert.equal(new Set(fingerprints).size,4);
+});

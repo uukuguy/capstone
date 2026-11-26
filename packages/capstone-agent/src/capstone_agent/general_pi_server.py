@@ -780,6 +780,9 @@ class GeneralPiHost:
                         and event.get('kind') in ('main', 'analysis', 'summary')
                         and event.get('state') in ('started', 'completed', 'failed')):
                     counts = {key: event[key] for key in ('request_id', 'kind', 'state')}
+                    fingerprint = event.get('prefix_fingerprint')
+                    if isinstance(fingerprint, str) and re.fullmatch(r'[a-f0-9]{64}', fingerprint):
+                        counts['prefix_fingerprint'] = fingerprint
                     dispatch_id = event.get('dispatch_id')
                     if isinstance(dispatch_id, str) and re.fullmatch(r'request-[1-9][0-9]{0,8}', dispatch_id):
                         dispatch = record.get('model_request_pool_bindings', {}).get(dispatch_id)
