@@ -230,6 +230,7 @@ test('managed thin parent activates tools and automatically compacts at the thre
       extensions:[],allowedSkills:[],contextFiles:[
         {path:'admitted-gateway-operations',content:'Host-admitted operation fixture-ref'},
         {path:'gateway-contract-context',content:'Host-admitted contract index'},
+        {path:'registered-gateway-progressive-discovery',content:'Use the existing negotiated gateway index'},
       ],systemPrompt:'Save the requested product.',
       applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','write']},
       input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write]},runtime);
@@ -237,6 +238,7 @@ test('managed thin parent activates tools and automatically compacts at the thre
     assert.equal(writes,1);
     assert.match(requests[0].systemPrompt,/Host-admitted operation fixture-ref/);
     assert.match(requests[0].systemPrompt,/Host-admitted contract index/);
+    assert.match(requests[0].systemPrompt,/Use the existing negotiated gateway index/);
     assert.ok(events.some(event=>event.type==='compaction_end'&&event.reason==='threshold'&&event.status==='completed'));
     assert.ok(events.some(event=>event.type==='model_context_usage'&&event.kind==='summary'&&event.state==='completed'));
     assert.match(JSON.stringify(requests[3].messages),/Summary: the product was saved/);
