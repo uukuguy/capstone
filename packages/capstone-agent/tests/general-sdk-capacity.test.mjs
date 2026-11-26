@@ -177,6 +177,8 @@ test('append-only guides deduplicate only while their exact observation remains 
   assert.doesNotMatch(repeated.content[0].text,/actual task paths/);
   messages=[];
   assert.deepEqual(await view.tool.execute('after-compaction',{guide:true}),first);
+  const both=await view.tool.execute('both',{guide:true,include_tools:true});
+  assert.deepEqual(both.content,[...first.content,...(await view.tool.execute('catalog',{})).content]);
 });
 
 test('managed thin parent activates tools and automatically compacts at the threshold',async()=>{
