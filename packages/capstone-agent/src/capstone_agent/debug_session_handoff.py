@@ -288,6 +288,49 @@ def _read_public_history(service, thread_id, start_seq, through_seq, project):
             yield json.loads(entry_json)
 
 
+def _model_request_metadata(payload):
+    usage = payload.get("model_context_usage")
+    if not isinstance(usage, dict):
+        return {}
+    request_id = usage.get("request_id")
+    if (not isinstance(request_id, str) or not re.fullmatch(r"ctx-[1-9][0-9]{0,8}", request_id)
+            or usage.get("kind") not in ("main", "summary", "analysis")
+            or usage.get("state") not in ("started", "completed", "failed")):
+        return {}
+    result = {key: usage[key] for key in ("request_id", "kind", "state")}
+    for key, pattern in (("dispatch_id", r"request-[1-9][0-9]{0,8}"), ("prefix_fingerprint", r"[a-f0-9]{64}")):
+        value = usage.get(key)
+        if isinstance(value, str) and re.fullmatch(pattern, value):
+            result[key] = value
+    for key in ("window_tokens", "output_allowance_tokens", "input_ceiling_tokens"):
+        value = usage.get(key)
+        if type(value) is int and 0 < value <= 100_000_000:
+            result[key] = value
+    groups = ("system", "tools", "messages", "tool_results")
+    for key, fields in (("estimated_input", groups), ("estimated_input_before_projection", groups),
+                        ("usage", ("input", "output", "cacheRead", "cacheWrite"))):
+        values = usage.get(key)
+        if isinstance(values, dict):
+            result[key] = {field: values[field] for field in fields
+                           if type(values.get(field)) is int and 0 <= values[field] <= 100_000_000}
+    return result
+
+
+def _model_request_timing(payload):
+    event = payload.get("model_request_pool")
+    if not isinstance(event, dict):
+        return {}
+    request_id, status = event.get("request_id"), event.get("status")
+    if (not isinstance(request_id, str) or not re.fullmatch(r"request-[1-9][0-9]{0,8}", request_id)
+            or status not in ("queued", "waiting_dependencies", "running", "cancelling",
+                              "completed", "failed", "cancelled", "blocked")):
+        return {}
+    timing = ("queued_at_ms", "started_at_ms", "first_content_at_ms", "finished_at_ms")
+    return {"request_id": request_id, "status": status, **{
+        key: event[key] for key in timing if type(event.get(key)) is int and 0 <= event[key] <= 9007199254740991
+    }}
+
+
 def write_session_handoff(destination, service, thread_id, through_seq, *, uploads, capstone_revision,
                           objects=None, native_executor=None, supplements=None, read_gateway_calls=None):
     """Build the local session package after the application grants export."""
@@ -340,6 +383,14 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                     summary["is_error"] = payload["is_error"]
             if kind == "tool_completed" and type(payload.get("ok")) is bool:
                 summary["ok"] = payload["ok"]
+            if kind == "runtime_event" and native_stage == "model_context_usage":
+                metadata = _model_request_metadata(payload)
+                if metadata:
+                    summary["model_context_usage"] = metadata
+            if kind == "runtime_event" and native_stage == "model_request_pool":
+                timing = _model_request_timing(payload)
+                if timing:
+                    summary["model_request_pool"] = timing
             return summary
         return None
 
