@@ -2118,7 +2118,7 @@ class NativeTaskRunner:
                 policy = sdk_config['applicationPolicy']
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': list(dict.fromkeys([
                     *policy['allowed_tools'], 'agent_runtime_tools', 'agent_tool_load',
-                    *(['agent_observation_read'] if 'bash' in policy['allowed_tools'] else []),
+                    *(['agent_observation_read'] if {'bash', 'read'}.intersection(policy['allowed_tools']) else []),
                     *(['agent_skill_step'] if sdk_config.get('presentationGuide') else []),
                 ]))}
                 sdk_config['thinInitialContext'] = True
@@ -2157,12 +2157,14 @@ class NativeTaskRunner:
                         remaining -= len(raw.encode())
                         path = root / (str(len(observations)) + '.json')
                         selected_gateway_files.append((path, raw))
-                        observations.append({'tool': tool, 'tool_call_id': call_id, 'path': str(path)})
+                        observations.append({'tool': tool, 'tool_call_id': call_id, 'path': str(path),
+                                             'sha256': sha256(raw.encode()).hexdigest()})
                 if observations:
+                    sdk_config['selectedGatewayObservations'] = observations
                     sdk_config['contextFiles'].append({
                         'path': 'selected-gateway-observations',
                         'content': 'Read authorized historical gateway results at the listed paths. '
-                                   'The host verified the file and its source call. Open the exact path. '
+                                   'Use agent_observation_read with historical_call_id and pointers to read several exact JSON fields together. '
                                    'Use structuredContent when the JSON envelope supplies it. '
                                    'For a narrow check, use one authorized program to read the JSON and '
                                    'return the requested fields and calculations together. '

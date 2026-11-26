@@ -208,3 +208,23 @@ test('native read excludes binary decoded as text and preserves image and text h
  const image={content:[{type:'text',text:'image'},{type:'image',data:'base64',mimeType:'image/png'}]};
  assert.equal(projectNativeRead(image),image);
 });
+
+test('historical gateway reads project exact pointers and reject unadmitted calls',async t=>{
+  const cwd=await mkdtemp(join(tmpdir(),'historical-gateway-'));
+  t.after(()=>rm(cwd,{recursive:true,force:true}));
+  const {createObservationReadTool}=await import('../../src/capstone_agent/resources/tool-result-context.mjs');
+  const path=join(cwd,'original.json'), body=JSON.stringify({structuredContent:{
+    data:{data_ref:'opaque',points:[1,2,3]},provenance:{request_id:'original'},
+  }});
+  await writeFile(path,body);
+  const reader=createObservationReadTool(cwd,[{path,tool_call_id:'admitted',
+    sha256:createHash('sha256').update(body).digest('hex')}]);
+  const args={historical_call_id:'admitted',pointers:['/data/data_ref','/data/points','/provenance/request_id']};
+  const result=await reader.execute('read',args);
+  assert.deepEqual(JSON.parse(result.content[0].text).value,{
+    '/data/data_ref':'opaque','/data/points':[1,2,3],'/provenance/request_id':'original',
+  });
+  assert.equal((await reader.execute('read',{...args,historical_call_id:'unadmitted'})).isError,true);
+  await writeFile(path,'{}');
+  assert.equal((await reader.execute('read',args)).isError,true);
+});

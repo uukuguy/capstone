@@ -501,7 +501,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       dispatch_receipt:{...receipt,call_id:callId}});
   }});
   const observationReader=config.thinInitialContext&&config.applicationPolicy.allowed_tools.includes('agent_observation_read')
-    ?createObservationReadTool(config.toolResultCwd??process.cwd()):undefined;
+    ?createObservationReadTool(config.toolResultCwd??process.cwd(),config.selectedGatewayObservations):undefined;
   const wrap=tool => {
     if(config.thinInitialContext&&tool.name==='read'){
       const read=tool;

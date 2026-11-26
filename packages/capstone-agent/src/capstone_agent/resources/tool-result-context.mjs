@@ -145,24 +145,37 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   return {...result,content,[originalResult]:result,[savedResult]:saved};
 }
 
-export function createObservationReadTool(cwd){
+export function createObservationReadTool(cwd,historical=[]){
   const reply=(value,isError=false)=>({isError,content:[{type:'text',text:JSON.stringify(value)}]});
   return {
     name:'agent_observation_read',label:'Read saved tool output',
-    description:'Read fields or pages from a native script result that returned a full_result file reference. Use an exact JSON pointer without wildcards. For an array of records, select fields by exact key to read a smaller page.',
+    description:'Read saved output using a full_result reference or read exact pointers from a host-admitted historical call ID. Use an exact JSON pointer without wildcards. For an array of records, select fields by exact key to read a smaller page.',
     parameters:{type:'object',properties:{
       reference:{type:'object',properties:{
         path:{type:'string'},sha256:{type:'string'},size_bytes:{type:'integer'},tool:{type:'string'},call_id:{type:'string'},
         base_pointer:{anyOf:[{type:'string'},{type:'null'}]},
       },required:['path','sha256','size_bytes','tool','call_id','base_pointer'],additionalProperties:false},
+      historical_call_id:{type:'string',maxLength:128},
+      pointers:{type:'array',minItems:1,maxItems:16,uniqueItems:true,items:{type:'string',maxLength:512}},
       fields:{type:'array',minItems:1,maxItems:16,uniqueItems:true,
         items:{type:'string',minLength:1,maxLength:128}},
       pointer:{type:'string',maxLength:512},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:2000},
-    },required:['reference'],additionalProperties:false},
-    async execute(_callId,{reference,pointer='',offset,limit,fields},signal){
+    },additionalProperties:false},
+    async execute(_callId,{reference,pointer='',offset,limit,fields,historical_call_id,pointers},signal){
       signal?.throwIfAborted();
       let value;
-      try{value=await readSavedObservation(reference,pointer,{cwd});}
+      try{
+        if(historical_call_id!==undefined){
+          const item=historical.find(entry=>entry.tool_call_id===historical_call_id);
+          if(!item||reference!==undefined)throw new Error('Unknown historical call');
+          const bytes=await readFile(item.path);
+          if(digest(bytes)!==item.sha256)throw new Error('Historical observation digest changed');
+          const envelope=JSON.parse(bytes);
+          const source=envelope.structuredContent??envelope;
+          value=pointers?.length?Object.fromEntries(pointers.map(key=>[key,observationPointer(source,key)]))
+            :observationPointer(source,pointer);
+        }else value=await readSavedObservation(reference,pointer,{cwd});
+      }
       catch(error){
         signal?.throwIfAborted();
         return reply({code:'observation_unavailable',message:error instanceof ObservationPointerError
