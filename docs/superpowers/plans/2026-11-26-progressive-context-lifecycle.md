@@ -69,3 +69,10 @@ Two additional thin PPTX runs each made one render and passed download
 verification. The first-query path still adds a model call and uncached
 input in this pair. The thinner prefix also reduced cached input in all
 four cases. Use the receipt's separate cache counters when comparing cost.
+
+At `9d426e77`, both cold query trials skipped the long guide but still took
+five requests. Both narrower-window turns preserved the expected arguments
+and avoided describing the view again. One initial call lacked a timezone
+offset and required correction. The published exact schema accepted both
+forms. See [the gateway window contract handoff](../../reports/2026-11-27-gateway-view-window-contract-handoff.md)
+and `thin-bounded-guide.json`.
