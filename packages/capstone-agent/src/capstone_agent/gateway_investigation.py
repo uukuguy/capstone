@@ -3,6 +3,8 @@ import asyncio
 import json
 import re
 from hashlib import sha256
+from contextlib import closing
+import sqlite3
 from urllib.parse import urlsplit
 
 from httpx import TransportError
@@ -53,6 +55,74 @@ OBSERVATION_TOOL = {
 
 def investigation_workspace_id(workspace):
     return 'ws_' + sha256(workspace.encode('utf-8')).hexdigest()
+
+
+class SessionCallJournal:
+    """Private, durable dispatch reservations for ordinary session calls."""
+
+    def __init__(self, path):
+        self.path = path
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("""CREATE TABLE IF NOT EXISTS session_calls (
+                workspace TEXT NOT NULL, thread_id TEXT NOT NULL, attempt_id TEXT NOT NULL,
+                operation TEXT NOT NULL, binding TEXT NOT NULL, digest TEXT NOT NULL, client_call_id TEXT NOT NULL,
+                PRIMARY KEY (workspace, thread_id, attempt_id, operation))""")
+
+    def reserve(self, *, workspace, thread_id, attempt_id, operation, binding, tool, arguments, client_call_id):
+        identity = (workspace, thread_id, attempt_id, operation)
+        binding_json = json.dumps(binding, sort_keys=True, allow_nan=False)
+        digest = sha256(json.dumps([tool, arguments], sort_keys=True, allow_nan=False).encode()).hexdigest()
+        with closing(sqlite3.connect(self.path)) as db, db:
+            inserted = db.execute(
+                'INSERT OR IGNORE INTO session_calls VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (*identity, binding_json, digest, client_call_id),
+            ).rowcount
+            saved = db.execute(
+                'SELECT binding, digest, client_call_id FROM session_calls '
+                'WHERE workspace=? AND thread_id=? AND attempt_id=? AND operation=?', identity,
+            ).fetchone()
+            if saved[:2] != (binding_json, digest):
+                raise GatewayError('investigation_request_invalid')
+            return saved[2], inserted == 1
+
+
+async def registered_session_call(client, catalog, tool, arguments, diagnostics, *, journal,
+                                  workspace, thread_id, attempt_id, operation, connection_id):
+    """Register calls only when the original business connection supports binding."""
+    instance = (catalog.get('instance') or {}).get('instance_id')
+    if not instance or not diagnostics:
+        return None
+    async with client.connect() as connection:
+        if (connection.instance_identity or {}).get('instance_id') != instance:
+            raise GatewayError('gateway_instance_changed')
+        endpoint = client._connection['url']
+        access = await GatewayInvestigation.discover(
+            connection.http_client, endpoint, connection.investigation, connection.investigation_logs,
+        )
+        if access is None:
+            return None
+        owner_id = 'session_' + sha256(json.dumps([workspace, thread_id, attempt_id, connection_id, instance]).encode()).hexdigest()
+        owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': owner_id}
+        binding = await access.invoke('bind', {**owner, 'instance_id': instance, 'idempotency_key': owner_id})
+        scope = {**owner, 'binding_handle': binding['binding_handle']}
+        stored_binding = {**scope, 'instance_id': instance, 'connection_id': connection_id,
+                          'catalog_revision': catalog['revision']}
+        call_id, dispatch = await asyncio.to_thread(
+            journal.reserve, workspace=workspace, thread_id=thread_id, attempt_id=attempt_id, operation=operation,
+            binding=stored_binding, tool=tool, arguments=arguments, client_call_id=diagnostics['client_call_id'],
+        )
+        if dispatch:
+            observed = await access.call_registered(client, tool, arguments, catalog, scope=scope,
+                                                    diagnostics={**diagnostics, 'client_call_id': call_id})
+            if 'business_response' in observed:
+                return observed['business_response']
+        else:
+            try:
+                await access.invoke('read', {**scope, 'client_call_id': call_id})
+            except (GatewayError, TransportError, OSError, TimeoutError):
+                pass
+        # A receipt proves transport state. It cannot replace a business body.
+        raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
 
 
 async def _request(client, method, url, document=None):

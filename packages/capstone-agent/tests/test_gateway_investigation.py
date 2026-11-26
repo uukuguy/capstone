@@ -14,6 +14,57 @@ CONTRACT = json.loads((FIXTURES / 'contract.json').read_text())
 EXCHANGE = json.loads((FIXTURES / 'synthetic-exchange.json').read_text())
 DECLARATION = {'version': VERSION, 'contract_path': BASE + 'contract'}
 
+def test_ordinary_call_reservation_survives_reopen(tmp_path):
+    from capstone_agent.gateway_investigation import SessionCallJournal
+
+    path = tmp_path / 'calls.sqlite3'
+    request = dict(workspace='one', thread_id='thread-1', attempt_id='attempt-1', operation='task:call',
+                   binding={'binding_handle': 'original'}, tool='provider_read', arguments={})
+    assert SessionCallJournal(path).reserve(**request, client_call_id='call_first') == ('call_first', True)
+    assert SessionCallJournal(path).reserve(**request, client_call_id='call_next') == ('call_first', False)
+    with pytest.raises(GatewayError, match='investigation_request_invalid'):
+        SessionCallJournal(path).reserve(**(request | {'binding': {'binding_handle': 'changed'}}),
+                                         client_call_id='call_next')
+    assert SessionCallJournal(path).reserve(**(request | {'workspace':'two'}),
+                                            client_call_id='call_second_workspace') == ('call_second_workspace', True)
+
+
+def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_path):
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from capstone_agent.gateway_investigation import SessionCallJournal, registered_session_call
+
+    path = tmp_path / 'calls.sqlite3'
+    access = AsyncMock()
+    access.invoke.return_value = {'binding_handle': 'original'}
+    access.call_registered.return_value = {'business_response': {'isError': False}}
+    monkeypatch.setattr(GatewayInvestigation, 'discover', AsyncMock(return_value=access))
+
+    @asynccontextmanager
+    async def connect():
+        yield SimpleNamespace(instance_identity={'instance_id': 'fixture'}, http_client=None,
+                              investigation=DECLARATION, investigation_logs=None)
+
+    client = SimpleNamespace(connect=connect, _connection={'url':'https://fixture.test/mcp'})
+    catalog = {'instance': {'instance_id': 'fixture'}, 'revision': 'v1'}
+    owner = dict(workspace='one', thread_id='thread-1', attempt_id='attempt-1', operation='task:call',
+                 connection_id='connection')
+
+    async def run():
+        result = await registered_session_call(client, catalog, 'provider_read', {}, {'client_call_id':'original-call'},
+                                               journal=SessionCallJournal(path), **owner)
+        assert result == {'isError': False}
+        with pytest.raises(GatewayError, match='gateway_result_body_unavailable') as unknown:
+            await registered_session_call(client, catalog, 'provider_read', {}, {'client_call_id':'later-call'},
+                                          journal=SessionCallJournal(path), **owner)
+        assert unknown.value.result_unknown
+        assert access.invoke.await_args.args[0] == 'read'
+        assert access.invoke.await_args.args[1]['client_call_id'] == 'original-call'
+        access.call_registered.assert_awaited_once()
+
+    asyncio.run(run())
+
 
 @pytest.mark.parametrize('policy', ['undeclared', 'allow_sanitized'])
 def test_offline_evidence_follows_published_contract(policy):

@@ -1710,10 +1710,23 @@ class NativeTaskRunner:
                             gateway_publication, gateway_available=True)})}
                     from .gateway_diagnostics import attempt_diagnostics, research_diagnostics
                     task_catalog = gateway_publication['catalog']
+                    registered_dispatch = None
+                    if frozen_gateway and request.managed_workspace and request.business_context is not None:
+                        from functools import partial
+                        from .debug_commands import debug_commands_enabled
+                        from .gateway_investigation import SessionCallJournal, registered_session_call
+                        if debug_commands_enabled(os.environ):
+                            journal = SessionCallJournal(self.root / 'receipts' / 'gateway-session-calls.sqlite3')
+                            registered_dispatch = partial(
+                                registered_session_call, journal=journal, workspace=request.managed_workspace,
+                                thread_id=document['business_context']['workspace_id'],
+                                attempt_id=request.parent_attempt_id, connection_id=frozen_gateway['connection_id'],
+                            )
                     task_gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway, catalog=task_catalog,
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
-                            request.parent_attempt_id) or attempt_diagnostics(request.parent_attempt_id))
+                            request.parent_attempt_id) or attempt_diagnostics(request.parent_attempt_id),
+                        **({'registered_dispatch': registered_dispatch} if registered_dispatch is not None else {}))
                     saved_operations = (document.get('structural_context') or {}).get('gateway_operations')
                     if saved_operations is not None and saved_operations['binding'] == frozen_gateway:
                         task_gateway.restore_operations(request.task_id, frozen_gateway, saved_operations)
