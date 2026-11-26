@@ -420,7 +420,7 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
       }
       contracts=current;
       return {...context,tools:[
-        ...(context.tools??[]).filter(tool=>stable.has(tool.name)&&contracts.has(tool.name)),
+        ...[...stable].flatMap(name=>contracts.has(name)?[contracts.get(name)]:[]),
         ...[...loaded].flatMap(name=>contracts.has(name)?[contracts.get(name)]:[]),
       ]};
     },

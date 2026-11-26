@@ -109,6 +109,7 @@ test('thin runtime exposes only resident and explicitly loaded admitted contract
   const a={name:'write',label:'Write a task file',description:'Save a relative path.',parameters:{type:'object'}};
   const b={name:'run',label:'Run a task command',description:'Execute a fixed operation.',parameters:{type:'object'}};
   const search={name:'agent_tool_search',parameters:{type:'object'}};
+  const runtimeTools={name:'agent_runtime_tools',parameters:{type:'object'}};
   const view=createThinToolView(['agent_runtime_tools','agent_tool_search','write'],['agent_tool_search']);
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search]);
   const catalogue=await view.tool.execute('catalog',{});
@@ -134,6 +135,8 @@ test('thin runtime exposes only resident and explicitly loaded admitted contract
     loaded:['write'],newly_loaded:[],already_active:['write'],
   });
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search,a]);
+  assert.deepEqual(view.project({tools:[a,search,runtimeTools]}).tools,[runtimeTools,search,a]);
+  assert.deepEqual(view.project({tools:[search,runtimeTools,a]}).tools,[runtimeTools,search,a]);
   const revised={...a,parameters:{type:'object',required:['path']}};
   assert.deepEqual(view.project({tools:[search,revised,b]}).tools,[search]);
   await loader.execute('reload',{names:['write']});
