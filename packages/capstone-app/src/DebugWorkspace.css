@@ -27,3 +27,15 @@
 .workspace-product-paper:has(> .debug-workspace) { background:#fbfbff; border-color:#d9dcec; }
 .debug-workspace .capstone-chat-markdown :is(th, td) { border-color:#e0e1ef; }
 .debug-workspace .capstone-chat-markdown th { background:#f0f0fb; }
+:is(.debug-workspace, .thread-debug-result) .capstone-chat-markdown code {
+  color:#49418d;
+  background:#f0f0fb;
+}
+:is(.debug-workspace, .thread-debug-result) .capstone-chat-markdown pre {
+  color:#f5f3ff;
+  background:#262644;
+}
+:is(.debug-workspace, .thread-debug-result) .capstone-chat-markdown pre code {
+  color:inherit;
+  background:transparent;
+}

@@ -1307,7 +1307,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         {Boolean(debugActivity.report?.rows.length)&&<details className="thread-debug-trace" open>
           <summary>执行过程<ChevronDown size={15} aria-hidden="true"/></summary>
           <ul aria-label="Pi 执行步骤" data-has-timing={debugActivity.report?.rows.some(step=>step.elapsedMs!==undefined)}>{debugActivity.report?.rows.map(step=><li key={step.id}>
-            <span>{step.label}</span>
+            <span>{step.label}{step.reason&&<small className="thread-debug-step-reason">{step.reason}</small>}</span>
             <span className="thread-debug-step-status" data-status={step.status}>{{running:'执行中',completed:'完成',failed:'失败',unknown:'结果未记录'}[step.status]}</span>
             <span className="thread-debug-step-time">{step.elapsedMs===undefined?'':formatDebugDuration(step.elapsedMs)}</span>
           </li>)}</ul>

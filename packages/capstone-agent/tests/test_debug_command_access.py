@@ -127,13 +127,14 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
                                             'operation': 'source_lines'}]
             on_event({'event_id': 'event-2', 'type': 'tool_execution_end',
                       'tool_name': 'agent_debug_observe', 'tool_call_id': 'call_1',
-                      'is_error': True, 'result': 'private result'})
+                      'is_error': True, 'result': 'private result',
+                      'activity': {'output_excerpt': '{"code":"historical_source_unavailable","detail":"private"}'}})
             running = register.get(claim.workspace_name, claim.thread_id, request.parent_attempt_id)['diagnosis']
             completed_step = running['progress'][-1]
             assert completed_step['elapsed_ms'] >= 0
             assert {key: value for key, value in completed_step.items() if key != 'elapsed_ms'} == {
                 'seq': 2, 'stage': 'tool_failed', 'tool': 'agent_debug_observe',
-                'operation': 'source_lines', 'call_seq': 1}
+                'operation': 'source_lines', 'call_seq': 1, 'failure_code': 'historical_source_unavailable'}
             if interrupted:
                 raise OSError('lost response')
             return SimpleNamespace(status='completed', answer='输入检查失败。')

@@ -847,8 +847,18 @@ const debugOperations: Record<string, string> = {
   publish_finding: '保存阶段结论',
 }
 
+const debugFailureReasons: Record<string, string> = {
+  investigation_request_invalid: '参数未通过检查',
+  historical_source_unavailable: '历史源码不可用',
+  stored_excerpt_unavailable: '原记录未保存摘要',
+  gateway_bound_instance_unavailable: '原网关连接不可用',
+  investigation_read_unavailable: '调查记录暂不可读',
+  finding_evidence_invalid: '结论引用未通过核验',
+  diagnosis_not_running: '诊断已停止更新',
+}
+
 export type DebugProgressReport = {
-  rows: {id: number; label: string; status: 'running' | 'completed' | 'failed' | 'unknown'; elapsedMs?: number}[]
+  rows: {id: number; label: string; status: 'running' | 'completed' | 'failed' | 'unknown'; elapsedMs?: number; reason?: string}[]
   durationMs?: number
 }
 
@@ -871,7 +881,10 @@ function debugProgressReport(result: Record<string, unknown>): DebugProgressRepo
     const candidates = [...pending].filter(([, value]) => value === key)
     const call = Number.isSafeInteger(step.call_seq) ? step.call_seq
       : candidates[0]?.[0] ?? step.seq
+    const reason = step.stage === 'tool_failed' && typeof step.failure_code === 'string'
+      && Object.hasOwn(debugFailureReasons, step.failure_code) ? debugFailureReasons[step.failure_code] : undefined
     const row = {id: call, label, status: step.stage === 'tool_finished' ? 'completed' as const : 'failed' as const,
+      ...(reason ? {reason} : {}),
       ...(typeof step.elapsed_ms === 'number' && step.elapsed_ms >= 0 ? {elapsedMs: step.elapsed_ms} : {})}
     const index = report.rows.findIndex(item => item.id === call)
     if (index >= 0) report.rows[index] = row

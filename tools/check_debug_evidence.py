@@ -62,7 +62,7 @@ def verify(document):
     last_step = 0
     for step in steps:
         required = {'seq', 'stage', 'tool'}
-        if (not isinstance(step, dict) or not required <= step.keys() <= required | {'operation', 'call_seq', 'elapsed_ms'}
+        if (not isinstance(step, dict) or not required <= step.keys() <= required | {'operation', 'call_seq', 'elapsed_ms', 'failure_code'}
                 or type(step['seq']) is not int or step['seq'] <= last_step
                 or step['stage'] not in ('tool_started', 'tool_finished', 'tool_failed')
                 or not isinstance(step['tool'], str)
@@ -75,6 +75,9 @@ def verify(document):
             raise ValueError('Invalid diagnosis call sequence')
         if 'elapsed_ms' in step and (type(step['elapsed_ms']) is not int or step['elapsed_ms'] < 0):
             raise ValueError('Invalid diagnosis step duration')
+        if 'failure_code' in step and (step['stage'] != 'tool_failed' or not isinstance(step['failure_code'], str)
+                                       or not re.fullmatch(r'[a-z_]{1,64}', step['failure_code'])):
+            raise ValueError('Invalid diagnosis failure reason')
         last_step = step['seq']
     cited = diagnosis.get('evidence_event_seqs', [])
     if not isinstance(cited, list) or any(type(seq) is not int or not 0 < seq <= through for seq in cited):

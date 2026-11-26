@@ -696,6 +696,20 @@ class InvestigationRegister:
                         step['elapsed_ms'] = round((monotonic() - timestamp) * 1000)
                         if 'operation' in initial:
                             step['operation'] = initial['operation']
+            if tool == 'agent_debug_observe' and stage == 'tool_failed':
+                activity = event.get('activity')
+                excerpt = activity.get('output_excerpt') if isinstance(activity, dict) else None
+                if isinstance(excerpt, str):
+                    try:
+                        failure = json.loads(excerpt)
+                    except ValueError:
+                        failure = None
+                    code = failure.get('code') if isinstance(failure, dict) else None
+                    if code in ('investigation_request_invalid', 'historical_source_unavailable',
+                                'stored_excerpt_unavailable', 'gateway_bound_instance_unavailable',
+                                'investigation_read_unavailable', 'finding_evidence_invalid',
+                                'diagnosis_not_running'):
+                        step['failure_code'] = code
             diagnosis = {**diagnosis, 'progress': [*progress[-63:], step],
                          'progress_truncated': step['seq'] > 64}
             self._save_diagnosis(scope, diagnosis)
