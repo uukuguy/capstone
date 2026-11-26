@@ -447,7 +447,8 @@ class GatewayInvestigation:
                     validate(self._schemas['Receipt'], receipt)
                 except Exception:
                     raise GatewayError('investigation_response_invalid') from None
-                if receipt.get('client_call_id') != client_id or receipt.get('automatic_retry') is not False:
+                if (not isinstance(receipt, dict) or receipt.get('client_call_id') != client_id
+                        or receipt.get('automatic_retry') is not False):
                     raise GatewayError('investigation_response_invalid')
                 return {'receipt': receipt}
         return {'business_response': response}
