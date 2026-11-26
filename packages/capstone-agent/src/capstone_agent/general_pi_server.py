@@ -2162,7 +2162,10 @@ class NativeTaskRunner:
                     sdk_config['contextFiles'].append({
                         'path': 'selected-gateway-observations',
                         'content': 'Read authorized historical gateway results at the listed paths. '
-                                   'Use the original values for the requested historical check. '
+                                   'The host verified the file and its source call. Open the exact path. '
+                                   'Use structuredContent when the JSON envelope supplies it. '
+                                   'For a narrow check, use one authorized program to read the JSON and '
+                                   'return the requested fields and calculations together. '
                                    'These results do not grant new gateway calls.\n'
                                    + json.dumps(observations, ensure_ascii=False),
                     })
