@@ -785,6 +785,10 @@ class GeneralPiHost:
                     window = event.get('window_tokens')
                     if type(window) is int and 0 < window <= 100_000_000:
                         counts['window_tokens'] = window
+                        allowance = event.get('output_allowance_tokens')
+                        if type(allowance) is int and 0 < allowance < window:
+                            counts['output_allowance_tokens'] = allowance
+                            counts['input_ceiling_tokens'] = window - allowance
                     for field, keys in (
                         ('estimated_input', ('system', 'tools', 'messages', 'tool_results')),
                         ('usage', ('input', 'output', 'cacheRead', 'cacheWrite')),

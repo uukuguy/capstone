@@ -1482,6 +1482,10 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
       const requestKind=typeof kind==='function'?kind():kind;
       if(projectContext&&requestKind==='main')context=projectContext(context);
       const window=model?.contextWindow;
+      const outputAllowance=options?.maxTokens ?? model?.maxTokens;
+      const validWindow=Number.isSafeInteger(window)&&window>0&&window<=100_000_000;
+      const validAllowance=validWindow&&Number.isSafeInteger(outputAllowance)
+        &&outputAllowance>0&&outputAllowance<window;
       const publish=(state,details={})=>{
         try{
           emit({type:'model_context_usage',request_id:id,kind:requestKind,state,...details});
@@ -1490,7 +1494,11 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
       let details={};
       try{
         details={...measure(context),
-          ...(Number.isSafeInteger(window)&&window>0&&window<=100_000_000?{window_tokens:window}:{})};
+          ...(validWindow?{window_tokens:window}:{}),
+          ...(validAllowance?{
+            output_allowance_tokens:outputAllowance,
+            input_ceiling_tokens:window-outputAllowance,
+          }:{})};
       }catch{/* Leave unmeasured fields absent. */}
       let observedMessages=[];
       if(captureInput)try{observedMessages=messageSources();}catch{/* An unavailable source does not block a request. */}
