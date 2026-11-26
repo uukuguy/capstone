@@ -1,3 +1,5 @@
+2026-11-26 [PR289](https://github.com/uukuguy/capstone/pull/289) 合入 dev `81dc2d4d`。调试快照现场展示经核验的 Capstone 事件、网关回执编号和源码引用。历史版本 e4e00eda 的第 21 行从快照 18252154 的引用打开。[App CI](https://github.com/uukuguy/capstone/actions/runs/45740594602) 通过。
+
 2026-11-26 [PR287](https://github.com/uukuguy/capstone/pull/287) 合入 dev `09b465c8`。恢复和停止保留终态快照，摘要回执区分适用性和保留状态，Debug 只发布一个 Capstone 记录读取入口。[macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45739112597) 通过。右栏标题与会话卡一致。
 
 2026-11-26 [PR285](https://github.com/uukuguy/capstone/pull/285) 合入 dev `08d419e2`。调试卡和 Debug 右栏使用蓝紫色。命令在登记前显示，刷新恢复。每次工具调用显示一行，保留耗时和可确认的失败原因。[macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45731943475) 通过。
@@ -2070,6 +2072,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 283 | Debug 可读运行步骤 | feat/debug-readable-progress | dev | MERGED | 合并 571a7081，受检 dfeda7ce，macOS CI 45729846979 通过。 |
 | 285 | 调试卡视觉、实时命令和计时 | fix/debug-visible-progress | dev | MERGED | 合并 08d419e2，受检 24245085，macOS CI 45731943475 通过。 |
 | 287 | Debug 终态证据与摘要适用性 | fix/debug-terminal-snapshots | dev | MERGED | 合并 09b465c8，受检 22e9bf5f，macOS CI 45739112597 通过。 |
+| 289 | Debug 快照证据引用 | fix/debug-finding-evidence-links | dev | MERGED | 合并 81dc2d4d，受检 d1c7af4c，macOS CI 45740594602 通过。 |
 | 271 | XLSX 工作簿预览 | fix/xlsx-artifact-preview | dev | MERGED | 合并 de229bd4，受检 bd07d4a0，macOS CI 45478832599 通过。5174 右栏用实际工作簿验证两个工作表及下载。 |
 | 270 | 正式答复格式降级 | fix/native-answer-presentation-fallback | dev | MERGED | 合并 595094b4，受检 6535481a，macOS CI 45475272758 通过，已在 5174 安全重建和复现核对。答复格式解析异常不再使已完成的执行失败。 |
 | 267 | DeepSeek Flash 薄上下文和正式答复验证 | feat/dev-thin-context | dev | MERGED | 合并 774a49f5，受检 9a0826a0，macOS CI 45447607844 通过。可选薄上下文保留正式表、证据和 HTML。case14 未缓存输入下降 56%，续问和报告样本耗时增加，默认关闭。增加原生执行到线程落盘的异常答复回归。 |
@@ -2415,7 +2418,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API、worker、Pi 和 Vite App `22e9bf5f` | 后端 884e56b3bf5e，Pi 3419f42f4a43，均就绪，镜像含双仓源码 | App http://127.0.0.1:5174/。浏览器停止保留终态快照，事件 854 标为摘要不适用，证据包可导入。 |
+| local-dev | API、worker 与 Pi `22e9bf5f`，Vite App `d1c7af4c` | 后端 884e56b3bf5e，Pi 3419f42f4a43，均就绪，镜像含双仓源码 | App http://127.0.0.1:5174/。浏览器停止保留终态快照，事件 854 标为摘要不适用，证据包可导入，右栏快照源码引用可打开原版本。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
