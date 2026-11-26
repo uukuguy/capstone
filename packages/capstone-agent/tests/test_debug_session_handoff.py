@@ -225,9 +225,13 @@ def test_package_correlates_gateway_calls_with_capstone_events_without_exporting
         assert end["native_stage"] == "tool_execution_end" and end["is_error"] is True
 
 
-def test_package_exports_bounded_model_usage_without_input_content():
+def test_package_exports_bounded_model_usage_without_input_content(tmp_path):
     usage = {"request_id": "ctx-1", "dispatch_id": "request-1", "kind": "main", "state": "completed",
-             "estimated_input": {"messages": 450, "private_field": "secret-input"},
+             "window_tokens": 2048, "output_allowance_tokens": 256,
+             "encoding_allowance_tokens": 90, "input_ceiling_tokens": 1702,
+             "estimated_input": {"messages": 450, "tool_results": 600, "private_field": "secret-input"},
+             "estimated_input_before_projection": {"messages": 450, "tool_results": 1500,
+                                                   "private_field": "secret-input"},
              "usage": {"input": 300, "cacheRead": 150}, "prefix_fingerprint": "a" * 64,
              "input_items": {"messages": {"contents": "secret-input"}}}
     service = SimpleNamespace(read_history=lambda thread, before: {
@@ -250,19 +254,25 @@ def test_package_exports_bounded_model_usage_without_input_content():
     })
     output = BytesIO()
     write_session_handoff(output, service, "thr_test", 3, uploads=None, capstone_revision=None)
-    with ZipFile(output) as archive:
-        data = archive.read("execution/capstone/events.jsonl")
-        assert b"secret-input" not in data
-        assert b"private-snapshot-reference" not in data
-        row, timing, selection = map(json.loads, data.splitlines())
-        assert row["model_context_usage"] == {
-            "request_id": "ctx-1", "dispatch_id": "request-1", "kind": "main", "state": "completed",
-            "estimated_input": {"messages": 450}, "usage": {"input": 300, "cacheRead": 150},
-            "prefix_fingerprint": "a" * 64,
-        }
-        assert timing["model_request_pool"] == {
-            "request_id": "request-1", "status": "completed", "started_at_ms": 100,
-            "first_content_at_ms": 200, "finished_at_ms": 300,
-        }
-        assert selection["history_selection"] == {"request_id": "ctx-1", "reason": "explicit_message_reference",
-            "inline_records": 1, "indexed_records": 22, "omitted_previews": 10}
+    source = tmp_path / "handoff.zip"
+    source.write_bytes(output.getvalue())
+    imported = import_handoff(source, tmp_path, max_uncompressed_bytes=64 * 1024)
+    data = (imported / "execution/capstone/events.jsonl").read_bytes()
+    assert b"secret-input" not in data
+    assert b"private-snapshot-reference" not in data
+    row, timing, selection = map(json.loads, data.splitlines())
+    assert row["model_context_usage"] == {
+        "request_id": "ctx-1", "dispatch_id": "request-1", "kind": "main", "state": "completed",
+        "window_tokens": 2048, "output_allowance_tokens": 256,
+        "encoding_allowance_tokens": 90, "input_ceiling_tokens": 1702,
+        "estimated_input": {"messages": 450, "tool_results": 600},
+        "estimated_input_before_projection": {"messages": 450, "tool_results": 1500},
+        "usage": {"input": 300, "cacheRead": 150},
+        "prefix_fingerprint": "a" * 64,
+    }
+    assert timing["model_request_pool"] == {
+        "request_id": "request-1", "status": "completed", "started_at_ms": 100,
+        "first_content_at_ms": 200, "finished_at_ms": 300,
+    }
+    assert selection["history_selection"] == {"request_id": "ctx-1", "reason": "explicit_message_reference",
+        "inline_records": 1, "indexed_records": 22, "omitted_previews": 10}

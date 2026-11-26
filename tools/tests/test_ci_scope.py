@@ -67,6 +67,15 @@ def test_progressive_context_lifecycle_uses_scoped_dev_gate():
     assert classify_changes(paths, target='main') == 'release'
 
 
+def test_projection_handoff_regression_routes_to_thin_context_gate():
+    from tools.ci_scope import classify as classify_changes
+
+    paths = ['packages/capstone-agent/tests/test_debug_session_handoff.py',
+             'tools/ci_scope.py', 'tools/tests/test_ci_scope.py']
+    assert classify_changes(paths) == 'thin-context'
+    assert classify_changes(paths, target='main') == 'release'
+
+
 def test_managed_skill_scope_excludes_unrelated_product_changes():
     from tools.ci_scope import classify as classify_changes
     paths = ['AGENTS.md', '.github/workflows/verify.yml', 'configs/runtime/native-analysis.json',
