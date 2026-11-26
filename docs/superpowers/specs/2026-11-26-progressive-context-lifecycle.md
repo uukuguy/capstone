@@ -179,3 +179,31 @@ profiles. Record repeated observations, missing measurements and per-type
 regressions. Promote a profile only after correctness and continuity pass and
 material regressions have an explained and accepted disposition. Retain the
 existing rollout switch for rollback.
+
+## Gateway business references
+
+Treat business references as opaque contract values. Recognize them through
+the active gateway operation schema and admitted receipt. A field suffix alone
+does not establish its type or grant. Keep the original value and its field
+path with the producing tool, receipt, gateway identity, contract revision,
+scope, known coverage and lifecycle state. Reuse the existing gateway receipt
+and task-state stores for persistence. Keep observation-file handles and
+operation lookup identifiers distinct from business references.
+
+Project relevant references and their coverage into the model request. Send
+the exact value only when the selected operation needs it. If the current
+instruction changes a parameter, distinguish a reusable view definition from
+a result tied to the previous execution parameters. Resolve references,
+pagination and asynchronous continuations with the current gateway contract
+and grant. Preserve opaque cursors with their original operation and query
+scope. Treat a missing, expired or incompatible reference as a recoverable
+gap. An operation with unknown outcome requires its original lookup receipt
+before any decision about a new operation.
+
+Protect the durable reference linkage when previews shrink, narrative history
+is compacted or the worker restarts. Restore it through current workspace
+authorization. Export only approved diagnostic projections from the gateway.
+Test follow-up reuse, a changed province or time window, cursor continuation,
+compaction and restart, cross-workspace rejection, and expired references.
+Verify the actual argument sent to the gateway against the admitted reference
+and check the dispatch count for unintended refetches or duplicate submissions.

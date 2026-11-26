@@ -403,12 +403,22 @@ export function createApplicationToolDiscovery(config) {
 
 export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{}, maxActiveTools=16) {
   const grants=new Set(admitted), stable=new Set(['agent_runtime_tools','agent_tool_load',...residents]);
-  const loaded=new Set(), contracts=new Map();
+  const loaded=new Set();
+  let contracts=new Map();
   const text=value=>({type:'text',text:JSON.stringify(value)});
   return {
     project(context){
-      contracts.clear();
-      for(const tool of context.tools??[])if(grants.has(tool.name))contracts.set(tool.name,tool);
+      const current=new Map((context.tools??[]).filter(tool=>grants.has(tool.name))
+        .map(tool=>[tool.name,tool]));
+      for(const name of loaded){
+        const previous=contracts.get(name);
+        const next=current.get(name);
+        if(!next||previous.description!==next.description||
+          JSON.stringify(canonical(previous.parameters))!==JSON.stringify(canonical(next.parameters))){
+          loaded.delete(name);
+        }
+      }
+      contracts=current;
       return {...context,tools:[
         ...(context.tools??[]).filter(tool=>stable.has(tool.name)&&contracts.has(tool.name)),
         ...[...loaded].flatMap(name=>contracts.has(name)?[contracts.get(name)]:[]),

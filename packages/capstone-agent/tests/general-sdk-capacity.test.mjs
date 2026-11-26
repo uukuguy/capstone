@@ -131,6 +131,12 @@ test('thin runtime exposes only resident and explicitly loaded admitted contract
   assert.deepEqual(seen,[['run'],['data_gateway_existing']]);
   assert.match(JSON.stringify(await loader.execute('local',{names:['write']})),/write/);
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search,a]);
+  const revised={...a,parameters:{type:'object',required:['path']}};
+  assert.deepEqual(view.project({tools:[search,revised,b]}).tools,[search]);
+  await loader.execute('reload',{names:['write']});
+  assert.deepEqual(view.project({tools:[search,revised,b]}).tools,[search,revised]);
+  assert.deepEqual(view.project({tools:[search]}).tools,[search]);
+  assert.deepEqual(view.project({tools:[search,revised]}).tools,[search]);
 });
 
 test('thin tool replacement frees native slots and rejects unadmitted residents',async()=>{

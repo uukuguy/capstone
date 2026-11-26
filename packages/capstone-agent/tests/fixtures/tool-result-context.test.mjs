@@ -78,6 +78,8 @@ test('large gateway data stays complete on disk and exact at the host while mode
   const cwd=await mkdtemp(join(tmpdir(),'bounded-observation-'));
   try{
     const data={status:'ok',data:{unit:'MW',points:Array.from({length:5000},(_,i)=>({time:i,value:i+.5}))},gaps:[]};
+    const businessRef='opaque/result?scope=original&signature='+ 'a'.repeat(512);
+    data.data.points[4999].result_ref=businessRef;
     const body=JSON.stringify({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
     const raw={content:[{type:'text',text:body}],details:{kind:'external_gateway_observation',output_sha256:'host-issued'}};
     const result=await boundToolResult(raw,{cwd,toolName:'data_gateway_series',callId:'query',maxChars:6000});
@@ -88,6 +90,8 @@ test('large gateway data stays complete on disk and exact at the host while mode
     assert.equal(await readFile(projected.full_result.path,'utf8'),body);
     assert.equal(projected.preview.data.unit,'MW');
     assert.equal(projected.preview_pointer,'/structuredContent');
+    assert.equal(JSON.stringify(projected.preview).includes(businessRef),false);
+    assert.equal(await readSavedObservation(projected.full_result,'/data/points/4999/result_ref',{cwd}),businessRef);
     const saved=JSON.parse(await readFile(projected.full_result.path,'utf8'));
     assert.deepEqual(saved.structuredContent.data.unit,projected.preview.data.unit);
     const observed={...result,content:[...result.content,{type:'text',text:'Host observation reference: source-exact'}],
