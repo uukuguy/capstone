@@ -8471,3 +8471,16 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-26 `0a1396ec` document repeatable offline repair, controlled-host redeployment, and verification package handoff.
 - 2026-11-26 `aca7a422` use one Debug handoff download; browser verifies individual evidence remains viewable.
 - 2026-11-26 completed 5174 package-repair replay and browser verification; local receipt runs/debug-package-repair-verification.json.
+
+### Progressive context dev integration
+
+- PR 292 merged at 52473e30 after scoped macOS CI 45882687001 passed for 4f471b47.
+- Local-dev 5174 rebuilt from 52473e30. API and workers use image 3f7271935a2a.
+  Pi uses 30a732e74ae8. Vite reported 21c4f796 and its App files match the merge.
+- Thread thr_67bf7661095d66b459f1 passed direct answer, follow-up facts, CSV
+  data and hash, and redirection. The follow-up used one history operation and
+  two model calls. The other turns used one, two, and one model calls.
+- The gateway expiry fixture proved one read of the original issued view
+  after its 60-second lifetime. No reopen or source refresh was dispatched.
+  Thread thr_1af396e8814dda5a018a. The feature worktree preserves the private
+  receipts and detailed session journal.
