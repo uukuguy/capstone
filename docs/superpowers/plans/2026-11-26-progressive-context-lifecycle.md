@@ -148,3 +148,28 @@ input of 10,597 before projection and 7,781 after, against a ceiling of
 pressure sample at a temporarily small window, with only one estimated token
 of margin. The regression checks both projection levels and exact saved-file
 reads. See `live-projection-batch-final-verification.json` and PR 299.
+
+With PRs 301 and 303 integrated, the synthetic 5174 loss test cut the
+business response after the gateway completed the original registered call.
+The gateway served one receipt read for the same client call ID. The next
+turn made no gateway dispatch and reported the observed execution status
+and the unavailable business data separately. Two candidate continuation
+turns used three model calls each. The recorded baseline used eleven.
+Both candidate continuations still attempted one local read of the absent
+response. See `live-gateway-response-loss-final.json`,
+`response-loss-thin-context-verified.json` and
+`response-loss-thin-context-repeat.json`.
+
+The operator snapshot for 5174 Thread `thr_0c942b085d4c91bfb514` confirmed
+that the first continuation request carried the selected recovery source,
+observed status `ok`, business response `unavailable` and
+`automatic_retry=false`. The bounded audit receipt is
+`response-loss-first-request-audit.json`. Diagnostics were disabled again
+after the synthetic run.
+
+The connected gateway revision `d698cbea3708` publishes a specific schema
+for the saved Beijing view. It excludes `page_size`. Its time bounds still
+accept strings without a timezone offset, which the execution contract
+rejects. Follow the [gateway handoff](../../reports/2026-11-27-gateway-view-window-contract-handoff.md)
+for the source-side contract and joint validation. Keep the broad rollout
+default off while the instruction-type cost and joint contract checks remain open.
