@@ -2163,13 +2163,14 @@ class NativeTaskRunner:
                     sdk_config['selectedGatewayObservations'] = observations
                     sdk_config['contextFiles'].append({
                         'path': 'selected-gateway-observations',
-                        'content': 'Read authorized historical gateway results at the listed paths. '
+                        'content': 'Read the listed authorized historical gateway calls by their call IDs. '
                                    'Use agent_observation_read with historical_call_id and pointers to read several exact JSON fields together. '
-                                   'Use structuredContent when the JSON envelope supplies it. '
+                                   'Pointers start at the structured result root. Omit the envelope prefix. '
                                    'For a narrow check, use one authorized program to read the JSON and '
                                    'return the requested fields and calculations together. '
                                    'These results do not grant new gateway calls.\n'
-                                   + json.dumps(observations, ensure_ascii=False),
+                                   + json.dumps([{key: item[key] for key in ('tool', 'tool_call_id')}
+                                                 for item in observations], ensure_ascii=False),
                     })
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
                 config_root=self.config_root, model=profile['model'] if profile else self.model,
