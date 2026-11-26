@@ -4,7 +4,7 @@ import {observeInjectedContext} from "./model-context-input.mjs";
 
 // Managed runtime context, separate from the professional policy and tools.
 export function isIndexedHistoryRecord(history,index){
-  return index<Math.max(0,history.length-4)||Buffer.byteLength(history[index].content)>4096;
+  return index<Math.max(0,history.length-2)||Buffer.byteLength(history[index].content)>4096;
 }
 export function historicalRecord(message) {
   return Object.fromEntries(["message_id","role","content","turn_id","attempt_id","model_context_id","status"]

@@ -169,7 +169,7 @@ test('append-only guides deduplicate only while their exact observation remains 
   const view=createThinToolView([],[],()=>read('runtime-guide'),16,history);
   const earlier=await view.tool.execute('history',{history_index:1});
   assert.deepEqual(JSON.parse(earlier.content[0].text),{history_index:1,record:{role:'user',content:'record 1'}});
-  assert.equal((await view.tool.execute('outside',{history_index:2})).isError,true);
+  assert.equal((await view.tool.execute('outside',{history_index:4})).isError,true);
   const request={systemPrompt:'Stable',messages,tools:[]};
   const first=await view.tool.execute('first',{guide:true});
   assert.match(first.content[0].text,/Use the actual task paths\./);

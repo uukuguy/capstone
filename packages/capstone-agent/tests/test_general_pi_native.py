@@ -508,9 +508,9 @@ def test_thin_native_context_indexes_older_records_with_exact_reader_positions(t
         extension.as_uri(), str(config)], cwd=tmp_path, capture_output=True, text=True, check=True)
     messages = json.loads(result.stdout)
     projection = json.loads(messages[0]['content'])
-    assert projection['historical_records'] == [history[index] for index in (3, 4, 6)]
-    assert projection['earlier_record_count'] == 4
-    assert [item['index'] for item in projection['earlier_records']] == [0, 1, 2, 5]
+    assert projection['historical_records'] == [history[6]]
+    assert projection['earlier_record_count'] == 6
+    assert [item['index'] for item in projection['earlier_records']] == [0, 1, 2, 3, 4, 5]
     assert all(item['preview'] == history[item['index']]['content'][:80]
                for item in projection['earlier_records'])
     assert messages[-1]['content'] == 'Current request'
