@@ -7,7 +7,7 @@ import { createInterface } from "node:readline";
 import {CapacityExceeded,checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
-import {createDataGatewayTools,validateGatewayBatch,resolveGatewayContracts,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
+import {createDataGatewayTools,createHistoricalGatewayFollow,validateGatewayBatch,resolveGatewayContracts,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
 import {createDomainTools} from './general-domain-tools.mjs';
 import {createMissionTools} from './mission-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
@@ -592,6 +592,26 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   }
   if(config.thinToolView)customTools.push(wrap(config.thinToolView.tool));
   if(observationReader)customTools.push(wrap(observationReader));
+  if(config.selectedGatewayObservations?.length&&config.dataGateway&&
+      config.applicationPolicy.allowed_tools.includes('agent_gateway_follow')){
+    const catalog=config.dataGateway.catalog.tools;
+    const leaves=new Map(createDataGatewayTools(config)
+      .filter(tool=>applicationToolAdmission(config,tool.name).accepted).map(tool=>[tool.name,wrap(tool)]));
+    customTools.push(wrap(createHistoricalGatewayFollow(config.selectedGatewayObservations,catalog,[...leaves.keys()],
+      async(name,args,{callId,signal})=>{
+        hostEmit(rpcEvent({type:'tool_execution_start',toolName:name,toolCallId:callId,args}));
+        try{
+          const result=await leaves.get(name).execute(callId,args,signal,undefined,
+            {[gatewayInvocationOptions]:{refresh_reason:'Follow the exact returned action'}});
+          hostEmit(rpcEvent({type:'tool_execution_end',toolName:name,toolCallId:callId,result,isError:result.isError===true}));
+          return result;
+        }catch(error){
+          hostEmit(rpcEvent({type:'tool_execution_end',toolName:name,toolCallId:callId,
+            result:{isError:true,content:[{type:'text',text:String(error.message??error)}]},isError:true}));
+          throw error;
+        }
+      },config.deadlineAt)));
+  }
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
@@ -1639,7 +1659,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const domainNames=Object.keys(config.domainTools?.catalog?.tools??{});
     const gatewayNames=Object.keys(config.dataGateway?.catalog?.tools??{});
     config.thinToolView=createThinToolView(config.applicationPolicy.allowed_tools,
-      [...discoveryToolNames,...domainNames,...gatewayNames,'bash','write','agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_skill_step'],
+      [...discoveryToolNames,...domainNames,...gatewayNames,'bash','write','agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_gateway_follow','agent_skill_step'],
       ()=>loadGuide('runtime-guide'),config.runtimeLimits.tool_active_count,config.context?.messages,config.input?.text);
     config.stablePresentationStep=true;
   }

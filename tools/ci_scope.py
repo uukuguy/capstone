@@ -994,6 +994,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         'general_pi_storage.py', 'model_context_diagnostics.py', 'pi_delegation.py',
         'thread_worker.py', 'workbench_llm_profiles.py',
         'native_environment.py', 'resources/general-context.mjs', 'resources/general-domain-tools.mjs',
+        'resources/general-data-gateway.mjs',
         'resources/general-tool-discovery.mjs', 'resources/model-context-input.mjs',
         'resources/presentation-templates.mjs', 'resources/tool-result-context.mjs',
     )} | {agent + 'tests/' + name for name in (

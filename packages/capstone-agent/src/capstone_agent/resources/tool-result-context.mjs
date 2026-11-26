@@ -158,6 +158,13 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   return {...result,content,[originalResult]:result,[savedResult]:saved};
 }
 
+export async function readHistoricalObservation(item){
+  const bytes=await readFile(item.path);
+  if(digest(bytes)!==item.sha256)throw new Error('Historical observation digest changed');
+  const envelope=JSON.parse(bytes);
+  return envelope.structuredContent??envelope;
+}
+
 export function createObservationReadTool(cwd,historical=[]){
   const reply=(value,isError=false)=>({isError,content:[{type:'text',text:JSON.stringify(value)}]});
   return {
@@ -188,10 +195,7 @@ export function createObservationReadTool(cwd,historical=[]){
           if((pointers??[pointer]).some(key=>key!==''&&!key.startsWith('/')))
             return reply({code:'invalid_observation_pointer',
               message:'Use slash-prefixed JSON pointers such as /data and /provenance/request_id.'},true);
-          const bytes=await readFile(item.path);
-          if(digest(bytes)!==item.sha256)throw new Error('Historical observation digest changed');
-          const envelope=JSON.parse(bytes);
-          const source=envelope.structuredContent??envelope;
+          const source=await readHistoricalObservation(item);
           selection=pointers?.length?selectObservationPointers(pointers,key=>observationPointer(source,key))
             :{value:observationPointer(source,pointer)};
         }else selection=pointers?.length?await readSavedObservation(reference,pointers,{cwd})
