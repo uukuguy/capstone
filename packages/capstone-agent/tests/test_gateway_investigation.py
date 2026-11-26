@@ -96,7 +96,7 @@ def test_ordinary_offline_export_rechecks_original_scope(monkeypatch, tmp_path):
     monkeypatch.setattr(GatewayInvestigation, 'discover', AsyncMock(return_value=access))
     result = asyncio.run(export_session_calls(journal, registry, 'owner', 'thr_test', ['attempt-1']))
     access.read_offline_evidence.assert_awaited_once_with({}, scope, {'client_call_id': 'private-call'})
-    assert result == {'status': 'available', 'truncated': False, 'events': [
+    assert result == {'status': 'export_not_authorized', 'truncated': False, 'events': [
         {'entry': 1, 'attempt_id': 'attempt-1', 'status': 'export_not_authorized'}]}
 
 

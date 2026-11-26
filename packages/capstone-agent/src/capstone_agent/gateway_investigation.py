@@ -126,7 +126,16 @@ async def export_session_calls(journal, registry, workspace, thread_id, attempt_
         events.extend(await asyncio.gather(*(
             project(index + 1, rows[index]) for index in range(start, min(start + 4, len(rows), 16))
         )))
-    return {'status': 'available' if events else 'not_registered', 'events': events, 'truncated': len(rows) > 16}
+    statuses = {event['status'] for event in events}
+    if not statuses:
+        status = 'not_registered'
+    elif len(statuses) == 1:
+        status = next(iter(statuses))
+    elif 'available' in statuses:
+        status = 'partial'
+    else:
+        status = 'unavailable'
+    return {'status': status, 'events': events, 'truncated': len(rows) > 16}
 
 
 async def registered_session_call(client, catalog, tool, arguments, diagnostics, *, journal,

@@ -297,6 +297,7 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
     attachments: dict[tuple[str, int], None] = {}
     outputs = {}
     settled_attempts = {}
+    observed_attempts = set()
 
     def conversation():
         for entry in read_conversation(service, thread_id, 1, through_seq, may_export_text=lambda _: True):
@@ -307,8 +308,11 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
 
     def execution_entry(event):
         kind = event["event_type"]
-        if kind in _ASSISTANT_STATES and event.get("attempt_id"):
-            settled_attempts[event["attempt_id"]] = None
+        attempt_id = event.get("attempt_id")
+        if attempt_id:
+            observed_attempts.add(attempt_id)
+            if kind in _ASSISTANT_STATES:
+                settled_attempts[attempt_id] = None
         if kind in {"native_artifact_published", "delivery_published"}:
             field = "artifact" if kind == "native_artifact_published" else "delivery"
             descriptor = event["payload"].get(field)
@@ -389,6 +393,9 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                         gaps.append({"kind": "data_gateway_original_call", "status": row["status"], "entry": row["entry"]})
             except (KeyError, ValueError, RuntimeError, OSError):
                 gaps.append({"kind": "data_gateway_original_calls", "status": "read_unavailable"})
+        pending = len(observed_attempts.difference(settled_attempts))
+        if pending:
+            gaps.append({"kind": "data_gateway_original_calls", "status": "attempts_not_settled", "attempt_count": pending})
         yield HandoffMember("repro.md", [
             "# 会话复验\n\n打开 conversation.jsonl 定位指令。按事件编号查阅执行记录。"
             "核对 manifest.json 的版本、文件校验和与缺口。\n".encode()
