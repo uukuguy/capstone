@@ -4,6 +4,7 @@ import {useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import MarkdownContent from './MarkdownContent'
 import {firstDebugObservation} from './debugObservation'
+import type {DebugSnapshotFinding} from './threadHttpTransport'
 
 type SourceRepository = 'capstone' | 'data-gateway'
 type ReviewedExport = {diagnosis_markdown: string; reproduction: Record<string, unknown>}
@@ -13,7 +14,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   readTimeline:(attempt:string,after:number,through?:number)=>Promise<{events:{seq:number;type:string}[];hasMore:boolean;nextAfter:number;through:number}>
   readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
-  readSnapshotFinding?: (id: string, snapshotId: string) => Promise<{summary: string; next_step: string} | null>
+  readSnapshotFinding?: (id: string, snapshotId: string) => Promise<DebugSnapshotFinding | null>
   reviewExport?: (id: string, snapshotId: string, review: ReviewedExport | null) => Promise<void>
   readHistory?: () => Promise<{investigation_id: string; objective: string; status: string | null}[]>
   readDiagnosis?: (id: string) => Promise<{answer?: string; status: string; source?: string}>
@@ -28,20 +29,20 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
   const [snapshots, setSnapshots] = useState<{id: string; rows: Awaited<ReturnType<NonNullable<typeof readSnapshots>>>}>()
   const [snapshotId, setSnapshotId] = useState('')
-  const [snapshotFinding, setSnapshotFinding] = useState<{id: string; snapshot: string; summary: string; nextStep?: string}>()
+  const [snapshotFinding, setSnapshotFinding] = useState<{id: string; snapshot: string; finding: DebugSnapshotFinding | null}>()
   async function loadSnapshotFinding(id: string, snapshot: string) {
     if (!readSnapshotFinding || busy) return
     setBusy(true)
     setError('')
     try {
       const finding = await readSnapshotFinding(id, snapshot)
-      setSnapshotFinding({id, snapshot, summary: finding?.summary ?? '此快照没有保存阶段结论。', nextStep: finding?.next_step})
+      setSnapshotFinding({id, snapshot, finding})
     } catch {
       setError('暂时无法读取阶段结论。')
     } finally { setBusy(false) }
   }
   const [sourcePage, setSourcePage] = useState<{id: string; repository: SourceRepository; revision: string; files: string[]; next: number | null}>()
-  const [excerpt, setExcerpt] = useState<{id: string; repository: SourceRepository; path: string; lines: string[]; first: number}>()
+  const [excerpt, setExcerpt] = useState<{id: string; repository: SourceRepository; path: string; lines: string[]; first: number; citation?: string}>()
   const [probeTool, setProbeTool] = useState('')
   const [probeArgs, setProbeArgs] = useState('{}')
   const [probe, setProbe] = useState<{id: string; receipt: unknown}>()
@@ -62,18 +63,22 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       setError(cause instanceof Error ? cause.message : '暂时无法读取复验回执。')
     } finally { setBusy(false) }
   }
-  async function browseSource(id: string, repository: SourceRepository, offset = 0, path?: string, line = 1) {
+  async function browseSource(id: string, repository: SourceRepository, offset = 0, path?: string, line = 1, citation?: string, expectedRevision?: string) {
     if (!readSource || busy) return
     setBusy(true)
     setError('')
+    if (citation) setExcerpt(undefined)
     try {
       const query = new URLSearchParams({repository, ...(path === undefined ? {offset: String(offset)} : {path, line: String(line)})})
       const result = await readSource(id, query)
+      if (expectedRevision !== undefined && result.revision !== expectedRevision) {
+        throw new Error('返回的源码版本与快照引用不同。')
+      }
       if (path === undefined) {
         setSourcePage({id, repository, revision: result.revision, files: result.files ?? [], next: result.next_offset ?? null})
         setExcerpt(undefined)
       } else {
-        setExcerpt({id, repository, path, lines: result.lines ?? [], first: result.first_line ?? line})
+        setExcerpt({id, repository, path, lines: result.lines ?? [], first: result.first_line ?? line, citation})
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '历史源码暂不可读。')
@@ -205,7 +210,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       {sourcePage.next!==null&&<button type="button" disabled={busy}
         onClick={()=>void browseSource(sourcePage.id,sourcePage.repository,sourcePage.next ?? 0)}>下一页文件</button>}
     </>}
-    {excerpt&&excerpt.id===diagnosis?.id&&<>
+    {excerpt&&excerpt.id===diagnosis?.id&&!excerpt.citation&&<>
       <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>
       {excerpt.lines.length===40&&<button type="button" disabled={busy}
         onClick={()=>void browseSource(excerpt.id,excerpt.repository,0,excerpt.path,excerpt.first+40)}>下一段源码</button>}
@@ -223,7 +228,29 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     {diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&readSnapshotFinding&&
       <button type="button" disabled={busy} onClick={()=>void loadSnapshotFinding(diagnosis.id,snapshotId)}>查看阶段结论</button>}
     {snapshotFinding&&snapshots?.id===diagnosis?.id&&snapshotFinding.id===diagnosis?.id&&snapshotFinding.snapshot===snapshotId&&
-      <div><p>{snapshotFinding.summary}</p>{snapshotFinding.nextStep&&<p>下一步 · {snapshotFinding.nextStep}</p>}</div>}
+      <div className="debug-finding">
+        <p>{snapshotFinding.finding?.summary ?? '此快照没有保存阶段结论。'}</p>
+        {snapshotFinding.finding?.next_step&&<p>下一步 · {snapshotFinding.finding.next_step}</p>}
+        {Boolean(snapshotFinding.finding?.event_refs?.length)&&<p>Capstone 事件
+          {' '}{snapshotFinding.finding?.event_refs?.map(seq=><code key={seq}>#{seq}</code>)}
+        </p>}
+        {Boolean(snapshotFinding.finding?.gateway_refs?.length)&&<p>网关回执
+          {' '}{snapshotFinding.finding?.gateway_refs?.map(call=><code key={call}>{call}</code>)}
+        </p>}
+        {snapshotFinding.finding?.source_refs?.map(ref=>{
+          const label = `${ref.repository} ${ref.path}:${ref.line}`
+          const key = `${snapshotId}/${ref.revision}/${label}`
+          return <div key={key} className="debug-source-citation">
+            {readSource ? <button type="button" disabled={busy}
+              onClick={()=>void browseSource(snapshotFinding.id,ref.repository,0,ref.path,ref.line,key,ref.revision)}>
+              {label}
+            </button> : <span>{label}</span>}
+            <code title={ref.revision}>{ref.revision.slice(0,12)}</code>
+            {excerpt?.id===snapshotFinding.id&&excerpt.citation===key&&
+              <pre>{excerpt.lines.map((line,index)=>`${excerpt.first+index}  ${line}`).join('\n')}</pre>}
+          </div>
+        })}
+      </div>}
     {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
       <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
     {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}

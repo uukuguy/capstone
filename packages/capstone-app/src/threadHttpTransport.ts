@@ -348,7 +348,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async debugSnapshotFinding(threadId: string, investigationId: string, snapshotId: string) {
     const path = `${this.resourcePath}/${encodeURIComponent(threadId)}/debug/investigations/${encodeURIComponent(investigationId)}/snapshots/${encodeURIComponent(snapshotId)}/finding`
-    const result = await this.request(path) as {finding: {summary: string; next_step: string} | null}
+    const result = await this.request(path) as {finding: DebugSnapshotFinding | null}
     return result.finding
   }
   async debugEvidence(threadId: string, investigationId: string, snapshotId?: string) {
@@ -855,6 +855,14 @@ const debugFailureReasons: Record<string, string> = {
   investigation_read_unavailable: '调查记录暂不可读',
   finding_evidence_invalid: '结论引用未通过核验',
   diagnosis_not_running: '诊断已停止更新',
+}
+
+export type DebugSnapshotFinding = {
+  summary: string
+  next_step: string
+  event_refs?: number[]
+  gateway_refs?: string[]
+  source_refs?: {repository: 'capstone' | 'data-gateway'; revision: string; path: string; line: number}[]
 }
 
 export type DebugProgressReport = {
