@@ -193,7 +193,8 @@ def test_package_correlates_gateway_calls_with_capstone_events_without_exporting
         {**common, "event_seq": 3, "event_type": "runtime_event", "payload": {
             "native_type": "tool_execution_start", "task_id": "private-task", "tool_call_id": "private-call"}},
         {**common, "event_seq": 4, "event_type": "runtime_event", "payload": {
-            "native_type": "tool_execution_end", "task_id": "private-task", "tool_call_id": "private-call"}},
+            "native_type": "tool_execution_end", "task_id": "private-task", "tool_call_id": "private-call",
+            "is_error": True, "tool_name": "private-operation"}},
         {**common, "event_seq": 5, "event_type": "attempt_completed", "payload": {"answer": "Done"}},
     ]
     service = SimpleNamespace(read_history=lambda thread, before: {
@@ -212,3 +213,8 @@ def test_package_correlates_gateway_calls_with_capstone_events_without_exporting
         assert b"private-call" not in evidence
         linked, = json.loads(evidence)["events"]
         assert linked["capstone_event_seqs"] == [3, 4] and linked["correlation_status"] == "linked"
+        execution = archive.read("execution/capstone/events.jsonl")
+        assert b"private-operation" not in execution
+        start, end, _ = [json.loads(line) for line in execution.splitlines()]
+        assert start["native_stage"] == "tool_execution_start"
+        assert end["native_stage"] == "tool_execution_end" and end["is_error"] is True

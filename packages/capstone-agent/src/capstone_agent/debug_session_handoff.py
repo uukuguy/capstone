@@ -310,13 +310,14 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
     def execution_entry(event):
         kind = event["event_type"]
         attempt_id = event.get("attempt_id")
+        payload = event["payload"]
+        native_stage = payload.get("native_type")
         if attempt_id:
             observed_attempts.add(attempt_id)
             if kind in _ASSISTANT_STATES:
                 settled_attempts[attempt_id] = None
-            payload = event["payload"]
             task, call = payload.get("task_id"), payload.get("tool_call_id")
-            if (kind == "runtime_event" and payload.get("native_type") in {"tool_execution_start", "tool_execution_end"}
+            if (kind == "runtime_event" and native_stage in ("tool_execution_start", "tool_execution_end")
                     and isinstance(task, str) and isinstance(call, str)):
                 key = (attempt_id, f"{task}:{call}")
                 operation_events.setdefault(key, []).append(event["event_seq"])
@@ -327,9 +328,16 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                 output = (kind, event.get("attempt_id"), descriptor.get("artifact_id"), descriptor.get("revision"))
                 outputs.setdefault(output, descriptor)
         if event.get("attempt_id") or kind == "delivery_published":
-            return {key: event[key] for key in (
+            summary = {key: event[key] for key in (
                 "event_seq", "event_id", "event_type", "occurred_at", "attempt_id", "turn_id",
             ) if key in event}
+            if kind == "runtime_event" and native_stage in ("tool_execution_start", "tool_execution_end"):
+                summary["native_stage"] = native_stage
+                if type(payload.get("is_error")) is bool:
+                    summary["is_error"] = payload["is_error"]
+            if kind == "tool_completed" and type(payload.get("ok")) is bool:
+                summary["ok"] = payload["ok"]
+            return summary
         return None
 
     def members():
