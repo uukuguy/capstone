@@ -1,6 +1,6 @@
 import './DebugWorkspace.css'
 import {Bug, Download, RefreshCw, ScanSearch} from 'lucide-react'
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import AttemptRecordPanel, {type AttemptRecordReader} from './AttemptRecordPanel'
 import MarkdownContent from './MarkdownContent'
 import {firstDebugObservation} from './debugObservation'
@@ -8,6 +8,9 @@ import type {DebugSnapshotFinding} from './threadHttpTransport'
 
 type SourceRepository = 'capstone' | 'data-gateway'
 type ReviewedExport = {diagnosis_markdown: string; reproduction: Record<string, unknown>}
+const statusLabels: Record<string, string> = {
+  queued:'排队', running:'执行中', completed:'已完成', failed:'失败', cancelled:'已停止', unknown:'结果未知',
+}
 
 export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,readTimeline,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
@@ -27,6 +30,16 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const [error,setError]=useState('')
   const [observation,setObservation]=useState<{attempt:string;text:string}|null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<NonNullable<typeof readHistory>>>>([])
+  useEffect(() => {
+    if (!readHistory) return
+    let current = true
+    void readHistory().then(rows => {
+      if (current) setHistory(rows)
+    }).catch(() => {
+      if (current) setError('暂时无法读取补查证据。')
+    })
+    return () => { current = false }
+  }, [readHistory, savedFinding])
   const [diagnosis, setDiagnosis] = useState<{id: string; text: string; source?: string}>()
   const [snapshots, setSnapshots] = useState<{id: string; rows: Awaited<ReturnType<NonNullable<typeof readSnapshots>>>}>()
   const [snapshotId, setSnapshotId] = useState('')
@@ -103,12 +116,14 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     } catch { setError('暂时无法读取诊断结果。') }
     finally { setBusy(false) }
   }
-  async function downloadEvidence(){
+  async function downloadEvidence(id: string, savedSnapshot?: string){
     if (!readEvidence || busy) return
     setBusy(true)
     setError('')
     try {
-      const document = await readEvidence(diagnosis?.id, snapshots?.id === diagnosis?.id ? snapshotId || undefined : undefined)
+      const snapshot = savedSnapshot || (await readSnapshots?.(id))?.[0]?.snapshot_id
+      if (!snapshot) throw new Error('这次补查还没有已保存的证据。')
+      const document = await readEvidence(id, snapshot)
       const url = URL.createObjectURL(new Blob([document], {type:'application/json'}))
       const link = window.document.createElement('a')
       link.href = url
@@ -194,11 +209,22 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     {observation?.attempt===attempt&&<p role="status">{observation.text}</p>}
     <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
     </>:<p>这段会话还没有执行记录。</p>}
-    {readHistory&&<button type="button" disabled={busy} onClick={()=>void loadHistory()}>查看调查历史</button>}
-    {history.length>0&&<label>调查<select disabled={busy} value={diagnosis?.id ?? ''} onChange={event=>void selectDiagnosis(event.target.value)}>
-      <option value="">最新调查</option>
-      {history.map(item=><option key={item.investigation_id} value={item.investigation_id}>{item.objective}</option>)}
-    </select></label>}
+    </section>
+    <section>
+    <h4>补查证据</h4>
+    {readHistory&&<button type="button" disabled={busy} onClick={()=>void loadHistory()}>刷新补查证据</button>}
+    {history.length===0 ? <p>暂无补查记录。</p> : <ul>
+      {history.map(item=><li key={item.investigation_id}>
+        <p>{item.objective} · {statusLabels[item.status ?? ''] ?? '已登记'}</p>
+        <div className="debug-actions">
+          <button type="button" disabled={busy} aria-label={`查看证据 · ${item.objective}`}
+            onClick={()=>void selectDiagnosis(item.investigation_id)}>查看证据</button>
+          {allowExport&&readEvidence&&<button type="button" disabled={busy}
+            aria-label={`下载证据 · ${item.objective}`}
+            onClick={()=>void downloadEvidence(item.investigation_id)}>下载证据</button>}
+        </div>
+      </li>)}
+    </ul>}
     {(diagnosis?.text || savedFinding)&&<MarkdownContent>{diagnosis?.text || savedFinding}</MarkdownContent>}
     {diagnosis?.source&&<p>{diagnosis.source}</p>}
     {diagnosis&&runProbe&&<details>
@@ -265,7 +291,8 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       </div>}
     {allowExport&&reviewExport&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
       <DebugExportReview key={snapshotId} review={value=>reviewExport(diagnosis.id,snapshotId,value)}/>}
-    {allowExport&&readEvidence&&<button type="button" disabled={busy} onClick={()=>void downloadEvidence()}>下载调查记录</button>}
+    {allowExport&&readEvidence&&diagnosis&&snapshots?.id===diagnosis.id&&snapshotId&&
+      <button type="button" disabled={busy} onClick={()=>void downloadEvidence(diagnosis.id,snapshotId)}>下载所选快照</button>}
     {error&&<p role="alert">{error}</p>}</section>
     <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
     <button type="button" onClick={refreshSource}><RefreshCw size={14}/>重新核对</button></div>

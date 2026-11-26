@@ -1127,6 +1127,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     {missionRef&&<MissionStatus key={missionRef.missionId} transport={transport} missionId={missionRef.missionId}
       progress={missionProgress} onCopyHandoff={handoffAvailable ? (id,revision) => void copyHandoff(id,revision) : undefined}/>}
   </> : undefined
+  const readDebugHistory=useCallback(()=>transport.debugHistory(currentId), [transport,currentId])
   const taskViews=taskPlan?[{id:'task-plan',label:'任务计划',content:taskPlan,description:'目标、执行步骤、完成条件与核验结果。'}]:[]
   if(debugThread===currentId)taskViews.push({id:'debug',label:'Debug',description:'查看和下载本会话的调试记录。',
     content:<DebugWorkspace key={currentId} threadId={currentId} attempts={[...new Set([...(latestInstructionAttempt?[latestInstructionAttempt]:[]),...nativeAttemptIds])]}
@@ -1138,7 +1139,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }} refreshSource={()=>setSourceQuery(value=>value+1)} sourceVersion={debugSource} savedFinding={debugFinding} through={projection.eventSeq} read={(id,after)=>client.attemptRecords(currentId,id,after)} allowExport={allowDebugExport}
       readTimeline={(id,after,through)=>transport.debugTimeline(currentId,id,after,through)}
       downloadSession={allowDebugSessionExport ? ()=>transport.downloadDebugSession(currentId) : undefined}
-      readHistory={()=>transport.debugHistory(currentId)}
+      readHistory={readDebugHistory}
       runProbe={(id,tool,args)=>transport.debugProbe(currentId,id,tool,args)}
       readSource={(id,query)=>transport.debugSourcePage(currentId,id,query)}
       readDiagnosis={async id=>{
