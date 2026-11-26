@@ -6,7 +6,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from capstone_agent.debug_session_handoff import HandoffMember, read_conversation, write_handoff
+from capstone_agent.debug_session_handoff import HandoffMember, read_conversation, write_handoff, write_session_handoff
 
 
 def test_conversation_freezes_range_and_projects_only_authorized_questions_and_answers():
@@ -77,3 +77,38 @@ def test_handoff_rejects_unsafe_member_path(path):
             gaps=[],
             revisions={},
         )
+
+
+def test_session_handoff_exports_exact_delivery_revisions(monkeypatch):
+    from capstone_agent import thread_deliveries
+
+    rows = [
+        {
+            "event_type": "delivery_published", "event_seq": version, "thread_id": "thr_test",
+            "visibility": "public", "payload": {"delivery": {"artifact_id": "art_abc", "revision": version}},
+        }
+        for version in (1, 2, 3)
+    ]
+    service = SimpleNamespace(read_history=lambda thread, before: {
+        "thread_id": thread, "has_more": False, "events": [row for row in rows if row["event_seq"] < before],
+    })
+
+    def read_delivery(actual_service, objects, thread_id, ref, version):
+        assert (actual_service, thread_id, ref) == (service, "thr_test", "art_abc")
+        if version == 2:
+            raise FileNotFoundError()
+        return b"original"
+
+    monkeypatch.setattr(thread_deliveries, "read_delivery_content", read_delivery)
+    output = BytesIO()
+    manifest = write_session_handoff(
+        output, service, "thr_test", 2, uploads=None, objects=object(), capstone_revision=None,
+    )
+    with ZipFile(output) as archive:
+        assert archive.read("files/deliveries/art_abc/r1") == b"original"
+        assert "files/deliveries/art_abc/r2" not in archive.namelist()
+        assert "files/deliveries/art_abc/r3" not in archive.namelist()
+    assert {
+        "kind": "produced_file", "status": "unavailable", "artifact_id": "art_abc",
+        "attempt_id": None, "revision": 2,
+    } in manifest["gaps"]

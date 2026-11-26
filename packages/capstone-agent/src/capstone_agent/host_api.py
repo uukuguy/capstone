@@ -415,7 +415,8 @@ def create_host_app(
             package = TemporaryFile(mode='w+b')
             try:
                 write_session_handoff(package, thread_service, thread_id, through,
-                                      uploads=uploads, capstone_revision=packaged_capstone_revision())
+                                      uploads=uploads, capstone_revision=packaged_capstone_revision(),
+                                      objects=material_objects, native_executor=native_artifact_executor)
                 thread_service.require_workspace(thread_id, workspace)
                 if not session_handoff_allowed(request):
                     raise HTTPException(403, '当前权限不允许外带会话调试包。')

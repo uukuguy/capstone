@@ -177,14 +177,15 @@ def _read_public_history(service, thread_id, start_seq, through_seq, project):
             yield json.loads(entry_json)
 
 
-def write_session_handoff(destination, service, thread_id, through_seq, *, uploads, capstone_revision):
+def write_session_handoff(destination, service, thread_id, through_seq, *, uploads, capstone_revision,
+                          objects=None, native_executor=None):
     """Build the local session package after the application grants export."""
     gaps = [
         {"kind": "data_gateway", "status": "not_collected"},
-        {"kind": "produced_files", "status": "not_collected"},
         {"kind": "supplementary_evidence", "status": "not_collected"},
     ]
     attachments: dict[tuple[str, int], None] = {}
+    outputs = {}
 
     def conversation():
         for entry in read_conversation(service, thread_id, 1, through_seq, may_export_text=lambda _: True):
@@ -194,7 +195,14 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
             yield entry
 
     def execution_entry(event):
-        if event.get("attempt_id"):
+        kind = event["event_type"]
+        if kind in {"native_artifact_published", "delivery_published"}:
+            field = "artifact" if kind == "native_artifact_published" else "delivery"
+            descriptor = event["payload"].get(field)
+            if isinstance(descriptor, dict):
+                output = (kind, event.get("attempt_id"), descriptor.get("artifact_id"), descriptor.get("revision"))
+                outputs.setdefault(output, descriptor)
+        if event.get("attempt_id") or kind == "delivery_published":
             return {key: event[key] for key in (
                 "event_seq", "event_id", "event_type", "occurred_at", "attempt_id", "turn_id",
             ) if key in event}
@@ -216,6 +224,29 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                 gaps.append({"kind": "input_file", "status": "unavailable", "resource_id": ref, "version": version})
                 continue
             yield HandoffMember(f"files/inputs/{ref}/v{version}", uploads.read(thread_id, ref, version=version))
+        from .native_artifact_projection import read_native_artifact
+        from .thread_deliveries import read_delivery_content
+
+        for (kind, attempt_id, ref, version), descriptor in sorted(outputs.items(), key=lambda item: str(item[0])):
+            try:
+                if not isinstance(ref, str) or not re.fullmatch(r"[a-zA-Z0-9_-]+", ref):
+                    raise ValueError("invalid artifact identity")
+                if kind == "delivery_published":
+                    if objects is None or type(version) is not int or version < 1:
+                        raise ValueError("delivery storage or revision unavailable")
+                    data = read_delivery_content(service, objects, thread_id, ref, version)
+                    path = f"files/deliveries/{ref}/r{version}"
+                else:
+                    if not isinstance(attempt_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]+", attempt_id):
+                        raise ValueError("invalid attempt identity")
+                    _, data = read_native_artifact(service, native_executor, thread_id, attempt_id, ref,
+                                                   objects=objects, expected_descriptor=descriptor)
+                    path = f"files/outputs/{attempt_id}/{ref}"
+            except (KeyError, ValueError, OSError):
+                gaps.append({"kind": "produced_file", "status": "unavailable", "artifact_id": ref,
+                             "attempt_id": attempt_id, "revision": version})
+                continue
+            yield HandoffMember(path, [data])
         yield HandoffMember("repro.md", [
             "# 会话复验\n\n打开 conversation.jsonl 定位指令。按事件编号查阅执行记录。"
             "核对 manifest.json 的版本、文件校验和与缺口。\n".encode()
