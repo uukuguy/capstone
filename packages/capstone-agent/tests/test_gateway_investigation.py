@@ -103,7 +103,7 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
         assert json.loads(request.content) == {**scope, 'limit': 32}
         return httpx.Response(200, json={'receipts': [receipt], 'next_cursor': None})
 
-    async def run(workspace='local', investigation_id='inv_one'):
+    async def run(workspace='local', investigation_id='inv_one', operation='export', query=None):
         owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': investigation_id}
         scope = {**owner, 'binding_handle': EXCHANGE['binding']['binding_handle']}
         transport = httpx.MockTransport(lambda request: respond(request, owner, scope))
@@ -112,7 +112,7 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
                                       investigation=DECLARATION, investigation_logs=None)
             return await read_bound_observation(session, 'https://fixture.test/mcp', instance_id='fixture',
                                                 workspace=workspace, investigation_id=investigation_id,
-                                                operation='export', query={})
+                                                operation=operation, query=query or {})
 
     exported = asyncio.run(run())
     if policy == 'allow_sanitized':
@@ -145,10 +145,13 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
         register._save_diagnosis((claim.workspace_name, claim.thread_id, investigation['investigation_id']),
                                  {'task_id': 'debug_fixture', 'status': 'completed',
                                   'progress': steps, 'progress_truncated': True})
+        legacy_snapshot = register.save_export_snapshot(claim.workspace_name, claim.thread_id,
+                                                        investigation['investigation_id'])
+
         def read(binding, workspace, investigation_id, operation, query):
-            assert (binding, workspace, investigation_id, operation, query) == (
-                {'instance_id': 'fixture'}, claim.workspace_name, investigation['investigation_id'], 'export', {})
-            return asyncio.run(run(workspace, investigation_id))
+            assert (binding, workspace, investigation_id) == (
+                {'instance_id': 'fixture'}, claim.workspace_name, investigation['investigation_id'])
+            return asyncio.run(run(workspace, investigation_id, operation, query))
 
         app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
                              allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
@@ -157,6 +160,9 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
         url = f"/api/v1/threads/{claim.thread_id}/debug/investigations/{investigation['investigation_id']}/evidence"
         tools = Path(__file__).resolve().parents[3] / 'tools'
         with TestClient(app, base_url='http://localhost') as client:
+            legacy = client.get(url, params={'snapshot_id': legacy_snapshot['snapshot_id']}).json()
+            assert legacy['data_gateway'] == {'status': 'snapshot_gateway_evidence_unavailable',
+                                               'events': [], 'scope': 'snapshot'}
             response = client.get(url)
             assert response.status_code == 200
             before = tmp_path / 'before.json'
@@ -192,14 +198,23 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
             assert json.loads((approved_dir / 'repro/input.json').read_text()) == reviewed['reproduction']
             assert reviewed['diagnosis_markdown'] in (approved_dir / 'diagnosis.md').read_text()
             receipt = {**receipt, 'state': 'observed', 'observed_status': 'ok'}
+            frozen = client.get(url, params={'snapshot_id': snapshot}).json()
+            assert frozen['data_gateway']['events'] == [{'state': 'unknown'}]
+            assert 'client_call_id' not in json.dumps(frozen)
             candidate = tmp_path / 'candidate.json'
-            candidate.write_bytes(client.get(url, params={'snapshot_id': snapshot}).content)
+            updated = client.get(url)
+            assert updated.json()['snapshot_id'] != snapshot
+            candidate.write_bytes(updated.content)
             comparison = subprocess.run([sys.executable, str(tools / 'compare_debug_timelines.py'),
                                          str(before), str(candidate)], capture_output=True)
             assert comparison.returncode == 1, comparison.stderr
             result = json.loads(comparison.stdout)
             assert result['first_difference'] is None
             assert result['gateway_receipt_comparison']['first_difference']['candidate'] == {'state': 'observed'}
+            receipt = {**receipt, 'client_call_id': 'call_other'}
+            hidden = client.get(url, params={'snapshot_id': snapshot}).json()
+            assert hidden['data_gateway']['events'] == []
+            assert hidden['data_gateway']['truncated'] is True
             deployment_policy = 'undeclared'
             assert client.delete(approval, headers=headers).status_code == 204
             denied = client.get(url, params={'snapshot_id': snapshot}).json()

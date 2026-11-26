@@ -66,6 +66,17 @@ async def _request(client, method, url, document=None):
     return packet
 
 
+EXPORT_RECEIPT_FIELDS = ('contract_version', 'state', 'observed_status', 'elapsed_ms',
+                         'phase_read_status', 'truncated', 'automatic_retry')
+
+
+def capture_gateway_receipts(page):
+    return {'truncated': bool(page.get('next_cursor') or page.get('truncated')),
+            'receipts': [{key: row[key] for key in ('client_call_id', *EXPORT_RECEIPT_FIELDS) if key in row}
+                         for row in page['receipts'][:32]
+                         if isinstance(row, dict) and isinstance(row.get('client_call_id'), str)]}
+
+
 class GatewayInvestigation:
     @classmethod
     async def discover(cls, client, endpoint, declaration, log_declaration=None):
@@ -97,20 +108,23 @@ class GatewayInvestigation:
         self._log_schemas = None
         self._export_policy = None
 
-    async def export_receipts(self, scope):
+    async def export_receipts(self, scope, capture=None):
         policy = self._export_policy
         if not isinstance(policy, dict) or policy.get('deployment_policy') != 'allow_sanitized':
             return {'status': 'export_not_authorized', 'events': []}
         allowed = policy.get('allowed')
         if not isinstance(allowed, list):
             raise GatewayError('investigation_contract_invalid')
-        safe = ('contract_version', 'state', 'observed_status', 'elapsed_ms',
-                'phase_read_status', 'truncated', 'automatic_retry')
-        keys = [key for key in safe if key in allowed]
+        keys = [key for key in EXPORT_RECEIPT_FIELDS if key in allowed]
         page = await self.invoke('list', {**scope, 'limit': 32})
-        return {'status': 'available', 'truncated': bool(page.get('next_cursor')),
-                'events': [{key: receipt[key] for key in keys if key in receipt}
-                           for receipt in page['receipts']]}
+        receipts = page['receipts']
+        truncated = bool(page.get('next_cursor'))
+        if capture is not None:
+            authorized = {row['client_call_id'] for row in receipts}
+            receipts = [row for row in capture['receipts'] if row['client_call_id'] in authorized]
+            truncated = capture['truncated'] or len(receipts) != len(capture['receipts'])
+        return {'status': 'available', 'truncated': truncated,
+                'events': [{key: receipt[key] for key in keys if key in receipt} for receipt in receipts]}
 
     async def read_logs(self, scope, query):
         """Resolve logs only when selected. Ownership is supplied by the backend."""
@@ -196,7 +210,7 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     if (connection.instance_identity or {}).get('instance_id') != instance_id:
         raise GatewayError('gateway_instance_changed')
     allowed = {'list': {'limit', 'cursor'}, 'read': {'client_call_id', 'request_id'},
-               'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}, 'export': set()}
+               'logs': {'client_call_id', 'request_id', 'limit', 'cursor'}, 'export': {'capture'}}
     if operation not in allowed or not isinstance(query, dict) or query.keys() - allowed[operation]:
         raise GatewayError('investigation_request_invalid')
     access = await GatewayInvestigation.discover(connection.http_client, endpoint,
@@ -209,7 +223,14 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
     if operation == 'logs':
         return await access.read_logs(scope, query)
     if operation == 'export':
-        return await access.export_receipts(scope)
+        capture = query.get('capture')
+        if capture is not None and (not isinstance(capture, dict) or set(capture) != {'truncated', 'receipts'}
+                or type(capture['truncated']) is not bool or not isinstance(capture['receipts'], list)
+                or len(capture['receipts']) > 32 or any(
+                    not isinstance(row, dict) or not isinstance(row.get('client_call_id'), str)
+                    or row.keys() - {'client_call_id', *EXPORT_RECEIPT_FIELDS} for row in capture['receipts'])):
+            raise GatewayError('investigation_request_invalid')
+        return await access.export_receipts(scope, capture)
     return await access.invoke(operation, {**scope, **query})
 
 

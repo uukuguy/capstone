@@ -500,13 +500,14 @@ def create_host_app(
             require_debug(request)
             if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
                 raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
             try:
                 scope = (request.state.workspace_name, thread_id, investigation_id)
                 document = (investigations.read_export_snapshot(*scope, snapshot_id) if snapshot_id
-                            else investigations.save_export_snapshot(*scope))
+                            else investigations.save_export_snapshot(*scope, gateway_reader=reader))
+                capture = investigations.read_snapshot_gateway_capture(*scope, document['snapshot_id'])
             except (KeyError, ThreadNotFound):
                 raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
-            reader = getattr(native_artifact_executor, 'debug_observation', None)
             workspace = request.state.workspace_name
 
             def gateway_export(owner):
@@ -514,11 +515,13 @@ def create_host_app(
                 if not callable(reader) or not binding:
                     return {'status': 'export_unavailable', 'events': []}
                 try:
-                    return reader(binding, workspace, owner, 'export', {})
+                    if owner not in capture:
+                        return {'status': 'snapshot_gateway_evidence_unavailable', 'events': []}
+                    return reader(binding, workspace, owner, 'export', {'capture': capture[owner]})
                 except (ValueError, RuntimeError, OSError):
                     return {'status': 'read_unavailable', 'events': []}
 
-            document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'download_time'}
+            document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'snapshot'}
             observation = document.get('observation') or {}
             previous = document['diagnosis'].get('gateway_investigation_id')
             if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):

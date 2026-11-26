@@ -48,13 +48,16 @@ def test_postgres_register_survives_reopen_and_concurrent_reservations():
         private_finding = {'summary': '私有现场结论'}
         worker._save_diagnosis(scope, {**pending, 'status': 'running',
                                        'finding_digest': evidence_digest(private_finding)})
-        running_snapshot = worker.save_export_snapshot(*scope, private_finding=private_finding)
+        capture = {scope[-1]: {'truncated': False, 'receipts': [{'client_call_id': 'call_private', 'state': 'unknown'}]}}
+        running_snapshot = worker.save_export_snapshot(*scope, private_finding=private_finding, gateway_capture=capture)
         completed = {**pending, 'status': 'completed', 'answer': '已定位。'}
         reopened._save_diagnosis(scope, completed)
         reopened._save_diagnosis(scope, {**pending, 'status': 'unknown'})
         assert reopened.get(*scope)['diagnosis'] == completed
         assert reopened.read_export_snapshot(*scope, running_snapshot['snapshot_id']) == running_snapshot
         assert reopened.read_snapshot_finding(*scope, running_snapshot['snapshot_id']) == private_finding
+        assert reopened.read_snapshot_gateway_capture(*scope, running_snapshot['snapshot_id']) == capture
+        assert 'call_private' not in str(running_snapshot)
         assert '私有现场结论' not in str(running_snapshot)
         assert reopened.recent_export_snapshots(*scope) == [
             {'snapshot_id': running_snapshot['snapshot_id'], 'status': 'running'}]
