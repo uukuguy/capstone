@@ -33,9 +33,14 @@ export function historyInlineSelection(history,instruction){
   if(explicit.length)return {inline:new Set(explicit.slice(0,2)),reason:'explicit_message_reference'};
   const terms=Buffer.byteLength(instruction??'')<=4096?historyTerms(instruction??''):new Set();
   if(terms.size>=3){
+    const inputNumbers=[...terms].filter(term=>/^\d+(?:[.,]\d+)*$/.test(term));
     const matches=history.flatMap((message,index)=>{
       if(Buffer.byteLength(message.content)>4096)return [];
       const words=historyTerms(message.content);
+      // Defer a different numeric input set. An explicit reference above
+      // takes precedence, and the indexed body remains readable on demand.
+      if(inputNumbers.length>=2&&inputNumbers.every(number=>!words.has(number))&&
+        [...words].filter(word=>/^\d+(?:[.,]\d+)*$/.test(word)).length>=2)return [];
       const score=[...terms].filter(term=>words.has(term)).length;
       return score>=3&&score*2>=terms.size?[{index,score}]:[];
     }).sort((left,right)=>right.score-left.score||right.index-left.index);

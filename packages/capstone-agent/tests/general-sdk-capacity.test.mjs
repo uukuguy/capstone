@@ -330,3 +330,11 @@ test('distinctive instruction terms prioritize an older matching record',async()
   assert.deepEqual([...historyInlineSelection(history,'核对北区变电站设备验收编码').inline],[0]);
   assert.deepEqual([...historyInlineSelection(history,'多少？').inline],[]);
 });
+
+test('overlapping wording alone does not inline a different pair of numeric inputs',async()=>{
+  const {historyInlineSelection}=await import('../src/capstone_agent/resources/general-context.mjs');
+  const history=[{message_id:'msg-older',role:'user',content:'北区变电站有功负荷 830 MW，基准 800 MW。计算差值。'}];
+  assert.equal(historyInlineSelection(history,'仅用北区变电站有功负荷 410 MW，基准 400 MW，计算差值。').reason,
+    'history_previews_only');
+  assert.deepEqual([...historyInlineSelection(history,'用 msg-older 的北区变电站有功负荷与 410 MW、400 MW 对比。').inline],[0]);
+});
