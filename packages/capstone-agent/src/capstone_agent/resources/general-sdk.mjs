@@ -1568,7 +1568,7 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
         const estimatedTokens=Object.values(measured.estimated_input).reduce((sum,count)=>sum+count,0);
         if(limitObservationHistory&&requestKind==='main'&&validAllowance&&
           estimatedTokens>=inputCeiling&&Array.isArray(context.messages)){
-          const messages=projectObservationHistory(context.messages,{recentPreviews:1,maxPreviewChars:512});
+          const messages=projectObservationHistory(context.messages,{recentPreviews:1,referenceOnly:true});
           if(messages!==context.messages){
             const candidate={...context,messages};
             const reduced=measure(candidate);

@@ -304,3 +304,29 @@ test('host follows historical gateway arguments exactly and rejects changed obse
   assert.equal(calls.length,1);
  }finally{await rm(cwd,{recursive:true,force:true});}
 });
+
+test('pressure projection reduces short text envelopes and preserves exact saved reads',async()=>{
+ const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+ const cwd=await mkdtemp(join(tmpdir(),'pressure-preview-'));
+ try{
+  const body='Retained synthetic evidence. '.repeat(210);
+  const result=await boundToolResult({content:[{type:'text',text:body}]},
+    {cwd,toolName:'bash',callId:'old',maxChars:4000,reader:'agent_observation_read'});
+  const envelope=JSON.parse(result.content[0].text);
+  assert.ok(JSON.stringify(envelope.preview).length<512);
+  const old={role:'toolResult',toolCallId:'old',toolName:'bash',content:result.content};
+  const recentResult=await boundToolResult({content:[{type:'text',text:body}]},
+    {cwd,toolName:'bash',callId:'recent',maxChars:4000,reader:'agent_observation_read'});
+  const recent={...old,toolCallId:'recent',content:recentResult.content};
+  const sent=[],receipts=[];
+  const observer=observeModelContext({streamSimple(_model,context){sent.push(context.messages);return {};}},
+    'main',()=> 'ctx-1',event=>receipts.push(event),false,undefined,undefined,undefined,undefined,true);
+  observer.streamSimple({contextWindow:768,maxTokens:256},{messages:[old,recent]});
+  const compact=JSON.parse(sent[0][0].content[0].text);
+  assert.deepEqual(compact.full_result,envelope.full_result);
+  assert.equal(compact.structure,undefined);
+  assert.equal(sent[0][1],recent);
+  assert.equal(await readSavedObservation(compact.full_result,'',{cwd}),body);
+  assert.ok(receipts[0].estimated_input_before_projection.tool_results>receipts[0].estimated_input.tool_results);
+ }finally{await rm(cwd,{recursive:true,force:true});}
+});
