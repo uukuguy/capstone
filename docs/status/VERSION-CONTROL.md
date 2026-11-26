@@ -1,3 +1,5 @@
+2026-11-27 [PR301](https://github.com/uukuguy/capstone/pull/301) 合入 dev `0cd3efd7`。[macOS 聚焦 CI](https://github.com/uukuguy/capstone/actions/runs/45895766542) 通过。丢响应时保留网关回执的执行状态，同时明确业务数据不可用。
+
 2026-11-27 [PR299](https://github.com/uukuguy/capstone/pull/299) 合入 dev `007cccdf`，[macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45892205230) 通过。5174 的 16 条结果由 10,597 裁剪至 7,781 个估算 token，真实派发完成。离线包核验与 [PR298](https://github.com/uukuguy/capstone/pull/298) 的回归配套。
 
 2026-11-27 [PR296](https://github.com/uukuguy/capstone/pull/296) 合入 dev `c5c9ccaa`。[macOS 专项 CI](https://github.com/uukuguy/capstone/actions/runs/45888481333) 通过。5174 验证跨绑定旧续页零派发，同会话独立新请求正常派发。
@@ -1729,6 +1731,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | exact-gateway-follow-dev | fff316b1 | main | 薄上下文 · 网关动作精确续接 | macOS 专项和 5174 压缩后续页通过 | 宿主按原回执和当前授权执行，保留全部参数。[验收记录](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md) | shared-agent |
 | unavailable-gateway-action-dev | 2797343a | main | 薄上下文 · 跨绑定续接缺口 | macOS 专项和 5174 合成网关实测通过 | 旧动作不可用时明确停止续页，独立任务继续。[验收记录](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md) | shared-agent |
 | thin-pressure-projection-dev | 191bf573 | main | 薄上下文 · 批量结果预算裁剪 | macOS 专项和 5174 实测通过 | 旧工具预览保留原件引用，保留最新预览直至预算需要。[验收记录](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md) | shared-agent |
+| thin-gateway-receipt-dev | 4edc2dc4 | main | 薄上下文 · 丢响应后的网关状态 | PR301 聚焦 macOS CI 通过 | 按原调用查回回执，区分网关执行状态和业务响应可用性。 | shared-agent |
 | dev-head | origin/dev | main | dev · 当前研发位置 | 研发主线以远端已合并提交为准 | 动态绑定实际 dev 并连接已核对的祖先，保留本地工作分支和运行来源。[当前状态](CURRENT-STATE.md) | shared-agent |
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
 | compact-composition-context | f4076615 | main | 精简工具组合说明 | PR249 定向 macOS CI 通过 | 保留两种调用形式和原授权校验，重复说明由现有系统指南和按需帮助提供。[实测与后续方案](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | shared-agent |
@@ -2012,6 +2015,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | progressive-context-dev | 薄上下文生命周期 | dev | 逐次装配和预算控制；模型级回退与业务引用续接 | macOS 专项与 5174 实测通过 |
 | exact-gateway-follow-dev | 本机研发部署来源 | fix/thin-exact-gateway-follow | 宿主续接原业务动作；压缩后保留显式空值和单次派发 | macOS 专项与 5174 实测通过 |
 | unavailable-gateway-action-dev | 本机研发部署来源 | fix/thin-unavailable-gateway-action | 明确呈现跨绑定续接缺口；保留独立调用能力 | macOS 专项与 5174 实测通过 |
+| thin-gateway-receipt-dev | 本机研发部署来源 | fix/thin-gateway-receipt-state | 保留原回执的执行状态；区分业务响应缺口 | macOS 专项通过，5174 已就绪 |
 | thin-pressure-projection-dev | 本机研发部署来源 | fix/thin-pressure-projection | 两级压缩工具预览；调试包记录实际派发和估算变化 | macOS 专项与 5174 实测通过 |
 | dev-head | 当前研发位置 | dev | Goal 保留用户明确验收条件；显式 Mission 可自主结算 | PR205 确认 local-dev 实施范围，实际三入口 API 复验通过 |
 | local-qwen-preset-deployed | 本机开发部署来源 | dev | 27B 和 35B 独立配置；模型菜单展示短名及 Qwen 图标 | 27B 可选，首次工作台请求超时 |
@@ -2083,6 +2087,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 301 | 丢响应后的网关执行状态 | fix/thin-gateway-receipt-state | dev | MERGED | 合并 0cd3efd7，受检 4edc2dc4。只读原回执并保留业务重放限制。 |
 | 299 | 薄上下文预算裁剪 | fix/thin-pressure-projection | dev | MERGED | 合并 007cccdf，受检 191bf573。5174 批量裁剪真实派发及离线包通过。 |
 | 298 | 离线裁剪诊断回归 | test/thin-context-projection-handoff | dev | MERGED | 合并 764ec084，调试包两侧计数和私有字段过滤回归通过。 |
 | 296 | 不可用历史网关动作 | fix/thin-unavailable-gateway-action | dev | MERGED | 合并 c5c9ccaa，受检 2797343a。跨绑定续页停止，独立请求正常。 |
@@ -2443,7 +2448,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API、worker 与 Pi `191bf573`，Vite App `21c4f796` | 后端 b4188737ab45，Pi 71f6dcb15676，均就绪 | App http://127.0.0.1:5174/。批量输入裁剪、真实模型派发和离线调试包验证通过。候选内容与 dev 007cccdf 一致。 |
+| local-dev | API、worker 与 Pi `4edc2dc4`，Vite App `21c4f796` | 后端 8a0b3ffd380d，Pi 39cc7520aefb，均就绪 | App http://127.0.0.1:5174/。重建含双仓源码，候选内容与 dev 0cd3efd7 一致。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
