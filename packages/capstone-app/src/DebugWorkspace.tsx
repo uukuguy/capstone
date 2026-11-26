@@ -12,10 +12,11 @@ const statusLabels: Record<string, string> = {
   queued:'排队', running:'执行中', completed:'已完成', failed:'失败', cancelled:'已停止', unknown:'结果未知',
 }
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,operatorLoginUrl,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
   readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
   downloadSession?: (streamToFile?: boolean) => Promise<void>
+  operatorLoginUrl?: string
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
   readSnapshotFinding?: (id: string, snapshotId: string) => Promise<DebugSnapshotFinding | null>
   reviewExport?: (id: string, snapshotId: string, review: ReviewedExport | null) => Promise<void>
@@ -163,6 +164,9 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
   const matched=sourceVersion.startsWith('当前网关源码 ')
   return <section className="debug-workspace" aria-label="Debug">
     <header><Bug size={18} aria-hidden="true"/><h3>调试调查</h3></header>
+    <section aria-labelledby={`debug-handoff-${threadId}`}>
+    <h4 id={`debug-handoff-${threadId}`}>交给研发</h4>
+    <p>把当前会话的问答、相关文件和获准外带的执行证据打包交给研发。</p>
     {downloadSession&&<button type="button" disabled={busy} onClick={async ()=>{
       setBusy(true)
       setError('')
@@ -175,19 +179,14 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
       }
       finally { setBusy(false) }
     }}><Download size={15}/>{streamSave?'保存调试包到文件':'下载调试包'}</button>}
-    <p>在主会话输入 <code>/debug</code> 和问题，可以补查证据。</p>
-    <section><h4>执行记录</h4>
-    {attempt?<><label>选择要检查的指令<select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
-      {attempts.map((id,index)=><option key={id} value={id}>{attemptLabel(id)??(index===0?'最近一次执行':'执行记录 · '+id.slice(-8))}</option>)}
-    </select></label>
-    <div className="debug-actions"><button type="button" disabled={busy} onClick={()=>void locate()}><ScanSearch size={15}/>查找首条异常</button>
-    </div>
-    {observation?.attempt===attempt&&<p role="status">{observation.text}</p>}
-    <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
-    </>:<p>这段会话还没有执行记录。</p>}
+    {!downloadSession&&(operatorLoginUrl
+      ? <a href={operatorLoginUrl}>以操作员身份登录</a>
+      : <p>当前部署未开放调试包下载。</p>)}
     </section>
     <section>
-    <h4>补查证据</h4>
+    <h4>现场补查</h4>
+    <p>证据不足时，在主会话发送 <code>/debug 核对刚才失败的查询，定位第一个异常阶段</code>。</p>
+    <p>进度显示在主会话。保存的结果列在下方，需要交给研发时可重新下载调试包。</p>
     {readHistory&&<button type="button" disabled={busy} onClick={()=>void loadHistory()}>刷新补查证据</button>}
     {history.length===0 ? <p>暂无补查记录。</p> : <ul>
       {history.map(item=><li key={item.investigation_id}>
@@ -268,9 +267,17 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     {allowExport&&readEvidence&&diagnosis&&
       <button type="button" disabled={busy} onClick={()=>void downloadEvidence(diagnosis.id,snapshots?.id===diagnosis.id ? snapshotId : undefined)}>下载此证据</button>}
     {error&&<p role="alert">{error}</p>}</section>
-    <section><h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
+    <section><details><summary>执行详情</summary>
+    {attempt?<><label>选择要检查的指令<select value={attempt} disabled={busy} onChange={event=>setSelection(event.target.value)}>
+      {attempts.map((id,index)=><option key={id} value={id}>{attemptLabel(id)??(index===0?'最近一次执行':'执行记录 · '+id.slice(-8))}</option>)}
+    </select></label>
+    <div className="debug-actions"><button type="button" disabled={busy} onClick={()=>void locate()}><ScanSearch size={15}/>查找首条异常</button></div>
+    {observation?.attempt===attempt&&<p role="status">{observation.text}</p>}
+    <AttemptRecordPanel key={attempt} attemptId={attempt} read={read}/>
+    </>:<p>这段会话还没有执行记录。</p>}
+    <h4>网关源码</h4><div className="debug-source-status"><span role="status">{matched?'已匹配当前网关版本':sourceVersion.replace(digest??'','').replace('摘要 。','')||'正在核对…'}</span>
     <button type="button" onClick={refreshSource}><RefreshCw size={14}/>重新核对</button></div>
-    {digest&&<details><summary>查看版本摘要</summary><code>{digest}</code></details>}</section>
+    {digest&&<details><summary>查看版本摘要</summary><code>{digest}</code></details>}</details></section>
   </section>
 }
 
