@@ -14,6 +14,19 @@ def evidence_digest(document):
     return sha256(encoded.encode('utf-8')).hexdigest()
 
 
+def _excerpt_status(event, field, preview_limit):
+    payload = event['payload']
+    activity = payload.get('activity')
+    text = activity.get(field) if isinstance(activity, dict) else None
+    if isinstance(text, str) and text:
+        return {'status': 'available', 'next_offset': preview_limit if len(text) > preview_limit else None}
+    kind = payload.get('native_type') if event['event_type'] == 'runtime_event' else event['event_type']
+    expected = {'input_excerpt': {'tool_execution_start', 'tool_started'},
+                'output_excerpt': {'tool_execution_end', 'tool_completed', 'tool_failed', 'tool_cancelled'}}
+    return {'status': 'not_retained' if isinstance(kind, str) and kind in expected[field] else 'not_applicable'}
+
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS capstone_debug_investigations (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -233,7 +246,9 @@ class InvestigationRegister:
             for _ in range(8):
                 page = reader.read(after=cursor, limit=32)
                 events.extend({'seq': event['event_seq'], 'type': event['event_type'],
-                               'occurred_at': event['occurred_at']} for event in page['events']
+                               'occurred_at': event['occurred_at'],
+                               'excerpt_status': {field: _excerpt_status(event, field, 0)['status']
+                                                  for field in ('input_excerpt', 'output_excerpt')}} for event in page['events']
                               if event['event_seq'] <= observation['through'])
                 cursor = page['next_after']
                 if not page['has_more'] or cursor >= observation['through']:
@@ -392,8 +407,9 @@ class InvestigationRegister:
         scope = (workspace, thread_id, investigation_id)
         diagnosis = self.get(*scope).get('diagnosis')
         if diagnosis and diagnosis['status'] == 'queued':
-            self._claim_diagnosis(scope, {**diagnosis, 'status': 'failed',
-                                        'failure_code': 'diagnosis_preparation_failed'})
+            if self._claim_diagnosis(scope, {**diagnosis, 'status': 'failed',
+                                             'failure_code': 'diagnosis_preparation_failed'}):
+                self.save_export_snapshot(*scope)
 
     def diagnose(self, workspace, thread_id, investigation_id, executor):
         from time import monotonic
@@ -474,8 +490,8 @@ class InvestigationRegister:
 
             audit_reader = SelectedTaskRecordReader(self.service, thread_id, observation['attempt_id'],
                 workspace_name=workspace, handoff={'through_event_seq': through})
-            def read_page(after, excerpt_limit):
-                page = audit_reader.read(after=after, limit=12)
+            def read_page(after, excerpt_limit, limit=12):
+                page = audit_reader.read(after=after, limit=limit)
                 visible = []
                 for event in page['events']:
                     payload = event['payload']
@@ -491,6 +507,8 @@ class InvestigationRegister:
                                                if isinstance(activity.get(key), str)}
                         if any(len(activity[key]) > excerpt_limit for key in summary['activity']):
                             summary['activity_truncated'] = True
+                    summary['excerpt_fields'] = {field: _excerpt_status(event, field, excerpt_limit)
+                                                 for field in ('input_excerpt', 'output_excerpt')}
                     visible.append({key: event[key] for key in ('event_seq', 'event_type', 'occurred_at')}
                                    | {'payload': summary, 'payload_projection': 'bounded_summary'})
                 return {key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after', 'has_more')} | {'events': visible}
@@ -544,11 +562,15 @@ class InvestigationRegister:
                         return {'code': 'investigation_request_invalid'}
                     page = audit_reader.read(after=seq - 1, limit=1)
                     events = page['events']
-                    payload = events[0]['payload'] if events and events[0]['event_seq'] == seq else {}
-                    activity = payload.get('activity')
-                    text = activity.get(field) if isinstance(activity, dict) else None
-                    if not isinstance(text, str):
-                        return {'code': 'stored_excerpt_unavailable'}
+                    if not events or events[0]['event_seq'] != seq:
+                        return {'code': 'event_not_visible'}
+                    event = events[0]
+                    status = _excerpt_status(event, field, 1000)['status']
+                    record_supplied_evidence([seq])
+                    if status != 'available':
+                        return {'attempt_id': observation['attempt_id'], 'event_seq': seq,
+                                'event_type': event['event_type'], 'field': field, 'status': status}
+                    text = event['payload']['activity'][field]
                     end = min(offset + 1000, len(text))
                     if offset > end:
                         return {'code': 'investigation_request_invalid'}
@@ -556,11 +578,12 @@ class InvestigationRegister:
                     return {'attempt_id': observation['attempt_id'], 'event_seq': seq, 'field': field,
                             'scope': 'stored_excerpt', 'offset': offset, 'text': text[offset:end],
                             'next_offset': end if end < len(text) else None}
-                after = query.get('after', 0)
+                after, limit = query.get('after', 0), query.get('limit', 12)
                 if (arguments.get('operation') != 'capstone_records'
-                        or query.keys() - {'after'} or type(after) is not int or not 0 <= after <= through):
+                        or query.keys() - {'after', 'limit'} or type(after) is not int or not 0 <= after <= through
+                        or type(limit) is not int or not 1 <= limit <= 50):
                     return {'code': 'investigation_request_invalid'}
-                page = read_page(after, 1000)
+                page = read_page(after, 1000, min(limit, 12))
                 record_supplied_evidence([event['event_seq'] for event in page['events']])
                 return page
 
@@ -581,10 +604,11 @@ class InvestigationRegister:
                 'gateway': ({key: historical_gateway.get(key) for key in ('connection_id', 'instance_id', 'source_sha256')}
                             if historical_gateway else None),
             }
-            instruction += ('\n用 agent_task_records_read 核对 Capstone 执行记录。'
-                            '需要更早或更晚的事件时，用 agent_debug_observe 的 capstone_records，传 after 或从 0 开始。'
+            instruction += ('\n需要核对 Capstone 执行记录时，用 agent_debug_observe 的 capstone_records。'
+                            'query 只接受 after 和可选 limit，默认从 0 开始，每页最多返回 12 条。'
                             '已知异常事件编号时，可以从该编号减一开始。'
-                            '摘要字段被裁剪时，用 capstone_excerpt 按事件编号、字段和偏移续读已保存摘要。'
+                            '先核对 excerpt_fields。仅当字段 available 且有 next_offset 时，才用 capstone_excerpt 续读。'
+                            'not_applicable 表示该事件没有此类文字。not_retained 表示此类文字未保留。两种状态均不重试。'
                             '确认关键事实或遇到证据缺口时，用 publish_finding 保存阶段结论。'
                             '提供 finding_state、event_refs、summary 和 next_step。'
                             'gateway_refs 仅传实际获得的 client_call_id，source_refs 仅传已读的 repository、revision、path 和 line。'
@@ -596,7 +620,7 @@ class InvestigationRegister:
                 'input': {'kind': 'text', 'text': instruction},
                 'native_context': {
                     'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
-                               'allowed_tools': ['agent_task_records_read', 'agent_debug_observe'],
+                               'allowed_tools': ['agent_debug_observe'],
                                'external_lookup_enabled': False},
                     'debug_scope': debug_scope,
                     'selected_task_source': {'thread_id': thread_id, 'attempt_id': observation['attempt_id']},
@@ -611,6 +635,7 @@ class InvestigationRegister:
                      'attempt_id': observation['attempt_id'], 'through': observation['through'],
                      'evidence_event_seqs': list(sorted(selected)), 'gateway_evidence_status': gateway['status'],
                      'gateway_investigation_id': evidence_owner, '_gateway_snapshot': gateway,
+                     '_gateway_capture': deepcopy(gateway_capture),
                      'source_evidence': sources}
         if not self._claim_diagnosis(scope, diagnosis):
             return self.get(*scope)['diagnosis']
@@ -655,7 +680,8 @@ class InvestigationRegister:
                 return {'code': 'diagnosis_not_running'}
             finding = {**deepcopy(query), 'event_refs': sorted(refs)}
             diagnosis = {**diagnosis, 'finding': finding, 'finding_state': state,
-                         'finding_event_seqs': finding['event_refs'], 'finding_digest': evidence_digest(finding)}
+                         'finding_event_seqs': finding['event_refs'], 'finding_digest': evidence_digest(finding),
+                         '_gateway_capture': deepcopy(gateway_capture)}
             self._save_diagnosis(scope, diagnosis)
             snapshot = self.save_export_snapshot(*scope, private_finding=finding, gateway_capture=gateway_capture)
             if snapshot['diagnosis'].get('finding_digest') != diagnosis['finding_digest']:
@@ -711,7 +737,7 @@ class InvestigationRegister:
                                 'diagnosis_not_running'):
                         step['failure_code'] = code
             diagnosis = {**diagnosis, 'progress': [*progress[-63:], step],
-                         'progress_truncated': step['seq'] > 64}
+                         'progress_truncated': step['seq'] > 64, '_gateway_capture': deepcopy(gateway_capture)}
             self._save_diagnosis(scope, diagnosis)
 
         started_at = monotonic()
@@ -826,8 +852,8 @@ class InvestigationRegister:
             except (RuntimeError, OSError, ValueError):
                 result = None
             if result is not None:
-                diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
-                self._save_diagnosis((workspace, thread_id, investigation_id), diagnosis)
+                diagnosis = self._settle_external_diagnosis((workspace, thread_id, investigation_id),
+                                                           diagnosis['task_id'], result)
         return self.public_diagnosis(diagnosis)
 
     @staticmethod
@@ -840,6 +866,7 @@ class InvestigationRegister:
         diagnosis = self.get(*scope).get('diagnosis')
         if diagnosis and diagnosis['status'] == 'queued':
             if self._claim_diagnosis(scope, {**diagnosis, 'status': 'cancelled'}):
+                self.save_export_snapshot(*scope)
                 return self.read_diagnosis(*scope, executor)
             diagnosis = self.get(*scope).get('diagnosis')
         if diagnosis and diagnosis['status'] in {'running', 'unknown'}:
@@ -850,8 +877,34 @@ class InvestigationRegister:
             if (result is None or result.task_id != diagnosis['task_id']
                     or result.parent_attempt_id != investigation_id):
                 raise ValueError('诊断停止尚未确认。')
-            self._save_diagnosis(scope, {**diagnosis, 'status': result.status, 'answer': result.answer})
+            return self.public_diagnosis(self._settle_external_diagnosis(scope, diagnosis['task_id'], result))
         return self.read_diagnosis(*scope, executor)
+
+    def _settle_external_diagnosis(self, scope, task_id, result):
+        if result.status not in {'completed', 'failed', 'cancelled'}:
+            return self.get(*scope)['diagnosis']
+        terminal = {'status': result.status, 'answer': result.answer}
+        settled = None
+        if hasattr(self.service, '_connect'):
+            with self.service._connect() as connection:
+                row = connection.execute('''UPDATE capstone_debug_investigations SET diagnosis=diagnosis || %s
+                    WHERE workspace=%s AND thread_id=%s AND investigation_id=%s
+                      AND diagnosis->>'status' IN ('running', 'unknown')
+                      AND diagnosis->>'task_id'=%s RETURNING diagnosis''',
+                    (Jsonb(terminal), *scope, task_id)).fetchone()
+                if row:
+                    settled = row['diagnosis']
+        else:
+            with self._lock:
+                row = self._diagnosis_row(scope)
+                current = row['diagnosis']
+                if current['task_id'] == task_id and current['status'] in {'running', 'unknown'}:
+                    settled = row['diagnosis'] = {**current, **terminal}
+        if settled is None:
+            return self.get(*scope)['diagnosis']
+        self.save_export_snapshot(*scope, private_finding=settled.get('finding'),
+                                  gateway_capture=settled.get('_gateway_capture'))
+        return settled
 
     def _claim_diagnosis(self, scope, diagnosis):
         if hasattr(self.service, '_connect'):

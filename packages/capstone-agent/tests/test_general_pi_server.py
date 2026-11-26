@@ -1063,8 +1063,11 @@ def test_debug_record_paging_crosses_the_leased_http_channel(tmp_path, monkeypat
             assert received[0]['result']['attempt_id'] == claim.attempt.attempt_id
             assert received[0]['result']['events'][0]['event_seq'] == failure
         else:
-            assert received[0]['is_error'] is True
-            assert received[0]['result'] == {'code': 'stored_excerpt_unavailable'}
+            assert received[0]['is_error'] is False
+            assert received[0]['result'] == {
+                'attempt_id': claim.attempt.attempt_id, 'event_seq': failure,
+                'event_type': 'validation_observation', 'field': 'input_excerpt', 'status': 'not_applicable',
+            }
     finally:
         server.shutdown()
         server.server_close()

@@ -142,6 +142,10 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         def observe_terminal_task(self, task_id, parent_attempt_id, executor_identity):
             assert (task_id, parent_attempt_id, executor_identity) == (
                 calls[-1].task_id, calls[-1].parent_attempt_id, self.identity)
+            scope = (claim.workspace_name, claim.thread_id, parent_attempt_id)
+            current = register.get(*scope)['diagnosis']
+            register._save_diagnosis(scope, {**current, 'progress': [*current['progress'],
+                {'seq': 3, 'stage': 'tool_finished', 'tool': 'agent_debug_observe'}]})
             return SimpleNamespace(status='completed', answer='已找回原诊断结果。')
 
         def cancel(self, task_id):
@@ -211,7 +215,9 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         restored = client.get(url).json()
         assert restored['status'] == 'completed'
         assert restored['answer'] == '已找回原诊断结果。'
-        assert restored['progress'] == evidence['diagnosis']['progress']
+        assert client.get(url.removesuffix('/diagnose') + '/snapshots').json()['snapshots'][0]['status'] == 'completed'
+        assert restored['progress'][:2] == evidence['diagnosis']['progress']
+        assert restored['progress'][-1]['seq'] == 3
         assert client.post(url).json() == restored
         assert len(calls) == 2
         history = client.get(path + '/investigations').json()['investigations']
@@ -224,6 +230,7 @@ def test_diagnosis_executes_pi_without_submitting_a_thread_command(monkeypatch):
         assert client.delete(url).json()['status'] == 'cancelled'
         assert len(calls) == 2
         assert client.get(url).json()['status'] == 'cancelled'
+        assert client.get(url.removesuffix('/diagnose') + '/snapshots').json()['snapshots'][0]['status'] == 'cancelled'
         assert service.snapshot(claim.thread_id).last_event_seq == before
         rejected = True
         rejected_run = client.post(path + '/investigations', headers={'Idempotency-Key': 'rejected-debug'},
@@ -268,7 +275,7 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
     def execute(request, control, on_event):
         assert 'selected source remained ambiguous' in request.instruction
         native = request.to_document()['native_context']
-        assert native['policy']['allowed_tools'] == ['agent_task_records_read', 'agent_debug_observe']
+        assert native['policy']['allowed_tools'] == ['agent_debug_observe']
         assert native['debug_scope']['gateway_investigation'] == investigation['investigation_id']
         assert native['selected_task_source']['attempt_id'] == claim.attempt.attempt_id
         assert all(event['event_seq'] <= investigation['observation']['through']
@@ -310,6 +317,10 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         page = control.mission_operation('agent_debug_observe',
             {'operation': 'capstone_records', 'query': {'after': failure_seq - 1}}, 'fixture')
         assert page['events'][0]['event_seq'] == failure_seq
+        bounded = control.mission_operation('agent_debug_observe', {'operation': 'capstone_records',
+            'query': {'after': failure_seq - 1, 'limit': 1}}, 'bounded-page')
+        assert [row['event_seq'] for row in bounded['events']] == [failure_seq]
+        assert bounded['has_more'] is True
         assert page['events'][0]['payload']['activity']['output_excerpt'] == 'selected source remained ambiguous'
         assert page['events'][0]['payload']['activity_truncated'] is True
         excerpt = control.mission_operation('agent_debug_observe',
@@ -326,6 +337,13 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         source_event = next(event for page in native['selected_task_records'] for event in page['events']
                             if event['event_type'] == 'execution_source_revision')
         assert source_event['payload_projection'] == 'bounded_summary'
+        assert source_event['payload']['excerpt_fields']['input_excerpt'] == {'status': 'not_applicable'}
+        unavailable = control.mission_operation('agent_debug_observe', {'operation': 'capstone_excerpt',
+            'query': {'event_seq': source_event['event_seq'], 'field': 'input_excerpt'}}, 'source-excerpt')
+        assert unavailable['status'] == 'not_applicable'
+        assert 'code' not in unavailable
+        assert page['events'][0]['payload']['excerpt_fields']['input_excerpt'] == {
+            'status': 'available', 'next_offset': 1000}
         assert source_event['payload']['capstone_revision'] == native['debug_scope']['capstone_revision'] == 'a' * 40
         return SimpleNamespace(status='completed', answer='Failure found')
 
@@ -338,6 +356,12 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
     evidence = register.read_export_snapshot(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
         register.recent_export_snapshots(claim.workspace_name, claim.thread_id, investigation['investigation_id'])[0]['snapshot_id'])
     assert failure_seq - 5 in evidence['diagnosis']['evidence_event_seqs']
+    exported_source = next(event for event in evidence['capstone']['events'] if event['type'] == 'execution_source_revision')
+    assert exported_source['excerpt_status'] == {'input_excerpt': 'not_applicable', 'output_excerpt': 'not_applicable'}
+    exported_failure = next(event for event in evidence['capstone']['events'] if event['seq'] == failure_seq)
+    assert exported_failure['excerpt_status'] == {'input_excerpt': 'available', 'output_excerpt': 'available'}
+    assert 'selected source remained ambiguous' not in str(exported_failure)
+
     assert register.read_snapshot_finding(claim.workspace_name, claim.thread_id, investigation['investigation_id'],
                                           evidence['snapshot_id']) == diagnosis['finding']
 
