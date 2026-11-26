@@ -1591,7 +1591,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const domainNames=Object.keys(config.domainTools?.catalog?.tools??{});
     const gatewayNames=Object.keys(config.dataGateway?.catalog?.tools??{});
     config.thinToolView=createThinToolView(config.applicationPolicy.allowed_tools,
-      [...discoveryToolNames,...domainNames,...gatewayNames,'agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_skill_step'],
+      [...discoveryToolNames,...domainNames,...gatewayNames,'bash','agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_skill_step'],
       ()=>loadGuide('runtime-guide'),config.runtimeLimits.tool_active_count,config.context?.messages);
     config.stablePresentationStep=true;
   }

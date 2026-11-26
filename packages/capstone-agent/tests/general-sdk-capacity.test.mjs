@@ -238,10 +238,11 @@ test('managed thin parent activates tools and automatically compacts at the thre
         {path:'gateway-contract-context',content:'Host-admitted contract index'},
         {path:'registered-gateway-progressive-discovery',content:'Use the existing negotiated gateway index'},
       ],systemPrompt:'Save the requested product.',
-      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','write']},
-      input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write]},runtime);
+      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','bash','write']},
+      input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write,{...write,name:'bash'}]},runtime);
     assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='write')??false),[false,true,false,true]);
     assert.equal(writes,1);
+    assert.ok(requests[0].tools.some(tool=>tool.name==='bash'));
     assert.match(requests[0].systemPrompt,/capstone-workspace-products\/1/);
     assert.match(requests[0].systemPrompt,/Host-admitted operation fixture-ref/);
     assert.match(requests[0].systemPrompt,/Host-admitted contract index/);
