@@ -188,6 +188,8 @@ test('native output projection reads exact saved fields and bounds large reads',
  assert.equal(restoreToolResult(bounded).content[0].text,body);
  const read=async args=>JSON.parse((await reader.execute('read',{reference:envelope.full_result,...args})).content[0].text);
  assert.deepEqual((await read({pointer:'/rows/52/index'})).value,52);
+ assert.deepEqual((await read({pointers:['/rows/52/index','/rows/53/index']})).value,
+   {'/rows/52/index':52,'/rows/53/index':53});
  assert.equal((await read({pointer:'/rows',offset:52,limit:2})).next_offset,54);
  assert.equal((await read({pointer:'/rows'})).complete,false);
  const page=await read({pointer:'/rows',fields:['index','missing'],offset:50,limit:25});

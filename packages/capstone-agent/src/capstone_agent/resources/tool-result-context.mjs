@@ -32,7 +32,9 @@ export async function readSavedObservation(ref,pointer,{cwd}){
     if(position!==ref.size_bytes||extra.bytesRead||digest(body)!==ref.sha256)throw Error('Saved observation identity changed');
     const value=ref.path.endsWith('.json')?JSON.parse(body.toString('utf8')):body.toString('utf8');
     const prefix=ref.base_pointer??'';
-    return readObservation(new Map([['saved',{value:observationPointer(value,prefix),envelope_pointer:prefix}]]),'saved',pointer);
+    const records=new Map([['saved',{value:observationPointer(value,prefix),envelope_pointer:prefix}]]);
+    return Array.isArray(pointer)?Object.fromEntries(pointer.map(key=>[key,readObservation(records,'saved',key)]))
+      :readObservation(records,'saved',pointer);
   }finally{await handle.close();}
 }
 export async function resolveTaskObservation(records,ref,{cwd,useLedger}){
@@ -149,7 +151,7 @@ export function createObservationReadTool(cwd,historical=[]){
   const reply=(value,isError=false)=>({isError,content:[{type:'text',text:JSON.stringify(value)}]});
   return {
     name:'agent_observation_read',label:'Read saved tool output',
-    description:'Read saved output using a full_result reference or read exact pointers from a host-admitted historical call ID. Use an exact JSON pointer without wildcards. For an array of records, select fields by exact key to read a smaller page.',
+    description:'Read the current tool result with its issued full_result reference. Use historical_call_id only for an earlier call from the host-admitted list. On either source, select one pointer or multiple exact pointers, without wildcards. To page an array, use one pointer and select fields by key.',
     parameters:{type:'object',properties:{
       reference:{type:'object',properties:{
         path:{type:'string'},sha256:{type:'string'},size_bytes:{type:'integer'},tool:{type:'string'},call_id:{type:'string'},
@@ -164,6 +166,9 @@ export function createObservationReadTool(cwd,historical=[]){
     async execute(_callId,{reference,pointer='',offset,limit,fields,historical_call_id,pointers},signal){
       signal?.throwIfAborted();
       let value;
+      const paged=offset!==undefined||limit!==undefined||fields!==undefined;
+      if(pointers?.length&&paged)return reply({code:'observation_not_pageable',
+        message:'To page a result, select one field with pointer.'},true);
       try{
         if(historical_call_id!==undefined){
           const item=historical.find(entry=>entry.tool_call_id===historical_call_id);
@@ -178,7 +183,7 @@ export function createObservationReadTool(cwd,historical=[]){
           const source=envelope.structuredContent??envelope;
           value=pointers?.length?Object.fromEntries(pointers.map(key=>[key,observationPointer(source,key)]))
             :observationPointer(source,pointer);
-        }else value=await readSavedObservation(reference,pointer,{cwd});
+        }else value=await readSavedObservation(reference,pointers?.length?pointers:pointer,{cwd});
       }
       catch(error){
         signal?.throwIfAborted();
@@ -186,7 +191,6 @@ export function createObservationReadTool(cwd,historical=[]){
           ?error.message:'Use an exact saved observation reference issued in this task.'},true);
       }
       signal?.throwIfAborted();
-      const paged=offset!==undefined||limit!==undefined||fields!==undefined;
       if(paged){
         if(!Array.isArray(value)&&typeof value!=='string')
           return reply({code:'observation_not_pageable',message:'Select an array or text field to page.'},true);
