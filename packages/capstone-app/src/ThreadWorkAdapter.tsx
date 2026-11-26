@@ -1145,12 +1145,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       }}
       readSnapshots={id=>transport.debugSnapshots(currentId,id)}
       readSnapshotFinding={(id,snapshot)=>transport.debugSnapshotFinding(currentId,id,snapshot)}
-      reviewExport={canReviewDebugExport ? (id,snapshotId,review)=>transport.reviewDebugExport(currentId,id,snapshotId,review) : undefined}
-      readEvidence={async (id,snapshotId)=>{
-        const investigationId=id ?? (await transport.debugStatus(currentId)).investigationId
-        if(!investigationId)throw new Error('当前会话尚无调查。')
-        return transport.debugEvidence(currentId,investigationId,snapshotId)
-      }}/>})
+      reviewExport={canReviewDebugExport ? (id,snapshotId,review)=>transport.reviewDebugExport(currentId,id,snapshotId,review) : undefined}/>})
   function contextOrigin(attempt:string) {
     const instruction=contexts.find(row=>row.attemptId===attempt)?.instructionId
     if(!instruction)return attempt

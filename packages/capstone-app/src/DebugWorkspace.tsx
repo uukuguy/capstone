@@ -12,9 +12,8 @@ const statusLabels: Record<string, string> = {
   queued:'排队', running:'执行中', completed:'已完成', failed:'失败', cancelled:'已停止', unknown:'结果未知',
 }
 
-export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,operatorLoginUrl,readEvidence,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
+export default function DebugWorkspace({threadId,attempts,attemptLabel,through,read,allowExport,downloadSession,operatorLoginUrl,readSnapshots,readSnapshotFinding,reviewExport,readHistory,readDiagnosis,readSource,runProbe,savedFinding,sourceVersion,refreshSource}:{
   threadId:string; attempts:string[]; attemptLabel:(id:string)=>string|undefined; through:number; read:AttemptRecordReader; allowExport:boolean; savedFinding:string; sourceVersion:string; refreshSource:()=>void
-  readEvidence?: (id?: string, snapshotId?: string) => Promise<string>
   downloadSession?: (streamToFile?: boolean) => Promise<void>
   operatorLoginUrl?: string
   readSnapshots?: (id: string) => Promise<{snapshot_id: string; status: string | null}[]>
@@ -117,26 +116,6 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
     } catch { setError('暂时无法读取诊断结果。') }
     finally { setBusy(false) }
   }
-  async function downloadEvidence(id: string, savedSnapshot?: string){
-    if (!readEvidence || busy) return
-    setBusy(true)
-    setError('')
-    try {
-      const snapshot = savedSnapshot || (await readSnapshots?.(id))?.[0]?.snapshot_id
-      if (!snapshot) throw new Error('这次补查还没有已保存的证据。')
-      const document = await readEvidence(id, snapshot)
-      const url = URL.createObjectURL(new Blob([document], {type:'application/json'}))
-      const link = window.document.createElement('a')
-      link.href = url
-      link.download = 'debug-evidence.json'
-      link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '暂时无法下载调查记录。')
-    } finally {
-      setBusy(false)
-    }
-  }
   async function loadSnapshots(id: string) {
     if (!readSnapshots || busy) return
     setBusy(true)
@@ -202,9 +181,7 @@ export default function DebugWorkspace({threadId,attempts,attemptLabel,through,r
               onClick={()=>void selectDiagnosis(open ? '' : item.investigation_id)}>
               {open ? '收起证据' : '查看证据'}
             </button>
-            {allowExport&&readEvidence&&<button type="button" disabled={busy}
-              aria-label={`下载此证据 · ${item.objective}`}
-              onClick={()=>void downloadEvidence(item.investigation_id,open&&snapshots?.id===item.investigation_id ? snapshotId : undefined)}>下载此证据</button>}
+
           </div>
           {open&&<div className="debug-evidence-detail">
               {diagnosis?.text&&<MarkdownContent>{diagnosis.text}</MarkdownContent>}
