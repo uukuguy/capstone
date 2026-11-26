@@ -129,7 +129,10 @@ test('thin runtime exposes only resident and explicitly loaded admitted contract
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search]);
   await loader.execute('load',{names:['write','data_gateway_existing']});
   assert.deepEqual(seen,[['run'],['data_gateway_existing']]);
-  assert.match(JSON.stringify(await loader.execute('local',{names:['write']})),/write/);
+  const repeated=await loader.execute('local',{names:['write']});
+  assert.deepEqual(JSON.parse(repeated.content[0].text),{
+    loaded:['write'],newly_loaded:[],already_active:['write'],
+  });
   assert.deepEqual(view.project({tools:[search,a,b]}).tools,[search,a]);
   const revised={...a,parameters:{type:'object',required:['path']}};
   assert.deepEqual(view.project({tools:[search,revised,b]}).tools,[search]);

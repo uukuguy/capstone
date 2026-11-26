@@ -446,10 +446,11 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
           if(result?.isError)return result;
           signal?.throwIfAborted();
           const newlyLoaded=local.filter(name=>!loaded.has(name));
+          const alreadyActive=local.filter(name=>loaded.has(name));
           loaded.clear();
           for(const name of next)loaded.add(name);
           return {...result,content:[...(result?.content??[]),
-            ...(local.length||!result?[text({loaded:local,available:newlyLoaded.length?'next request':'already active'})]:[])]};
+            ...(local.length||!result?[text({loaded:local,newly_loaded:newlyLoaded,already_active:alreadyActive})]:[])]};
         },
       };
     },
