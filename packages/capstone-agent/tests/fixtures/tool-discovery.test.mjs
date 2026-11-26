@@ -79,6 +79,10 @@ test('unresolved publications load exact contracts before registration without p
   resolveContracts:async names=>{reads++;assert.deepEqual(names,['selected']);return {selected:{...publications.selected,inputSchema:{type:'object',required:['value']}}};}});
  c.configure({on:(name,fn)=>hooks.set(name,fn),registerTool:t=>registrations.push(t),getActiveTools:()=>[],setActiveTools:()=>{}});
  assert.equal(c.guardedTools.length,0);
+ const inspected=JSON.parse((await c.tools[0].execute('inspect',{query:'source',exact_contract:true})).content[0].text);
+ assert.deepEqual(inspected.tools[0].publication.inputSchema,{type:'object',required:['value']});
+ assert.equal(reads,1);assert.equal(registrations.length,0);
+ await assert.rejects(c.tools[0].execute('inspect-unknown',{query:'unknown',exact_contract:true}),/not admitted for this task/);
  await c.tools[1].execute('load',{names:['selected']});
  assert.equal(reads,1);assert.equal(registrations.length,1);
  assert.deepEqual(registrations[0].parameters,{type:'object',required:['value']});

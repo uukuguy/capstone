@@ -52,6 +52,10 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   const learned=new Set(initial);
   let publishActivation,installedSession,restoreStream,extensionApi,wrapLoaded=tool=>tool;
   const dynamicRegistered=new Set();
+  const deferredRegistration=new Set(names.filter(name=>{
+    const publication=entries.get(name).publication;
+    return publication.progressive&&!Object.hasOwn(publication,'inputSchema');
+  }));
   async function resolveSelected(names,signal){
     const missing=names.filter(name=>entries.get(name).publication.progressive&&!Object.hasOwn(entries.get(name).publication,'inputSchema'));
     if(!missing.length)return;
@@ -63,9 +67,6 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
           publication.progressive?.tool_contract_revision!==entry.publication.progressive?.tool_contract_revision)
         throw Error('Selected exact contract identity changed');
       entry.publication=publication;entry.tool.parameters=publication.inputSchema;
-      if(extensionApi&&!dynamicRegistered.has(name)){
-        extensionApi.registerTool(wrapLoaded(guarded(name,entry.tool)));dynamicRegistered.add(name);
-      }
     }
   }
   const searched=new Set();
@@ -75,12 +76,19 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   }
   const search={name:'agent_tool_search',label:'Search admitted tools',
     description:'Search the task-granted published tool index only when the required tool is not already known. Results report activation and published toolset membership; optionally filter by a returned toolset ID. Exact registered or published names, including complete query terms, take priority over description references. Otherwise, if no tool matches all keywords, return the bounded best partial matches, marked partial_terms; these are candidates, not a semantic selection. Already active tools need no load. For composition, select known granted names and inspect tools.describe(name) without loading them into the direct-call menu. Follow current service selection and provider rules.',
-    parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0}},required:['query'],additionalProperties:false},
+    parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0},
+      exact_contract:{type:'boolean',description:'Read the exact input and output contract by admitted tool name without calling or activating it. Use this for contract-only questions.'}},required:['query'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
       if(typeof args.query!=='string'||args.query.length>256||!Number.isSafeInteger(args.offset??0)||(args.offset??0)<0)
         throw new Error('Invalid tool search arguments');
       if(args.toolset!==undefined&&(typeof args.toolset!=='string'||!args.toolset.length||args.toolset.length>128))throw new Error('Invalid toolset filter');
+      if(args.exact_contract===true){
+        if(args.toolset!==undefined||args.offset!==undefined)throw new Error('Use only the exact admitted tool name for a contract read');
+        const name=identities.resolve(args.query.trim());
+        await resolveSelected([name],signal);
+        return boundToolResult(reply({tools:checkedContracts([name])}),{cwd,toolName:'agent_tool_search',callId:_id});
+      }
       const query=args.query.trim().toLowerCase(),terms=[...new Set(query.split(/\s+/).filter(Boolean))],offset=args.offset??0;
       const candidates=names.filter(name=>args.toolset===undefined||gatewayToolGroup(entries.get(name).publication)===args.toolset);
       const matched=new Map(candidates.map(name=>{
@@ -129,6 +137,11 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       await resolveSelected(resolved,signal);
       const selected=select();
       const contracts=checkedContracts(selected);
+      if(extensionApi)for(const name of resolved){
+        if(!deferredRegistration.has(name)||dynamicRegistered.has(name))continue;
+        extensionApi.registerTool(wrapLoaded(guarded(name,entries.get(name).tool)));
+        dynamicRegistered.add(name);
+      }
       if(appendLoads&&selected.length===active.size&&selected.every(name=>active.has(name))&&!pending)
         return reply({activation:'already_active',tools:resolved,active_tools:[...active],
           guidance:'Call the required tool directly now.'});
