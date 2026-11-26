@@ -14,7 +14,7 @@ def test_debug_investigations_scope_is_bounded_to_direct_consumers():
     paths = ['deploy/general-pi.Dockerfile', 'tools/check_debug_evidence.py',
              'packages/capstone-agent/src/capstone_agent/debug_investigations.py',
              'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
-             'packages/capstone-app/src/DebugWorkspace.tsx']
+             'packages/capstone-app/src/DebugWorkspace.tsx', 'packages/capstone-app/src/workspaceNavigation.css']
     assert classify_changes(paths) == 'debug-investigations'
     assert classify_changes(paths, target='main') == 'release'
     assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'

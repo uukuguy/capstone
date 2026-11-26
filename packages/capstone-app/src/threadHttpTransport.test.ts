@@ -24,16 +24,17 @@ describe('HttpThreadTransport', () => {
   it('keeps Debug tool operations visible alongside a published finding and after completion', async () => {
     const progress = [
       {seq: 1, stage: 'tool_started', tool: 'agent_debug_observe', operation: 'source_lines'},
-      {seq: 2, stage: 'tool_finished', tool: 'agent_debug_observe', operation: 'source_lines'},
+      {seq: 2, stage: 'tool_finished', tool: 'agent_debug_observe', operation: 'source_lines', call_seq: 1, elapsed_ms: 310},
     ]
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({status: 'running', progress, finding: {summary: '已核对证据。'}})))
-      .mockResolvedValueOnce(new Response(JSON.stringify({status: 'completed', progress, answer: '已定位。'})))
+      .mockResolvedValueOnce(new Response(JSON.stringify({status: 'completed', progress, duration_ms: 1234, answer: '已定位。'})))
     const transport = new HttpThreadTransport('https://api.example', 'operator', fetcher)
     const show = vi.fn()
     await expect(transport.watchDebugDiagnosis('thr_demo', 'inv_demo', show)).resolves.toBe('已定位。')
-    expect(show).toHaveBeenNthCalledWith(1, '已核对证据。', ['步骤 1 · 开始读取源码行', '步骤 2 · 已读取源码行'])
-    expect(show).toHaveBeenLastCalledWith('诊断已完成', ['步骤 1 · 开始读取源码行', '步骤 2 · 已读取源码行'])
+    const rows = [{id: 1, label: '读取源码行', status: 'completed', elapsedMs: 310}]
+    expect(show).toHaveBeenNthCalledWith(1, '已核对证据。', {rows})
+    expect(show).toHaveBeenLastCalledWith('诊断已完成', {rows, durationMs: 1234})
   })
   it('opts into Mission records only on compatible Control collection and single-record reads',async()=>{
     const mission={schema:'capstone-control-goal/1',application_kind:'mission',workspace:'enterprise',goal_id:'goal_mission',mission_id:'goal_mission',revision:1,objective_revision:1,objective:'Rough intent',acceptance_criteria:[],max_delegations:8,delegations_admitted:0,deadline_at:'2099-01-01T00:00:00Z',state:'planning',reason:null,acceptance:null,tasks:[],origin:{thread_id:'thr_origin'},plan_revision:1,plan_complete:false,plan_concluded:false}

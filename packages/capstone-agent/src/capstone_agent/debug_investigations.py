@@ -246,7 +246,7 @@ class InvestigationRegister:
                 'diagnosis': {key: diagnosis[key] for key in ('status', 'task_id', 'failure_code', 'evidence_event_seqs',
                                                              'evidence_event_seqs_truncated', 'progress',
                                                              'finding_state', 'finding_event_seqs', 'finding_digest',
-                                                             'progress_truncated', 'source_evidence',
+                                                             'progress_truncated', 'duration_ms', 'source_evidence',
                                                              'gateway_evidence_status', 'gateway_investigation_id')
                               if key in diagnosis},
                 'capstone': {'events': events, 'truncated': truncated, 'scope': 'timeline_metadata'}}
@@ -678,26 +678,45 @@ class InvestigationRegister:
             else:
                 stage = 'tool_failed' if event.get('is_error') is True else 'tool_finished'
             step = {'seq': progress[-1]['seq'] + 1 if progress else 1, 'stage': stage, 'tool': tool}
-            if tool == 'agent_debug_observe':
-                from .gateway_investigation import DEBUG_OBSERVATION_OPERATIONS
-                call_id = event.get('tool_call_id')
-                if isinstance(call_id, str) and 0 < len(call_id) <= 128:
-                    if stage == 'tool_started':
-                        operation = event.get('debug_operation')
-                        if operation in DEBUG_OBSERVATION_OPERATIONS:
-                            if len(debug_calls) >= 64:
-                                debug_calls.pop(next(iter(debug_calls)))
-                            debug_calls[call_id] = operation
-                    else:
-                        operation = debug_calls.pop(call_id, None)
-                    if operation in DEBUG_OBSERVATION_OPERATIONS:
+            call_id = event.get('tool_call_id')
+            if isinstance(call_id, str) and 0 < len(call_id) <= 128:
+                if stage == 'tool_started':
+                    from .gateway_investigation import DEBUG_OBSERVATION_OPERATIONS
+                    operation = event.get('debug_operation')
+                    if tool == 'agent_debug_observe' and operation in DEBUG_OBSERVATION_OPERATIONS:
                         step['operation'] = operation
+                    if len(debug_calls) >= 64:
+                        debug_calls.pop(next(iter(debug_calls)))
+                    debug_calls[call_id] = (tool, step, monotonic())
+                else:
+                    started = debug_calls.pop(call_id, None)
+                    if started and started[0] == tool:
+                        _, initial, timestamp = started
+                        step['call_seq'] = initial['seq']
+                        step['elapsed_ms'] = round((monotonic() - timestamp) * 1000)
+                        if 'operation' in initial:
+                            step['operation'] = initial['operation']
+            if tool == 'agent_debug_observe' and stage == 'tool_failed':
+                activity = event.get('activity')
+                excerpt = activity.get('output_excerpt') if isinstance(activity, dict) else None
+                if isinstance(excerpt, str):
+                    try:
+                        failure = json.loads(excerpt)
+                    except ValueError:
+                        failure = None
+                    code = failure.get('code') if isinstance(failure, dict) else None
+                    if code in ('investigation_request_invalid', 'historical_source_unavailable',
+                                'stored_excerpt_unavailable', 'gateway_bound_instance_unavailable',
+                                'investigation_read_unavailable', 'finding_evidence_invalid',
+                                'diagnosis_not_running'):
+                        step['failure_code'] = code
             diagnosis = {**diagnosis, 'progress': [*progress[-63:], step],
                          'progress_truncated': step['seq'] > 64}
             self._save_diagnosis(scope, diagnosis)
 
+        started_at = monotonic()
         try:
-            result = executor.execute(request, NodeControl(lambda: None, monotonic() + timeout,
+            result = executor.execute(request, NodeControl(lambda: None, started_at + timeout,
                                                            mission_operation=read_debug_records), observe)
             diagnosis = {**diagnosis, 'status': result.status, 'answer': result.answer}
         except PiHTTPFailure as error:
@@ -709,6 +728,7 @@ class InvestigationRegister:
                 diagnosis = {**diagnosis, 'status': 'unknown'}
         except (RuntimeError, OSError, ValueError):
             diagnosis = {**diagnosis, 'status': 'unknown'}
+        diagnosis = {**diagnosis, 'duration_ms': round((monotonic() - started_at) * 1000)}
         self._save_diagnosis(scope, diagnosis)
         self.save_export_snapshot(*scope, private_finding=diagnosis.get('finding'), gateway_capture=gateway_capture)
         return diagnosis
