@@ -1,4 +1,4 @@
-import {thinRecentHistoryRecords,historicalRecord} from './general-context.mjs';
+import {isIndexedHistoryRecord,historicalRecord} from './general-context.mjs';
 import {diagnosticContextInput,createGuideProjection,createGuideReader} from "./model-context-input.mjs";
 import { readFileSync, constants } from "node:fs";
 import { createHash, createHmac, randomUUID } from "node:crypto";
@@ -465,9 +465,8 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
       async execute(_id,args){
         if(args.history_index!==undefined){
           const index=args.history_index;
-          const available=Math.max(0,history.length-thinRecentHistoryRecords);
-          if(!Number.isInteger(index)||index<0||index>=available)
-            return {isError:true,content:[text({earlier_record_count:available})]};
+          if(!Number.isInteger(index)||index<0||index>=history.length||!isIndexedHistoryRecord(history,index))
+            return {isError:true,content:[text({message:'Use an index from earlier_records.'})]};
           return {content:[text({history_index:index,record:historicalRecord(history[index])})]};
         }
         const content=[];

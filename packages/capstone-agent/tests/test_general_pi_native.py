@@ -495,6 +495,7 @@ def test_thin_native_context_indexes_older_records_with_exact_reader_positions(t
 
     history = [{'role': 'user', 'content': f'record {index} ' + 'x' * 512}
                for index in range(7)]
+    history[5]['content'] = 'Oversized historical input ' + 'x' * 32000
     config = tmp_path / 'sdk.json'
     config.write_text(json.dumps({'thinInitialContext': True,
                                   'context': {'messages': history, 'dependency_results': []}}))
@@ -507,9 +508,9 @@ def test_thin_native_context_indexes_older_records_with_exact_reader_positions(t
         extension.as_uri(), str(config)], cwd=tmp_path, capture_output=True, text=True, check=True)
     messages = json.loads(result.stdout)
     projection = json.loads(messages[0]['content'])
-    assert projection['historical_records'] == history[3:]
-    assert projection['earlier_record_count'] == 3
-    assert [item['index'] for item in projection['earlier_records']] == [0, 1, 2]
+    assert projection['historical_records'] == [history[index] for index in (3, 4, 6)]
+    assert projection['earlier_record_count'] == 4
+    assert [item['index'] for item in projection['earlier_records']] == [0, 1, 2, 5]
     assert all(item['preview'] == history[item['index']]['content'][:80]
                for item in projection['earlier_records'])
     assert messages[-1]['content'] == 'Current request'
