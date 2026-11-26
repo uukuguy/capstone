@@ -92,3 +92,18 @@ observation and sent the exact arguments in its next-page action. It returned
 SYN001. Each turn made one dispatch. The live check covers an offset carried
 in the gateway action. The isolated restored-view regression covers expired
 opaque view references.
+
+Two new control threads on the same `09afb501` image complete the comparison
+in `matched-four-candidates.json`. Both first queries in each mode sent exact
+arguments and returned the required data. First-query calls averaged 5.5 in
+both modes. Mean uncached input fell from 16,035 to 14,901 tokens. Elapsed
+time ranged from 9.71 to 12.74 seconds in control and 11.41 to 13.52 seconds
+in thin mode. This sample supports smaller input. It shows variable elapsed
+time and no first-query call reduction.
+
+The thin follow-ups took 4 and 3 calls and each made one correct gateway
+dispatch. Control took 6 and 4 calls. One control follow-up needed a second
+dispatch after the timezone-free argument rejection. All final values
+matched. Cached token counts and individual elapsed times remain in the
+receipt. These measurements cover the local model profile and gateway
+publication. The same image was restored to thin mode after the comparison.
