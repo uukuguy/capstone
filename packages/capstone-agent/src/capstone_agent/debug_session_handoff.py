@@ -1,0 +1,163 @@
+"""Bounded projections for a session handoff."""
+
+import hashlib
+import json
+import sqlite3
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import closing
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import Any, BinaryIO
+from zipfile import ZIP_DEFLATED, ZipFile
+
+from .thread_service import ThreadService
+
+_USER_COMMANDS = {"send_auto", "send_ordinary", "send_professional", "send_message"}
+_ASSISTANT_STATES = {
+    "attempt_completed": "completed",
+    "attempt_delivery_recovered": "completed",
+    "attempt_failed": "failed",
+    "attempt_cancelled": "cancelled",
+    "attempt_interrupted": "interrupted",
+}
+
+
+@dataclass(frozen=True)
+class HandoffMember:
+    path: str
+    chunks: Iterable[bytes]
+
+
+def json_lines(rows: Iterable[Mapping[str, Any]]) -> Iterator[bytes]:
+    for row in rows:
+        yield (json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n").encode()
+
+
+def write_handoff(
+    destination: BinaryIO,
+    *,
+    thread_id: str,
+    start_seq: int,
+    through_seq: int,
+    members: Iterable[HandoffMember],
+    gaps: Iterable[Mapping[str, Any]],
+    revisions: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Write authorized members and hash the bytes actually delivered."""
+    manifest: dict[str, Any] = {
+        "schema": "capstone-debug-session-handoff/1",
+        "thread_id": thread_id,
+        "start_event_seq": start_seq,
+        "through_event_seq": through_seq,
+        "revisions": dict(revisions),
+        "members": [],
+    }
+    seen = {"manifest.json"}
+    with ZipFile(destination, "w", compression=ZIP_DEFLATED) as archive:
+        for member in members:
+            path = PurePosixPath(member.path)
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or path.as_posix() != member.path
+                or member.path == "."
+                or any(character in member.path for character in ("\\", ":", "\x00"))
+                or member.path in seen
+            ):
+                raise ValueError("invalid or duplicate handoff member path")
+            seen.add(member.path)
+            size = 0
+            digest = hashlib.sha256()
+            with archive.open(member.path, "w", force_zip64=True) as target:
+                for chunk in member.chunks:
+                    target.write(chunk)
+                    digest.update(chunk)
+                    size += len(chunk)
+            manifest["members"].append({"path": member.path, "size": size, "sha256": digest.hexdigest()})
+        manifest["gaps"] = list(gaps)
+        identity = json.dumps(manifest, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()
+        manifest["package_id"] = hashlib.sha256(identity).hexdigest()
+        archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, allow_nan=False))
+    return manifest
+
+
+def _conversation_entry(
+    event: dict[str, Any], may_export_text: Callable[[dict[str, Any]], bool]
+) -> dict[str, Any] | None:
+    payload = event["payload"]
+    kind = event["event_type"]
+    refs = None
+    if kind == "command_accepted" and payload.get("kind") in _USER_COMMANDS:
+        role = "user"
+        status = "accepted"
+        command = payload.get("payload")
+        text = command.get("text") if isinstance(command, dict) else None
+        if not isinstance(text, str):
+            text = payload.get("text")
+        refs = payload.get("attachment_refs")
+    elif kind in _ASSISTANT_STATES:
+        role = "assistant"
+        status = _ASSISTANT_STATES[kind]
+        text = payload.get("answer")
+    else:
+        return None
+
+    entry = {key: event.get(key) for key in ("event_seq", "event_id", "attempt_id", "occurred_at")}
+    entry.update(role=role, status=status)
+    if not may_export_text(event):
+        entry["text_status"] = "withheld"
+        return entry
+    entry["text_status"] = "included" if isinstance(text, str) else "unavailable"
+    if isinstance(text, str):
+        entry["text"] = text
+    if isinstance(refs, list):
+        entry["attachment_refs"] = [ref for ref in refs if isinstance(ref, str)]
+    return entry
+
+
+def read_conversation(
+    service: ThreadService,
+    thread_id: str,
+    start_seq: int,
+    through_seq: int,
+    *,
+    may_export_text: Callable[[dict[str, Any]], bool],
+) -> Iterator[dict[str, Any]]:
+    """Project public history within an already authorized, frozen session range."""
+    if start_seq < 1 or through_seq < start_seq - 1:
+        raise ValueError("invalid session handoff range")
+    before = through_seq + 1
+    if before == start_seq:
+        return
+
+    # History pages run backwards. A private temporary database keeps memory
+    # bounded and lets the caller stream the projected entries in order.
+    with closing(sqlite3.connect("")) as spool:
+        spool.execute("CREATE TABLE conversation (seq INTEGER PRIMARY KEY, entry TEXT NOT NULL)")
+        while before > start_seq:
+            page = service.read_history(thread_id, before=before)
+            if page["thread_id"] != thread_id:
+                raise ValueError("history page belongs to a different session")
+            for event in page["events"]:
+                seq = event["event_seq"]
+                if (
+                    event.get("thread_id") != thread_id
+                    or event.get("visibility") != "public"
+                    or not start_seq <= seq < before
+                ):
+                    continue
+                entry = _conversation_entry(event, may_export_text)
+                if entry is not None:
+                    spool.execute(
+                        "INSERT INTO conversation VALUES (?, ?)",
+                        (seq, json.dumps(entry, ensure_ascii=False)),
+                    )
+            if not page["has_more"]:
+                break
+            cursor = page["next_before_event_seq"]
+            if not 1 <= cursor < before:
+                raise ValueError("session history cursor failed to advance")
+            before = cursor
+
+        for (entry_json,) in spool.execute("SELECT entry FROM conversation ORDER BY seq"):
+            yield json.loads(entry_json)
