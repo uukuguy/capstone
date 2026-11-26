@@ -88,6 +88,7 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
     paths = []
     deployment_policy = policy
     receipt = EXCHANGE['unknown']
+    past_first_page = False
 
     def respond(request, owner, scope):
         paths.append(request.url.path)
@@ -99,9 +100,13 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
             assert json.loads(request.content) == {
                 **owner, 'instance_id': 'fixture', 'idempotency_key': owner['investigation_id']}
             return httpx.Response(200, json=EXCHANGE['binding'])
+        if request.url.path == BASE + 'read':
+            assert json.loads(request.content) == {**scope, 'client_call_id': EXCHANGE['unknown']['client_call_id']}
+            return httpx.Response(200, json={**receipt, 'client_call_id': EXCHANGE['unknown']['client_call_id']})
         assert request.url.path == BASE + 'list'
         assert json.loads(request.content) == {**scope, 'limit': 32}
-        return httpx.Response(200, json={'receipts': [receipt], 'next_cursor': None})
+        cursor = 'call_other~' + 'a' * 64 if past_first_page else None
+        return httpx.Response(200, json={'receipts': [receipt], 'next_cursor': cursor})
 
     async def run(workspace='local', investigation_id='inv_one', operation='export', query=None):
         owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': investigation_id}
@@ -151,6 +156,8 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
         def read(binding, workspace, investigation_id, operation, query):
             assert (binding, workspace, investigation_id) == (
                 {'instance_id': 'fixture'}, claim.workspace_name, investigation['investigation_id'])
+            if operation == 'authorize_snapshot_export':
+                assert set(query) == {'client_call_ids'}
             return asyncio.run(run(workspace, investigation_id, operation, query))
 
         app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
@@ -212,6 +219,12 @@ def test_export_is_scoped_to_explicit_policy_and_safe_fields(policy, monkeypatch
             assert result['first_difference'] is None
             assert result['gateway_receipt_comparison']['first_difference']['candidate'] == {'state': 'observed'}
             receipt = {**receipt, 'client_call_id': 'call_other'}
+            past_first_page = True
+            older = client.get(url, params={'snapshot_id': snapshot}).json()
+            assert older['data_gateway']['events'] == [{'state': 'unknown'}]
+            assert older['data_gateway']['truncated'] is False
+            assert paths[-1] == BASE + 'read'
+            past_first_page = False
             hidden = client.get(url, params={'snapshot_id': snapshot}).json()
             assert hidden['data_gateway']['events'] == []
             assert hidden['data_gateway']['truncated'] is True

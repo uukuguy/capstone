@@ -753,10 +753,11 @@ class InvestigationRegister:
             return {'status': 'read_unavailable'}
         fields = ('request_id', 'client_call_id', 'state', 'observed_status', 'elapsed_ms',
                   'phase_read_status', 'error_code', 'truncated', 'automatic_retry', 'contract_version')
+        truncated = bool(page.get('next_cursor')) or len(receipts) > 4
         receipts = [{key: row[key] for key in fields if key in row}
                     for row in receipts[:4] if isinstance(row, dict)]
         evidence = {'status': 'available' if receipts else 'no_bound_records',
-                    'truncated': bool(page.get('next_cursor')), 'receipts': receipts}
+                    'truncated': truncated, 'receipts': receipts}
         identified = [row for row in receipts if isinstance(row.get('client_call_id'), str) and row['client_call_id']]
         if not identified:
             return evidence

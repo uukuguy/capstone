@@ -517,8 +517,20 @@ def create_host_app(
                 try:
                     if owner not in capture:
                         return {'status': 'snapshot_gateway_evidence_unavailable', 'events': []}
-                    return reader(binding, workspace, owner, 'export', {'capture': capture[owner]})
-                except (ValueError, RuntimeError, OSError):
+                    frozen = capture[owner]
+                    call_ids = [row['client_call_id'] for row in frozen['receipts']]
+                    grant = reader(binding, workspace, owner, 'authorize_snapshot_export',
+                                   {'client_call_ids': call_ids})
+                    if grant['status'] != 'available':
+                        return {'status': grant['status'], 'events': []}
+                    from .gateway_investigation import EXPORT_RECEIPT_FIELDS
+                    keys = [key for key in EXPORT_RECEIPT_FIELDS if key in grant['allowed']]
+                    visible = set(grant['client_call_ids'])
+                    events = [{key: row[key] for key in keys if key in row}
+                              for row in frozen['receipts'] if row['client_call_id'] in visible]
+                    return {'status': 'available', 'events': events,
+                            'truncated': frozen['truncated'] or len(events) != len(call_ids)}
+                except (KeyError, TypeError, ValueError, RuntimeError, OSError):
                     return {'status': 'read_unavailable', 'events': []}
 
             document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'snapshot'}
