@@ -1558,7 +1558,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   const discovery=createApplicationToolDiscovery(config);
   let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard,committedDelivery;
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
-  if(config.researchRuntime?.deepResearch===false&&!thin)
+  if(config.researchRuntime?.deepResearch===false)
     extensionFactories.push(pi=>configureObservationHistory(pi,config.observationHistory));
   if(discovery)extensionFactories.push(pi=>discovery.configure(pi));
   const managedResearch = config.researchRuntime?.enabled === true && Boolean(config.researchChannelPath);
