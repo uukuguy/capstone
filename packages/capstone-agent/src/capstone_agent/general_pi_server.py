@@ -2165,9 +2165,8 @@ class NativeTaskRunner:
                         'path': 'selected-gateway-observations',
                         'content': 'Read the listed authorized historical gateway calls by their call IDs. '
                                    'Use agent_observation_read with historical_call_id and pointers to read several exact JSON fields together. '
-                                   'Pointers start at the structured result root. Omit the envelope prefix. '
-                                   'For a narrow check, use one authorized program to read the JSON and '
-                                   'return the requested fields and calculations together. '
+                                   'Use slash-prefixed JSON pointers such as /data and /provenance/request_id. '
+                                   'Omit the envelope prefix and use the call ID exactly as listed. '
                                    'These results do not grant new gateway calls.\n'
                                    + json.dumps([{key: item[key] for key in ('tool', 'tool_call_id')}
                                                  for item in observations], ensure_ascii=False),

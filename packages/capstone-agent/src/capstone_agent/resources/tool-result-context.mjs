@@ -167,7 +167,11 @@ export function createObservationReadTool(cwd,historical=[]){
       try{
         if(historical_call_id!==undefined){
           const item=historical.find(entry=>entry.tool_call_id===historical_call_id);
-          if(!item||reference!==undefined)throw new Error('Unknown historical call');
+          if(!item||reference!==undefined)return reply({code:'historical_call_unavailable',
+            message:'Use the exact historical_call_id from the admitted list, without an attempt prefix or a reference.'},true);
+          if((pointers??[pointer]).some(key=>key!==''&&!key.startsWith('/')))
+            return reply({code:'invalid_observation_pointer',
+              message:'Use slash-prefixed JSON pointers such as /data and /provenance/request_id.'},true);
           const bytes=await readFile(item.path);
           if(digest(bytes)!==item.sha256)throw new Error('Historical observation digest changed');
           const envelope=JSON.parse(bytes);
