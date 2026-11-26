@@ -66,6 +66,40 @@ def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_
     asyncio.run(run())
 
 
+def test_ordinary_offline_export_rechecks_original_scope(monkeypatch, tmp_path):
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from capstone_agent.gateway_investigation import SessionCallJournal, export_session_calls
+
+    journal = SessionCallJournal(tmp_path / 'calls.sqlite3')
+    scope = {'workspace_id': 'ws_bound', 'investigation_id': 'inv_bound', 'binding_handle': 'private'}
+    binding = {**scope, 'instance_id': 'fixture', 'connection_id': 'original'}
+    common = dict(thread_id='thr_test', attempt_id='attempt-1', operation='task:call',
+                  binding=binding, tool='provider_read', arguments={})
+    journal.reserve(**common, workspace='owner', client_call_id='private-call')
+    journal.reserve(**common, workspace='other', client_call_id='other-call')
+
+    @asynccontextmanager
+    async def connect():
+        yield SimpleNamespace(instance_identity={'instance_id': 'fixture'}, http_client=None,
+                              investigation=DECLARATION, investigation_logs=None, investigation_evidence={})
+
+    client = SimpleNamespace(connect=connect, _connection={'url': 'https://fixture.test/mcp'})
+    def access_for(connection_id, instance):
+        assert (connection_id, instance) == ('original', 'fixture')
+        return None, SimpleNamespace(client=client)
+
+    registry = SimpleNamespace(access_for=access_for)
+    access = AsyncMock()
+    access.read_offline_evidence.return_value = {'status': 'export_not_authorized'}
+    monkeypatch.setattr(GatewayInvestigation, 'discover', AsyncMock(return_value=access))
+    result = asyncio.run(export_session_calls(journal, registry, 'owner', 'thr_test', ['attempt-1']))
+    access.read_offline_evidence.assert_awaited_once_with({}, scope, {'client_call_id': 'private-call'})
+    assert result == {'status': 'available', 'truncated': False, 'events': [
+        {'entry': 1, 'attempt_id': 'attempt-1', 'status': 'export_not_authorized'}]}
+
+
 @pytest.mark.parametrize('policy', ['undeclared', 'allow_sanitized'])
 def test_offline_evidence_follows_published_contract(policy):
     contract = json.loads((FIXTURES / 'evidence-contract.json').read_text())
