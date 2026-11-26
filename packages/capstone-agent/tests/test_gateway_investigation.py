@@ -29,7 +29,8 @@ def test_ordinary_call_reservation_survives_reopen(tmp_path):
                                             client_call_id='call_second_workspace') == ('call_second_workspace', True)
 
 
-def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_path):
+@pytest.mark.parametrize("first_body_lost", [False, True])
+def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_path, first_body_lost):
     from contextlib import asynccontextmanager
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -38,7 +39,9 @@ def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_
     path = tmp_path / 'calls.sqlite3'
     access = AsyncMock()
     access.invoke.return_value = {'binding_handle': 'original'}
-    access.call_registered.return_value = {'business_response': {'isError': False}}
+    receipt = {'state': 'observed', 'observed_status': 'ok', 'automatic_retry': False}
+    access.call_registered.return_value = ({'receipt': receipt} if first_body_lost
+                                          else {'business_response': {'isError': False}})
     monkeypatch.setattr(GatewayInvestigation, 'discover', AsyncMock(return_value=access))
 
     @asynccontextmanager
@@ -56,13 +59,20 @@ def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_
                  connection_id='connection')
 
     async def run():
-        result = await registered_session_call(client, catalog, 'provider_read', {}, {'client_call_id':'original-call'},
-                                               journal=SessionCallJournal(path), **owner)
-        assert result == {'isError': False}
+        first = registered_session_call(client, catalog, 'provider_read', {}, {'client_call_id':'original-call'},
+                                        journal=SessionCallJournal(path), **owner)
+        if first_body_lost:
+            with pytest.raises(GatewayError, match='gateway_result_body_unavailable') as unknown:
+                await first
+            assert unknown.value.gateway_observed_status == 'ok'
+        else:
+            assert await first == {'isError': False}
+        access.invoke.return_value = receipt
         with pytest.raises(GatewayError, match='gateway_result_body_unavailable') as unknown:
             await registered_session_call(client, catalog, 'provider_read', {}, {'client_call_id':'later-call'},
                                           journal=SessionCallJournal(path), **owner)
         assert unknown.value.result_unknown
+        assert unknown.value.gateway_observed_status == 'ok'
         assert access.invoke.await_args.args[0] == 'read'
         assert access.invoke.await_args.args[1]['client_call_id'] == 'original-call'
         assert [call.args[0] for call in access.invoke.await_args_list] == ['bind', 'read']

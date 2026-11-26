@@ -883,7 +883,9 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
                          'tools/tests/test_dev_trial_deployment.py'}
     if target == 'dev' and debug_deployment and all(path in debug_mount_paths or _control_path(path) for path in paths):
         return 'debug-investigations'
-    if (target == 'dev' and 'packages/capstone-agent/src/capstone_agent/debug_investigations.py' in paths
+    investigation_sources = {'packages/capstone-agent/src/capstone_agent/' + name
+                             for name in ('debug_investigations.py', 'gateway_investigation.py')}
+    if (target == 'dev' and investigation_sources.intersection(paths)
             and all(path in DEBUG_DEV_FILES or path in DOC_FILES or _control_path(path) for path in paths)):
         return 'debug-investigations'
     query_delivery_paths = {

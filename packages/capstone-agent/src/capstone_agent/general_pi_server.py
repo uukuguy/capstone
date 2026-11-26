@@ -3114,7 +3114,9 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(200, run_http(forward()))
             except GatewayError as error:
                 self.send_json(400, {'error': str(error), **({'executed': False,
-                    'validation_errors': error.validation_errors} if error.validation_errors else {})})
+                    'validation_errors': error.validation_errors} if error.validation_errors else {}),
+                    **({'gateway_observed_status': error.gateway_observed_status}
+                       if error.gateway_observed_status is not None else {})})
             except CapacityExceeded as error:
                 if preflight:
                     # No gateway call was started. Let the model correct this batch.

@@ -8,11 +8,12 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 
-def test_debug_investigations_scope_is_bounded_to_direct_consumers():
+@pytest.mark.parametrize("entry", ["debug_investigations.py", "gateway_investigation.py"])
+def test_debug_investigations_scope_is_bounded_to_direct_consumers(entry):
     from tools.ci_scope import classify as classify_changes
 
     paths = ['deploy/general-pi.Dockerfile', 'tools/check_debug_evidence.py',
-             'packages/capstone-agent/src/capstone_agent/debug_investigations.py',
+             'packages/capstone-agent/src/capstone_agent/' + entry,
              'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
              'packages/capstone-app/src/DebugWorkspace.tsx', 'packages/capstone-app/src/workspaceNavigation.css']
     assert classify_changes(paths) == 'debug-investigations'

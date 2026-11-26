@@ -446,6 +446,8 @@ class DataGatewayAccess:
                 span.update(status='adapter_error', failure_phase='gateway_client')
                 if error.result_unknown:
                     span['gateway_result'] = 'unknown'
+                if error.gateway_observed_status is not None:
+                    span['gateway_observed_status'] = error.gateway_observed_status
             if str(error) in TASK_STOP_ERRORS:
                 with self._lock:
                     if self._tasks.get(task_id) is record:

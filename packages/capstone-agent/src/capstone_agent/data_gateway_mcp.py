@@ -88,11 +88,13 @@ _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gatew
 
 class GatewayError(ValueError):
     """A public error code, without upstream exception text."""
-    def __init__(self, code, request_id=None, *, validation_errors=None, result_unknown=False):
+    def __init__(self, code, request_id=None, *, validation_errors=None, result_unknown=False,
+                 gateway_observed_status=None):
         super().__init__(code)
         self.request_id = request_id if identity_text(request_id) else None
         self.validation_errors = validation_errors or []
         self.result_unknown = result_unknown
+        self.gateway_observed_status = gateway_observed_status
 
 
 def argument_validation_details(error):
