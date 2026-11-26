@@ -275,3 +275,31 @@ test('unfit thin requests report capacity without provider dispatch',async()=>{
   assert.equal(receipts.at(-1).estimated_input.messages,1250);
   assert.equal(receipts.at(-1).encoding_allowance_tokens,50);
 });
+
+test('host follows historical gateway arguments exactly and rejects changed observations',async()=>{
+ const {createHistoricalGatewayFollow}=await import('../../src/capstone_agent/resources/general-data-gateway.mjs');
+ const cwd=await mkdtemp(join(tmpdir(),'historical-gateway-follow-'));
+ try{
+  const path=join(cwd,'admitted.json');
+  const args={offset:1,filters:null,order_by:null};
+  const document={structuredContent:{status:'ok',data:{next:{tool:'published_read',arguments:args}}}};
+  const body=JSON.stringify(document);
+  await writeFile(path,body);
+  const calls=[];
+  const invoke=async(name,params)=>{calls.push([name,params]);return {content:[],details:{kind:'external_gateway_observation'}};};
+  const admitted=[{tool_call_id:'first',path,sha256:createHash('sha256').update(body).digest('hex')}];
+  const catalog={registered_read:{name:'published_read'},forbidden:{name:'other'}};
+  const follow=createHistoricalGatewayFollow(admitted,catalog,['registered_read'],invoke);
+  const selection={historical_call_id:'first',pointer:'/data/next'};
+  const result=await follow.execute('second',selection);
+  assert.deepEqual(calls,[['registered_read',args]]);
+  assert.equal(result.details,undefined);
+  await assert.rejects(follow.execute('foreign',{...selection,historical_call_id:'unknown'}),/admitted/i);
+  await assert.rejects(follow.execute('edited',{...selection,arguments:{offset:2}}),/pointer|arguments/i);
+  const denied=createHistoricalGatewayFollow(admitted,catalog,[],invoke);
+  await assert.rejects(denied.execute('denied',selection),/admitted|registered/i);
+  await writeFile(path,body.replace('"offset":1','"offset":2'));
+  await assert.rejects(follow.execute('changed',selection),/digest/i);
+  assert.equal(calls.length,1);
+ }finally{await rm(cwd,{recursive:true,force:true});}
+});

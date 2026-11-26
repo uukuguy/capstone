@@ -1,8 +1,44 @@
 // The host supplies this task-bound relay and catalog. Upstream credentials
 // and endpoint selectors are never tool parameters or native task inputs.
-import {boundToolResult,savedToolObservation} from './tool-result-context.mjs';
+import {boundToolResult,readHistoricalObservation,savedToolObservation} from './tool-result-context.mjs';
 import {createHash} from 'node:crypto';
 import {gatewayUseLedger,gatewayToolDescription} from './gateway-tool-use.mjs';
+import {setTimeout as wait} from 'node:timers/promises';
+import {observedAction} from './observed-action.mjs';
+import {createToolIdentityResolver} from './tool-identity.mjs';
+
+export function createHistoricalGatewayFollow(observations,catalog,admittedNames,invoke,deadlineAt=Infinity){
+  const identities=createToolIdentityResolver(catalog,admittedNames);
+  return {
+    name:'agent_gateway_follow',label:'Follow saved gateway action',executionRole:'orchestrator',
+    description:'Execute one exact action from an admitted historical gateway receipt. Supply its historical call ID and action pointer, for example /provenance/agent_guidance/next_actions/0 if that action was observed. Use this for authorized continuation such as pagination or polling. Never reconstruct action arguments.',
+    parameters:{type:'object',properties:{
+      historical_call_id:{type:'string',minLength:1,maxLength:128},
+      pointer:{type:'string',minLength:1,maxLength:512,pattern:'^/'},
+    },required:['historical_call_id','pointer'],additionalProperties:false},
+    async execute(callId,input,signal){
+      signal?.throwIfAborted();
+      if(!input||Object.keys(input).length!==2||typeof input.historical_call_id!=='string'||
+          input.historical_call_id.length>128||typeof input.pointer!=='string'||
+          !input.pointer.startsWith('/')||input.pointer.length>512)
+        throw Error('Supply only the admitted historical call ID and action pointer');
+      const item=observations.find(row=>row.tool_call_id===input.historical_call_id);
+      if(!item)throw Error('Historical gateway call is not admitted');
+      const source=await readHistoricalObservation(item);
+      const records=new Map([[item.tool_call_id,{
+        value:source,ok:['ok','success','partial'].includes(source.status),
+      }]]);
+      const action=observedAction(records,item.tool_call_id,input.pointer);
+      const name=identities.resolve(action.name);
+      if(action.waitMs>=deadlineAt-Date.now())throw Error('Returned wait exceeds the task deadline');
+      if(action.waitMs)await wait(action.waitMs,undefined,{signal});
+      signal?.throwIfAborted();
+      const {content,isError}=await invoke(name,action.args,{callId:callId+':follow',signal});
+      return {content,isError};
+    },
+  };
+}
+
 export const gatewayInvocationOptions=Symbol('gatewayInvocationOptions');
 export const reusableGatewayRead=(schema,args)=>schema?.annotations?.readOnlyHint===true&&
   schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true&&

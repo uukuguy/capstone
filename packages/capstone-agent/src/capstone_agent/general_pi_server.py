@@ -2189,12 +2189,18 @@ class NativeTaskRunner:
                                              'sha256': sha256(raw.encode()).hexdigest()})
                 if observations or unavailable or deferred:
                     sdk_config['selectedGatewayObservations'] = observations
+                    if observations:
+                        policy = sdk_config['applicationPolicy']
+                        sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': [
+                            *policy['allowed_tools'], 'agent_gateway_follow']}
                     sdk_config['contextFiles'].append({
                         'path': 'selected-gateway-observations',
                         'content': 'Read the listed authorized historical gateway calls by their call IDs. '
                                    'Use agent_observation_read with historical_call_id and pointers to read several exact JSON fields together. '
                                    'Use slash-prefixed JSON pointers such as /data and /provenance/request_id. '
                                    'Omit the envelope prefix and use the call ID exactly as listed. '
+                                   'For an authorized returned action, call agent_gateway_follow with the original '
+                                   'historical_call_id and the pointer to the action object. Do not copy its arguments into a direct call. '
                                    'These results do not grant new gateway calls. An unavailable prior result is a gap. '
                                    'Do not substitute remembered values or repeat the source call unless the current instruction authorizes it.\n'
                                    + json.dumps({
