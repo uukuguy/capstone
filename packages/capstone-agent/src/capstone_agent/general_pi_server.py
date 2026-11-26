@@ -2071,7 +2071,13 @@ class NativeTaskRunner:
                         name: route for name, route in self.task_domain_routes[request.task_id].items()
                         if name in allowed}
             research_runtime = sdk_config.get('researchRuntime', {})
-            if (os.environ.get('CAPSTONE_PROGRESSIVE_PPT_GUIDE') == '1' and self.environment_sections
+            thin_initial_context = (os.environ.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1'
+                    and bool(sdk_config.get('applicationPolicy'))
+                    and research_runtime.get('deepResearch') is False
+                    and research_runtime.get('adaptiveAgentLoop') is True
+                    and not sdk_config.get('missionTools') and not sdk_config.get('debugTools'))
+            if ((thin_initial_context or os.environ.get('CAPSTONE_PROGRESSIVE_PPT_GUIDE') == '1')
+                    and self.environment_sections
                     and self.environment_sections[1] and sdk_config.get('presentationLibrary')
                     and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)
                     and 'agent_presentations' in sdk_config.get('applicationPolicy', {}).get('allowed_tools', ())):
@@ -2086,7 +2092,7 @@ class NativeTaskRunner:
                             '\nFor a new PPTX, call agent_presentation_guide with no arguments '
                             'before preparing slide files. After it succeeds, follow the loaded guide and render '
                             'from the saved spec using task-relative paths.')
-            if (os.environ.get('CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE') == '1'
+            if ((thin_initial_context or os.environ.get('CAPSTONE_PROGRESSIVE_CAPACITY_GUIDE') == '1')
                     and sdk_config.get('applicationPolicy')
                     and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)):
                 policy = sdk_config['applicationPolicy']
@@ -2100,7 +2106,7 @@ class NativeTaskRunner:
                             'reads and checkpoint before the accepted task deadline in execution_state. '
                             'Before planning large retrievals, files or long steps, call agent_capacity_guide '
                             'with no arguments for the current limits and recovery instructions.')
-            if (os.environ.get('CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE') == '1'
+            if ((thin_initial_context or os.environ.get('CAPSTONE_PROGRESSIVE_GATEWAY_GUIDE') == '1')
                     and sdk_config.get('dataGateway')
                     and 'agent_tool_search' in sdk_config.get('applicationPolicy', {}).get('allowed_tools', ())
                     and (not research_runtime.get('enabled') or research_runtime.get('deepResearch') is False)):
@@ -2116,11 +2122,7 @@ class NativeTaskRunner:
                             'alternative do not establish relevance. Use only admitted tools and exact contracts. '
                             'Keep source status, identity, coverage and evidence boundaries. For multi-step gateway '
                             'retrieval, polling or recovery, call agent_gateway_guide after selecting this source.')
-            if (os.environ.get('CAPSTONE_THIN_INITIAL_CONTEXT') == '1'
-                    and sdk_config.get('applicationPolicy')
-                    and research_runtime.get('deepResearch') is False
-                    and research_runtime.get('adaptiveAgentLoop') is True
-                    and not sdk_config.get('missionTools') and not sdk_config.get('debugTools')):
+            if thin_initial_context:
                 policy = sdk_config['applicationPolicy']
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': list(dict.fromkeys([
                     *policy['allowed_tools'], 'agent_runtime_tools', 'agent_tool_load',
