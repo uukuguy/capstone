@@ -791,6 +791,7 @@ class GeneralPiHost:
                             counts['input_ceiling_tokens'] = window - allowance
                     for field, keys in (
                         ('estimated_input', ('system', 'tools', 'messages', 'tool_results')),
+                        ('estimated_input_before_projection', ('system', 'tools', 'messages', 'tool_results')),
                         ('usage', ('input', 'output', 'cacheRead', 'cacheWrite')),
                     ):
                         raw = event.get(field)

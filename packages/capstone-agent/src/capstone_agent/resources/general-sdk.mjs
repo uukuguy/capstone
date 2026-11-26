@@ -1494,16 +1494,23 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
       let details={};
       try{
         let measured=measure(context);
+        let beforeProjection;
         const estimatedTokens=Object.values(measured.estimated_input).reduce((sum,count)=>sum+count,0);
         if(limitObservationHistory&&requestKind==='main'&&validAllowance&&
           estimatedTokens>=window-outputAllowance&&Array.isArray(context.messages)){
           const messages=projectObservationHistory(context.messages,{recentPreviews:1,maxPreviewChars:512});
           if(messages!==context.messages){
-            context={...context,messages};
-            measured=measure(context);
+            const candidate={...context,messages};
+            const reduced=measure(candidate);
+            if(reduced.estimated_input.tool_results<measured.estimated_input.tool_results){
+              beforeProjection=measured.estimated_input;
+              context=candidate;
+              measured=reduced;
+            }
           }
         }
         details={...measured,
+          ...(beforeProjection?{estimated_input_before_projection:beforeProjection}:{}),
           ...(validWindow?{window_tokens:window}:{}),
           ...(validAllowance?{
             output_allowance_tokens:outputAllowance,
