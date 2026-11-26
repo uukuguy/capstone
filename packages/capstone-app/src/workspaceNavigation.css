@@ -15,15 +15,74 @@
 .thread-task-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 4px 0 7px; color: #36554a; font-size: 12px; }
 .thread-task-strip > .thread-control-button { min-height: 28px; border-radius: 6px; }
 .thread-composer-notice { margin: 4px 0; color: #36554a; font-size: 12px; }
-.thread-debug-status { flex: none; min-width: 0; margin: 16px 0; padding: 12px 16px; border: 1px solid #d3e1da; border-radius: 8px; color: #36554a; background: #f5f9f7; overflow-wrap: anywhere; }
-.thread-debug-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
-.thread-debug-command { margin: 8px 0 4px; }
-.thread-debug-header > span { font-size: 13px; color: #496359; font-variant-numeric: tabular-nums; }
-.thread-debug-trace > summary { width: fit-content; cursor: pointer; font-weight: 600; padding: 8px 0; }
-.thread-debug-trace > ul { list-style: none; padding: 0; margin: 0 0 12px; border-top: 1px solid #d3e1da; }
-.thread-debug-trace li { display: grid; grid-template-columns: minmax(0, 1fr) 4em minmax(0, 7em); gap: 8px; padding: 8px 0; border-bottom: 1px solid #d3e1da; font-size: 13px; }
-.thread-debug-trace li > :last-child { text-align: right; font-variant-numeric: tabular-nums; }
-.thread-debug-trace [data-status="failed"] { color: #96392c; }
+.thread-debug-status {
+  flex: none;
+  min-width: 0;
+  margin: 16px 0;
+  border: 1px solid #d9dcec;
+  border-radius: 10px;
+  color: #272c43;
+  background: #fbfbff;
+  overflow-wrap: anywhere;
+}
+.thread-debug-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 11px 15px;
+  border-radius: 9px 9px 0 0;
+  color: #fff;
+  background: #262644;
+}
+.thread-debug-title, .thread-debug-metrics, .thread-debug-metrics > span { display: flex; align-items: center; gap: 6px; }
+.thread-debug-title > svg { color: #c9c1ff; }
+.thread-debug-metrics { flex-wrap: wrap; gap: 6px 12px; color: #eeecff; font-size: 12px; font-variant-numeric: tabular-nums; }
+.thread-debug-phase { padding: 2px 7px; border: 1px solid #807cba; border-radius: 5px; }
+.thread-debug-command {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 15px;
+  background: #f0f0fb;
+  font-size: 13px;
+}
+.thread-debug-command code { flex: none; color: #49418d; font-weight: 650; }
+.thread-debug-command span { min-width: 0; }
+.thread-debug-trace { margin: 0 15px; }
+.thread-debug-trace > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+.thread-debug-trace > summary::-webkit-details-marker { display: none; }
+.thread-debug-trace[open] > summary svg { transform: rotate(180deg); }
+.thread-debug-trace ul { list-style: none; padding: 0; margin: 0 0 10px; border-top: 1px solid #e0e1ef; }
+.thread-debug-trace li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid #e0e1ef;
+  font-size: 13px;
+}
+.thread-debug-trace ul[data-has-timing="true"] li { grid-template-columns: minmax(0, 1fr) minmax(3em, auto) minmax(0, 5.75em); }
+.thread-debug-trace ul[data-has-timing="false"] .thread-debug-step-time { display: none; }
+.thread-debug-step-status { color: #49418d; }
+.thread-debug-step-status[data-status="completed"] { color: #4c536b; }
+.thread-debug-step-status[data-status="failed"] { color: #98374b; font-weight: 650; }
+.thread-debug-step-time { text-align: right; color: #4c536b; font-variant-numeric: tabular-nums; }
+.thread-debug-result { padding: 10px 15px 13px; border-top: 1px solid #e0e1ef; }
+.thread-debug-result > p { margin: 0; font-size: 13px; }
+.thread-debug-result .capstone-chat-markdown > :first-child { margin-top: 0; }
+.thread-debug-result .capstone-chat-markdown > :last-child { margin-bottom: 0; }
 .thread-task-strip:empty { display: none; }
 @media (pointer: coarse) { .workspace-navigation-gateway { height: 44px; } }
 @media (max-width: 760px) {

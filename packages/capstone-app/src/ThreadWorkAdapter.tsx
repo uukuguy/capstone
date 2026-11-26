@@ -20,7 +20,7 @@ import {isWorkspaceActive} from './workspaceName'
 import {applicationCapacity,rethrowDebugCapacity} from './applicationCapacity'
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { MessageNotSentError } from '@assistant-ui/react'
-import { Layers, Plus, RefreshCw } from 'lucide-react'
+import { Bug, ChevronDown, Clock3, Layers, Plus, RefreshCw } from 'lucide-react'
 import ThreadWorkspace from './ThreadWorkspace'
 import {useWorkspaceNavigation} from './workspaceNavigationContext'
 import {WorkspaceGatewayStatus,SessionConnectionStatus} from './WorkspaceConnectionStatus'
@@ -193,7 +193,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const [allowDebugExport,setAllowDebugExport]=useState(false)
   const [canReviewDebugExport,setCanReviewDebugExport]=useState(false)
   const [debugFinding,setDebugFinding]=useState('')
-  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean; report?:DebugProgressReport}>()
+  const [debugActivity,setDebugActivity]=useState<{thread:string; text:string; objective?:string; completed?:boolean; report?:DebugProgressReport; interrupted?:boolean}>()
   const debugCard = useRef<HTMLElement>(null)
   const revealDebugCard = useRef(false)
   useEffect(()=>{
@@ -229,9 +229,9 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         if (!access.investigationId || !access.diagnosisStatus || debugGeneration.current !== generation ||
             debugRequest.current?.thread === currentId || typeof transport.watchDebugDiagnosis !== 'function') return
         let report: DebugProgressReport | undefined
-        const show = (text:string, completed = false) => {
+        const show = (text:string, completed = false, interrupted = false) => {
           if (!restore.signal.aborted && debugGeneration.current === generation && debugRequest.current?.thread !== currentId)
-            setDebugActivity({thread: currentId, text, completed, report, objective: access.objective || undefined})
+            setDebugActivity({thread: currentId, text, completed, report, interrupted, objective: access.objective || undefined})
         }
         try {
           const answer = await transport.watchDebugDiagnosis(currentId, access.investigationId, (text, history) => {
@@ -240,7 +240,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           }, {signal:restore.signal})
           show(answer, true)
         } catch (error) {
-          show(error instanceof Error ? error.message : '诊断状态暂不可读。')
+          show(error instanceof Error ? error.message : '诊断状态暂不可读。', false, true)
         }
       }).catch(()=>{})
     }
@@ -622,8 +622,8 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
           debugRequest.current=request
         }
         let report: DebugProgressReport | undefined
-        const updateDebugActivity = (message: string, completed = false) => {
-          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,objective,completed,report})
+        const updateDebugActivity = (message: string, completed = false, interrupted = false) => {
+          if (debugRequest.current === request) setDebugActivity({thread:currentId,text:message,objective,completed,report,interrupted})
         }
         revealDebugCard.current = true
         updateDebugActivity('正在登记调查…')
@@ -639,7 +639,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
             debugRequest.current=null
           }
         } catch (error) {
-          updateDebugActivity(error instanceof Error ? error.message : '诊断执行失败。')
+          updateDebugActivity(error instanceof Error ? error.message : '诊断执行失败。', false, true)
         }
         return
       }
@@ -1296,20 +1296,25 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       allowConcurrentSend={queueAvailable}
       transcriptStatus={debugActivity?.thread===currentId&&<section ref={debugCard} className="thread-debug-status" aria-label="Debug 调查" role="status">
         <header className="thread-debug-header">
-          <strong>Pi 诊断</strong>
-          {Boolean(debugActivity.report?.rows.length)&&<span>{debugActivity.report?.rows.length} 项操作</span>}
-          {debugActivity.report?.durationMs!==undefined&&<span>Pi 用时 {formatDebugDuration(debugActivity.report.durationMs)}</span>}
+          <span className="thread-debug-title"><Bug size={17} aria-hidden="true"/><strong>调试调查</strong></span>
+          <span className="thread-debug-metrics">
+            {Boolean(debugActivity.report?.rows.length)&&<span>{debugActivity.report?.rows.length} 项操作</span>}
+            {debugActivity.report?.durationMs!==undefined&&<span><Clock3 size={13} aria-hidden="true"/>{formatDebugDuration(debugActivity.report.durationMs)}</span>}
+            <span className="thread-debug-phase">{debugActivity.completed?'已完成':debugActivity.interrupted?'状态待确认':'执行中'}</span>
+          </span>
         </header>
-        {debugActivity.objective&&<p className="thread-debug-command"><code>/debug</code> {debugActivity.objective}</p>}
+        {debugActivity.objective&&<p className="thread-debug-command"><code>/debug</code>{" "}<span>{debugActivity.objective}</span></p>}
         {Boolean(debugActivity.report?.rows.length)&&<details className="thread-debug-trace" open>
-          <summary>执行过程</summary>
-          <ul aria-label="Pi 执行步骤">{debugActivity.report?.rows.map(step=><li key={step.id}>
+          <summary>执行过程<ChevronDown size={15} aria-hidden="true"/></summary>
+          <ul aria-label="Pi 执行步骤" data-has-timing={debugActivity.report?.rows.some(step=>step.elapsedMs!==undefined)}>{debugActivity.report?.rows.map(step=><li key={step.id}>
             <span>{step.label}</span>
-            <span data-status={step.status}>{{running:'执行中',completed:'完成',failed:'失败'}[step.status]}</span>
-            <span>{step.elapsedMs===undefined?'':formatDebugDuration(step.elapsedMs)}</span>
+            <span className="thread-debug-step-status" data-status={step.status}>{{running:'执行中',completed:'完成',failed:'失败',unknown:'结果未记录'}[step.status]}</span>
+            <span className="thread-debug-step-time">{step.elapsedMs===undefined?'':formatDebugDuration(step.elapsedMs)}</span>
           </li>)}</ul>
         </details>}
-        {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <p>{debugActivity.text}</p>}
+        <div className="thread-debug-result">
+          {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <p>{debugActivity.text}</p>}
+        </div>
       </section>}
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}

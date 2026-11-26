@@ -848,7 +848,7 @@ const debugOperations: Record<string, string> = {
 }
 
 export type DebugProgressReport = {
-  rows: {id: number; label: string; status: 'running' | 'completed' | 'failed'; elapsedMs?: number}[]
+  rows: {id: number; label: string; status: 'running' | 'completed' | 'failed' | 'unknown'; elapsedMs?: number}[]
   durationMs?: number
 }
 
@@ -870,13 +870,18 @@ function debugProgressReport(result: Record<string, unknown>): DebugProgressRepo
     if (step.stage !== 'tool_finished' && step.stage !== 'tool_failed') continue
     const candidates = [...pending].filter(([, value]) => value === key)
     const call = Number.isSafeInteger(step.call_seq) ? step.call_seq
-      : candidates.length === 1 ? candidates[0][0] : step.seq
+      : candidates[0]?.[0] ?? step.seq
     const row = {id: call, label, status: step.stage === 'tool_finished' ? 'completed' as const : 'failed' as const,
       ...(typeof step.elapsed_ms === 'number' && step.elapsed_ms >= 0 ? {elapsedMs: step.elapsed_ms} : {})}
     const index = report.rows.findIndex(item => item.id === call)
     if (index >= 0) report.rows[index] = row
     else report.rows.push(row)
     pending.delete(call)
+  }
+  if (result.status !== 'running' && result.status !== 'queued') {
+    for (const row of report.rows) {
+      if (row.status === 'running') row.status = 'unknown'
+    }
   }
   return report
 }
