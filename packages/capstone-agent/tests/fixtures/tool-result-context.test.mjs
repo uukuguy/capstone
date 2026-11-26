@@ -140,6 +140,21 @@ test('older saved observation previews shrink without changing messages, source 
   assert.ok(result[1].content[0].text.length<1500);
   assert.equal(result[1].content[1],old.content[1]);
   assert.equal(projectObservationHistory(result,{recentPreviews:1,maxPreviewChars:500}),result);
+  const {observeModelContext}=await import('../../src/capstone_agent/resources/general-sdk.mjs');
+  const sent=[];
+  const runtime={streamSimple(_model,context){
+    sent.push(context.messages);
+    return {result:async()=>({stopReason:'stop'})};
+  }};
+  const observed=observeModelContext(runtime,'main',()=> 'ctx-1',()=>{},false,
+    undefined,undefined,undefined,undefined,true);
+  observed.streamSimple({contextWindow:32000,maxTokens:256},{messages});
+  observed.streamSimple({contextWindow:1024,maxTokens:256},{messages});
+  assert.equal(sent[0],messages);
+  assert.equal(sent[1][3],recent);
+  assert.deepEqual(JSON.parse(sent[1][1].content[0].text).full_result,full.full_result);
+  assert.ok(sent[1][1].content[0].text.length<old.content[0].text.length);
+  assert.equal(JSON.stringify(messages),before);
   }finally{await rm(cwd,{recursive:true,force:true});}
 });
 

@@ -16,7 +16,7 @@ import {createSkillRecordTool,admitSkillPresentation,skillContextFiles} from './
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {gatewayUseLedger,gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
-import {boundToolResult,createObservationReadTool,projectNativeRead,restoreToolResult,configureObservationHistory} from './tool-result-context.mjs';
+import {boundToolResult,createObservationReadTool,projectNativeRead,restoreToolResult,configureObservationHistory,projectObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
 import {applicationToolDispatcher,createToolBatchObserver} from './tool-call-scheduler.mjs';
 import {createLlmCallTools,llmCallToolNames,buildLlmCallPrompt} from './llm-call-tools.mjs';
@@ -1441,7 +1441,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
  * Publish only request identity and counts. Read the same context passed to
  * the provider. The byte heuristic excludes binary media and provider framing.
  */
-export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captureInput=false, systemSources=()=>[], toolSources, messageSources=()=>[], projectContext) {
+export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captureInput=false, systemSources=()=>[], toolSources, messageSources=()=>[], projectContext, limitObservationHistory=false) {
   const estimate = bytes => Math.min(100_000_000, Math.ceil(bytes / 4));
   const size = text => typeof text === 'string' ? Buffer.byteLength(text) : 0;
   function measure(context) {
@@ -1493,7 +1493,17 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
       };
       let details={};
       try{
-        details={...measure(context),
+        let measured=measure(context);
+        const estimatedTokens=Object.values(measured.estimated_input).reduce((sum,count)=>sum+count,0);
+        if(limitObservationHistory&&requestKind==='main'&&validAllowance&&
+          estimatedTokens>=window-outputAllowance&&Array.isArray(context.messages)){
+          const messages=projectObservationHistory(context.messages,{recentPreviews:1,maxPreviewChars:512});
+          if(messages!==context.messages){
+            context={...context,messages};
+            measured=measure(context);
+          }
+        }
+        details={...measured,
           ...(validWindow?{window_tokens:window}:{}),
           ...(validAllowance?{
             output_allowance_tokens:outputAllowance,
@@ -1708,7 +1718,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     }),guideProjection||thin?(context=>{
       const projected=guideProjection?.project(context)??context;
       return config.thinToolView?config.thinToolView.project(projected):projected;
-    }):undefined);
+    }):undefined,thin);
   const model = modelRuntime.getModel("capstone-general", config.model);
   if (!model) throw new Error("Managed native model is unavailable");
   const nativeTools = createIsolatedNativeTools(sdk,process.cwd());
