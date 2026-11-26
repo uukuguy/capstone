@@ -2115,13 +2115,24 @@ class NativeTaskRunner:
                     *policy['allowed_tools'], 'agent_gateway_guide']}
                 for source in sdk_config['contextFiles']:
                     if source['path'] == 'registered-production-data':
-                        sdk_config['gatewayGuide'] = source['content']
+                        sdk_config['gatewayGuide'] = (
+                            'Match the request to the current gateway scope. Search the admitted index only when '
+                            'the operation is unknown. Load selected inactive tools to obtain their exact schemas '
+                            'before a direct call. Use the published usage and returned status to resolve prerequisites. '
+                            'Use bounded reads and reuse saved observations for analysis and reports. Preserve source '
+                            'identity, coverage, units and gaps. A view definition and query result have different scopes. '
+                            'Use returned references and cursors unchanged with their originating operation and arguments. '
+                            'For jobs, follow the published next action, state and polling delay. Preserve unknown outcomes '
+                            'and reconcile the original call before retrying. If a dependency fails, keep independent '
+                            'work and available results. The current grant and contract govern every call.'
+                        ) if thin_initial_context else source['content']
                         source['content'] = (
                             'Use the registered data gateway only for tasks within its published business-data scope. '
                             'Check scope and exclusions before selecting a source. Prior use and an unavailable '
                             'alternative do not establish relevance. Use only admitted tools and exact contracts. '
                             'Keep source status, identity, coverage and evidence boundaries. For multi-step gateway '
-                            'retrieval, polling or recovery, call agent_gateway_guide after selecting this source.')
+                            'retrieval, polling or recovery, call agent_gateway_guide after selecting this source. '
+                            'For a bounded read with a known contract, use the tool directly.')
             if thin_initial_context:
                 policy = sdk_config['applicationPolicy']
                 sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': list(dict.fromkeys([

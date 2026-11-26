@@ -15,7 +15,7 @@ import {createManagedResourceTools} from './managed-resource-tools.mjs';
 import {createPresentationTools} from './presentation-templates.mjs';
 import {createSkillRecordTool,admitSkillPresentation,skillContextFiles} from './investigation-skills.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
-import {gatewayUseLedger,gatewayToolUseGuidance} from './gateway-tool-use.mjs';
+import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {boundToolResult,createObservationReadTool,projectNativeRead,restoreToolResult,configureObservationHistory,projectObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
@@ -578,7 +578,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       'Before planning large queries, file processing or long model steps, read the effective task limits and recovery guide. No arguments.',
       config.loadCapacityGuide],
     ['agent_gateway_guide','Read production data gateway guide',
-      'After selecting the registered business-data source, read its guide for multi-step retrieval, polling or recovery. No arguments.',
+      'Read for multi-step retrieval, job polling or uncertain outcomes. A bounded read with a known contract can proceed directly. No arguments.',
       config.loadGatewayGuide],
   ]){
     if(!load||!config.applicationPolicy.allowed_tools.includes(name))continue;
@@ -1627,7 +1627,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   const workflowGuide=thin?[nativeBatchGuidance,nativeExecutionGuidance,
     verifiedEnvironment].filter(Boolean).join('\n\n'):undefined;
   const guides={'presentation-guide':config.presentationGuide,'capacity-guide':config.capacityGuide,
-    'gateway-guide':thin&&config.gatewayGuide?config.gatewayGuide+'\n\n'+gatewayToolUseGuidance:config.gatewayGuide,
+    'gateway-guide':config.gatewayGuide,
     'runtime-guide':workflowGuide};
   const guideProjection=!thin&&Object.values(guides).some(Boolean)?createGuideProjection(guides):undefined;
   let managedMessages=()=>[];
