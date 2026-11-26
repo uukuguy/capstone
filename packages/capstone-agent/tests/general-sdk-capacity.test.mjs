@@ -204,8 +204,8 @@ for(const summaryFailure of [false,true])test(`managed thin parent preserves com
     streamSimple(_model,context){
       requests.push(context);
       const contents=[
-        {type:'toolCall',id:'load',name:'agent_tool_load',arguments:{names:['write']}},
-        {type:'toolCall',id:'save',name:'write',arguments:{}},
+        {type:'toolCall',id:'load',name:'agent_tool_load',arguments:{names:['edit']}},
+        {type:'toolCall',id:'save',name:'edit',arguments:{}},
         {type:'text',text:'Summary: the product was saved.'},
         {type:'text',text:'Saved the product.'},
       ];
@@ -242,9 +242,10 @@ for(const summaryFailure of [false,true])test(`managed thin parent preserves com
         {path:'gateway-contract-context',content:'Host-admitted contract index'},
         {path:'registered-gateway-progressive-discovery',content:'Use the existing negotiated gateway index'},
       ],systemPrompt:'Save the requested product.',
-      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','bash','write']},
-      input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write,{...write,name:'bash'}]},runtime);
-    assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='write')??false),[false,true,false,true]);
+      applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','bash','write','edit']},
+      input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write,{...write,name:'bash'},{...write,name:'edit'}]},runtime);
+    assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='edit')??false),[false,true,false,true]);
+    assert.ok(requests[0].tools.some(tool=>tool.name==='write'));
     assert.equal(writes,1);
     assert.ok(requests[0].tools.some(tool=>tool.name==='bash'));
     assert.match(requests[0].systemPrompt,/capstone-workspace-products\/1/);

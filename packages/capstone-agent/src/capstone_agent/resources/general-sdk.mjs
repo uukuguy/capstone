@@ -1619,7 +1619,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const domainNames=Object.keys(config.domainTools?.catalog?.tools??{});
     const gatewayNames=Object.keys(config.dataGateway?.catalog?.tools??{});
     config.thinToolView=createThinToolView(config.applicationPolicy.allowed_tools,
-      [...discoveryToolNames,...domainNames,...gatewayNames,'bash','agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_skill_step'],
+      [...discoveryToolNames,...domainNames,...gatewayNames,'bash','write','agent_presentation_guide','agent_capacity_guide','agent_gateway_guide','agent_observation_read','agent_skill_step'],
       ()=>loadGuide('runtime-guide'),config.runtimeLimits.tool_active_count,config.context?.messages);
     config.stablePresentationStep=true;
   }
@@ -1741,7 +1741,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       'Use active tools directly. If a necessary tool is absent, use agent_runtime_tools for native tools or agent_tool_search for business tools, then load the needed contracts together with agent_tool_load. Use guide:true when a script needs environment-specific guidance or a multi-step workflow. Set include_tools:true on that call if you also need the native tool directory. '+
       (config.applicationPolicy.allowed_tools.some(name=>name==='write'||name==='bash')
         ? savedProductGuidance +
-          'When supplied values and the output format are sufficient, use an active file tool in the first action. The product contract above is sufficient for a simple file with known values. '
+          'When supplied values and the output format are sufficient, use an active file tool in the first action. The product contract above is sufficient for a simple file with known values. Combine file creation, its manifest and the necessary format check when the active tool can complete them together. '
         : '')+
       (config.applicationPolicy.allowed_tools.includes('bash') ? nativeShellGuidance+' ' : '')+
       (verifiedEnvironment?'For an analysis report artifact, check the runtime guide for the required renderer and deliver the requested format. Validate the saved file and its required facts. If optional conversion fails, use format-native validation and report the rendering limitation. Do not repeat optional conversion with unchanged inputs. ':'')+
