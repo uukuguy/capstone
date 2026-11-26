@@ -267,7 +267,7 @@ for(const summaryFailure of [false,true])test(`managed thin parent preserves com
       extensions:[],allowedSkills:[],contextFiles:[],systemPrompt:'Use the current instruction.',
       applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load']},
       input:{kind:'text',text:oversized},
-    },sdk,runtime),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:1024});
+    },sdk,runtime),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:972});
     assert.equal(requests.length,4);
     assert.equal(writes,1);
     assert.equal(await readFile('product.txt','utf8'),'Product saved.\n');

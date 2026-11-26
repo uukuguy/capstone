@@ -269,8 +269,9 @@ test('unfit thin requests report capacity without provider dispatch',async()=>{
     false,undefined,undefined,undefined,undefined,true,error=>failures.push(error));
   assert.throws(()=>observer.streamSimple({id:'fixture',contextWindow:1200,maxTokens:200},{
     systemPrompt:'policy',messages:[{role:'user',content:'a'.repeat(5000)}],
-  }),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:1000});
+  }),{code:'capacity_exceeded',dimension:'model_input_tokens',limit:950});
   assert.equal(failures.length,1);
   assert.equal(receipts.at(-1).state,'failed');
   assert.equal(receipts.at(-1).estimated_input.messages,1250);
+  assert.equal(receipts.at(-1).encoding_allowance_tokens,50);
 });

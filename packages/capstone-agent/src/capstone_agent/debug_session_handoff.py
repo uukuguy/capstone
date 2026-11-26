@@ -302,7 +302,7 @@ def _model_request_metadata(payload):
         value = usage.get(key)
         if isinstance(value, str) and re.fullmatch(pattern, value):
             result[key] = value
-    for key in ("window_tokens", "output_allowance_tokens", "input_ceiling_tokens"):
+    for key in ("window_tokens", "output_allowance_tokens", "encoding_allowance_tokens", "input_ceiling_tokens"):
         value = usage.get(key)
         if type(value) is int and 0 < value <= 100_000_000:
             result[key] = value

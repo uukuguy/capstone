@@ -1512,6 +1512,10 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
       const validWindow=Number.isSafeInteger(window)&&window>0&&window<=100_000_000;
       const validAllowance=validWindow&&Number.isSafeInteger(outputAllowance)
         &&outputAllowance>0&&outputAllowance<window;
+      const afterOutput=validAllowance?window-outputAllowance:0;
+      // Byte-based counts can understate the provider's encoded input.
+      const encodingAllowance=recordBudgetFailure?Math.min(Math.ceil(afterOutput/20),Math.max(0,afterOutput-1)):0;
+      const inputCeiling=afterOutput-encodingAllowance;
       const publish=(state,details={})=>{
         try{
           emit({type:'model_context_usage',request_id:id,kind:requestKind,state,...details});
@@ -1523,7 +1527,7 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
         let beforeProjection;
         const estimatedTokens=Object.values(measured.estimated_input).reduce((sum,count)=>sum+count,0);
         if(limitObservationHistory&&requestKind==='main'&&validAllowance&&
-          estimatedTokens>=window-outputAllowance&&Array.isArray(context.messages)){
+          estimatedTokens>=inputCeiling&&Array.isArray(context.messages)){
           const messages=projectObservationHistory(context.messages,{recentPreviews:1,maxPreviewChars:512});
           if(messages!==context.messages){
             const candidate={...context,messages};
@@ -1540,7 +1544,8 @@ export function observeModelContext(runtime, kind, nextId, emit=hostEmit, captur
           ...(validWindow?{window_tokens:window}:{}),
           ...(validAllowance?{
             output_allowance_tokens:outputAllowance,
-            input_ceiling_tokens:window-outputAllowance,
+            encoding_allowance_tokens:encodingAllowance,
+            input_ceiling_tokens:inputCeiling,
           }:{})};
         if(typeof model?.id==='string'){
           const tools=(context.tools??[]).map(({name,description,parameters})=>[name,description,parameters]);

@@ -794,7 +794,10 @@ class GeneralPiHost:
                         allowance = event.get('output_allowance_tokens')
                         if type(allowance) is int and 0 < allowance < window:
                             counts['output_allowance_tokens'] = allowance
-                            counts['input_ceiling_tokens'] = window - allowance
+                            encoding = event.get('encoding_allowance_tokens', 0)
+                            if type(encoding) is int and 0 <= encoding < window - allowance:
+                                counts['encoding_allowance_tokens'] = encoding
+                                counts['input_ceiling_tokens'] = window - allowance - encoding
                     for field, keys in (
                         ('estimated_input', ('system', 'tools', 'messages', 'tool_results')),
                         ('estimated_input_before_projection', ('system', 'tools', 'messages', 'tool_results')),
