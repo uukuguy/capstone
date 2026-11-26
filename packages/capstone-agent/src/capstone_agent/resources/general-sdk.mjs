@@ -459,7 +459,7 @@ export function createThinToolView(admitted, residents, loadRuntimeGuide=()=>{},
       name:'agent_runtime_tools',label:'Find task tools or read runtime guidance',
       description:'List exact names and short summaries of authorized native task tools with no arguments. Use agent_tool_load to activate selected names.',
       parameters:{type:'object',properties:{
-        guide:{type:'boolean',description:'Read detailed guidance for scripts, saved files or multi-step execution.'},
+        guide:{type:'boolean',description:'Read detailed guidance for environment-specific or multi-step execution.'},
         include_tools:{type:'boolean',description:'Include the tool directory with the guide when both are needed.'},
         history_index:{type:'integer',minimum:0,description:'Read one earlier admitted conversation record by its zero-based index.'}},additionalProperties:false},
       async execute(_id,args){
@@ -1576,7 +1576,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   config={...config,contextDiagnosticSources:config.contextDiagnostics===true?new Map():undefined,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
   const thin=config.thinInitialContext===true;
   const verifiedEnvironment=config.contextFiles.find(file=>file.path==='verified-programming-environment')?.content;
-  const workflowGuide=thin?[nativeShellGuidance,nativeBatchGuidance,nativeExecutionGuidance,
+  const workflowGuide=thin?[nativeBatchGuidance,nativeExecutionGuidance,
     verifiedEnvironment].filter(Boolean).join('\n\n'):undefined;
   const guides={'presentation-guide':config.presentationGuide,'capacity-guide':config.capacityGuide,
     'gateway-guide':thin&&config.gatewayGuide?config.gatewayGuide+'\n\n'+gatewayToolUseGuidance:config.gatewayGuide,
@@ -1709,7 +1709,10 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       'Use exact returned references and keep sources, units, coverage and limitations. Do not replay an operation with an unknown outcome. '+
       'Use active tools directly. If a necessary tool is absent, use agent_runtime_tools for native tools or agent_tool_search for business tools, then load the needed contracts together with agent_tool_load. Use guide:true when a script needs environment-specific guidance or a multi-step workflow. Set include_tools:true on that call if you also need the native tool directory. '+
       (config.applicationPolicy.allowed_tools.some(name=>name==='write'||name==='bash')
-        ? savedProductGuidance : '')+
+        ? savedProductGuidance +
+          'When supplied values and the output format are sufficient, use an active file tool in the first action. The product contract above is sufficient for a simple file with known values. '
+        : '')+
+      (config.applicationPolicy.allowed_tools.includes('bash') ? nativeShellGuidance+' ' : '')+
       (verifiedEnvironment?'For an analysis report artifact, check the runtime guide for the verified report renderer and deliver the requested format. ':'')+
       (config.thinExternalAccess===false?'External network access is disabled. Report when live public sources are unavailable. ':'')+
       (config.presentationGuide?'For a new PPTX, call agent_presentation_guide before authoring. ':'')+
