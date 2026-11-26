@@ -131,3 +131,12 @@ copied the entire next-page argument object, including explicit null filters
 and ordering. Each instruction made one gateway dispatch. The prior direct
 model call returned the expected row but omitted those fields. The fix
 merged in PR 294 and the temporary profile was removed from local-dev.
+
+At `2797343a`, a fresh 5174 Thread obtained SYN000 from one synthetic
+gateway, switched to a separate synthetic gateway, and requested the original
+next page. The unavailable receipt stopped the continuation with zero gateway
+dispatches. An independent model-scope request in the same Thread made one
+successful call on the current gateway. The host tool also rejects an
+unavailable action before resolving or dispatching any leaf. See
+`incompatible-action-check.json` and PR 296. The live result verifies the
+tested model behavior. A separately authorized direct call remains available.

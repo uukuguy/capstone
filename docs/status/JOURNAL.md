@@ -8506,3 +8506,12 @@ check passed. No CI, integration or remote deployment performed.
 - PR 294 merged at 66ce89ed after scoped macOS CI 45886497599.
   5174 built fff316b1, which has identical tracked content. Local
   compaction continuation verified in thr_3c6b8fea0a9da80e4e10.
+- On fff316b1 with the normal profile, old pre-fix Thread
+  thr_d3121d4f26ff1909762d followed its compatible synthetic gateway
+  receipt exactly and returned SYN002 with one dispatch. In Thread
+  thr_6cf22e92289331e9b014 the current binding was local-integration.
+  The retained synthetic action was unavailable. The model reconstructed
+  a direct call from conversation and the active gateway rejected the table.
+  The incompatible branch failed the no-substitute-dispatch expectation.
+  Receipt: normal-profile-old-receipt-audit.json.
+- PR 296 merged at c5c9ccaa. Cross-binding synthetic test and independent call passed in thr_2108e84f2c8fceabc23b.
