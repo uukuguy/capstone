@@ -1670,7 +1670,8 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   let admittedSystemSources=[];
   const contextSources=()=>{
     const files=thin?config.contextFiles.filter(file=>['answer-format','effective-runtime-capacity',
-      'registered-production-data','structural-context','resource-reference-catalog','session-material-status'].includes(file.path))
+      'registered-production-data','structural-context','resource-reference-catalog','session-material-status',
+      'admitted-gateway-operations','gateway-contract-context'].includes(file.path))
       :skillContextFiles(config);
     admittedSystemSources=files.map(file=>({id:file.path,name:file.path,content:file.content}));
     return {agentsFiles:files};

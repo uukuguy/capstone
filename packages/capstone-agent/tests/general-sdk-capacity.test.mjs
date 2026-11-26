@@ -227,11 +227,16 @@ test('managed thin parent activates tools and automatically compacts at the thre
     await mkdir(process.env.PI_CODING_AGENT_DIR);
     Object.defineProperty(process,'stdin',{value:Readable.from(['{"type":"prompt","message":"trigger"}\n']),configurable:true});
     await runManagedSession({model:model.id,thinInitialContext:true,settings:{compaction:{enabled:true,reserveTokens:1024,keepRecentTokens:16}},
-      extensions:[],allowedSkills:[],contextFiles:[],systemPrompt:'Save the requested product.',
+      extensions:[],allowedSkills:[],contextFiles:[
+        {path:'admitted-gateway-operations',content:'Host-admitted operation fixture-ref'},
+        {path:'gateway-contract-context',content:'Host-admitted contract index'},
+      ],systemPrompt:'Save the requested product.',
       applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','write']},
       input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write]},runtime);
     assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='write')??false),[false,true,false,true]);
     assert.equal(writes,1);
+    assert.match(requests[0].systemPrompt,/Host-admitted operation fixture-ref/);
+    assert.match(requests[0].systemPrompt,/Host-admitted contract index/);
     assert.ok(events.some(event=>event.type==='compaction_end'&&event.reason==='threshold'&&event.status==='completed'));
     assert.ok(events.some(event=>event.type==='model_context_usage'&&event.kind==='summary'&&event.state==='completed'));
     assert.match(JSON.stringify(requests[3].messages),/Summary: the product was saved/);
