@@ -185,3 +185,30 @@ def test_missing_attachment_chunk_preserves_other_session_evidence():
         assert archive.testzip() is None
         assert b"Read the input" in archive.read("conversation.jsonl")
         assert all(not path.startswith("files/inputs/") for path in archive.namelist())
+
+
+def test_package_correlates_gateway_calls_with_capstone_events_without_exporting_operation():
+    common = {"thread_id": "thr_test", "visibility": "public", "attempt_id": "attempt_test"}
+    rows = [
+        {**common, "event_seq": 3, "event_type": "runtime_event", "payload": {
+            "native_type": "tool_execution_start", "task_id": "private-task", "tool_call_id": "private-call"}},
+        {**common, "event_seq": 4, "event_type": "runtime_event", "payload": {
+            "native_type": "tool_execution_end", "task_id": "private-task", "tool_call_id": "private-call"}},
+        {**common, "event_seq": 5, "event_type": "attempt_completed", "payload": {"answer": "Done"}},
+    ]
+    service = SimpleNamespace(read_history=lambda thread, before: {
+        "thread_id": thread, "has_more": False, "events": rows,
+    })
+    def read_calls(attempts):
+        assert attempts == ["attempt_test"]
+        return {"status": "available", "truncated": False, "events": [
+            {"entry": 1, "attempt_id": "attempt_test", "status": "available", "_operation": "private-task:private-call"},
+        ]}
+    output = BytesIO()
+    write_session_handoff(output, service, "thr_test", 5, uploads=None, capstone_revision=None,
+                          read_gateway_calls=read_calls)
+    with ZipFile(output) as archive:
+        evidence = archive.read("execution/data-gateway/original-calls.json")
+        assert b"private-call" not in evidence
+        linked, = json.loads(evidence)["events"]
+        assert linked["capstone_event_seqs"] == [3, 4] and linked["correlation_status"] == "linked"

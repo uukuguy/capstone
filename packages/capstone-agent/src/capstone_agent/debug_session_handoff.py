@@ -298,6 +298,7 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
     outputs = {}
     settled_attempts = {}
     observed_attempts = set()
+    operation_events = {}
 
     def conversation():
         for entry in read_conversation(service, thread_id, 1, through_seq, may_export_text=lambda _: True):
@@ -313,6 +314,12 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
             observed_attempts.add(attempt_id)
             if kind in _ASSISTANT_STATES:
                 settled_attempts[attempt_id] = None
+            payload = event["payload"]
+            task, call = payload.get("task_id"), payload.get("tool_call_id")
+            if (kind == "runtime_event" and payload.get("native_type") in {"tool_execution_start", "tool_execution_end"}
+                    and isinstance(task, str) and isinstance(call, str)):
+                key = (attempt_id, f"{task}:{call}")
+                operation_events.setdefault(key, []).append(event["event_seq"])
         if kind in {"native_artifact_published", "delivery_published"}:
             field = "artifact" if kind == "native_artifact_published" else "delivery"
             descriptor = event["payload"].get(field)
@@ -382,6 +389,11 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                 gateway = read_gateway_calls(selected)
                 if len(settled_attempts) > len(selected):
                     gateway = {**gateway, "truncated": True}
+                for row in gateway["events"]:
+                    operation = row.pop("_operation", None)
+                    refs = operation_events.get((row["attempt_id"], operation), ())
+                    row["capstone_event_seqs"] = sorted(refs)
+                    row["correlation_status"] = "linked" if refs else "unavailable"
                 yield HandoffMember("execution/data-gateway/original-calls.json", [
                     json.dumps(gateway, ensure_ascii=False, allow_nan=False).encode(),
                 ])

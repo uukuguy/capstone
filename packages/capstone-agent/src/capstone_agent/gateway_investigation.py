@@ -85,15 +85,18 @@ class SessionCallJournal:
                 raise GatewayError('investigation_request_invalid')
             return saved[2], inserted == 1
 
-    def calls(self, workspace, thread_id, attempt_ids, *, limit):
+    def calls(self, workspace, thread_id, attempt_ids, *, limit, include_operation=False):
         placeholders = ','.join('?' for _ in attempt_ids)
         with closing(sqlite3.connect(self.path)) as db:
             rows = db.execute(
-                'SELECT attempt_id, binding, client_call_id FROM session_calls WHERE workspace=? AND thread_id=? '
+                'SELECT attempt_id, binding, client_call_id, operation FROM session_calls WHERE workspace=? AND thread_id=? '
                 f'AND attempt_id IN ({placeholders}) ORDER BY rowid DESC LIMIT ?',
                 (workspace, thread_id, *attempt_ids, limit),
             ).fetchall()
-        return [(attempt_id, json.loads(binding), call_id) for attempt_id, binding, call_id in rows]
+        return [
+            (attempt_id, json.loads(binding), call_id, *((operation,) if include_operation else ()))
+            for attempt_id, binding, call_id, operation in rows
+        ]
 
     def lookup(self, workspace, thread_id, attempt_id, operation, tool, arguments):
         digest = sha256(json.dumps([tool, arguments], sort_keys=True, allow_nan=False).encode()).hexdigest()
@@ -111,11 +114,13 @@ class SessionCallJournal:
 
 
 async def export_session_calls(journal, registry, workspace, thread_id, attempt_ids, *, onsite=False):
-    rows = await asyncio.to_thread(journal.calls, workspace, thread_id, attempt_ids, limit=17)
+    rows = await asyncio.to_thread(journal.calls, workspace, thread_id, attempt_ids, limit=17, include_operation=True)
 
     async def project(entry, row):
-        attempt_id, binding, call_id = row
+        attempt_id, binding, call_id, operation = row
         result = {'entry': entry, 'attempt_id': attempt_id}
+        if not onsite:
+            result['_operation'] = operation
         try:
             _, gateway = registry.access_for(binding['connection_id'], binding['instance_id'])
             async with asyncio.timeout(6), gateway.client.connect() as connection:
