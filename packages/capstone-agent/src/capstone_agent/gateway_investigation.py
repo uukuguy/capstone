@@ -162,6 +162,11 @@ async def export_session_calls(journal, registry, workspace, thread_id, attempt_
     return {'status': status, 'events': events, 'truncated': len(rows) > 16}
 
 
+def unavailable_business_body(receipt=None):
+    status = receipt.get('observed_status') if receipt and receipt.get('state') == 'observed' else None
+    return GatewayError('gateway_result_body_unavailable', result_unknown=True, gateway_observed_status=status)
+
+
 async def registered_session_call(client, catalog, tool, arguments, diagnostics, *, journal,
                                   workspace, thread_id, attempt_id, operation, connection_id):
     """Register calls only when the original business connection supports binding."""
@@ -187,10 +192,10 @@ async def registered_session_call(client, catalog, tool, arguments, diagnostics,
                     raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
                 scope = {key: original[key] for key in ('workspace_id', 'investigation_id', 'binding_handle')}
                 try:
-                    await access.invoke('read', {**scope, 'client_call_id': call_id})
+                    receipt = await access.invoke('read', {**scope, 'client_call_id': call_id})
                 except (GatewayError, TransportError, OSError, TimeoutError):
-                    pass
-                raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
+                    receipt = None
+                raise unavailable_business_body(receipt)
             owner_id = 'session_' + sha256(json.dumps([workspace, thread_id, attempt_id, connection_id, instance]).encode()).hexdigest()
             owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': owner_id}
             binding = await access.invoke('bind', {**owner, 'instance_id': instance, 'idempotency_key': owner_id})
@@ -206,16 +211,17 @@ async def registered_session_call(client, catalog, tool, arguments, diagnostics,
                                                         diagnostics={**diagnostics, 'client_call_id': call_id})
                 if 'business_response' in observed:
                     return observed['business_response']
+                receipt = observed.get('receipt')
             else:
                 try:
-                    await access.invoke('read', {**scope, 'client_call_id': call_id})
+                    receipt = await access.invoke('read', {**scope, 'client_call_id': call_id})
                 except (GatewayError, TransportError, OSError, TimeoutError):
-                    pass
+                    receipt = None
         except GatewayError as error:
             failure = error
         else:
             # A receipt proves transport state. It cannot replace a business body.
-            failure = GatewayError('gateway_result_body_unavailable', result_unknown=True)
+            failure = unavailable_business_body(receipt)
     raise failure
 
 
