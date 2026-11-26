@@ -200,14 +200,14 @@ test('managed thin parent activates tools and automatically compacts at the thre
       const contents=[
         {type:'toolCall',id:'load',name:'agent_tool_load',arguments:{names:['write']}},
         {type:'toolCall',id:'save',name:'write',arguments:{}},
-        {type:'text',text:'Saved the product.'},
         {type:'text',text:'Summary: the product was saved.'},
+        {type:'text',text:'Saved the product.'},
       ];
       const stopReason=requests.length<3?'toolUse':'stop';
       const message={role:'assistant',content:[contents[requests.length-1]],api:model.api,
         provider:model.provider,model:model.id,timestamp:Date.now(),stopReason,
-        usage:{input:requests.length===3?31500:0,output:0,cacheRead:0,cacheWrite:0,
-          totalTokens:requests.length===3?31500:0,cost:{total:0}}};
+        usage:{input:requests.length===2?31500:0,output:0,cacheRead:0,cacheWrite:0,
+          totalTokens:requests.length===2?31500:0,cost:{total:0}}};
       const stream=ai.createAssistantMessageEventStream();
       stream.push({type:'done',reason:stopReason,message});
       stream.end();
@@ -230,12 +230,12 @@ test('managed thin parent activates tools and automatically compacts at the thre
       extensions:[],allowedSkills:[],contextFiles:[],systemPrompt:'Save the requested product.',
       applicationPolicy:{allowed_tools:['agent_runtime_tools','agent_tool_load','write']},
       input:{kind:'text',text:'Save the product.'}}, {...sdk,createCodingTools:()=>[write]},runtime);
-    assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='write')??false),[false,true,true,false]);
+    assert.deepEqual(requests.map(request=>request.tools?.some(tool=>tool.name==='write')??false),[false,true,false,true]);
     assert.equal(writes,1);
     assert.ok(events.some(event=>event.type==='compaction_end'&&event.reason==='threshold'&&event.status==='completed'));
     assert.ok(events.some(event=>event.type==='model_context_usage'&&event.kind==='summary'&&event.state==='completed'));
-    assert.match(JSON.stringify(requests[3].messages),/Save the product/);
-    assert.match(JSON.stringify(requests[2].messages),/Product saved/);
+    assert.match(JSON.stringify(requests[3].messages),/Summary: the product was saved/);
+    assert.match(JSON.stringify(requests[2].messages),/Save the product/);
   }finally{
     process.stdout.write=stdoutWrite;
     Object.defineProperty(process,'stdin',stdin);
