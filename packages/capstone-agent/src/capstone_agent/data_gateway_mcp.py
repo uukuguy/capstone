@@ -77,6 +77,7 @@ class InitializedGatewaySession:
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
 TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
+    'gateway_result_body_unavailable',
     'gateway_authentication_failed', 'gateway_endpoint_rejected', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
     'gateway_catalog_invalid', 'gateway_catalog_unavailable', 'contract_publication_unavailable'})
 _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gateway_output_invalid',

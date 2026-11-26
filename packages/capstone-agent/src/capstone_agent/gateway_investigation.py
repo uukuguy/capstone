@@ -95,6 +95,20 @@ class SessionCallJournal:
             ).fetchall()
         return [(attempt_id, json.loads(binding), call_id) for attempt_id, binding, call_id in rows]
 
+    def lookup(self, workspace, thread_id, attempt_id, operation, tool, arguments):
+        digest = sha256(json.dumps([tool, arguments], sort_keys=True, allow_nan=False).encode()).hexdigest()
+        with closing(sqlite3.connect(self.path)) as db:
+            row = db.execute(
+                'SELECT binding, digest, client_call_id FROM session_calls '
+                'WHERE workspace=? AND thread_id=? AND attempt_id=? AND operation=?',
+                (workspace, thread_id, attempt_id, operation),
+            ).fetchone()
+        if row is None:
+            return None
+        if row[1] != digest:
+            raise GatewayError('investigation_request_invalid')
+        return json.loads(row[0]), row[2]
+
 
 async def export_session_calls(journal, registry, workspace, thread_id, attempt_ids):
     rows = await asyncio.to_thread(journal.calls, workspace, thread_id, attempt_ids, limit=17)
@@ -144,6 +158,7 @@ async def registered_session_call(client, catalog, tool, arguments, diagnostics,
     instance = (catalog.get('instance') or {}).get('instance_id')
     if not instance or not diagnostics:
         return None
+    previous = await asyncio.to_thread(journal.lookup, workspace, thread_id, attempt_id, operation, tool, arguments)
     async with client.connect() as connection:
         try:
             if (connection.instance_identity or {}).get('instance_id') != instance:
@@ -153,7 +168,19 @@ async def registered_session_call(client, catalog, tool, arguments, diagnostics,
                 connection.http_client, endpoint, connection.investigation, connection.investigation_logs,
             )
             if access is None:
-                return None
+                if previous is None:
+                    return None
+                raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
+            if previous is not None:
+                original, call_id = previous
+                if original['instance_id'] != instance or original['connection_id'] != connection_id:
+                    raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
+                scope = {key: original[key] for key in ('workspace_id', 'investigation_id', 'binding_handle')}
+                try:
+                    await access.invoke('read', {**scope, 'client_call_id': call_id})
+                except (GatewayError, TransportError, OSError, TimeoutError):
+                    pass
+                raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
             owner_id = 'session_' + sha256(json.dumps([workspace, thread_id, attempt_id, connection_id, instance]).encode()).hexdigest()
             owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': owner_id}
             binding = await access.invoke('bind', {**owner, 'instance_id': instance, 'idempotency_key': owner_id})

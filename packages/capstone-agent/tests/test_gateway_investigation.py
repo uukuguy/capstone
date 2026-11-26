@@ -65,6 +65,7 @@ def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_
         assert unknown.value.result_unknown
         assert access.invoke.await_args.args[0] == 'read'
         assert access.invoke.await_args.args[1]['client_call_id'] == 'original-call'
+        assert [call.args[0] for call in access.invoke.await_args_list] == ['bind', 'read']
         access.call_registered.assert_awaited_once()
 
     asyncio.run(run())
