@@ -2143,6 +2143,8 @@ class NativeTaskRunner:
                 hashes = sdk_config['dataGateway']['catalog']['tool_hashes']
                 root = inputs / 'selected-gateway-observations'
                 observations = []
+                unavailable = 0
+                deferred = 0
                 remaining = limits.native_context_bytes
                 for page in sdk_config.get('selectedTaskRecords', ()):
                     if page['thread_id'] != thread_id:
@@ -2158,14 +2160,19 @@ class NativeTaskRunner:
                             task_id=payload.get('task_id'), attempt_id=page['attempt_id'],
                             call_id=call_id, tool=tool, workspace=request.managed_workspace,
                             thread_id=thread_id, binding=frozen_gateway, tool_hash=hashes[tool])
-                        if raw is None or len(raw.encode()) > remaining:
+                        if raw is None:
+                            unavailable += 1
                             continue
-                        remaining -= len(raw.encode())
+                        size = len(raw.encode())
+                        if size > remaining:
+                            deferred += 1
+                            continue
+                        remaining -= size
                         path = root / (str(len(observations)) + '.json')
                         selected_gateway_files.append((path, raw))
                         observations.append({'tool': tool, 'tool_call_id': call_id, 'path': str(path),
                                              'sha256': sha256(raw.encode()).hexdigest()})
-                if observations:
+                if observations or unavailable or deferred:
                     sdk_config['selectedGatewayObservations'] = observations
                     sdk_config['contextFiles'].append({
                         'path': 'selected-gateway-observations',
@@ -2173,9 +2180,14 @@ class NativeTaskRunner:
                                    'Use agent_observation_read with historical_call_id and pointers to read several exact JSON fields together. '
                                    'Use slash-prefixed JSON pointers such as /data and /provenance/request_id. '
                                    'Omit the envelope prefix and use the call ID exactly as listed. '
-                                   'These results do not grant new gateway calls.\n'
-                                   + json.dumps([{key: item[key] for key in ('tool', 'tool_call_id')}
-                                                 for item in observations], ensure_ascii=False),
+                                   'These results do not grant new gateway calls. An unavailable prior result is a gap. '
+                                   'Do not substitute remembered values or repeat the source call unless the current instruction authorizes it.\n'
+                                   + json.dumps({
+                                       'admitted_calls': [{key: item[key] for key in ('tool', 'tool_call_id')}
+                                                          for item in observations],
+                                       'unavailable_count': unavailable,
+                                       'omitted_for_budget_count': deferred,
+                                   }, ensure_ascii=False),
                     })
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
                 config_root=self.config_root, model=profile['model'] if profile else self.model,
