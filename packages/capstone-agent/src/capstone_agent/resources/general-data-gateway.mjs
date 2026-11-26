@@ -23,7 +23,10 @@ export function createHistoricalGatewayFollow(observations,catalog,admittedNames
           !input.pointer.startsWith('/')||input.pointer.length>512)
         throw Error('Supply only the admitted historical call ID and action pointer');
       const item=observations.find(row=>row.tool_call_id===input.historical_call_id);
-      if(!item)throw Error('Historical gateway call is not admitted');
+      if(!item)return {isError:true,content:[{type:'text',text:JSON.stringify({
+        code:'historical_gateway_action_unavailable',executed:false,
+        message:'The retained action is unavailable in the current gateway scope. Stop this continuation.',
+      })}]};
       const source=await readHistoricalObservation(item);
       const records=new Map([[item.tool_call_id,{
         value:source,ok:['ok','success','partial'].includes(source.status),

@@ -654,3 +654,19 @@ test('thin additive loads retain the active order and acknowledge already loaded
  await load.execute('replace',{names:['source_0'],replace:true});hooks.get('turn_end')();
  assert.ok(!active.includes('source_1'));
 });
+
+test('unavailable historical gateway actions expose a failed continuation without removing independent tools',async()=>{
+ const config={thinInitialContext:true,selectedGatewayObservations:[],
+  applicationPolicy:{allowed_tools:['agent_gateway_follow','registered_read']},
+  dataGateway:{catalog:{tools:{registered_read:{name:'published_read',inputSchema:{type:'object'}}}}}};
+ const {customTools}=host.applicationToolOptions(config,[]);
+ const follow=customTools.find(tool=>tool.name==='agent_gateway_follow');
+ assert.ok(follow);
+ const result=await follow.execute('continue',{historical_call_id:'prior-call',pointer:'/data/next'});
+ assert.equal(result.isError,true);
+ assert.deepEqual(JSON.parse(result.content[0].text),{
+  code:'historical_gateway_action_unavailable',executed:false,
+  message:'The retained action is unavailable in the current gateway scope. Stop this continuation.',
+ });
+ assert.ok(customTools.some(tool=>tool.name==='registered_read'));
+});

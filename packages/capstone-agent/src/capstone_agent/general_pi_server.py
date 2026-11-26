@@ -2158,7 +2158,7 @@ class NativeTaskRunner:
                 hashes = sdk_config['dataGateway']['catalog']['tool_hashes']
                 root = inputs / 'selected-gateway-observations'
                 observations = []
-                unavailable = 0
+                unavailable = []
                 deferred = 0
                 remaining = limits.native_context_bytes
                 for page in sdk_config.get('selectedTaskRecords', ()):
@@ -2171,12 +2171,14 @@ class NativeTaskRunner:
                                 or tool not in hashes):
                             continue
                         call_id = payload.get('tool_call_id')
+                        if not isinstance(call_id, str) or not call_id:
+                            continue
                         raw = read_gateway_observation(
                             task_id=payload.get('task_id'), attempt_id=page['attempt_id'],
                             call_id=call_id, tool=tool, workspace=request.managed_workspace,
                             thread_id=thread_id, binding=frozen_gateway, tool_hash=hashes[tool])
                         if raw is None:
-                            unavailable += 1
+                            unavailable.append(call_id)
                             continue
                         size = len(raw.encode())
                         if size > remaining:
@@ -2189,10 +2191,9 @@ class NativeTaskRunner:
                                              'sha256': sha256(raw.encode()).hexdigest()})
                 if observations or unavailable or deferred:
                     sdk_config['selectedGatewayObservations'] = observations
-                    if observations:
-                        policy = sdk_config['applicationPolicy']
-                        sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': [
-                            *policy['allowed_tools'], 'agent_gateway_follow']}
+                    policy = sdk_config['applicationPolicy']
+                    sdk_config['applicationPolicy'] = {**policy, 'allowed_tools': [
+                        *policy['allowed_tools'], 'agent_gateway_follow']}
                     sdk_config['contextFiles'].append({
                         'path': 'selected-gateway-observations',
                         'content': 'Read the listed authorized historical gateway calls by their call IDs. '
@@ -2201,12 +2202,14 @@ class NativeTaskRunner:
                                    'Omit the envelope prefix and use the call ID exactly as listed. '
                                    'For an authorized returned action, call agent_gateway_follow with the original '
                                    'historical_call_id and the pointer to the action object. Do not copy its arguments into a direct call. '
-                                   'These results do not grant new gateway calls. An unavailable prior result is a gap. '
-                                   'Do not substitute remembered values or repeat the source call unless the current instruction authorizes it.\n'
+                                   'When a requested continuation has no available original action, report the gap and stop that continuation. '
+                                   'A continuation request does not authorize reconstructing its arguments, catalog probes, or a substitute query. '
+                                   'Other independent new queries remain available when requested.\n'
                                    + json.dumps({
                                        'admitted_calls': [{key: item[key] for key in ('tool', 'tool_call_id')}
                                                           for item in observations],
-                                       'unavailable_count': unavailable,
+                                       'unavailable_count': len(unavailable),
+                                       'unavailable_call_ids': unavailable,
                                        'omitted_for_budget_count': deferred,
                                    }, ensure_ascii=False),
                     })

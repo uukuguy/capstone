@@ -592,7 +592,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   }
   if(config.thinToolView)customTools.push(wrap(config.thinToolView.tool));
   if(observationReader)customTools.push(wrap(observationReader));
-  if(config.selectedGatewayObservations?.length&&config.dataGateway&&
+  if(config.selectedGatewayObservations&&config.dataGateway&&
       config.applicationPolicy.allowed_tools.includes('agent_gateway_follow')){
     const catalog=config.dataGateway.catalog.tools;
     const leaves=new Map(createDataGatewayTools(config)
