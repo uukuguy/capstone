@@ -145,36 +145,41 @@ async def registered_session_call(client, catalog, tool, arguments, diagnostics,
     if not instance or not diagnostics:
         return None
     async with client.connect() as connection:
-        if (connection.instance_identity or {}).get('instance_id') != instance:
-            raise GatewayError('gateway_instance_changed')
-        endpoint = client._connection['url']
-        access = await GatewayInvestigation.discover(
-            connection.http_client, endpoint, connection.investigation, connection.investigation_logs,
-        )
-        if access is None:
-            return None
-        owner_id = 'session_' + sha256(json.dumps([workspace, thread_id, attempt_id, connection_id, instance]).encode()).hexdigest()
-        owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': owner_id}
-        binding = await access.invoke('bind', {**owner, 'instance_id': instance, 'idempotency_key': owner_id})
-        scope = {**owner, 'binding_handle': binding['binding_handle']}
-        stored_binding = {**scope, 'instance_id': instance, 'connection_id': connection_id,
-                          'catalog_revision': catalog['revision']}
-        call_id, dispatch = await asyncio.to_thread(
-            journal.reserve, workspace=workspace, thread_id=thread_id, attempt_id=attempt_id, operation=operation,
-            binding=stored_binding, tool=tool, arguments=arguments, client_call_id=diagnostics['client_call_id'],
-        )
-        if dispatch:
-            observed = await access.call_registered(client, tool, arguments, catalog, scope=scope,
-                                                    diagnostics={**diagnostics, 'client_call_id': call_id})
-            if 'business_response' in observed:
-                return observed['business_response']
+        try:
+            if (connection.instance_identity or {}).get('instance_id') != instance:
+                raise GatewayError('gateway_instance_changed')
+            endpoint = client._connection['url']
+            access = await GatewayInvestigation.discover(
+                connection.http_client, endpoint, connection.investigation, connection.investigation_logs,
+            )
+            if access is None:
+                return None
+            owner_id = 'session_' + sha256(json.dumps([workspace, thread_id, attempt_id, connection_id, instance]).encode()).hexdigest()
+            owner = {'workspace_id': investigation_workspace_id(workspace), 'investigation_id': owner_id}
+            binding = await access.invoke('bind', {**owner, 'instance_id': instance, 'idempotency_key': owner_id})
+            scope = {**owner, 'binding_handle': binding['binding_handle']}
+            stored_binding = {**scope, 'instance_id': instance, 'connection_id': connection_id,
+                              'catalog_revision': catalog['revision']}
+            call_id, dispatch = await asyncio.to_thread(
+                journal.reserve, workspace=workspace, thread_id=thread_id, attempt_id=attempt_id, operation=operation,
+                binding=stored_binding, tool=tool, arguments=arguments, client_call_id=diagnostics['client_call_id'],
+            )
+            if dispatch:
+                observed = await access.call_registered(client, tool, arguments, catalog, scope=scope,
+                                                        diagnostics={**diagnostics, 'client_call_id': call_id})
+                if 'business_response' in observed:
+                    return observed['business_response']
+            else:
+                try:
+                    await access.invoke('read', {**scope, 'client_call_id': call_id})
+                except (GatewayError, TransportError, OSError, TimeoutError):
+                    pass
+        except GatewayError as error:
+            failure = error
         else:
-            try:
-                await access.invoke('read', {**scope, 'client_call_id': call_id})
-            except (GatewayError, TransportError, OSError, TimeoutError):
-                pass
-        # A receipt proves transport state. It cannot replace a business body.
-        raise GatewayError('gateway_result_body_unavailable', result_unknown=True)
+            # A receipt proves transport state. It cannot replace a business body.
+            failure = GatewayError('gateway_result_body_unavailable', result_unknown=True)
+    raise failure
 
 
 async def _request(client, method, url, document=None):

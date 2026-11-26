@@ -43,8 +43,12 @@ def test_ordinary_registered_dispatch_reads_original_on_repeat(monkeypatch, tmp_
 
     @asynccontextmanager
     async def connect():
-        yield SimpleNamespace(instance_identity={'instance_id': 'fixture'}, http_client=None,
-                              investigation=DECLARATION, investigation_logs=None)
+        try:
+            yield SimpleNamespace(instance_identity={'instance_id': 'fixture'}, http_client=None,
+                                  investigation=DECLARATION, investigation_logs=None)
+        except GatewayError as error:
+            # The MCP SDK uses task groups around the connection body.
+            raise ExceptionGroup('MCP connection error', [error]) from None
 
     client = SimpleNamespace(connect=connect, _connection={'url':'https://fixture.test/mcp'})
     catalog = {'instance': {'instance_id': 'fixture'}, 'revision': 'v1'}
