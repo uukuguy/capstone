@@ -42,6 +42,9 @@ def test_thin_context_has_a_focused_dev_gate():
 
     paths = [
         'compose.yaml',
+        'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
+        'packages/capstone-agent/src/capstone_agent/delegated_runtime.py',
+        'packages/capstone-agent/tests/test_delegated_runtime.py',
         'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
         'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
         'packages/pandapower-domain-pack/src/pandapower_domain/tool_service.py',

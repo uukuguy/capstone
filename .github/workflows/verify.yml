@@ -209,6 +209,7 @@ jobs:
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_native_environment.py packages/capstone-agent/tests/test_query_delivery.py
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_server.py -k 'query_delivery or executor_identity or private_data'
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_main_chain_context.py -k recovered_deepseek_formal_answer
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_delegated_runtime.py -k gateway_response_loss
           uv run --project packages/pandapower-domain-pack pytest -q packages/pandapower-domain-pack/tests/test_tool_service.py
           node --test packages/capstone-agent/tests/general-sdk-capacity.test.mjs packages/capstone-agent/tests/fixtures/presentation-templates.test.mjs packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs packages/capstone-agent/tests/fixtures/tool-result-context.test.mjs
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_attempt_records.py packages/capstone-agent/tests/test_data_gateway_relay.py packages/capstone-agent/tests/test_debug_session_handoff.py packages/capstone-agent/tests/test_general_pi_native.py packages/capstone-agent/tests/test_native_resources.py packages/capstone-agent/tests/test_workbench_llm_profiles.py
