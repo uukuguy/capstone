@@ -178,12 +178,13 @@ def _read_public_history(service, thread_id, start_seq, through_seq, project):
 
 
 def write_session_handoff(destination, service, thread_id, through_seq, *, uploads, capstone_revision,
-                          objects=None, native_executor=None):
+                          objects=None, native_executor=None, supplements=None):
     """Build the local session package after the application grants export."""
     gaps = [
         {"kind": "data_gateway", "status": "not_collected"},
-        {"kind": "supplementary_evidence", "status": "not_collected"},
     ]
+    if supplements is None:
+        gaps.append({"kind": "supplementary_evidence", "status": "export_unavailable"})
     attachments: dict[tuple[str, int], None] = {}
     outputs = {}
 
@@ -247,6 +248,8 @@ def write_session_handoff(destination, service, thread_id, through_seq, *, uploa
                              "attempt_id": attempt_id, "revision": version})
                 continue
             yield HandoffMember(path, [data])
+        if supplements is not None:
+            yield HandoffMember("execution/supplementary-evidence.jsonl", json_lines(supplements))
         yield HandoffMember("repro.md", [
             "# 会话复验\n\n打开 conversation.jsonl 定位指令。按事件编号查阅执行记录。"
             "核对 manifest.json 的版本、文件校验和与缺口。\n".encode()

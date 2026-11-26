@@ -414,9 +414,12 @@ def create_host_app(
             uploads = ResourceUploads(thread_service, material_objects) if material_objects is not None else None
             package = TemporaryFile(mode='w+b')
             try:
+                supplements = (session_supplements(workspace, thread_id, through)
+                               if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') == '1' else None)
                 write_session_handoff(package, thread_service, thread_id, through,
                                       uploads=uploads, capstone_revision=packaged_capstone_revision(),
-                                      objects=material_objects, native_executor=native_artifact_executor)
+                                      objects=material_objects, native_executor=native_artifact_executor,
+                                      supplements=supplements)
                 thread_service.require_workspace(thread_id, workspace)
                 if not session_handoff_allowed(request):
                     raise HTTPException(403, '当前权限不允许外带会话调试包。')
@@ -537,21 +540,9 @@ def create_host_app(
                 raise HTTPException(404, '找不到本会话的调查快照。') from None
             return Response(status_code=204, headers={'Cache-Control': 'no-store'})
 
-        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
-        def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request,
-                snapshot_id: Annotated[str | None, Query(pattern='^[0-9a-f]{64}$')] = None):
-            require_debug(request)
-            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
-                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
-            reader = getattr(native_artifact_executor, 'debug_observation', None)
-            try:
-                scope = (request.state.workspace_name, thread_id, investigation_id)
-                document = (investigations.read_export_snapshot(*scope, snapshot_id) if snapshot_id
-                            else investigations.save_export_snapshot(*scope, gateway_reader=reader))
-                capture = investigations.read_snapshot_gateway_capture(*scope, document['snapshot_id'])
-            except (KeyError, ThreadNotFound):
-                raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
-            workspace = request.state.workspace_name
+        def investigation_export(workspace, thread_id, investigation_id, document, reader):
+            scope = (workspace, thread_id, investigation_id)
+            capture = investigations.read_snapshot_gateway_capture(*scope, document['snapshot_id'])
 
             def gateway_export(owner):
                 binding = investigations.historical_gateway(workspace, thread_id, owner)
@@ -578,7 +569,7 @@ def create_host_app(
 
             document['data_gateway'] = {**gateway_export(investigation_id), 'scope': 'snapshot'}
             observation = document.get('observation') or {}
-            previous = document['diagnosis'].get('gateway_investigation_id')
+            previous = (document.get('diagnosis') or {}).get('gateway_investigation_id')
             if previous and previous != investigation_id and previous == observation.get('previous_investigation_id'):
                 prior = investigations.get(workspace, thread_id, previous)
                 if (prior.get('observation') or {}).get('attempt_id') == observation.get('attempt_id'):
@@ -588,6 +579,36 @@ def create_host_app(
                                            else {'status': 'not_approved'})
             from .debug_investigations import evidence_digest
             document['integrity'] = {'algorithm': 'sha256', 'digest': evidence_digest(document)}
+            return document
+
+        def session_supplements(workspace, thread_id, through):
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
+            for item in investigations.recent(workspace, thread_id):
+                owner = item['investigation_id']
+                observation = item.get('observation') or {}
+                if type(observation.get('through')) is not int or observation['through'] > through:
+                    continue
+                for snapshot in investigations.recent_export_snapshots(workspace, thread_id, owner):
+                    document = investigations.read_export_snapshot(workspace, thread_id, owner, snapshot['snapshot_id'])
+                    frozen = document.get('observation') or {}
+                    if type(frozen.get('through')) is int and frozen['through'] <= through:
+                        yield investigation_export(workspace, thread_id, owner, document, reader)
+                        break
+
+        @app.get('/api/v1/threads/{thread_id}/debug/investigations/{investigation_id}/evidence')
+        def export_investigation_evidence(thread_id: str, investigation_id: str, request: Request,
+                snapshot_id: Annotated[str | None, Query(pattern='^[0-9a-f]{64}$')] = None):
+            require_debug(request)
+            if os.environ.get('CAPSTONE_DEBUG_TIMELINE_EXPORT', '0') != '1':
+                raise HTTPException(403, '当前部署仅允许现场查看调试记录。')
+            reader = getattr(native_artifact_executor, 'debug_observation', None)
+            try:
+                scope = (request.state.workspace_name, thread_id, investigation_id)
+                document = (investigations.read_export_snapshot(*scope, snapshot_id) if snapshot_id
+                            else investigations.save_export_snapshot(*scope, gateway_reader=reader))
+                document = investigation_export(*scope, document, reader)
+            except (KeyError, ThreadNotFound):
+                raise HTTPException(404, '找不到本会话的调查或执行记录。') from None
             return JSONResponse(document, headers={'Cache-Control': 'no-store',
                 'Content-Disposition': 'attachment; filename="debug-evidence.json"'})
 

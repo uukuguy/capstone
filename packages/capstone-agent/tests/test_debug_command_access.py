@@ -33,6 +33,20 @@ def test_session_handoff_http_checks_export_and_workspace(monkeypatch):
             assert manifest['thread_id'] == claim.thread_id
             assert archive.read('execution/capstone/events.jsonl')
             assert archive.read('conversation.jsonl')
+        monkeypatch.setenv('CAPSTONE_DEBUG_TIMELINE_EXPORT', '1')
+        debug_path = path.removesuffix('/session-handoff')
+        investigation = client.post(
+            debug_path + '/investigations', headers={**auth, 'Idempotency-Key': 'session-supplement'},
+            json={'objective': '核对执行记录', 'attempt_id': claim.attempt.attempt_id},
+        )
+        assert investigation.status_code == 200, investigation.text
+        owner = investigation.json()['investigation_id']
+        evidence = client.get(f'{debug_path}/investigations/{owner}/evidence', headers=auth)
+        assert evidence.status_code == 200, evidence.text
+        package = client.get(path, headers=auth)
+        with ZipFile(BytesIO(package.content)) as archive:
+            exported = archive.read('execution/supplementary-evidence.jsonl').splitlines()
+            assert [json.loads(row) for row in exported] == [evidence.json()]
 
 
 def test_independent_debug_reads_logs_for_a_bound_failed_call(monkeypatch):
