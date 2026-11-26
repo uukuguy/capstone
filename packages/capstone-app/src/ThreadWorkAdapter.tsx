@@ -1287,11 +1287,11 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
       transcriptStatus={debugActivity?.thread===currentId&&<section className="thread-debug-status" aria-label="Debug 调查" role="status">
         <strong>Debug</strong>
         {debugActivity.objective&&<p>{debugActivity.objective}</p>}
-        {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <p>{debugActivity.text}</p>}
-        {Boolean(debugActivity.steps?.length)&&<details>
-          <summary>运行步骤 · {debugActivity.steps?.at(-1)}</summary>
-          <ol>{debugActivity.steps?.map(step=><li key={step}>{step}</li>)}</ol>
+        {Boolean(debugActivity.steps?.length)&&<details open>
+          <summary>Pi 执行过程</summary>
+          <ol aria-label="Pi 执行步骤">{debugActivity.steps?.map(step=><li key={step}>{step}</li>)}</ol>
         </details>}
+        {debugActivity.completed ? <MarkdownContent>{debugActivity.text}</MarkdownContent> : <p>{debugActivity.text}</p>}
       </section>}
       composerStatus={<>
         {viewingLegacy&&<p className="thread-composer-notice" role="status">正在查看历史保存记录。</p>}
