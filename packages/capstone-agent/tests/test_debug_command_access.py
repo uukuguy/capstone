@@ -313,6 +313,9 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         assert (binding, workspace, owner) == (gateway_binding, claim.workspace_name, investigation['investigation_id'])
         if operation == 'read':
             return {'client_call_id': 'call_admitted', 'state': 'observed'}
+        if operation == 'probe_data':
+            return {'data_status': 'onsite_only', 'data': {'coverage': 'onsite-fixture'},
+                    'receipt': {'client_call_id': query['client_call_id'], 'state': 'observed'}}
         return {'receipts': []}
 
     def execute(request, control, on_event):
@@ -382,6 +385,11 @@ def test_debug_diagnosis_reads_a_tool_failure_beyond_the_first_page(monkeypatch)
         explicit = control.mission_operation('agent_debug_observe', {'operation': 'capstone_records',
             'query': {'attempt_id': selected, 'after': failure_seq - 1}}, 'history-details')
         assert explicit['events'][0]['event_seq'] == failure_seq
+        probe = {'operation': 'probe_data', 'query': {'tool': 'read_fixture', 'arguments_json': '{}'}}
+        onsite = control.mission_operation('agent_debug_observe', probe, 'onsite-data')
+        assert onsite['data'] == {'coverage': 'onsite-fixture'}
+        retry = control.mission_operation('agent_debug_observe', probe, 'onsite-data')
+        assert retry['data_status'] == 'unavailable' and 'data' not in retry
         source_event = next(event for page in native['selected_task_records'] for event in page['events']
                             if event['event_type'] == 'execution_source_revision')
         assert source_event['payload_projection'] == 'bounded_summary'

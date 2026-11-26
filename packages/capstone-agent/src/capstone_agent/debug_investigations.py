@@ -515,13 +515,46 @@ class InvestigationRegister:
                                    | {'payload': summary, 'payload_projection': 'bounded_summary'})
                 return {key: page[key] for key in ('schema', 'thread_id', 'attempt_id', 'historical_only', 'next_after', 'has_more')} | {'events': visible}
 
-            def read_debug_records(name, arguments, _operation_id):
+            def read_debug_records(name, arguments, operation_id):
                 query = arguments.get('query', {})
                 if name != 'agent_debug_observe':
                     return {'code': 'investigation_request_invalid'}
                 if arguments.get('operation') == 'publish_finding':
                     return publish_finding(query)
                 operation = arguments.get('operation')
+                if operation == 'probe_data':
+                    read = getattr(executor, 'debug_observation', None)
+                    if not historical_gateway or not callable(read):
+                        return {'code': 'gateway_bound_instance_unavailable'}
+                    if (not isinstance(query, dict) or set(query) != {'tool', 'arguments_json'}
+                            or not isinstance(query['tool'], str) or not 1 <= len(query['tool']) <= 128
+                            or not isinstance(query['arguments_json'], str) or len(query['arguments_json']) > 8192):
+                        return {'code': 'investigation_request_invalid'}
+                    try:
+                        inputs = json.loads(query['arguments_json'])
+                        if not isinstance(inputs, dict):
+                            return {'code': 'investigation_request_invalid'}
+                        call_id, dispatch = self.reserve_call(
+                            *scope, f'pi:{operation_id}', query['tool'], inputs, evidence_digest(historical_gateway),
+                        )
+                        if dispatch:
+                            result = read(historical_gateway, workspace, investigation_id, 'probe_data',
+                                          {'tool': query['tool'], 'arguments': inputs, 'client_call_id': call_id})
+                        else:
+                            receipt = read(historical_gateway, workspace, investigation_id, 'read',
+                                           {'client_call_id': call_id})
+                            result = {'data_status': 'unavailable', 'receipt': receipt}
+                        receipt = result.get('receipt') or {}
+                        if receipt.get('client_call_id') == call_id:
+                            supplied_gateway_refs.add(call_id)
+                            previous_capture = gateway_capture.get(investigation_id, {'receipts': [], 'truncated': False})
+                            seen = {row['client_call_id']: row for row in previous_capture['receipts']}
+                            seen[call_id] = receipt
+                            gateway_capture[investigation_id] = capture_gateway_receipts(
+                                {'receipts': list(seen.values()), 'truncated': previous_capture['truncated'] or len(seen) > 32})
+                        return result
+                    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+                        return {'code': 'investigation_read_unavailable'}
                 if operation == 'session_records':
                     from .debug_session_handoff import read_session_observations
                     if not isinstance(query, dict) or query.keys() - {'before'}:
@@ -637,6 +670,8 @@ class InvestigationRegister:
                             'gateway_refs 仅传实际获得的 client_call_id，source_refs 仅传已读的 repository、revision、path 和 line。'
                             'payload_projection=bounded_summary 表示只返回获准的摘要字段，字段缺失不能作为原始记录为空的证据。'
                             '用 agent_debug_observe 读取调查内的网关回执、日志和双仓精确版本源码。')
+            instruction += ('\n用户需要核对现场数据信息时，可以用 probe_data 提交已知只读工具名和 arguments_json。'
+                            '只取定位所需的最小数据。新探查与原调用是不同证据，现场正文只供本次诊断。')
             task_fields = {
                 'business_context': BusinessContext.empty(thread_id, through),
                 'resource_profile': {'profile_id': 'direct_pi', 'revision': profile['revision']},

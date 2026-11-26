@@ -17,7 +17,7 @@ SCHEMAS = {'bind': ('BindRequest', 'BindingResponse'), 'read': ('ReadRequest', '
            'list': ('ListRequest', 'ReceiptPage'), 'close': ('ScopeRequest', 'CloseResponse')}
 
 
-DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'source_files', 'source_lines', 'session_records', 'capstone_records', 'capstone_excerpt', 'publish_finding']
+DEBUG_OBSERVATION_OPERATIONS = ['list', 'read', 'logs', 'probe_data', 'source_files', 'source_lines', 'session_records', 'capstone_records', 'capstone_excerpt', 'publish_finding']
 
 
 OBSERVATION_TOOL = {
@@ -29,6 +29,8 @@ OBSERVATION_TOOL = {
                 'after': {'type': 'integer', 'minimum': 0},
                 'before': {'type': 'integer', 'minimum': 1},
                 'attempt_id': {'type': 'string'},
+                'tool': {'type': 'string', 'minLength': 1, 'maxLength': 128},
+                'arguments_json': {'type': 'string', 'maxLength': 8192},
                 'event_seq': {'type': 'integer', 'minimum': 1},
                 'field': {'enum': ['input_excerpt', 'output_excerpt']},
                 'finding_state': {'enum': ['located', 'narrowed', 'insufficient_evidence']},
@@ -308,7 +310,7 @@ async def read_bound_observation(connection, endpoint, *, instance_id, workspace
 
 
 async def run_bound_read_probe(gateway, *, instance_id, workspace, investigation_id,
-                               tool, arguments, client_call_id):
+                               tool, arguments, client_call_id, include_result=False):
     catalog = await gateway.prepare()
     if (catalog.get('instance') or {}).get('instance_id') != instance_id:
         raise GatewayError('gateway_instance_changed')
@@ -334,8 +336,19 @@ async def run_bound_read_probe(gateway, *, instance_id, workspace, investigation
         binding = await access.invoke('bind', {**owner, 'instance_id': instance_id, 'idempotency_key': investigation_id})
         scope = {**owner, 'binding_handle': binding['binding_handle']}
         trace = sha256(investigation_id.encode('utf-8')).hexdigest()[:32]
-        await access.call_registered(gateway, tool, arguments, catalog, scope=scope, diagnostics={
+        observed = await access.call_registered(gateway, tool, arguments, catalog, scope=scope, diagnostics={
             'client_call_id': client_call_id, 'task_id': investigation_id, 'run_id': investigation_id,
             'trace_id': trace, 'parent_span_id': 'attempt:' + trace,
         })
-        return await access.invoke('read', {**scope, 'client_call_id': client_call_id})
+        receipt = observed.get('receipt')
+        if receipt is None:
+            receipt = await access.invoke('read', {**scope, 'client_call_id': client_call_id})
+        if not include_result:
+            return receipt
+        result = observed.get('business_response')
+        content = result.get('structuredContent') if isinstance(result, dict) else None
+        if content is None:
+            return {'receipt': receipt, 'data_status': 'unavailable'}
+        if len(json.dumps(content, ensure_ascii=False).encode()) > 16 * 1024:
+            return {'receipt': receipt, 'data_status': 'exceeds_summary_limit'}
+        return {'receipt': receipt, 'data_status': 'onsite_only', 'data': content}

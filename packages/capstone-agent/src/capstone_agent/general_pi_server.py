@@ -2323,14 +2323,19 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 raise GatewayError('investigation_credentials_unavailable')
             dedicated = DataGatewayMcp(Path(credential), access.client.policy)
             async def observe():
-                if document['operation'] == 'probe':
+                if document['operation'] in {'probe', 'probe_data'}:
                     query = document['query']
                     if (not isinstance(query, dict) or set(query) != {'tool', 'arguments', 'client_call_id'}
                             or not isinstance(query['tool'], str) or not isinstance(query['arguments'], dict)
                             or not isinstance(query['client_call_id'], str)):
                         raise GatewayError('investigation_request_invalid')
+                    if document['operation'] == 'probe_data':
+                        publication = await access.client.prepare()
+                        if query['tool'] not in publication['tools']:
+                            raise GatewayError('investigation_access_denied')
                     return await run_bound_read_probe(dedicated, instance_id=binding['instance_id'],
-                        workspace=document['workspace'], investigation_id=document['investigation_id'], **query)
+                        workspace=document['workspace'], investigation_id=document['investigation_id'],
+                        include_result=document['operation'] == 'probe_data', **query)
                 async with dedicated.connect() as session:
                     return await read_bound_observation(session, dedicated._connection['url'],
                         instance_id=binding['instance_id'], workspace=document['workspace'],
