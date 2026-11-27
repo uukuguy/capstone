@@ -147,6 +147,20 @@ def _claim_application_catalog(service, context, submission):
     return None
 
 
+def _goal_admission_catalog(service, snapshot, command, work, submission):
+    """Carry the API's published catalog across asynchronous Goal admission."""
+    if work is None or command['kind'] not in {'start_goal', 'admit_goal_plan', 'continue_goal', 'resume_goal'}:
+        return submission
+    if command['kind'] == 'start_goal':
+        catalog = _published_application_catalog(service)
+        if catalog is not None:
+            work['goal_application_catalog'] = catalog
+    elif 'goal_application_catalog' in work:
+        # Actual tool grants are intersected with the active model selection at dispatch.
+        return {**(submission or {}), '_application_catalog': work['goal_application_catalog']}
+    return submission
+
+
 def _goal_catalog_source(snapshot, command):
     if command['kind'] not in {'continue_goal', 'resume_goal'}:
         return None
@@ -2030,6 +2044,8 @@ class InMemoryThreadService(NativeExecutionOwner):
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived,
                                               queue_after_attempt=queue_after_attempt)
         rejection = input_rejection or rejection
+        if rejection is None:
+            submission = _goal_admission_catalog(self, updated, parsed, work, submission)
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self.read_thread_gateway(parsed['thread_id']))
@@ -3818,6 +3834,8 @@ class PostgresThreadService(NativeExecutionOwner):
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'],
                                               queue_after_attempt=queue_after_attempt)
         rejection = input_rejection or rejection
+        if rejection is None:
+            submission = _goal_admission_catalog(self, updated, parsed, work, submission)
         native_binding, gateway_state = self._native_binding, None
         if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message', 'start_goal', 'resume_goal', 'continue_goal', 'admit_goal_plan'}:
             native_binding, gateway_state, rejection = self.gateway_admission(self._thread_gateway_row(connection, thread))
