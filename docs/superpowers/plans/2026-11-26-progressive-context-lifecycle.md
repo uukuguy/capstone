@@ -167,12 +167,20 @@ observed status `ok`, business response `unavailable` and
 `response-loss-first-request-audit.json`. Diagnostics were disabled again
 after the synthetic run.
 
-The connected gateway revision `d698cbea3708` publishes a specific schema
-for the saved Beijing view. It excludes `page_size`. Its time bounds still
-accept strings without a timezone offset, which the execution contract
-rejects. Follow the [gateway handoff](../../reports/2026-11-27-gateway-view-window-contract-handoff.md)
-for the source-side contract and joint validation. Keep the broad rollout
-default off while the instruction-type cost and joint contract checks remain open.
+Gateway release `20261127-slice-window-contract-v1` publishes MCP revision
+`942fa3c03116`. Capstone `df31ddf7` uses the current description to bind
+the published schema to the view and operation before each business
+dispatch. The adapter verifies both missing offset cases and the disallowed
+`page_size` without sending a business query. A valid measurement window
+returns data. The gateway rejects reversed bounds as `invalid_metric_slice`.
+A database view without a window returns a cursor, and Capstone sends the
+exact original cursor with the view ID on the next turn using the distinct
+continuation schema. The two live 5174 Threads confirm client rejection,
+valid data and original cursor reuse. See `view-window-client-http-verification.json`,
+`view-window-client-5174.json` and `view-window-continuation-5174.json`.
+The [gateway handoff](../../reports/2026-11-27-gateway-view-window-contract-handoff.md)
+records the earlier gap. Retain scoped rollout because first instruction
+and report costs vary by case.
 
 The same-image synthetic comparison at `7d832123` used two Threads per
 mode, the same model and gateway, and the same two instructions. The
