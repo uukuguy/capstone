@@ -8530,3 +8530,137 @@ check passed. No CI, integration or remote deployment performed.
   Offline failure evidence and checks: live-projection-batch-verification.json.
   Temporary profile, context diagnostic capture and export were restored.
 - PR 299 merged at 007cccdf; 5174 thr_61c9a09ac2bde516b98a verified pressure projection and offline diagnostics.
+- 5174 at 191bf573 verified a contract-only continuation with two model
+  requests and no gateway dispatch. Thread thr_d8d136b8161c28fc01b3.
+- Same-image candidate/control comparison at 191bf573 passed all query
+  arguments and values. Control to thin: first query 7 to 6 calls, uncached
+  input 22,070 to 17,776; narrower window 4 to 4 calls, input 16,532 to
+  10,625. First-query latency 15.03 to 13.17 seconds, follow-up 13.14 to
+  14.26. Thin follow-up made one query without describing the view again.
+  This single pair does not reverse the mixed cold-query disposition.
+  Restored thin local-dev. Receipts: final-contract-only-plan.json and
+  final-pressure-matched-gateway.json.
+- Verified the connected gateway publication d698cbea still accepts
+  timezone-free string values and page_size in the generic schema.
+  The view-specific contract handoff remains open.
+
+- Thin context 5174: compared a binding check and a description-only request.
+  The gateway's view-specific schema rejects page_size for this saved view
+  and accepts an offset-free window. Track the timezone declaration separately.
+  Read the tool sequence and counts in visible-description-scope-comparison.json.
+
+- Thin context 5174: native dispatch receipts show both searches in the
+  description-only first turn were submitted together at the same millisecond.
+  They did not add a serial model request. Use dispatch batches when attributing
+  model-call overhead. Receipt: visible-description-dispatch-batches.json.
+
+- Thin context recovery acceptance audit on dev c25ebd85: six focused
+  investigation and relay cases passed. A lost response looks up the original
+  client_call_id once, keeps unknown when the receipt is unavailable, and
+  does not dispatch the business operation a second time. The test transport
+  is synthetic. A live 5174 resume after a deliberately lost gateway response
+  remains a separate acceptance case.
+
+- Thin context 5174, Thread thr_b02579b19cfff4035d2b: the temporary
+  synthetic gateway proxy cut a registered business response after HTTP 200.
+  Capstone read the original gateway receipt over HTTP using the identical
+  client_call_id. On the next instruction, the model read Capstone records,
+  preserved unknown, and made no new gateway request. The business body was
+  still unavailable. Receipt: live-gateway-response-loss.json.
+
+- Thin context response loss follow-up: an independent authorized HTTP read
+  confirmed the original receipt was observed/ok with automatic_retry=false.
+  The current Capstone path discards this validated status when there is no
+  business response body. The user sees unknown for the result and cannot
+  distinguish it from unknown gateway execution. Persist and project those
+  two states separately in the Capstone continuation path.
+
+- 81f32d7d preserves observed gateway execution status separately from missing business response data.
+
+- 81f32d7d: doctor and all 76 focused investigation/relay tests passed.
+  PR 301 started macOS CI. The local rebuild staged both source repositories.
+
+- Local-dev build 81f32d7d is ready; two live turns confirmed receipt status
+  ok and missing result, with one business dispatch and one original-ID read.
+  Thread thr_f80aee24d01679a9894c; receipt live-gateway-response-loss-fixed.json.
+
+- 4edc2dc4 routes investigation changes to focused CI and validates the receipt object before accessing fields.
+
+- Rechecked d698cbea live view schema and corrected the handoff: pagination field exclusion is published; timezone constraint remains open.
+
+- PR 301 merged at 0cd3efd7 after focused macOS CI 45895766542 passed in 3m12s; local dev synchronized.
+
+- 4edc2dc4 rebuilt and passed live two-turn response loss verification on 5174, Thread thr_8c4b66805657548d7a7d.
+
+- 3b974284 records verified recovery, exact deployment sources, and the remaining gateway timezone contract gap.
+
+- Final 5174 transport-loss trace: initial 4 model calls, continuation 11; no business redispatch, excessive history and tool discovery.
+
+- Traced the 11-call recovery turn to admission, not gateway discovery.
+  General Pi skips all historical tool errors before gateway observation
+  selection. The public event exposes an output excerpt only. Carry the
+  validated status in a bounded diagnostic field and admit it from selected
+  task records under the existing Thread and binding scope. Keep action
+  admission restricted to successful observations. Do not parse error prose.
+
+- 7d832123 projects authenticated response-loss diagnostics into selected Thread continuation context to avoid redundant discovery.
+
+- 6f53e4cc verifies recovery diagnostics survive event persistence without private fields and routes the change to thin-context CI.
+
+- 5174 recovery source 7d832123 retained structured diagnostic; matched resume fell from 11 to 3 model calls with zero business redispatch.
+
+- 5174 replay thr_d1a5517a1a06f6ceb571 confirmed 3-model-call recovery and no additional gateway dispatch.
+
+- PR 303 merged c84dea97 after focused macOS CI passed in 4m26s; dev synchronized.
+
+- 5174 synthetic audit thr_0c942b085d4c91bfb514 verified selected-gateway-recovery and three status fields in the first provider request.
+
+- e228013e records verified thin recovery integration and updates the project graph.
+
+- 00cdacb1 records first-request recovery evidence and the outstanding gateway contract in the acceptance plan.
+
+- Same-image 5174 response-loss comparison: thin 3/3 versus control 8/5 model calls; all four continuations avoided gateway redispatch.
+
+- d52a949f records same-image first and continuation costs, outcome quality, and variable first-turn discovery overhead.
+
+- Synthetic HTTP replay confirmed original workspace receipt read 200, different binding under the same service subject 404; no business dispatch.
+
+- Word delivery cost audit attributes seven of ten tool invocations in the nine-model-call sample to rendering, environment, or validation.
+
+- Current-image Word trial: four DOCX downloads passed content and digest checks; thin used fewer input tokens and more calls/time.
+
+- History-only Word comparison: four artifacts retained exact numbers and source; thin reduced uncached input, latency was mixed, one control over-specified capacity.
+
+- 632187af records eight Word samples, history-only reuse, and the observed model latency and semantic limits.
+
+- Current view schema baseline: explicit offsets accepted, either missing offset also accepted, page_size rejected, zero business queries.
+
+- Verified live adapter treats date-time format as annotation; asserted string patterns reject offset-free arguments.
+
+- 7f9debdb clarifies MCP preflight schema assertions and the binding needed for per-view validation.
+
+- Added a repeatable contract-only probe using the actual adapter validator; current publication still fails both missing-offset cases.
+
+- df31ddf7 checks published view-bound window and continuation schemas before gateway dispatch.
+
+- Live HTTP adapter verification confirms three predispatch rejections, reversed-window gateway rejection, valid measurement query and original cursor continuation.
+
+- 1c05ae54 adds bounded Word/OpenDocument and TSV previews; 61 focused App tests and real 5174 Word preview verified.
+
+- d5a8a78e scopes adapter CI; 237 local tests and both 5174 window turns passed.
+
+- 77300657 isolates gateway adapter CI; 5174 confirmed exact original-cursor continuation with one business call per turn.
+
+- PR 310 merged f027529b after adapter CI; PR 309 merged 2592b445 and dev synchronized.
+
+- 7b1c81f9 records the closed window-contract validation and exact local deployment versions.
+
+- Pinned SDK synthetic 503 retry sent identical system, message, and tool inputs on both model dispatches.
+
+- Final 5174 payload audit confirmed current parameter plus original view/start, and plan constraint plus exact description before answer.
+
+- 32660a31 audits evidence by instruction type and records the scoped rollout disposition.
+
+- Thin context acceptance merged at aa40bfdc; 18 verified branch tips archived with local evidence retained.
+
+- Closed 18 merged remote branches after exact-tip checks; retained the divergent PPT experiment and its worktree.
