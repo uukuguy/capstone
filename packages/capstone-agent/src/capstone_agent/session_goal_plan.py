@@ -26,8 +26,8 @@ def parse_goal_plan(value: object, *, objective: str) -> dict:
     steps = value["steps"]
     if not isinstance(criteria, list) or not 1 <= len(criteria) <= MAX_PLAN_ENTRIES:
         raise ValueError("Goal plan requires bounded acceptance criteria")
-    if not isinstance(steps, list) or not 2 <= len(steps) <= MAX_PLAN_ENTRIES:
-        raise ValueError("Goal plan requires multiple bounded instructions")
+    if not isinstance(steps, list) or not 1 <= len(steps) <= MAX_PLAN_ENTRIES:
+        raise ValueError("Goal plan requires at least one bounded instruction")
     instructions = {objective.strip()}
     parsed_steps = []
     for index, step in enumerate(steps):
@@ -159,7 +159,7 @@ def _request_plan_model(system: str, content: str) -> dict:
     return json.loads(choice["message"]["content"])
 
 
-def request_initial_plan(objective: str, *, max_steps: int | None = None) -> dict:
+def request_initial_plan(objective: str, *, max_steps: int | None = None, model_context=None) -> dict:
     system = (
         'Plan the objective for one main Agent in one conversation. '
         'Return a single JSON object with schema "capstone-session-goal-plan/1", '
@@ -167,8 +167,15 @@ def request_initial_plan(objective: str, *, max_steps: int | None = None) -> dic
         'of objects with instruction, expected_result, and depends_on). For depends_on, '
         'list the zero-based indices of earlier steps whose successful results are required. '
         'Use an empty list only for work independent of every earlier step, including their side effects. '
-        'Give at least two distinct '
-        'executable instructions in the user’s language. Order dependencies and keep '
+        'Prefer one end-to-end instruction for a single deliverable: obtain admitted data, '
+        'produce the deliverable and verify it in that instruction. For a complete business '
+        'dataset or list, require a reusable saved table covering actual published fields and '
+        'rows, unless the user requested inline-only output. Derive fields from the source. '
+        'Add instructions only for '
+        'distinct unresolved work requiring a separate execution. Use the selected session '
+        'model when relevant. The executor can access registered tools and model data. '
+        'Do not invent an upload prerequisite or a missing-input deliverable. '
+        'Write executable instructions in the user’s language. Order dependencies and keep '
         'the first step focused. Do not execute any steps. '
         'Keep the original verification requirement as an acceptance criterion when the '
         'user permits a partial fallback. A report describing a missing input can be useful '
@@ -186,12 +193,21 @@ def request_initial_plan(objective: str, *, max_steps: int | None = None) -> dic
         'Do not include an objective field, step IDs, commentary, or Markdown fences.'
     )
     if max_steps is not None:
-        if max_steps < 2:
-            raise ValueError("Goal budget needs at least two executions for a new plan")
-        system += (f' Admit no more than {max_steps} steps, including the final verification. '
+        if max_steps < 1:
+            raise ValueError("Goal budget has no remaining execution")
+        system += (f' Admit no more than {max_steps} steps. '
                    'Combine compatible actions without dropping acceptance conditions.')
+    content = objective
+    if model_context is not None:
+        import json
+        content = json.dumps({
+            "objective": objective,
+            "selected_session_model": {"id": model_context.id, "model_id": model_context.model_id,
+                                       "revision": model_context.model_revision,
+                                       "implementation_family": model_context.implementation_family},
+        }, ensure_ascii=False)
     for attempt in range(2):
-        response = _request_plan_model(system, objective)
+        response = _request_plan_model(system, content)
         if isinstance(response, dict) and 'objective' in response:
             # The application owns the objective. A provider may echo it as metadata.
             response = {key: value for key, value in response.items() if key != 'objective'}
@@ -346,7 +362,8 @@ def drain_initial_goal_plans(service, *, planner=None) -> int:
             import httpx
             for attempt in range(3):
                 try:
-                    proposal = (request_initial_plan(work["goal"], max_steps=goal["max_attempts"]-goal["attempts_admitted"])
+                    proposal = (request_initial_plan(work["goal"], model_context=snapshot.active_model_context,
+                                                     max_steps=goal["max_attempts"]-goal["attempts_admitted"])
                                 if planner is None else planner(work["goal"]))
                     break
                 except (TimeoutError, httpx.TransportError):
