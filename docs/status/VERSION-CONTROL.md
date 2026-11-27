@@ -1,3 +1,5 @@
+2026-11-27 薄上下文专项收口。验收 [PR312](https://github.com/uukuguy/capstone/pull/312) 合入 dev `aa40bfdc`。18 条专项分支均已核对 Git 祖先关系，本地保留归档引用、工作树及验收回执。按模型启用并保留回退。[专项验收](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md)。
+
 2026-11-27 [PR310](https://github.com/uukuguy/capstone/pull/310) 合入 dev `f027529b`。5174 已验证新版网关时间窗校验和原引用续页。[PR309](https://github.com/uukuguy/capstone/pull/309) 合入 `2592b445`，5174 已验证 Word 正文和表格预览。
 
 2026-11-27 [PR303](https://github.com/uukuguy/capstone/pull/303) 合入 dev `c84dea97`。[macOS 薄上下文 CI](https://github.com/uukuguy/capstone/actions/runs/45897421420) 通过。5174 两次丢响应续轮均用 3 次模型调用，原样本为 11 次，续轮无网关派发。
