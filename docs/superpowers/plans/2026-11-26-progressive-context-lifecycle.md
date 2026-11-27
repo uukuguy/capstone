@@ -225,3 +225,25 @@ profile. They do not establish a latency improvement or preservation of
 every semantic qualifier. Retain the scoped rollout and the per-model
 rollback. See `final-word-same-image-matched.json` and
 `history-word-same-image-matched.json`.
+
+## Development acceptance audit
+
+The evidence below covers scoped local development. The App runs at 5174.
+The gateway window tests use the released window contract. The expiry and
+response-loss tests use isolated gateways with synthetic data.
+
+| Requirement | Evidence and disposition |
+| --- | --- |
+| Initial query and short continuation | The request observations in `provider-dispatch-audit.json` separate current and historical inputs. The four matched sequences in `matched-enforced-ceiling.json` record the delivered result and per-instruction costs. Earlier values are available for short follow-ups. |
+| Change one parameter | `final-parameter-plan-payload-audit.json` shows the prior view and start in history and the new end in the current instruction from dispatch one. In 5174 Thread `thr_1dacedd7f55e8ef4f099`, one query kept the view and start and returned two MW values before the new right endpoint. `merged-cross-province-reuse.json` also checks distinct province bindings, six exported rows and no source requery during formatting. |
+| Formal result and report | `provider-dispatch-audit.json` records all five requests for the audited report. `history-word-same-image-matched.json` checks four history-only Word downloads. `thin-single-slide.json` checks the exact slide count and the published digest. File and qualifier findings remain recorded above. |
+| Change direction | The first request for the redirect in `provider-dispatch-audit.json` contains the new inputs and still includes an earlier history preview. The independent answer was scored using only the new inputs. The residual preview represents bounded redundancy observed in the audit. |
+| Discuss a plan | `final-parameter-plan-payload-audit.json` shows the restriction in the first request and the exact prior contract before the answer. 5174 Thread `thr_effc19fd1f997bead02a` made no gateway call and identified the missing evidence for a Jiangsu view. `matched-contract-plan.json` records two control and two thin runs. |
+| Compact, resume and recover | `real-context-compaction-verified.json` records two threshold compactions and preserved artifact digests after restart. `real-context-limit-encoding.json` records the hard-limit failure and a subsequent verified delivery. The managed SDK capacity regression injects summary failure and verifies retained tool work. `pinned-sdk-model-retry.json` records recovery from a simulated provider 503. The fixture compared the system prompt, messages and schemas across both dispatches. |
+| Business references and scope | The exact cursor receipt is `view-window-continuation-5174.json`. `natural-ttl-expiry.json` records the original reference on expiry without reopen. `response-loss-cross-workspace-authority.json` records original binding HTTP 200 and other workspace HTTP 404 under the same service subject. `response-loss-first-request-audit.json` confirms the recovery fields in the first continuation request. |
+| Capacity, cache, timing and offline handoff | `context-estimator-calibration.json`, `prefix-usage.json` and `matched-contract-plan.json` retain actual usage and distinguish cache reads from measured timing. The provider reported no prefill metric. `live-projection-batch-final-verification.json` and `follow-audit-verification.json` verify request identity, budget and selected evidence in downloaded packages. |
+| Rollout and rollback | `profile-context-overrides.json` checks both profile overrides. Use scoped enablement. The observed first-query and report costs vary. Broader promotion requires separate acceptance of those trade-offs. |
+
+The acceptance records identify the configurations and source revisions used
+for each scenario. Synthetic faults verify recovery behavior. Timing
+observations apply to the sampled model and instruction types.
