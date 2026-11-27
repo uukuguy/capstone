@@ -70,6 +70,7 @@ def project_work(snapshot, work):
         reason = 'attempt_in_progress'
     projected = deepcopy(work)
     projected.pop('goal_step_review', None)
+    projected.pop('goal_application_catalog', None)
     projected.pop('goal_followup', None)
     current = snapshot.current_attempt
     if (work.get('conversation_mode') and current is not None
@@ -762,7 +763,7 @@ def parse_snapshot(document):
     for work in document['works']:
         fields = {'work_id', 'goal', 'goal_revision', 'revision', 'status', 'blocked_reason', 'task_context', 'messages'}
         optional = {'latest_attempt_id', 'start_available', 'start_unavailable_reason', 'consumed_message_count', 'cancel_requested', 'conversation_mode', 'context_product_refs', 'goal_mode', 'pending_goal_control', 'goal_continuation', 'goal_plan_pending', 'goal_plan', 'goal_step_review', 'goal_followup', 'instruction_queue_available', 'instruction_queue', 'mission_equipment', 'mission_equipment_binding_revision', 'mission_skill', 'mission_origin_goal'}
-        optional.update(('task_state', 'task_decision', 'execution_checkpoint'))
+        optional.update(('task_state', 'task_decision', 'execution_checkpoint', 'goal_application_catalog'))
         if (not isinstance(work, dict) or set(work) - fields - optional or not fields <= set(work) or not isinstance(work['goal'], str)
                 or not work['goal'].strip() or type(work['revision']) is not int or work['revision'] < 1
                 or type(work['goal_revision']) is not int or not 1 <= work['goal_revision'] <= work['revision']

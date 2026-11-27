@@ -398,6 +398,8 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, closure,
         thread_id = 'thr_work_exec'
         store = InMemoryThreadService(professional_snapshot())
     work = save_work(store, thread_id)
+    catalog = {"models": [{"model_id": "selected"}], "profiles": []}
+    store.set_catalog_context(catalog)
     receipt = store.submit_command(command(store, thread_id, 'start_goal', 'goal_start',
         work_id=work['work_id'], revision=work['revision'], payload={
         'objective': work['goal'], 'max_attempts': 2, 'deadline_at': '2099-01-01T00:00:00Z'}))
@@ -419,11 +421,14 @@ def test_start_goal_admits_only_the_first_saved_plan_step(invalid_plan, closure,
         assert paused['goal_mode']['reason'] == 'goal_planning_failed'
         assert store.claim_attempt('worker', 30) is None
         return
+    # The background planner and worker do not own the API's application catalog.
+    store._catalog_context = None
     assert drain_initial_goal_plans(store, planner=lambda objective: plan) == 1
     assert drain_initial_goal_plans(store, planner=lambda objective: pytest.fail('planned twice')) == 0
     claim = store.claim_attempt('worker', 30)
     assert claim is not None
     assert claim.instruction == "Check source material."
+    assert claim.submission["_application_catalog"] == catalog
     assert store.snapshot(thread_id).works[0]["goal_plan"]["plan"] == plan
     assert store.snapshot(thread_id).works[0]['goal_mode']['attempts_admitted'] == 1
     from capstone_agent.goal_continuation import drain_goal_continuations

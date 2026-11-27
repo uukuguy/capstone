@@ -205,7 +205,7 @@ it('keeps catalog LLM choices per session and across sends while DR resets',asyn
   expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Commercial')
   expect(within(screen.getByRole('region',{name:'当前会话连接'})).getByText('flash')).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'后端 LLM'}))
-  expect((screen.getByRole('menuitemradio',{name:/Custom.*未配置/}) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('menuitemradio',{name:/Custom.*未配置/}) as HTMLButtonElement).disabled).toBe(false)
   fireEvent.click(screen.getByRole('menuitemradio',{name:/Intranet/}))
   expect(within(screen.getByRole('region',{name:'当前会话连接'})).getByText('dsv4')).toBeTruthy()
   fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'first'}})

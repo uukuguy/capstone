@@ -19,21 +19,40 @@ def test_plan_exposes_a_distinct_first_instruction():
     assert plan["steps"][0]["instruction"] == "Verify the source data."
 
 
-@pytest.mark.parametrize("defect", ["raw_objective", "repeated_step", "one_step", "no_criteria", "unknown_field"])
+@pytest.mark.parametrize("defect", ["raw_objective", "repeated_step", "empty_plan", "no_criteria", "unknown_field"])
 def test_plan_rejects_an_invalid_execution_boundary(defect):
     value = proposal()
     if defect == "raw_objective":
         value["steps"][0]["instruction"] = " Build a benchmark. "
     elif defect == "repeated_step":
         value["steps"][1]["instruction"] = value["steps"][0]["instruction"]
-    elif defect == "one_step":
-        value["steps"].pop()
+    elif defect == "empty_plan":
+        value["steps"].clear()
     elif defect == "no_criteria":
         value["criteria"] = []
     else:
         value["work_id"] = "model-selected"
     with pytest.raises(ValueError):
         parse_goal_plan(value, objective="Build a benchmark.")
+
+
+def test_one_remaining_execution_uses_selected_revision(monkeypatch):
+    import json
+    from capstone_agent import session_goal_plan
+    from capstone_agent.thread_protocol import ModelContextSnapshot
+
+    context = ModelContextSnapshot("ctx_a", "model_a", "revision_a", "family_a", "selection_a")
+    value = proposal()
+    value["steps"] = value["steps"][1:]
+
+    def planner(system, content):
+        inputs = json.loads(content)
+        assert inputs["objective"] == "Build a benchmark."
+        assert inputs["selected_session_model"]["revision"] == context.model_revision
+        return value
+
+    monkeypatch.setattr(session_goal_plan, "_request_plan_model", planner)
+    assert session_goal_plan.request_initial_plan("Build a benchmark.", max_steps=1, model_context=context) == value
 
 
 def test_planning_receipt_is_bound_by_the_host():
