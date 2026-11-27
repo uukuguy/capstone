@@ -980,7 +980,10 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         'packages/capstone-app/src/localQwenProfile.tsx', 'packages/capstone-app/src/LlmProfileMenu.tsx',
         'packages/capstone-app/src/LlmProfileMenu.test.tsx', 'packages/capstone-app/src/WelcomeConnections.tsx',
     }
-    if profile_catalog in paths and all(path in profile_files or _control_path(path) for path in paths):
+    profile_menu = 'packages/capstone-app/src/LlmProfileMenu.tsx'
+    profile_files.update({'packages/capstone-app/src/threadInput.ts', 'packages/capstone-app/src/threadInput.test.ts'})
+    if {profile_catalog, profile_menu}.intersection(paths) and all(
+            path in profile_files or _control_path(path) for path in paths):
         return 'local-dev'
     continuity_manifest = Path(__file__).resolve().parents[1] / 'configs/development/execution-continuity-gate.json'
     if continuity_manifest.is_file():
