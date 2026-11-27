@@ -1,3 +1,5 @@
+2026-11-27 视图时间窗契约与 Word 预览已在 5174 验证。见[版本台账](VERSION-CONTROL.md)和[验收计划](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md)。
+
 2026-11-27 丢响应续接薄上下文已合入 dev，两次 5174 联验通过。见[版本台账](VERSION-CONTROL.md)。
 
 2026-11-27 网关丢响应恢复已合入 dev，并在 5174 复测。见[版本台账](VERSION-CONTROL.md)和[项目全景](PROJECT-OVERVIEW.html)。
