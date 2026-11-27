@@ -1,5 +1,5 @@
 /** Parse CSV records before escaping cells for a literal GFM table preview. */
-export function csvMarkdown(text:string){
+export function csvMarkdown(text:string,delimiter:","|"\t"=","){
   const rows:string[][]=[];let row:string[]=[],cell='',quoted=false;
   const input=text.replace(/^\uFEFF/,'');
   for(let i=0;i<input.length;i++){
@@ -8,9 +8,9 @@ export function csvMarkdown(text:string){
       if(quoted&&input[i+1]==='"'){cell+='"';i++}
       else if(quoted||cell==='')quoted=!quoted;
       else cell+=c;
-    }else if(!quoted&&(c===','||c==='\n'||c==='\r')){
+    }else if(!quoted&&(c===delimiter||c==='\n'||c==='\r')){
       row.push(cell);cell='';
-      if(c!==','){rows.push(row);row=[];if(c==='\r'&&input[i+1]==='\n')i++}
+      if(c!==delimiter){rows.push(row);row=[];if(c==='\r'&&input[i+1]==='\n')i++}
     }else cell+=c;
   }
   if(cell!==''||row.length){row.push(cell);rows.push(row)}

@@ -8,8 +8,10 @@ import {nativeArtifactSavedTime} from './nativeArtifacts'
 import {instructionProductLabel,type InstructionProductScope} from './instructionProducts'
 import './nativeArtifacts.css'
 import PptxPreview from './PptxPreview'
+import {docxMedia,officeDocumentMedia,openDocumentMedia} from './officeDocumentMedia'
 import {codeLanguage} from './codeLanguage'
 const CodePreview=lazy(()=>import('./CodePreview'))
+const OfficeDocumentPreview=lazy(()=>import('./OfficeDocumentPreview'))
 const XlsxPreview=lazy(()=>import('./XlsxPreview'))
 import {useSessionViewState,useSessionObjectUrls,sessionObjectUrl} from './workspaceSessionCache'
 
@@ -26,6 +28,12 @@ const xlsxMedia='application/vnd.openxmlformats-officedocument.spreadsheetml.she
 /** A filename fallback affects only the isolated preview, never the stored descriptor. */
 export function nativePreviewMedia(name:string,media:string|null|undefined){
   const normalized=media?.split(';')[0].trim().toLowerCase()
+  const extension=name.split('.').at(-1)?.toLowerCase()
+  if(!normalized||['application/octet-stream','application/zip','application/x-zip-compressed'].includes(normalized)){
+    if(extension==='docx')return docxMedia
+    if(extension==='odt'||extension==='ods'||extension==='odp')return openDocumentMedia[extension]
+    if(extension==='tsv')return 'text/tab-separated-values'
+  }
   if(codeLanguage(name,normalized))return normalized?.startsWith('text/')||normalized==='application/json'?normalized:'text/plain'
   if(normalized&&normalized!=='application/octet-stream')return normalized
   if(/\.html?$/i.test(name))return 'text/html'
@@ -66,11 +74,11 @@ export function htmlPreviewDocument(text:string) {
 /** Shared rendering for authenticated, verified persisted file bytes. */
 export function NativeFileContent({name,media,url,text,textUnavailable,previewSize}:{name:string;media:string;url?:string;text?:string;textUnavailable?:boolean;previewSize?:number}) {
   if(previewSize!==undefined)observeCapacity(previewSize,'preview_bytes','artifact.preview')
-  const csv=media==='text/csv'&&text!==undefined&&!textUnavailable&&(previewSize===undefined||previewSize<=applicationCapacity('preview_bytes'))?csvMarkdown(text):undefined;
+  const csv=(media==='text/csv'||media==='text/tab-separated-values')&&text!==undefined&&!textUnavailable&&(previewSize===undefined||previewSize<=applicationCapacity('preview_bytes'))?csvMarkdown(text,media==='text/tab-separated-values'?'\t':','):undefined;
   return <div className="native-artifact-preview">{previewSize!==undefined&&previewSize>applicationCapacity('preview_bytes')?<p>此文件超过内置预览容量（{applicationCapacity('preview_bytes')} 字节），可下载完整文件。</p>:textUnavailable?<p>此文件无法按 UTF-8 文本预览，可下载后查看。</p>
     :media==='text/html'?<iframe title={`HTML 预览：${name}`} sandbox="" referrerPolicy="no-referrer" srcDoc={htmlPreviewDocument(text||'')}/>
     :media==='text/markdown'?<div className="capstone-chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{img:({alt})=><span>{alt?`图片引用：${alt}`:'外部图片引用'}</span>,a:({href,children})=><a href={href} target="_blank" rel="noopener noreferrer">{children}</a>}}>{text||''}</ReactMarkdown></div>
-    :csv?<div className="capstone-chat-markdown capstone-chat-table-scroll native-csv-preview"><ReactMarkdown remarkPlugins={[remarkGfm]}>{csv.markdown}</ReactMarkdown>{csv.truncated&&<p>预览最多显示 500 行数据、100 列；下载可查看完整 CSV。</p>}</div>
+    :csv?<div className="capstone-chat-markdown capstone-chat-table-scroll native-csv-preview"><ReactMarkdown remarkPlugins={[remarkGfm]}>{csv.markdown}</ReactMarkdown>{csv.truncated&&<p>预览最多显示 500 行数据、100 列；可下载查看完整表格。</p>}</div>
     :text!==undefined&&codeLanguage(name,media)?<Suspense fallback={<p>正在渲染代码…</p>}><CodePreview key={name} name={name} text={text}/></Suspense>
     :text!==undefined?<pre>{text}</pre>
     :media.startsWith('image/')?<img src={url} alt={name}/>
@@ -78,6 +86,7 @@ export function NativeFileContent({name,media,url,text,textUnavailable,previewSi
     // remain a local Blob built from authenticated, integrity-checked bytes.
     :media==='application/pdf'?(url?.startsWith('blob:')?<iframe src={url} title={`PDF 预览：${name}`} referrerPolicy="no-referrer"/>:<p>PDF 预览暂不可用，可下载后查看。</p>)
     :media==='application/vnd.openxmlformats-officedocument.presentationml.presentation'?<PptxPreview key={url} name={name} url={url}/>
+    :officeDocumentMedia.has(media)?<Suspense fallback={<p role="status">正在读取文档…</p>}><OfficeDocumentPreview key={url} name={name} media={media} url={url}/></Suspense>
     :media===xlsxMedia?<Suspense fallback={<p role="status">正在读取工作簿…</p>}><XlsxPreview key={url} name={name} url={url}/></Suspense>
     :<p>此文件格式没有内置预览，可下载后查看。</p>}</div>
 }
