@@ -832,3 +832,23 @@ def test_same_endpoint_refresh_tracks_source_upgrade_rollback_and_missing_identi
             identity['source_sha256'] = digest
         catalog = asyncio.run(client.refresh_catalog(catalog))
         assert catalog.get('instance', {}).get('source_sha256') == digest
+
+
+def test_slice_window_schema_checks_view_binding_and_selects_continuation():
+    from capstone_agent.data_gateway_mcp import slice_window_schema
+
+    view = 'fixture-view'
+    first = {'type': 'object', 'properties': {'slice_view_id': {'const': view},
+              'start_time': {'type': 'string', 'pattern': 'Z$'}}}
+    continuation = {'type': 'object', 'properties': {'slice_view_id': {'const': view},
+                     'page_ref': {'type': 'string'}}}
+    description = {'call_schema': first, 'window_contract': {
+        'version': 'slice-view-window/1', 'revision': 'a' * 64, 'operation': 'run_slice_view',
+        'selector': {'parameter': 'slice_view_id', 'value': view},
+        'continuation_schema': continuation, 'applies_to_page_ref': False,
+    }}
+    assert slice_window_schema(description, {'slice_view_id': view}) == first
+    assert slice_window_schema(description, {'slice_view_id': view, 'page_ref': 'cursor'}) == continuation
+    assert slice_window_schema({}, {'slice_view_id': view}) is None
+    with pytest.raises(GatewayError, match='gateway_output_invalid'):
+        slice_window_schema(description, {'slice_view_id': 'other-view'})

@@ -202,6 +202,32 @@ def validate(schema, value):
     Draft202012Validator(schema, registry=Registry(retrieve=_deny)).validate(value)
 
 
+def slice_window_schema(data, arguments):
+    """Select the exact view-bound schema from a current description."""
+    if not isinstance(data, dict):
+        raise GatewayError('gateway_output_invalid')
+    if 'window_contract' not in data:
+        return None  # Older publications expose only the operation schema.
+    contract = data['window_contract']
+    view = arguments['slice_view_id']
+    if (not isinstance(contract, dict) or contract.get('version') != 'slice-view-window/1'
+            or contract.get('operation') != 'run_slice_view'
+            or contract.get('selector') != {'parameter': 'slice_view_id', 'value': view}
+            or not isinstance((revision := contract.get('revision')), str)
+            or not re.fullmatch(r'[a-f0-9]{64}', revision)):
+        raise GatewayError('gateway_output_invalid')
+    if 'page_ref' in arguments:
+        schema = contract.get('continuation_schema')
+        if schema is None:
+            raise GatewayError('gateway_arguments_invalid')
+    else:
+        schema = data.get('call_schema')
+    if (not isinstance(schema, dict) or not isinstance(schema.get('properties'), dict)
+            or schema['properties'].get('slice_view_id') != {'const': view}):
+        raise GatewayError('gateway_output_invalid')
+    return schema
+
+
 class DataGatewayMcp:
     def __init__(self, connection_path: Path, policy: dict, *, connect=None):
         self.connection_path = Path(connection_path)
@@ -691,6 +717,44 @@ class DataGatewayMcp:
         return {'catalog_revision': catalog['revision'], 'lookup_tool': name, 'tool': target,
                 'section': section, 'contract_revision': data['contract_revision'], 'data': deepcopy(data)}
 
+    async def _progressive_call(self, connection, catalog, schema, arguments, metadata):
+        from mcp import types
+        declaration = catalog['progressive']
+        item = schema['progressive']
+        request_metadata = {**metadata, _PROGRESSIVE: {
+            'version': '1', 'access_view_id': declaration['access_view_id'],
+            'expected_publication_revision': declaration['publication_revision'],
+            'expected_tool_contract_revision': item['tool_contract_revision'],
+        }}
+        active: Any = getattr(connection, 'session', connection)
+        return await active.send_request(types.ClientRequest(types.CallToolRequest(
+            params=types.CallToolRequestParams(name=schema['name'], arguments=arguments,
+                _meta=types.RequestParams.Meta.model_validate(request_metadata)))), types.CallToolResult)
+
+    async def _validate_slice_window(self, connection, catalog, arguments):
+        describe = self.policy['namespace'] + 'describe_slice_view'
+        if describe not in catalog['tools']:
+            return
+        view_arguments = {'slice_view_id': arguments['slice_view_id']}
+        schema = (await self.exact_contracts([describe], catalog, connection=connection))[describe]
+        response = await self._progressive_call(connection, catalog, schema, view_arguments, {})
+        value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
+        require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_view_description')
+        body = value.get('structuredContent')
+        if value.get('isError') or not isinstance(body, dict) or body.get('status') != 'ok':
+            raise GatewayError('gateway_arguments_invalid')
+        selected = slice_window_schema(body.get('data'), arguments)
+        if selected is None:
+            return
+        try:
+            validate(selected, arguments)
+        except Exception as error:
+            from jsonschema.exceptions import ValidationError
+            if not isinstance(error, ValidationError):
+                raise GatewayError('gateway_output_invalid') from None
+            raise GatewayError('gateway_arguments_invalid',
+                               validation_errors=argument_validation_details(error)) from None
+
     async def call(self, name, arguments, catalog, *, diagnostics=None, investigation=None):
         from .gateway_diagnostics import checked_diagnostics
         context = checked_diagnostics(diagnostics)
@@ -729,17 +793,10 @@ class DataGatewayMcp:
                             from jsonschema.exceptions import ValidationError
                             raise GatewayError('gateway_arguments_invalid', validation_errors=(
                                 argument_validation_details(error) if isinstance(error, ValidationError) else [])) from None
-                        from mcp import types
-                        declaration = catalog['progressive']
-                        item = schema['progressive']
-                        metadata[_PROGRESSIVE] = {'version': '1', 'access_view_id': declaration['access_view_id'],
-                            'expected_publication_revision': declaration['publication_revision'],
-                            'expected_tool_contract_revision': item['tool_contract_revision']}
-                        active: Any = getattr(connection, 'session', connection)
+                        if schema['name'] == 'run_slice_view' and isinstance(arguments.get('slice_view_id'), str):
+                            await self._validate_slice_window(connection, catalog, arguments)
                         awaiting_business_response = True
-                        response = await active.send_request(types.ClientRequest(types.CallToolRequest(
-                            params=types.CallToolRequestParams(name=schema['name'], arguments=arguments,
-                                _meta=types.RequestParams.Meta.model_validate(metadata)))), types.CallToolResult)
+                        response = await self._progressive_call(connection, catalog, schema, arguments, metadata)
                         awaiting_business_response = False
                         value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
                         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
