@@ -1148,6 +1148,9 @@ class HarnessAttemptRunner:
                     and artifact.get('source_status') in ('completed', 'failed', 'cancelled', 'incomplete')
                     and isinstance(artifact.get('artifact_id'), str)):
                 self._retained_file_ids.add(artifact['artifact_id'])
+        if (event_type == 'runtime_event' and payload.get('child_status') == 'cancelled'
+                and self._runtime_failure_code is None):
+            self._runtime_failure_code = 'native_child_cancelled'
         if event_type == 'runtime_event' and payload.get('child_status') == 'failed':
             failure = _capacity_failure(payload.get('failure'))
             if failure is not None:

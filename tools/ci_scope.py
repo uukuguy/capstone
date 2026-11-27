@@ -918,6 +918,16 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         'packages/capability-agent-kernel/tests/application/test_answer_format.py',
         'packages/capstone-agent/tests/test_native_environment.py',
     }
+    harness_task_paths = {
+        'packages/capstone-agent/src/capstone_agent/' + name + '.py'
+        for name in ('harness', 'failure_delivery', 'intent_runtime', 'pi_delegation')
+    }
+    if (harness_task_paths.intersection(paths)
+            and all(path in harness_task_paths | {
+                '.github/workflows/verify.yml', 'tools/ci_scope.py',
+                'packages/capstone-agent/tests/test_attempt_failure_delivery.py',
+            } or _control_path(path) for path in paths)):
+        return 'formal-report-delivery'
     if ({formal_answer, report_guidance, answer_presentation}.intersection(paths)
             and all(path in formal_report_paths or _control_path(path) for path in paths)):
         return 'formal-report-delivery'

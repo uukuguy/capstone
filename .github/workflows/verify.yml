@@ -105,6 +105,7 @@ jobs:
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_native_environment.py packages/capstone-agent/tests/test_answer_presentation.py
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_executor.py -k 'ambiguous_answer_presentation or failed_continuation_terminal'
           uv run --project packages/capstone-agent pytest -q tools/tests/test_native_report.py -k html
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_attempt_failure_delivery.py packages/capstone-agent/tests/test_delegated_runtime.py
       - name: Verify admitted query delivery
         if: steps.scope.outputs.gate == 'admitted-query-delivery'
         timeout-minutes: 7
