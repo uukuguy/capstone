@@ -1,3 +1,5 @@
+2026-11-27 根目录 dev 与 local-dev 5174 已统一。见[版本台账](VERSION-CONTROL.md#环境台账)。
+
 2026-11-27 薄上下文专项已在 dev 收口。见[版本台账](VERSION-CONTROL.md)和[专项验收](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md)。
 
 2026-11-27 视图时间窗契约与 Word 预览已在 5174 验证。见[版本台账](VERSION-CONTROL.md)和[验收计划](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md)。

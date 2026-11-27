@@ -8664,3 +8664,5 @@ check passed. No CI, integration or remote deployment performed.
 - Thin context acceptance merged at aa40bfdc; 18 verified branch tips archived with local evidence retained.
 
 - Closed 18 merged remote branches after exact-tip checks; retained the divergent PPT experiment and its worktree.
+
+- Root dev and local-dev 5174 aligned at 4c93e454; 34 merged inactive worktrees removed, with user data preserved.
