@@ -8672,3 +8672,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-27 18:42 CST — 423cb0ae isolates the rebuild smoke test from workstation gateway files.
 
 - 2026-11-27 19:01 CST — 76fec45c keeps unconfigured LLM presets selectable and validates configuration before sending.
+
+- 2026-11-27 19:51 CST — 60ead270 improves outstanding work delivery and preserves native child cancellation found in the IEEE 39 debug package.
