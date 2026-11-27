@@ -7,6 +7,7 @@ import {useContext,useEffect,useLayoutEffect,useRef,useState,type ReactNode} fro
 import {ArrowDownToLine,ArrowUpRight,LocateFixed} from 'lucide-react'
 import {ResultProjectionCard} from './CapstoneAssistantThread'
 import {NativeFileContent,nativePreviewMedia} from './NativeArtifactsWorkspace'
+import {officeDocumentMedia} from './officeDocumentMedia'
 import type {NativeArtifact} from './nativeArtifacts'
 import {latestProductVersions,productRefKey,type ProductEntry,type ProductIndex,type ProductQuery,type ProductRef,type ProductResolution} from './threadProducts'
 import './threadProducts.css'
@@ -22,6 +23,10 @@ import type {SeriesClient} from './productSeries'
 
 type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>;supportsProductBlocks?:boolean;readProductBlocks?:BlockReader;supportsProductSeries?:boolean;supportsResultRows?:boolean}&Partial<SeriesClient>&Partial<RowClient>&ResourceReadClient
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
+const presentationMedia='application/vnd.openxmlformats-officedocument.presentationml.presentation'
+const spreadsheetMedia='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const documentPreviews=new Set(['text/html','application/pdf',presentationMedia,'text/markdown',...officeDocumentMedia])
+
 function newestFirst(a:ProductEntry,b:ProductEntry){
   return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
 }
@@ -31,7 +36,7 @@ function defaultProduct(items:ProductEntry[],attemptId?:string){
 }
 /** Host-bound available primary files from the exact instruction may open once. */
 function primaryProduct(items:ProductEntry[],threadId:string,workId:string|null|undefined,attemptId?:string){
-  const mediaOrder=['text/html','application/pdf','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/markdown','text/plain','image/svg+xml','text/csv','application/json']
+  const mediaOrder=[...documentPreviews,'text/plain','image/svg+xml','text/csv','text/tab-separated-values',spreadsheetMedia,'application/json']
   return items.filter(item=>item.ref.thread_id===threadId&&item.ref.work_id===workId&&item.ref.attempt_id===attemptId
     &&item.ref.origin==='native_file'&&item.source.presentation_role==='primary')
     .sort((a,b)=>{
@@ -148,7 +153,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
       const loaded=[...page.products]
       const automaticAttemptId=primaryAttemptId??runningAttemptId
       const seekPrimary=(!instructionScope||instructionScope.attemptId===automaticAttemptId)&&!!automaticAttemptId&&!!onPrimaryReady&&followAvailable&&(!requested||requestedCurrent&&consumedRequest.current===requestedKey)&&!userSelected.current&&(!!runningAttemptId||!primaryNotified.current.has(automaticAttemptId))
-      const foundDocument=()=>{const item=primaryProduct(loaded,threadId,workId,primaryAttemptId);return !!item&&['text/html','application/pdf','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/markdown'].includes(nativePreviewMedia(typeof item.source.file_name==='string'?item.source.file_name:item.title,item.media_type))}
+      const foundDocument=()=>{const item=primaryProduct(loaded,threadId,workId,primaryAttemptId);return !!item&&documentPreviews.has(nativePreviewMedia(typeof item.source.file_name==='string'?item.source.file_name:item.title,item.media_type))}
       let scanned=1
       for(let scan=1;(!!instructionScope||(requested&&!requested.ref&&!loaded.some(item=>matches(item,requested)))||(seekPrimary&&!foundDocument()))&&page.hasMore&&scan<applicationCapacity('artifact_initial_pages');scan++){
         if(controller.signal.aborted||token!==generation.current)return
