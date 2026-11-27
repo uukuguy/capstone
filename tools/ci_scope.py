@@ -974,6 +974,7 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
     profile_catalog = 'configs/runtime/workbench-llm-profiles.json'
     profile_files = {
         profile_catalog, 'compose.yaml', 'deploy/local.env.example',
+        'tools/test_local_rebuild.sh',
         'tools/ci_scope.py', '.github/workflows/verify.yml',
         'packages/capstone-agent/tests/test_workbench_llm_profiles.py',
         'packages/capstone-app/src/localQwenProfile.tsx', 'packages/capstone-app/src/LlmProfileMenu.tsx',
