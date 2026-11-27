@@ -766,7 +766,12 @@ def gateway_capabilities_paths(paths: list[str]) -> bool:
         'GatewayStatus.tsx', 'GatewayStatus.test.tsx',
         'WorkspaceConnectionStatus.tsx', 'WorkspaceConnectionStatus.test.tsx',
         'threadHttpTransport.ts', 'threadHttpTransport.test.ts')}
-    return anchor in paths and all(path in allowed or _control_path(path) for path in paths)
+    adapter = source + 'data_gateway_mcp.py'
+    adapter_test = 'packages/capstone-agent/tests/test_data_gateway_mcp.py'
+    adapter_only = {adapter, adapter_test}.issubset(paths) and all(
+        path in {adapter, adapter_test, 'tools/ci_scope.py', 'tools/tests/test_ci_scope.py'} or _control_path(path)
+        for path in paths)
+    return adapter_only or (anchor in paths and all(path in allowed or _control_path(path) for path in paths))
 
 
 def debug_deployment_document(old: str, new: str) -> bool:
