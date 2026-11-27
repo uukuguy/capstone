@@ -32,7 +32,9 @@ export function inputDraftError(draft: InputDraft, catalog?: InputCatalog): stri
   if(draft.llm_profile_id!==undefined){
     if(!validLlmProfileId(draft.llm_profile_id))return 'LLM 选择无效，请重新选择。'
     if(!catalog)return '正在读取 LLM 目录。'
-    if(!catalog.llm_profiles?.profiles.some(profile=>profile.id===draft.llm_profile_id&&profile.available))return '所选 LLM 不可用或未配置，请重新选择。'
+    const profile=catalog.llm_profiles?.profiles.find(profile=>profile.id===draft.llm_profile_id)
+    if(!profile)return '所选 LLM 已从预设目录移除，请重新选择。'
+    if(!profile.available)return '所选 LLM 未配置。请完成后端配置后再发送指令。'
   }
   try{if(draft.context_product_refs!==undefined)parseContextProductRefs(draft.context_product_refs)}catch(error){rethrowDebugCapacity(error);return error instanceof CapacityError?error.message:'成果引用无效，请移除后重新选择。'}
   if (draft.material_refs !== undefined && (!validMaterialRefs(draft.material_refs) || catalog && draft.material_refs.some(ref => !catalog.materials.some(item => item.material_id === ref)))) return '所选资料已变化，请重新选择。'

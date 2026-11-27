@@ -21,7 +21,7 @@ export default function WelcomeConnections({catalog,gateway,profileId,loading=fa
       <span className="welcome-connection-detail">{address&&address!==gatewayName?address:gateway?.data_source_label||'当前会话使用的数据服务'}</span>
     </div>
     <div className="welcome-connection-card">
-      <div className="welcome-connection-heading">{localQwen?<LocalQwenIcon/>:<Server aria-hidden="true"/>}<span>LLM</span><span className="welcome-connection-state" data-state={profile?.available?'available':'unknown'}>{loading&&!profile?'读取中':profile?profile.available?'已选择':'不可用':'尚未取得'}</span></div>
+      <div className="welcome-connection-heading">{localQwen?<LocalQwenIcon/>:<Server aria-hidden="true"/>}<span>LLM</span><span className="welcome-connection-state" data-state={profile?.available?'available':'unknown'}>{loading&&!profile?'读取中':profile?profile.available?'已选择':'未配置':'尚未取得'}</span></div>
       <strong>{localQwen?profile.label:profile?.model||profile?.label||(loading?'正在读取模型信息…':'尚未提供模型信息')}</strong>
       <span className="welcome-connection-detail">{!localQwen&&profile?.label&&profile.label!==profile.model?profile.label:'当前指令使用的语言模型'}</span>
     </div>
