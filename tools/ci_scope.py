@@ -769,6 +769,13 @@ def gateway_capabilities_paths(paths: list[str]) -> bool:
     return anchor in paths and all(path in allowed or _control_path(path) for path in paths)
 
 
+def gateway_adapter_paths(paths: list[str]) -> bool:
+    required = {'packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py',
+                'packages/capstone-agent/tests/test_data_gateway_mcp.py'}
+    allowed = required | {'tools/ci_scope.py', 'tools/tests/test_ci_scope.py', '.github/workflows/verify.yml'}
+    return required.issubset(paths) and all(path in allowed or _control_path(path) for path in paths)
+
+
 def debug_deployment_document(old: str, new: str) -> bool:
     anchor = '      - worker-native-runs:/app/runs\n'
     library_mount = ('      - ${CAPSTONE_DEBUG_SOURCE_LIBRARY_DIR:-./.capstone-agent/debug-source-library}'
@@ -1178,6 +1185,8 @@ def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
         return 'presentation-library'
     if execution_lifecycle_paths(paths, deployment=execution_lifecycle_deployment):
         return 'execution-lifecycle'
+    if gateway_adapter_paths(paths):
+        return 'gateway-adapter'
     if gateway_capabilities_paths(paths):
         return 'gateway-capabilities'
     if session_capacity_paths(paths, deployment=session_capacity_deployment):

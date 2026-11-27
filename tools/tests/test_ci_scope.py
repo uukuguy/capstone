@@ -733,3 +733,16 @@ def test_execution_continuity_scope_covers_changed_owners():
     assert classify_changes(paths + ['packages/grid-simulator/pyproject.toml']) == 'product'
     assert set(manifest['backend_tests']).issubset(paths)
     assert all((ROOT / name).is_file() for name in manifest['backend_tests'])
+
+
+def test_gateway_adapter_contract_change_uses_focused_gate():
+    from tools.ci_scope import classify as classify_changes
+
+    paths = [
+        'packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py',
+        'packages/capstone-agent/tests/test_data_gateway_mcp.py',
+        'tools/ci_scope.py',
+        'tools/tests/test_ci_scope.py',
+    ]
+    assert classify_changes(paths) == 'gateway-adapter'
+    assert classify_changes(paths, target='main') == 'release'
