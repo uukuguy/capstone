@@ -1,3 +1,5 @@
+2026-11-27 仓库根目录恢复为日常 dev 工作树。local-dev 5174 从 `4c93e454` 重建，API、worker、Pi 和 App 均由根目录提供。保留运行数据和双仓调试源码。
+
 2026-11-27 薄上下文专项收口。验收 [PR312](https://github.com/uukuguy/capstone/pull/312) 合入 dev `aa40bfdc`。18 条专项分支均已核对 Git 祖先关系，本地保留归档引用、工作树及验收回执。按模型启用并保留回退。[专项验收](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md)。
 
 2026-11-27 [PR310](https://github.com/uukuguy/capstone/pull/310) 合入 dev `f027529b`。5174 已验证新版网关时间窗校验和原引用续页。[PR309](https://github.com/uukuguy/capstone/pull/309) 合入 `2592b445`，5174 已验证 Word 正文和表格预览。
@@ -1740,6 +1742,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | thin-gateway-receipt-dev | 4edc2dc4 | main | 薄上下文 · 丢响应后的网关状态 | PR301 聚焦 macOS CI 通过 | 按原调用查回回执，区分网关执行状态和业务响应可用性。 | shared-agent |
 | thin-recovery-context-dev | 7d832123 | main | 薄上下文 · 丢响应续接 | PR303 的受检源码和两次 5174 联验一致 | 将原回执状态带入续轮，保留业务重放限制。 | shared-agent |
 | thin-view-window-dev | df31ddf7 | main | 薄上下文 · 视图时间窗契约 | 5174 合法查询与原引用续页通过 | 绑定当前视图的请求与续页 Schema。[验收计划](../superpowers/plans/2026-11-26-progressive-context-lifecycle.md) | shared-agent |
+| local-dev-root-closeout | 4c93e454 | main | local-dev · 根目录统一研发入口 | 5174 就绪，现有会话和制品读取通过 | 根目录统一构建前后端，保留数据库和调试源码。 | local-dev |
 | dev-head | origin/dev | main | dev · 当前研发位置 | 研发主线以远端已合并提交为准 | 动态绑定实际 dev 并连接已核对的祖先，保留本地工作分支和运行来源。[当前状态](CURRENT-STATE.md) | shared-agent |
 | local-qwen-preset-deployed | 21518b4d | main | 本机 Qwen 模型预设 | PR246 定向 CI 及本机浏览器验证通过，27B 会话超时 | 35B 和 27B 使用独立地址，菜单显示短名和 Qwen 图标；27B 当前服务于 19090。[环境台账](#环境台账) | local-dev |
 | compact-composition-context | f4076615 | main | 精简工具组合说明 | PR249 定向 macOS CI 通过 | 保留两种调用形式和原授权校验，重复说明由现有系统指南和按需帮助提供。[实测与后续方案](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | shared-agent |
@@ -2023,6 +2026,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | progressive-context-dev | 薄上下文生命周期 | dev | 逐次装配和预算控制；模型级回退与业务引用续接 | macOS 专项与 5174 实测通过 |
 | exact-gateway-follow-dev | 本机研发部署来源 | fix/thin-exact-gateway-follow | 宿主续接原业务动作；压缩后保留显式空值和单次派发 | macOS 专项与 5174 实测通过 |
 | unavailable-gateway-action-dev | 本机研发部署来源 | fix/thin-unavailable-gateway-action | 明确呈现跨绑定续接缺口；保留独立调用能力 | macOS 专项与 5174 实测通过 |
+| local-dev-root-closeout | 本机研发部署来源 | dev | 根目录重新构建 API、worker、Pi 和 App；保留数据库和对象存储卷 | 5174 就绪，原会话 Word 预览通过 |
 | thin-view-window-dev | 本机研发部署来源 | fix/thin-view-window-contract | 派发前校验视图时间窗；续页使用原引用 | 5174 会话及 HTTP 联验通过 |
 | thin-recovery-context-dev | 本机研发部署来源 | fix/thin-recovery-context | 保留经宿主验证的状态；续轮无网关派发 | 两次 5174 联验通过，续轮各 3 次模型调用 |
 | thin-gateway-receipt-dev | 本机研发部署来源 | fix/thin-gateway-receipt-state | 保留原回执的执行状态；区分业务响应缺口 | macOS 专项通过，5174 已就绪 |
@@ -2461,7 +2465,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | API、worker 与 Pi `df31ddf7`，Vite App `1c05ae54` | 后端 df140ec15376，Pi f2083015e287，均就绪 | App http://127.0.0.1:5174/。双仓源码已打包，视图时间窗、原引用续页和 Word 预览通过。 |
+| local-dev | API、worker、Pi 和 App `4c93e454` | 后端 b85b7c936fcf，Pi 3316aaa7697e，均就绪 | App http://127.0.0.1:5174/。根目录 dev 构建，双仓源码、原数据库和对象存储卷均保留。 |
 | intranet-dev | 全角色源码 `4a638740` | API/worker同镜像1505ca2277ec；native0b6cf818b596；默认模型/网关与数据保留 | App http://192.168.72.63:5173/；健康、真实短任务和文件下载哈希通过；浏览器未验收。[验证](../reports/2026-11-09-intranet-development-update.md) |
 | dky3-dev | 全角色精确源码 `c051a832` | API/worker同镜像6f661c9a8ba6，native450f0fb93108，App9879cfa50ba4；四角色healthy，488/275源码摘要一致 | App http://192.168.72.66:5173/；真实普通入口34.85秒、实际国网封面和文件摘要通过；原任务结束后更新；[回执](../reports/2026-11-10-default-state-grid-template.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
