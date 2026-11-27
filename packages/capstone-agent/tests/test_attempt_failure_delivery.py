@@ -636,3 +636,18 @@ def test_failed_delivery_reports_verified_independent_file_as_partial():
     assert '1 份独立文件已保存' in result.answer
     assert terminal.payload['answer'] == result.answer
     assert result.evidence_refs == ()
+
+
+def test_child_cancellation_preserves_reason_when_parent_did_not_cancel():
+    class CancelledChild(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                      'payload': {'child_status': 'cancelled'}})
+            raise RuntimeError('native conversation did not complete')
+
+    service = _thread_service()
+    outcome = HarnessAttemptRunner(service, CancelledChild(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert outcome.status == 'failed'
+    assert terminal.payload['error_code'] == 'native_child_cancelled'
+    assert '执行器已取消本轮执行' in outcome.answer

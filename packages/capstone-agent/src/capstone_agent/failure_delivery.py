@@ -19,6 +19,7 @@ NATIVE_FAILURE_REASONS = {
     'native_transport_failed': '执行器连接中断，本轮未能正常收尾。',
     'native_executor_http_rejected': '执行器拒绝了系统请求，未能正常收尾；已停止执行并保留已有文件。',
     'native_task_deadline': '本轮达到执行时间上限。',
+    'native_child_cancelled': '执行器已取消本轮执行。现有回执未提供取消原因，已保存的文件和记录仍可查看。',
     'native_deadline_exceeded': '执行等待超过时限。',
     'native_response_too_large': '执行记录超过系统传输容量。',
     'native_event_history_limit': '执行事件数量达到系统上限。',

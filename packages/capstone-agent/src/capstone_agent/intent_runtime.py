@@ -657,7 +657,7 @@ class IntentRuntimeFactory:
         decision = IntentDecision.from_document({
             'schema': 'capstone-intent-decision/1', 'attempt_id': claim.attempt.attempt_id,
             'history_cutoff': source_document['history_cutoff'], 'relationship': 'continuation',
-            'goals': [{'goal_id': 'conversation', 'description': 'Reply to the current user input',
+            'goals': [{'goal_id': 'conversation', 'description': 'Advance the current instruction and deliver any outstanding outcome it refers to',
                 'operation': 'answer', 'message_refs': [item['message_id'] for item in request_doc['messages']],
                 'object_refs': object_refs,
                 'capability_refs': ['general-pi'], 'missing_requirements': [],
