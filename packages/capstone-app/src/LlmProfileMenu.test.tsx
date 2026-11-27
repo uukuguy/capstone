@@ -9,16 +9,25 @@ const catalog={default_profile_id:'commercial-deepseek-flash',profiles:[
   {id:'internal',label:'192.168.72.69:18804',model:'dsv4',available:true,icon:'server'},
   {id:'custom',label:'自定义模型',model:'',available:false,icon:'server'},
 ]}
-it('focuses the selected model, skips unavailable choices and returns focus on escape',()=>{
+it('focuses the selected model, includes unconfigured presets and returns focus on escape',()=>{
   render(<LlmProfileMenu catalog={catalog} value="internal" onChange={vi.fn()}/> )
   const trigger=screen.getByRole('button',{name:'后端 LLM'})
   fireEvent.click(trigger)
   expect(document.activeElement).toBe(screen.getByRole('menuitemradio',{name:/18804/}))
   fireEvent.keyDown(document.activeElement!,{key:'ArrowDown'})
-  expect(document.activeElement).toBe(screen.getByRole('menuitemradio',{name:'deepseek-flash'}))
+  const unconfigured=screen.getByRole('menuitemradio',{name:/自定义模型.*未配置/})
+  expect(document.activeElement).toBe(unconfigured)
   fireEvent.keyDown(document.activeElement!,{key:'Escape'})
   expect(screen.queryByRole('menu')).toBeNull()
   expect(document.activeElement).toBe(trigger)
+})
+it('allows selecting an unconfigured preset',()=>{
+  const onChange=vi.fn()
+  render(<LlmProfileMenu catalog={catalog} onChange={onChange}/>)
+  fireEvent.click(screen.getByRole('button',{name:'后端 LLM'}))
+  fireEvent.click(screen.getByRole('menuitemradio',{name:/自定义模型.*未配置/}))
+  expect(onChange).toHaveBeenCalledWith('custom')
+  expect(screen.queryByRole('menu')).toBeNull()
 })
 it('uses the DeepSeek brand in the trigger and option, including a cached catalog',()=>{
   render(<LlmProfileMenu catalog={{...catalog,profiles:catalog.profiles.map(p=>({...p,icon:undefined}))}} onChange={vi.fn()}/> )

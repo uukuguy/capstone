@@ -8670,3 +8670,5 @@ check passed. No CI, integration or remote deployment performed.
 - 2026-11-27 18:38 CST — 4183519a adds the opt-in local Qwen3.8-Pi preset for port 19090.
 
 - 2026-11-27 18:42 CST — 423cb0ae isolates the rebuild smoke test from workstation gateway files.
+
+- 2026-11-27 19:01 CST — 76fec45c keeps unconfigured LLM presets selectable and validates configuration before sending.

@@ -14,8 +14,8 @@ describe('typed composer input', () => {
     expect(catalog.llm_profiles?.default_profile_id).toBe('intranet')
     const draft={mode:'capstone' as const,context:{include_refs:[],exclude_refs:[]},llm_profile_id:'intranet'}
     expect(inputDraftError(draft,catalog)).toBeUndefined()
-    expect(inputDraftError({...draft,llm_profile_id:'custom'},catalog)).toContain('不可用')
-    expect(inputDraftError({...draft,llm_profile_id:'removed'},catalog)).toContain('不可用')
+    expect(inputDraftError({...draft,llm_profile_id:'custom'},catalog)).toContain('未配置')
+    expect(inputDraftError({...draft,llm_profile_id:'removed'},catalog)).toContain('已从预设目录移除')
     expect(()=>parseInputCatalog({...base,llm_profiles:{default_profile_id:'missing',profiles:[]}})).toThrow()
     expect(()=>buildInputSubmission('text',{...draft,llm_profile_id:'https://caller'})).toThrow()
   })
