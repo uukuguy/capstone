@@ -39,7 +39,19 @@ esac
 cat > "$CAPSTONE_TEST_STAGE_SCRIPT"
 exit "${CAPSTONE_TEST_STAGE_EXIT:-0}"
 SH
-chmod +x "$scratch/bin/docker" "$scratch/bin/curl" "$scratch/bin/uv"
+# Source packaging has its own verification. This test checks the rebuild
+# sequence on CI, where the local data-gateway release is absent.
+export CAPSTONE_TEST_REAL_PYTHON="$(command -v python3)"
+cat > "$scratch/bin/python3" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  */package_debug_sources.py)
+    printf '%s\n' "$*" >> "$CAPSTONE_TEST_CALLS"
+    exit 0 ;;
+esac
+exec "$CAPSTONE_TEST_REAL_PYTHON" "$@"
+SH
+chmod +x "$scratch/bin/docker" "$scratch/bin/curl" "$scratch/bin/uv" "$scratch/bin/python3"
 
 export CAPSTONE_TEST_CALLS="$scratch/calls"
 export CAPSTONE_TEST_STAGE_SCRIPT="$scratch/stage.py"
@@ -47,6 +59,7 @@ export CAPSTONE_TEST_POLICY_DIR="$scratch/policy"
 export CAPSTONE_LOCAL_ENV_FILE="$scratch/local.env"
 PATH="$scratch/bin:$PATH" "$repo_root/deploy/rebuild_local.sh" > "$scratch/output"
 
+grep -Eq 'package_debug_sources.py.*--output .*local-debug-sources' "$CAPSTONE_TEST_CALLS"
 grep -Eq -- '--env-file .* config --quiet' "$CAPSTONE_TEST_CALLS"
 grep -Eq -- '--env-file .* build api' "$CAPSTONE_TEST_CALLS"
 grep -Eq -- '--env-file .* up --no-build --force-recreate --wait -d' "$CAPSTONE_TEST_CALLS"

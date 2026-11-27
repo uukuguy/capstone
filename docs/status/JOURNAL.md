@@ -8666,3 +8666,7 @@ check passed. No CI, integration or remote deployment performed.
 - Closed 18 merged remote branches after exact-tip checks; retained the divergent PPT experiment and its worktree.
 
 - Root dev and local-dev 5174 aligned at 4c93e454; 34 merged inactive worktrees removed, with user data preserved.
+
+- 2026-11-27 18:38 CST — 4183519a adds the opt-in local Qwen3.8-Pi preset for port 19090.
+
+- 2026-11-27 18:42 CST — 423cb0ae isolates the rebuild smoke test from workstation gateway files.
