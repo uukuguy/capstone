@@ -744,5 +744,5 @@ def test_gateway_adapter_contract_change_uses_focused_gate():
         'tools/ci_scope.py',
         'tools/tests/test_ci_scope.py',
     ]
-    assert classify_changes(paths) == 'gateway-capabilities'
+    assert classify_changes(paths) == 'gateway-adapter'
     assert classify_changes(paths, target='main') == 'release'
